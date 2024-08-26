@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Optional, Type
 
-from . import fastembed, nim, openai, sentence_transformers
+from . import azureopenai, fastembed, nim, openai, sentence_transformers
 from .base import EmbeddingModel
 from .registry import EmbeddingProviderRegistry
 
@@ -65,6 +65,7 @@ _embedding_model_cache = {}
 
 register_embedding_provider(fastembed.FastEmbedEmbeddingModel)
 register_embedding_provider(openai.OpenAIEmbeddingModel)
+register_embedding_provider(azureopenai.AzureEmbeddingModel)
 register_embedding_provider(sentence_transformers.SentenceTransformerEmbeddingModel)
 register_embedding_provider(nim.NIMEmbeddingModel)
 register_embedding_provider(nim.NVIDIAAIEndpointsEmbeddingModel)
