@@ -96,7 +96,6 @@ class AzureEmbeddingModel(EmbeddingModel):
             RuntimeError: If the API call fails.
         """
         try:
-            print("Entering encode")
             response = self.client.embeddings.create(
                 model=self.embedding_model, input=documents
             )
