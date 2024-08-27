@@ -66,9 +66,8 @@ class AzureEmbeddingModel(EmbeddingModel):
         if self.embedding_model in self.MODEL_DIMENSIONS:
             return self.MODEL_DIMENSIONS[self.embedding_model]
         else:
-            raise ValueError(
-                f"Unknown model: {self.embedding_model}. Please add its dimensions to MODEL_DIMENSIONS."
-            )
+            # Perform a first encoding to get the embedding size
+            self.embedding_size = len(self.encode(["test"])[0])
 
     async def encode_async(self, documents: List[str]) -> List[List[float]]:
         """Asynchronously encode a list of documents into their corresponding embeddings.
