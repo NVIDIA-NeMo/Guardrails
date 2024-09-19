@@ -295,6 +295,8 @@ def events_to_dialog_history(events: List[InternalEvent]) -> str:
         param_value = event.arguments["parameter"]
         if param_value is not None:
             if isinstance(param_value, str):
+                # convert new lines to \n token, so that few-shot learning won't mislead LLM
+                param_value = param_value.replace("\n", "\\n")
                 intent = f'{intent} "{param_value}"'
             else:
                 intent = f"{intent} {param_value}"
