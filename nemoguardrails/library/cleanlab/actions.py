@@ -45,9 +45,10 @@ async def call_cleanlab_api(
     cleanlab_tlm = studio.TLM()
 
     if bot_response:
-        trustworthiness_score = await cleanlab_tlm.get_trustworthiness_score_async(
+        trustworthiness_result = await cleanlab_tlm.get_trustworthiness_score_async(
             user_input, response=bot_response
         )
+        trustworthiness_score = trustworthiness_result["trustworthiness_score"]
     else:
         raise ValueError(
             "Cannot compute trustworthiness score without a valid response from the LLM"
