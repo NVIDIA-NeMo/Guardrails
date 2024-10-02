@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Module for the configuration of rails."""
-
+import fnmatch
 import logging
 import os
 import warnings
@@ -28,6 +28,7 @@ from nemoguardrails.colang import parse_colang_file, parse_flow_elements
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
+from nemoguardrails.utils import get_railsignore_patterns
 
 log = logging.getLogger(__name__)
 
@@ -556,6 +557,12 @@ def _load_path(
             # Followlinks to traverse symlinks instead of ignoring them.
 
             for file in files:
+                # Verify railsignore to skip loading
+                ignored_by_railsignore = _is_file_ignored_by_railsignore(file)
+
+                if ignored_by_railsignore:
+                    continue
+
                 # This is the raw configuration that will be loaded from the file.
                 _raw_config = {}
 
@@ -1203,3 +1210,19 @@ def _generate_rails_flows(flows):
         flow_definitions.insert(1, _LIBRARY_IMPORT + _NEWLINE * 2)
 
     return flow_definitions
+
+
+def _is_file_ignored_by_railsignore(filename: str) -> bool:
+    # Default no skip
+    should_skip_file = False
+
+    # Load candidate patterns from railsignore
+    candidate_patterns = get_railsignore_patterns()
+
+    # Ignore colang, kb, python modules if specified in valid railsignore glob format
+    if filename.endswith(".py") or filename.endswith(".co") or filename.endswith(".kb"):
+        for pattern in candidate_patterns:
+            if fnmatch.fnmatch(filename, pattern):
+                should_skip_file = True
+
+    return should_skip_file

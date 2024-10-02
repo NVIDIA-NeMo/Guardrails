@@ -23,6 +23,7 @@ import uuid
 from collections import namedtuple
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import yaml
@@ -312,3 +313,52 @@ def snake_to_camelcase(name: str) -> str:
         str: The converted CamelCase string.
     """
     return "".join(n.capitalize() for n in name.split("_"))
+
+
+def get_railsignore_path() -> Path:
+    """Helper to get railsignore path.
+
+    Returns:
+         Path: The.railsignore file path.
+    """
+    current_path = Path(__file__).resolve()
+
+    # Navigate to the root directory by going up 4 levels
+    root_dir = current_path.parents[1]
+
+    file_path = root_dir / ".railsignore"
+
+    return file_path
+
+
+def get_railsignore_patterns() -> set[str]:
+    """
+    Helper to retrieve all specified patterns in railsignore.
+    Returns:
+        Set[str]: The set of filenames or glob patterns in railsignore
+    """
+    ignored_patterns = set()
+
+    railsignore_path = get_railsignore_path()
+
+    # File doesn't exist or is empty
+    if not railsignore_path.exists() or not os.path.getsize(railsignore_path):
+        return ignored_patterns
+
+    try:
+        with open(railsignore_path, "r") as f:
+            railsignore_entries = f.readlines()
+
+        # Remove comments and empty lines, and strip out any extra spaces/newlines
+        railsignore_entries = [
+            line.strip()
+            for line in railsignore_entries
+            if line.strip() and not line.startswith("#")
+        ]
+
+        ignored_patterns.update(railsignore_entries)
+        return ignored_patterns
+
+    except FileNotFoundError:
+        print(f"No {railsignore_path} found in the current directory.")
+        return ignored_patterns
