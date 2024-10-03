@@ -1213,16 +1213,13 @@ def _generate_rails_flows(flows):
 
 
 def _is_file_ignored_by_railsignore(filename: str) -> bool:
-    # Default no skip
-    should_skip_file = False
+    ignore = False
 
     # Load candidate patterns from railsignore
     candidate_patterns = get_railsignore_patterns()
 
-    # Ignore colang, kb, python modules if specified in valid railsignore glob format
-    if filename.endswith(".py") or filename.endswith(".co") or filename.endswith(".kb"):
-        for pattern in candidate_patterns:
-            if fnmatch.fnmatch(filename, pattern):
-                should_skip_file = True
+    for pattern in candidate_patterns:
+        if fnmatch.fnmatch(filename, pattern):
+            ignore = True
 
-    return should_skip_file
+    return ignore
