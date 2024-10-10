@@ -15,7 +15,8 @@
 
 import json
 
-from nemoguardrails.tracing import InteractionLog, InteractionLogAdapter
+from nemoguardrails.tracing import InteractionLog
+from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 
 class JsonAdapter(InteractionLogAdapter):

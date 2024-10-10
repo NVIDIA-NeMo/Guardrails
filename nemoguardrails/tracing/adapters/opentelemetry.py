@@ -19,7 +19,8 @@ from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace import SpanKind
 
-from nemoguardrails.tracing import InteractionLog, InteractionLogAdapter
+from nemoguardrails.tracing import InteractionLog
+from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 
 class OpenTelemetryAdapter(InteractionLogAdapter):
@@ -29,6 +30,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         span_processor=None,
         exporter=None,
         resource_attributes=None,
+        **kwargs,
     ):
         resource_attributes = resource_attributes or {}
         resource = Resource.create(

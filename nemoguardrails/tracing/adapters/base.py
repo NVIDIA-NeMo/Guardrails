@@ -13,4 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tracer import InteractionLog, Tracer
+from abc import ABC, abstractmethod
+
+from nemoguardrails.eval.models import InteractionLog
+
+
+class InteractionLogAdapter(ABC):
+    @abstractmethod
+    def transform(self, interaction_log: InteractionLog):
+        """Transforms the InteractionLog into the backend-specific format."""
+        pass
