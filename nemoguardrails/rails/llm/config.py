@@ -21,7 +21,7 @@ import warnings
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import yaml
-from pydantic import BaseModel, ValidationError, root_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, root_validator
 from pydantic.fields import Field
 
 from nemoguardrails import utils
@@ -182,6 +182,20 @@ class TaskPrompt(BaseModel):
             )
 
         return values
+
+
+class AdapterConfig(BaseModel):
+    name: str = Field(description="The name of the adapter.")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class TracingConfig(BaseModel):
+    enabled: bool = False
+    adapters: Optional[List[AdapterConfig]] = Field(
+        default=None,
+        description="The list of tracing adapters to use. If not specified, the default adapters are used.",
+    )
 
 
 class EmbeddingsCacheConfig(BaseModel):
@@ -504,6 +518,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "passthrough",
         "raw_llm_call_action",
         "enable_rails_exceptions",
+        "tracing",
     ]
 
     for field in additional_fields:
@@ -847,6 +862,11 @@ class RailsConfig(BaseModel):
         default=None,
         description="Weather the original prompt should pass through the guardrails configuration as is. "
         "This means it will not be altered in any way. ",
+    )
+
+    tracing: TracingConfig = Field(
+        default_factory=TracingConfig,
+        description="Configuration for tracing.",
     )
 
     @root_validator(pre=True, allow_reuse=True)
