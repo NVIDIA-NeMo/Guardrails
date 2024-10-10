@@ -14,27 +14,27 @@
 # limitations under the License.
 
 import uuid
-from abc import ABC, abstractmethod
 from typing import Optional
 
 from nemoguardrails.eval.eval import _extract_interaction_log
 from nemoguardrails.eval.models import InteractionLog, InteractionOutput
+from nemoguardrails.rails.llm.config import TracingConfig
 from nemoguardrails.rails.llm.options import GenerationLog, GenerationResponse
+from nemoguardrails.tracing.adapters import adapter_factory
+from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 
 def new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-class InteractionLogAdapter(ABC):
-    @abstractmethod
-    def transform(self, interaction_log: InteractionLog):
-        """Transforms the InteractionLog into the backend-specific format."""
-        pass
-
-
 class Tracer:
-    def __init__(self, input, response: GenerationResponse):
+    def __init__(
+        self,
+        input,
+        response: GenerationResponse,
+        config: Optional[TracingConfig] = None,
+    ):
         self._interaction_output = InteractionOutput(
             id=new_uuid(), input=input[-1]["content"], output=response.response
         )
@@ -42,6 +42,14 @@ class Tracer:
         self.adapters = []
         if self._generation_log is None:
             raise RuntimeError("Generation log is missing.")
+
+        if config:
+            self._config = config
+
+            if config.enabled:
+                adapter_configs = config.adapters
+                if adapter_configs:
+                    self.adapters = adapter_factory(adapter_configs)
 
     def generate_interaction_log(
         self,
