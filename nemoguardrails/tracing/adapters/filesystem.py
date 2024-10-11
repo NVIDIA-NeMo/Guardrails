@@ -14,18 +14,25 @@
 # limitations under the License.
 
 import json
+import os
+from typing import Optional
 
 from nemoguardrails.tracing import InteractionLog
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 
-class JsonAdapter(InteractionLogAdapter):
+class FileSystemAdapter(InteractionLogAdapter):
+    def __init__(self, filepath: Optional[str] = None):
+        if filepath is None:
+            self.filepath = "./.traces/trace.json"
+        else:
+            self.filepath = os.path.abspath(filepath)
+            os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+
     def transform(self, interaction_log: InteractionLog):
         """Transforms the InteractionLog into a JSON string."""
         spans = []
 
-        print("we are here")
-        print(interaction_log.trace)
         for span_data in interaction_log.trace:
             span_dict = {
                 "name": span_data.name,
@@ -44,5 +51,5 @@ class JsonAdapter(InteractionLogAdapter):
             "spans": spans,
         }
 
-        with open("log.json", "w") as f:
-            f.write(json.dumps(log_dict, indent=2))
+        with open(self.filepath, "a") as f:
+            f.write(json.dumps(log_dict, indent=2) + "\n")
