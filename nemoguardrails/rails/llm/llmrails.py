@@ -789,6 +789,19 @@ class LLMRails:
             # print("Closing the stream handler explicitly")
             await streaming_handler.push_chunk(None)
 
+        # IF tracing is enabled we need to set GenerationLog attrs
+        if self.config.tracing.enabled:
+            if options is None:
+                options = GenerationOptions()
+            if (
+                not options.log.activated_rails
+                or not options.log.llm_calls
+                or not options.log.internal_events
+            ):
+                options.log.activated_rails = True
+                options.log.llm_calls = True
+                options.log.internal_events = True
+
         # If we have generation options, we prepare a GenerationResponse instance.
         if options:
             # If a prompt was used, we only need to return the content of the message.
@@ -881,6 +894,15 @@ class LLMRails:
             if state is not None:
                 res.state = output_state
 
+            if self.config.tracing.enabled:
+                # TODO: move it to the top once resolved circular dependency of eval
+                # lazy import to avoid circular dependency
+                from nemoguardrails.tracing import Tracer
+
+                tracer = Tracer(
+                    input=messages, response=res, config=self.config.tracing
+                )
+                tracer.export()
             return res
         else:
             # If a prompt is used, we only return the content of the message.
