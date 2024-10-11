@@ -29,10 +29,11 @@ def adapter_factory(
             config = AdapterConfig(**config)
         adapter_name = config.name
         module_name = f"nemoguardrails.tracing.adapters.{adapter_name.lower()}"  # Ensure full module path
-        print(module_name)
         class_name = adapter_name + "Adapter"
         module = importlib.import_module(module_name)
         adapter_class = getattr(module, class_name)
+        # pop the name from the config, as the adapter class does not need it
+        del config.name
         adapter_instance = adapter_class(**config.model_dump())
         adapters.append(adapter_instance)
     return adapters
