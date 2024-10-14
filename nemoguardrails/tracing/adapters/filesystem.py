@@ -24,7 +24,7 @@ from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 class FileSystemAdapter(InteractionLogAdapter):
     def __init__(self, filepath: Optional[str] = None):
         if filepath is None:
-            self.filepath = "./.traces/trace.json"
+            self.filepath = "./.traces/trace.jsonl"
         else:
             self.filepath = os.path.abspath(filepath)
             os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
