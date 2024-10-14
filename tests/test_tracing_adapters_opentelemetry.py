@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -189,3 +190,47 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             self.adapter.transform(interaction_log)
 
         self.assertIn("Exporter failure", str(context.exception))
+
+    def test_transform_async(self):
+        async def run_test():
+            interaction_log = InteractionLog(
+                id="test_id",
+                activated_rails=[],
+                events=[],
+                trace=[
+                    Span(
+                        name="test_span",
+                        span_id="span_1",
+                        parent_id=None,
+                        start_time=0.0,
+                        end_time=1.0,
+                        duration=1.0,
+                        metrics={"key": 123},
+                    )
+                ],
+            )
+
+            await self.adapter.transform_async(interaction_log)
+
+            self.mock_tracer.start_as_current_span.assert_called_once_with(
+                name="test_span",
+                context=None,
+                kind=SpanKind.INTERNAL,
+                start_time=int(0.0 * 1e9),
+            )
+
+            # We retrieve the mock span instance here
+            span_instance = (
+                self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
+            )
+
+            span_instance.set_attribute.assert_any_call("key", 123)
+            span_instance.set_attribute.assert_any_call("span_id", "span_1")
+            span_instance.set_attribute.assert_any_call("trace_id", "test_id")
+            span_instance.set_attribute.assert_any_call("start_time", 0.0)
+            span_instance.set_attribute.assert_any_call("end_time", 1.0)
+            span_instance.set_attribute.assert_any_call("duration", 1.0)
+
+            span_instance.end.assert_called_once_with(end_time=int(1.0 * 1e9))
+
+        asyncio.run(run_test())
