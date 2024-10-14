@@ -13,23 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+from __future__ import annotations
+
 import json
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from nemoguardrails.tracing import InteractionLog
+if TYPE_CHECKING:
+    from nemoguardrails.tracing import InteractionLog
+
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 
 class FileSystemAdapter(InteractionLogAdapter):
+    name = "FileSystem"
+
     def __init__(self, filepath: Optional[str] = None):
-        if filepath is None:
+        if not filepath:
             self.filepath = "./.traces/trace.jsonl"
         else:
             self.filepath = os.path.abspath(filepath)
-            os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+        os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
 
-    def transform(self, interaction_log: InteractionLog):
+    def transform(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into a JSON string."""
         spans = []
 
@@ -53,3 +60,34 @@ class FileSystemAdapter(InteractionLogAdapter):
 
         with open(self.filepath, "a") as f:
             f.write(json.dumps(log_dict, indent=2) + "\n")
+
+    async def transform_async(self, interaction_log: "InteractionLog"):
+        try:
+            import aiofiles
+        except ImportError:
+            raise ImportError(
+                "aiofiles is required for async file writing. Please install it using `pip install aiofiles"
+            )
+
+        spans = []
+
+        for span_data in interaction_log.trace:
+            span_dict = {
+                "name": span_data.name,
+                "span_id": span_data.span_id,
+                "parent_id": span_data.parent_id,
+                "trace_id": interaction_log.id,
+                "start_time": span_data.start_time,
+                "end_time": span_data.end_time,
+                "duration": span_data.duration,
+                "metrics": span_data.metrics,
+            }
+            spans.append(span_dict)
+
+        log_dict = {
+            "trace_id": interaction_log.id,
+            "spans": spans,
+        }
+
+        async with aiofiles.open(self.filepath, "a") as f:
+            await f.write(json.dumps(log_dict, indent=2) + "\n")

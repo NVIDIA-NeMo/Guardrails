@@ -14,11 +14,14 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from nemoguardrails.eval.models import InteractionLog
 
 
 class InteractionLogAdapter(ABC):
+    name: Optional[str] = None
+
     @abstractmethod
     def transform(self, interaction_log: InteractionLog):
         """Transforms the InteractionLog into the backend-specific format."""
@@ -28,3 +31,15 @@ class InteractionLogAdapter(ABC):
     async def transform_async(self, interaction_log: InteractionLog):
         """Transforms the InteractionLog into the backend-specific format asynchronously."""
         raise NotImplementedError
+
+    async def close(self):
+        """Placeholder for any cleanup actions if needed."""
+        pass
+
+    async def __aenter__(self):
+        """Enter the runtime context related to this object."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """Exit the runtime context related to this object."""
+        await self.close()
