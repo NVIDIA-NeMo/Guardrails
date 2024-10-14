@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import uuid
 from typing import Optional
 
@@ -75,3 +76,9 @@ class Tracer:
         interaction_log = self.generate_interaction_log()
         for adapter in self.adapters:
             adapter.transform(interaction_log)
+
+    async def export_async(self):
+        """Exports the interaction log using the configured adapters."""
+        interaction_log = self.generate_interaction_log()
+        tasks = [adapter.transform_async(interaction_log) for adapter in self.adapters]
+        await asyncio.gather(*tasks)

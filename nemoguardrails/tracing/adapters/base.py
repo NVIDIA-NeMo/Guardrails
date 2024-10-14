@@ -23,3 +23,8 @@ class InteractionLogAdapter(ABC):
     def transform(self, interaction_log: InteractionLog):
         """Transforms the InteractionLog into the backend-specific format."""
         pass
+
+    @abstractmethod
+    async def transform_async(self, interaction_log: InteractionLog):
+        """Transforms the InteractionLog into the backend-specific format asynchronously."""
+        raise NotImplementedError
