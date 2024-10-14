@@ -16,17 +16,17 @@
 import importlib
 from typing import Dict, List
 
-from nemoguardrails.rails.llm.config import AdapterConfig
+from nemoguardrails.rails.llm.config import LogAdapterConfig
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
 
 def adapter_factory(
-    adapter_configs: List[Dict] | List[AdapterConfig],
+    adapter_configs: List[Dict] | List[LogAdapterConfig],
 ) -> List[InteractionLogAdapter]:
     adapters = []
     for config in adapter_configs:
-        if not isinstance(config, AdapterConfig):
-            config = AdapterConfig(**config)
+        if not isinstance(config, LogAdapterConfig):
+            config = LogAdapterConfig(**config)
         adapter_name = config.name
         module_name = f"nemoguardrails.tracing.adapters.{adapter_name.lower()}"  # Ensure full module path
         class_name = adapter_name + "Adapter"
