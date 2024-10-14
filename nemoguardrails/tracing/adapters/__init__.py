@@ -15,10 +15,16 @@
 
 
 from .filesystem import FileSystemAdapter
-from .opentelemetry import OpenTelemetryAdapter
 from .registry import register_log_adapter
 
 register_log_adapter(FileSystemAdapter, "FileSystem")
-register_log_adapter(OpenTelemetryAdapter, "OpenTelemetry")
+
+try:
+    from .opentelemetry import OpenTelemetryAdapter
+
+    register_log_adapter(OpenTelemetryAdapter, "OpenTelemetry")
+
+except ImportError:
+    pass
 
 # __all__ = ["InteractionLogAdapter", "LogAdapterRegistry"]
