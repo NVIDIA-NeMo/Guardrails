@@ -13,4 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .adapter_factory import adapter_factory
+
+from .filesystem import FileSystemAdapter
+from .opentelemetry import OpenTelemetryAdapter
+from .registry import register_log_adapter
+
+register_log_adapter(FileSystemAdapter, "FileSystem")
+register_log_adapter(OpenTelemetryAdapter, "OpenTelemetry")
+
+# __all__ = ["InteractionLogAdapter", "LogAdapterRegistry"]
