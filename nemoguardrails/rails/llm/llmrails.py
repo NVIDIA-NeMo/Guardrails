@@ -112,6 +112,12 @@ class LLMRails:
         # Weather the main LLM supports streaming
         self.main_llm_supports_streaming = False
 
+        # InteractionLogAdapters used for tracing
+        if config.tracing:
+            from nemoguardrails.tracing import create_log_adapters
+
+            self._log_adapters = create_log_adapters(config.tracing)
+
         # We also load the default flows from the `default_flows.yml` file in the current folder.
         # But only for version 1.0.
         # TODO: decide on the default flows for 2.x.
@@ -899,10 +905,11 @@ class LLMRails:
                 # lazy import to avoid circular dependency
                 from nemoguardrails.tracing import Tracer
 
+                # Create a Tracer instance with instantiated adapters
                 tracer = Tracer(
-                    input=messages, response=res, config=self.config.tracing
+                    input=messages, response=res, adapters=self._log_adapters
                 )
-                tracer.export()
+                await tracer.export_async()
             return res
         else:
             # If a prompt is used, we only return the content of the message.
