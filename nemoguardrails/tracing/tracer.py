@@ -15,14 +15,15 @@
 
 import asyncio
 import uuid
-from typing import Optional
+from contextlib import AsyncExitStack
+from typing import List, Optional
 
 from nemoguardrails.eval.eval import _extract_interaction_log
 from nemoguardrails.eval.models import InteractionLog, InteractionOutput
 from nemoguardrails.rails.llm.config import TracingConfig
 from nemoguardrails.rails.llm.options import GenerationLog, GenerationResponse
-from nemoguardrails.tracing.adapters import adapter_factory
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
+from nemoguardrails.tracing.adapters.registry import LogAdapterRegistry
 
 
 def new_uuid() -> str:
@@ -34,7 +35,7 @@ class Tracer:
         self,
         input,
         response: GenerationResponse,
-        config: Optional[TracingConfig] = None,
+        adapters: Optional[List[InteractionLogAdapter]] = None,
     ):
         self._interaction_output = InteractionOutput(
             id=new_uuid(), input=input[-1]["content"], output=response.response
@@ -44,13 +45,7 @@ class Tracer:
         if self._generation_log is None:
             raise RuntimeError("Generation log is missing.")
 
-        if config:
-            self._config = config
-
-            if config.enabled:
-                adapter_configs = config.adapters
-                if adapter_configs:
-                    self.adapters = adapter_factory(adapter_configs)
+        self.adapters = adapters or []
 
     def generate_interaction_log(
         self,
@@ -80,5 +75,27 @@ class Tracer:
     async def export_async(self):
         """Exports the interaction log using the configured adapters."""
         interaction_log = self.generate_interaction_log()
-        tasks = [adapter.transform_async(interaction_log) for adapter in self.adapters]
-        await asyncio.gather(*tasks)
+
+        async with AsyncExitStack() as stack:
+            for adapter in self.adapters:
+                await stack.enter_async_context(adapter)
+
+            # Transform the interaction logs asynchronously with use of all adapters
+            tasks = [
+                adapter.transform_async(interaction_log) for adapter in self.adapters
+            ]
+            await asyncio.gather(*tasks)
+
+
+def create_log_adapters(config: TracingConfig) -> List[InteractionLogAdapter]:
+    adapters = []
+    if config.enabled:
+        adapter_configs = config.adapters
+        if adapter_configs:
+            for adapter_config in adapter_configs:
+                log_adapter_cls = LogAdapterRegistry().get(adapter_config.name)
+                log_adapter_args = adapter_config.model_dump()
+                log_adapter_args.pop("name", None)
+                log_adapter = log_adapter_cls(**log_adapter_args)
+                adapters.append(log_adapter)
+    return adapters
