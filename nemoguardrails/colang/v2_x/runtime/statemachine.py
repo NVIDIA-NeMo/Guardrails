@@ -2422,5 +2422,7 @@ def _is_child_activated_flow(state: State, flow_state: FlowState) -> bool:
     return (
         flow_state.activated > 0
         and flow_state.parent_uid is not None
+        and flow_state.parent_uid
+        in state.flow_states  # TODO: Figure out why this can fail sometimes
         and flow_state.flow_id == state.flow_states[flow_state.parent_uid].flow_id
     )
