@@ -114,7 +114,11 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         )
 
         log.info("Invocation Params :: %s", kwargs.get("invocation_params", {}))
-        log.info("Prompt Messages :: %s", prompt, extra={"id": llm_call_info.id})
+        log.info(
+            "Prompt Messages :: %s",
+            prompt,
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
+        )
         llm_call_info.prompt = prompt
         llm_call_info.started_at = time()
 
@@ -156,7 +160,7 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         log.info(
             "Completion :: %s",
             response.generations[0][0].text,
-            extra={"id": llm_call_info.id},
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
         )
 
         llm_stats = llm_stats_var.get()
@@ -169,7 +173,9 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
             for i, generation in enumerate(response.generations[0][1:]):
                 log.info("--- :: Completion %d", i + 2)
                 log.info(
-                    "Completion :: %s", generation.text, extra={"id": llm_call_info.id}
+                    "Completion :: %s",
+                    generation.text,
+                    extra={"id": llm_call_info.id, "task": llm_call_info.task},
                 )
 
         log.info("Output Stats :: %s", response.llm_output)

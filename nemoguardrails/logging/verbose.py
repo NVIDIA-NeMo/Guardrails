@@ -66,7 +66,9 @@ class VerboseHandler(logging.StreamHandler):
                 if verbose_llm_calls:
                     skip_print = True
                     console.print("")
-                    console.print(f"[cyan]LLM Prompt ({record.id[:5]}..)[/]")
+                    console.print(
+                        f"[cyan]LLM Prompt ({record.id[:5]}..) - {record.task}[/]"
+                    )
 
                     for line in body.split("\n"):
                         if line.strip() == "[/]":
