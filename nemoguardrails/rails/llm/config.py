@@ -185,15 +185,14 @@ class TaskPrompt(BaseModel):
 
 
 class LogAdapterConfig(BaseModel):
-    name: str = Field(description="The name of the adapter.")
-
+    name: str = Field(default="FileSystem", description="The name of the adapter.")
     model_config = ConfigDict(extra="allow")
 
 
 class TracingConfig(BaseModel):
     enabled: bool = False
-    adapters: Optional[List[LogAdapterConfig]] = Field(
-        default=None,
+    adapters: List[LogAdapterConfig] = Field(
+        default_factory=lambda: [LogAdapterConfig()],
         description="The list of tracing adapters to use. If not specified, the default adapters are used.",
     )
 
