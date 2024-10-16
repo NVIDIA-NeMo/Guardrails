@@ -910,6 +910,7 @@ class LLMRails:
                     input=messages, response=res, adapters=self._log_adapters
                 )
                 await tracer.export_async()
+                res = res.response[0]
             return res
         else:
             # If a prompt is used, we only return the content of the message.
