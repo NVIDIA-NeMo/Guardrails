@@ -25,9 +25,14 @@ if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 try:
     from opentelemetry import trace
-    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.resources import Attributes, Resource
+    from opentelemetry.sdk.trace import SpanProcessor
     from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+        ConsoleSpanExporter,
+        SpanExporter,
+    )
     from opentelemetry.trace import SpanKind
 
 except ImportError:
@@ -44,10 +49,9 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
     def __init__(
         self,
         service_name="nemo_guardrails_service",
-        span_processor=None,
-        exporter_name: Optional[str] = None,
-        exporter=None,
-        resource_attributes=None,
+        span_processor: Optional[SpanProcessor] = None,
+        exporter: Optional[SpanExporter | str] = None,
+        resource_attributes: Optional[Attributes] = None,
         **kwargs,
     ):
         resource_attributes = resource_attributes or {}
@@ -59,9 +63,9 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         provider = SDKTracerProvider(resource=resource)
 
         # Init the span processor and exporter
-        if exporter_name:
-            exporter = self.get_exporter(exporter_name)
-        if exporter is None:
+        if isinstance(exporter, str):
+            exporter = self.get_exporter(exporter)
+        elif exporter is None:
             exporter = ConsoleSpanExporter()
         if span_processor is None:
             span_processor = BatchSpanProcessor(exporter)
@@ -115,6 +119,9 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
             # Copy the current context to propagate it to the thread
             ctx = copy_context()
 
+            # Reinitialize the executor if it has been shut down
+            self._reinitialize_executor()
+
             tasks.append(
                 loop.run_in_executor(
                     self.executor,
@@ -134,7 +141,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
     def _create_span(
         self, span_data, parent_context, start_time_ns, end_time_ns, spans, trace_id
     ):
-        with self.spans_lock:  # Ensure thread-safe access to spans
+        with self.spans_lock:
             with self.tracer.start_as_current_span(
                 name=span_data.name,
                 context=parent_context,
@@ -159,12 +166,26 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         """Shuts down the ThreadPoolExecutor to free resources."""
         self.executor.shutdown(wait=True)
 
+    def _reinitialize_executor(self):
+        """Reinitialize the ThreadPoolExecutor if it has been shut down."""
+        if self.executor._shutdown:
+            self.executor = ThreadPoolExecutor()
+
     @staticmethod
     def get_exporter(exporter_name: str):
         exporter_name_cls_map = {
             "console": ConsoleSpanExporter,
-            "zipkin": None,
         }
+
+        if exporter_name == "zipkin":
+            try:
+                from opentelemetry.exporter.zipkin.json import ZipkinSpanExporter
+
+                exporter_name_cls_map["zipkin"] = ZipkinSpanExporter
+            except ImportError:
+                raise ImportError(
+                    "The opentelemetry-exporter-zipkin package is not installed. Please install it using 'pip install opentelemetry-exporter-zipkin'."
+                )
 
         exporter_cls = exporter_name_cls_map.get(exporter_name)
         if not exporter_cls:
