@@ -1,4 +1,4 @@
-# These are the default prompts released by Meta, with the exception of policy O7, which was added to address direct insults.
+# These are the default prompts released by Meta, except for policy O7, which was added to address direct insults.
 prompts:
   - task: content_safety_check_input $model=llama_guard
     content: |
@@ -136,7 +136,7 @@ prompts:
   - task: content_safety_check_output $model=shieldgemma
     content: |
       You are a policy expert trying to help determine whether a chatbot response to the user is in
-      violdation of the defined safety policies:
+      violation of the defined safety policies:
 
       <start_of_turn>
       Human Question: {{ user_input }}
