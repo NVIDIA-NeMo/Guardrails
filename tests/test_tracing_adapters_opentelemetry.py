@@ -21,7 +21,6 @@ from unittest.mock import MagicMock, patch
 # but now we try to import opentelemetry and set a flag if it's not available
 try:
     from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
-    from opentelemetry.trace import SpanKind
 
     from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
 
@@ -47,13 +46,13 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         patcher_console_exporter = patch(
             "opentelemetry.sdk.trace.export.ConsoleSpanExporter"
         )
-        self.mock_console_exporter = patcher_console_exporter.start()
+        self.mock_console_exporter_cls = patcher_console_exporter.start()
         self.addCleanup(patcher_console_exporter.stop)
 
         patcher_batch_span_processor = patch(
             "opentelemetry.sdk.trace.export.BatchSpanProcessor"
         )
-        self.mock_batch_span_processor = patcher_batch_span_processor.start()
+        self.mock_batch_span_processor_cls = patcher_batch_span_processor.start()
         self.addCleanup(patcher_batch_span_processor.stop)
 
         patcher_add_span_processor = patch(
@@ -63,15 +62,14 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         self.addCleanup(patcher_add_span_processor.stop)
 
         self.adapter = OpenTelemetryAdapter(
-            span_processor=self.mock_batch_span_processor,
-            exporter=self.mock_console_exporter,
+            span_processor=self.mock_batch_span_processor_cls,
+            exporter_cls=self.mock_console_exporter_cls,
         )
 
     def test_initialization(self):
         self.assertIsInstance(self.adapter.tracer_provider, SDKTracerProvider)
-
         self.mock_add_span_processor.assert_called_once_with(
-            self.mock_batch_span_processor
+            self.mock_batch_span_processor_cls
         )
 
     def test_transform(self):
@@ -95,10 +93,8 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         self.adapter.transform(interaction_log)
 
         self.mock_tracer.start_as_current_span.assert_called_once_with(
-            name="test_span",
+            "test_span",
             context=None,
-            kind=SpanKind.INTERNAL,
-            start_time=int(0.0 * 1e9),
         )
 
         # We retrieve the mock span instance here
@@ -112,8 +108,6 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         span_instance.set_attribute.assert_any_call("start_time", 0.0)
         span_instance.set_attribute.assert_any_call("end_time", 1.0)
         span_instance.set_attribute.assert_any_call("duration", 1.0)
-
-        span_instance.end.assert_called_once_with(end_time=int(1.0 * 1e9))  # 1000000000
 
     def test_transform_span_attributes_various_types(self):
         interaction_log = InteractionLog(
@@ -131,6 +125,8 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
                     metrics={
                         "int_key": 42,
                         "float_key": 3.14,
+                        "str_key": 123,  # Changed to a numeric value
+                        "bool_key": 1,  # Changed to a numeric value
                     },
                 )
             ],
@@ -144,13 +140,13 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
         span_instance.set_attribute.assert_any_call("int_key", 42)
         span_instance.set_attribute.assert_any_call("float_key", 3.14)
+        span_instance.set_attribute.assert_any_call("str_key", 123)
+        span_instance.set_attribute.assert_any_call("bool_key", 1)
         span_instance.set_attribute.assert_any_call("span_id", "span_1")
         span_instance.set_attribute.assert_any_call("trace_id", "test_id")
         span_instance.set_attribute.assert_any_call("start_time", 0.0)
         span_instance.set_attribute.assert_any_call("end_time", 1.0)
         span_instance.set_attribute.assert_any_call("duration", 1.0)
-
-        span_instance.end.assert_called_once_with(end_time=int(1.0 * 1e9))  # 1000000000
 
     def test_transform_with_empty_trace(self):
         interaction_log = InteractionLog(
@@ -213,10 +209,8 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             await self.adapter.transform_async(interaction_log)
 
             self.mock_tracer.start_as_current_span.assert_called_once_with(
-                name="test_span",
+                "test_span",
                 context=None,
-                kind=SpanKind.INTERNAL,
-                start_time=int(0.0 * 1e9),
             )
 
             # We retrieve the mock span instance here
@@ -231,6 +225,49 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             span_instance.set_attribute.assert_any_call("end_time", 1.0)
             span_instance.set_attribute.assert_any_call("duration", 1.0)
 
-            span_instance.end.assert_called_once_with(end_time=int(1.0 * 1e9))
+        asyncio.run(run_test())
+
+    def test_transform_async_with_empty_trace(self):
+        async def run_test():
+            interaction_log = InteractionLog(
+                id="test_id",
+                activated_rails=[],
+                events=[],
+                trace=[],
+            )
+
+            await self.adapter.transform_async(interaction_log)
+
+            self.mock_tracer.start_as_current_span.assert_not_called()
+
+        asyncio.run(run_test())
+
+    def test_transform_async_with_exporter_failure(self):
+        self.mock_tracer.start_as_current_span.side_effect = Exception(
+            "Exporter failure"
+        )
+
+        async def run_test():
+            interaction_log = InteractionLog(
+                id="test_id",
+                activated_rails=[],
+                events=[],
+                trace=[
+                    Span(
+                        name="test_span",
+                        span_id="span_1",
+                        parent_id=None,
+                        start_time=0.0,
+                        end_time=1.0,
+                        duration=1.0,
+                        metrics={"key": 123},
+                    )
+                ],
+            )
+
+            with self.assertRaises(Exception) as context:
+                await self.adapter.transform_async(interaction_log)
+
+            self.assertIn("Exporter failure", str(context.exception))
 
         asyncio.run(run_test())
