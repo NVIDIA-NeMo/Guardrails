@@ -15,25 +15,17 @@
 
 from __future__ import annotations
 
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from contextvars import copy_context
-from threading import Lock
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Dict, Optional, Type
+
+from opentelemetry.sdk.trace.export import SpanExporter
 
 if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 try:
     from opentelemetry import trace
     from opentelemetry.sdk.resources import Attributes, Resource
-    from opentelemetry.sdk.trace import SpanProcessor
-    from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
-    from opentelemetry.sdk.trace.export import (
-        BatchSpanProcessor,
-        ConsoleSpanExporter,
-        SpanExporter,
-    )
-    from opentelemetry.trace import SpanKind
+    from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 except ImportError:
     raise ImportError(
@@ -50,7 +42,8 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         self,
         service_name="nemo_guardrails_service",
         span_processor: Optional[SpanProcessor] = None,
-        exporter: Optional[SpanExporter | str] = None,
+        exporter: Optional[str] = None,
+        exporter_cls: Optional[SpanExporter] = None,
         resource_attributes: Optional[Attributes] = None,
         **kwargs,
     ):
@@ -59,25 +52,29 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
             {"service.name": service_name, **resource_attributes}
         )
 
+        if exporter_cls and exporter:
+            raise ValueError(
+                "Only one of 'exporter' or 'exporter_name' should be provided"
+            )
         # Set up the tracer provider
-        provider = SDKTracerProvider(resource=resource)
+        provider = TracerProvider(resource=resource)
 
         # Init the span processor and exporter
-        if isinstance(exporter, str):
-            exporter = self.get_exporter(exporter)
-        elif exporter is None:
-            exporter = ConsoleSpanExporter()
+        exporter_cls = None
+        if exporter:
+            exporter_cls = self.get_exporter(exporter, **kwargs)
+
+        if exporter_cls is None:
+            exporter_cls = ConsoleSpanExporter()
+
         if span_processor is None:
-            span_processor = BatchSpanProcessor(exporter)
+            span_processor = BatchSpanProcessor(exporter_cls)
 
         provider.add_span_processor(span_processor)
         trace.set_tracer_provider(provider)
 
         self.tracer_provider = provider
         self.tracer = trace.get_tracer(__name__)
-        # Add a lock for threadsafe access of spans
-        self.spans_lock = Lock()
-        self.executor = ThreadPoolExecutor()
 
     def transform(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into OpenTelemetry spans."""
@@ -89,15 +86,9 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
                 trace.set_span_in_context(parent_span) if parent_span else None
             )
 
-            # Convert time to nanoseconds
-            start_time_ns = int(span_data.start_time * 1e9)
-            end_time_ns = int(span_data.end_time * 1e9)
-
             self._create_span(
                 span_data,
                 parent_context,
-                start_time_ns,
-                end_time_ns,
                 spans,
                 interaction_log.id,  # trace_id
             )
@@ -105,89 +96,57 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
     async def transform_async(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into OpenTelemetry spans asynchronously."""
         spans = {}
-        tasks = []
-        loop = asyncio.get_running_loop()
-
         for span_data in interaction_log.trace:
             parent_span = spans.get(span_data.parent_id)
             parent_context = (
                 trace.set_span_in_context(parent_span) if parent_span else None
             )
-            start_time_ns = int(span_data.start_time * 1e9)
-            end_time_ns = int(span_data.end_time * 1e9)
-
-            # Copy the current context to propagate it to the thread
-            ctx = copy_context()
-
-            # Reinitialize the executor if it has been shut down
-            self._reinitialize_executor()
-
-            tasks.append(
-                loop.run_in_executor(
-                    self.executor,
-                    ctx.run,  # Ensure context propagation
-                    self._create_span,
-                    span_data,
-                    parent_context,
-                    start_time_ns,
-                    end_time_ns,
-                    spans,
-                    interaction_log.id,
-                )
+            self._create_span(
+                span_data,
+                parent_context,
+                spans,
+                interaction_log.id,  # trace_id
             )
 
-        await asyncio.gather(*tasks)
-
     def _create_span(
-        self, span_data, parent_context, start_time_ns, end_time_ns, spans, trace_id
+        self,
+        span_data,
+        parent_context,
+        spans,
+        trace_id,
     ):
-        with self.spans_lock:
-            with self.tracer.start_as_current_span(
-                name=span_data.name,
-                context=parent_context,
-                kind=SpanKind.INTERNAL,
-                start_time=start_time_ns,
-            ) as span:
-                for key, value in span_data.metrics.items():
-                    span.set_attribute(key, value)
+        with self.tracer.start_as_current_span(
+            span_data.name,
+            context=parent_context,
+        ) as span:
+            for key, value in span_data.metrics.items():
+                span.set_attribute(key, value)
 
-                span.set_attribute("span_id", span_data.span_id)
-                span.set_attribute("trace_id", trace_id)
-                span.set_attribute("start_time", span_data.start_time)
-                span.set_attribute("end_time", span_data.end_time)
-                span.set_attribute("duration", span_data.duration)
+            span.set_attribute("span_id", span_data.span_id)
+            span.set_attribute("trace_id", trace_id)
+            span.set_attribute("start_time", span_data.start_time)
+            span.set_attribute("end_time", span_data.end_time)
+            span.set_attribute("duration", span_data.duration)
 
-                spans[span_data.span_id] = span
-
-                # End the span at the correct time
-                span.end(end_time=end_time_ns)
-
-    async def close(self):
-        """Shuts down the ThreadPoolExecutor to free resources."""
-        self.executor.shutdown(wait=True)
-
-    def _reinitialize_executor(self):
-        """Reinitialize the ThreadPoolExecutor if it has been shut down."""
-        if self.executor._shutdown:
-            self.executor = ThreadPoolExecutor()
+            spans[span_data.span_id] = span
 
     @staticmethod
-    def get_exporter(exporter_name: str):
-        exporter_name_cls_map = {
+    def get_exporter(exporter: str, **kwargs) -> SpanExporter:
+        exporter_name_cls_map: Dict[str, Type[SpanExporter]] = {
             "console": ConsoleSpanExporter,
         }
 
-        if exporter_name == "zipkin":
+        if exporter == "zipkin":
             try:
-                from opentelemetry.exporter.zipkin.json import ZipkinSpanExporter
+                from opentelemetry.exporter.zipkin.json import ZipkinExporter
 
-                exporter_name_cls_map["zipkin"] = ZipkinSpanExporter
+                exporter_name_cls_map["zipkin"] = ZipkinExporter
             except ImportError:
                 raise ImportError(
                     "The opentelemetry-exporter-zipkin package is not installed. Please install it using 'pip install opentelemetry-exporter-zipkin'."
                 )
 
-        exporter_cls = exporter_name_cls_map.get(exporter_name)
+        exporter_cls = exporter_name_cls_map.get(exporter)
         if not exporter_cls:
-            raise ValueError(f"Unknown exporter: {exporter_name}")
-        return exporter_cls()
+            raise ValueError(f"Unknown exporter: {exporter}")
+        return exporter_cls(**kwargs)
