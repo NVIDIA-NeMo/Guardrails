@@ -72,8 +72,15 @@ sdd = [
   "spacy>=3.7.2",
 ]
 gcp = ["google-cloud-language>=2.14.0"]
+
+tracing = [
+  "opentelemetry-api>=1.27.0, <2.0.0",
+  "opentelemetry-sdk>=1.27.0, <2.0.0",
+  "aiofiles>=24.1.0",
+]
+
 all = [
-  "nemoguardrails[eval,sdd,openai,gcp]",
+  "nemoguardrails[eval,sdd,openai,gcp, tracing]",
 ]
 dev = [
   "black==23.3.0",
