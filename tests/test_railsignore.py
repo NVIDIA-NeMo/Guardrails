@@ -15,48 +15,47 @@
 
 import os
 import shutil
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.utils import get_railsignore_path, get_railsignore_patterns
+from nemoguardrails.utils import get_railsignore_patterns, is_ignored_by_railsignore
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 
 @pytest.fixture(scope="function")
 def cleanup():
-    # Copy current rails ignore and prepare for tests
-    railsignore_path = get_railsignore_path()
+    # Mock the path to the .railsignore file
+    with patch(
+        "nemoguardrails.utils.get_railsignore_path"
+    ) as mock_get_railsignore_path:
+        railsignore_path = Path("/tmp/.railsignore")
+        mock_get_railsignore_path.return_value = railsignore_path
 
-    temp_file_path = str(railsignore_path) + "-copy"
+        # Ensure the mock file exists
+        railsignore_path.touch()
 
-    # Copy the original .railsignore to a temporary file
-    shutil.copy(railsignore_path, temp_file_path)
-    print(f"Copied {railsignore_path} to {temp_file_path}")
+        # Clean railsignore file before
+        cleanup_railsignore(railsignore_path)
 
-    # Clean railsignore file before
-    cleanup_railsignore()
+        # Yield control to test
+        yield railsignore_path
 
-    # Yield control to test
-    yield
+        # Clean railsignore file after
+        cleanup_railsignore(railsignore_path)
 
-    # Clean railsignore file before
-    cleanup_railsignore()
-
-    # Restore the original .railsignore from the temporary copy
-    shutil.copy(temp_file_path, railsignore_path)
-    print(f"Restored {railsignore_path} from {temp_file_path}")
-
-    # Delete the temporary file
-    if os.path.exists(temp_file_path):
-        os.remove(temp_file_path)
-        print(f"Deleted temporary file {temp_file_path}")
+        # Remove the mock file
+        if railsignore_path.exists():
+            railsignore_path.unlink()
 
 
 def test_railsignore_config_loading(cleanup):
+    railsignore_path = cleanup
     # Setup railsignore
-    append_railsignore("ignored_config.co")
+    append_railsignore(railsignore_path, "ignored_config.co")
 
     # Load config
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "railsignore_config"))
@@ -69,31 +68,32 @@ def test_railsignore_config_loading(cleanup):
     assert "config_to_load.co" in config_string
 
 
-def test_get_railsignore_files(cleanup):
+def test_get_railsignore_patterns(cleanup):
+    railsignore_path = cleanup
     # Empty railsignore
-    ignored_files = get_railsignore_patterns()
+    ignored_files = get_railsignore_patterns(railsignore_path)
 
     assert "ignored_module.py" not in ignored_files
     assert "ignored_colang.co" not in ignored_files
 
     # Append files to railsignore
-    append_railsignore("ignored_module.py")
-    append_railsignore("ignored_colang.co")
+    append_railsignore(railsignore_path, "ignored_module.py")
+    append_railsignore(railsignore_path, "ignored_colang.co")
 
     # Grab ignored files
-    ignored_files = get_railsignore_patterns()
+    ignored_files = get_railsignore_patterns(railsignore_path)
 
     # Check files exist
     assert "ignored_module.py" in ignored_files
     assert "ignored_colang.co" in ignored_files
 
     # Append comment and whitespace
-    append_railsignore("# This_is_a_comment.py")
-    append_railsignore("  ")
-    append_railsignore("")
+    append_railsignore(railsignore_path, "# This_is_a_comment.py")
+    append_railsignore(railsignore_path, "  ")
+    append_railsignore(railsignore_path, "")
 
     # Grab ignored files
-    ignored_files = get_railsignore_patterns()
+    ignored_files = get_railsignore_patterns(railsignore_path)
 
     # Comments and whitespace not retrieved
     assert "# This_is_a_comment.py" not in ignored_files
@@ -105,12 +105,23 @@ def test_get_railsignore_files(cleanup):
     assert "ignored_colang.co" in ignored_files
 
 
-def cleanup_railsignore():
-    """
-    Helper for clearing a railsignore file.
-    """
-    railsignore_path = get_railsignore_path()
+def test_is_ignored_by_railsignore(cleanup):
+    railsignore_path = cleanup
+    # Append files to railsignore
+    append_railsignore(railsignore_path, "ignored_module.py")
+    append_railsignore(railsignore_path, "ignored_colang.co")
 
+    # Grab ignored files
+    ignored_files = get_railsignore_patterns(railsignore_path)
+
+    # Check if files are ignored
+    assert is_ignored_by_railsignore("ignored_module.py", ignored_files)
+    assert is_ignored_by_railsignore("ignored_colang.co", ignored_files)
+    assert not is_ignored_by_railsignore("not_ignored.py", ignored_files)
+
+
+def cleanup_railsignore(railsignore_path):
+    """Helper for clearing a railsignore file."""
     try:
         with open(railsignore_path, "w") as f:
             pass
@@ -120,12 +131,8 @@ def cleanup_railsignore():
         print(f"Successfully cleaned up .railsignore: {railsignore_path}")
 
 
-def append_railsignore(file_name: str) -> None:
-    """
-    Helper for appending to a railsignore file.
-    """
-    railsignore_path = get_railsignore_path()
-
+def append_railsignore(railsignore_path: str, file_name: str) -> None:
+    """Helper for appending to a railsignore file."""
     try:
         with open(railsignore_path, "a") as f:
             f.write(file_name + "\n")
