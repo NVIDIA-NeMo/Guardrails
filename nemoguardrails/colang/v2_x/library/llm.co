@@ -100,7 +100,7 @@ flow continuation on unhandled user utterance
 
   # retrieve relevant chunks from KB if user_message is not empty
 
-  await RetrieveRelevantChunksAction()
+  await RetrieveRelevantChunksAction(is_colang_2=True)
 
 
   #await GenerateUserIntentAction(user_action=$action, max_example_flows=20) as $action_ref
@@ -218,7 +218,7 @@ flow llm generate interaction continuation flow -> $flow_name
 
 
   # retrieve relevant chunks from KB if user_message is not empty
-  await RetrieveRelevantChunksAction()
+  await RetrieveRelevantChunksAction(is_colang_2=True)
 
 
   log 'start generating flow continuation...'
