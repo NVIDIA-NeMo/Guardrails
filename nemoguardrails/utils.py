@@ -14,6 +14,7 @@
 # limitations under the License.
 import asyncio
 import dataclasses
+import fnmatch
 import importlib.resources as pkg_resources
 import json
 import os
@@ -24,7 +25,7 @@ from collections import namedtuple
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 import yaml
 from rich.console import Console
@@ -315,23 +316,32 @@ def snake_to_camelcase(name: str) -> str:
     return "".join(n.capitalize() for n in name.split("_"))
 
 
-def get_railsignore_path() -> Path:
+def get_railsignore_path(path: Optional[str] = None) -> Optional[Path]:
     """Helper to get railsignore path.
 
+    Args:
+        path (Optional[str]): The starting path to search for the .railsignore file.
+
     Returns:
-         Path: The.railsignore file path.
+        Path: The .railsignore file path, if found.
+
+    Raises:
+        FileNotFoundError: If the .railsignore file is not found.
     """
-    current_path = Path(__file__).resolve()
+    current_path = Path(path) if path else Path.cwd()
 
-    # Navigate to the root directory by going up 4 levels
-    root_dir = current_path.parents[1]
+    while True:
+        railsignore_file = current_path / ".railsignore"
+        if railsignore_file.exists() and railsignore_file.is_file():
+            return railsignore_file
+        if current_path == current_path.parent:
+            break
+        current_path = current_path.parent
 
-    file_path = root_dir / ".railsignore"
-
-    return file_path
+    return None
 
 
-def get_railsignore_patterns() -> set[str]:
+def get_railsignore_patterns(railsignore_path) -> Set[str]:
     """
     Helper to retrieve all specified patterns in railsignore.
     Returns:
@@ -339,7 +349,10 @@ def get_railsignore_patterns() -> set[str]:
     """
     ignored_patterns = set()
 
-    railsignore_path = get_railsignore_path()
+    if railsignore_path is None:
+        return ignored_patterns
+
+    # railsignore_path = get_railsignore_path()
 
     # File doesn't exist or is empty
     if not railsignore_path.exists() or not os.path.getsize(railsignore_path):
@@ -362,3 +375,15 @@ def get_railsignore_patterns() -> set[str]:
     except FileNotFoundError:
         print(f"No {railsignore_path} found in the current directory.")
         return ignored_patterns
+
+
+def is_ignored_by_railsignore(filename, ignore_patterns) -> bool:
+    ignore = False
+
+    # Load candidate patterns from railsignore
+
+    for pattern in ignore_patterns:
+        if fnmatch.fnmatch(filename, pattern):
+            ignore = True
+
+    return ignore
