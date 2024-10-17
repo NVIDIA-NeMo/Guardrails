@@ -1,0 +1,26 @@
+
+import llm
+
+flow context free bot response generation on unhandled user intent
+  """Just make a call to LLM in passthrough mode"""
+
+  activate polling llm request response
+  await _user_said_something_unexpected as $user_said
+  $event = $user_said.event
+
+  # we need to wait for the automatic intent detection
+  await unhandled user intent as $flow
+  log 'unexpected user utterance: "{$event.final_transcript}"'
+
+  $user_message = $event.final_transcript
+
+
+  log 'start generating bot response in passthrough mode...'
+  $bot_message = await PassthroughLLMAction(user_message=$user_message)
+  bot say $bot_message
+
+@override
+flow llm continuation
+  activate automating intent detection
+  activate generating user intent for unhandled user utterance
+  activate context free bot response generation on unhandled user intent
