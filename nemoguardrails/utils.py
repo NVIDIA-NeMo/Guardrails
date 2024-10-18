@@ -317,7 +317,7 @@ def snake_to_camelcase(name: str) -> str:
 
 
 def get_railsignore_path(path: Optional[str] = None) -> Optional[Path]:
-    """Helper to get railsignore path.
+    """Get railsignore path.
 
     Args:
         path (Optional[str]): The starting path to search for the .railsignore file.
@@ -341,9 +341,9 @@ def get_railsignore_path(path: Optional[str] = None) -> Optional[Path]:
     return None
 
 
-def get_railsignore_patterns(railsignore_path) -> Set[str]:
-    """
-    Helper to retrieve all specified patterns in railsignore.
+def get_railsignore_patterns(railsignore_path: Path) -> Set[str]:
+    """Retrieve all specified patterns in railsignore.
+
     Returns:
         Set[str]: The set of filenames or glob patterns in railsignore
     """
@@ -351,8 +351,6 @@ def get_railsignore_patterns(railsignore_path) -> Set[str]:
 
     if railsignore_path is None:
         return ignored_patterns
-
-    # railsignore_path = get_railsignore_path()
 
     # File doesn't exist or is empty
     if not railsignore_path.exists() or not os.path.getsize(railsignore_path):
@@ -377,13 +375,14 @@ def get_railsignore_patterns(railsignore_path) -> Set[str]:
         return ignored_patterns
 
 
-def is_ignored_by_railsignore(filename, ignore_patterns) -> bool:
-    ignore = False
+def is_ignored_by_railsignore(filename: str, ignore_patterns: str) -> bool:
+    """Verify if a filename should be ignored by a railsignore pattern"""
 
-    # Load candidate patterns from railsignore
+    ignore = False
 
     for pattern in ignore_patterns:
         if fnmatch.fnmatch(filename, pattern):
             ignore = True
+            break
 
     return ignore
