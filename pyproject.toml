@@ -80,7 +80,7 @@ tracing = [
 ]
 
 all = [
-  "nemoguardrails[eval,sdd,openai,gcp, tracing]",
+  "nemoguardrails[sdd,openai,gcp,tracing]",
 ]
 dev = [
   "black==23.3.0",
