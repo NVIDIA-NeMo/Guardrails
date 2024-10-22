@@ -25,7 +25,9 @@ RUN apt-get install -y gcc g++
 # Copy and install NeMo Guardrails
 WORKDIR /nemoguardrails
 COPY . /nemoguardrails
+# pip cannot resolve dependencies if eval is part of all
 RUN pip install --no-cache-dir -e .[all]
+RUN pip install --no-cache-dir -e .[eval]
 
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
