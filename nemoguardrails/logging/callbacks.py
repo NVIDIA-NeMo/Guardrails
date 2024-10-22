@@ -60,7 +60,11 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
             explain_info.llm_calls.append(llm_call_info)
 
         log.info("Invocation Params :: %s", kwargs.get("invocation_params", {}))
-        log.info("Prompt :: %s", prompts[0])
+        log.info(
+            "Prompt :: %s",
+            prompts[0],
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
+        )
         llm_call_info.prompt = prompts[0]
 
         llm_call_info.started_at = time()
