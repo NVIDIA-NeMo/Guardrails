@@ -182,13 +182,13 @@ class TestChat:
         elif self.config.colang_version == "2.x":
             output_msgs = []
             while self.input_events:
+                event = self.input_events.pop(0)
                 output_events, output_state = self.app.process_events(
-                    self.input_events, self.state
+                    [event], self.state
                 )
 
                 # We detect any "StartUtteranceBotAction" events, show the message, and
                 # generate the corresponding Finished events as new input events.
-                self.input_events = []
                 for event in output_events:
                     if event["type"] == "StartUtteranceBotAction":
                         output_msgs.append(event["script"])
