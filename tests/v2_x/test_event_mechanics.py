@@ -1669,5 +1669,52 @@ def test_runtime_exception_handling_2():
     )
 
 
+def test_user_message_generates_started_and_finished():
+    """Test queuing of action events."""
+    config = RailsConfig.from_content(
+        colang_content="""
+        flow main
+          match UtteranceUserActionStarted()
+          match UtteranceUserActionFinished(final_transcript="yes")
+          start UtteranceBotAction(script="ok")
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+    )
+
+    chat >> "yes"
+    chat << "ok"
+
+
+def test_handling_arbitrary_events_through_test_chat():
+    """Test queuing of action events."""
+    config = RailsConfig.from_content(
+        colang_content="""
+        flow main
+          match CustomEvent(name="test")
+          match EventA()
+          start UtteranceBotAction(script="started")
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+    )
+
+    chat >> {"type": "CustomEvent", "name": "test"}
+    chat >> {"type": "EventA"}
+    chat << "started"
+
+
 if __name__ == "__main__":
     test_event_match_group()

@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
 from langchain.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
@@ -32,7 +32,7 @@ from nemoguardrails.colang.v2_x.runtime.runtime import (
     create_flow_configs_from_flow_list,
 )
 from nemoguardrails.colang.v2_x.runtime.statemachine import initialize_state
-from nemoguardrails.utils import EnhancedJsonEncoder, new_event_dict
+from nemoguardrails.utils import EnhancedJsonEncoder, new_event_dict, new_uuid
 
 
 class FakeLLM(LLM):
@@ -157,16 +157,29 @@ class TestChat:
                 self.state,
             )
 
-    def user(self, msg: str):
+    def user(self, msg: Union[str, dict]):
         if self.config.colang_version == "1.0":
             self.history.append({"role": "user", "content": msg})
         elif self.config.colang_version == "2.x":
-            self.input_events.append(
-                {
-                    "type": "UtteranceUserActionFinished",
-                    "final_transcript": msg,
-                }
-            )
+            if isinstance(msg, str):
+                uid = new_uuid()
+                self.input_events.extend(
+                    [
+                        new_event_dict("UtteranceUserActionStarted", action_uid=uid),
+                        new_event_dict(
+                            "UtteranceUserActionFinished",
+                            final_transcript=msg,
+                            action_uid=uid,
+                            is_success=True,
+                        ),
+                    ]
+                )
+            elif "type" in msg:
+                self.input_events.append(msg)
+            else:
+                raise ValueError(
+                    f"Invalid user message: {msg}. Must be either str or event"
+                )
         else:
             raise Exception(f"Invalid colang version: {self.config.colang_version}")
 
@@ -223,7 +236,7 @@ class TestChat:
         ), f"Expected `{msg}` and received `{result['content']}`"
         self.history.append(result)
 
-    def __rshift__(self, msg: str):
+    def __rshift__(self, msg: Union[str, dict]):
         self.user(msg)
 
     def __lshift__(self, msg: str):
