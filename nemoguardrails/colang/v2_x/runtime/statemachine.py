@@ -71,6 +71,7 @@ from nemoguardrails.colang.v2_x.runtime.flows import (
     InternalEvents,
     State,
 )
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.utils import console, new_event_dict, new_readable_uuid, new_uuid
 
 log = logging.getLogger(__name__)
@@ -1829,7 +1830,7 @@ def _is_done_flow(flow_state: FlowState) -> bool:
 
 
 def _generate_umim_event(state: State, event: Event) -> Dict[str, Any]:
-    umim_event = create_umim_event(event, event.arguments)
+    umim_event = create_umim_event(event, event.arguments, state.rails_config)
     state.outgoing_events.append(umim_event)
     log.info("[bold violet]<- Action[/]: %s", event)
 
@@ -2385,10 +2386,14 @@ def create_internal_event(
     return event
 
 
-def create_umim_event(event: Event, event_args: Dict[str, Any]) -> Dict[str, Any]:
+def create_umim_event(
+    event: Event, event_args: Dict[str, Any], config: Optional[RailsConfig]
+) -> Dict[str, Any]:
     """Returns an outgoing UMIM event for the provided action data"""
     new_event_args = dict(event_args)
-    new_event_args["source_uid"] = "NeMoGuardrails-Colang-2.x"
+    new_event_args.setdefault(
+        "source_uid", config.event_source_uid if config else "NeMoGuardrails-Colang-2.x"
+    )
     if isinstance(event, ActionEvent) and event.action_uid is not None:
         if "action_uid" in new_event_args:
             event.action_uid = new_event_args["action_uid"]

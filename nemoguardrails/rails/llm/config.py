@@ -508,6 +508,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "lowest_temperature",
         "enable_multi_step_generation",
         "colang_version",
+        "event_source_uid",
         "custom_data",
         "prompting_mode",
         "knowledge_base",
@@ -861,6 +862,11 @@ class RailsConfig(BaseModel):
         default=None,
         description="Weather the original prompt should pass through the guardrails configuration as is. "
         "This means it will not be altered in any way. ",
+    )
+
+    event_source_uid: str = Field(
+        default="NeMoGuardrails-Colang-2.x",
+        description="The source ID of events sent by the Colang Runtime. Useful to identify the component that has sent an event.",
     )
 
     tracing: TracingConfig = Field(

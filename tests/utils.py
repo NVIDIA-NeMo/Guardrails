@@ -306,7 +306,7 @@ def is_data_in_events(
     return True
 
 
-def _init_state(colang_content) -> State:
+def _init_state(colang_content, yaml_content: Optional[str] = None) -> State:
     config = create_flow_configs_from_flow_list(
         parse_colang_file(
             filename="",
@@ -316,8 +316,11 @@ def _init_state(colang_content) -> State:
         )["flows"]
     )
 
+    rails_config = None
+    if yaml_content:
+        rails_config = RailsConfig.from_content(colang_content, yaml_content)
     json.dump(config, sys.stdout, indent=4, cls=EnhancedJsonEncoder)
-    state = State(flow_states=[], flow_configs=config)
+    state = State(flow_states=[], flow_configs=config, rails_config=rails_config)
     initialize_state(state)
     print("---------------------------------")
     json.dump(state.flow_configs, sys.stdout, indent=4, cls=EnhancedJsonEncoder)

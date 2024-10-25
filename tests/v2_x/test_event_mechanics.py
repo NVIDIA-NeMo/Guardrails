@@ -57,6 +57,32 @@ def test_send_umim_action_event():
     )
 
 
+def test_change_umim_event_source_id():
+    """Test to send an UMIM event."""
+
+    content = """
+    flow main
+      send StartUtteranceBotAction(script="Hello world")
+    """
+
+    config = """
+    colang_version: "2.x"
+    event_source_uid : agent-1
+    """
+
+    state = run_to_completion(_init_state(content, config), start_main_flow_event)
+    assert is_data_in_events(
+        state.outgoing_events,
+        [
+            {
+                "type": "StartUtteranceBotAction",
+                "script": "Hello world",
+                "source_uid": "agent-1",
+            }
+        ],
+    )
+
+
 def test_match_umim_action_event():
     """Test to match an UMIM event."""
 
