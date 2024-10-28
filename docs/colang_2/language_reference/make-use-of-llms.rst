@@ -17,11 +17,40 @@ To enable the LLM backend you first have to configure the LLM access in the `con
     models:
     - type: main
       engine: openai
-      model: gpt-3.5-turbo-instruct
+      model: gpt-4-turbo
 
 Make sure to also define the required API access key, e.g. for OpenAI you will have to set the ``OPENAI_API_KEY`` environment variable.
 
 Every LLM prompt contains a default context that can be modified if needed to adapt to the use case. See this `example configuration <../../../tests/test_configs/multi_modal_demo_v2_x/demo.yml>`_ to get started. This will heavily influence all the LLM invocations.
+
+.. _make-use-of-llms-supported-models:
+
+----------------------------------------
+Supported Models
+----------------------------------------
+
+Colang currently supports the following models out of the box:
+
+.. code-block:: yaml
+
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+    model: gpt-3.5-turbo
+    model: gpt-4-turbo
+    model: gpt-4o
+    model: gpt-4o-mini
+
+`NVIDIA AI Foundary <https://www.nvidia.com/en-us/ai/foundry/>`_ hosted NIMs:
+
+.. code-block:: yaml
+
+    engine: nim
+    model: meta/llama3-8b-instruct
+    model: meta/llama3-70b-instruct
+    model: meta/llama-3.1-8b-instruct
+    model: meta/llama-3.1-70b-instruct
+
+To support other models you would need to create a set of new `template prompts <../../../nemoguardrails/llm/prompts>`_ that consider the specific capabilities and the API of the model and add them to your bot configuration.
 
 ----------------------------------------
 Natural Language Description (NLD)
