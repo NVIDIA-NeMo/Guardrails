@@ -209,7 +209,7 @@ To access a flow instance's member variables you can use a reference or the rese
     $ref.parent_uid: Optional[str] # The unique id of the parent flow instance
     $ref.child_flow_uids: List[str] # All unique ids of the child flow instances
     $ref.context: dict # The variable context that contains all user defined variables in the flow
-    $ref.priority: float # Priority of the flow
+    $ref.priority: float # Priority of the flow (range: [0.0-1.0], default: 1.0)
     $ref.arguments: dict # All arguments of the flow
     $ref.flow_instance_uid: str # Flow instance specific uid
     $ref.source_flow_instance_uid: str # The parent flow uid of the flow
@@ -223,13 +223,13 @@ You should not change those values if you are not sure what you are doing since 
 Action Member Variables
 ----------------------------------------
 
-To access the members of an action you can use an action reference:
+To access the member variables of an action you can use an action reference:
 
 .. code-block:: colang
 
     $ref.uid: str # The unique id of the action instance
     $ref.name: str # The name of the action
-    $ref.flow_uid: str # The flow that the action started
+    $ref.flow_uid: str # The flow that started the action
     $ref.status.value: str # The action status ("initialized", "starting", "started", "stopping", "finished")
     $ref.context: dict # Contains all the action event parameters
     $ref.start_event_arguments: dict # Contains all action start arguments
@@ -238,12 +238,12 @@ To access the members of an action you can use an action reference:
 Event Member Variables
 ----------------------------------------
 
-To access the members of an event you can use an event reference:
+To access the member variables of an event you can use an event reference:
 
 .. code-block:: colang
 
     $ref.name: str # The name of the event
-    $ref.arguments: str # The name of the event arguments
+    $ref.arguments: dict # A dictionary with all the event arguments
 
     # Only for flow events
     $ref.flow: FlowReference # A reference to the flow of the event

@@ -169,7 +169,7 @@ Breaking changes from alpha to beta version
 * Colang function name changes
     * ``findall`` -> ``find_all``
 * Bot specific copies of the Colang Core Library
-    * ccl_*.co files are deprecated and should be removed from the bot folders. It is replaced by the Colang Standard Libraries that are included in NeMo Guardrails and can be imported (e.g. ``import core.co`` or ``import llm.co`` ). See next the new name mapping of standard library flows.
+    * ccl_*.co files are deprecated and should be removed from the bot folders. It is replaced by the Colang Standard Libraries that are included in NeMo Guardrails and can be imported (e.g. ``import core`` or ``import llm`` ). See next the new name mapping of standard library flows.
 * Standard library flow name changes
     * ``catch colang errors`` -> ``notification of colang errors`` (core.co)
     * ``catch undefined flows`` -> ``notification of undefined flow start`` (core.co)

@@ -110,7 +110,7 @@ Alternatively, you can use the ``@active`` decorator notation to activate a flow
         user said "Hi"
         bot say "Hello again"
 
-If you use this for flows that were defined in a separate Colang library module, they will get automatically activated when the library is imported. But we advice you to use the ``activate`` statement if possible, since it is more explicit and result in better readability.
+If you use the ``@active`` decorator for flows that were defined in a separate Colang library module, they will get automatically activated when the library is imported. But we advice you to use the ``activate`` statement if possible, since it is more explicit and result in better readability.
 
 .. important::
     The main flow behaves also like an activated flow. As soon as it reaches the end it will restart automatically.

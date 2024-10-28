@@ -15,7 +15,7 @@ Defining Flows
 Introduction
 ----------------------------------------
 
-So far you have seen only one flow, the main flow. But in Colang we can define many different flows, like functions in other programming languages. A flow defines a specific interaction pattern made of a sequence of statements. It has a name made of lowercase letters, numbers, underline and whitespace characters. Additionally, it can define in and out parameters with optional default values.
+So far you have seen only one flow, the main flow. But in Colang we can define many different flows, like functions in other programming languages. A flow defines a specific interaction pattern made of a sequence of statements. The name of a flow consists of lowercase letters, numbers, underline and whitespace characters. Additionally, a flow definition can include input and output parameters (or short: in and out parameters) with optional default values.
 
 .. important::
     Flow syntax definition:
@@ -44,7 +44,7 @@ So far you have seen only one flow, the main flow. But in Colang we can define m
 
     The choice of allowing whitespace characters in flow names comes with some limitations:
 
-    * The keywords ``and``, ``or`` and ``as`` cannot be used in flow names and would need to be escaped with a leading underline character. But often, rather than using e.g. the word 'and', you can use the word 'then' to combine to actions, e.g ``bot greet then smile`` to describe the sequential dependency. Or alternatively write it as ``bot greet smiling`` if it happens concurrently.
+    * The keywords ``and``, ``or`` and ``as`` cannot be used in flow names and would need to be escaped with a leading underline character (e.g., ``this _and that``). But often, rather than using e.g. the word 'and', you can use the word 'then' to combine to actions, e.g ``bot greet then smile`` to describe the sequential dependency. Or alternatively write it as ``bot greet smiling`` if it happens concurrently.
     * As shown in chapter :ref:`Working with Variables & Expressions <working-with-variables-and-expressions>` variables will always start with a ``$`` character.
 
 Like an action, a flow can be started and waited for to finish using the keywords ``start``, ``await`` and ``match``:
@@ -92,7 +92,7 @@ Note, that starting a flow will immediately process and trigger all initial stat
 Flow events
 ------------
 
-Similar to actions, flows themselves can generate different events which have priority over other events (see :ref:`Internal Events<internal-events-defining-flows>`):
+Similar to actions, flows themselves can generate different events that relate to a flow's status or lifetime. These flow events have priority over other events (see :ref:`Internal Events<internal-events-defining-flows>`):
 
 .. code-block:: colang
 
