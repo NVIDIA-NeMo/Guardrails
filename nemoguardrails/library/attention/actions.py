@@ -123,14 +123,12 @@ class UserAttentionMaterializedView:
         )
 
         if event.name == "UtteranceUserActionStarted":
-            log_p("SKRecord UtteranceUserActionStarted")
             self.reset_view()
             self.utterance_started_event = event
         elif (
             event.name == "UtteranceUserActionFinished"
             or event.name == "UtteranceUserActionTranscriptUpdated"
         ):
-            log_p("SKRecord UtteranceUserActionFinished")
             self.utterance_last_event = event
         elif event.name == "AttentionUserActionFinished":
             event.arguments["attention_level"] = UNKNOWN_ATTENTION_STATE
@@ -155,6 +153,17 @@ class UserAttentionMaterializedView:
                 "Attention: no attention_levels provided. Attention percentage set to 0.0"
             )
             return 0.0
+
+        # If one of the utterance boundaries are not available we return the attention percentage based on the most
+        # recent attention level observed.
+        if not self.utterance_started_event or not self.utterance_last_event:
+            level = attention_levels[0]
+            if self.attention_events:
+                level = self.attention_events[-1].arguments["attention_level"]
+            log_p(
+                f"Attention: Utterance boundaries unclear. Deciding based on most recent attention_level={level}"
+            )
+            return 1.0 if level in attention_levels else 0.0
 
         events = [
             e

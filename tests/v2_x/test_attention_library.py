@@ -109,21 +109,143 @@ def test_1_3(config_1):
     chat << "got inattentive"
 
 
-# def test_1_4(config_1):
-#     chat = TestChat(
-#         config_1,
-#         llm_completions=[],
-#     )
-#     uid = new_uuid()
-#     now = datetime.now()
-#     one_second = timedelta(seconds=1)
-#     event = new_event_dict(
-#         "AttentionUserActionStarted",
-#         action_uid=uid,
-#         attention_level="engaged",
-#         action_started_at=now,
-#     )
-#     an_event = new_event_dict("CustomEvent", name="test", data={})
-#     chat >> event
-#     chat >> "hello there"
-#     chat << "got attentive2"
+def test_1_4(config_1):
+    chat = TestChat(
+        config_1,
+        llm_completions=[],
+    )
+    attention_action_uid = new_uuid()
+    utterance_action_uid = new_uuid()
+
+    now = datetime.now()
+
+    events = [
+        new_event_dict(
+            "AttentionUserActionStarted",
+            action_uid=attention_action_uid,
+            attention_level="engaged",
+            action_started_at=now.isoformat(),
+        ),
+        new_event_dict(
+            "UtteranceUserActionStarted",
+            action_uid=utterance_action_uid,
+            action_started_at=(now + timedelta(seconds=1)).isoformat(),
+        ),
+        new_event_dict(
+            "AttentionUserActionUpdated",
+            action_uid=attention_action_uid,
+            attention_level="disengaged",
+            action_updated_at=(now + timedelta(seconds=3)).isoformat(),
+        ),
+        new_event_dict(
+            "UtteranceUserActionFinished",
+            action_uid=utterance_action_uid,
+            final_transcript="hello there",
+            is_success=True,
+            action_finished_at=(now + timedelta(seconds=4)).isoformat(),
+        ),
+    ]
+
+    for event in events:
+        chat >> event
+
+    chat << "got attentive"
+
+
+def test_1_5(config_1):
+    chat = TestChat(
+        config_1,
+        llm_completions=[],
+    )
+    attention_action_uid = new_uuid()
+    utterance_action_uid = new_uuid()
+
+    now = datetime.now()
+
+    events = [
+        new_event_dict(
+            "AttentionUserActionStarted",
+            action_uid=attention_action_uid,
+            attention_level="disengaged",
+            action_started_at=now.isoformat(),
+        ),
+        new_event_dict(
+            "UtteranceUserActionStarted",
+            action_uid=utterance_action_uid,
+            action_started_at=(now + timedelta(seconds=1)).isoformat(),
+        ),
+        new_event_dict(
+            "AttentionUserActionUpdated",
+            action_uid=attention_action_uid,
+            attention_level="engaged",
+            action_updated_at=(now + timedelta(seconds=3)).isoformat(),
+        ),
+        new_event_dict(
+            "UtteranceUserActionFinished",
+            action_uid=utterance_action_uid,
+            final_transcript="hello there",
+            is_success=True,
+            action_finished_at=(now + timedelta(seconds=4)).isoformat(),
+        ),
+    ]
+
+    for event in events:
+        chat >> event
+
+    chat << "got inattentive"
+
+
+@pytest.fixture
+def config_2():
+    return RailsConfig.from_content(
+        colang_content="""
+        import core
+
+        flow counting events
+          global $counting
+          match UtteranceUserActionStarted() as $event
+            or UtteranceUserActionFinished() as $event
+            or UtteranceUserActionUpdated() as $event
+            or AttentionUserActionUpdated() as $event
+            or AttentionUserActionStarted() as $event
+            or AttentionUserActionFinished() as $event
+          await UpdateAttentionMaterializedViewAction(event=$event)
+          $counting = $counting + 1
+
+        flow responding with count
+          priority 0.1
+          global $counting
+          $counting = 0
+          user said "hi"
+          bot say "count is {$counting}"
+
+        flow main
+          activate counting events
+          activate responding with count
+
+
+
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+
+def test_2_1(config_2):
+    chat = TestChat(
+        config_2,
+        llm_completions=[],
+    )
+    uid = new_uuid()
+    now = datetime.now()
+    event = new_event_dict(
+        "AttentionUserActionStarted",
+        action_uid=uid,
+        attention_level="engaged",
+        action_started_at=now,
+    )
+    chat >> event
+    chat >> "hello"
+    chat >> "hi"
+    chat << "count is 4"
