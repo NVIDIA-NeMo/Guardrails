@@ -205,7 +205,6 @@ class TestChat:
                 for event in output_events:
                     if event["type"] == "StartUtteranceBotAction":
                         output_msgs.append(event["script"])
-
                         self.input_events.append(
                             new_event_dict(
                                 "UtteranceBotActionStarted",
