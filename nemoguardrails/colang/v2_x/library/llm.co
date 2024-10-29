@@ -178,7 +178,6 @@ flow continuation on unhandled user intent
 @loop("NEW")
 flow continuation on undefined flow
   """Generate and start a new flow to continue the interaction for the start of an undefined flow."""
-  activate polling llm request response
   match UnhandledEvent(event="StartFlow") as $event
   log 'unhandled start of flow: `{$event.flow_id}` ({$event.flow_instance_uid})'
 
@@ -198,6 +197,8 @@ flow continuation on undefined flow
   else
     # We have an undefined bot intent, let's generate a new flow for it
     log 'unhandled bot intent flow: `{$event.flow_id}`'
+
+    activate polling llm request response
 
     # Generate a flow and add it to the runtime
     $flow_source = await GenerateFlowFromNameAction(name=$event.flow_id)
