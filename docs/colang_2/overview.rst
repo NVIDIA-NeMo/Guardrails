@@ -89,9 +89,9 @@ You can migrate your Colang 2.0-alpha bots to 2.0-beta using the following comma
 .. code-block:: console
 
     nemoguardrails convert "path/to/2.0-alpha/version/bots" --from-version "2.0-alpha"
-Additionally, you can enable the `--validate` flag to check if the migrated files do not raise any Colang syntax errors:
-.. code-block: console
-    nemoguardrails convert "path/to/2.0-alpha/version/bots" --from-version "2.0-alpha" --validate
+
+Additionally, you can add the ``--validate`` flag to check if the migrated files do not raise any Colang syntax errors.
+
 See section :ref:`Breaking changes from alpha to beta version <whats-changed-alpha-to-beta>` to see the detailed changes.
 
 Interaction Model
