@@ -206,29 +206,31 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
                 and "flow_id" in event.arguments
             ):
                 flow_id = event.arguments["flow_id"]
-                if not isinstance(flow_id, str) or flow_id not in state.flow_id_states:
+                if not isinstance(flow_id, str):
                     continue
 
                 flow_config = state.flow_configs.get(flow_id, None)
-                element_flow_state_instance = state.flow_id_states[flow_id]
-                if flow_config is not None and (
-                    flow_config.has_meta_tag("user_intent")
-                    or (
+                if flow_config and flow_id in state.flow_id_states:
+                    element_flow_state_instance = state.flow_id_states[flow_id]
+                    if flow_config.has_meta_tag("user_intent") or (
                         element_flow_state_instance
                         and "_user_intent" in element_flow_state_instance[0].context
-                    )
-                ):
-                    if flow_config.elements[1]["_type"] == "doc_string_stmt":
-                        examples += "user action: <" + (
-                            flow_config.elements[1]["elements"][0]["elements"][0][
-                                "elements"
-                            ][0][3:-3]
-                            + ">\n"
-                        )
-                        examples += f"user intent: {flow_id}\n\n"
-                    elif flow_id not in potential_user_intents:
-                        examples += f"user intent: {flow_id}\n\n"
-                        potential_user_intents.append(flow_id)
+                    ):
+                        if flow_config.elements[1]["_type"] == "doc_string_stmt":
+                            examples += "user action: <" + (
+                                flow_config.elements[1]["elements"][0]["elements"][0][
+                                    "elements"
+                                ][0][3:-3]
+                                + ">\n"
+                            )
+                            examples += f"user intent: {flow_id}\n\n"
+                        elif flow_id not in potential_user_intents:
+                            examples += f"user intent: {flow_id}\n\n"
+                            potential_user_intents.append(flow_id)
+                else:
+                    # User intents that have no actual instance but only are expected through a match statement
+                    examples += f"user intent: {flow_id}\n\n"
+                    potential_user_intents.append(flow_id)
 
         examples = examples.strip("\n")
 
