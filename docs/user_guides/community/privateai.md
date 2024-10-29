@@ -13,7 +13,6 @@ rails:
   config:
     privateai:
       server_endpoint: http://your-privateai-api-endpoint/process/text  # Replace this with your Private AI process text endpoint
-      api_key: your-privateai-api-key  # Optional: Not needed for the containerized version
       input:
         entities:  # If no entity is specified here, all supported entities will be detected by default.
           - NAME_FAMILY
@@ -32,7 +31,7 @@ rails:
       - detect pii on output
 ```
 
-Replace `http://your-privateai-api-endpoint/process/text` with your actual Private AI process text endpoint.
+Replace `http://your-privateai-api-endpoint/process/text` with your actual Private AI process text endpoint and set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
 
 3. You can customize the `entities` list under both `input` and `output` to include the PII types you want to detect. A full list of supported entities can be found [here](https://docs.private-ai.com/entities/?utm_medium=github&utm_campaign=nemo-guardrails).
 

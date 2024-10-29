@@ -139,10 +139,6 @@ class PrivateAIDetection(BaseModel):
         default="http://localhost:8080/process/text",
         description="The endpoint for the private AI detection server.",
     )
-    api_key: Optional[str] = Field(
-        default=None,
-        description="The API key for the Private AI service.",
-    )
     input: PrivateAIDetectionOptions = Field(
         default_factory=PrivateAIDetectionOptions,
         description="Configuration of the entities to be detected on the user input.",

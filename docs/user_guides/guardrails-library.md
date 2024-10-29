@@ -675,14 +675,13 @@ For more details, check out the [GCP Text Moderation](./community/gcp-text-moder
 
 NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection in input, output and retrieval flows.
 
-To activate the PII detection, you need specify `server_endpoint`, `api_key`, and the entities that you want to detect:
+To activate the PII detection, you need specify `server_endpoint`, and the entities that you want to detect. You'll also need to set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
 
 ```yaml
 rails:
   config:
     privateai:
       server_endpoint: http://your-privateai-api-endpoint/process/text  # Replace this with your Private AI process text endpoint
-      api_key: your-privateai-api-key  # Optional: Not needed for the containerized version
       input:
         entities:  # If no entity is specified here, all supported entities will be detected by default.
           - NAME_FAMILY

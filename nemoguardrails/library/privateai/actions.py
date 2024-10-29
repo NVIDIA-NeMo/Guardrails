@@ -16,6 +16,7 @@
 """PII detection using Private AI."""
 
 import logging
+import os
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -39,6 +40,14 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
     """
 
     pai_config: PrivateAIDetection = getattr(config.rails.config, "privateai")
+    pai_api_key = os.environ.get("PAI_API_KEY")
+    server_endpoint = pai_config.server_endpoint
+    enabled_entities = getattr(pai_config, source).entities
+
+    if "api.private-ai.com" in server_endpoint and not pai_api_key:
+        raise ValueError(
+            "PAI_API_KEY environment variable required for Private AI cloud API."
+        )
 
     valid_sources = ["input", "output", "retrieval"]
     if source not in valid_sources:
@@ -49,9 +58,9 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
 
     entity_detected = await private_ai_detection_request(
         text,
-        getattr(pai_config, source).entities,
-        pai_config.server_endpoint,
-        pai_config.api_key,
+        enabled_entities,
+        server_endpoint,
+        pai_api_key,
     )
 
     return entity_detected

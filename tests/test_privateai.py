@@ -20,15 +20,14 @@ from tests.utils import TestChat
 
 
 @pytest.mark.unit
-def test_privateai_pii_detection_input_output():
+def test_privateai_pii_detection_input_output(monkeypatch):
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
             rails:
               config:
                 privateai:
-                  server_endpoint: https://dummy.private-ai.server/cloud/v3/process/text
-                  api_key: test_api_key
+                  server_endpoint: https://api.private-ai.com/cloud/v3/process/text
                   input:
                     entities:
                       - EMAIL_ADDRESS

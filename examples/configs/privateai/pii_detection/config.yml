@@ -7,7 +7,6 @@ rails:
   config:
     privateai:
       server_endpoint: https://api.private-ai.com/cloud/v3/process/text
-      api_key: <YOUR_API_KEY>  # get your API key from https://portal.private-ai.com
       input:
         entities:
           - NAME_FAMILY
