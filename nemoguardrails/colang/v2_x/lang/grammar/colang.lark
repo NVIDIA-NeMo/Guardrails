@@ -205,7 +205,7 @@ doc_string: LONG_STRING
 _FLOW.1: /(?<!\.)flow(?!(\s*\(|[a-zA-Z0-9_]))/
 
 _IF.1: /if/
-_ELSE_IF.1: /(elif|else\s+if)/
+_ELSE_IF.1: /(elif|else[^\S\r\n]+if)/
 _OR_WHEN.1: /(or ?when)/
 _AND.1: /(and[ \t]|(\r?\n[\t ]*)+and[ \t])/
 _OR.1: /(or[ \t]|(\r?\n[\t ]*)+or[ \t]+(?!when))/
