@@ -16,11 +16,66 @@
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.actions.actions import ActionResult, action
 from tests.utils import TestChat
 
 
+@action()
+def retrieve_relevant_chunks():
+    context_updates = {"relevant_chunks": "Mock retrieved context."}
+
+    return ActionResult(
+        return_value=context_updates["relevant_chunks"],
+        context_updates=context_updates,
+    )
+
+
+def mock_detect_pii(return_value=True):
+    def mock_request(*args, **kwargs):
+        return return_value
+
+    return mock_request
+
+
 @pytest.mark.unit
-def test_privateai_pii_detection_input_output(monkeypatch):
+def test_privateai_pii_detection_no_active_pii_detection():
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                privateai:
+                  server_endpoint: https://api.private-ai.com/cloud/v3/process/text
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+
+            define bot inform answer unknown
+              "I can't answer that."
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "  express greeting",
+            '  "Hi! My name is John as well."',
+        ],
+    )
+
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(mock_detect_pii(True), "detect_pii")
+    chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
+    chat << "Hi! My name is John as well."
+
+
+@pytest.mark.unit
+def test_privateai_pii_detection_input():
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
@@ -32,13 +87,50 @@ def test_privateai_pii_detection_input_output(monkeypatch):
                     entities:
                       - EMAIL_ADDRESS
                       - NAME
+              input:
+                flows:
+                  - detect pii on input
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+
+            define bot inform answer unknown
+              "I can't answer that."
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "  express greeting",
+            '  "Hi! My name is John as well."',
+        ],
+    )
+
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(mock_detect_pii(True), "detect_pii")
+    chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
+    chat << "I can't answer that."
+
+
+@pytest.mark.unit
+def test_privateai_pii_detection_output():
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                privateai:
+                  server_endpoint: https://api.private-ai.com/cloud/v3/process/text
                   output:
                     entities:
                       - EMAIL_ADDRESS
                       - NAME
-              input:
-                flows:
-                  - detect pii on input
               output:
                 flows:
                   - detect pii on output
@@ -64,18 +156,7 @@ def test_privateai_pii_detection_input_output(monkeypatch):
         ],
     )
 
-    def mock_detect_pii(return_value=True):
-        def mock_request(*args, **kwargs):
-            return return_value
-
-        return mock_request
-
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
     chat.app.register_action(mock_detect_pii(True), "detect_pii")
-
-    # This will trigger the input rail
-    chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
-    chat << "I can't answer that."
-
-    # This will trigger only the output one
     chat >> "Hi!"
     chat << "I can't answer that."
