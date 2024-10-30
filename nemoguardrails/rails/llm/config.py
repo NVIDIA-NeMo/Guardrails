@@ -51,7 +51,13 @@ colang_path_dirs = [
 standard_library_path = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "colang", "v2_x", "library")
 )
+
+# nemoguardrails/lobrary
+guardrails_stdlib_path = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 colang_path_dirs.append(standard_library_path)
+colang_path_dirs.append(guardrails_stdlib_path)
 
 
 class Model(BaseModel):
@@ -653,7 +659,10 @@ def _load_imported_paths(raw_config: dict, colang_files: List[Tuple[str, str]]):
                 actual_path = import_path
 
             if actual_path is None:
-                raise ValueError(f"Import path `{import_path}` could not be resolved.")
+                formated_import_path = import_path.replace("/", ".")
+                raise ValueError(
+                    f"Import path '{formated_import_path}' could not be resolved.",
+                )
 
             _raw_config, _colang_files = _load_path(actual_path)
 
