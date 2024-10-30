@@ -160,3 +160,47 @@ def test_privateai_pii_detection_output():
     chat.app.register_action(mock_detect_pii(True), "detect_pii")
     chat >> "Hi!"
     chat << "I can't answer that."
+
+
+@pytest.mark.unit
+def test_privateai_pii_detection_retrieval():
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                privateai:
+                  server_endpoint: https://api.private-ai.com/cloud/v3/process/text
+                  retrieval:
+                    entities:
+                      - EMAIL_ADDRESS
+                      - NAME
+              retrieval:
+                flows:
+                  - detect pii on retrieval
+        """,
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+
+            define bot inform answer unknown
+              "I can't answer that."
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "  express greeting",
+            '  "Hi! My name is John as well."',
+        ],
+    )
+
+    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    chat.app.register_action(mock_detect_pii(True), "detect_pii")
+    chat >> "Hi!"
+    chat << "I can't answer that."
