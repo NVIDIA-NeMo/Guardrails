@@ -1,2 +1,2 @@
 # The minimal set of requirements for the Llama Guard server to run.
-vllm==0.2.7
+vllm==0.5.5
