@@ -1,2 +1,2 @@
 # The minimal set of requirements to run Patronus Lynx on vLLM.
-vllm==0.2.7
+vllm==0.5.5
