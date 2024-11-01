@@ -570,12 +570,9 @@ def escape_flow_name(name: str) -> str:
         name.replace(" and ", "_and_")
         .replace(" or ", "_or_")
         .replace(" as ", "_as_")
-        .replace("(", "")
-        .replace(")", "")
-        .replace("'", "")
-        .replace('"', "")
         .replace("-", "_")
     )
     result = re.sub(r"\b\d+\b", lambda match: f"_{match.group()}_", result)
-    result = re.sub(r"\b\d*|[^\w\s]", "", result)
+    # removes non-word chars and leading digits in a word
+    result = re.sub(r"\b\d+|[^\w\s]", "", result)
     return result
