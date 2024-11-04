@@ -143,3 +143,53 @@ Python API
 ----------
 
 Colang 2.0 adds support for an explicit "state object". For interactions that span multiple turns/events, a state object is returned after each processing and needs to be passed back on the next processing cycle.
+
+
+.. _whats-changed-alpha-to-beta:
+
+Breaking changes from alpha to beta version
+--------------------------------------------
+
+* Metatags
+    * ``# meta: user intent`` -> ``@meta(user_intent=True)`` (also ``user_action``, ``bot_intent``, ``bot_action``)
+    * ``# meta: exclude from llm`` -> ``@meta(exclude_from_llm=True)``
+
+* Interaction loop id
+    * ``# meta: loop_id=<loop_id>`` -> ``@loop("<loop_id>")``
+* Or when statement:
+    * ``orwhen`` -> ``or when``
+* NLD instructions
+    * ``"""<NLD>"""`` -> ``..."<NLD>"``
+* Internal event parameter renaming:
+    * ``flow_start_uid`` -> ``flow_instance_uid``
+* Regular expression
+    * ``r"<regex>"`` -> ``regex("<regex>")``
+* Expressions in strings
+    * ``"{{<expression>}}"`` -> ``"{<expression>}"``
+* Colang function name changes
+    * ``findall`` -> ``find_all``
+* Bot specific copies of the Colang Core Library
+    * ccl_*.co files are deprecated and should be removed from the bot folders. It is replaced by the Colang Standard Libraries that are included in NeMo Guardrails and can be imported (e.g. ``import core`` or ``import llm`` ). See next the new name mapping of standard library flows.
+* Standard library flow name changes
+    * ``catch colang errors`` -> ``notification of colang errors`` (core.co)
+    * ``catch undefined flows`` -> ``notification of undefined flow start`` (core.co)
+    * ``catch unexpected user utterance`` -> ``notification of unexpected user utterance`` (core.co)
+    * ``poll llm request response`` -> ``polling llm request response`` (llm.co)
+    * ``trigger user intent for unhandled user utterance`` -> ``generating user intent for unhandled user utterance`` (llm.co)
+    * ``generate then continue interaction`` -> ``llm continue interaction`` (llm.co)
+    * ``track bot talking state`` -> ``tracking bot talking state`` (core.co)
+    * ``track user talking state`` -> ``tracking user talking state`` (core.co)
+    * ``track unhandled user intent state`` -> ``tracking unhandled user intent state`` (llm.co)
+    * ``track visual choice selection state`` -> ``track visual choice selection state`` (avatars.co)
+    * ``track user utterance state`` -> ``tracking user talking state`` (core.co)
+    * ``track bot utterance state`` -> ``tracking bot talking state`` (core.co)
+    * ``interruption handling bot talking`` -> ``handling bot talking interruption`` (avatars.co)
+    * ``generate then continue interaction`` -> ``llm continue interaction`` (llm.co)
+    * ``respond to unhandled user intent`` -> ``continuation on unhandled user intent`` (llm.co)
+    * ``manage listening posture`` -> ``managing listening posture`` (avatars.co)
+    * ``manage talking posture`` -> ``managing talking posture`` (avatars.co)
+    * ``manage thinking posture`` -> ``managing thinking posture`` (avatars.co)
+    * ``manage attentive posture`` -> No replacement (copy to your bot script if needed)
+    * ``manage bot postures`` -> ``managing bot postures`` (avatars.co)
+    * ``track user presence state`` -> No replacement (copy to your bot script if needed)
+    * ``user became no longer present`` -> No replacement (copy to your bot script if needed)

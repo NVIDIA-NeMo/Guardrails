@@ -15,7 +15,7 @@ Defining Flows
 Introduction
 ----------------------------------------
 
-So far you have seen only one flow, the main flow. But in Colang we can define many different flows, like functions in other programming languages. A flow defines a specific interaction pattern made of a sequence of statements. It has a name that can contain whitespace characters and has optional in and out parameters with optional default values.
+So far you have seen only one flow, the main flow. But in Colang we can define many different flows, like functions in other programming languages. A flow defines a specific interaction pattern made of a sequence of statements. The name of a flow consists of lowercase letters, numbers, underline and whitespace characters. Additionally, a flow definition can include input and output parameters (or short: in and out parameters) with optional default values.
 
 .. important::
     Flow syntax definition:
@@ -41,6 +41,11 @@ So far you have seen only one flow, the main flow. But in Colang we can define m
         flow user said something -> $transcript
             """User said something."""
             # ...
+
+    The choice of allowing whitespace characters in flow names comes with some limitations:
+
+    * The keywords ``and``, ``or`` and ``as`` cannot be used in flow names and would need to be escaped with a leading underline character (e.g., ``this _and that``). But often, rather than using e.g. the word 'and', you can use the word 'then' to combine to actions, e.g ``bot greet then smile`` to describe the sequential dependency. Or alternatively write it as ``bot greet smiling`` if it happens concurrently.
+    * As shown in chapter :ref:`Working with Variables & Expressions <working-with-variables-and-expressions>` variables will always start with a ``$`` character.
 
 Like an action, a flow can be started and waited for to finish using the keywords ``start``, ``await`` and ``match``:
 
@@ -82,7 +87,12 @@ Note, that starting a flow will immediately process and trigger all initial stat
 .. important::
     Starting a flow will immediately process and trigger all initial statements of the flow, up to the first statement that waits for an event.
 
-Similar to an action, flows themselves can generate different events which have priority over other events (see :ref:`Internal Events<internal-events-defining-flows>`):
+
+------------
+Flow events
+------------
+
+Similar to actions, flows themselves can generate different events that relate to a flow's status or lifetime. These flow events have priority over other events (see :ref:`Internal Events<internal-events-defining-flows>`):
 
 .. code-block:: colang
 
@@ -123,7 +133,7 @@ Here is an example of a flow with parameters:
     flow bot say $text $volume=1.0
         await UtteranceBotAction(script=$text, intensity=$volume)
 
-Note how we can abstract and simplify the action handling with flows using a simpler name. This allows us to wrap most actions and events into flows that are made readily available through the :ref:`the-standard-library`.
+Note how we can abstract and simplify the action handling with flows using a simpler name. This allows us to wrap most actions and events into flows that are made readily available through the :ref:`the-standard-library`. See also section :ref:`Internal Events <internal-events-defining-flows>` where the underlying flow event mechanics are explained in more detail.
 
 ----------------------------------------
 Flow and Action Lifetime
@@ -569,8 +579,6 @@ You might have spotted by now the deliberate use of tenses in the naming of flow
 - Use the past form of a verb to describe an action that has happened, e.g. ``user said something`` or ``bot said something``
 - Use the form ``<subject> started <verb continuous form> ...`` to describe an action that has started, e.g. ``bot started saying something`` or ``user started saying something``
 - Start with the noun or gerund form of an activity for flows that should be activated and that wait for a certain interaction pattern to react to, e.g. ``reaction to user greeting``, ``handling user leaving`` or ``tracking bot talking state``.
-
-Since flow names allow whitespace characters and we have the grouping keywords ``and`` and ``or``, flow names can currently not contain these two keywords as part of their name. Often, rather than using the word 'and' you can use the word 'then' to combine to actions, e.g ``bot greet then smile`` to describe the sequential dependency. Or write it as ``bot greet smiling`` if it happens concurrently.
 
 
 .. _action-like-and-intent-like-flows:

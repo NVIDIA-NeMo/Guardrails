@@ -27,6 +27,7 @@ from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stat
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
+from nemoguardrails.utils import new_uuid
 
 log = logging.getLogger(__name__)
 
@@ -51,13 +52,19 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
             llm_call_info = LLMCallInfo()
             llm_call_info_var.set(llm_call_info)
 
+        llm_call_info.id = new_uuid()
+
         # We also add it to the explain object
         explain_info = explain_info_var.get()
         if explain_info:
             explain_info.llm_calls.append(llm_call_info)
 
         log.info("Invocation Params :: %s", kwargs.get("invocation_params", {}))
-        log.info("Prompt :: %s", prompts[0])
+        log.info(
+            "Prompt :: %s",
+            prompts[0],
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
+        )
         llm_call_info.prompt = prompts[0]
 
         llm_call_info.started_at = time()
@@ -86,6 +93,8 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
             llm_call_info = LLMCallInfo()
             llm_call_info_var.set(llm_call_info)
 
+        llm_call_info.id = new_uuid()
+
         # We also add it to the explain object
         explain_info = explain_info_var.get()
         if explain_info:
@@ -109,7 +118,11 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         )
 
         log.info("Invocation Params :: %s", kwargs.get("invocation_params", {}))
-        log.info("Prompt Messages :: %s", prompt)
+        log.info(
+            "Prompt Messages :: %s",
+            prompt,
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
+        )
         llm_call_info.prompt = prompt
         llm_call_info.started_at = time()
 
@@ -143,12 +156,16 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """Run when LLM ends running."""
-        log.info("Completion :: %s", response.generations[0][0].text)
         llm_call_info = llm_call_info_var.get()
         if llm_call_info is None:
             llm_call_info = LLMCallInfo()
         llm_call_info.completion = response.generations[0][0].text
         llm_call_info.finished_at = time()
+        log.info(
+            "Completion :: %s",
+            response.generations[0][0].text,
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
+        )
 
         llm_stats = llm_stats_var.get()
         if llm_stats is None:
@@ -159,7 +176,11 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         if len(response.generations[0]) > 1:
             for i, generation in enumerate(response.generations[0][1:]):
                 log.info("--- :: Completion %d", i + 2)
-                log.info("Completion :: %s", generation.text)
+                log.info(
+                    "Completion :: %s",
+                    generation.text,
+                    extra={"id": llm_call_info.id, "task": llm_call_info.task},
+                )
 
         log.info("Output Stats :: %s", response.llm_output)
         took = llm_call_info.finished_at - llm_call_info.started_at

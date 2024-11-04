@@ -43,6 +43,7 @@ class LLMCallSummary(BaseModel):
 
 
 class LLMCallInfo(LLMCallSummary):
+    id: Optional[str] = Field(default=None, description="The unique prompt identifier.")
     prompt: Optional[str] = Field(
         default=None, description="The prompt that was used for the LLM call."
     )

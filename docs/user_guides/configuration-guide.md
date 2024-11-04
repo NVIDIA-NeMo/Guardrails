@@ -556,6 +556,14 @@ This temperature will be used for the tasks that require deterministic behavior 
 lowest_temperature: 0.1
 ```
 
+### Event Source ID
+
+This ID will be used as the `source_uid` for all events emitted by the Colang runtime. Setting this to something else than the default value (default value is `NeMoGuardrails-Colang-2.x`) is useful if you need to distinguish multiple Colang runtimes in your system (e.g. in a multi-agent scenario).
+
+```yaml
+event_source_uid : colang-agent-1
+```
+
 ### Custom Data
 
 If you need to pass additional configuration data to any custom component for your configuration, you can use the `custom_data` field.
@@ -785,6 +793,7 @@ To enable tracing, set the enabled flag to true under the tracing section in you
 tracing:
   enabled: true
 ```
+
 > **Note**: You must install the necessary dependencies to use tracing adapters.
 
   ```bash

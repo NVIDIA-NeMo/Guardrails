@@ -140,9 +140,8 @@ _action_to_modality_info: Dict[str, Tuple[str, str]] = {
     "UtteranceBotAction": ("bot_speech", "replace"),
     "UtteranceUserAction": ("user_speech", "replace"),
     "TimerBotAction": ("time", "parallel"),
-    "FacialGestureBotAction": ("bot_gesture", "override"),
-    "GestureBotAction": ("bot_gesture", "override"),
     "FacialGestureBotAction": ("bot_face", "replace"),
+    "GestureBotAction": ("bot_gesture", "override"),
     "PostureBotAction": ("bot_posture", "override"),
     "VisualChoiceSceneAction": ("information", "override"),
     "VisualInformationSceneAction": ("information", "override"),
@@ -164,16 +163,15 @@ def _add_modality_info(event_dict: Dict[str, Any]) -> None:
 
 def _update_action_properties(event_dict: Dict[str, Any]) -> None:
     """Update action related even properties and ensure UMIM compliance (very basic)"""
-
+    now = datetime.now(timezone.utc).isoformat()
     if "Started" in event_dict["type"]:
-        event_dict["action_started_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_started_at", now)
     elif "Start" in event_dict["type"]:
-        if "action_uid" not in event_dict:
-            event_dict["action_uid"] = new_uuid()
+        event_dict.setdefault("action_uid", new_uuid())
     elif "Updated" in event_dict["type"]:
-        event_dict["action_updated_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_updated_at", now)
     elif "Finished" in event_dict["type"]:
-        event_dict["action_finished_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_finished_at", now)
         if (
             "is_success" in event_dict
             and event_dict["is_success"]

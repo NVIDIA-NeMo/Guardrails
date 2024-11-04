@@ -57,6 +57,56 @@ def test_send_umim_action_event():
     )
 
 
+def test_send_umim_action_event_overwriting_default_parameters():
+    """Test to send an UMIM event but overwrite default parameters."""
+
+    content = """
+    flow main
+      $fixed_timestamp = "2024-10-22T12:08:18.874224"
+      $uid = "1234"
+      send UtteranceBotActionFinished(final_script="Hello world", action_finished_at=$fixed_timestamp, action_uid=$uid, is_success=True)
+    """
+
+    state = run_to_completion(_init_state(content), start_main_flow_event)
+    assert is_data_in_events(
+        state.outgoing_events,
+        [
+            {
+                "type": "UtteranceBotActionFinished",
+                "final_script": "Hello world",
+                "action_uid": "1234",
+                "action_finished_at": "2024-10-22T12:08:18.874224",
+            }
+        ],
+    )
+
+
+def test_change_umim_event_source_id():
+    """Test to send an UMIM event."""
+
+    content = """
+    flow main
+      send StartUtteranceBotAction(script="Hello world")
+    """
+
+    config = """
+    colang_version: "2.x"
+    event_source_uid : agent-1
+    """
+
+    state = run_to_completion(_init_state(content, config), start_main_flow_event)
+    assert is_data_in_events(
+        state.outgoing_events,
+        [
+            {
+                "type": "StartUtteranceBotAction",
+                "script": "Hello world",
+                "source_uid": "agent-1",
+            }
+        ],
+    )
+
+
 def test_match_umim_action_event():
     """Test to match an UMIM event."""
 
@@ -1641,6 +1691,53 @@ def test_runtime_exception_handling_2():
             },
         ],
     )
+
+
+def test_user_message_generates_started_and_finished():
+    """Test queuing of action events."""
+    config = RailsConfig.from_content(
+        colang_content="""
+        flow main
+          match UtteranceUserActionStarted()
+          match UtteranceUserActionFinished(final_transcript="yes")
+          start UtteranceBotAction(script="ok")
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+    )
+
+    chat >> "yes"
+    chat << "ok"
+
+
+def test_handling_arbitrary_events_through_test_chat():
+    """Test queuing of action events."""
+    config = RailsConfig.from_content(
+        colang_content="""
+        flow main
+          match CustomEvent(name="test")
+          match EventA()
+          start UtteranceBotAction(script="started")
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+    )
+
+    chat >> {"type": "CustomEvent", "name": "test"}
+    chat >> {"type": "EventA"}
+    chat << "started"
 
 
 if __name__ == "__main__":

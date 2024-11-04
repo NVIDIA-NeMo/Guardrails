@@ -86,8 +86,8 @@ Colang supports evaluation of common Python expressions for simple and compound 
     ** # to the power of: 2 ** 10 -> 1024
     % # modulus
     ==, <, >, <=, >= # comparison operators
+    and, or, not # logical operators
     in # is something contained within something else
-    not in # is something not contained within something else
     >>, <<, ^, |, &, ~ # Bitwise operators
 
     # Conditional expressions
@@ -117,6 +117,8 @@ Colang supports evaluation of common Python expressions for simple and compound 
     is_float(x: Any) -> bool # Check if x is a float
     is_str(x: Any) -> bool # Check if x is a str
     is_regex(x: Any) -> bool # Check if x is a regex pattern
+    type(x: Any) -> str # Returns type as string of object x
+    list(x: Iterable[T]) -> list[T] # Converts an iterable object to a list
     rand() -> float # Return a random float between 0 and 1
     randint(x: int) -> int # Return a random int below x
     flows_info() -> dict # Returns a dictionary that contains more information about the current flow
@@ -133,6 +135,7 @@ Here is how expression can be used withing Colang:
 
     # Expression as a flow parameter
     bot count to ($dict["value"])
+    bot count to (int("3"))
 
 You see how expressions can be used in different context and need to be wrapped in parentheses if used as a *standalone statement* or as a *flow parameter*.
 
@@ -192,32 +195,81 @@ As in Python's formatted string literals we can use braces to evaluate an expres
 If you need to include a brace character in the literal text, it can be escaped by doubling: ``{{`` and ``}}``.
 
 ----------------------------------------
-Built-in Flow Variables
+Flow Member Variables
 ----------------------------------------
 
-.. important::
-    This is work in progress and some of the built-in variables might change or be removed in the future.
-
-Currently, there are a couple of variable names that cannot be used as custom variable names in a flow. They contain flow instance specific information:
+To access a flow instance's member variables you can use a reference or the reserved variable ``$self`` from within the flow itself:
 
 .. code-block:: colang
 
-    $system: dict # System specific data like e.g. the current bot configuration `$system.config`
-    $uid: str # The unique id of the flow instance
-    $flow_id: str # The name of the current flow
-    $loop_id: Optional[str] # The interaction loop id of the current flow
-    $parent_uid: Optional[str] # The unique id of the parent flow instance
-    $child_flow_uids: List[str] # All unique ids of the child flow instances
-    $context: dict # The current variable context that contains all user defined variables in the flow
-    $priority: float # Current priority of the flow
-    $arguments: dict # All arguments of the flow
-    $flow_instance_uid: str # Flow instance specific uid
-    $source_flow_instance_uid: str # The parent flow uid of the flow
-    $activate: bool # True if the flow was activated and will therefore restart immediately when finished
-    $new_instance_started: bool # True if new instance was started of an activated flow
+    $ref.uid: str # The unique id of the flow instance
+    $ref.flow_id: str # The name of the flow
+    $ref.status.value: str # Name of the low state ("waiting", "starting", "started", "stopping", "stopped", "finished")
+    $ref.loop_id: Optional[str] # The interaction loop id of the flow
+    $ref.parent_uid: Optional[str] # The unique id of the parent flow instance
+    $ref.child_flow_uids: List[str] # All unique ids of the child flow instances
+    $ref.context: dict # The variable context that contains all user defined variables in the flow
+    $ref.priority: float # Priority of the flow (range: [0.0-1.0], default: 1.0)
+    $ref.arguments: dict # All arguments of the flow
+    $ref.flow_instance_uid: str # Flow instance specific uid
+    $ref.source_flow_instance_uid: str # The parent flow uid of the flow
+    $ref.activate: bool # True if the flow was activated and will therefore restart immediately when finished
+    $ref.new_instance_started: bool # True if new instance was started of an activated flow
 
-    # Other internal flow members that cannot be used:
-    $hierarchy_position, $heads, $scopes, $head_fork_uids, $action_uids, $global_variables,
-    $status_updated, $source_head_uid
+You should not change those values if you are not sure what you are doing since this can have side effects on the further execution of the flow!
+
+
+----------------------------------------
+Action Member Variables
+----------------------------------------
+
+To access the member variables of an action you can use an action reference:
+
+.. code-block:: colang
+
+    $ref.uid: str # The unique id of the action instance
+    $ref.name: str # The name of the action
+    $ref.flow_uid: str # The flow that started the action
+    $ref.status.value: str # The action status ("initialized", "starting", "started", "stopping", "finished")
+    $ref.context: dict # Contains all the action event parameters
+    $ref.start_event_arguments: dict # Contains all action start arguments
+
+----------------------------------------
+Event Member Variables
+----------------------------------------
+
+To access the member variables of an event you can use an event reference:
+
+.. code-block:: colang
+
+    $ref.name: str # The name of the event
+    $ref.arguments: dict # A dictionary with all the event arguments
+
+    # Only for flow events
+    $ref.flow: FlowReference # A reference to the flow of the event
+
+----------------------------------------
+System and Bot Configuration Values
+----------------------------------------
+
+To access system or bot specific configuration variables you can use ``$system``:
+
+.. code-block:: colang
+
+    $system.config # Current bot configuration object (YAML)
+    $system.state # The bots current runtime state object
+
+As an example, if you defined a new boolean value `streaming` in the yaml bot configuration:
+
+.. code-block:: yaml
+
+    streaming: True
+
+you can access and print it like that:
+
+.. code-block:: colang
+
+    print $system.config.streaming
+
 
 Next we learn how to use :ref:`flow-control` to create branching or looping interaction patterns.

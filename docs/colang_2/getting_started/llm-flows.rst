@@ -8,7 +8,7 @@ This section explains how to create LLM-driven flows in Colang 2.0.
 
 Using Colang, you can describe complex patterns of interaction. However, as a developer, you will never be able to describe all the potential paths an interaction can take. And this is where an LLM can help, by generating *LLM-driven continuations* at runtime.
 
-The :ref:`colang_2_getting_started_dialog_rails` and the :ref:`colang_2_getting_started_input_rails` examples, show how to use the LLM to generate continuations dynamically. The example below is similar to the dialog rails example, but it instructs to LLM to generate directly the bot response:
+The :ref:`colang_2_getting_started_dialog_rails` and the :ref:`colang_2_getting_started_input_rails` examples, show how to use the LLM to generate continuations dynamically. The example below is similar to the dialog rails example, but it instructs the LLM to generate directly the bot response. Note, the quality of the response depends on the configured LLM model and can vary.
 
 
 .. code-block:: colang
