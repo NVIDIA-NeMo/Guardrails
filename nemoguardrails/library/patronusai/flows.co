@@ -13,3 +13,11 @@ flow patronus lynx check output hallucination
     else
       bot inform answer unknown
     abort
+
+flow patronus api check output
+  $patronus_response = await PatronusApiCheckOutputAction
+  global $evaluation_passed
+  $evaluation_passed = $patronus_response["pass"]
+
+  if not $evaluation_passed
+    bot inform answer unknown
