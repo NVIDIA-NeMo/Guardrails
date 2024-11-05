@@ -535,13 +535,18 @@ async def _run_chat_v2_x(rails_app: LLMRails):
                     else:
                         chat_state.input_events = [event]
                 else:
+                    action_uid = new_uuid()
                     chat_state.input_events = [
+                        new_event_dict(
+                            "UtteranceUserActionStarted",
+                            action_uid=action_uid,
+                        ),
                         new_event_dict(
                             "UtteranceUserActionFinished",
                             final_transcript=user_message,
                             action_uid=new_uuid(),
                             is_success=True,
-                        )
+                        ),
                     ]
 
             await _process_input_events()

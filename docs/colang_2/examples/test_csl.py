@@ -299,3 +299,58 @@ Gesture: shake head
         """
 
     await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_tracking_bot_talking_state():
+    colang_code = """
+# COLANG_START: test_tracking_bot_talking_state
+import core
+
+flow main
+    global $bot_talking_state
+    activate tracking bot talking state
+
+    user said something
+    if $bot_talking_state
+        bot gesture "show ignorance to user speech"
+    else
+        bot say "responding to user question"
+
+# COLANG_END: test_tracking_bot_talking_state
+    """
+
+    test_script = """
+# USAGE_START: test_tracking_bot_talking_state
+> hello there
+responding to user question
+# USAGE_END: test_tracking_bot_talking_state
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_tracking_user_talking_state():
+    colang_code = """
+# COLANG_START: test_tracking_user_talking_state
+import core
+
+flow main
+    global $last_user_transcript
+    activate tracking user talking state
+
+    user said something
+    bot say "I remembered {$last_user_transcript}"
+
+# COLANG_END: test_tracking_user_talking_state
+    """
+
+    test_script = """
+# USAGE_START: test_tracking_user_talking_state
+> my favorite color is red
+I remembered my favorite color is red
+# USAGE_END: test_tracking_user_talking_state
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
