@@ -183,28 +183,34 @@ class TestChat:
         else:
             raise Exception(f"Invalid colang version: {self.config.colang_version}")
 
-    def bot(self, msg: str):
+    def bot(self, expected: Union[str, dict, list[dict]]):
         if self.config.colang_version == "1.0":
             result = self.app.generate(messages=self.history)
             assert result, "Did not receive any result"
             assert (
-                result["content"] == msg
-            ), f"Expected `{msg}` and received `{result['content']}`"
+                result["content"] == expected
+            ), f"Expected `{expected}` and received `{result['content']}`"
             self.history.append(result)
 
         elif self.config.colang_version == "2.x":
             output_msgs = []
+            output_events = []
             while self.input_events:
                 event = self.input_events.pop(0)
-                output_events, output_state = self.app.process_events(
-                    [event], self.state
-                )
+                out_events, output_state = self.app.process_events([event], self.state)
+                output_events.extend(out_events)
 
                 # We detect any "StartUtteranceBotAction" events, show the message, and
                 # generate the corresponding Finished events as new input events.
-                for event in output_events:
+                for event in out_events:
                     if event["type"] == "StartUtteranceBotAction":
                         output_msgs.append(event["script"])
+                        self.input_events.append(
+                            new_event_dict(
+                                "UtteranceBotActionStarted",
+                                action_uid=event["action_uid"],
+                            )
+                        )
                         self.input_events.append(
                             new_event_dict(
                                 "UtteranceBotActionStarted",
@@ -223,7 +229,15 @@ class TestChat:
                 self.state = output_state
 
             output_msg = "\n".join(output_msgs)
-            assert output_msg == msg, f"Expected `{msg}` and received `{output_msg}`"
+            if isinstance(expected, str):
+                assert (
+                    output_msg == expected
+                ), f"Expected `{expected}` and received `{output_msg}`"
+            else:
+                if isinstance(expected, dict):
+                    expected = [expected]
+                assert is_data_in_events(output_events, expected)
+
         else:
             raise Exception(f"Invalid colang version: {self.config.colang_version}")
 

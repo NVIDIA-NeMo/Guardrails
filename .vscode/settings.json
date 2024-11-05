@@ -44,7 +44,10 @@
     "python.envFile": "${workspaceFolder}/.venv",
     "python.languageServer": "Pylance",
     "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": ["${workspaceFolder}/tests"],
+    "python.testing.pytestArgs": [
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/docs/colang_2/examples"
+    ],
     "python.testing.unittestEnabled": false,
     //"python.envFile": "${workspaceFolder}/python_release.env",
 
