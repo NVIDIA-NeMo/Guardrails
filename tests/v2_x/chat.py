@@ -101,7 +101,7 @@ class ChatInterface:
                 )
 
             elif event["type"] == "StartPostureBotAction":
-                self._add_to_output_summary(f"Posture: {event['posture']}.")
+                self._add_to_output_summary(f"Posture: {event['posture']}")
 
                 self.chat_state.input_events.append(
                     new_event_dict(
@@ -111,9 +111,7 @@ class ChatInterface:
                 )
 
             elif event["type"] == "StopPostureBotAction":
-                self._add_to_output_summary(
-                    f"bot posture (stop): (action_uid={event['action_uid']})"
-                )
+                self._add_to_output_summary("bot posture (stop)")
 
                 self.chat_state.input_events.append(
                     new_event_dict(

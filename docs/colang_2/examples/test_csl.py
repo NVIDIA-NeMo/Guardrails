@@ -1,0 +1,301 @@
+import pathlib
+import sys
+
+import pytest
+
+pathlib.Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.parent.resolve()))
+print(sys.path)
+
+from utils import compare_interaction_with_script
+
+########################################################################################################################
+# CORE
+########################################################################################################################
+
+## User event flows
+
+
+@pytest.mark.asyncio
+async def test_user_said():
+    colang_code = """
+# COLANG_START: test_user_said
+import core
+
+flow main
+    # Only matches exactly "hello"
+    user said "hello"
+    bot say "hi"
+# COLANG_END: test_user_said
+    """
+
+    test_script = """
+# USAGE_START: test_user_said
+> hi
+> hello
+hi
+# USAGE_END: test_user_said
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_user_said_something():
+    colang_code = """
+# COLANG_START: test_user_said_something
+import core
+
+flow main
+    $transcript = await user said something
+    bot say "You said: {$transcript}"
+# COLANG_END: test_user_said_something
+    """
+
+    test_script = """
+# USAGE_START: test_user_said_something
+> I can say whatever I want
+You said: I can say whatever I want
+# USAGE_END: test_user_said_something
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_user_saying():
+    colang_code = """
+# COLANG_START: test_user_saying
+import core
+
+flow main
+    # Provide verbal feedback while the user is writing / speaking
+    while True
+        when user saying (regex("sad|lonely"))
+            bot say "oooh"
+        or when user saying (regex("great|awesome"))
+            bot say "nice!"
+# COLANG_END: test_user_saying
+    """
+
+    test_script = """
+# USAGE_START: test_user_saying
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a ")
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a sad story")
+oooh
+# USAGE_END: test_user_saying
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_user_saying_something():
+    colang_code = """
+# COLANG_START: test_user_saying_something
+import core
+import avatars
+
+flow main
+    user saying something
+    bot gesture "nod"
+# COLANG_END: test_user_saying_something
+    """
+
+    test_script = """
+# USAGE_START: test_user_saying_something
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="anything")
+Gesture: nod
+# USAGE_END: test_user_saying_something
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_user_started_saying_something():
+    colang_code = """
+# COLANG_START: test_user_started_saying_something
+import core
+import avatars
+
+flow main
+    # Start a bot posture as soon as the user starts talking
+    user started saying something
+    start bot posture "listening" as $ref
+
+    # Stop the posture when the user is done talking
+    user said something
+    send $ref.Stop()
+# COLANG_END: test_user_started_saying_something
+    """
+
+    test_script = """
+# USAGE_START: test_user_started_saying_something
+> /UtteranceUserAction.Started()
+Posture: listening
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="I am starting to talk")
+> /UtteranceUserAction.Finished(final_transcript="anything")
+bot posture (stop)
+# USAGE_END: test_user_started_saying_something
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_user_said_something_unexpected():
+    colang_code = """
+# COLANG_START: test_user_said_something_unexpected
+import core
+
+flow handling welcome
+    user said "hi" or user said "hello"
+    bot say "hello"
+
+flow main
+    activate handling welcome
+
+    # If the user utterance is anything else except "hi" and "hello" this will advance
+    user said something unexpected
+    bot say "you said something unexpected"
+# COLANG_END: test_user_said_something_unexpected
+    """
+
+    test_script = """
+# USAGE_START: test_user_said_something_unexpected
+> hi
+hello
+> how are you
+you said something unexpected
+# USAGE_END: test_user_said_something_unexpected
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+# Bot Action Flows
+@pytest.mark.asyncio
+async def test_bot_say():
+    colang_code = """
+# COLANG_START: test_bot_say
+import core
+
+flow main
+    user said something
+    bot say "Hello world!"
+# COLANG_END: test_bot_say
+    """
+
+    test_script = """
+# USAGE_START: test_bot_say
+> anything
+Hello world!
+# USAGE_END: test_bot_say
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+# Bot Event Flows
+@pytest.mark.asyncio
+async def test_bot_started_saying_example():
+    colang_code = """
+# COLANG_START: test_bot_started_saying_example
+import core
+
+flow reacting to bot utterances
+    bot started saying "hi"
+    send CustomEvent()
+
+flow main
+    activate reacting to bot utterances
+
+    user said something
+    bot say "hi"
+# COLANG_END: test_bot_started_saying_example
+    """
+
+    test_script = """
+# USAGE_START: test_bot_started_saying_example
+> hello
+hi
+Event: CustomEvent
+# USAGE_END: test_bot_started_saying_example
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_bot_started_saying_something():
+    colang_code = """
+# COLANG_START: test_bot_started_saying_something
+import core
+import avatars
+
+flow handling talking posture
+    bot started saying something
+    bot posture "talking"
+    bot said something
+
+flow main
+    activate handling talking posture
+
+    user said something
+    bot say "hi"
+# COLANG_END: test_bot_started_saying_something
+    """
+
+    test_script = """
+# USAGE_START: test_bot_started_saying_something
+> something
+hi
+Posture: talking
+bot posture (stop)
+# USAGE_END: test_bot_started_saying_something
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_bot_said():
+    colang_code = """
+# COLANG_START: test_bot_said
+import core
+import avatars
+
+flow creating gestures
+    when bot said "yes"
+        bot gesture "thumbs up"
+    or when bot said "no"
+        bot gesture "shake head"
+
+flow answering cat dog questions
+    when user said "Do you like cats?"
+        bot say "yes"
+    or when user said "Do you like dogs?"
+        bot say "no"
+
+flow main
+    activate creating gestures
+    activate answering cat dog questions
+
+    wait indefinitely
+
+# COLANG_END: test_bot_said
+    """
+
+    test_script = """
+# USAGE_START: test_bot_said
+> Do you like cats?
+yes
+Gesture: thumbs up
+> Do you like dogs?
+no
+Gesture: shake head
+# USAGE_END: test_bot_said
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
