@@ -354,3 +354,91 @@ I remembered my favorite color is red
         """
 
     await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_notification_of_colang_errors():
+    colang_code = """
+# COLANG_START: test_notification_of_colang_errors
+import core
+
+# We need to create an artificial error.
+# We need to create this in a separate flow as otherwise the main flow will fail upon the error.
+flow creating an error
+    user said something
+    $number = 3
+    print $number.error
+
+flow main
+    activate notification of colang errors
+
+    creating an error
+    wait indefinitely
+
+
+# COLANG_END: test_notification_of_colang_errors
+    """
+
+    test_script = """
+# USAGE_START: test_notification_of_colang_errors
+> test
+Excuse me, there was an internal Colang error.
+# USAGE_END: test_notification_of_colang_errors
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_notification_of_undefined_flow_start():
+    colang_code = """
+# COLANG_START: test_notification_of_undefined_flow_start
+import core
+
+flow main
+    activate notification of undefined flow start
+
+    # We are misspelling the `bot say` flow to trigger a undefined flow start.
+    user said something
+    bot sayy "hello"
+
+# COLANG_END: test_notification_of_undefined_flow_start
+    """
+
+    test_script = """
+# USAGE_START: test_notification_of_undefined_flow_start
+> test
+Failed to start an undefined flow!
+# USAGE_END: test_notification_of_undefined_flow_start
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_notification_of_unexpected_user_utterance():
+    colang_code = """
+# COLANG_START: test_notification_of_unexpected_user_utterance
+import core
+
+flow reacting to user requests
+    user said "hi" or user said "hello"
+    bot say "hi there"
+
+flow main
+    activate notification of unexpected user utterance
+    activate reacting to user requests
+
+# COLANG_END: test_notification_of_unexpected_user_utterance
+    """
+
+    test_script = """
+# USAGE_START: test_notification_of_unexpected_user_utterance
+> hello
+hi there
+> what is your name
+I don't know how to respond to that!
+# USAGE_END: test_notification_of_unexpected_user_utterance
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
