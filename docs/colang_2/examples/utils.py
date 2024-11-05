@@ -14,7 +14,7 @@ models:
 """
 
 
-async def run_chat_interface_based_on_script(script, colang) -> str:
+async def run_chat_interface_based_on_script(script, colang, wait_time) -> str:
     rails_config = RailsConfig.from_content(
         colang_content=colang,
         yaml_content=YAML_CONFIG,
@@ -31,7 +31,7 @@ async def run_chat_interface_based_on_script(script, colang) -> str:
             interaction_log.append(line)
             user_input = line.replace("> ", "")
             print(f"sending '{user_input}' to process")
-            response = await chat.process(user_input)
+            response = await chat.process(user_input, wait_time)
             interaction_log.append(response)
 
     chat.should_terminate = True
@@ -58,8 +58,8 @@ def cleanup(content):
     return "\n".join(output)
 
 
-async def compare_interaction_with_script(test_script, colang):
-    result = await run_chat_interface_based_on_script(test_script, colang)
+async def compare_interaction_with_script(test_script, colang, wait_time=1.0):
+    result = await run_chat_interface_based_on_script(test_script, colang, wait_time)
     clean_test_script = cleanup(test_script)
     clean_result = cleanup(result)
     assert (

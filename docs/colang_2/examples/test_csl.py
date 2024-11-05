@@ -442,3 +442,231 @@ I don't know how to respond to that!
         """
 
     await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_wait_indefinitely():
+    colang_code = """
+# COLANG_START: test_wait_indefinitely
+import timing
+
+flow main
+    bot say "hello"
+    wait indefinitely
+
+# COLANG_END: test_wait_indefinitely
+    """
+
+    test_script = """
+# USAGE_START: test_wait_indefinitely
+>
+hello
+# USAGE_END: test_wait_indefinitely
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+########################################################################################################################
+# TIMING
+########################################################################################################################
+@pytest.mark.asyncio
+async def test_wait():
+    colang_code = """
+# COLANG_START: test_wait
+import timing
+import core
+
+flow delayed bot say $text
+    wait 0.5
+    bot say $text
+
+flow main
+    user said something
+    start delayed bot say "I say this later"
+    start bot say "I say this first"
+
+    wait indefinitely
+
+# COLANG_END: test_wait
+    """
+
+    test_script = """
+# USAGE_START: test_wait
+> hello
+I say this first
+I say this later
+# USAGE_END: test_wait
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_repeating_timer():
+    colang_code = """
+# COLANG_START: test_repeating_timer
+import timing
+import core
+
+
+flow reacting to my timer
+    match TimerBotAction.Finished(timer_name="my_timer")
+    bot say "tick"
+
+flow main
+    user said something
+    start repeating timer "my_timer" 0.4
+    wait 1.0
+
+# COLANG_END: test_repeating_timer
+    """
+
+    test_script = """
+# USAGE_START: test_repeating_timer
+> test
+tick
+tick
+# USAGE_END: test_repeating_timer
+        """
+
+    await compare_interaction_with_script(test_script, colang_code)
+
+
+@pytest.mark.asyncio
+async def test_user_was_silent():
+    colang_code = """
+# COLANG_START: test_user_was_silent
+import timing
+import core
+
+
+flow reacting to user silence
+    user was silent 5.0
+    bot say "Can I help you with anything else?"
+
+flow main
+    activate reacting to user silence
+
+    while True
+        user said something
+        bot say "sounds interesting"
+
+# COLANG_END: test_user_was_silent
+    """
+
+    test_script = """
+# USAGE_START: test_user_was_silent
+> I am going to the zoo
+sounds interesting
+# (Wait for more than 5 seconds)
+Can I help you with anything else?
+# USAGE_END: test_user_was_silent
+        """
+
+    await compare_interaction_with_script(test_script, colang_code, 7.0)
+
+
+@pytest.mark.asyncio
+async def test_user_didnt_respond():
+    colang_code = """
+# COLANG_START: test_user_didnt_respond
+import timing
+import core
+
+
+flow repeating if no user response
+    global $last_bot_script
+    user didnt respond 5.0
+    bot say $last_bot_script
+
+
+flow main
+    activate tracking bot talking state
+    activate repeating if no user response
+
+    user said something
+    bot say "How can I help you today?"
+    user said something
+
+# COLANG_END: test_user_didnt_respond
+    """
+
+    test_script = """
+# USAGE_START: test_user_didnt_respond
+> hi
+How can I help you today?
+# (Wait for more than 5 seconds)
+How can I help you today?
+# USAGE_END: test_user_didnt_respond
+        """
+
+    await compare_interaction_with_script(test_script, colang_code, 7.0)
+
+
+@pytest.mark.asyncio
+async def test_bot_was_silent():
+    colang_code = """
+# COLANG_START: test_bot_was_silent
+import timing
+import core
+
+flow inform processing time
+    user said something
+    bot was silent 2.0
+    bot say "This is taking a bit longer"
+
+flow processing user request
+    user said "place the order"
+    wait 4.0
+    bot say "order was placed successfully"
+
+flow main
+    activate inform processing time
+    activate processing user request
+
+# COLANG_END: test_bot_was_silent
+    """
+
+    test_script = """
+# USAGE_START: test_bot_was_silent
+> place the order
+# After about 2 seconds:
+This is taking a bit longer
+# After and additional 2 seconds:
+order was placed successfully
+# USAGE_END: test_bot_was_silent
+        """
+
+    await compare_interaction_with_script(test_script, colang_code, 5.0)
+
+
+########################################################################################################################
+# AVATARS
+########################################################################################################################
+@pytest.mark.asyncio
+async def test_bot_gesture_with_delay():
+    colang_code = """
+# COLANG_START: test_bot_gesture_with_delay
+import avatars
+import core
+
+flow main
+    user said something
+    bot say "welcome" and bot gesture with delay "bowing" 1.0
+
+
+# COLANG_END: test_bot_gesture_with_delay
+    """
+
+    test_script = """
+# USAGE_START: test_bot_gesture_with_delay
+> hi there
+# After about 2 seconds:
+welcome
+# After a a delay of 1 sec:
+Gesture: bowing
+# USAGE_END: test_bot_gesture_with_delay
+        """
+
+    await compare_interaction_with_script(test_script, colang_code, 5.0)
