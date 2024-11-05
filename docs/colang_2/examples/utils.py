@@ -1,7 +1,9 @@
 import asyncio
+from typing import Optional
 
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
+from tests.utils import FakeLLM
 from tests.v2_x.chat import ChatInterface
 
 YAML_CONFIG = """
@@ -14,16 +16,27 @@ models:
 """
 
 
-async def run_chat_interface_based_on_script(script, colang, wait_time) -> str:
+async def run_chat_interface_based_on_test_script(
+    test_script: str,
+    colang: str,
+    wait_time_s: float,
+    llm_responses: Optional[list] = None,
+) -> str:
     rails_config = RailsConfig.from_content(
         colang_content=colang,
         yaml_content=YAML_CONFIG,
     )
     interaction_log = []
-    rails_app = LLMRails(rails_config, verbose=True)
+
+    if llm_responses:
+        llm = FakeLLM(responses=llm_responses)
+        rails_app = LLMRails(rails_config, verbose=True, llm=llm)
+    else:
+        rails_app = LLMRails(rails_config, verbose=True)
+
     chat = ChatInterface(rails_app)
 
-    lines = script.split("\n")
+    lines = test_script.split("\n")
     for line in lines:
         if line.startswith("#"):
             continue
@@ -31,7 +44,7 @@ async def run_chat_interface_based_on_script(script, colang, wait_time) -> str:
             interaction_log.append(line)
             user_input = line.replace("> ", "")
             print(f"sending '{user_input}' to process")
-            response = await chat.process(user_input, wait_time)
+            response = await chat.process(user_input, wait_time_s)
             interaction_log.append(response)
 
     chat.should_terminate = True
@@ -58,8 +71,15 @@ def cleanup(content):
     return "\n".join(output)
 
 
-async def compare_interaction_with_script(test_script, colang, wait_time=1.0):
-    result = await run_chat_interface_based_on_script(test_script, colang, wait_time)
+async def compare_interaction_with_test_script(
+    test_script: str,
+    colang: str,
+    wait_time_s: float = 1.0,
+    llm_responses: Optional[list] = None,
+) -> None:
+    result = await run_chat_interface_based_on_test_script(
+        test_script, colang, wait_time_s, llm_responses=llm_responses
+    )
     clean_test_script = cleanup(test_script)
     clean_result = cleanup(result)
     assert (

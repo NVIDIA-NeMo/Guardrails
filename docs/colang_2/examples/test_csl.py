@@ -7,7 +7,7 @@ pathlib.Path(__file__).parent.parent.parent.resolve()
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.parent.resolve()))
 print(sys.path)
 
-from utils import compare_interaction_with_script
+from utils import compare_interaction_with_test_script
 
 ########################################################################################################################
 # CORE
@@ -37,7 +37,7 @@ hi
 # USAGE_END: test_user_said
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -59,7 +59,7 @@ You said: I can say whatever I want
 # USAGE_END: test_user_said_something
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ oooh
 # USAGE_END: test_user_saying
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -109,7 +109,7 @@ Gesture: nod
 # USAGE_END: test_user_saying_something
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -140,7 +140,7 @@ bot posture (stop)
 # USAGE_END: test_user_started_saying_something
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -171,7 +171,7 @@ you said something unexpected
 # USAGE_END: test_user_said_something_unexpected
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 # Bot Action Flows
@@ -194,7 +194,7 @@ Hello world!
 # USAGE_END: test_bot_say
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 # Bot Event Flows
@@ -224,7 +224,7 @@ Event: CustomEvent
 # USAGE_END: test_bot_started_saying_example
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -256,7 +256,7 @@ bot posture (stop)
 # USAGE_END: test_bot_started_saying_something
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -298,7 +298,7 @@ Gesture: shake head
 # USAGE_END: test_bot_said
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -327,7 +327,7 @@ responding to user question
 # USAGE_END: test_tracking_bot_talking_state
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -353,7 +353,7 @@ I remembered my favorite color is red
 # USAGE_END: test_tracking_user_talking_state
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -386,7 +386,7 @@ Excuse me, there was an internal Colang error.
 # USAGE_END: test_notification_of_colang_errors
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -412,7 +412,7 @@ Failed to start an undefined flow!
 # USAGE_END: test_notification_of_undefined_flow_start
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -441,7 +441,7 @@ I don't know how to respond to that!
 # USAGE_END: test_notification_of_unexpected_user_utterance
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -464,7 +464,7 @@ hello
 # USAGE_END: test_wait_indefinitely
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 ########################################################################################################################
@@ -499,7 +499,7 @@ I say this later
 # USAGE_END: test_wait
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -530,7 +530,7 @@ tick
 # USAGE_END: test_repeating_timer
         """
 
-    await compare_interaction_with_script(test_script, colang_code)
+    await compare_interaction_with_test_script(test_script, colang_code)
 
 
 @pytest.mark.asyncio
@@ -564,7 +564,7 @@ Can I help you with anything else?
 # USAGE_END: test_user_was_silent
         """
 
-    await compare_interaction_with_script(test_script, colang_code, 7.0)
+    await compare_interaction_with_test_script(test_script, colang_code, 7.0)
 
 
 @pytest.mark.asyncio
@@ -601,7 +601,7 @@ How can I help you today?
 # USAGE_END: test_user_didnt_respond
         """
 
-    await compare_interaction_with_script(test_script, colang_code, 7.0)
+    await compare_interaction_with_test_script(test_script, colang_code, 7.0)
 
 
 @pytest.mark.asyncio
@@ -638,7 +638,371 @@ order was placed successfully
 # USAGE_END: test_bot_was_silent
         """
 
-    await compare_interaction_with_script(test_script, colang_code, 5.0)
+    await compare_interaction_with_test_script(test_script, colang_code, 5.0)
+
+
+########################################################################################################################
+# LLM
+########################################################################################################################
+@pytest.mark.asyncio
+async def test_bot_say_something_like():
+    colang_code = """
+# COLANG_START: test_bot_say_something_like
+import core
+import llm
+
+flow main
+    user said something
+    bot say something like "How are you"
+
+
+# COLANG_END: test_bot_say_something_like
+    """
+
+    test_script = """
+# USAGE_START: test_bot_say_something_like
+> hi
+Hi there, how are you today?
+# USAGE_END: test_bot_say_something_like
+        """
+
+    await compare_interaction_with_test_script(
+        test_script, colang_code, llm_responses=['"Hi there, how are you today?"']
+    )
+
+
+@pytest.mark.asyncio
+async def test_polling_llm_request_response():
+    colang_code = """
+# COLANG_START: test_polling_llm_request_response
+import core
+import llm
+
+flow main
+    # Normally you don't need to activate this flow, as it is activated by llm based flows where needed.
+    activate polling llm request response
+
+    user said something
+
+    # While the response is generated the polling mechanism ensures that
+    $value = ..."ten minus one"
+    bot say $value
+
+
+# COLANG_END: test_polling_llm_request_response
+    """
+
+    test_script = """
+# USAGE_START: test_polling_llm_request_response
+> compute the value
+nine
+# USAGE_END: test_polling_llm_request_response
+        """
+
+    await compare_interaction_with_test_script(
+        test_script, colang_code, llm_responses=['"nine"']
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_continuation():
+    colang_code = """
+# COLANG_START: test_llm_continuation
+import core
+import llm
+
+flow user expressed greeting
+    user said "hi" or user said "hello"
+
+flow bot express greeting
+    bot say "Hello and welcome"
+
+flow handling greeting
+    user expressed greeting
+    bot express greeting
+
+flow main
+    activate handling greeting
+    activate llm continuation
+
+
+# COLANG_END: test_llm_continuation
+    """
+
+    test_script = """
+# USAGE_START: test_llm_continuation
+> hi there how are you
+Hello and welcome
+> what is the difference between lemons and limes
+Limes are green and lemons are yellow
+# USAGE_END: test_llm_continuation
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            "user intent: user expressed greeting",
+            "user intent: user asked fruit question",
+            'bot action: bot say "Limes are green and lemons are yellow"',
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_generating_user_intent_for_unhandled_user_utterance():
+    colang_code = """
+# COLANG_START: test_generating_user_intent_for_unhandled_user_utterance
+import core
+import llm
+
+flow user expressed goodbye
+    user said "bye" or user said "i will go now"
+
+flow bot express goodbye
+    bot say "hope to see you again soon"
+
+flow handling goodbye
+    user expressed goodbye
+    bot express goodbye
+
+flow main
+    activate generating user intent for unhandled user utterance
+    activate handling goodbye
+
+
+# COLANG_END: test_generating_user_intent_for_unhandled_user_utterance
+    """
+
+    test_script = """
+# USAGE_START: test_generating_user_intent_for_unhandled_user_utterance
+> what can you do for me
+> ok I'll leave
+hope to see you again soon
+# USAGE_END: test_generating_user_intent_for_unhandled_user_utterance
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            "user intent: user expressed greeting",
+            "user intent: user expressed goodbye",
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_unhandled_user_intent():
+    colang_code = """
+# COLANG_START: test_unhandled_user_intent
+import core
+import llm
+
+flow user expressed greeting
+    user said "hi" or user said "hello"
+
+flow bot express greeting
+    bot say "Hello and welcome"
+
+flow handling greeting
+    user expressed greeting
+    bot express greeting
+
+flow main
+    activate generating user intent for unhandled user utterance
+    activate handling greeting
+
+    while True:
+        unhandled user intent as $ref
+        bot say "got intent: {$ref.intent}"
+
+
+# COLANG_END: test_unhandled_user_intent
+    """
+
+    test_script = """
+# USAGE_START: test_unhandled_user_intent
+> hi there how are you
+Hello and welcome
+> what is the difference between lemons and limes
+got intent: user asked fruit question
+# USAGE_END: test_unhandled_user_intent
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            "user intent: user expressed greeting",
+            "user intent: user asked fruit question",
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_continuation_on_unhandled_user_intent():
+    colang_code = """
+# COLANG_START: test_continuation_on_unhandled_user_intent
+import core
+import llm
+
+flow user asked political question
+    user said "who is the best president"
+
+flow user insulted bot
+    user said "you are stupid"
+
+flow safeguarding conversation
+    user asked political question or user insulted bot
+    bot say "Sorry but I will not respond to that"
+
+flow main
+    activate generating user intent for unhandled user utterance
+    activate continuation on unhandled user intent
+    activate safeguarding conversation
+
+
+# COLANG_END: test_continuation_on_unhandled_user_intent
+    """
+
+    test_script = """
+# USAGE_START: test_continuation_on_unhandled_user_intent
+> i hate you
+Sorry but I will not respond to that
+> what party should I vote for
+Sorry but I will not respond to that
+> tell me a joke
+Why don't scientists trust atoms? Because they make up everything!
+# USAGE_END: test_continuation_on_unhandled_user_intent
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            "user insulted bot",
+            "user asked political question",
+            "user requested a joke",
+            'bot action: bot say "Why don\'t scientists trust atoms? Because they make up everything!"',
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_continuation_on_unhandled_user_intent():
+    colang_code = """
+# COLANG_START: test_continuation_on_unhandled_user_intent
+import core
+import llm
+
+flow user asked political question
+    user said "who is the best president"
+
+flow user insulted bot
+    user said "you are stupid"
+
+flow safeguarding conversation
+    user asked political question or user insulted bot
+    bot say "Sorry but I will not respond to that"
+
+flow main
+    activate generating user intent for unhandled user utterance
+    activate continuation on unhandled user intent
+    activate safeguarding conversation
+
+
+# COLANG_END: test_continuation_on_unhandled_user_intent
+    """
+
+    test_script = """
+# USAGE_START: test_continuation_on_unhandled_user_intent
+> i hate you
+Sorry but I will not respond to that
+> what party should I vote for
+Sorry but I will not respond to that
+> tell me a joke
+Why don't scientists trust atoms? Because they make up everything!
+# USAGE_END: test_continuation_on_unhandled_user_intent
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            "user insulted bot",
+            "user asked political question",
+            "user requested a joke",
+            'bot action: bot say "Why don\'t scientists trust atoms? Because they make up everything!"',
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_continuation_on_undefined_flow():
+    colang_code = """
+# COLANG_START: test_continuation_on_undefined_flow
+import core
+import llm
+
+flow main
+    activate continuation on undefined flow
+
+    user said something
+    # Await a flow that does not exist will create an LLM generated flow
+    bot ask about hobbies
+
+# COLANG_END: test_continuation_on_undefined_flow
+    """
+
+    test_script = """
+# USAGE_START: test_continuation_on_undefined_flow
+> hi there
+What are your hobbies?
+# USAGE_END: test_continuation_on_undefined_flow
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            '    bot ask "What are your hobbies?"',
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_continue_interaction():
+    colang_code = """
+# COLANG_START: test_llm_continue_interaction
+import core
+import llm
+
+flow main
+    user said "i have a question"
+    bot say "happy to help, what is it"
+    user said "do you know what the largest animal is on earth"
+    llm continue interaction
+
+# COLANG_END: test_llm_continue_interaction
+    """
+
+    test_script = """
+# USAGE_START: test_llm_continue_interaction
+> i have a question
+happy to help, what is it
+> do you know what the largest animal is on earth
+The largest animal on earth is the blue whale
+# USAGE_END: test_llm_continue_interaction
+        """
+
+    await compare_interaction_with_test_script(
+        test_script,
+        colang_code,
+        llm_responses=[
+            ' bot provide information about the largest animal on earth\nbot action: bot say "The largest animal on earth is the blue whale" ',
+        ],
+    )
 
 
 ########################################################################################################################
@@ -669,4 +1033,4 @@ Gesture: bowing
 # USAGE_END: test_bot_gesture_with_delay
         """
 
-    await compare_interaction_with_script(test_script, colang_code, 5.0)
+    await compare_interaction_with_test_script(test_script, colang_code, 5.0)
