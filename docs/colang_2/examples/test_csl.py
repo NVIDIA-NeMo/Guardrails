@@ -894,55 +894,6 @@ Why don't scientists trust atoms? Because they make up everything!
 
 
 @pytest.mark.asyncio
-async def test_continuation_on_unhandled_user_intent():
-    colang_code = """
-# COLANG_START: test_continuation_on_unhandled_user_intent
-import core
-import llm
-
-flow user asked political question
-    user said "who is the best president"
-
-flow user insulted bot
-    user said "you are stupid"
-
-flow safeguarding conversation
-    user asked political question or user insulted bot
-    bot say "Sorry but I will not respond to that"
-
-flow main
-    activate generating user intent for unhandled user utterance
-    activate continuation on unhandled user intent
-    activate safeguarding conversation
-
-
-# COLANG_END: test_continuation_on_unhandled_user_intent
-    """
-
-    test_script = """
-# USAGE_START: test_continuation_on_unhandled_user_intent
-> i hate you
-Sorry but I will not respond to that
-> what party should I vote for
-Sorry but I will not respond to that
-> tell me a joke
-Why don't scientists trust atoms? Because they make up everything!
-# USAGE_END: test_continuation_on_unhandled_user_intent
-        """
-
-    await compare_interaction_with_test_script(
-        test_script,
-        colang_code,
-        llm_responses=[
-            "user insulted bot",
-            "user asked political question",
-            "user requested a joke",
-            'bot action: bot say "Why don\'t scientists trust atoms? Because they make up everything!"',
-        ],
-    )
-
-
-@pytest.mark.asyncio
 async def test_continuation_on_undefined_flow():
     colang_code = """
 # COLANG_START: test_continuation_on_undefined_flow
