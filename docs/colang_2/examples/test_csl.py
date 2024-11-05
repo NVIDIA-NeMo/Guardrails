@@ -448,7 +448,7 @@ I don't know how to respond to that!
 async def test_wait_indefinitely():
     colang_code = """
 # COLANG_START: test_wait_indefinitely
-import timing
+import core
 
 flow main
     bot say "hello"
@@ -515,6 +515,8 @@ flow reacting to my timer
     bot say "tick"
 
 flow main
+    activate reacting to my timer
+
     user said something
     start repeating timer "my_timer" 0.4
     wait 1.0
@@ -530,7 +532,9 @@ tick
 # USAGE_END: test_repeating_timer
         """
 
-    await compare_interaction_with_test_script(test_script, colang_code)
+    await compare_interaction_with_test_script(
+        test_script, colang_code, wait_time_s=2.0
+    )
 
 
 @pytest.mark.asyncio
