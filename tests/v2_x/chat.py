@@ -1,8 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import asyncio
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+import nemoguardrails.rails.llm.llmrails
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.cli.chat import extract_scene_text_content, parse_events_inputs
 from nemoguardrails.colang.v2_x.runtime.flows import State
@@ -31,6 +47,11 @@ class ChatInterface:
         self.input_queue = asyncio.Queue()
         self.loop = asyncio.get_event_loop()
         asyncio.create_task(self.run())
+
+        # Ensure that the semaphore is assigned to the same loop that we just created
+        nemoguardrails.rails.llm.llmrails.process_events_semaphore = asyncio.Semaphore(
+            1
+        )
         self.output_summary: list[str] = []
         self.should_terminate = False
         self.enable_input = asyncio.Event()
@@ -170,7 +191,6 @@ class ChatInterface:
                 )
 
             elif event["type"] == "StartVisualChoiceSceneAction":
-
                 options = extract_scene_text_content(event["options"])
                 self._add_to_output_summary(f"Scene choice: {event['prompt']}{options}")
 
@@ -256,7 +276,6 @@ class ChatInterface:
             self.chat_state.first_time = False
 
     async def _check_local_async_actions(self):
-
         while True:
             # We only run the check when we wait for user input, but not the first time.
             if not self.chat_state.waiting_user_input or self.chat_state.first_time:
