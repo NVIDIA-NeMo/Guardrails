@@ -134,13 +134,13 @@ flow bot suggest $text
 # ----------------------------------
 
 flow bot started saying $text
-  match FlowStarted(flow_id="_bot_say", script=$text)
+  match FlowStarted(flow_id="_bot_say", text=$text)
 
 flow bot started saying something
   match FlowStarted(flow_id="_bot_say")
 
 flow bot said $text
-  match FlowFinished(flow_id="_bot_say", script=$text) as $event
+  match FlowFinished(flow_id="_bot_say", text=$text) as $event
 
 flow bot said something -> $text
   match FlowFinished(flow_id="_bot_say") as $event
