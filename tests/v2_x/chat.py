@@ -10,9 +10,6 @@ from nemoguardrails.utils import new_event_dict, new_uuid
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-enable_input = asyncio.Event()
-enable_input.set()
-
 
 @dataclass
 class ChatState:
@@ -36,6 +33,8 @@ class ChatInterface:
         asyncio.create_task(self.run())
         self.output_summary: list[str] = []
         self.should_terminate = False
+        self.enable_input = asyncio.Event()
+        self.enable_input.set()
 
     # Start an asynchronous timer
     async def _start_timer(
@@ -290,7 +289,7 @@ class ChatInterface:
                 # If there are no pending actions, we stop
                 self.check_task.cancel()
                 self.check_task = None
-                enable_input.set()
+                self.enable_input.set()
                 return
 
             self.chat_state.output_events.clear()
@@ -306,12 +305,12 @@ class ChatInterface:
                 self.chat_state.input_events = []
             else:
                 self.chat_state.waiting_user_input = True
-                await enable_input.wait()
+                await self.enable_input.wait()
 
                 user_message = ""
                 if not self.input_queue.empty():
                     user_message = self.input_queue.get_nowait()
-                enable_input.clear()
+                self.enable_input.clear()
                 self.chat_state.events_counter = 0
                 self.chat_state.waiting_user_input = False
                 if user_message == "":
