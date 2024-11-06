@@ -86,9 +86,9 @@ import core
 flow main
     # Provide verbal feedback while the user is writing / speaking
     while True
-        when user saying (regex("sad|lonely"))
+        when user saying "sad"
             bot say "oooh"
-        or when user saying (regex("great|awesome"))
+        or when user saying "great"
             bot say "nice!"
 # COLANG_END: test_user_saying
     """
@@ -98,6 +98,8 @@ flow main
 > /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a ")
 > /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a sad story")
 oooh
+> /UtteranceUserAction.TranscriptUpdated(interim_transcript="this is a sad story that has a great ending")
+nice!
 # USAGE_END: test_user_saying
         """
 
@@ -488,7 +490,7 @@ hello
 @pytest.mark.asyncio
 async def test_wait():
     colang_code = """
-# COLANG_START: test_wait
+# COLANG_START: test_wait_time
 import timing
 import core
 
@@ -503,15 +505,15 @@ flow main
 
     wait indefinitely
 
-# COLANG_END: test_wait
+# COLANG_END: test_wait_time
     """
 
     test_script = """
-# USAGE_START: test_wait
+# USAGE_START: test_wait_time
 > hello
 I say this first
 I say this later
-# USAGE_END: test_wait
+# USAGE_END: test_wait_time
         """
 
     await compare_interaction_with_test_script(test_script, colang_code)
@@ -704,6 +706,7 @@ flow main
     user said something
 
     # While the response is generated the polling mechanism ensures that
+    # the Colang runtime is getting polled.
     $value = ..."ten minus one"
     bot say $value
 
