@@ -131,6 +131,36 @@ class SensitiveDataDetection(BaseModel):
     )
 
 
+class PrivateAIDetectionOptions(BaseModel):
+    """Configuration options for Private AI."""
+
+    entities: List[str] = Field(
+        default_factory=list,
+        description="The list of entities that should be detected.",
+    )
+
+
+class PrivateAIDetection(BaseModel):
+    """Configuration for Private AI."""
+
+    server_endpoint: str = Field(
+        default="http://localhost:8080/process/text",
+        description="The endpoint for the private AI detection server.",
+    )
+    input: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on the user input.",
+    )
+    output: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on the bot output.",
+    )
+    retrieval: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on retrieved relevant chunks.",
+    )
+
+
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -467,6 +497,11 @@ class RailsConfigData(BaseModel):
     jailbreak_detection: Optional[JailbreakDetectionConfig] = Field(
         default_factory=JailbreakDetectionConfig,
         description="Configuration for jailbreak detection.",
+    )
+
+    privateai: Optional[PrivateAIDetection] = Field(
+        default_factory=PrivateAIDetection,
+        description="Configuration for Private AI.",
     )
 
 

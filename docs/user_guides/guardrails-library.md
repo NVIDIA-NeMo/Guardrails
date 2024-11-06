@@ -22,6 +22,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [AutoAlign](#autoalign)
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
+   - [Private AI PII detection](#private-ai-pii-detection)
    - OpenAI Moderation API - *[COMING SOON]*
 
 4. Other
@@ -669,6 +670,46 @@ rails:
 ```
 
 For more details, check out the [GCP Text Moderation](./community/gcp-text-moderations.md) page.
+
+### Private AI PII Detection
+
+NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection in input, output and retrieval flows.
+
+To activate the PII detection, you need specify `server_endpoint`, and the entities that you want to detect. You'll also need to set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
+
+```yaml
+rails:
+  config:
+    privateai:
+      server_endpoint: http://your-privateai-api-endpoint/process/text  # Replace this with your Private AI process text endpoint
+      input:
+        entities:  # If no entity is specified here, all supported entities will be detected by default.
+          - NAME_FAMILY
+          - EMAIL_ADDRESS
+          ...
+      output:
+        entities:
+          - NAME_FAMILY
+          - EMAIL_ADDRESS
+          ...
+```
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - detect pii on input
+  output:
+    flows:
+      - detect pii on output
+  retrieval:
+    flows:
+      - detect pii on retrieval
+```
+
+For more details, check out the [Private AI Integration](./community/privateai.md) page.
 
 ## Other
 
