@@ -50,7 +50,6 @@ def config_1():
           bot say "down"
 
         flow main
-          activate tracking user attention
           activate handle inattentive utterances
           activate handle attentive utterances
           activate switching to attentive
