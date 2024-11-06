@@ -75,3 +75,25 @@ def test_relevant_chunk_inserted_in_prompt():
     info = rails.explain()
     assert len(info.llm_calls) == 2
     assert "Test Body" in info.llm_calls[1].prompt
+
+    assert "markdown" in info.llm_calls[1].prompt
+    assert "context" in info.llm_calls[1].prompt
+
+
+def test_relevant_chunk_inserted_in_prompt_no_kb():
+    chat = TestChat(
+        config,
+        llm_completions=[
+            " user express greeting",
+            ' bot respond to aditional context\nbot action: "Hello is there anything else" ',
+        ],
+    )
+    rails = chat.app
+    messages = [
+        {"role": "user", "content": "Hi!"},
+    ]
+    new_message = rails.generate(messages=messages)
+    info = rails.explain()
+    assert len(info.llm_calls) == 2
+    assert "markdown" not in info.llm_calls[1].prompt
+    assert "context" not in info.llm_calls[1].prompt

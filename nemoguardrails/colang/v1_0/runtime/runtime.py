@@ -33,7 +33,7 @@ from nemoguardrails.colang.v1_0.runtime.flows import (
     compute_next_steps,
 )
 from nemoguardrails.logging.processing_log import processing_log_var
-from nemoguardrails.utils import new_event_dict
+from nemoguardrails.utils import new_event_dict, new_uuid
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class RuntimeV1_0(Runtime):
         """
 
         # If we don't have an id, we generate a random UID.
-        flow_id = flow.get("id") or str(uuid.uuid4())
+        flow_id = flow.get("id") or new_uuid()
 
         # If the flow already exists, we stop.
         # This allows us to override flows. The order in which the flows

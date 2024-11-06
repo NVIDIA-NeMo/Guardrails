@@ -21,7 +21,12 @@ class SimplifyFormatter(logging.Formatter):
     """A formatter to simplify the log messages for easy reading."""
 
     def format(self, record):
-        text = super().format(record)
+        # If record is a LogRecord, use the default formatting
+        if isinstance(record, logging.LogRecord):
+            text = super().format(record)
+        else:
+            # Otherwise, assume we can convert it to a string
+            text = str(record)
 
         # Replace all UUIDs
         pattern = re.compile(

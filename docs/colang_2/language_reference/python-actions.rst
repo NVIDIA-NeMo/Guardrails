@@ -28,7 +28,7 @@ And here is how you can call it from a Colang flow:
         $result = await CustomTestAction(value=5)
         bot say "The result is: {$result}"
 
-Alternatively, if you need an asynchronous function you can define it like that:
+Be aware that Python actions are blocking per default. That means if the action implements a long running task (e.g. an REST API request or) you will want to make the Python Action asynchronous. You can do this by adding the parameter ``execute_async=True`` to the function decorator :
 
 .. code-block:: python
 
@@ -44,16 +44,21 @@ And here is how you can call it from a Colang flow:
 .. code-block:: colang
 
     flow main
+        # Option 1 start the action and let your flow continue until you really need the result from the action
         start CustomTestAction(value=5) as $action_ref
         # Some other statements ...
-        await $action_ref.Finished() as $event_ref
+        match $action_ref.Finished() as $event_ref
         bot say "The result is: {$event_ref.return_value}" # Access the function return value via the event reference
+
+        # Option 2: You can still use async Python actions like you would use any other action (the same as for non async Python actions)
+        $result = await CustomTestAction(value=5)
+        bot say "The result is: {$result}"
 
 .. note::
 
     All Python action names need to end with ``Action``.
 
-In addition to all the custom user defined parameters, the following parameters are available in a Python action:
+In addition to all the custom user defined parameters, the parameters listed below are available in a Python action. To make use of these parameters in your Python action implementation add the parameter to your function signature.
 
 .. code-block:: python
 

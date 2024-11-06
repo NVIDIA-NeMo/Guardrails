@@ -14,7 +14,7 @@ Colang is an *event-driven interaction modeling language* that is interpreted by
      - 1.0
    * - 0.8
      - 2.0-alpha
-   * - 0.9
+   * - >= 0.9
      - 2.0-beta
 
 Motivation
@@ -81,6 +81,18 @@ Current limitations (to be fixed in NeMo Guardrails v0.10.0):
 - Guardrails Library is not yet usable from within Colang 2.0.
 - Generation options not supported, e.g. log activated rails, etc.
 
+Migration from alpha to beta version
+------------------------------------
+
+You can migrate your Colang 2.0-alpha bots to 2.0-beta using the following command:
+
+.. code-block:: console
+
+    nemoguardrails convert "path/to/2.0-alpha/version/bots" --from-version "2.0-alpha"
+
+Additionally, you can add the ``--validate`` flag to check if the migrated files do not raise any Colang syntax errors.
+
+See section :ref:`Breaking changes from alpha to beta version <whats-changed-alpha-to-beta>` to see the detailed changes.
 
 Interaction Model
 =================

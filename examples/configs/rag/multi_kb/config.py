@@ -23,9 +23,9 @@ import torch
 from gpt4pandas import GPT4Pandas
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.llms import BaseLLM
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import FAISS
+from langchain_core.language_models.llms import BaseLLM
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from nemoguardrails import LLMRails, RailsConfig

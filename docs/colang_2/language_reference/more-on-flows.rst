@@ -61,7 +61,7 @@ We already have seen the ``start`` and ``await`` keywords to trigger a flow. We 
         user said "Hi"
         bot say "Hello again"
 
-Running this example you will see the bot responding with "Hello again" as long as you keep greeting with "Hi":
+By running this example you will see the bot responding with "Hello again" as long as you keep greeting with "Hi":
 
 .. code-block:: text
 
@@ -88,10 +88,29 @@ Running this example you will see the bot responding with "Hello again" as long 
 
 In contrast, you can only say "Bye" once before you restart the story.
 
-Activating a flow enables you to keep matching the interaction event sequence against the pattern defined in the flow, even if the pattern previously successfully matched the interaction event sequence (finished) or failed. Since the same flow configuration can only be activated once, you can use the flow activation directly wherever you require the flow's functionality. This on demand pattern is better than activating it once in the beginning before you actually know if it is needed.
+Activating a flow enables you to keep matching the interaction event sequence against the pattern defined in the flow, even if the pattern previously successfully matched the interaction event sequence (finished) or failed. Since the same flow configuration can only be activated once, you can use the flow activation directly wherever you require the flow's functionality. This `on demand pattern` is better than activating it once in the beginning before you actually know if it is needed.
 
 .. important::
     Activating a flow will start a flow and automatically restart it when it has ended (finished or failed) to match to reoccurring interaction patterns.
+
+Alternatively, you can use the ``@active`` decorator notation to activate a flow at the start as a child of the main flow:
+
+.. code-block:: colang
+
+    import core
+
+    flow main
+        bot say "Welcome"
+        user said "Bye"
+        bot say "Goodbye"
+        match RestartEvent()
+
+    @active
+    flow managing user greeting
+        user said "Hi"
+        bot say "Hello again"
+
+If you use the ``@active`` decorator for flows that were defined in a separate Colang library module, they will get automatically activated when the library is imported. But we advice you to use the ``activate`` statement if possible, since it is more explicit and result in better readability.
 
 .. important::
     The main flow behaves also like an activated flow. As soon as it reaches the end it will restart automatically.

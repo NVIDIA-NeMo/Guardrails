@@ -127,6 +127,7 @@ async def test_greeting_async(httpx_mock):
     await chat.bot_async("Hello! How can I assist you today?")
 
 
+@pytest.mark.httpx_mock(can_send_already_matched_responses=True)
 @pytest.mark.asyncio
 async def test_capabilities_async(httpx_mock):
     """
@@ -202,6 +203,7 @@ async def test_input_self_check(httpx_mock):
     await chat.bot_async("I'm sorry, I can't respond to that.")
 
 
+@pytest.mark.httpx_mock(can_send_already_matched_responses=True)
 @pytest.mark.asyncio
 async def test_output_self_check(httpx_mock):
     """

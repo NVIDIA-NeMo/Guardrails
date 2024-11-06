@@ -18,12 +18,14 @@
 import logging
 import os
 import warnings
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import yaml
-from pydantic import BaseModel, ValidationError, root_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, root_validator
 from pydantic.fields import Field
 
+from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
@@ -50,7 +52,13 @@ colang_path_dirs = [
 standard_library_path = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "colang", "v2_x", "library")
 )
+
+# nemoguardrails/lobrary
+guardrails_stdlib_path = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 colang_path_dirs.append(standard_library_path)
+colang_path_dirs.append(guardrails_stdlib_path)
 
 
 class Model(BaseModel):
@@ -123,6 +131,36 @@ class SensitiveDataDetection(BaseModel):
     )
 
 
+class PrivateAIDetectionOptions(BaseModel):
+    """Configuration options for Private AI."""
+
+    entities: List[str] = Field(
+        default_factory=list,
+        description="The list of entities that should be detected.",
+    )
+
+
+class PrivateAIDetection(BaseModel):
+    """Configuration for Private AI."""
+
+    server_endpoint: str = Field(
+        default="http://localhost:8080/process/text",
+        description="The endpoint for the private AI detection server.",
+    )
+    input: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on the user input.",
+    )
+    output: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on the bot output.",
+    )
+    retrieval: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on retrieved relevant chunks.",
+    )
+
+
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -181,6 +219,19 @@ class TaskPrompt(BaseModel):
             )
 
         return values
+
+
+class LogAdapterConfig(BaseModel):
+    name: str = Field(default="FileSystem", description="The name of the adapter.")
+    model_config = ConfigDict(extra="allow")
+
+
+class TracingConfig(BaseModel):
+    enabled: bool = False
+    adapters: List[LogAdapterConfig] = Field(
+        default_factory=lambda: [LogAdapterConfig()],
+        description="The list of tracing adapters to use. If not specified, the default adapters are used.",
+    )
 
 
 class EmbeddingsCacheConfig(BaseModel):
@@ -372,6 +423,54 @@ class AutoAlignRailConfig(BaseModel):
     )
 
 
+class PatronusEvaluationSuccessStrategy(str, Enum):
+    """
+    Strategy for determining whether a Patronus Evaluation API
+    request should pass, especially when multiple evaluators
+    are called in a single request.
+    ALL_PASS requires all evaluators to pass for success.
+    ANY_PASS requires only one evaluator to pass for success.
+    """
+
+    ALL_PASS = "all_pass"
+    ANY_PASS = "any_pass"
+
+
+class PatronusEvaluateApiParams(BaseModel):
+    """Config to parameterize the Patronus Evaluate API call"""
+
+    success_strategy: Optional[PatronusEvaluationSuccessStrategy] = Field(
+        default=PatronusEvaluationSuccessStrategy.ALL_PASS,
+        description="Strategy to determine whether the Patronus Evaluate API Guardrail passes or not.",
+    )
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters to the Patronus Evaluate API",
+    )
+
+
+class PatronusEvaluateConfig(BaseModel):
+    """Config for the Patronus Evaluate API call"""
+
+    evaluate_config: PatronusEvaluateApiParams = Field(
+        default_factory=PatronusEvaluateApiParams,
+        description="Configuration passed to the Patronus Evaluate API",
+    )
+
+
+class PatronusRailConfig(BaseModel):
+    """Configuration data for the Patronus Evaluate API"""
+
+    input: Optional[PatronusEvaluateConfig] = Field(
+        default_factory=PatronusEvaluateConfig,
+        description="Patronus Evaluate API configuration for an Input Guardrail",
+    )
+    output: Optional[PatronusEvaluateConfig] = Field(
+        default_factory=PatronusEvaluateConfig,
+        description="Patronus Evaluate API configuration for an Output Guardrail",
+    )
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -385,6 +484,11 @@ class RailsConfigData(BaseModel):
         description="Configuration data for the AutoAlign guardrails API.",
     )
 
+    patronus: Optional[PatronusRailConfig] = Field(
+        default_factory=PatronusRailConfig,
+        description="Configuration data for the Patronus Evaluate API.",
+    )
+
     sensitive_data_detection: Optional[SensitiveDataDetection] = Field(
         default_factory=SensitiveDataDetection,
         description="Configuration for detecting sensitive data.",
@@ -393,6 +497,11 @@ class RailsConfigData(BaseModel):
     jailbreak_detection: Optional[JailbreakDetectionConfig] = Field(
         default_factory=JailbreakDetectionConfig,
         description="Configuration for jailbreak detection.",
+    )
+
+    privateai: Optional[PrivateAIDetection] = Field(
+        default_factory=PrivateAIDetection,
+        description="Configuration for Private AI.",
     )
 
 
@@ -494,6 +603,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "lowest_temperature",
         "enable_multi_step_generation",
         "colang_version",
+        "event_source_uid",
         "custom_data",
         "prompting_mode",
         "knowledge_base",
@@ -503,6 +613,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "passthrough",
         "raw_llm_call_action",
         "enable_rails_exceptions",
+        "tracing",
     ]
 
     for field in additional_fields:
@@ -551,11 +662,23 @@ def _load_path(
     if not os.path.exists(config_path):
         raise ValueError(f"Could not find config path: {config_path}")
 
+    # the first .railsignore file found from cwd down to its subdirectories
+    railsignore_path = utils.get_railsignore_path(config_path)
+    ignore_patterns = utils.get_railsignore_patterns(railsignore_path)
+
     if os.path.isdir(config_path):
         for root, _, files in os.walk(config_path, followlinks=True):
             # Followlinks to traverse symlinks instead of ignoring them.
 
             for file in files:
+                # Verify railsignore to skip loading
+                ignored_by_railsignore = utils.is_ignored_by_railsignore(
+                    file, ignore_patterns
+                )
+
+                if ignored_by_railsignore:
+                    continue
+
                 # This is the raw configuration that will be loaded from the file.
                 _raw_config = {}
 
@@ -625,7 +748,10 @@ def _load_imported_paths(raw_config: dict, colang_files: List[Tuple[str, str]]):
                 actual_path = import_path
 
             if actual_path is None:
-                raise ValueError(f"Import path `{import_path}` could not be resolved.")
+                formated_import_path = import_path.replace("/", ".")
+                raise ValueError(
+                    f"Import path '{formated_import_path}' could not be resolved.",
+                )
 
             _raw_config, _colang_files = _load_path(actual_path)
 
@@ -834,6 +960,16 @@ class RailsConfig(BaseModel):
         default=None,
         description="Weather the original prompt should pass through the guardrails configuration as is. "
         "This means it will not be altered in any way. ",
+    )
+
+    event_source_uid: str = Field(
+        default="NeMoGuardrails-Colang-2.x",
+        description="The source ID of events sent by the Colang Runtime. Useful to identify the component that has sent an event.",
+    )
+
+    tracing: TracingConfig = Field(
+        default_factory=TracingConfig,
+        description="Configuration for tracing.",
     )
 
     @root_validator(pre=True, allow_reuse=True)

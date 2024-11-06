@@ -42,9 +42,8 @@ from nemoguardrails.colang.v2_x.runtime.statemachine import (
     initialize_state,
     run_to_completion,
 )
-from nemoguardrails.colang.v2_x.runtime.utils import new_readable_uid
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.utils import new_event_dict
+from nemoguardrails.utils import new_event_dict, new_readable_uuid
 
 langchain.debug = False
 
@@ -465,7 +464,7 @@ class RuntimeV2_x(Runtime):
                         arguments={
                             "flow_id": flow_config.id,
                             "source_flow_instance_uid": main_flow_state.uid,
-                            "flow_instance_uid": new_readable_uid(flow_config.id),
+                            "flow_instance_uid": new_readable_uuid(flow_config.id),
                             "flow_hierarchy_position": f"0.0.{idx}",
                             "source_head_uid": list(main_flow_state.heads.values())[
                                 0

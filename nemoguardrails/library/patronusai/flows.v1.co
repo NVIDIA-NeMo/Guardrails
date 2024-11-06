@@ -13,3 +13,10 @@ define flow patronus lynx check output hallucination
     else
       bot inform answer unknown
     stop
+
+define flow patronus api check output
+  $patronus_response = execute PatronusApiCheckOutputAction
+  $evaluation_passed = $patronus_response["pass"]
+
+  if not $evaluation_passed
+    bot inform answer unknown

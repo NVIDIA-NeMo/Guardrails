@@ -18,10 +18,12 @@ Welcome to the NeMo Guardrails contributing guide. We're excited to have you her
 
 To get started quickly, follow the steps below.
 
-1. Ensure you have Python 3.8+ and [Git](https://git-scm.com/) installed on your system. You can check your Python version by running:
+1. Ensure you have Python 3.9+ and [Git](https://git-scm.com/) installed on your system. You can check your Python version by running:
 
    ```bash
    python --version
+   # or
+   python3 --version
    ```
 
 2. Clone the project repository:
@@ -33,7 +35,7 @@ To get started quickly, follow the steps below.
 3. Navigate to the project directory:
 
    ```bash
-   cd nemoguardrails
+   cd NeMo-Guardrails
    ```
 
 4. Create a virtual environment to isolate your project's dependencies:
@@ -69,7 +71,7 @@ To get started quickly, follow the steps below.
 7. Set up pre-commit hooks:
 
    ```
-   python -m pre-commit install
+   pre-commit install
    ```
 
    This will ensure that the pre-commit checks, including Black, are run before each commit.

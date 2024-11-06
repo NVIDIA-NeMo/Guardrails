@@ -27,8 +27,9 @@ from functools import lru_cache
 from time import time
 from typing import Callable, List, Optional, cast
 
-from jinja2 import Environment, meta
-from langchain.llms import BaseLLM
+from jinja2 import meta
+from jinja2.sandbox import SandboxedEnvironment
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.llm.utils import (
@@ -63,7 +64,7 @@ from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import StreamingHandler
-from nemoguardrails.utils import get_or_create_event_loop, new_event_dict
+from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class LLMGenerationActions:
         self.llm_task_manager = llm_task_manager
 
         # We also initialize the environment for rendering bot messages
-        self.env = Environment()
+        self.env = SandboxedEnvironment()
 
         # If set, in passthrough mode, this function will be used instead of
         # calling the LLM with the user input.
@@ -347,7 +348,6 @@ class LLMGenerationActions:
             return await self.generate_intent_steps_message(
                 events=events, llm=llm, kb=kb
             )
-
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
         assert event["type"] == "UserMessage"
@@ -525,7 +525,10 @@ class LLMGenerationActions:
                     chunks = await kb.search_relevant_chunks(event["text"])
                     relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
                 else:
-                    relevant_chunks = ""
+                    # in case there is  no user flow (user message) then we need the context update to work for relevant_chunks
+                    relevant_chunks = get_retrieved_relevant_chunks(
+                        events, skip_user_message=True
+                    )
 
                 # Otherwise, we still create an altered prompt.
                 prompt = self.llm_task_manager.render_task_prompt(
@@ -693,7 +696,7 @@ class LLMGenerationActions:
                         # We generate a random UUID as the flow_id
                         new_event_dict(
                             "start_flow",
-                            flow_id=str(uuid.uuid4()),
+                            flow_id=new_uuid(),
                             flow_body="\n".join(lines),
                         )
                     ]

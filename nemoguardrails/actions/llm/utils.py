@@ -295,6 +295,8 @@ def events_to_dialog_history(events: List[InternalEvent]) -> str:
         param_value = event.arguments["parameter"]
         if param_value is not None:
             if isinstance(param_value, str):
+                # convert new lines to \n token, so that few-shot learning won't mislead LLM
+                param_value = param_value.replace("\n", "\\n")
                 intent = f'{intent} "{param_value}"'
             else:
                 intent = f"{intent} {param_value}"
@@ -362,10 +364,12 @@ def get_last_user_utterance(events: List[dict]) -> Optional[str]:
     return None
 
 
-def get_retrieved_relevant_chunks(events: List[dict]) -> Optional[str]:
+def get_retrieved_relevant_chunks(
+    events: List[dict], skip_user_message: Optional[bool] = False
+) -> Optional[str]:
     """Returns the retrieved chunks for current user utterance from the events."""
     for event in reversed(events):
-        if event["type"] == "UserMessage":
+        if not skip_user_message and event["type"] == "UserMessage":
             break
         if event["type"] == "ContextUpdate" and "relevant_chunks" in event.get(
             "data", {}
@@ -566,10 +570,9 @@ def escape_flow_name(name: str) -> str:
         name.replace(" and ", "_and_")
         .replace(" or ", "_or_")
         .replace(" as ", "_as_")
-        .replace("(", "")
-        .replace(")", "")
-        .replace("'", "")
-        .replace('"', "")
         .replace("-", "_")
     )
-    return re.sub(r"\b\d+\b", lambda match: f"_{match.group()}_", result)
+    result = re.sub(r"\b\d+\b", lambda match: f"_{match.group()}_", result)
+    # removes non-word chars and leading digits in a word
+    result = re.sub(r"\b\d+|[^\w\s]", "", result)
+    return result

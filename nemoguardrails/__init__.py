@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """NeMo Guardrails Toolkit."""
+
 import os
 
 # If no explicit value is set for TOKENIZERS_PARALLELISM, we disable it
@@ -34,4 +35,4 @@ warnings.filterwarnings(
     "ignore", category=UserWarning, message="TypedStorage is deprecated"
 )
 
-__version__ = "0.9.1.1"
+__version__ = "0.10.1"

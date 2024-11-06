@@ -24,15 +24,15 @@ from langchain.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.llms.base import BaseLLM
-from langchain.pydantic_v1 import BaseModel, root_validator
 from langchain.schema import Generation
 from langchain.schema.output import GenerationChunk, LLMResult
+from langchain_core.language_models.llms import BaseLLM
+from pydantic.v1 import root_validator
 
 log = logging.getLogger(__name__)
 
 
-class NeMoLLM(BaseLLM, BaseModel):
+class NeMoLLM(BaseLLM):
     """Wrapper around NeMo LLM large language models.
 
     If NGC_API_HOST, NGC_API_KEY and NGC_ORGANIZATION_ID environment variables are set,

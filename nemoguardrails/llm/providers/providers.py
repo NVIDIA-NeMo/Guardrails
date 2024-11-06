@@ -23,30 +23,37 @@ Additional providers can be registered using the `register_llm_provider` functio
 
 import asyncio
 import logging
-from importlib.metadata import PackageNotFoundError, version
+import warnings
+from importlib.metadata import version
 from typing import Any, Dict, List, Optional, Type
 
-from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.llms.base import LLM
 from langchain.schema.output import GenerationChunk
 from langchain_community import llms
 from langchain_community.llms import HuggingFacePipeline
-from packaging import version as pkg_version
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.rails.llm.config import Model
 
 from .nemollm import NeMoLLM
 from .trtllm.llm import TRTLLM
 
+# NOTE: this is temp
+# Suppress specific warnings related to protected namespaces in Pydantic models, they must update their code.
+warnings.filterwarnings(
+    "ignore",
+    message=r'Field "model_.*" in .* has conflict with protected namespace "model_"',
+    category=UserWarning,
+    module=r"pydantic\._internal\._fields",
+)
 log = logging.getLogger(__name__)
 
-# Initialize the providers with the default ones, for now only NeMo LLM.
+# Initialize the providers with the default ones
 # We set nvidia_ai_endpoints provider to None because it's only supported if `langchain_nvidia_ai_endpoints` is installed.
-_providers: Dict[str, Type[BaseLanguageModel]] = {
+_providers: Dict[str, Optional[Type[BaseLLM]]] = {
     "nemollm": NeMoLLM,
     "trt_llm": TRTLLM,
     "nvidia_ai_endpoints": None,
@@ -193,7 +200,7 @@ def discover_langchain_providers():
         # If the "_acall" method is not defined, we add it.
         if (
             provider_cls
-            and issubclass(provider_cls, LLM)
+            and issubclass(provider_cls, BaseLLM)
             and "_acall" not in provider_cls.__dict__
         ):
             log.debug("Adding async support to %s", provider_cls.__name__)
@@ -204,12 +211,12 @@ def discover_langchain_providers():
 discover_langchain_providers()
 
 
-def register_llm_provider(name: str, provider_cls: Type[BaseLanguageModel]):
+def register_llm_provider(name: str, provider_cls: Type[BaseLLM]):
     """Register an additional LLM provider."""
     _providers[name] = provider_cls
 
 
-def get_llm_provider(model_config: Model) -> Type[BaseLanguageModel]:
+def get_llm_provider(model_config: Model) -> Type[BaseLLM]:
     if model_config.engine not in _providers:
         raise RuntimeError(f"Could not find LLM provider '{model_config.engine}'")
 

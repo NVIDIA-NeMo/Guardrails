@@ -20,9 +20,12 @@ The ``config.yml`` file for all the examples should have the following content:
   models:
     - type: main
       engine: openai
-      model: gpt-3.5-turbo-instruct
+      model: gpt-4-turbo
 
-The above config sets the Colang version to "2.x" (this is needed since "1.0" is currently the default) and the LLM engine to OpenAI's ``gpt-3.5-turbo-instruct``.
+The above config sets the Colang version to "2.x" (this is needed since "1.0" is currently the default) and the LLM engine to OpenAI's ``gpt-4-turbo``. Make sure to set the required API access key as an environment variable (e.g. OPENAI_API_KEY for OpenAI API). See section :ref:`Supported Models<make-use-of-llms-supported-models>` for all supported models.
+
+.. note::
+  Check the section :ref:`development-and-debugging` for how you can install Colang syntax highlighting to make editing Colang scripts easier.
 
 Terminology
 -----------

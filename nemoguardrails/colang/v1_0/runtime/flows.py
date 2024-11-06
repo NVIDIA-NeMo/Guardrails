@@ -23,7 +23,7 @@ from typing import Dict, List, Optional
 
 from nemoguardrails.colang.v1_0.runtime.eval import eval_expression
 from nemoguardrails.colang.v1_0.runtime.sliding import slide
-from nemoguardrails.utils import new_event_dict
+from nemoguardrails.utils import new_event_dict, new_uuid
 
 
 @dataclass
@@ -272,7 +272,7 @@ def _call_subflow(new_state: State, flow_state: FlowState) -> Optional[FlowState
         flow_id=subflow_id,
         status=FlowStatus.ACTIVE,
         head=0,
-        uid=str(uuid.uuid4()),
+        uid=new_uuid(),
     )
 
     # Move the head by 1, so that when it will resume, it will be on the next element.
@@ -470,7 +470,7 @@ def compute_next_state(state: State, event: dict) -> State:
 
         # If the first element matches the current event, we start a new flow
         if _is_match(flow_config.elements[start_head], event):
-            flow_uid = str(uuid.uuid4())
+            flow_uid = new_uuid()
             flow_state = FlowState(
                 uid=flow_uid, flow_id=flow_config.id, head=start_head + 1
             )

@@ -16,7 +16,7 @@
 import logging
 from typing import Dict, Optional
 
-from langchain.llms.base import BaseLLM
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call

@@ -79,7 +79,7 @@ The NeMo Guardrail CLI provides a couple of additional debugging commands that a
 
 .. code-block:: console
 
-    > !list-flows
+    > !flows
     ┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
     ┃ ID ┃ Flow Name                                 ┃ Loop (Priority | Type | Id)   ┃ Flow Instances    ┃ Source                                    ┃
     ┡━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -163,10 +163,10 @@ The NeMo Guardrail CLI provides a couple of additional debugging commands that a
     :caption: All CLI debugging commands
 
     flows [--all] [--order_by_name] # Shows all (active) flows in a table in order of their interaction loop priority and name
-    tree # Shows the flow hierarchy tree of all (active) flows
+    tree # Shows the flow hierarchy tree of all (active) flows. A flow is waiting on a child flow to finish if it's indicated by the character `>`.
     flow [<flow_name>|<flow_instance_uid>] # Show flow or flow instance details
     pause # Pause timer event processing such that interaction does not continue on its own
-    resume # Resume timer event processing, including the ones trigger during paus
+    resume # Resume timer event processing, including the ones trigger during pause
     restart # Reset interaction and restart the Colang script
 
 

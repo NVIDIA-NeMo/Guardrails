@@ -21,8 +21,8 @@ import pinecone
 from langchain.chains import RetrievalQA
 from langchain.docstore.document import Document
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.llms import BaseLLM
 from langchain.vectorstores import Pinecone
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails import LLMRails
 from nemoguardrails.actions import action

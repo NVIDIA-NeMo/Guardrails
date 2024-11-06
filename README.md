@@ -8,7 +8,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![arXiv](https://img.shields.io/badge/arXiv-2310.10501-b31b1b.svg)](https://arxiv.org/abs/2310.10501)
 
-> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA/NeMo-Guardrails/tree/main) branch tracks the latest released beta version: [0.9.1.1](https://github.com/NVIDIA/NeMo-Guardrails/tree/v0.9.1.1). For the latest development version, checkout the [develop](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop) branch.
+> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA/NeMo-Guardrails/tree/main) branch tracks the latest released beta version: [0.10.1](https://github.com/NVIDIA/NeMo-Guardrails/tree/v0.10.1). For the latest development version, checkout the [develop](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop) branch.
 
 > **DISCLAIMER**: The beta release is undergoing active development and may be subject to changes and improvements, which could cause instability and unexpected behavior. We currently do not recommend deploying this beta version in a production setting. We appreciate your understanding and contribution during this stage. Your support and feedback are invaluable as we advance toward creating a robust, ready-for-production LLM guardrails toolkit. The examples provided within the documentation are for educational purposes to get started with NeMo Guardrails, and are not meant for use in production applications.
 
@@ -24,7 +24,7 @@ NeMo Guardrails is an open-source toolkit for easily adding *programmable guardr
 
 ## Requirements
 
-Python 3.8, 3.9, 3.10 or 3.11.
+Python 3.9, 3.10 or 3.11.
 
 NeMo Guardrails uses [annoy](https://github.com/spotify/annoy) which is a C++ library with Python bindings. To install NeMo Guardrails you will need to have the C++ compiler and dev tools installed. Check out the [Installation Guide](https://docs.nvidia.com/nemo/guardrails/getting_started/installation-guide.html#prerequisites) for platform-specific instructions.
 
@@ -62,7 +62,6 @@ NeMo Guardrails provides several mechanisms for protecting an LLM-powered chat a
 <img src="https://github.com/NVIDIA/NeMo-Guardrails/raw/develop/docs/_static/images/abc-llm-vulnerability-scan-results.png" width="500">
 </div>
 
-
 ### Use Cases
 
 You can use programmable guardrails in different types of use cases:
@@ -91,7 +90,9 @@ completion = rails.generate(
     messages=[{"role": "user", "content": "Hello world!"}]
 )
 ```
+
 Sample output:
+
 ```json
 {"role": "assistant", "content": "Hi! How can I help you?"}
 ```
@@ -195,6 +196,7 @@ define bot offer to help
 ```
 
 Below is an additional example of Colang definitions for a dialog rail against insults:
+
 ```colang
 define user express insult
   "You are stupid"
@@ -250,19 +252,20 @@ evaluate          Run an evaluation task.
 server            Start a NeMo Guardrails server.
 ```
 
-
 ### Guardrails Server
 
 You can use the NeMo Guardrails CLI to start a guardrails server. The server can load one or more configurations from the specified folder and expose and HTTP API for using them.
 
 ```
-$ nemoguardrails server [--config PATH/TO/CONFIGS] [--port PORT]
+nemoguardrails server [--config PATH/TO/CONFIGS] [--port PORT]
 ```
 
 For example, to get a chat completion for a `sample` config, you can use the `/v1/chat/completions` endpoint:
+
 ```
 POST /v1/chat/completions
 ```
+
 ```json
 {
     "config_id": "sample",
@@ -272,7 +275,9 @@ POST /v1/chat/completions
     }]
 }
 ```
+
 Sample output:
+
 ```json
 {"role": "assistant", "content": "Hi! How can I help you?"}
 ```
@@ -293,7 +298,6 @@ Evaluating the safety of a LLM-based conversational application is a complex tas
 2. An experimental [red-teaming interface](https://docs.nvidia.com/nemo/guardrails/security/red-teaming.html).
 3. Sample LLM Vulnerability Scanning Reports, e.g, [ABC Bot - LLM Vulnerability Scan Results](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html)
 
-
 ## How is this different?
 
 There are many ways guardrails can be added to an LLM-based conversational application. For example: explicit moderation endpoints (e.g., OpenAI, ActiveFence), critique chains (e.g. constitutional chain), parsing the output (e.g. guardrails.ai), individual guardrails (e.g., LLM-Guard), hallucination detection for RAG applications (e.g., Got It AI, Patronus Lynx).
@@ -304,14 +308,13 @@ To the best of our knowledge, NeMo Guardrails is the only guardrails toolkit tha
 
 ## Learn More
 
-* [Documentation](https://docs.nvidia.com/nemo/guardrails)
-* [Getting Started Guide](https://docs.nvidia.com/nemo/guardrails/getting_started)
-* [Examples](./examples)
-* [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
-* [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
+- [Documentation](https://docs.nvidia.com/nemo/guardrails)
+- [Getting Started Guide](https://docs.nvidia.com/nemo/guardrails/getting_started)
+- [Examples](./examples)
+- [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
+- [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
 
-
-## Inviting the community to contribute!
+## Inviting the community to contribute
 
 The example rails residing in the repository are excellent starting points. We enthusiastically invite the community to contribute towards making the power of trustworthy, safe, and secure LLMs accessible to everyone. For guidance on setting up a development environment and how to contribute to NeMo Guardrails, see the [contributing guidelines](./CONTRIBUTING.md).
 

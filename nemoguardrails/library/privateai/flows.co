@@ -1,0 +1,34 @@
+# INPUT RAILS
+
+@active
+flow detect pii on input
+  """Check if the user input has PII."""
+  $has_pii = await DetectPiiAction(source="input", text=$user_message)
+
+  if $has_pii
+    bot inform answer unknown
+    abort
+
+
+# INPUT RAILS
+
+@active
+flow detect pii on output
+  """Check if the bot output has PII."""
+  $has_pii = await DetectPiiAction(source="output", text=$bot_message)
+
+  if $has_pii
+    bot inform answer unknown
+    abort
+
+
+# RETRIVAL RAILS
+
+@active
+flow detect pii on retrieval
+  """Check if the relevant chunks from the knowledge base have any PII."""
+  $has_pii = await DetectPiiAction(source="retrieval", text=$relevant_chunks)
+
+  if $has_pii
+    bot inform answer unknown
+    abort

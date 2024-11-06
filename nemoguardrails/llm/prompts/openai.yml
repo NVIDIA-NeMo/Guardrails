@@ -238,15 +238,16 @@ prompts:
           # This is how a conversation between a user and the bot can go:
           {{ sample_conversation }}
 
-          # This is the current conversation between the user and the bot:
-          {{ history | colang }}
-
           {% if context.relevant_chunks %}
           # This is some additional context:
           ```markdown
           {{ context.relevant_chunks }}
           ```
           {% endif %}
+
+          # This is the current conversation between the user and the bot:
+          {{ history | colang }}
+
 
           bot intent:
 

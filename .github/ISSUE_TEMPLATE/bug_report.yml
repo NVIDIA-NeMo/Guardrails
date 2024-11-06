@@ -1,0 +1,72 @@
+name: Bug Report
+description: File a bug/issue
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before** reporting an issue, make sure to read the [documentation](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs)
+        and search [existing issues](https://github.com/NVIDIA/NeMo-Guardrails/issues).
+
+        Usage questions such as ***"How do I...?"*** belong in [Discussions](https://github.com/NVIDIA/NeMo-Guardrails/discussions) and will be closed.
+
+        Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    attributes:
+      label: Did you check docs and existing issues?
+      description: Make sure you checked all of the below before submitting an issue
+      options:
+        - label: I have read all the NeMo-Guardrails docs
+          required: true
+        - label: I have updated the package to the latest version before submitting this issue
+          required: true
+        - label: (optional) I have used the develop branch
+          required: false
+        - label: I have searched the existing issues of NeMo-Guardrails
+          required: true
+  - type: input
+    attributes:
+      label: "Python version (python --version)"
+      placeholder: Python 3.10.13
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: "Operating system/version"
+      placeholder: "MacOS 11.5"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: "NeMo-Guardrails version (if you must use a specific version and not the latest"
+      placeholder: 0.10.0
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is. Please include any related errors you see in logs. If you are using server or chat CLI run it in verbose mode.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected Behavior
+      description: A concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Actual Behavior
+      description: A concise description of what you expected to happen.
+    validations:
+      required: true

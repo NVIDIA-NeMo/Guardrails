@@ -16,7 +16,7 @@
 import logging
 from typing import Optional
 
-from langchain.llms.base import BaseLLM
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action

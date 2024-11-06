@@ -10,7 +10,7 @@ This guide walks you through the following steps to install NeMo Guardrails:
 
 ## Prerequisites
 
-Python 3.8, 3.9 or 3.10.
+Python 3.9, 3.10 or 3.11.
 
 ## Additional dependencies
 

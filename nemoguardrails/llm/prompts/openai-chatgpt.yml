@@ -222,7 +222,7 @@ prompts:
         content: "This is the current conversation between the user and the bot:"
       - "{{ history | colang | to_messages_v2}}"
 
-      - type: assistant
+      - type: system
         content: |
           Follow these instruction `{{ instructions }}` to generate a value that is assigned to:
           ${{ var_name }} =
@@ -303,6 +303,6 @@ prompts:
       - openai/gpt-3.5-turbo
       - openai/gpt-4
     messages:
-      - type: user
+      - type: system
         content: |-
             {{ flow_nld }}

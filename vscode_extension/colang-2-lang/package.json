@@ -25,7 +25,8 @@
                 "extensions": [
                     ".co",
                     ".colang"
-                ]
+                ],
+                "configuration": "./colang-configuration.json"
             }
         ],
         "grammars": [

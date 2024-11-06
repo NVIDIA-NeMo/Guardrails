@@ -21,8 +21,8 @@ from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models.chat_models import generate_from_stream
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatResult
-from langchain_core.pydantic_v1 import Field
 from langchain_nvidia_ai_endpoints import ChatNVIDIA as ChatNVIDIAOriginal
+from pydantic.v1 import Field
 
 log = logging.getLogger(__name__)
 

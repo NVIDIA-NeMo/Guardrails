@@ -15,7 +15,7 @@
 
 from typing import Any, Callable, Coroutine
 
-from langchain.llms.base import BaseLLM
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails import LLMRails, RailsConfig
 

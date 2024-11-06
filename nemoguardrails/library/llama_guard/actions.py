@@ -16,7 +16,7 @@
 import logging
 from typing import List, Optional, Tuple
 
-from langchain.llms import BaseLLM
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call

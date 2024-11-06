@@ -668,6 +668,30 @@ def test_deactivate_flow_mechanism():
     )
 
 
+def test_activate_flows_with_default_parameters():
+    """Test the activation of flows with default parameters."""
+
+    content = """
+    flow a $param = 1.0
+      match Event1()
+
+    flow main
+      activate a 1.0
+      activate a 0.5
+      send SuccessEvent()
+    """
+
+    state = run_to_completion(_init_state(content), start_main_flow_event)
+    assert is_data_in_events(
+        state.outgoing_events,
+        [
+            {
+                "type": "SuccessEvent",
+            },
+        ],
+    )
+
+
 def test_infinite_loops_avoidance_for_activate_flows():
     """Test that activated flows don't loop infinitely if not match statement is present."""
 

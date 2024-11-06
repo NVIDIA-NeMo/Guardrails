@@ -17,7 +17,8 @@ import logging
 from ast import literal_eval
 from typing import Any, Callable, List, Optional, Union
 
-from jinja2 import Environment, meta
+from jinja2 import meta
+from jinja2.sandbox import SandboxedEnvironment
 
 from nemoguardrails.llm.filters import (
     co_v2,
@@ -57,7 +58,7 @@ class LLMTaskManager:
         self.config = config
 
         # Initialize the environment for rendering templates.
-        self.env = Environment()
+        self.env = SandboxedEnvironment()
 
         # Register the default filters.
         self.env.filters["colang"] = colang

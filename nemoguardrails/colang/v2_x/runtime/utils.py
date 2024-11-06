@@ -16,6 +16,8 @@
 import re
 import uuid
 
+from nemoguardrails.utils import new_uuid
+
 
 class AttributeDict(dict):
     """Simple utility to allow accessing dict members as attributes."""
@@ -31,16 +33,6 @@ class AttributeDict(dict):
 
     def __setattr__(self, attr, value):
         self[attr] = value
-
-
-def new_readable_uid(name: str) -> str:
-    """Creates a new uuid with a human readable prefix."""
-    return f"({name}){str(uuid.uuid4())}"
-
-
-def new_var_uid() -> str:
-    """Creates a new uuid that is compatible with variable names."""
-    return str(uuid.uuid4()).replace("-", "_")
 
 
 def escape_special_string_characters(string: str) -> str:

@@ -33,8 +33,7 @@ from nemoguardrails.colang.v2_x.lang.colang_ast import (
     FlowReturnMemberDef,
 )
 from nemoguardrails.colang.v2_x.runtime.errors import ColangSyntaxError
-from nemoguardrails.colang.v2_x.runtime.utils import new_readable_uid
-from nemoguardrails.utils import new_uuid
+from nemoguardrails.utils import new_readable_uuid, new_uuid
 
 log = logging.getLogger(__name__)
 
@@ -653,7 +652,7 @@ class FlowState:
     ) -> InternalEvent:
         """Starts the flow. Takes no arguments."""
         arguments = {
-            "flow_instance_uid": new_readable_uid(self.flow_id),
+            "flow_instance_uid": new_readable_uuid(self.flow_id),
             "flow_id": self.flow_id,
             "source_flow_instance_uid": self.parent_uid,
             "source_head_uid": self.parent_head_uid,

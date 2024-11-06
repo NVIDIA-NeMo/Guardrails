@@ -181,7 +181,8 @@ def flows(
 @app.command()
 def tree(
     all: bool = typer.Option(
-        default=False, help="Show all flow instances (including inactive)."
+        default=False,
+        help="Show all active flow instances (including inactive with `--all`).",
     )
 ):
     """Lists the tree of all active flows."""
@@ -201,7 +202,24 @@ def tree(
             child_flow_config = state.flow_configs[state.flow_states[child_uid].flow_id]
             child_flow_state = state.flow_states[child_uid]
 
-            if not all and not is_active_flow(child_flow_state):
+            # Check if flow is inactive but parent instance of activate instances of same flow
+            is_inactive_parent_instance: bool = False
+            if not is_active_flow(child_flow_state):
+                for child_instance_uid in child_flow_state.child_flow_uids:
+                    child_instance_flow_state = state.flow_states[child_instance_uid]
+                    if (
+                        is_active_flow(child_instance_flow_state)
+                        and child_instance_flow_state.flow_id
+                        == child_flow_state.flow_id
+                    ):
+                        is_inactive_parent_instance = True
+                        break
+
+            if (
+                not is_inactive_parent_instance
+                and not all
+                and not is_active_flow(child_flow_state)
+            ):
                 continue
 
             child_uid_short = child_uid.split(")")[1][0:3] + "..."
@@ -235,6 +253,11 @@ def tree(
                 + child_flow_state.status.value
                 + ")"
             )
+
+            if not is_active_flow(child_flow_state):
+                child_flow_label = "[dim]" + child_flow_label + "[/]"
+            if is_inactive_parent_instance:
+                child_flow_label = "[" + child_flow_label + "]"
 
             child_node = node.add(child_flow_label)
             queue.append([child_flow_state, child_node])

@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 async def retrieve_relevant_chunks(
     context: Optional[dict] = None,
     kb: Optional[KnowledgeBase] = None,
+    is_colang_2: Optional[bool] = False,
 ):
     """Retrieve relevant knowledge chunks and update the context.
 
@@ -70,7 +71,14 @@ async def retrieve_relevant_chunks(
 
     else:
         # No KB is set up, we keep the existing relevant_chunks if we have them.
-        context_updates["relevant_chunks"] = context.get("relevant_chunks", "") + "\n"
+        if is_colang_2:
+            context_updates["relevant_chunks"] = context.get("relevant_chunks", "")
+            if context_updates["relevant_chunks"]:
+                context_updates["relevant_chunks"] += "\n"
+        else:
+            context_updates["relevant_chunks"] = (
+                context.get("relevant_chunks", "") + "\n"
+            )
         context_updates["relevant_chunks_sep"] = context.get("relevant_chunks_sep", [])
         context_updates["retrieved_for"] = None
 

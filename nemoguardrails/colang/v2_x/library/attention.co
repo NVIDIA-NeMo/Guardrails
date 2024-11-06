@@ -1,0 +1,97 @@
+@override
+flow _user_said $text -> $event
+  """The internal flow for all semantic 'user said' flows."""
+  $is_attentive = False
+  while not $is_attentive
+    if $text
+      match UtteranceUserAction.Finished(final_transcript=$text) as $event
+    else
+      match UtteranceUserAction.Finished() as $event
+
+    log "overwritten _user_said is checking user attention"
+    $is_attentive = await attention checks $event
+    if $is_attentive == False
+      send InattentiveUtteranceEvent()
+
+@override
+flow _user_saying $text -> $event
+  """The internal flow for all semantic 'user saying' flows."""
+  $is_attentive = False
+  while not $is_attentive
+    if $text
+      # This matches to a transcript where after some initial characters it finds $text followed optionally by up to two words
+      match UtteranceUserAction.TranscriptUpdated(interim_transcript=regex("(?i).*({$text})((\s*\w+\s*){0,2})\W*$")) as $event
+    else
+      match UtteranceUserAction.TranscriptUpdated() as $event
+
+    log "overwritten _user_saying is checking user attention"
+    $is_attentive = await attention checks $event
+
+@override
+flow _user_said_something_unexpected -> $event
+  """Override core flow for when the user said something unexpected."""
+  $is_attentive = False
+  while not $is_attentive
+    match UnhandledEvent(event="UtteranceUserActionFinished", loop_ids={$self.loop_id}) as $event
+
+    log "overwritten _user_said_something_unexpected is checking user attention"
+    $is_attentive = await attention checks $event
+    if $is_attentive == False
+      send InattentiveUtteranceEvent()
+
+flow attention checks $event -> $is_attentive
+    """
+    Check if the user was attentive during the last user utterance.
+    You may override this flow to change the behavior of the attention check.
+    """
+    global $attention_percentage_last_utterance
+    global $user_attention_level
+    if not $user_attention_level
+      log "attention state is not tracked. Did you forget to activate `tracking user attention`?"
+      return True
+
+    await UpdateAttentionMaterializedViewAction(event=$event)
+    $attention_percentage_last_utterance = await GetAttentionPercentageAction(attention_levels=["engaged"])
+    log "attention_percentage_last_utterance = {$attention_percentage_last_utterance}"
+    $is_attentive = $attention_percentage_last_utterance > 0.6
+    return $is_attentive
+
+@meta(user_action=True)
+flow user changed attention $level -> $event
+  """The attention level of the user changed."""
+  match AttentionUserActionStarted(attention_level=$level) as $event or AttentionUserActionUpdated(attention_level=$level) as $event
+  log "attention changed to {$level}"
+
+@meta(user_action=True)
+flow user lost attention -> $event
+  """The user attention was lost completely"""
+  match AttentionUserActionFinished() as $event
+  log "user attention was lost completely"
+
+@meta(user_action=True)
+flow user changed attention somehow -> $level
+  """The attention level of the user changed."""
+  match AttentionUserActionStarted() as $event or AttentionUserActionUpdated() as $event
+  $level = $event.attention_level
+
+
+flow user said something inattentively -> $event
+  """The user said something while being inattentive"""
+  match InattentiveUtteranceEvent() as $event
+
+@loop("attention_state_tracking")
+flow tracking user attention
+  """
+  Enable this flow to track user attention levels during the last user utterance. This information is used to decide
+  if the user was attentive or not during their last utterance.
+  """
+  global $user_attention_level
+  if $user_attention_level is None
+    $user_attention_level = "unknown"
+  match UtteranceUserActionStarted() as $event
+    or UtteranceUserActionFinished() as $event
+    or UtteranceUserActionUpdated() as $event
+    or AttentionUserActionUpdated() as $event
+    or AttentionUserActionStarted() as $event
+    or AttentionUserActionFinished() as $event
+  await UpdateAttentionMaterializedViewAction(event=$event)

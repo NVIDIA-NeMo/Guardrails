@@ -1,0 +1,26 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  output:
+    flows:
+      - patronus api check output
+  config:
+    patronus:
+      output:
+        evaluate_config:
+          success_strategy: "all_pass"
+          params:
+            {
+              evaluators:
+                [
+                  { "evaluator": "lynx" },
+                  {
+                    "evaluator": "answer-relevance",
+                    "explain_strategy": "on-fail",
+                  },
+                ],
+              tags: { "hello": "world" },
+            }

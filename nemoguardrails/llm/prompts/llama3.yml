@@ -316,6 +316,7 @@ prompts:
       messages:
         - type: system
           content: "Directly response with expected answer. Don't provide any pre- or post-explanations."
-        - type: user
+
+        - type: system
           content: |-
               {{ flow_nld }}

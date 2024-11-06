@@ -242,14 +242,23 @@ flow handling bot talking interruption $mode="inform" $stop_pattern="stop|cancel
 # --------------------------------------
 
 @loop("managing_bot_postures")
-flow managing bot postures
-  """Activates all the posture management."""
+flow managing bot postures $with_idling=False
+  """
+  Activates all the posture management. If $with_idling is set to `True` the bot will maintain an idle posture until
+  a user becomes present.
+  """
   activate tracking bot talking state
-  activate managing listening posture
-  activate managing thinking posture
-  activate managing talking posture
-  activate managing idle posture
-  start bot posture "attentive"
+
+  if $with_idling
+    activate managing attentive posture
+    start bot posture "idle"
+  else
+    activate managing listening posture
+    activate managing thinking posture
+    activate managing talking posture
+    start bot posture "attentive"
+
+  wait indefinitely
 
 @loop("managing_listening_posture")
 flow managing listening posture
@@ -274,11 +283,14 @@ flow managing thinking posture
   match UtteranceUserAction.Finished()
   if not $bot_talking_state
     start bot posture "thinking"
-    bot started saying something
+    if not $bot_talking_state
+      bot started saying something
 
-@loop("managing_idle_posture")
-flow managing idle posture
-  """Start and stop idle posture."""
-  match (polling llm request response).Started()
-  start bot posture "Thinking, idle" as $posture
-  match (polling llm request response).Finished()
+@loop("managing_attentive_posture")
+flow managing attentive posture
+  match PresenceUserAction.Started()
+  start bot posture "attentive"
+  activate managing listening posture
+  activate managing thinking posture
+  activate managing talking posture
+  match PresenceUserAction.Finished()

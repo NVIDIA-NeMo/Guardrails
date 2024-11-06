@@ -14,6 +14,7 @@
 # limitations under the License.
 import asyncio
 import dataclasses
+import fnmatch
 import importlib.resources as pkg_resources
 import json
 import os
@@ -23,7 +24,8 @@ import uuid
 from collections import namedtuple
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Tuple
+from pathlib import Path
+from typing import Any, Dict, Optional, Set, Tuple
 
 import yaml
 from rich.console import Console
@@ -52,6 +54,16 @@ def new_uuid() -> str:
     """
     random_bits = secure_random.getrandbits(128)
     return str(uuid.UUID(int=random_bits, version=4))
+
+
+def new_readable_uuid(name: str) -> str:
+    """Creates a new uuid with a human readable prefix."""
+    return f"({name}){new_uuid()}"
+
+
+def new_var_uuid() -> str:
+    """Creates a new uuid that is compatible with variable names."""
+    return new_uuid().replace("-", "_")
 
 
 # Very basic event validation - will be replaced by validation based on pydantic models
@@ -128,9 +140,8 @@ _action_to_modality_info: Dict[str, Tuple[str, str]] = {
     "UtteranceBotAction": ("bot_speech", "replace"),
     "UtteranceUserAction": ("user_speech", "replace"),
     "TimerBotAction": ("time", "parallel"),
-    "FacialGestureBotAction": ("bot_gesture", "override"),
-    "GestureBotAction": ("bot_gesture", "override"),
     "FacialGestureBotAction": ("bot_face", "replace"),
+    "GestureBotAction": ("bot_gesture", "override"),
     "PostureBotAction": ("bot_posture", "override"),
     "VisualChoiceSceneAction": ("information", "override"),
     "VisualInformationSceneAction": ("information", "override"),
@@ -152,16 +163,15 @@ def _add_modality_info(event_dict: Dict[str, Any]) -> None:
 
 def _update_action_properties(event_dict: Dict[str, Any]) -> None:
     """Update action related even properties and ensure UMIM compliance (very basic)"""
-
+    now = datetime.now(timezone.utc).isoformat()
     if "Started" in event_dict["type"]:
-        event_dict["action_started_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_started_at", now)
     elif "Start" in event_dict["type"]:
-        if "action_uid" not in event_dict:
-            event_dict["action_uid"] = new_uuid()
+        event_dict.setdefault("action_uid", new_uuid())
     elif "Updated" in event_dict["type"]:
-        event_dict["action_updated_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_updated_at", now)
     elif "Finished" in event_dict["type"]:
-        event_dict["action_finished_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_finished_at", now)
         if (
             "is_success" in event_dict
             and event_dict["is_success"]
@@ -302,3 +312,75 @@ def snake_to_camelcase(name: str) -> str:
         str: The converted CamelCase string.
     """
     return "".join(n.capitalize() for n in name.split("_"))
+
+
+def get_railsignore_path(path: Optional[str] = None) -> Optional[Path]:
+    """Get railsignore path.
+
+    Args:
+        path (Optional[str]): The starting path to search for the .railsignore file.
+
+    Returns:
+        Path: The .railsignore file path, if found.
+
+    Raises:
+        FileNotFoundError: If the .railsignore file is not found.
+    """
+    current_path = Path(path) if path else Path.cwd()
+
+    while True:
+        railsignore_file = current_path / ".railsignore"
+        if railsignore_file.exists() and railsignore_file.is_file():
+            return railsignore_file
+        if current_path == current_path.parent:
+            break
+        current_path = current_path.parent
+
+    return None
+
+
+def get_railsignore_patterns(railsignore_path: Path) -> Set[str]:
+    """Retrieve all specified patterns in railsignore.
+
+    Returns:
+        Set[str]: The set of filenames or glob patterns in railsignore
+    """
+    ignored_patterns = set()
+
+    if railsignore_path is None:
+        return ignored_patterns
+
+    # File doesn't exist or is empty
+    if not railsignore_path.exists() or not os.path.getsize(railsignore_path):
+        return ignored_patterns
+
+    try:
+        with open(railsignore_path, "r") as f:
+            railsignore_entries = f.readlines()
+
+        # Remove comments and empty lines, and strip out any extra spaces/newlines
+        railsignore_entries = [
+            line.strip()
+            for line in railsignore_entries
+            if line.strip() and not line.startswith("#")
+        ]
+
+        ignored_patterns.update(railsignore_entries)
+        return ignored_patterns
+
+    except FileNotFoundError:
+        print(f"No {railsignore_path} found in the current directory.")
+        return ignored_patterns
+
+
+def is_ignored_by_railsignore(filename: str, ignore_patterns: str) -> bool:
+    """Verify if a filename should be ignored by a railsignore pattern"""
+
+    ignore = False
+
+    for pattern in ignore_patterns:
+        if fnmatch.fnmatch(filename, pattern):
+            ignore = True
+            break
+
+    return ignore

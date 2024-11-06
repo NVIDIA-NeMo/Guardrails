@@ -17,11 +17,40 @@ To enable the LLM backend you first have to configure the LLM access in the `con
     models:
     - type: main
       engine: openai
-      model: gpt-3.5-turbo-instruct
+      model: gpt-4-turbo
 
 Make sure to also define the required API access key, e.g. for OpenAI you will have to set the ``OPENAI_API_KEY`` environment variable.
 
 Every LLM prompt contains a default context that can be modified if needed to adapt to the use case. See this `example configuration <../../../tests/test_configs/multi_modal_demo_v2_x/demo.yml>`_ to get started. This will heavily influence all the LLM invocations.
+
+.. _make-use-of-llms-supported-models:
+
+----------------------------------------
+Supported Models
+----------------------------------------
+
+Colang currently supports the following models out of the box:
+
+.. code-block:: yaml
+
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+    model: gpt-3.5-turbo
+    model: gpt-4-turbo
+    model: gpt-4o
+    model: gpt-4o-mini
+
+`NVIDIA AI Foundary <https://www.nvidia.com/en-us/ai/foundry/>`_ hosted NIMs:
+
+.. code-block:: yaml
+
+    engine: nim
+    model: meta/llama3-8b-instruct
+    model: meta/llama3-70b-instruct
+    model: meta/llama-3.1-8b-instruct
+    model: meta/llama-3.1-70b-instruct
+
+To support other models you would need to create a set of new `template prompts <../../../nemoguardrails/llm/prompts>`_ that consider the specific capabilities and the API of the model and add them to your bot configuration.
 
 ----------------------------------------
 Natural Language Description (NLD)
@@ -43,7 +72,12 @@ One of the main LLM generation mechanism in Colang are the so-called Natural Lan
     # Use an existing variable in NLD
     $response_to_user = ..."Provide a brief summary of the current order. Order Information: '{$order_information}'"
 
-Every NLD will be interpreted and replaced during runtime by the configured LLM backend and can be used in Colang to generate context dependent values. Alternatively, you can also describe the purpose and function of a flow using a docstring like NLD at the beginning of a flow. Using a standalone generation operator in the flow will use the flows NLD to infer the right flow expansion automatically:
+Every NLD will be interpreted and replaced during runtime by the configured LLM backend and can be used in Colang to generate context dependent values. With NLDs you are able to extract values and summarize content from the conversation with the user or based on results from other sources (like a database or an external service).
+
+.. note::
+    NLDs together with the variable name are interpreted by the LLM directly. Depending on the LLM you use you need to make sure to be very specific in what value you would like to generate. It is good practice to always clearly specify how you want the response to be formatted and what type it should have (e.g., ``$user_name = ..."Return the user name as single string between quotes''. If no user name is available return 'friend'"``.
+
+Alternatively, you can also describe the purpose and function of a flow using a docstring like NLD at the beginning of a flow. Using a standalone generation operator ``...`` in the flow will use the flows NLD to infer the right flow expansion automatically:
 
 .. code-block:: colang
 
