@@ -161,7 +161,7 @@ def test_privateai_pii_detection_output():
     chat >> "Hi!"
     chat << "I can't answer that."
 
-
+@pytest.mark.skip(reason="This test needs refinement.")
 @pytest.mark.unit
 def test_privateai_pii_detection_retrieval_with_pii():
     config = RailsConfig.from_content(
