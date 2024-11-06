@@ -164,6 +164,7 @@ def test_privateai_pii_detection_output():
 @pytest.mark.skip(reason="This test needs refinement.")
 @pytest.mark.unit
 def test_privateai_pii_detection_retrieval_with_pii():
+    # TODO: @pouyanpi and @letmerecall: Find an alternative approach to test this functionality.
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
