@@ -80,10 +80,9 @@ flow user said something inattentively -> $event
   match InattentiveUtteranceEvent() as $event
 
 @loop("attention_state_tracking")
-@active
 flow tracking user attention
   """
-  On importing attention.co this flow is activated to track user attention levels during the last user utterance. This information is used to decide
+  Enable this flow to track user attention levels during the last user utterance. This information is used to decide
   if the user was attentive or not during their last utterance.
   """
   global $user_attention_level
