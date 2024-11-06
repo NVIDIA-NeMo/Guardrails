@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Download the punkt model to speed up start time
-RUN python -c "import nltk; nltk.download('punkt')"
+RUN python -c "import nltk; nltk.download('punkt_tab')"
 
 # Set the ALIGN_SCORE_PATH environment variable
 ENV ALIGN_SCORE_PATH=/app/AlignScore
