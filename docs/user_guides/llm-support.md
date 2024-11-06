@@ -49,4 +49,4 @@ Table legend:
 The performance numbers reported in the table above for each LLM-feature pair are as follows:
 - the banking dataset evaluation for dialog (topical) rails
 - fact-checking using MSMARCO dataset and moderation rails experiments
-More details in the [evaluation docs](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/eval/README.md).
+More details in the [evaluation docs](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/evaluate/README.md).

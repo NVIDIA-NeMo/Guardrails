@@ -55,9 +55,9 @@ NeMo Guardrails provides a set of CLI evaluation tools and experimental results 
 There are also detailed guides on how to reproduce results and create datasets for the evaluation of each type of rail.
 
 * [Evaluation Tools and Results](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/eval): General explanation for the CLI evaluation tools and experimental results.
-* [Topical Rail Evaluation - Dataset Tools](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/eval/data/topical/README.md): Dataset tools and details to run experiments for topical rails.
-* [Fact-checking Rail Evaluation - Dataset Tools](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/eval/data/factchecking/README.md): Dataset tools and details to run experiments for fact-checking execution rail.
-* [Moderation Rail Evaluation - Dataset Tools](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/eval/data/moderation/README.md): Dataset tools and details to run experiments for moderation execution rail.
+* [Topical Rail Evaluation - Dataset Tools](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/evaluate/data/topical/README.md): Dataset tools and details to run experiments for topical rails.
+* [Fact-checking Rail Evaluation - Dataset Tools](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/evaluate/data/factchecking/README.md): Dataset tools and details to run experiments for fact-checking execution rail.
+* [Moderation Rail Evaluation - Dataset Tools](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/evaluate/data/moderation/README.md): Dataset tools and details to run experiments for moderation execution rail.
 
 ## Advanced Guides
 
