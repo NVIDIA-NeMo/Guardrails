@@ -6,10 +6,5 @@ models:
 tracing:
   enabled: true
   adapters:
-    - name: OpenTelemetry
-      service_name: "nemo_guardrails_service"
-      exporter: "console"  # Options: "console", "zipkin", etc.
-      resource_attributes:
-        env: "production"
     - name: FileSystem
-      filepath: './traces/traces.jsonl'
+      filepath: "./traces/traces.jsonl"
