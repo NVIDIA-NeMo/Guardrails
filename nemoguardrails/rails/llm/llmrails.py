@@ -112,12 +112,6 @@ class LLMRails:
         # Weather the main LLM supports streaming
         self.main_llm_supports_streaming = False
 
-        # InteractionLogAdapters used for tracing
-        if config.tracing:
-            from nemoguardrails.tracing import create_log_adapters
-
-            self._log_adapters = create_log_adapters(config.tracing)
-
         # We also load the default flows from the `default_flows.yml` file in the current folder.
         # But only for version 1.0.
         # TODO: decide on the default flows for 2.x.
@@ -219,6 +213,13 @@ class LLMRails:
                 self.default_embedding_model = model.model
                 self.default_embedding_engine = model.engine
                 break
+
+        # InteractionLogAdapters used for tracing
+        # We ensure that it is used after config.py is loaded
+        if config.tracing:
+            from nemoguardrails.tracing import create_log_adapters
+
+            self._log_adapters = create_log_adapters(config.tracing)
 
         # We run some additional checks on the config
         self._validate_config()
