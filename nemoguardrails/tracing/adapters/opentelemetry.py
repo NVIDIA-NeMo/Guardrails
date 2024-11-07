@@ -34,6 +34,16 @@ except ImportError:
 
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
+# Global dictionary to store registered exporters
+_exporter_name_cls_map: Dict[str, Type[SpanExporter]] = {
+    "console": ConsoleSpanExporter,
+}
+
+
+def register_otel_exporter(name: str, exporter_cls: Type[SpanExporter]):
+    """Register a new exporter."""
+    _exporter_name_cls_map[name] = exporter_cls
+
 
 class OpenTelemetryAdapter(InteractionLogAdapter):
     name = "OpenTelemetry"
@@ -132,21 +142,17 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
 
     @staticmethod
     def get_exporter(exporter: str, **kwargs) -> SpanExporter:
-        exporter_name_cls_map: Dict[str, Type[SpanExporter]] = {
-            "console": ConsoleSpanExporter,
-        }
-
         if exporter == "zipkin":
             try:
                 from opentelemetry.exporter.zipkin.json import ZipkinExporter
 
-                exporter_name_cls_map["zipkin"] = ZipkinExporter
+                _exporter_name_cls_map["zipkin"] = ZipkinExporter
             except ImportError:
                 raise ImportError(
                     "The opentelemetry-exporter-zipkin package is not installed. Please install it using 'pip install opentelemetry-exporter-zipkin'."
                 )
 
-        exporter_cls = exporter_name_cls_map.get(exporter)
+        exporter_cls = _exporter_name_cls_map.get(exporter)
         if not exporter_cls:
             raise ValueError(f"Unknown exporter: {exporter}")
         return exporter_cls(**kwargs)
