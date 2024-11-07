@@ -817,23 +817,25 @@ tracing:
       filepath: './traces/traces.jsonl'
 ```
 
+> **Warning**: The "console" is intended for debugging and demonstration purposes only and should not be used in production environments. Using this exporter will output tracing information directly to the console, which can interfere with application output, distort the user interface, degrade performance, and potentially expose sensitive information. For production use, please configure a suitable exporter that sends tracing data to a dedicated backend or monitoring system.
+
 #### OpenTelemetry Adapter
 
 The `OpenTelemetry` adapter integrates with the OpenTelemetry framework, allowing you to export traces to various backends. Key configuration options include:
 
- • service_name: The name of your service.
- • exporter: The type of exporter to use (e.g., console, zipkin).
- • resource_attributes: Additional attributes to include in the trace resource (e.g., environment).
+ • `service_name`: The name of your service.
+ • `exporter`: The type of exporter to use (e.g., console, zipkin).
+ • `resource_attributes`: Additional attributes to include in the trace resource (e.g., environment).
 
 #### FileSystem Adapter
 
 The  `FileSystem`  adapter exports interaction logs to a local JSON Lines file. Key configuration options include:
 
- • filepath: The path to the file where traces will be stored. If not specified, it defaults to `./.traces/trace.jsonl`.
+ • `filepath`: The path to the file where traces will be stored. If not specified, it defaults to `./.traces/trace.jsonl`.
 
-#### Example Configuration
+### Example Configuration
 
-Here is a complete example of a config.yml with both OpenTelemetry and FileSystem adapters enabled:
+Below is a comprehensive example of a `config.yml` file with both `OpenTelemetry` and `FileSystem` adapters enabled:
 
 ```yaml
 tracing:
@@ -841,11 +843,59 @@ tracing:
   adapters:
     - name: OpenTelemetry
       service_name: "nemo_guardrails_service"
-      exporter: "console"
+      exporter: "zipkin"
       resource_attributes:
         env: "production"
     - name: FileSystem
       filepath: './traces/traces.jsonl'
+```
+
+To use this configuration, you must ensure that Zipkin is running locally or is accessible via the network.
+
+#### Using Zipkin as an Exporter
+
+To use `Zipkin` as an exporter, follow these steps:
+
+1. Install the Zipkin exporter for OpenTelemetry:
+
+    ```sh
+    pip install opentelemetry-exporter-zipkin
+    ```
+
+2. Run the `Zipkin` server using Docker:
+
+    ```sh
+    docker run -d -p 9411:9411 openzipkin/zipkin
+    ```
+
+### Registering OpenTelemetry Exporters
+
+You can also use other [OpenTelemetry exporters](https://opentelemetry.io/ecosystem/registry/?component=exporter&language=python) by registering them in the `config.py` file. To do so you need to use `register_otel_exporter` and register the exporter class.Below is an example of registering the `Jaeger` exporter:
+
+```python
+# This assumes that Jaeger exporter is installed
+# pip install opentelemetry-exporter-jaeger
+
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from nemoguardrails.tracing.adapters.opentelemetry import register_otel_exporter
+
+register_otel_exporter(JaegerExporter, "jaeger")
+
+  ```
+
+Then you can use it in the `config.yml` file as follows:
+
+```yaml
+
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+      service_name: "nemo_guardrails_service"
+      exporter: "jaeger"
+      resource_attributes:
+        env: "production"
+
 ```
 
 ### Custom InteractionLogAdapters
