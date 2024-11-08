@@ -61,7 +61,10 @@ dependencies = [
 eval = [
   "tqdm~=4.65",
   "numpy~=1.24",
-  "streamlit>=1.37.0"
+  "streamlit>=1.37.0",
+  # Explicitly pinning the version of pandas to avoid pip resolution issues.
+  # This the exact version that streamlit requires.
+  "pandas>=1.4.0,<3"
 ]
 openai = [
   "langchain-openai>=0.0.5"
