@@ -700,7 +700,7 @@ import core
 import llm
 
 flow main
-    # Normally you don't need to activate this flow, as it is activated by llm based flows where needed.
+    # Normally you don't need to activate this flow, as it is activated by LLM based flows where needed.
     activate polling llm request response
 
     user said something
@@ -744,8 +744,8 @@ flow handling greeting
     bot express greeting
 
 flow main
-    activate handling greeting
     activate llm continuation
+    activate handling greeting
 
 
 # COLANG_END: test_llm_continuation
@@ -789,6 +789,7 @@ flow handling goodbye
     bot express goodbye
 
 flow main
+    activate automating intent detection
     activate generating user intent for unhandled user utterance
     activate handling goodbye
 
@@ -832,6 +833,7 @@ flow handling greeting
     bot express greeting
 
 flow main
+    activate automating intent detection
     activate generating user intent for unhandled user utterance
     activate handling greeting
 
@@ -880,6 +882,7 @@ flow safeguarding conversation
     bot say "Sorry but I will not respond to that"
 
 flow main
+    activate automating intent detection
     activate generating user intent for unhandled user utterance
     activate continuation on unhandled user intent
     activate safeguarding conversation
