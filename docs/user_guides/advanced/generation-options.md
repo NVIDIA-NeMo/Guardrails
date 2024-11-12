@@ -5,6 +5,7 @@ NeMo Guardrails exposes a set of **generation options** that give you fine-grain
 The **generation options** can be used both in the Python API and through the server API.
 
 To use the generation options through the Python API, you must provide the `options` keyword argument:
+
 ```python
 messages = [{
     "role": "user",
@@ -14,9 +15,11 @@ rails.generate(messages=messages, options={...})
 ```
 
 To use the generation options through the server API, you must provide the `options` as part of the request body:
+
 ```
 POST /v1/chat/completions
 ```
+
 ```json
 {
     "config_id": "...",
@@ -207,7 +210,7 @@ res = rails.generate(messages=[{
     "role": "user",
     "content": "Some user input."
 }, {
-    "role": "bot",
+    "role": "assistant",
     "content": "Some bot output."
 }], options={
     "rails": ["input", "output"]
@@ -227,7 +230,7 @@ res = rails.generate(messages=[{
     "role": "user",
     "content": ""
 }, {
-    "role": "bot",
+    "role": "assistant",
     "content": "Some bot output."
 }], options={
     "rails": ["output"]

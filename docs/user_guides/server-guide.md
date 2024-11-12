@@ -81,7 +81,7 @@ Sample response:
 
 ```json
 [{
-  "role": "bot",
+  "role": "assistant",
   "content": "I can help you with your benefits questions. What can I help you with?"
 }]
 ```
