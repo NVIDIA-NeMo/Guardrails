@@ -105,7 +105,7 @@ To keep the footprint of `nemoguardrails` as small as possible, these are not in
 ## Optional dependencies
 
 > [!IMPORTANT]
-> pip fails to resolve dependencies for **v0.10.0** and **v0.10.1**. We recommend specifying compatible versions of dependencies directly in the install command. This only concerns you when you want to install the `[all]` extra dependencies.
+> If pip fails to resolve dependencies when running `pip install nemoguardrails[all]`, you should specify additional constraints directly in the `pip install` command.
 >
 > **Example Command**:
 >
