@@ -103,21 +103,14 @@ To keep the footprint of `nemoguardrails` as small as possible, these are not in
 ```
 
 ## Optional dependencies
->
+
 > [!IMPORTANT]
-> pip fails to resolve dependencies for **v0.10.0** and **v0.10.1**. We recommend using a `constraints.txt` file to ensure compatible versions of dependencies. This only concerns you when you want to install the `[all]` extra dependencies.
+> pip fails to resolve dependencies for **v0.10.0** and **v0.10.1**. We recommend specifying compatible versions of dependencies directly in the install command. This only concerns you when you want to install the `[all]` extra dependencies.
 >
-> **Example `constraints.txt`**:
->
-> ```
-> pandas>=1.4.0,<3
-> ```
->
-> **Installation Instructions**:
-> To install the package with the specified constraints, use the following command:
+> **Example Command**:
 >
 > ```sh
-> pip install "nemoguardrails[all]" -c constraints.txt
+> pip install "nemoguardrails[all]" "pandas>=1.4.0,<3"
 > ```
 
 To use OpenAI, just use the `openai` extra dependency that ensures that all required packages are installed.
