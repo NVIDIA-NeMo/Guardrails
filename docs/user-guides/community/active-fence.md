@@ -31,7 +31,7 @@ ActiveFence’s ActiveScore API gives flexibility in controlling the behavior of
 
 ```colang
 define flow activefence input moderation detailed
-  $result = execute call activefence api(text=$user_message)
+  $result = execute call activefence api
 
   if $result.violations.get("abusive_or_harmful.hate_speech", 0) > 0.8
     bot inform cannot engage in abusive or harmful behavior
