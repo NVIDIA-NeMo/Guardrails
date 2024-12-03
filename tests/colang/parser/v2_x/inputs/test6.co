@@ -1,7 +1,0 @@
-
-flow welcome
-  await user said something
-  $sum = 1 + 2 + 3
-#  user express greeting as $event
-#  bot express greeting
-#

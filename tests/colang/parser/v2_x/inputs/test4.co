@@ -1,8 +1,0 @@
-flow bot say $text
-  await UtteranceBotAction(text=$text) as $action
-
-flow bot started saying $text
-  match UtteranceBotAction(text=$text).Started() as $event
-
-flow bla
-  match some_flow $text="bla" . Finished
