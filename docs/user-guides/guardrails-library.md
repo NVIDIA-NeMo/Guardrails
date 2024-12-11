@@ -694,49 +694,9 @@ For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA/
 
 ### Private AI PII Detection
 
-NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection in input, output and retrieval flows.
+NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection and masking the in input, output and retrieval flows.
 
-To activate the PII detection, you need specify `server_endpoint`, and the entities that you want to detect. You'll also need to set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
-
-```yaml
-rails:
-  config:
-    privateai:
-      server_endpoint: http://your-privateai-api-endpoint/process/text  # Replace this with your Private AI process text endpoint
-      input:
-        entities:  # If no entity is specified here, all supported entities will be detected by default.
-          - NAME_FAMILY
-          - EMAIL_ADDRESS
-          ...
-      output:
-        entities:
-          - NAME_FAMILY
-          - EMAIL_ADDRESS
-          ...
-```
-
-#### Example usage
-
-```yaml
-rails:
-  input:
-    flows:
-      - detect pii on input
-  output:
-    flows:
-      - detect pii on output
-  retrieval:
-    flows:
-      - detect pii on retrieval
-```
-
-For more details, check out the [Private AI Integration](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/privateai.md) page.
-
-### Private AI PII Detection
-
-NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection in input, output and retrieval flows.
-
-To activate the PII detection, you need specify `server_endpoint`, and the entities that you want to detect. You'll also need to set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
+To activate the PII detection or masking, you need specify `server_endpoint`, and the entities that you want to detect or mask. You'll also need to set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
 
 ```yaml
 rails:
@@ -757,6 +717,8 @@ rails:
 
 #### Example usage
 
+**PII detection**
+
 ```yaml
 rails:
   input:
@@ -768,6 +730,21 @@ rails:
   retrieval:
     flows:
       - detect pii on retrieval
+```
+
+**PII masking**
+
+```yaml
+rails:
+  input:
+    flows:
+      - mask pii on input
+  output:
+    flows:
+      - mask pii on output
+  retrieval:
+    flows:
+      - mask pii on retrieval
 ```
 
 For more details, check out the [Private AI Integration](./community/privateai.md) page.
