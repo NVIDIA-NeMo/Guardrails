@@ -15,7 +15,6 @@
 
 """Module for handling Private AI detection requests."""
 
-import json
 import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -25,14 +24,14 @@ import aiohttp
 log = logging.getLogger(__name__)
 
 
-async def private_ai_detection_request(
+async def private_ai_request(
     text: str,
     enabled_entities: List[str],
     server_endpoint: str,
     api_key: Optional[str] = None,
 ):
     """
-    Send a detection request to the Private AI API.
+    Send a PII detection request to the Private AI API.
 
     Args:
         text: The text to analyze.
@@ -41,7 +40,8 @@ async def private_ai_detection_request(
         api_key: The API key for the Private AI service.
 
     Returns:
-        True if PII is detected, False otherwise.
+        The response from the Private AI API. See Private AI API reference for more details:
+        https://docs.private-ai.com/reference/latest/operation/process_text_process_text_post/
     """
     parsed_url = urlparse(server_endpoint)
     if parsed_url.hostname == "api.private-ai.com" and not api_key:
@@ -73,6 +73,4 @@ async def private_ai_detection_request(
                     f"Details: {await resp.text()}"
                 )
 
-            result = await resp.json()
-
-            return any(res["entities_present"] for res in result)
+            return await resp.json()

@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.library.privateai.request import private_ai_detection_request
+from nemoguardrails.library.privateai.request import private_ai_request
 from nemoguardrails.rails.llm.config import PrivateAIDetection
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,6 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
     Returns
         True if PII is detected, False otherwise.
     """
-
     pai_config: PrivateAIDetection = getattr(config.rails.config, "privateai")
     pai_api_key = os.environ.get("PAI_API_KEY")
     server_endpoint = pai_config.server_endpoint
@@ -58,11 +57,52 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
             f"The current flow, '{source}', is not allowed."
         )
 
-    entity_detected = await private_ai_detection_request(
+    private_ai_response = await private_ai_request(
         text,
         enabled_entities,
         server_endpoint,
         pai_api_key,
     )
 
+    entity_detected = any(res["entities_present"] for res in private_ai_response)
+
     return entity_detected
+
+
+@action(is_system_action=True)
+async def mask_pii(source: str, text: str, config: RailsConfig):
+    """Masks any detected PII in the provided text.
+
+    Args
+        source: The source for the text, i.e. "input", "output", "retrieval".
+        text: The text to check.
+        config: The rails configuration object.
+
+    Returns
+        The altered text with PII masked.
+    """
+    pai_config: PrivateAIDetection = getattr(config.rails.config, "privateai")
+    pai_api_key = os.environ.get("PAI_API_KEY")
+    server_endpoint = pai_config.server_endpoint
+    enabled_entities = getattr(pai_config, source).entities
+
+    parsed_url = urlparse(server_endpoint)
+    if parsed_url.hostname == "api.private-ai.com" and not pai_api_key:
+        raise ValueError(
+            "PAI_API_KEY environment variable required for Private AI cloud API."
+        )
+
+    valid_sources = ["input", "output", "retrieval"]
+    if source not in valid_sources:
+        raise ValueError(
+            f"Private AI can only be defined in the following flows: {valid_sources}. "
+            f"The current flow, '{source}', is not allowed."
+        )
+
+    private_ai_response = await private_ai_request(
+        text,
+        enabled_entities,
+        server_endpoint,
+        pai_api_key,
+    )
+    return private_ai_response[0]["processed_text"]
