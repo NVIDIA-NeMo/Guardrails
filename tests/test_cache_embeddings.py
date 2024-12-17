@@ -66,11 +66,14 @@ def test_sha256_key_generator():
     assert len(key) == 64  # SHA256 hash is 64 characters long
 
 
-@pytest.mark.parametrize("name, expected_class", [
-    ("hash", HashKeyGenerator),
-    ("md5", MD5KeyGenerator),
-    ("sha256", SHA256KeyGenerator),
-])
+@pytest.mark.parametrize(
+    "name, expected_class",
+    [
+        ("hash", HashKeyGenerator),
+        ("md5", MD5KeyGenerator),
+        ("sha256", SHA256KeyGenerator),
+    ],
+)
 def test_key_generator_class(name, expected_class):
     assert KeyGenerator.from_name(name) == expected_class
 
@@ -106,7 +109,6 @@ def test_redis_cache_store():
 
 
 class TestEmbeddingsCache(unittest.TestCase):
-
     def setUp(self):
         self.cache_embeddings = EmbeddingsCache(
             key_generator=MD5KeyGenerator(), cache_store=FilesystemCacheStore()
