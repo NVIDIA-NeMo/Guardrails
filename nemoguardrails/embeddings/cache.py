@@ -64,6 +64,15 @@ class MD5KeyGenerator(KeyGenerator):
         return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
+class SHA256KeyGenerator(KeyGenerator):
+    """SHA256-based key generator."""
+
+    name = "sha256"
+
+    def generate_key(self, text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 class CacheStore(ABC):
     """Abstract class for cache stores."""
 
