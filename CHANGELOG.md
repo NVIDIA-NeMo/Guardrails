@@ -11,6 +11,7 @@ The changes related to the Colang language and runtime have moved to [CHANGELOG-
 
 ### Added
 
+- **Hashing Configuration**: Added SHA-256 hashing algorithm and an option to configure it ([#910](https://github.com/NVIDIA/NeMo-Guardrails/pull/910)) by @mdambski
 - **Observability**: Add observability support with support for different backends ([#844](https://github.com/NVIDIA/NeMo-Guardrails/pull/844)) by @Pouyanpi
 - **Private AI Integration**: Add Private AI Integration ([#815](https://github.com/NVIDIA/NeMo-Guardrails/pull/815)) by @letmerecall
 - **Patronus Evaluate API Integration**: Patronus Evaluate API Integration ([#834](https://github.com/NVIDIA/NeMo-Guardrails/pull/834)) by @varjoshi
