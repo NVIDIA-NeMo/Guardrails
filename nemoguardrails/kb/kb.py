@@ -99,6 +99,12 @@ class KnowledgeBase:
             chunks = split_markdown_in_topic_chunks(doc)
             self.chunks.extend(chunks)
 
+    def compute_hash(self, value):
+        """Compute the hash of a given value."""
+        hash_map = {"md5": hashlib.md5, "sha256": hashlib.sha256}
+        func = hash_map[self.config.hash_algorithm]
+        return func(value.encode("utf-8")).hexdigest()
+
     async def build(self):
         """Builds the knowledge base index."""
         t0 = time()
@@ -114,18 +120,16 @@ class KnowledgeBase:
         if not index_items:
             return
 
-        # We compute the md5
+        # We compute the hash
         # As part of the hash, we also include the embedding engine and the model
         # to prevent the cache being used incorrectly when the embedding model changes.
         hash_prefix = self.config.embedding_search_provider.parameters.get(
             "embedding_engine", ""
         ) + self.config.embedding_search_provider.parameters.get("embedding_model", "")
 
-        md5_hash = hashlib.md5(
-            (hash_prefix + "".join(all_text_items)).encode("utf-8")
-        ).hexdigest()
-        cache_file = os.path.join(CACHE_FOLDER, f"{md5_hash}.ann")
-        embedding_size_file = os.path.join(CACHE_FOLDER, f"{md5_hash}.esize")
+        hash_value = self.compute_hash(hash_prefix + "".join(all_text_items))
+        cache_file = os.path.join(CACHE_FOLDER, f"{hash_value}.ann")
+        embedding_size_file = os.path.join(CACHE_FOLDER, f"{hash_value}.esize")
 
         # If we have already computed this before, we use it
         if (

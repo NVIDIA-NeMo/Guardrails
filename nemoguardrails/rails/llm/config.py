@@ -279,6 +279,10 @@ class KnowledgeBaseConfig(BaseModel):
         default_factory=EmbeddingSearchProvider,
         description="The search provider used to search the knowledge base.",
     )
+    hash_algorithm: str = Field(
+        default="md5",
+        description="The algorithm to use for computing hashes.",
+    )
 
 
 class CoreConfig(BaseModel):
