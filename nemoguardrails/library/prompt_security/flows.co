@@ -1,0 +1,22 @@
+# INPUT RAILS
+
+@active
+flow protect prompt
+  """Check if the prompt is valid according to Prompt Security."""
+  $invalid = await protect_text(source="input", text=$user_message)
+
+  if $invalid
+    bot inform answer unknown
+    abort
+
+
+# OUTPUT RAILS
+
+@active
+flow protect response
+  """Check if the response is valid according to Prompt Security."""
+  $invalid = await protect_text(source="output", text=$bot_message)
+
+  if $invalid
+    bot inform answer unknown
+    abort

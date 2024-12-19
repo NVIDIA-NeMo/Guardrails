@@ -1,0 +1,13 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+
+rails:
+  input:
+    flows:
+      - protect prompt
+
+  output:
+    flows:
+      - protect response

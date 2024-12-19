@@ -23,6 +23,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
    - [Private AI PII detection](#private-ai-pii-detection)
+   - [Prompt Security Protection](#prompt-security-protection)
    - OpenAI Moderation API - *[COMING SOON]*
 
 4. Other
@@ -771,6 +772,27 @@ rails:
 ```
 
 For more details, check out the [Private AI Integration](./community/privateai.md) page.
+
+
+### Prompt Security Protection
+
+NeMo Guardrails supports using [Prompt Security API](https://prompt.security/?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output retrieval flows.
+
+To activate the protection, you need to set the `PS_PROTECT_URL` and `PS_APP_ID` environment variables.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - protect prompt
+  output:
+    flows:
+      - protect response
+```
+
+For more details, check out the [Prompt Security Integration](./community/prompt_security.md) page.
 
 ## Other
 
