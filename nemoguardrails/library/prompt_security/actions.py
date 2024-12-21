@@ -34,6 +34,8 @@ async def ps_protect_api_async(
     response: Optional[str] = None,
     user: Optional[str] = None,
 ):
+    """Calls Prompt Security Protect API asynchronously."""
+
     headers = {
         "APP-ID": ps_app_id,
         "Content-Type": "application/json",
@@ -50,12 +52,8 @@ async def ps_protect_api_async(
 
 
 @action(is_system_action=True)
-async def protect_text(source: str, text: str):
-    """Protects the given text.
-
-    Args
-        source: The source for the text, i.e. "input", "output".
-        text: The text to check.
+async def protect_text(context: Optional[dict] = None):
+    """Protects the given user_message or bot_message.
 
     Returns
         True if text should be blocked, False otherwise.
@@ -69,13 +67,19 @@ async def protect_text(source: str, text: str):
     if not ps_app_id:
         raise ValueError("PS_APP_ID env variable required for Prompt Security.")
 
-    if source == "input":
-        response = await ps_protect_api_async(ps_protect_url, ps_app_id, text)
-    elif source == "output":
+    if context.get("bot_message"):
         response = await ps_protect_api_async(
-            ps_protect_url, ps_app_id, None, None, text
+            ps_protect_url, ps_app_id, None, None, context["bot_message"]
         )
+        if response["result"]["action"] == "modify":
+            context["bot_message"] = response["result"]["response"]["modified_text"]
+    elif context.get("user_message"):
+        response = await ps_protect_api_async(
+            ps_protect_url, ps_app_id, context["user_message"]
+        )
+        if response["result"]["action"] == "modify":
+            context["user_message"] = response["result"]["prompt"]["modified_text"]
     else:
-        raise ValueError(f"The flow, '{source}', is not supported by Prompt Security.")
+        raise ValueError(f"No user_message or bot_message in context: {context}")
 
     return response["result"]["action"] == "block"
