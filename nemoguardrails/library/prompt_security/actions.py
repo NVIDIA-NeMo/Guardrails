@@ -72,14 +72,20 @@ async def protect_text(context: Optional[dict] = None):
             ps_protect_url, ps_app_id, None, None, context["bot_message"]
         )
         if response["result"]["action"] == "modify":
-            context["bot_message"] = response["result"]["response"]["modified_text"]
+            response["result"]["modified_text"] = response["result"]["response"][
+                "modified_text"
+            ]
     elif context.get("user_message"):
         response = await ps_protect_api_async(
             ps_protect_url, ps_app_id, context["user_message"]
         )
         if response["result"]["action"] == "modify":
-            context["user_message"] = response["result"]["prompt"]["modified_text"]
+            response["result"]["modified_text"] = response["result"]["prompt"][
+                "modified_text"
+            ]
     else:
         raise ValueError(f"No user_message or bot_message in context: {context}")
 
-    return response["result"]["action"] == "block"
+    response["result"]["is_blocked"] = response["result"]["action"] == "block"
+    response["result"]["is_modified"] = response["result"]["action"] == "modify"
+    return response["result"]

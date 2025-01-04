@@ -2,19 +2,21 @@
 
 define subflow protect prompt
   """Check if the prompt is valid according to Prompt Security."""
-  $invalid = execute protect_text
-
-  if $invalid
+  $result = execute protect_text
+  if $result["is_blocked"]
     bot inform answer unknown
     stop
+  else if $result["is_modified"]
+    $user_message = $result["modified_text"]
 
 
 # OUTPUT RAILS
 
 define subflow protect response
   """Check if the response is valid according to Prompt Security."""
-  $invalid = execute protect_text
-
-  if $invalid
+  $result = execute protect_text
+  if $result["is_blocked"]
     bot inform answer unknown
     stop
+  else if $result["is_modified"]
+    $bot_message = $result["modified_text"]

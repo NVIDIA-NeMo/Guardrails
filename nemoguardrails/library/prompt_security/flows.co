@@ -3,11 +3,12 @@
 @active
 flow protect prompt
   """Check if the prompt is valid according to Prompt Security."""
-  $invalid = await protect_text(context=$context)
-
-  if $invalid
+  $result = await protect_text(context=$context)
+  if $result["is_blocked"]
     bot inform answer unknown
-    abort
+    stop
+  else if $result["is_modified"]
+    $user_message = $result["modified_text"]
 
 
 # OUTPUT RAILS
@@ -15,8 +16,9 @@ flow protect prompt
 @active
 flow protect response
   """Check if the response is valid according to Prompt Security."""
-  $invalid = await protect_text(context=$context)
-
-  if $invalid
+  $result = await protect_text(context=$context)
+  if $result["is_blocked"]
     bot inform answer unknown
-    abort
+    stop
+  else if $result["is_modified"]
+    $bot_message = $result["modified_text"]
