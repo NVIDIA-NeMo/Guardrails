@@ -38,14 +38,18 @@ If you want to use an LLM and you cannot see a prompt in the [prompts folder](ht
 | Patronus Lynx RAG Hallucination detection _(LLM independent)_ | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                                 |
 | GCP Text Moderation _(LLM independent)_            | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                                 |
 | Patronus Evaluate API _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                                 |
+| Fiddler Fast Faitfhulness Hallucination Detection _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔
+| Fiddler Fast Safety & Jailbreak Detection _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                     |
 
 Table legend:
+
 - ✔ - Supported (_The feature is fully supported by the LLM based on our experiments and tests_)
 - ❗ - Limited Support (_Experiments and tests show that the LLM is under-performing for that feature_)
 - ✖ - Not Supported (_Experiments show very poor performance or no experiments have been done for the LLM-feature pair_)
 - \- - Not Applicable (_e.g. models support streaming, it depends how they are deployed_)
 
 The performance numbers reported in the table above for each LLM-feature pair are as follows:
+
 - the banking dataset evaluation for dialog (topical) rails
 - fact-checking using MSMARCO dataset and moderation rails experiments
 More details in the [evaluation docs](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/evaluate/README.md).

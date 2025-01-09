@@ -1,0 +1,6 @@
+define user ask general question
+  "Do you ship within 2 days?"
+
+define flow
+  user ask general question
+  bot provide answer

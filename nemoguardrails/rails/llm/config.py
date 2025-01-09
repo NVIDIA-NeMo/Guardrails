@@ -166,6 +166,23 @@ class PrivateAIDetection(BaseModel):
     )
 
 
+class FiddlerGuardrails(BaseModel):
+    """Configuration for Fiddler Guardrails."""
+
+    fiddler_endpoint: str = Field(
+        default="http://localhost:8080/process/text",
+        description="The global endpoint for Fiddler Guardrails requests.",
+    )
+    safety_threshold: float = Field(
+        default=0.1,
+        description="Fiddler Guardrails safety detection threshold.",
+    )
+    faithfulness_threshold: float = Field(
+        default=0.05,
+        description="Fiddler Guardrails faithfulness detection threshold.",
+    )
+
+
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -537,6 +554,11 @@ class RailsConfigData(BaseModel):
     privateai: Optional[PrivateAIDetection] = Field(
         default_factory=PrivateAIDetection,
         description="Configuration for Private AI.",
+    )
+
+    fiddler: Optional[FiddlerGuardrails] = Field(
+        default_factory=FiddlerGuardrails,
+        description="Configuration for Fiddler Guardrails.",
     )
 
 

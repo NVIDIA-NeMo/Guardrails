@@ -1,0 +1,13 @@
+
+flow jailbreak detection heuristics
+  """
+  Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
+  """
+  $is_jailbreak = await call fiddler safety on user message
+
+  if $is_jailbreak
+    if $system.config.enable_rails_exceptions
+      send JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
+    else
+      bot refuse to respond
+    abort

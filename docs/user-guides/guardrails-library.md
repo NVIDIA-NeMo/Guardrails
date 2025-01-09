@@ -23,6 +23,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
    - [Private AI PII detection](#private-ai-pii-detection)
+   - [Fiddler Guardrails for Safety and Hallucination Detection](#fiddler-guardrails-for-safety-and-hallucination-detection)
    - [Prompt Security Protection](#prompt-security-protection)
    - OpenAI Moderation API - *[COMING SOON]*
 
@@ -421,6 +422,7 @@ The implementation for the self-check hallucination rail uses a slight variation
 Similar to the self-check fact-checking, we formulate the consistency checking similar to an NLI task with the original bot response as the *hypothesis* (`{{ statement }}`) and the extra generated responses as the context or *evidence* (`{{ paragraph }}`).
 
 ## NVIDIA Models
+
 NeMo Guardrails provides out of the box connectivity for safety models trained by the NVIDIA for specialized use cases. These models shall be provided as both as HuggingFace checkpoints, and as NVIDIA NIM containers that will provide out of the box TRTLLM support with lower latency.
 
 ### Content Safety
@@ -789,23 +791,40 @@ rails:
       - detect pii on retrieval
 ```
 
-**PII masking**
+For more details, check out the [Private AI Integration](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/privateai.md) page.
+
+### Fiddler Guardrails for Safety and Hallucination Detection
+
+NeMo Guardrails supports using [Fiddler Guardrails](https://docs.fiddler.ai/product-guide/llm-monitoring/guardrails) for safety and hallucination detection in input and output flows.
+
+In order to access Fiddler guardrails, you need access to a valid Fiddler environment, and a [Fiddler environment key](https://docs.fiddler.ai/ui-guide/administration-ui/settings#credentials). You'll need to set the `FIDDLER_API_KEY` environment variable to authenticate into the Fiddler service.
 
 ```yaml
 rails:
-  input:
-    flows:
-      - mask pii on input
-  output:
-    flows:
-      - mask pii on output
-  retrieval:
-    flows:
-      - mask pii on retrieval
+  config:
+    fiddler:
+      server_endpoint: https://testfiddler.ai # Replace this with your fiddler environment
+
 ```
 
-For more details, check out the [Private AI Integration](./community/privateai.md) page.
+#### Example usage
 
+```yaml
+rails:
+    config:
+        fiddler:
+            fiddler_endpoint: https://testfiddler.ai # Replace this with your fiddler environment
+    input:
+        flows:
+            - fiddler user safety
+    output:
+        flows:
+            - fiddler bot safety
+            - fiddler bot faithfulness
+
+```
+
+For more details, check out the [Fiddler Integration](./community/fiddler.md) page.
 
 ### Prompt Security Protection
 
