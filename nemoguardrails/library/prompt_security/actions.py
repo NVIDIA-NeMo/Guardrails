@@ -55,7 +55,7 @@ async def ps_protect_api_async(
 async def protect_text(context: Optional[dict] = None):
     """Protects the given user_message or bot_message.
 
-    Returns
+    Returns:
         True if text should be blocked, False otherwise.
     """
 
