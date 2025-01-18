@@ -2,7 +2,7 @@
 
 define subflow protect prompt
   """Check if the prompt is valid according to Prompt Security."""
-  $result = execute protect_text
+  $result = execute protect_text(user_prompt=$user_message)
   if $result["is_blocked"]
     bot inform answer unknown
     stop
@@ -14,7 +14,7 @@ define subflow protect prompt
 
 define subflow protect response
   """Check if the response is valid according to Prompt Security."""
-  $result = execute protect_text
+  $result = execute protect_text(bot_response=$bot_message)
   if $result["is_blocked"]
     bot inform answer unknown
     stop
