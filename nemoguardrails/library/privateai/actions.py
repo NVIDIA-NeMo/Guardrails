@@ -73,14 +73,15 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
 async def mask_pii(source: str, text: str, config: RailsConfig):
     """Masks any detected PII in the provided text.
 
-    Args
-        source: The source for the text, i.e. "input", "output", "retrieval".
-        text: The text to check.
-        config: The rails configuration object.
+    Args:
+        source (str): The source for the text, i.e. "input", "output", "retrieval".
+        text (str): The text to check.
+        config (RailsConfig): The rails configuration object.
 
-    Returns
-        The altered text with PII masked.
+    Returns:
+        str: The altered text with PII masked.
     """
+
     pai_config: PrivateAIDetection = getattr(config.rails.config, "privateai")
     pai_api_key = os.environ.get("PAI_API_KEY")
     server_endpoint = pai_config.server_endpoint

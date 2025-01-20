@@ -30,8 +30,8 @@ async def private_ai_request(
     server_endpoint: str,
     api_key: Optional[str] = None,
 ):
-    """
-    Send a PII detection request to the Private AI API.
+    """Send a PII detection request to the Private AI API.
+    
 
     Args:
         text: The text to analyze.
