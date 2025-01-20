@@ -31,7 +31,6 @@ async def private_ai_request(
     api_key: Optional[str] = None,
 ):
     """Send a PII detection request to the Private AI API.
-    
 
     Args:
         text: The text to analyze.
@@ -42,6 +41,10 @@ async def private_ai_request(
     Returns:
         The response from the Private AI API. See Private AI API reference for more details:
         https://docs.private-ai.com/reference/latest/operation/process_text_process_text_post/
+
+    Raises:
+        ValueError: If api_key is missing for cloud API, if the API call fails,
+            or if the response cannot be parsed as JSON.
     """
     parsed_url = urlparse(server_endpoint)
     if parsed_url.hostname == "api.private-ai.com" and not api_key:
@@ -73,4 +76,10 @@ async def private_ai_request(
                     f"Details: {await resp.text()}"
                 )
 
-            return await resp.json()
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                raise ValueError(
+                    f"Failed to parse Private AI response as JSON. Status: {resp.status}, "
+                    f"Content: {await resp.text()}"
+                )

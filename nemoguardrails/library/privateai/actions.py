@@ -38,6 +38,9 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
 
     Returns
         True if PII is detected, False otherwise.
+
+    Raises:
+        ValueError: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
     """
     pai_config: PrivateAIDetection = getattr(config.rails.config, "privateai")
     pai_api_key = os.environ.get("PAI_API_KEY")
@@ -64,8 +67,10 @@ async def detect_pii(source: str, text: str, config: RailsConfig):
         pai_api_key,
     )
 
-    entity_detected = any(res["entities_present"] for res in private_ai_response)
-
+    try:
+        entity_detected = any(res["entities_present"] for res in private_ai_response)
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Invalid response from Private AI service: {str(e)}")
     return entity_detected
 
 
@@ -80,8 +85,10 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
 
     Returns:
         str: The altered text with PII masked.
-    """
 
+    Raises:
+        ValueError: If PAI_API_KEY is missing when using cloud API or if the response is invalid.
+    """
     pai_config: PrivateAIDetection = getattr(config.rails.config, "privateai")
     pai_api_key = os.environ.get("PAI_API_KEY")
     server_endpoint = pai_config.server_endpoint
@@ -106,4 +113,13 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
         server_endpoint,
         pai_api_key,
     )
-    return private_ai_response[0]["processed_text"]
+
+    if not private_ai_response or not isinstance(private_ai_response, list):
+        raise ValueError(
+            "Invalid response received from Private AI service. The response is not a list."
+        )
+
+    try:
+        return private_ai_response[0]["processed_text"]
+    except (IndexError, KeyError) as e:
+        raise ValueError(f"Invalid response from Private AI service: {str(e)}")
