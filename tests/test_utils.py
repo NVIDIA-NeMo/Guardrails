@@ -15,7 +15,7 @@
 
 import pytest
 
-from nemoguardrails.utils import new_event_dict
+from nemoguardrails.utils import new_event_dict, safe_eval
 
 
 def test_event_generation():
@@ -119,3 +119,28 @@ def test_wrong_property_type():
             event_type,
             script=script,
         )
+
+
+@pytest.mark.parametrize(
+    "input_value, expected_result",
+    [
+        ('"It\'s a sunny day"', "It's a sunny day"),  # double quotes with single quote
+        (
+            "\"He said, 'Hello'\"",
+            "He said, 'Hello'",
+        ),  # double quotes with nested single quote
+        (
+            "It's a sunny day",
+            "It's a sunny day",
+        ),  # unquoted string containing single quote
+        (
+            "It is a sunny day",
+            "It is a sunny day",
+        ),  # plain string not wrapped in quotes
+        ("", ""),  # empty string
+    ],
+)
+def test_safe_eval(input_value, expected_result):
+    """Test safe_eval with various input values."""
+    result = safe_eval(input_value)
+    assert result == expected_result
