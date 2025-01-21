@@ -21,6 +21,7 @@ import os
 import random
 import re
 import uuid
+from ast import literal_eval
 from collections import namedtuple
 from datetime import datetime, timezone
 from enum import Enum
@@ -384,3 +385,26 @@ def is_ignored_by_railsignore(filename: str, ignore_patterns: str) -> bool:
             break
 
     return ignore
+
+
+def safe_eval(input_value: str) -> str:
+    """
+    Safely evaluate a string to handle unescaped quotes or invalid syntax from the async generate_value action.
+
+    Args:
+        input_value (str): The input string to evaluate.
+
+    Returns:
+        str: The evaluated and properly formatted string.
+
+    Raises:
+        ValueError: If the input cannot be safely evaluated.
+    """
+    if input_value.startswith(("'", '"')) and input_value.endswith(("'", '"')):
+        try:
+            return literal_eval(input_value)
+        except (ValueError, SyntaxError):
+            pass
+    escaped_value = input_value.replace("'", "\\'").replace('"', '\\"')
+    input_value = f"'{escaped_value}'"
+    return literal_eval(input_value)

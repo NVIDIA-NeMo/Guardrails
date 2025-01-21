@@ -64,7 +64,12 @@ from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import StreamingHandler
-from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
+from nemoguardrails.utils import (
+    get_or_create_event_loop,
+    new_event_dict,
+    new_uuid,
+    safe_eval,
+)
 
 log = logging.getLogger(__name__)
 
@@ -1039,7 +1044,11 @@ class LLMGenerationActions:
 
         log.info(f"Generated value for ${var_name}: {value}")
 
-        return literal_eval(value)
+        try:
+            return safe_eval(value)
+        except Exception as e:
+            log.error(f"Error evaluating value: {value}. Error: {str(e)}")
+            raise ValueError(f"Invalid LLM response: `{value}`")
 
     @action(is_system_action=True)
     async def generate_intent_steps_message(
