@@ -123,4 +123,4 @@ async def protect_text(
     if user_prompt:
         return await ps_protect_api_async(ps_protect_url, ps_app_id, user_prompt)
 
-    raise ValueError("Nither user_message nor bot_message was provided")
+    raise ValueError("Neither user_message nor bot_message was provided")
