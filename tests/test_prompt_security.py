@@ -16,21 +16,10 @@
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions.actions import ActionResult, action
 from tests.utils import TestChat
 
 
-@action()
-def retrieve_relevant_chunks():
-    context_updates = {"relevant_chunks": "Mock retrieved context."}
-
-    return ActionResult(
-        return_value=context_updates["relevant_chunks"],
-        context_updates=context_updates,
-    )
-
-
-def mock_protect_text(return_value=True):
+def mock_protect_text(return_value):
     def mock_request(*args, **kwargs):
         return return_value
 
@@ -61,8 +50,9 @@ def test_prompt_security_protection_disabled():
         ],
     )
 
-    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
-    chat.app.register_action(mock_protect_text(True), "protect_text")
+    chat.app.register_action(
+        mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text"
+    )
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "Hi! My name is John as well."
 
@@ -98,8 +88,9 @@ def test_prompt_security_protection_input():
         ],
     )
 
-    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
-    chat.app.register_action(mock_protect_text(True), "protect_text")
+    chat.app.register_action(
+        mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text"
+    )
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "I can't answer that."
 
@@ -135,7 +126,8 @@ def test_prompt_security_protection_output():
         ],
     )
 
-    chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
-    chat.app.register_action(mock_protect_text(True), "protect_text")
+    chat.app.register_action(
+        mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text"
+    )
     chat >> "Hi!"
     chat << "I can't answer that."
