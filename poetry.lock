@@ -1131,13 +1131,13 @@ requests = ["requests (>=2.20.0,<3.0.0.dev0)"]
 
 [[package]]
 name = "google-cloud-language"
-version = "2.15.0"
+version = "2.16.0"
 description = "Google Cloud Language API client library"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "google_cloud_language-2.15.0-py2.py3-none-any.whl", hash = "sha256:50a6d2d5ad56059426eb28d892ac962037a1edab79fbd31ba58b6062d4396dc2"},
-    {file = "google_cloud_language-2.15.0.tar.gz", hash = "sha256:ad7b2373d1e003f67440b79dcf5a923644a7d99135b3728bf38d72b05fe2f32d"},
+    {file = "google_cloud_language-2.16.0-py2.py3-none-any.whl", hash = "sha256:7e040425be5960cde34229fa850b9e4859e455157134aada52dc75490d59c1de"},
+    {file = "google_cloud_language-2.16.0.tar.gz", hash = "sha256:65d7fc6b4578ed526ec2a97d4d7104172adb6a20d8b9cb360fc91c63a5fc841e"},
 ]
 
 [package.dependencies]
