@@ -13,7 +13,7 @@ Once you have the NGC API key with the necessary permissions, set the following 
 
 ```bash
 export NGC_API_KEY=<your NGC API key>
-docker login nvcr.io -u "$oauthtoken" -p <<< <your NGC API key>
+docker login nvcr.io -u '$oauthtoken' -p <<< <your NGC API key>
 ```
 
 Test that you are able to use the NVIDIA NIM assets through by pulling the latest TopicControl container.
