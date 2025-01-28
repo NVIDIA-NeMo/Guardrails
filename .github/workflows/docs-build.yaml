@@ -74,7 +74,7 @@ jobs:
                   path: pr/
 
     store-html:
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.repository_owner == 'NVIDIA'
         needs: [build-docs]
         runs-on: ubuntu-latest
         steps:
@@ -89,6 +89,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: html-build-artifact
+                  path: ${{ github.ref_name }}
             - name: Copy HTML directories
               run: |
                   ls -asl
