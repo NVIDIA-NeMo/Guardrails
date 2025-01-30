@@ -118,4 +118,4 @@ async def jailbreak_detection_model(
         # If no result, assume not a jailbreak
         return False
     else:
-        return jailbreak["jailbreak"]
+        return jailbreak
