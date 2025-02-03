@@ -65,7 +65,7 @@ nest-asyncio = ">=1.5.6,"
 # and streamlit is using the vulnerable protobuf versions
 protobuf = ">=5.29.5"
 prompt-toolkit = ">=3.0"
-pydantic = ">=1.10"
+pydantic = ">=2.0,<3.0"
 pyyaml = ">=6.0"
 rich = ">=13.5.2"
 simpleeval = ">=0.9.13,"
