@@ -42,6 +42,10 @@ redirects = {
 
 copybutton_exclude = ".linenos, .gp, .go"
 
+exclude_patterns = [
+    "README.md",
+]
+
 myst_linkify_fuzzy_links = False
 myst_heading_anchors = 3
 myst_enable_extensions = [

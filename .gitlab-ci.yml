@@ -14,6 +14,9 @@ sast:
     stage: tests
 include:
     - template: Security/SAST.gitlab-ci.yml
+    - project: "sw-gpu-doctools/docs-ci"
+      ref: main
+      file: "nemo-guardrails-toolkit/docs-ci.yaml"
 
 variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
