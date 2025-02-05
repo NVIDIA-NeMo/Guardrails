@@ -825,7 +825,7 @@ rails:
       - protect response
 ```
 
-For more details, check out the [Prompt Security Integration](./community/prompt_security.md) page.
+For more details, check out the [Prompt Security Integration](./community/prompt-security.md) page.
 
 ## Other
 
