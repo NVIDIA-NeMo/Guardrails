@@ -30,12 +30,12 @@ NeMo Guardrails comes with a built-in [output self-checking rail](../../user-gui
 
 Activating the `self check output` rail is similar to the `self check input` rail:
 
-1. Activate the `self check output` rail in *config.yml*.
-2. Add a `self_check_output` prompt in *prompts.yml*.
+1. Activate the `self check output` rail in `config.yml`.
+2. Add a `self_check_output` prompt in `prompts.yml`.
 
-### Activate the rail
+### Activate the Rail
 
-To activate the rail, include the `self check output` flow name in the output rails section of the *config.yml* file:
+To activate the rail, include the `self check output` flow name in the output rails section of the `config.yml` file:
 
 ```yaml
 output:
@@ -43,9 +43,10 @@ output:
       - self check output
 ```
 
-For reference, the full `rails` section in `config.yml` should look like the following:
+For reference, update the full `rails` section in `config.yml` to look like the following:
 
 ```yaml
+rails:
   input:
     flows:
       - self check input
@@ -66,7 +67,7 @@ define subflow self check output
     stop
 ```
 
-### Add a prompt
+### Add a Prompt
 
 The self-check output rail needs a prompt to perform the check.
 
@@ -130,7 +131,7 @@ Summary: 3 LLM call(s) took 1.89 seconds and used 504 tokens.
 print(info.llm_calls[2].prompt)
 ```
 
-```
+```text
 Your task is to check if the bot message below complies with the company policy.
 
 Company policy for the bot:
@@ -160,15 +161,68 @@ As we can see, the LLM did generate the message containing the word "idiot", how
 
 The following figure depicts the process:
 
-<div align="center">
-<img src="../../_static/puml/output_rails_fig_1.png" width="815">
-</div>
+```{image} ../../_static/puml/output_rails_fig_1.png
+```
+
+## Streaming Output
+
+By default, the output from the rail is synchronous.
+You can enable streaming to provide asynchronous responses and reduce the time to the first response.
+
+1. Modify the `rails` field in the `config.yml` file and add the `streaming` field to enable streaming:
+
+   ```{code-block} yaml
+   :emphasize-lines: 9-11,13
+
+   rails:
+     input:
+       flows:
+         - self check input
+
+     output:
+       flows:
+         - self check output
+       streaming:
+          chunk_size: 200
+          context_size: 50
+
+   streaming: True
+   ```
+
+1. Call the `stream_async` method and handle the chunked response:
+
+   ```python
+   from nemoguardrails import RailsConfig, LLMRails
+
+   config = RailsConfig.from_path("./config")
+
+   rails = LLMRails(config)
+
+   messages = [{"role": "user", "content": "How many days of vacation does a 10-year employee receive?"}]
+
+   async for chunk in rails.stream_async(messages=messages):
+       print(f"CHUNK: {chunk}")
+   ```
+
+   *Partial Output*
+
+   ```output
+   CHUNK: According
+   CHUNK:  to
+   CHUNK:  the
+   CHUNK:  employee
+   CHUNK:  handbook,
+   ...
+   ```
+
+For reference information about the related `config.yaml` file fields,
+refer to [](../../user-guides/configuration-guide.md#output-rails).
 
 ## Custom Output Rail
 
 Build a custom output rail with a list of proprietary words that we want to make sure do not appear in the output.
 
-1. Create a *config/actions.py* file with the following content, which defines an action:
+1. Create a `config/actions.py` file with the following content, which defines an action:
 
 ```python
 from typing import Optional
