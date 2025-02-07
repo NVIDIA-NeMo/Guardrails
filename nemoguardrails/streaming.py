@@ -151,6 +151,7 @@ class StreamingHandler(AsyncCallbackHandler, AsyncIterator):
                         yield element
                         break
                 yield element
+            return
 
         return generator()
 

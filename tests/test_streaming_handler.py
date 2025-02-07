@@ -36,7 +36,10 @@ class StreamingConsumer:
 
     async def process_tokens(self):
         async for chunk in self.streaming_handler:
-            self.chunks.append(chunk)
+            try:
+                self.chunks.append(chunk)
+            except StopAsyncIteration:
+                break
 
         self.finished = True
 
@@ -218,7 +221,7 @@ async def test_suffix_with_stop_and_pipe_3():
             " message: ",
             '"',
             "This is a message",
-            '."' "\nUser",
+            '."\nUser',
             " intent: ",
             " xxx",
         ],
@@ -238,7 +241,7 @@ async def test_suffix_with_stop_and_pipe_4():
             " message: ",
             '"',
             "This is a message",
-            '."' "\nUser",
+            '."\nUser',
             " intent: ",
             " xxx",
         ],
