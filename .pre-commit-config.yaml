@@ -1,20 +1,20 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
+
     hooks:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+
     hooks:
-      - id: isort
-        args: [ "--profile", "black" ]
-        name: isort (python)
-  - repo: https://github.com/psf/black
-    rev: 23.3.0
-    hooks:
-      - id: black
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.4.2
     hooks:
@@ -23,7 +23,6 @@ repos:
         args:
           - --license-filepath
           - LICENSE.md
-
 # Deactivating this for now.
 #  - repo: https://github.com/pycqa/pylint
 #    rev: v2.17.0

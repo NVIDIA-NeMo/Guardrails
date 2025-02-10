@@ -83,6 +83,9 @@ aiofiles = { version = ">=24.1.0", optional = true }
 # openai
 langchain-openai = { version = ">=0.0.5", optional = true }
 
+# nim
+langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
+
 # eval
 tqdm = { version = ">=4.65,<5.0", optional = true }
 numpy = { version = ">=1.24,<2.0", optional = true }
@@ -99,9 +102,10 @@ spacy = { version = ">=3.7.2,<3.8.0", optional = true } # Capping spacy to spacy
 google-cloud-language = { version = ">=2.14.0", optional = true }
 
 [tool.poetry.extras]
+openai = ["langchain-openai"]
+nim = ["langchain-nvidia-ai-endpoints"]
 sdd = ["presidio-analyzer", "presidio-anonymizer", "spacy"]
 eval = ["tqdm", "numpy", "streamlit"]
-openai = ["langchain-openai"]
 gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "opentelemetry-sdk", "aiofiles"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
@@ -115,6 +119,7 @@ all = [
   "numpy",
   "streamlit",
   "langchain-openai",
+  "langchain-nvidia-ai-endpoints",
   "google-cloud-language",
   "opentelemetry-api",
   "opentelemetry-sdk",
@@ -126,11 +131,8 @@ optional = true
 
 
 [tool.poetry.group.dev.dependencies]
-black = ">=24.3.0"
 aioresponses = ">=0.7.6"
-mypy = ">=1.1.1"
 pre-commit = ">=3.1.1"
-pylint = ">=2.17.0"
 pytest = ">=7.2.2"
 pytest-asyncio = ">=0.21.0"
 pytest-cov = ">=4.1.0"
@@ -138,6 +140,7 @@ pytest-httpx = ">=0.22.0"
 streamlit = ">=1.37.0"
 tox = "^4.23.2"
 pytest-profiling = "^1.7.0"
+ruff = "^0.9.6"
 
 
 [tool.poetry.group.docs]
