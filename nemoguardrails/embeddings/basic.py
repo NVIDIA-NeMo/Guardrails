@@ -181,9 +181,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         # If the index is already built, we skip this
         if self._index is None:
-            self._embeddings.extend(
-                await self._get_embeddings([item.text for item in items])
-            )
+            self._embeddings.extend(await self._get_embeddings([item.text for item in items]))
 
             # Update the embedding if it was not computed up to this point
             self._embedding_size = len(self._embeddings[0])
@@ -263,9 +261,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         return result
 
-    async def search(
-        self, text: str, max_results: int = 20, threshold: Optional[float] = None
-    ) -> List[IndexItem]:
+    async def search(self, text: str, max_results: int = 20, threshold: Optional[float] = None) -> List[IndexItem]:
         """Search the closest `max_results` items.
 
         Args:
@@ -284,9 +280,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             _embedding = (await self._get_embeddings([text]))[0]
 
         if self._index is None:
-            raise ValueError(
-                "Index is not built yet. Ensure to call `build` before searching."
-            )
+            raise ValueError("Index is not built yet. Ensure to call `build` before searching.")
 
         results = self._index.get_nns_by_vector(
             _embedding,
@@ -307,14 +301,8 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         return [self._items[i] for i in filtered_results]
 
     @staticmethod
-    def _filter_results(
-        indices: List[int], distances: List[float], threshold: float
-    ) -> List[int]:
+    def _filter_results(indices: List[int], distances: List[float], threshold: float) -> List[int]:
         if threshold == float("inf"):
             return indices
         else:
-            return [
-                index
-                for index, distance in zip(indices, distances)
-                if (1 - distance / 2) >= threshold
-            ]
+            return [index for index, distance in zip(indices, distances) if (1 - distance / 2) >= threshold]

@@ -77,9 +77,9 @@ def compute_time_spent_in_states(changes: list[StateChange]) -> dict[str, timede
     """Returns the total number of seconds spent for each state in the list of state changes."""
     result: dict[str, timedelta] = {}
     for i in range(len(changes) - 1):
-        result[changes[i].state] = result.get(
-            changes[i].state, timedelta(seconds=0.0)
-        ) + (changes[i + 1].time - changes[i].time)
+        result[changes[i].state] = result.get(changes[i].state, timedelta(seconds=0.0)) + (
+            changes[i + 1].time - changes[i].time
+        )
 
     return result
 
@@ -118,17 +118,12 @@ class UserAttentionMaterializedView:
         if not timestamp:
             return
 
-        event.corrected_datetime = timestamp + timedelta(
-            seconds=offsets.get(event.name, 0.0)
-        )
+        event.corrected_datetime = timestamp + timedelta(seconds=offsets.get(event.name, 0.0))
 
         if event.name == "UtteranceUserActionStarted":
             self.reset_view()
             self.utterance_started_event = event
-        elif (
-            event.name == "UtteranceUserActionFinished"
-            or event.name == "UtteranceUserActionTranscriptUpdated"
-        ):
+        elif event.name == "UtteranceUserActionFinished" or event.name == "UtteranceUserActionTranscriptUpdated":
             self.utterance_last_event = event
         elif event.name == "AttentionUserActionFinished":
             event.arguments["attention_level"] = UNKNOWN_ATTENTION_STATE
@@ -149,9 +144,7 @@ class UserAttentionMaterializedView:
         log_p(f"attention_events={self.attention_events}")
 
         if not attention_levels:
-            log_p(
-                "Attention: no attention_levels provided. Attention percentage set to 0.0"
-            )
+            log_p("Attention: no attention_levels provided. Attention percentage set to 0.0")
             return 0.0
 
         # If one of the utterance boundaries are not available we return the attention percentage based on the most
@@ -160,15 +153,11 @@ class UserAttentionMaterializedView:
             level = attention_levels[0]
             if self.attention_events:
                 level = self.attention_events[-1].arguments["attention_level"]
-            log_p(
-                f"Attention: Utterance boundaries unclear. Deciding based on most recent attention_level={level}"
-            )
+            log_p(f"Attention: Utterance boundaries unclear. Deciding based on most recent attention_level={level}")
             return 1.0 if level in attention_levels else 0.0
 
         events = [
-            e
-            for e in self.attention_events
-            if e.corrected_datetime < self.utterance_last_event.corrected_datetime
+            e for e in self.attention_events if e.corrected_datetime < self.utterance_last_event.corrected_datetime
         ]
         log_p(f"filtered attention_events={events}")
 
@@ -179,19 +168,12 @@ class UserAttentionMaterializedView:
             events[0].arguments["attention_level"],
             self.utterance_started_event.corrected_datetime,
         )
-        end_of_sentence_state = StateChange(
-            "no_state", self.utterance_last_event.corrected_datetime
-        )
+        end_of_sentence_state = StateChange("no_state", self.utterance_last_event.corrected_datetime)
         state_changes_during_sentence = [
-            StateChange(e.arguments["attention_level"], e.corrected_datetime)
-            for e in events[1:]
+            StateChange(e.arguments["attention_level"], e.corrected_datetime) for e in events[1:]
         ]
 
-        state_changes = (
-            [start_of_sentence_state]
-            + state_changes_during_sentence
-            + [end_of_sentence_state]
-        )
+        state_changes = [start_of_sentence_state] + state_changes_during_sentence + [end_of_sentence_state]
         durations = compute_time_spent_in_states(state_changes)
 
         # If the only state we observed during the duration of the utterance is UNKNOWN_ATTENTION_STATE we treat it as 1.0

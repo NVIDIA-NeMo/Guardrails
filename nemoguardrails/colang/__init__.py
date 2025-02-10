@@ -60,9 +60,7 @@ def parse_flow_elements(items, version: str = "1.0"):
         raise ValueError(f"Unsupported colang version {version}")
 
     if parsers[version] is None:
-        raise NotImplementedError(
-            f"Parsing flow elements not supported for colang version {version}"
-        )
+        raise NotImplementedError(f"Parsing flow elements not supported for colang version {version}")
 
     return parsers[version](items)
 

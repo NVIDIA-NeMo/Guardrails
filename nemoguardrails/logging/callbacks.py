@@ -104,13 +104,7 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         prompt = "\n" + "\n".join(
             [
                 "[cyan]"
-                + (
-                    "User"
-                    if msg.type == "human"
-                    else "Bot"
-                    if msg.type == "ai"
-                    else "System"
-                )
+                + ("User" if msg.type == "human" else "Bot" if msg.type == "ai" else "System")
                 + "[/]"
                 + "\n"
                 + (msg.content if isinstance(msg.content, str) else "")
@@ -213,23 +207,15 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
                     ):
                         token_stats_found = True
                         token_usage = gen.message.usage_metadata
-                        llm_stats.inc(
-                            "total_tokens", token_usage.get("total_tokens", 0)
-                        )
+                        llm_stats.inc("total_tokens", token_usage.get("total_tokens", 0))
                         llm_call_info.total_tokens += token_usage.get("total_tokens", 0)
-                        llm_stats.inc(
-                            "total_prompt_tokens", token_usage.get("input_tokens", 0)
-                        )
-                        llm_call_info.prompt_tokens += token_usage.get(
-                            "input_tokens", 0
-                        )
+                        llm_stats.inc("total_prompt_tokens", token_usage.get("input_tokens", 0))
+                        llm_call_info.prompt_tokens += token_usage.get("input_tokens", 0)
                         llm_stats.inc(
                             "total_completion_tokens",
                             token_usage.get("output_tokens", 0),
                         )
-                        llm_call_info.completion_tokens += token_usage.get(
-                            "output_tokens", 0
-                        )
+                        llm_call_info.completion_tokens += token_usage.get("output_tokens", 0)
         if not token_stats_found and response.llm_output:
             # Fail-back mechanism for non-chat models. This works for OpenAI models,
             # but it may not work for others as response.llm_output is not standardized.
@@ -240,22 +226,16 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
             llm_call_info.total_tokens = token_usage.get("total_tokens", 0)
             llm_stats.inc("total_prompt_tokens", token_usage.get("prompt_tokens", 0))
             llm_call_info.prompt_tokens = token_usage.get("prompt_tokens", 0)
-            llm_stats.inc(
-                "total_completion_tokens", token_usage.get("completion_tokens", 0)
-            )
+            llm_stats.inc("total_completion_tokens", token_usage.get("completion_tokens", 0))
             llm_call_info.completion_tokens = token_usage.get("completion_tokens", 0)
 
         if not token_stats_found:
-            log.info(
-                "Token stats in LLM call info cannot be computed for current model!"
-            )
+            log.info("Token stats in LLM call info cannot be computed for current model!")
 
         # Finally, we append the LLM call log to the processing log
         processing_log = processing_log_var.get()
         if processing_log:
-            processing_log.append(
-                {"type": "llm_call_info", "timestamp": time(), "data": llm_call_info}
-            )
+            processing_log.append({"type": "llm_call_info", "timestamp": time(), "data": llm_call_info})
 
     async def on_llm_error(
         self,
@@ -361,9 +341,7 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
 
 
 handlers = [LoggingCallbackHandler()]
-logging_callbacks = BaseCallbackManager(
-    handlers=handlers, inheritable_handlers=handlers
-)
+logging_callbacks = BaseCallbackManager(handlers=handlers, inheritable_handlers=handlers)
 
 logging_callback_manager_for_chain = AsyncCallbackManagerForChainRun(
     run_id=uuid.uuid4(),

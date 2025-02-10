@@ -15,8 +15,6 @@
 
 from unittest.mock import patch
 
-import pytest
-
 
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()

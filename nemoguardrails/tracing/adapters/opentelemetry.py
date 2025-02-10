@@ -58,14 +58,10 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         **kwargs,
     ):
         resource_attributes = resource_attributes or {}
-        resource = Resource.create(
-            {"service.name": service_name, **resource_attributes}
-        )
+        resource = Resource.create({"service.name": service_name, **resource_attributes})
 
         if exporter_cls and exporter:
-            raise ValueError(
-                "Only one of 'exporter' or 'exporter_name' should be provided"
-            )
+            raise ValueError("Only one of 'exporter' or 'exporter_name' should be provided")
         # Set up the tracer provider
         provider = TracerProvider(resource=resource)
 
@@ -92,9 +88,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
 
         for span_data in interaction_log.trace:
             parent_span = spans.get(span_data.parent_id)
-            parent_context = (
-                trace.set_span_in_context(parent_span) if parent_span else None
-            )
+            parent_context = trace.set_span_in_context(parent_span) if parent_span else None
 
             self._create_span(
                 span_data,
@@ -108,9 +102,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         spans = {}
         for span_data in interaction_log.trace:
             parent_span = spans.get(span_data.parent_id)
-            parent_context = (
-                trace.set_span_in_context(parent_span) if parent_span else None
-            )
+            parent_context = trace.set_span_in_context(parent_span) if parent_span else None
             self._create_span(
                 span_data,
                 parent_context,

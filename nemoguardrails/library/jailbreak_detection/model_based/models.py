@@ -25,9 +25,7 @@ from transformers import AutoModel, AutoTokenizer
 class SnowflakeEmbed:
     def __init__(self):
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "snowflake/snowflake-arctic-embed-m-long"
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained("snowflake/snowflake-arctic-embed-m-long")
         self.model = AutoModel.from_pretrained(
             "snowflake/snowflake-arctic-embed-m-long",
             trust_remote_code=True,
@@ -38,9 +36,7 @@ class SnowflakeEmbed:
         self.model.eval()
 
     def __call__(self, text: str):
-        tokens = self.tokenizer(
-            [text], padding=True, truncation=True, return_tensors="pt", max_length=2048
-        )
+        tokens = self.tokenizer([text], padding=True, truncation=True, return_tensors="pt", max_length=2048)
         tokens = tokens.to(self.device)
         embeddings = self.model(**tokens)[0][:, 0]
         return embeddings.detach().cpu().squeeze(0).numpy()

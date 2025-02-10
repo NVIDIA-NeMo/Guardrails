@@ -52,9 +52,7 @@ async def jailbreak_detection_heuristics_request(
     async with aiohttp.ClientSession() as session:
         async with session.post(api_url, json=payload) as resp:
             if resp.status != 200:
-                log.error(
-                    f"Jailbreak check API request failed with status {resp.status}"
-                )
+                log.error(f"Jailbreak check API request failed with status {resp.status}")
                 return None
 
             result = await resp.json()
@@ -79,9 +77,7 @@ async def jailbreak_detection_model_request(
     async with aiohttp.ClientSession() as session:
         async with session.post(api_url, json=payload) as resp:
             if resp.status != 200:
-                log.error(
-                    f"Jailbreak check API request failed with status {resp.status}"
-                )
+                log.error(f"Jailbreak check API request failed with status {resp.status}")
                 return None
 
             result = await resp.json()

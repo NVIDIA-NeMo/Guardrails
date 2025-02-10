@@ -91,9 +91,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "UserMessage", "text": "$user_message"}
-            },
+            "action_params": {"event": {"_type": "UserMessage", "text": "$user_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -101,9 +99,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "UserMessage", "text": "$user_message"}
-            },
+            "action_params": {"event": {"_type": "UserMessage", "text": "$user_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -228,9 +224,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -238,9 +232,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -289,9 +281,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "UserMessage", "text": "$user_message"}
-            },
+            "action_params": {"event": {"_type": "UserMessage", "text": "$user_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -299,9 +289,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "UserMessage", "text": "$user_message"}
-            },
+            "action_params": {"event": {"_type": "UserMessage", "text": "$user_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -441,9 +429,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -451,9 +437,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -546,9 +530,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -556,9 +538,7 @@ async def test_1(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -691,9 +671,7 @@ def dummy_flows() -> List[Union[Dict, Any]]:
 
 
 def test_get_action_details_exact_match(dummy_flows):
-    action_name, action_params = _get_action_details_from_flow_id(
-        "test_flow", dummy_flows
-    )
+    action_name, action_params = _get_action_details_from_flow_id("test_flow", dummy_flows)
     assert action_name == "test_action"
     assert action_params == {"param1": "value1"}
 
@@ -717,9 +695,7 @@ def test_get_action_details_prefix_match(dummy_flows):
     # For a flow_id that starts with the prefix "other_flow",
     # we expect to retrieve the action details from the flow whose id starts with that prefix.
     # we expect a result since we are passing the prefixes argument.
-    action_name, action_params = _get_action_details_from_flow_id(
-        "other_flow", dummy_flows, prefixes=["other_flow"]
-    )
+    action_name, action_params = _get_action_details_from_flow_id("other_flow", dummy_flows, prefixes=["other_flow"])
     assert action_name == "other_action"
     assert action_params == {"param2": "value2"}
 

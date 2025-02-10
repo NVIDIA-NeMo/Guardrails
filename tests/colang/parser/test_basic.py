@@ -66,9 +66,7 @@ def test_2():
             bot greet john
         """
 
-    result = parse_coflows_to_yml_flows(
-        filename="", content=content, snippets={}, include_source_mapping=False
-    )
+    result = parse_coflows_to_yml_flows(filename="", content=content, snippets={}, include_source_mapping=False)
 
     print(yaml.dump(result))
 
@@ -81,9 +79,7 @@ def test_3():
           execute log_greeting(name="dfdf")
         """
 
-    result = parse_coflows_to_yml_flows(
-        filename="", content=content, snippets={}, include_source_mapping=False
-    )
+    result = parse_coflows_to_yml_flows(filename="", content=content, snippets={}, include_source_mapping=False)
 
     print(yaml.dump(result))
 

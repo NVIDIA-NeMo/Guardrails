@@ -18,7 +18,6 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock
 
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.rails.llm.config import TracingConfig
 from nemoguardrails.rails.llm.options import (
     ActivatedRail,
     ExecutedAction,

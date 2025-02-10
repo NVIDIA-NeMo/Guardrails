@@ -61,10 +61,7 @@ def demo():
         from llama_index.response.schema import StreamingResponse
 
     except ImportError:
-        raise ImportError(
-            "Could not import llama_index, please install it with "
-            "`pip install llama_index`."
-        )
+        raise ImportError("Could not import llama_index, please install it with `pip install llama_index`.")
 
     config = RailsConfig.from_content(COLANG_CONFIG, YAML_CONFIG)
     app = LLMRails(config)
@@ -74,9 +71,7 @@ def demo():
             input_files=["../examples/bots/abc/kb/employee-handbook.md"]
         ).load_data()
         llm_predictor = llama_index.LLMPredictor(llm=llm)
-        index = llama_index.GPTVectorStoreIndex.from_documents(
-            docs, llm_predictor=llm_predictor
-        )
+        index = llama_index.GPTVectorStoreIndex.from_documents(docs, llm_predictor=llm_predictor)
         default_query_engine = index.as_query_engine()
         return default_query_engine
 
@@ -97,9 +92,7 @@ def demo():
         return get_query_response
 
     query_engine = _get_llama_index_query_engine(app.llm)
-    app.register_action(
-        _get_callable_query_engine(query_engine), name="llama_index_query"
-    )
+    app.register_action(_get_callable_query_engine(query_engine), name="llama_index_query")
 
     history = [{"role": "user", "content": "How many vacation days do I get?"}]
     result = app.generate(messages=history)

@@ -74,26 +74,13 @@ class ExampleConfigChatterTestCase(TestCase):
                             break
 
                     if time.time() - start_time > TIMEOUT:
-                        self.logger.error(
-                            "Timeout reached. No non-empty line received."
-                        )
+                        self.logger.error("Timeout reached. No non-empty line received.")
                         break
 
                 # Validate the answer
                 if len([answer for answer in expected_answers if answer in output]) > 0:
                     assert True
-                elif (
-                    len(
-                        [
-                            answer
-                            for answer in expected_answers
-                            if are_strings_semantically_same(answer, output)
-                        ]
-                    )
-                    > 0
-                ):
+                elif len([answer for answer in expected_answers if are_strings_semantically_same(answer, output)]) > 0:
                     assert True
                 else:
-                    assert (
-                        False
-                    ), f"The output '{output}' is NOT expected as the bot's response."
+                    assert False, f"The output '{output}' is NOT expected as the bot's response."

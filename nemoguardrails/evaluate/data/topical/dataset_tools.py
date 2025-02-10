@@ -89,7 +89,7 @@ class DatasetConnector:
         Args:
             dataset_path (str): The path to the conversation dataset.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     def get_intent_sample(self, intent_name: str, num_samples: int = 10) -> List[str]:
         """Generates a random sample of `num_samples` texts for the `intent_name`.
@@ -113,9 +113,7 @@ class DatasetConnector:
 
         return all_samples_intent_name
 
-    def write_colang_output(
-        self, output_file_name: str = None, num_samples_per_intent: int = 20
-    ):
+    def write_colang_output(self, output_file_name: str = None, num_samples_per_intent: int = 20):
         """Creates an output file with pairs of turns and canonical forms.
 
         Args:
@@ -139,10 +137,7 @@ class DatasetConnector:
             for intent2 in self.intents:
                 if intent.canonical_form is None or intent2.canonical_form is None:
                     continue
-                if (
-                    intent.intent_name != intent2.intent_name
-                    and intent.canonical_form == intent2.canonical_form
-                ):
+                if intent.intent_name != intent2.intent_name and intent.canonical_form == intent2.canonical_form:
                     print(intent.intent_name + " -- " + intent2.intent_name)
 
         with open(output_file_name, "w", newline="\n") as output_file:
@@ -225,15 +220,9 @@ class Banking77Connector(DatasetConnector):
                     if intent_name in intent_canonical_forms:
                         intent_canonical = intent_canonical_forms[intent_name]
 
-                    intent = Intent(
-                        intent_name=intent_name, canonical_form=intent_canonical
-                    )
+                    intent = Intent(intent_name=intent_name, canonical_form=intent_canonical)
                     self.intents.add(intent)
-                    self.intent_examples.append(
-                        IntentExample(
-                            intent=intent, text=text, dataset_split=dataset_type
-                        )
-                    )
+                    self.intent_examples.append(IntentExample(intent=intent, text=text, dataset_split=dataset_type))
 
 
 class ChitChatConnector(DatasetConnector):
@@ -313,13 +302,9 @@ class ChitChatConnector(DatasetConnector):
                         if pos > 0:
                             intent_name = line[pos + len(intent_start) + 2 :]
                             intent_name = intent_name.strip()
-                            intent_canonical = intent_canonical_forms.get(
-                                intent_name, None
-                            )
+                            intent_canonical = intent_canonical_forms.get(intent_name, None)
 
-                            intent = Intent(
-                                intent_name=intent_name, canonical_form=intent_canonical
-                            )
+                            intent = Intent(intent_name=intent_name, canonical_form=intent_canonical)
                             self.intents.add(intent)
 
                     if line.startswith("- "):
@@ -327,7 +312,5 @@ class ChitChatConnector(DatasetConnector):
                         text = text.strip()
                         if intent:
                             self.intent_examples.append(
-                                IntentExample(
-                                    intent=intent, text=text, dataset_split=dataset_type
-                                )
+                                IntentExample(intent=intent, text=text, dataset_split=dataset_type)
                             )

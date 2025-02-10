@@ -55,9 +55,7 @@ def split_messages(message):
     """
     messages = message.split("\n\n")[1:]
     human = [m.replace("Human: ", "") for i, m in enumerate(messages) if i % 2 == 0]
-    assistant = [
-        m.replace("Assistant: ", "") for i, m in enumerate(messages) if i % 2 != 0
-    ]
+    assistant = [m.replace("Assistant: ", "") for i, m in enumerate(messages) if i % 2 != 0]
     return human, assistant
 
 
@@ -82,7 +80,7 @@ def process_anthropic_harmful_data(input_path: str, rating: float):
         if d["task_descripton_harmlessness_score"] < -1:
             first_turn_data.append(human_utterance[0])
 
-    with open(f"anthropic_harmful.txt", "w", encoding="utf-8") as f:
+    with open("anthropic_harmful.txt", "w", encoding="utf-8") as f:
         for line in first_turn_data:
             f.write(line + "\n")
 
@@ -105,7 +103,7 @@ def process_anthropic_helpful_data(input_path: str):
         human_utterance, assistant_response = split_messages(d["chosen"])
         first_turn_data.append(human_utterance[0])
 
-    with open(f"anthropic_helpful.txt", "w", encoding="utf-8") as f:
+    with open("anthropic_helpful.txt", "w", encoding="utf-8") as f:
         for line in first_turn_data:
             f.write(line + "\n")
 

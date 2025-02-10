@@ -147,10 +147,7 @@ def nemoguard_parse_prompt_safety(response: str) -> Tuple[bool, List[str]]:
         assert "User Safety" in parsed_json_result
         result = parsed_json_result["User Safety"].lower()
         if "Safety Categories" in parsed_json_result:
-            safety_categories = [
-                cat.strip()
-                for cat in parsed_json_result["Safety Categories"].split(",")
-            ]
+            safety_categories = [cat.strip() for cat in parsed_json_result["Safety Categories"].split(",")]
         else:
             safety_categories = []
     except Exception as e:
@@ -185,10 +182,7 @@ def nemoguard_parse_response_safety(response: str) -> Tuple[bool, List[str]]:
         assert "Response Safety" in parsed_json_result
         result = parsed_json_result["Response Safety"].lower()
         if "Safety Categories" in parsed_json_result:
-            safety_categories = [
-                cat.strip()
-                for cat in parsed_json_result["Safety Categories"].split(",")
-            ]
+            safety_categories = [cat.strip() for cat in parsed_json_result["Safety Categories"].split(",")]
         else:
             safety_categories = []
     except Exception as e:

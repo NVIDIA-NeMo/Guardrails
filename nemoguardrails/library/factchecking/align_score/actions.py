@@ -57,9 +57,7 @@ async def alignscore_check_facts(
 
     alignscore = await alignscore_request(alignscore_api_url, evidence, response)
     if alignscore is None:
-        log.warning(
-            "AlignScore endpoint not set up properly. Falling back to the ask_llm approach for fact-checking."
-        )
+        log.warning("AlignScore endpoint not set up properly. Falling back to the ask_llm approach for fact-checking.")
         # If fallback is enabled, we use AskLLM
         if fallback_to_self_check:
             return await self_check_facts(llm_task_manager, context, llm, config)

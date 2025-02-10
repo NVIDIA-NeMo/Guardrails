@@ -72,9 +72,7 @@ def _load_model(model_name_or_path, device, num_gpus, debug=False):
         raise ValueError(f"Invalid device: {device}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name_or_path, low_cpu_mem_usage=True, **kwargs
-    )
+    model = AutoModelForCausalLM.from_pretrained(model_name_or_path, low_cpu_mem_usage=True, **kwargs)
 
     if device == "cuda" and num_gpus == 1:
         model.to(device)
@@ -126,9 +124,7 @@ def _get_vector_db(model_name: str, data_path: str, persist_path: str):
     # use other embeddings from huggingface
     model_kwargs = {"device": "cuda"}
 
-    hf_embedding = HuggingFaceEmbeddings(
-        model_name=model_name, model_kwargs=model_kwargs
-    )
+    hf_embedding = HuggingFaceEmbeddings(model_name=model_name, model_kwargs=model_kwargs)
     using_vectorstore = "faiss"
     if using_vectorstore == "faiss":
         if os.path.exists(persist_path):
@@ -173,9 +169,7 @@ def init_main_llm(config: RailsConfig):
     )
 
     hf_llm = HuggingFacePipelineCompatible(pipeline=pipe)
-    provider = get_llm_instance_wrapper(
-        llm_instance=hf_llm, llm_type="hf_pipeline_bloke"
-    )
+    provider = get_llm_instance_wrapper(llm_instance=hf_llm, llm_type="hf_pipeline_bloke")
     register_llm_provider("hf_pipeline_bloke", provider)
 
 
@@ -225,9 +219,7 @@ def init_tabular_llm(config: RailsConfig):
     empty_data_frame = pd.DataFrame()
     gpt = GPT4Pandas(model_path, empty_data_frame, verbose=False)
 
-    tabular_llm = TabularLLM(
-        gpt=gpt, raw_data_path=titanic_csv_path, raw_data_frame=raw_data_frame
-    )
+    tabular_llm = TabularLLM(gpt=gpt, raw_data_path=titanic_csv_path, raw_data_frame=raw_data_frame)
 
     register_llm_provider("tabular", get_llm_instance_wrapper(tabular_llm, "tabular"))
 
@@ -262,9 +254,7 @@ async def retrieve_relevant_chunks(
         result, source_ref, citing_text = llm_output.generations[0][0].text.split("###")
     else:
         # using faiss vector database , pip install faiss-gpu if you have gpu, otherwise please use faiss-cpu
-        retriever = vectordb.as_retriever(
-            search_type="similarity", search_kwargs={"k": 3}
-        )
+        retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
         qa_chain = RetrievalQA.from_chain_type(
             llm=llm,

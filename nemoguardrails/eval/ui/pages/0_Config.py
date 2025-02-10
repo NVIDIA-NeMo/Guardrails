@@ -51,16 +51,11 @@ def _render_interactions_info(eval_data: EvalData):
         target_policies = []
         for policy in eval_config.policies:
             if (
-                (
-                    policy.apply_to_all
-                    and policy.id not in interaction_set.exclude_policies
-                )
+                (policy.apply_to_all and policy.id not in interaction_set.exclude_policies)
                 or policy.id in interaction_set.include_policies
                 or policy.id in implicitly_include_policies
             ):
-                counters[policy.id] = counters.get(policy.id, 0) + len(
-                    interaction_set.inputs
-                )
+                counters[policy.id] = counters.get(policy.id, 0) + len(interaction_set.inputs)
                 target_policies.append(True)
             else:
                 target_policies.append(False)
@@ -71,9 +66,7 @@ def _render_interactions_info(eval_data: EvalData):
     st.write(f"This evaluation dataset contains {counters['all']} interactions.")
 
     # Render the table of interactions
-    df = pd.DataFrame(
-        inputs_array, columns=["Input"] + [policy.id for policy in eval_config.policies]
-    )
+    df = pd.DataFrame(inputs_array, columns=["Input"] + [policy.id for policy in eval_config.policies])
     st.dataframe(df, use_container_width=True)
 
     # Render chart with interactions per policy
@@ -108,9 +101,7 @@ def _render_expected_latencies(eval_data: EvalData):
         [[metric, value] for metric, value in eval_config.expected_latencies.items()],
         columns=["Metric", "Value (seconds)"],
     )
-    df_expected_latencies = st.data_editor(
-        df_expected_latencies, use_container_width=True, num_rows="dynamic"
-    )
+    df_expected_latencies = st.data_editor(df_expected_latencies, use_container_width=True, num_rows="dynamic")
 
     changes = False
     for i, row in df_expected_latencies.iterrows():

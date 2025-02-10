@@ -33,9 +33,7 @@ class ColangParser:
 
     def __init__(self, include_source_mapping: bool = False):
         self.include_source_mapping = include_source_mapping
-        self.grammar_path = os.path.join(
-            os.path.dirname(__file__), "grammar", "colang.lark"
-        )
+        self.grammar_path = os.path.join(os.path.dirname(__file__), "grammar", "colang.lark")
 
         # Initialize the Lark Parser
         self._lark_parser = load_lark_parser(self.grammar_path)
@@ -96,14 +94,10 @@ class ColangParser:
 
         return "\n".join(lines)
 
-    def parse_content(
-        self, content: str, print_tokens: bool = False, print_parsing_tree: bool = False
-    ) -> dict:
+    def parse_content(self, content: str, print_tokens: bool = False, print_parsing_tree: bool = False) -> dict:
         """Parse the provided content and create element structure."""
         if print_tokens:
-            tokens = list(
-                self._lark_parser.lex(self._apply_pre_parsing_expansions(content))
-            )
+            tokens = list(self._lark_parser.lex(self._apply_pre_parsing_expansions(content)))
             for token in tokens:
                 print(token.__repr__())
 
@@ -141,9 +135,7 @@ class ColangParser:
                         result["import_paths"].append(import_el.path)
                     else:
                         # If we have a package name, we need to translate it to a path
-                        result["import_paths"].append(
-                            os.path.join(*import_el.package.split("."))
-                        )
+                        result["import_paths"].append(os.path.join(*import_el.package.split(".")))
 
         return result
 
@@ -152,9 +144,7 @@ class ColangParser:
         return bool(re.search(pattern, content, re.MULTILINE))
 
 
-def parse_colang_file(
-    filename: str, content: str, include_source_mapping: bool = True
-) -> dict:
+def parse_colang_file(filename: str, content: str, include_source_mapping: bool = True) -> dict:
     """Parse the content of a .co."""
 
     colang_parser = ColangParser(include_source_mapping=include_source_mapping)

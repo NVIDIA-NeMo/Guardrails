@@ -17,7 +17,7 @@ import os
 import tempfile
 import unittest
 from typing import List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -114,9 +114,7 @@ def test_redis_cache_store():
 
 class TestEmbeddingsCache(unittest.TestCase):
     def setUp(self):
-        self.cache_embeddings = EmbeddingsCache(
-            key_generator=MD5KeyGenerator(), cache_store=FilesystemCacheStore()
-        )
+        self.cache_embeddings = EmbeddingsCache(key_generator=MD5KeyGenerator(), cache_store=FilesystemCacheStore())
 
     @patch.object(FilesystemCacheStore, "set")
     @patch.object(MD5KeyGenerator, "generate_key", return_value="key")
@@ -147,11 +145,10 @@ class MyClass:
 
 
 async def test_cache_embeddings():
-    with patch(
-        "nemoguardrails.rails.llm.config.EmbeddingsCacheConfig"
-    ) as MockConfig, patch(
-        "nemoguardrails.embeddings.cache.EmbeddingsCache"
-    ) as MockCache:
+    with (
+        patch("nemoguardrails.rails.llm.config.EmbeddingsCacheConfig") as MockConfig,
+        patch("nemoguardrails.embeddings.cache.EmbeddingsCache") as MockCache,
+    ):
         mock_config = MockConfig.return_value
         mock_cache = MockCache.return_value
         my_class = MyClass()
@@ -187,9 +184,7 @@ async def test_cache_embeddings():
             [119.0, 111.0, 114.0, 108.0, 100.0],
         ]
         mock_cache.get.assert_called_once_with(texts)
-        mock_cache.set.assert_called_once_with(
-            ["world"], [[119.0, 111.0, 114.0, 108.0, 100.0]]
-        )
+        mock_cache.set.assert_called_once_with(["world"], [[119.0, 111.0, 114.0, 108.0, 100.0]])
 
         # Test when cache is enabled and no texts are cached
         mock_cache.reset_mock()
@@ -247,9 +242,7 @@ async def test_cache_dir_not_created():
 
         test_class = StubCacheEmbedding(cache_config)
 
-        test_class.cache_config.store_config["cache_dir"] = os.path.join(
-            temp_dir, "nonexistent"
-        )
+        test_class.cache_config.store_config["cache_dir"] = os.path.join(temp_dir, "nonexistent")
 
         await test_class.get_embeddings(["test"])
 

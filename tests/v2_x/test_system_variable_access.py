@@ -22,9 +22,7 @@ CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), "../test_configs")
 
 
 def test_1():
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "system_variable_access_v2")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "system_variable_access_v2"))
 
     chat = TestChat(
         config,

@@ -194,9 +194,7 @@ def rename_md_to_readme(start_dir):
 
         # We do some additional post-processing
         _remove_code_blocks_with_text(readme_path.absolute(), "# Init:")
-        _remove_code_blocks_with_text(
-            readme_path.absolute(), "# Hide from documentation page."
-        )
+        _remove_code_blocks_with_text(readme_path.absolute(), "# Hide from documentation page.")
 
         _remove_code_blocks_with_text(
             readme_path.absolute(),

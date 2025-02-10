@@ -73,9 +73,7 @@ class LLMTaskManager:
         self.env.filters["last_turns"] = last_turns
         self.env.filters["indent"] = indent
         self.env.filters["user_assistant_sequence"] = user_assistant_sequence
-        self.env.filters[
-            "user_assistant_sequence_nemollm"
-        ] = user_assistant_sequence_nemollm
+        self.env.filters["user_assistant_sequence_nemollm"] = user_assistant_sequence_nemollm
         self.env.filters["to_messages"] = to_messages
         self.env.filters["to_messages_v2"] = to_messages_v2
         self.env.filters["to_intent_messages"] = to_intent_messages
@@ -180,18 +178,14 @@ class LLMTaskManager:
         # If it's a MessageTemplate, we render it as a message.
         for message_template in message_templates:
             if isinstance(message_template, str):
-                str_messages = self._render_string(
-                    message_template, context=context, events=events
-                )
+                str_messages = self._render_string(message_template, context=context, events=events)
                 try:
                     new_messages = literal_eval(str_messages)
                 except SyntaxError:
                     raise ValueError(f"Invalid message template: {message_template}")
                 messages.extend(new_messages)
             else:
-                content = self._render_string(
-                    message_template.content, context=context, events=events
-                )
+                content = self._render_string(message_template.content, context=context, events=events)
 
                 # Don't add empty messages.
                 if content.strip():
@@ -270,19 +264,13 @@ class LLMTaskManager:
         """
         prompt = get_prompt(self.config, task)
         if prompt.content:
-            task_prompt = self._render_string(
-                prompt.content, context=context, events=events
-            )
+            task_prompt = self._render_string(prompt.content, context=context, events=events)
             while len(task_prompt) > prompt.max_length:
                 if not events:
-                    raise Exception(
-                        f"Prompt exceeds max length of {prompt.max_length} characters even without history"
-                    )
+                    raise Exception(f"Prompt exceeds max length of {prompt.max_length} characters even without history")
                 # Remove events from the beginning of the history until the prompt fits.
                 events = events[1:]
-                task_prompt = self._render_string(
-                    prompt.content, context=context, events=events
-                )
+                task_prompt = self._render_string(prompt.content, context=context, events=events)
 
             # Check if the output should be a user message, for chat models
             if force_string_to_message:
@@ -295,20 +283,14 @@ class LLMTaskManager:
 
             return task_prompt
         else:
-            task_messages = self._render_messages(
-                prompt.messages, context=context, events=events
-            )
+            task_messages = self._render_messages(prompt.messages, context=context, events=events)
             task_prompt_length = self._get_messages_text_length(task_messages)
             while task_prompt_length > prompt.max_length:
                 if not events:
-                    raise Exception(
-                        f"Prompt exceeds max length of {prompt.max_length} characters even without history"
-                    )
+                    raise Exception(f"Prompt exceeds max length of {prompt.max_length} characters even without history")
                 # Remove events from the beginning of the history until the prompt fits.
                 events = events[1:]
-                task_messages = self._render_messages(
-                    prompt.messages, context=context, events=events
-                )
+                task_messages = self._render_messages(prompt.messages, context=context, events=events)
                 task_prompt_length = self._get_messages_text_length(task_messages)
             return task_messages
 

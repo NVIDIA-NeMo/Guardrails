@@ -70,6 +70,4 @@ def test_cls_validation():
         s_name.run(name="No good Wikipedia Search Result was found")
 
     # length is smaller than max len validation
-    assert (
-        s_name.run(name="IP 10.40.139.92 should be trimmed") == "IP  should be trimmed"
-    )
+    assert s_name.run(name="IP 10.40.139.92 should be trimmed") == "IP  should be trimmed"

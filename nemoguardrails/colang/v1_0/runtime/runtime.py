@@ -15,7 +15,6 @@
 
 import inspect
 import logging
-import uuid
 from textwrap import indent
 from time import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -98,15 +97,10 @@ class RuntimeV1_0(Runtime):
         # to the default ones.
         for element in elements:
             if element.get("UtteranceUserActionFinished"):
-                self.flow_configs[flow_id].trigger_event_types.append(
-                    "UtteranceUserActionFinished"
-                )
+                self.flow_configs[flow_id].trigger_event_types.append("UtteranceUserActionFinished")
 
             # If a flow creates a type of event, we also allow it to trigger the event.
-            if (
-                element["_type"] == "run_action"
-                and element["action_name"] == "create_event"
-            ):
+            if element["_type"] == "run_action" and element["action_name"] == "create_event":
                 event_type = element["action_params"]["event"]["_type"]
                 self.flow_configs[flow_id].trigger_event_types.append(event_type)
 
@@ -122,9 +116,7 @@ class RuntimeV1_0(Runtime):
         for flow in self.config.flows:
             self._load_flow_config(flow)
 
-    async def generate_events(
-        self, events: List[dict], processing_log: Optional[List[dict]] = None
-    ) -> List[dict]:
+    async def generate_events(self, events: List[dict], processing_log: Optional[List[dict]] = None) -> List[dict]:
         """Generates the next events based on the provided history.
 
         This is a wrapper around the `process_events` method, that will keep
@@ -146,9 +138,7 @@ class RuntimeV1_0(Runtime):
         # This is needed to automatically record the LLM calls.
         processing_log_var.set(processing_log)
 
-        processing_log.append(
-            {"type": "event", "timestamp": time(), "data": events[-1]}
-        )
+        processing_log.append({"type": "event", "timestamp": time(), "data": events[-1]})
 
         while True:
             last_event = events[-1]
@@ -168,16 +158,12 @@ class RuntimeV1_0(Runtime):
 
             # If we need to start a flow, we parse the content and register it.
             elif last_event["type"] == "start_flow":
-                next_events = await self._process_start_flow(
-                    events, processing_log=processing_log
-                )
+                next_events = await self._process_start_flow(events, processing_log=processing_log)
 
             else:
                 # We need to slide all the flows based on the current event,
                 # to compute the next steps.
-                next_events = await self._compute_next_steps(
-                    events, processing_log=processing_log
-                )
+                next_events = await self._compute_next_steps(events, processing_log=processing_log)
 
                 if len(next_events) == 0:
                     next_events = [new_event_dict("Listen")]
@@ -187,9 +173,7 @@ class RuntimeV1_0(Runtime):
             new_events.extend(next_events)
 
             for event in next_events:
-                processing_log.append(
-                    {"type": "event", "timestamp": time(), "data": event}
-                )
+                processing_log.append({"type": "event", "timestamp": time(), "data": event})
 
             # If the next event is a listen, we stop the processing.
             if next_events[-1]["type"] == "Listen":
@@ -201,9 +185,7 @@ class RuntimeV1_0(Runtime):
 
         return new_events
 
-    async def _compute_next_steps(
-        self, events: List[dict], processing_log: List[dict]
-    ) -> List[dict]:
+    async def _compute_next_steps(self, events: List[dict], processing_log: List[dict]) -> List[dict]:
         """
         Compute the next steps based on the current flow.
 
@@ -285,9 +267,7 @@ class RuntimeV1_0(Runtime):
         # TODO: check action is available in action server
         if fn is None:
             status = "failed"
-            result = self._internal_error_action_result(
-                f"Action '{action_name}' not found."
-            )
+            result = self._internal_error_action_result(f"Action '{action_name}' not found.")
 
         else:
             context = compute_context(events)
@@ -325,14 +305,8 @@ class RuntimeV1_0(Runtime):
                         kwargs[k] = context[var_name]
 
             # If we have an action server, we use it for non-system/non-chain actions
-            if (
-                self.config.actions_server_url
-                and not action_meta.get("is_system_action")
-                and action_type != "chain"
-            ):
-                result, status = await self._get_action_resp(
-                    action_meta, action_name, kwargs
-                )
+            if self.config.actions_server_url and not action_meta.get("is_system_action") and action_type != "chain":
+                result, status = await self._get_action_resp(action_meta, action_name, kwargs)
             else:
                 # We don't send these to the actions server;
                 # TODO: determine if we should
@@ -353,23 +327,16 @@ class RuntimeV1_0(Runtime):
                     if k in parameters:
                         kwargs[k] = v
 
-                if (
-                    "llm" in kwargs
-                    and f"{action_name}_llm" in self.registered_action_params
-                ):
+                if "llm" in kwargs and f"{action_name}_llm" in self.registered_action_params:
                     kwargs["llm"] = self.registered_action_params[f"{action_name}_llm"]
 
                 log.info("Executing action :: %s", action_name)
-                result, status = await self.action_dispatcher.execute_action(
-                    action_name, kwargs
-                )
+                result, status = await self.action_dispatcher.execute_action(action_name, kwargs)
 
             # If the action execution failed, we return a hardcoded message
             if status == "failed":
                 # TODO: make this message configurable.
-                result = self._internal_error_action_result(
-                    "I'm sorry, an internal error has occurred."
-                )
+                result = self._internal_error_action_result("I'm sorry, an internal error has occurred.")
 
         return_value = result
         return_events = []
@@ -437,17 +404,10 @@ class RuntimeV1_0(Runtime):
         try:
             # Call the Actions Server if it is available.
             # But not for system actions, those should still run locally.
-            if (
-                action_meta.get("is_system_action", False)
-                or self.config.actions_server_url is None
-            ):
-                result, status = await self.action_dispatcher.execute_action(
-                    action_name, kwargs
-                )
+            if action_meta.get("is_system_action", False) or self.config.actions_server_url is None:
+                result, status = await self.action_dispatcher.execute_action(action_name, kwargs)
             else:
-                url = urljoin(
-                    self.config.actions_server_url, "/v1/actions/run"
-                )  # action server execute action path
+                url = urljoin(self.config.actions_server_url, "/v1/actions/run")  # action server execute action path
                 data = {"action_name": action_name, "action_parameters": kwargs}
                 async with aiohttp.ClientSession() as session:
                     try:
@@ -458,9 +418,7 @@ class RuntimeV1_0(Runtime):
                                 )
 
                             resp = await resp.json()
-                            result, status = resp.get("result", result), resp.get(
-                                "status", status
-                            )
+                            result, status = resp.get("result", result), resp.get("status", status)
                     except Exception as e:
                         log.info(f"Exception {e} while making request to {action_name}")
                         return result, status
@@ -469,9 +427,7 @@ class RuntimeV1_0(Runtime):
             log.info(f"Failed to get response from {action_name} due to exception {e}")
         return result, status
 
-    async def _process_start_flow(
-        self, events: List[dict], processing_log: List[dict]
-    ) -> List[dict]:
+    async def _process_start_flow(self, events: List[dict], processing_log: List[dict]) -> List[dict]:
         """
         Start a flow.
 
@@ -509,8 +465,6 @@ class RuntimeV1_0(Runtime):
         # And we compute the next steps. The new flow should match the current event,
         # and start.
 
-        next_steps = await self._compute_next_steps(
-            events, processing_log=processing_log
-        )
+        next_steps = await self._compute_next_steps(events, processing_log=processing_log)
 
         return next_steps

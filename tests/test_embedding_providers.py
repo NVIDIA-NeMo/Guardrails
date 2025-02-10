@@ -79,9 +79,7 @@ class MockEmbeddingModel(EmbeddingModel):
         Returns:
             List[List[float]]: The encoded embeddings.
         """
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self.encode, documents
-        )
+        return await asyncio.get_running_loop().run_in_executor(None, self.encode, documents)
 
     def encode(self, documents: List[str]) -> List[List[float]]:
         """Encode a list of documents into embeddings.

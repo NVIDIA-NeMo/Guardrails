@@ -24,9 +24,7 @@ def contains_secrets(resp):
     try:
         import detect_secrets
     except ModuleNotFoundError:
-        raise ValueError(
-            "Could not import detect_secrets. Please install using `pip install detect-secrets`"
-        )
+        raise ValueError("Could not import detect_secrets. Please install using `pip install detect-secrets`")
 
     with detect_secrets.settings.default_settings():
         res = detect_secrets.scan_adhoc_string(resp)

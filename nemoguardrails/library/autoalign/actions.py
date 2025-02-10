@@ -190,17 +190,14 @@ async def autoalign_infer(
         ) as response:
             if response.status != 200:
                 raise ValueError(
-                    f"AutoAlign call failed with status code {response.status}.\n"
-                    f"Details: {await response.text()}"
+                    f"AutoAlign call failed with status code {response.status}.\nDetails: {await response.text()}"
                 )
             async for line in response.content:
                 line_text = line.strip()
                 if len(line_text) > 0:
                     resp = json.loads(line_text)
                     guardrails_configured.append(resp)
-            processed_response = process_autoalign_output(
-                guardrails_configured, show_toxic_phrases
-            )
+            processed_response = process_autoalign_output(guardrails_configured, show_toxic_phrases)
     return processed_response
 
 
@@ -227,8 +224,7 @@ async def autoalign_groundedness_infer(
         ) as response:
             if response.status != 200:
                 raise ValueError(
-                    f"AutoAlign call failed with status code {response.status}.\n"
-                    f"Details: {await response.text()}"
+                    f"AutoAlign call failed with status code {response.status}.\nDetails: {await response.text()}"
                 )
             async for line in response.content:
                 resp = json.loads(line)
@@ -270,8 +266,7 @@ async def autoalign_factcheck_infer(
         ) as response:
             if response.status != 200:
                 raise ValueError(
-                    f"AutoAlign call failed with status code {response.status}.\n"
-                    f"Details: {await response.text()}"
+                    f"AutoAlign call failed with status code {response.status}.\nDetails: {await response.text()}"
                 )
             factcheck_response = await response.json()
             return factcheck_response["all_overall_fact_scores"][0]
@@ -371,14 +366,10 @@ async def autoalign_groundedness_output_api(
     documents = context.get("relevant_chunks_sep", [])
 
     autoalign_config = llm_task_manager.config.rails.config.autoalign
-    autoalign_groundedness_api_url = autoalign_config.parameters.get(
-        "groundedness_check_endpoint"
-    )
+    autoalign_groundedness_api_url = autoalign_config.parameters.get("groundedness_check_endpoint")
     guardrails_config = getattr(autoalign_config.output, "guardrails_config", None)
     if not autoalign_groundedness_api_url:
-        raise ValueError(
-            "Provide the autoalign groundedness check endpoint in the config"
-        )
+        raise ValueError("Provide the autoalign groundedness check endpoint in the config")
     text = bot_message
     score = await autoalign_groundedness_infer(
         request_url=autoalign_groundedness_api_url,
@@ -423,7 +414,5 @@ async def autoalign_factcheck_output_api(
     )
 
     if score < factcheck_threshold and show_autoalign_message:
-        log.warning(
-            f"Factcheck violation in llm response has been detected by AutoAlign with fact check score {score}"
-        )
+        log.warning(f"Factcheck violation in llm response has been detected by AutoAlign with fact check score {score}")
     return score

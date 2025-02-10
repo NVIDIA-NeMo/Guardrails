@@ -87,14 +87,8 @@ async def patronus_lynx_check_output_hallucination(
     bot_response = context.get("bot_message")
     provided_context = context.get("relevant_chunks")
 
-    if (
-        not provided_context
-        or not isinstance(provided_context, str)
-        or not provided_context.strip()
-    ):
-        log.error(
-            "Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string."
-        )
+    if not provided_context or not isinstance(provided_context, str) or not provided_context.strip():
+        log.error("Could not run Patronus Lynx. `relevant_chunks` must be passed as a non-empty string.")
         return {"hallucination": False, "reasoning": None}
 
     check_output_hallucination_prompt = llm_task_manager.render_task_prompt(
@@ -106,27 +100,19 @@ async def patronus_lynx_check_output_hallucination(
         },
     )
 
-    stop = llm_task_manager.get_stop_tokens(
-        task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION
-    )
+    stop = llm_task_manager.get_stop_tokens(task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION)
 
     # Initialize the LLMCallInfo object
-    llm_call_info_var.set(
-        LLMCallInfo(task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION.value)
-    )
+    llm_call_info_var.set(LLMCallInfo(task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION.value))
 
     with llm_params(patronus_lynx_llm, temperature=0.0):
-        result = await llm_call(
-            patronus_lynx_llm, check_output_hallucination_prompt, stop=stop
-        )
+        result = await llm_call(patronus_lynx_llm, check_output_hallucination_prompt, stop=stop)
 
     hallucination, reasoning = parse_patronus_lynx_response(result)
     return {"hallucination": hallucination, "reasoning": reasoning}
 
 
-def check_guardrail_pass(
-    response: Optional[dict], success_strategy: Literal["all_pass", "any_pass"]
-) -> bool:
+def check_guardrail_pass(response: Optional[dict], success_strategy: Literal["all_pass", "any_pass"]) -> bool:
     """
     Check if evaluations in the Patronus API response pass based on the success strategy.
     "all_pass" requires all evaluators to pass for success.
@@ -172,24 +158,16 @@ async def patronus_evaluate_request(
         raise ValueError("PATRONUS_API_KEY environment variable not set.")
 
     if "evaluators" not in api_params:
-        raise ValueError(
-            "The Patronus Evaluate API parameters must contain an 'evaluators' field"
-        )
+        raise ValueError("The Patronus Evaluate API parameters must contain an 'evaluators' field")
     evaluators = api_params["evaluators"]
     if not isinstance(evaluators, list):
-        raise ValueError(
-            "The Patronus Evaluate API parameter 'evaluators' must be a list"
-        )
+        raise ValueError("The Patronus Evaluate API parameter 'evaluators' must be a list")
 
     for evaluator in evaluators:
         if not isinstance(evaluator, dict):
-            raise ValueError(
-                "Each object in the 'evaluators' list must be a dictionary"
-            )
+            raise ValueError("Each object in the 'evaluators' list must be a dictionary")
         if "evaluator" not in evaluator:
-            raise ValueError(
-                "Each dictionary in the 'evaluators' list must contain the 'evaluator' field"
-            )
+            raise ValueError("Each dictionary in the 'evaluators' list must contain the 'evaluator' field")
 
     data = {
         **api_params,
@@ -242,9 +220,7 @@ def patronus_api_check_output_mapping(result: dict) -> bool:
     return not passed
 
 
-@action(
-    name="patronus_api_check_output", output_mapping=patronus_api_check_output_mapping
-)
+@action(name="patronus_api_check_output", output_mapping=patronus_api_check_output_mapping)
 async def patronus_api_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
@@ -259,9 +235,7 @@ async def patronus_api_check_output(
 
     patronus_config = llm_task_manager.config.rails.config.patronus.output
     evaluate_config = getattr(patronus_config, "evaluate_config", {})
-    success_strategy: Literal["all_pass", "any_pass"] = getattr(
-        evaluate_config, "success_strategy", "all_pass"
-    )
+    success_strategy: Literal["all_pass", "any_pass"] = getattr(evaluate_config, "success_strategy", "all_pass")
     api_params = getattr(evaluate_config, "params", {})
     response = await patronus_evaluate_request(
         api_params=api_params,
@@ -269,8 +243,4 @@ async def patronus_api_check_output(
         bot_response=bot_response,
         provided_context=provided_context,
     )
-    return {
-        "pass": check_guardrail_pass(
-            response=response, success_strategy=success_strategy
-        )
-    }
+    return {"pass": check_guardrail_pass(response=response, success_strategy=success_strategy)}

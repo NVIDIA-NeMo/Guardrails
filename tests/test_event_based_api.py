@@ -49,15 +49,9 @@ def test_1():
     print(json.dumps(new_events, indent=True))
 
     # We check certain key events are present.
-    assert any_event_conforms(
-        {"intent": "express greeting", "type": "UserIntent"}, new_events
-    )
-    assert any_event_conforms(
-        {"intent": "express greeting", "type": "BotIntent"}, new_events
-    )
-    assert any_event_conforms(
-        {"script": "Hello!", "type": "StartUtteranceBotAction"}, new_events
-    )
+    assert any_event_conforms({"intent": "express greeting", "type": "UserIntent"}, new_events)
+    assert any_event_conforms({"intent": "express greeting", "type": "BotIntent"}, new_events)
+    assert any_event_conforms({"script": "Hello!", "type": "StartUtteranceBotAction"}, new_events)
     assert any_event_conforms({"type": "Listen"}, new_events)
 
 
@@ -91,9 +85,7 @@ def test_2():
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = chat.app.generate_events(events)
 
-    any_event_conforms(
-        {"type": "StartUtteranceBotAction", "script": "Hello!"}, new_events
-    )
+    any_event_conforms({"type": "StartUtteranceBotAction", "script": "Hello!"}, new_events)
 
     events.extend(new_events)
     events.append({"type": "UserSilent"})

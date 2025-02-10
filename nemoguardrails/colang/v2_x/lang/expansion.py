@@ -76,19 +76,13 @@ def expand_elements(
                 elif isinstance(element, Assignment):
                     expanded_elements = _expand_assignment_stmt_element(element)
                 elif isinstance(element, While):
-                    expanded_elements = _expand_while_stmt_element(
-                        element, flow_configs
-                    )
+                    expanded_elements = _expand_while_stmt_element(element, flow_configs)
                 elif isinstance(element, If):
                     expanded_elements = _expand_if_element(element, flow_configs)
-                    elements_changed = (
-                        True  # Makes sure to update continue/break elements
-                    )
+                    elements_changed = True  # Makes sure to update continue/break elements
                 elif isinstance(element, When):
                     expanded_elements = _expand_when_stmt_element(element, flow_configs)
-                    elements_changed = (
-                        True  # Makes sure to update continue/break elements
-                    )
+                    elements_changed = True  # Makes sure to update continue/break elements
                 elif isinstance(element, Continue):
                     if element.label is None and continue_break_labels is not None:
                         element.label = continue_break_labels[0]
@@ -99,9 +93,7 @@ def expand_elements(
                 if len(expanded_elements) > 0:
                     # Map new elements to source
                     for expanded_element in expanded_elements:
-                        if isinstance(expanded_element, Element) and isinstance(
-                            element, Element
-                        ):
+                        if isinstance(expanded_element, Element) and isinstance(element, Element):
                             expanded_element._source = element._source
                     # Add new elements
                     new_elements.extend(expanded_elements)
@@ -116,9 +108,7 @@ def expand_elements(
 
                 if hasattr(element, "_source") and element._source:
                     # TODO: Resolve source line to Colang file level
-                    raise ColangSyntaxError(
-                        error + f" on source line {element._source.line}"
-                    )
+                    raise ColangSyntaxError(error + f" on source line {element._source.line}")
                 else:
                     raise ColangSyntaxError(error)
 
@@ -269,9 +259,7 @@ def _expand_start_element(
                 )
             )
         else:
-            raise ColangSyntaxError(
-                f"'await' keyword cannot be used on '{element.spec.spec_type}'"
-            )
+            raise ColangSyntaxError(f"'await' keyword cannot be used on '{element.spec.spec_type}'")
     else:
         # Element group
         new_elements = _expand_element_group(element)
@@ -319,9 +307,7 @@ def _expand_send_element(
     if isinstance(element.spec, Spec):
         # Single send element
         if element.spec.spec_type != SpecType.EVENT and element.spec.members is None:
-            raise ColangSyntaxError(
-                f"Cannot send a non-event type: '{element.spec.spec_type}'"
-            )
+            raise ColangSyntaxError(f"Cannot send a non-event type: '{element.spec.spec_type}'")
     elif isinstance(element.spec, dict):
         # Element group
         new_elements = _expand_element_group(element)
@@ -337,9 +323,7 @@ def _expand_match_element(
         # Single match element
         if element.spec.spec_type == SpecType.FLOW and element.spec.members is None:
             # It's a flow
-            raise ColangSyntaxError(
-                f"Keyword `match` cannot be used with flows (flow `{element.spec.name}`)"
-            )
+            raise ColangSyntaxError(f"Keyword `match` cannot be used with flows (flow `{element.spec.name}`)")
             # element_ref = element.spec.ref
             # if element_ref is None:
             #     element_ref = _create_ref_ast_dict_helper(
@@ -370,16 +354,12 @@ def _expand_match_element(
             #             expression=f"${element_ref['elements'][0]['elements'][0]}.arguments.return_value",
             #         )
             #     )
-        elif (
-            element.spec.spec_type == SpecType.EVENT or element.spec.members is not None
-        ):
+        elif element.spec.spec_type == SpecType.EVENT or element.spec.members is not None:
             # It's an event
             if element.return_var_name is not None:
                 element_ref = element.spec.ref
                 if element_ref is None:
-                    element_ref = _create_ref_ast_dict_helper(
-                        f"_event_ref_{new_var_uuid()}"
-                    )
+                    element_ref = _create_ref_ast_dict_helper(f"_event_ref_{new_var_uuid()}")
                 assert isinstance(element_ref, dict)
 
                 return_var_name = element.return_var_name
@@ -395,9 +375,7 @@ def _expand_match_element(
                     )
                 )
         else:
-            raise ColangSyntaxError(
-                f"Unsupported spec type: '{element.spec.spec_type}'"
-            )
+            raise ColangSyntaxError(f"Unsupported spec type: '{element.spec.spec_type}'")
 
     elif isinstance(element.spec, dict):
         # Element group
@@ -506,8 +484,7 @@ def _expand_await_element(
     if isinstance(element.spec, Spec):
         # Single element
         if (
-            element.spec.spec_type == SpecType.FLOW
-            or element.spec.spec_type == SpecType.ACTION
+            element.spec.spec_type == SpecType.FLOW or element.spec.spec_type == SpecType.ACTION
         ) and element.spec.members is None:
             # It's a flow or an UMIM action
             element_ref = element.spec.ref
@@ -534,9 +511,7 @@ def _expand_await_element(
                 )
             )
         else:
-            raise ColangSyntaxError(
-                f"Unsupported spec type '{type(element.spec)}', element '{element.spec.name}'"
-            )
+            raise ColangSyntaxError(f"Unsupported spec type '{type(element.spec)}', element '{element.spec.name}'")
     else:
         # Element group
         normalized_group = normalize_element_groups(element.spec)
@@ -585,9 +560,7 @@ def _expand_await_element(
                 if group_element.ref:
                     assignment_elements[-1].append(
                         Assignment(
-                            key=group_element.ref["elements"][0]["elements"][0].lstrip(
-                                "$"
-                            ),
+                            key=group_element.ref["elements"][0]["elements"][0].lstrip("$"),
                             expression=f"${temp_element_ref}",
                         )
                     )
@@ -780,9 +753,7 @@ def _expand_assignment_stmt_element(element: Assignment) -> List[ElementType]:
     return new_elements
 
 
-def _expand_while_stmt_element(
-    element: While, flow_configs: Dict[str, FlowConfig]
-) -> List[ElementType]:
+def _expand_while_stmt_element(element: While, flow_configs: Dict[str, FlowConfig]) -> List[ElementType]:
     new_elements: List[ElementType] = []
 
     label_uid = new_var_uuid()
@@ -796,9 +767,7 @@ def _expand_while_stmt_element(
         label=begin_label.name,
         expression="True",
     )
-    body_elements = expand_elements(
-        element.elements, flow_configs, (begin_label.name, end_label.name)
-    )
+    body_elements = expand_elements(element.elements, flow_configs, (begin_label.name, end_label.name))
 
     new_elements = [begin_label, goto_end]
     new_elements.extend(body_elements)
@@ -807,9 +776,7 @@ def _expand_while_stmt_element(
     return new_elements
 
 
-def _expand_if_element(
-    element: If, flow_configs: Dict[str, FlowConfig]
-) -> List[ElementType]:
+def _expand_if_element(element: If, flow_configs: Dict[str, FlowConfig]) -> List[ElementType]:
     elements: List[ElementType] = []
 
     if_else_body_label_name = f"if_else_body_label_{new_var_uuid()}"
@@ -819,11 +786,7 @@ def _expand_if_element(
     elements.append(
         Goto(
             expression=f"not({element.expression})",
-            label=(
-                if_end_label_name
-                if not element.else_elements
-                else if_else_body_label_name
-            ),
+            label=(if_end_label_name if not element.else_elements else if_else_body_label_name),
         )
     )
     elements.extend(expand_elements(element.then_elements, flow_configs))
@@ -838,9 +801,7 @@ def _expand_if_element(
     return elements
 
 
-def _expand_when_stmt_element(
-    element: When, flow_configs: Dict[str, FlowConfig]
-) -> List[ElementType]:
+def _expand_when_stmt_element(element: When, flow_configs: Dict[str, FlowConfig]) -> List[ElementType]:
     stmt_uid = new_var_uuid()
 
     init_case_label_names: List[str] = []
@@ -885,12 +846,8 @@ def _expand_when_stmt_element(
         group_match_elements.append([])
         group_assignment_elements.append([])
         for group_idx, and_group in enumerate(normalized_group["elements"]):
-            group_label_names[case_idx].append(
-                f"group_{case_uid}_{group_idx}_label_{stmt_uid}"
-            )
-            groups_fork_head_elements[case_idx].labels.append(
-                group_label_names[case_idx][group_idx]
-            )
+            group_label_names[case_idx].append(f"group_{case_uid}_{group_idx}_label_{stmt_uid}")
+            groups_fork_head_elements[case_idx].labels.append(group_label_names[case_idx][group_idx])
 
             group_start_elements[case_idx].append([])
             group_match_elements[case_idx].append([])
@@ -900,23 +857,18 @@ def _expand_when_stmt_element(
                 ref_uid = None
                 temp_ref_uid: str
                 if (
-                    group_element.spec_type == SpecType.FLOW
-                    or group_element.spec_type == SpecType.ACTION
+                    group_element.spec_type == SpecType.FLOW or group_element.spec_type == SpecType.ACTION
                 ) and group_element.members is None:
                     # Add start element
                     temp_ref_uid = f"_ref_{new_var_uuid()}"
                     if group_element.ref is not None:
-                        ref_uid = group_element.ref["elements"][0]["elements"][
-                            0
-                        ].lstrip("$")
+                        ref_uid = group_element.ref["elements"][0]["elements"][0].lstrip("$")
                     group_element.ref = _create_ref_ast_dict_helper(temp_ref_uid)
                     group_start_elements[case_idx][group_idx].append(group_element)
 
                     match_element.name = None
                     match_element.var_name = temp_ref_uid
-                    match_element.members = _create_member_ast_dict_helper(
-                        "Finished", {}
-                    )
+                    match_element.members = _create_member_ast_dict_helper("Finished", {})
                     match_element.ref = None
                     match_element.spec_type = SpecType.REFERENCE
 
@@ -926,9 +878,7 @@ def _expand_when_stmt_element(
                             key=ref_uid,
                             expression=f"${temp_ref_uid}",
                         )
-                        group_assignment_elements[case_idx][group_idx].append(
-                            assignment_element
-                        )
+                        group_assignment_elements[case_idx][group_idx].append(assignment_element)
 
                 # Add match element
                 group_match_elements[case_idx][group_idx].append(match_element)
@@ -939,9 +889,7 @@ def _expand_when_stmt_element(
     for case_idx, case_element in enumerate(element.when_specs):
         # Case init groups
         new_elements.append(Label(name=init_case_label_names[case_idx]))
-        new_elements.append(
-            CatchPatternFailure(label=failure_case_label_names[case_idx])
-        )
+        new_elements.append(CatchPatternFailure(label=failure_case_label_names[case_idx]))
         new_elements.append(groups_fork_head_elements[case_idx])
 
         # And-group element groups
@@ -981,9 +929,7 @@ def _expand_when_stmt_element(
             )
 
             if group_start_elements[case_idx][group_idx]:
-                for assignment_element in group_assignment_elements[case_idx][
-                    group_idx
-                ]:
+                for assignment_element in group_assignment_elements[case_idx][group_idx]:
                     new_elements.append(assignment_element)
 
             new_elements.append(Goto(label=case_label_names[case_idx]))
@@ -993,9 +939,7 @@ def _expand_when_stmt_element(
             new_elements.append(MergeHeads(fork_uid=cases_fork_uid))
             new_elements.append(CatchPatternFailure(label=None))
             new_elements.append(EndScope(name=scope_label_name))
-            new_elements.extend(
-                expand_elements(element.then_elements[case_idx], flow_configs)
-            )
+            new_elements.extend(expand_elements(element.then_elements[case_idx], flow_configs))
             new_elements.append(Goto(label=end_label_name))
 
             # Failure case groups

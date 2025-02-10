@@ -21,9 +21,7 @@ from nemoguardrails.actions_server import actions_server
 client = TestClient(actions_server.app)
 
 
-@pytest.mark.skip(
-    reason="Should only be run locally as it fetches data from wikipedia."
-)
+@pytest.mark.skip(reason="Should only be run locally as it fetches data from wikipedia.")
 @pytest.mark.parametrize(
     "action_name, action_parameters, result_field, status",
     [

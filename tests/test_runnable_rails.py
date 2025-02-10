@@ -145,9 +145,7 @@ def test_dict_messages_in_dict_messages_out():
     config = RailsConfig.from_content(config={"models": []})
     model_with_rails = RunnableRails(config, llm=llm)
 
-    result = model_with_rails.invoke(
-        input={"input": [{"role": "user", "content": "The capital of France is "}]}
-    )
+    result = model_with_rails.invoke(input={"input": [{"role": "user", "content": "The capital of France is "}]})
 
     assert isinstance(result, dict)
     assert result["output"] == {"role": "assistant", "content": "Paris."}
@@ -316,9 +314,7 @@ class MockRunnable(Runnable):
 def test_string_passthrough_mode_with_chain():
     config = RailsConfig.from_content(config={"models": []})
 
-    runnable_with_rails = RunnableRails(
-        config, passthrough=True, runnable=MockRunnable()
-    )
+    runnable_with_rails = RunnableRails(config, passthrough=True, runnable=MockRunnable())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -342,9 +338,7 @@ def test_string_passthrough_mode_with_chain_and_dialog_rails():
               bot respond
             """,
     )
-    runnable_with_rails = RunnableRails(
-        config, llm=llm, passthrough=True, runnable=MockRunnable()
-    )
+    runnable_with_rails = RunnableRails(config, llm=llm, passthrough=True, runnable=MockRunnable())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -380,9 +374,7 @@ def test_string_passthrough_mode_with_chain_and_dialog_rails_2():
             """,
     )
 
-    runnable_with_rails = RunnableRails(
-        config, llm=llm, passthrough=True, runnable=MockRunnable()
-    )
+    runnable_with_rails = RunnableRails(config, llm=llm, passthrough=True, runnable=MockRunnable())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
 
@@ -439,9 +431,7 @@ class MockRunnable2(Runnable):
 
 def test_string_passthrough_mode_with_chain_and_string_output():
     config = RailsConfig.from_content(config={"models": []})
-    runnable_with_rails = RunnableRails(
-        config, passthrough=True, runnable=MockRunnable2()
-    )
+    runnable_with_rails = RunnableRails(config, passthrough=True, runnable=MockRunnable2())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -454,9 +444,7 @@ def test_string_passthrough_mode_with_chain_and_string_output():
 
 def test_string_passthrough_mode_with_chain_and_string_input_and_output():
     config = RailsConfig.from_content(config={"models": []})
-    runnable_with_rails = RunnableRails(
-        config, passthrough=True, runnable=MockRunnable2()
-    )
+    runnable_with_rails = RunnableRails(config, passthrough=True, runnable=MockRunnable2())
 
     chain = runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -492,9 +480,7 @@ def test_mocked_rag_with_fact_checking():
     )
 
     class MockRAGChain(Runnable):
-        def invoke(
-            self, input: Input, config: Optional[RunnableConfig] = None
-        ) -> Output:
+        def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
             return "The price is $45."
 
     def mock_retriever(user_input):
@@ -544,11 +530,7 @@ def test_live_rag():
 
     loader = WebBaseLoader(
         web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-        bs_kwargs=dict(
-            parse_only=bs4.SoupStrainer(
-                class_=("post-content", "post-title", "post-header")
-            )
-        ),
+        bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=("post-content", "post-title", "post-header"))),
     )
     docs = loader.load()
 
@@ -569,10 +551,7 @@ def test_live_rag():
         return x
 
     rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
+        {"context": retriever | format_docs, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser()
     )
 
     result = rag_chain.invoke(
@@ -586,10 +565,7 @@ def test_live_rag():
     guardrails = RunnableRails(config, llm=llm)
 
     rag_chain_with_guardrails = guardrails | (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
+        {"context": retriever | format_docs, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser()
     )
 
     result = rag_chain_with_guardrails.invoke(

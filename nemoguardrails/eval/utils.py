@@ -120,9 +120,7 @@ def save_dict_to_file(val: Any, output_path: str, output_format: str = "yaml"):
             output_file.write(json.dumps(val, indent=True))
 
 
-def save_eval_output(
-    eval_output: "EvalOutput", output_path: str, output_format: str = "yaml"
-):
+def save_eval_output(eval_output: "EvalOutput", output_path: str, output_format: str = "yaml"):
     """Writes the evaluation output to a folder."""
     data = eval_output.dict()
 
@@ -131,9 +129,7 @@ def save_eval_output(
         os.path.join(output_path, "results"),
         output_format,
     )
-    save_dict_to_file(
-        {"logs": data["logs"]}, os.path.join(output_path, "logs"), output_format
-    )
+    save_dict_to_file({"logs": data["logs"]}, os.path.join(output_path, "logs"), output_format)
 
 
 def get_output_paths() -> List[str]:
@@ -144,9 +140,7 @@ def get_output_paths() -> List[str]:
             [
                 os.path.join(base_path, folder)
                 for folder in os.listdir(base_path)
-                if os.path.isdir(os.path.join(base_path, folder))
-                and folder != "config"
-                and folder[0] != "."
+                if os.path.isdir(os.path.join(base_path, folder)) and folder != "config" and folder[0] != "."
             ]
         )
     )

@@ -14,9 +14,5 @@
 # limitations under the License.
 
 # NeMo endpoint URLs
-NEMO_API_URL_GPT_43B_002 = (
-    "https://api.llm.ngc.nvidia.com/v1/models/gpt-43b-002/completions"
-)
-NEMO_API_URL_GPT_43B_905 = (
-    "https://api.llm.ngc.nvidia.com/v1/models/gpt-43b-905/completions"
-)
+NEMO_API_URL_GPT_43B_002 = "https://api.llm.ngc.nvidia.com/v1/models/gpt-43b-002/completions"
+NEMO_API_URL_GPT_43B_905 = "https://api.llm.ngc.nvidia.com/v1/models/gpt-43b-905/completions"

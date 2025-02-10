@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import uuid
 from typing import List, Optional, Text, Tuple
 
 
@@ -60,8 +59,7 @@ def split_args(args_str: str) -> List[str]:
         elif char in ")]}\"'":
             if char != closing_char[stack[-1]]:
                 raise ValueError(
-                    f"Invalid syntax for string: {args_str}; "
-                    f"expecting {closing_char[stack[-1]]} and got {char}"
+                    f"Invalid syntax for string: {args_str}; expecting {closing_char[stack[-1]]} and got {char}"
                 )
             stack.pop()
             current.append(char)
@@ -107,11 +105,7 @@ def get_numbered_lines(content: str):
                 current_string = None
             i += 1
             continue
-        if (
-            raw_line.startswith('"')
-            and not raw_line.startswith('"""')
-            and not raw_line.endswith('"')
-        ):
+        if raw_line.startswith('"') and not raw_line.startswith('"""') and not raw_line.endswith('"'):
             multiline_string = True
             current_string = raw_line
             multiline_indentation = len(raw_lines[i]) - len(raw_line.lstrip())
@@ -211,9 +205,7 @@ def extract_main_token(text: str):
     return main_token
 
 
-def char_split(
-    text: str, c: str, ignore_parenthesis=False, ignore_strings=False
-) -> List[str]:
+def char_split(text: str, c: str, ignore_parenthesis=False, ignore_strings=False) -> List[str]:
     """Helper method to split a string by a given character.
 
     :param text: The text to split.

@@ -95,9 +95,7 @@ def run_latency_report():
     sleep_time = 0
 
     run_configs = build_run_configs()
-    random.shuffle(
-        run_configs
-    )  # Based on review feedback to avoid time-of-hour effects affecting some config in order
+    random.shuffle(run_configs)  # Based on review feedback to avoid time-of-hour effects affecting some config in order
 
     for run_config in tqdm(run_configs):
         test_config = run_config["test_config"]
@@ -133,15 +131,11 @@ def run_latency_report():
         )
 
     latency_report_df = pd.DataFrame(latency_report_rows, columns=latency_report_cols)
-    latency_report_df = latency_report_df.sort_values(
-        by=["question_id", "config", "run_id"]
-    )
+    latency_report_df = latency_report_df.sort_values(by=["question_id", "config", "run_id"])
     print(latency_report_df)
     latency_report_df.to_csv("latency_report_detailed_openai.tsv", sep="\t")
 
-    latency_report_grouped = latency_report_df.groupby(
-        by=["question_id", "question", "config"]
-    ).agg(
+    latency_report_grouped = latency_report_df.groupby(by=["question_id", "question", "config"]).agg(
         {
             "total_overall_time": "mean",
             "total_llm_calls_time": "mean",
@@ -163,5 +157,5 @@ if __name__ == "__main__":
     sleep_time = run_latency_report()
     test_end_time = time.time()
 
-    print(f"Total time taken: {(test_end_time-test_start_time):.2f}")
+    print(f"Total time taken: {(test_end_time - test_start_time):.2f}")
     print(f"Time spent sleeping: {(sleep_time):.2f}")

@@ -14,8 +14,6 @@
 # limitations under the License.
 
 
-import pytest
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.output_mapping import (
     default_output_mapping,

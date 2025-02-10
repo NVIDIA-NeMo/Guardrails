@@ -62,9 +62,7 @@ async def retrieve_relevant_chunks(
 
         context_updates["retrieved_for"] = user_message
 
-        chunks = [
-            chunk["body"] for chunk in await kb.search_relevant_chunks(user_message)
-        ]
+        chunks = [chunk["body"] for chunk in await kb.search_relevant_chunks(user_message)]
 
         context_updates["relevant_chunks"] = "\n".join(chunks)
         context_updates["relevant_chunks_sep"] = chunks
@@ -76,9 +74,7 @@ async def retrieve_relevant_chunks(
             if context_updates["relevant_chunks"]:
                 context_updates["relevant_chunks"] += "\n"
         else:
-            context_updates["relevant_chunks"] = (
-                context.get("relevant_chunks", "") + "\n"
-            )
+            context_updates["relevant_chunks"] = context.get("relevant_chunks", "") + "\n"
         context_updates["relevant_chunks_sep"] = context.get("relevant_chunks_sep", [])
         context_updates["retrieved_for"] = None
 

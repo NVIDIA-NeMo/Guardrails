@@ -41,6 +41,4 @@ def test_general_instructions_get_included_when_no_canonical_forms_are_defined()
     chat << "Hello there!"
 
     info = chat.app.explain()
-    assert (
-        "This is a conversation between a user and a bot." in info.llm_calls[0].prompt
-    )
+    assert "This is a conversation between a user and a bot." in info.llm_calls[0].prompt

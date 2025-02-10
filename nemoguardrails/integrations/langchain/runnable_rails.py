@@ -156,22 +156,14 @@ class RunnableRails(Runnable[Input, Output]):
                     for msg in user_input:
                         assert "role" in msg
                         assert "content" in msg
-                        messages.append(
-                            {"role": msg["role"], "content": msg["content"]}
-                        )
+                        messages.append({"role": msg["role"], "content": msg["content"]})
                 else:
-                    raise Exception(
-                        f"Can't handle input of type {type(user_input).__name__}"
-                    )
+                    raise Exception(f"Can't handle input of type {type(user_input).__name__}")
 
                 if "context" in _input:
                     if not isinstance(_input["context"], dict):
-                        raise ValueError(
-                            "The input `context` key for `RunnableRails` must be a dict."
-                        )
-                    messages = [
-                        {"role": "context", "content": _input["context"]}
-                    ] + messages
+                        raise ValueError("The input `context` key for `RunnableRails` must be a dict.")
+                    messages = [{"role": "context", "content": _input["context"]}] + messages
 
             else:
                 raise Exception(f"Can't handle input of type {type(_input).__name__}")
@@ -188,9 +180,7 @@ class RunnableRails(Runnable[Input, Output]):
         input_messages = self._transform_input_to_rails_format(input)
         self.config = config
         self.kwargs = kwargs
-        res = self.rails.generate(
-            messages=input_messages, options=GenerationOptions(output_vars=True)
-        )
+        res = self.rails.generate(messages=input_messages, options=GenerationOptions(output_vars=True))
         context = res.output_data
         result = res.response
 
@@ -207,9 +197,7 @@ class RunnableRails(Runnable[Input, Output]):
             # will not be set. In this case, we only set the output key to the
             # message that was received from the guardrail configuration.
             if passthrough_output is None:
-                passthrough_output = {
-                    self.passthrough_bot_output_key: result["content"]
-                }
+                passthrough_output = {self.passthrough_bot_output_key: result["content"]}
 
             bot_message = context.get("bot_message")
 

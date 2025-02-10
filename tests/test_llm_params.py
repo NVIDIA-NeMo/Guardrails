@@ -34,12 +34,8 @@ class FakeLLM2(BaseModel):
 
 class TestLLMParams(unittest.TestCase):
     def setUp(self):
-        self.llm = FakeLLM(
-            param3="value3", model_kwargs={"param1": "value1", "param2": "value2"}
-        )
-        self.llm_params = LLMParams(
-            self.llm, param1="new_value1", param2="new_value2", param3="new_value3"
-        )
+        self.llm = FakeLLM(param3="value3", model_kwargs={"param1": "value1", "param2": "value2"})
+        self.llm_params = LLMParams(self.llm, param1="new_value1", param2="new_value2", param3="new_value3")
 
     def test_init(self):
         self.assertEqual(self.llm_params.llm, self.llm)
@@ -51,9 +47,7 @@ class TestLLMParams(unittest.TestCase):
 
     def test_enter(self):
         llm = self.llm
-        with llm_params(
-            llm, param1="new_value1", param2="new_value2", param3="new_value3"
-        ):
+        with llm_params(llm, param1="new_value1", param2="new_value2", param3="new_value3"):
             self.assertEqual(self.llm.param3, "new_value3")
             self.assertEqual(self.llm.model_kwargs["param1"], "new_value1")
 
@@ -69,9 +63,7 @@ class TestLLMParams(unittest.TestCase):
         with self.assertLogs(level="WARNING") as cm:
             with llm_params(self.llm, nonexistent_param="value"):
                 pass
-        self.assertIn(
-            "Parameter nonexistent_param does not exist for FakeLLM", cm.output[0]
-        )
+        self.assertIn("Parameter nonexistent_param does not exist for FakeLLM", cm.output[0])
 
     def test_exit_with_nonexistent_param(self):
         """Test that exiting the context manager with a nonexistent parameter does not raise an error."""
@@ -88,9 +80,7 @@ class TestLLMParams(unittest.TestCase):
 class TestLLMParamsWithEmptyModelKwargs(unittest.TestCase):
     def setUp(self):
         self.llm = FakeLLM(param3="value3", model_kwargs={})
-        self.llm_params = LLMParams(
-            self.llm, param1="new_value1", param2="new_value2", param3="new_value3"
-        )
+        self.llm_params = LLMParams(self.llm, param1="new_value1", param2="new_value2", param3="new_value3")
 
     def test_init(self):
         self.assertEqual(self.llm_params.llm, self.llm)
@@ -102,9 +92,7 @@ class TestLLMParamsWithEmptyModelKwargs(unittest.TestCase):
 
     def test_enter(self):
         llm = self.llm
-        with llm_params(
-            llm, param1="new_value1", param2="new_value2", param3="new_value3"
-        ):
+        with llm_params(llm, param1="new_value1", param2="new_value2", param3="new_value3"):
             self.assertEqual(self.llm.param3, "new_value3")
             self.assertEqual(self.llm.model_kwargs["param1"], "new_value1")
             self.assertEqual(self.llm.model_kwargs["param2"], "new_value2")
@@ -142,9 +130,7 @@ class TestLLMParamsWithEmptyModelKwargs(unittest.TestCase):
 class TestLLMParamsWithoutModelKwargs(unittest.TestCase):
     def setUp(self):
         self.llm = FakeLLM2(param3="value3")
-        self.llm_params = LLMParams(
-            self.llm, param1="new_value1", param2="new_value2", param3="new_value3"
-        )
+        self.llm_params = LLMParams(self.llm, param1="new_value1", param2="new_value2", param3="new_value3")
 
     def test_init(self):
         self.assertEqual(self.llm_params.llm, self.llm)
@@ -156,9 +142,7 @@ class TestLLMParamsWithoutModelKwargs(unittest.TestCase):
 
     def test_enter(self):
         llm = self.llm
-        with llm_params(
-            llm, param1="new_value1", param2="new_value2", param3="new_value3"
-        ):
+        with llm_params(llm, param1="new_value1", param2="new_value2", param3="new_value3"):
             self.assertEqual(self.llm.param3, "new_value3")
 
     def test_exit(self):
@@ -168,9 +152,7 @@ class TestLLMParamsWithoutModelKwargs(unittest.TestCase):
 
     def test_enter_with_empty_model_kwargs(self):
         """Test that entering the context manager with empty model_kwargs logs a warning."""
-        warning_message = (
-            f"Parameter param1 does not exist for {self.llm.__class__.__name__}"
-        )
+        warning_message = f"Parameter param1 does not exist for {self.llm.__class__.__name__}"
         with self.assertLogs(level="WARNING") as cm:
             with llm_params(self.llm, param1="new_value1"):
                 pass

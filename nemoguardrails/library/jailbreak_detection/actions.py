@@ -63,19 +63,13 @@ async def jailbreak_detection_heuristics(
             check_jailbreak_prefix_suffix_perplexity,
         )
 
-        log.warning(
-            "No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION."
-        )
+        log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
         lp_check = check_jailbreak_length_per_perplexity(prompt, lp_threshold)
-        ps_ppl_check = check_jailbreak_prefix_suffix_perplexity(
-            prompt, ps_ppl_threshold
-        )
+        ps_ppl_check = check_jailbreak_prefix_suffix_perplexity(prompt, ps_ppl_threshold)
         jailbreak = any([lp_check["jailbreak"], ps_ppl_check["jailbreak"]])
         return jailbreak
 
-    jailbreak = await jailbreak_detection_heuristics_request(
-        prompt, jailbreak_api_url, lp_threshold, ps_ppl_threshold
-    )
+    jailbreak = await jailbreak_detection_heuristics_request(prompt, jailbreak_api_url, lp_threshold, ps_ppl_threshold)
     if jailbreak is None:
         log.warning("Jailbreak endpoint not set up properly.")
         # If no result, assume not a jailbreak
@@ -106,9 +100,7 @@ async def jailbreak_detection_model(
             initialize_model,
         )
 
-        log.warning(
-            "No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION."
-        )
+        log.warning("No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION.")
         classifier = initialize_model()
         jailbreak = check_jailbreak(prompt=prompt, classifier=classifier)
 

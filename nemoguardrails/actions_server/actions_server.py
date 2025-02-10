@@ -41,9 +41,7 @@ class RequestBody(BaseModel):
     """Request body for executing an action."""
 
     action_name: str = ""
-    action_parameters: Dict = Field(
-        default={}, description="The list of action parameters."
-    )
+    action_parameters: Dict = Field(default={}, description="The list of action parameters.")
 
 
 class ResponseBody(BaseModel):
@@ -69,9 +67,7 @@ async def run_action(body: RequestBody):
     """
 
     log.info(f"Request body: {body}")
-    result, status = await app.action_dispatcher.execute_action(
-        body.action_name, body.action_parameters
-    )
+    result, status = await app.action_dispatcher.execute_action(body.action_name, body.action_parameters)
     resp = {"status": status, "result": result}
     log.info(f"Response: {resp}")
     return resp

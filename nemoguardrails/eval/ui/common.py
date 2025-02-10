@@ -35,17 +35,13 @@ from nemoguardrails.eval.ui.utils import (
 pd.options.mode.chained_assignment = None
 
 
-def _render_sidebar(
-    output_names: List[str], policy_options: List[str], tags: List[str]
-):
+def _render_sidebar(output_names: List[str], policy_options: List[str], tags: List[str]):
     _output_names = []
     _policy_options = []
     _tags = []
 
     with st.sidebar:
-        st.write(
-            "If you change the result files outside of the Eval UI, you must reload from disk. "
-        )
+        st.write("If you change the result files outside of the Eval UI, you must reload from disk. ")
         if st.button("Reload"):
             load_eval_data.clear()
             st.rerun()
@@ -75,9 +71,7 @@ def _render_sidebar(
     return _output_names, _policy_options, _tags
 
 
-def _get_compliance_df(
-    output_names: List[str], policy_options: List[str], eval_data: EvalData
-) -> DataFrame:
+def _get_compliance_df(output_names: List[str], policy_options: List[str], eval_data: EvalData) -> DataFrame:
     """Computes a DataFrame with information about compliance.
 
     Returns
@@ -85,15 +79,11 @@ def _get_compliance_df(
     """
     data = []
     for output_name in output_names:
-        compliance_info = eval_data.eval_outputs[output_name].compute_compliance(
-            eval_data.eval_config
-        )
+        compliance_info = eval_data.eval_outputs[output_name].compute_compliance(eval_data.eval_config)
 
         for policy_id in policy_options:
             compliance_rate = round(compliance_info[policy_id]["rate"] * 100, 2)
-            violations_count = compliance_info[policy_id][
-                "interactions_violation_count"
-            ]
+            violations_count = compliance_info[policy_id]["interactions_violation_count"]
             interactions_count = compliance_info[policy_id]["interactions_count"]
 
             data.append(
@@ -145,9 +135,7 @@ def _render_compliance_data(
         .reset_index(name="Compliance Rate")
     )
 
-    plot_as_series(
-        df_overall_compliance, range_y=[0, 100], title="Overall Compliance Rate"
-    )
+    plot_as_series(df_overall_compliance, range_y=[0, 100], title="Overall Compliance Rate")
 
     if short:
         return
@@ -213,9 +201,7 @@ def _get_resource_usage_and_latencies_df(
 
     for output_name in output_names:
         if not use_expected_latencies:
-            metrics[output_name] = collect_interaction_metrics(
-                eval_data.eval_outputs[output_name].results
-            )
+            metrics[output_name] = collect_interaction_metrics(eval_data.eval_outputs[output_name].results)
         else:
             metrics[output_name] = collect_interaction_metrics_with_expected_latencies(
                 eval_data.eval_outputs[output_name].results,
@@ -343,9 +329,9 @@ def _render_resource_usage_and_latencies(
     df_llm_usage["Metric"] = df_llm_usage["Metric"].str[9:-13]
 
     # Detailed usage
-    df_llm_usage_detailed = df_llm_usage.melt(
-        id_vars=["Metric"], var_name="Guardrail Config", value_name="Value"
-    )[["Guardrail Config", "Metric", "Value"]]
+    df_llm_usage_detailed = df_llm_usage.melt(id_vars=["Metric"], var_name="Guardrail Config", value_name="Value")[
+        ["Guardrail Config", "Metric", "Value"]
+    ]
 
     # Compute total token usage per category (Prompt, Completion, Total)
     df_total_tokens_per_category = df_llm_usage_detailed.copy()
@@ -358,20 +344,12 @@ def _render_resource_usage_and_latencies(
         else:
             return "Total Tokens"
 
-    df_total_tokens_per_category["Metric"] = df_total_tokens_per_category[
-        "Metric"
-    ].apply(_update_value)
+    df_total_tokens_per_category["Metric"] = df_total_tokens_per_category["Metric"].apply(_update_value)
     df_total_tokens_per_category = (
-        df_total_tokens_per_category.groupby(["Guardrail Config", "Metric"])["Value"]
-        .sum()
-        .reset_index()
+        df_total_tokens_per_category.groupby(["Guardrail Config", "Metric"])["Value"].sum().reset_index()
     )
-    df_total_tokens_per_category = df_total_tokens_per_category.rename(
-        columns={"Value": "Tokens"}
-    )
-    plot_bar_series(
-        df_total_tokens_per_category, title="Total Token Usage", include_table=True
-    )
+    df_total_tokens_per_category = df_total_tokens_per_category.rename(columns={"Value": "Tokens"})
+    plot_bar_series(df_total_tokens_per_category, title="Total Token Usage", include_table=True)
 
     if not short:
         if len(llm_models) > 1:
@@ -380,12 +358,8 @@ def _render_resource_usage_and_latencies(
                 ~df_llm_usage_detailed["Metric"].str.contains("completion")
                 & ~df_llm_usage_detailed["Metric"].str.contains("prompt")
             ]
-            df_llm_total_tokens = df_llm_total_tokens.rename(
-                columns={"Value": "Total Tokens"}
-            )
-            plot_bar_series(
-                df_llm_total_tokens, title="Total Tokens per LLM", include_table=True
-            )
+            df_llm_total_tokens = df_llm_total_tokens.rename(columns={"Value": "Total Tokens"})
+            plot_bar_series(df_llm_total_tokens, title="Total Tokens per LLM", include_table=True)
 
             # st.dataframe(df_llm_usage, use_container_width=True)
             plot_bar_series(
@@ -425,9 +399,7 @@ def _render_resource_usage_and_latencies(
             .drop(0)
         )
         df.columns = ["Guardrail Config", "Total Latency"]
-        plot_as_series(
-            df, title=f"Total {latency_type} Interactions Latency", include_table=True
-        )
+        plot_as_series(df, title=f"Total {latency_type} Interactions Latency", include_table=True)
 
     df = (
         df_latencies.set_index("Metric")
@@ -438,16 +410,13 @@ def _render_resource_usage_and_latencies(
         .drop(0)
     )
     df.columns = ["Guardrail Config", "Average Latency"]
-    plot_as_series(
-        df, title=f"Average {latency_type} Interaction Latency", include_table=True
-    )
+    plot_as_series(df, title=f"Average {latency_type} Interaction Latency", include_table=True)
 
     if not short:
         # Total and Average latency per LLM Call
         st.subheader(f"LLM Call {latency_type} Latencies")
         df = df_latencies[
-            df_latencies["Metric"].str.startswith("llm_call_")
-            & df_latencies["Metric"].str.endswith("_seconds_total")
+            df_latencies["Metric"].str.startswith("llm_call_") & df_latencies["Metric"].str.endswith("_seconds_total")
         ]
         df["Metric"] = df["Metric"].str[9:-14]
         plot_matrix_series(
@@ -459,8 +428,7 @@ def _render_resource_usage_and_latencies(
         )
 
         df = df_latencies[
-            df_latencies["Metric"].str.startswith("llm_call_")
-            & df_latencies["Metric"].str.endswith("_seconds_avg")
+            df_latencies["Metric"].str.startswith("llm_call_") & df_latencies["Metric"].str.endswith("_seconds_avg")
         ]
         df["Metric"] = df["Metric"].str[9:-12]
         plot_matrix_series(
@@ -480,8 +448,7 @@ def _render_resource_usage_and_latencies(
         """
         )
         df = df_latencies[
-            df_latencies["Metric"].str.startswith("action_")
-            & df_latencies["Metric"].str.endswith("_seconds_total")
+            df_latencies["Metric"].str.startswith("action_") & df_latencies["Metric"].str.endswith("_seconds_total")
         ]
         df["Metric"] = df["Metric"].str[7:-14]
         plot_matrix_series(
@@ -493,8 +460,7 @@ def _render_resource_usage_and_latencies(
         )
 
         df = df_latencies[
-            df_latencies["Metric"].str.startswith("action_")
-            & df_latencies["Metric"].str.endswith("_seconds_avg")
+            df_latencies["Metric"].str.startswith("action_") & df_latencies["Metric"].str.endswith("_seconds_avg")
         ]
         df["Metric"] = df["Metric"].str[7:-12]
         plot_matrix_series(
@@ -526,9 +492,7 @@ def render_summary(short: bool = False):
     policy_options = [policy.id for policy in eval_config.policies]
 
     # Sidebar
-    output_names, policy_options, tags = _render_sidebar(
-        output_names, policy_options, all_tags
-    )
+    output_names, policy_options, tags = _render_sidebar(output_names, policy_options, all_tags)
 
     # If all tags are selected, we don't do the filtering.
     # Like this, interactions without tags will also be included.
@@ -563,6 +527,4 @@ def render_summary(short: bool = False):
     _render_compliance_data(output_names, policy_options, eval_data, short=short)
 
     # Resource Usage and Latencies
-    _render_resource_usage_and_latencies(
-        output_names, eval_data, eval_config=eval_config, short=short
-    )
+    _render_resource_usage_and_latencies(output_names, eval_data, eval_config=eval_config, short=short)

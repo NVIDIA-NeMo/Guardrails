@@ -68,9 +68,7 @@ async def test_action_execution_with_result(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "UserMessage", "text": "$user_message"}
-            },
+            "action_params": {"event": {"_type": "UserMessage", "text": "$user_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -78,9 +76,7 @@ async def test_action_execution_with_result(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "UserMessage", "text": "$user_message"}
-            },
+            "action_params": {"event": {"_type": "UserMessage", "text": "$user_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -226,9 +222,7 @@ async def test_action_execution_with_result(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "is_system_action": True,
             "source_uid": "NeMoGuardrails",
@@ -236,9 +230,7 @@ async def test_action_execution_with_result(rails_config):
         },
         {
             "action_name": "create_event",
-            "action_params": {
-                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
-            },
+            "action_params": {"event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}},
             "action_result_key": None,
             "events": [
                 {
@@ -274,9 +266,7 @@ async def test_action_execution_with_result(rails_config):
 
 @pytest.mark.asyncio
 async def test_action_execution_with_parameter(rails_config):
-    llm = FakeLLM(
-        responses=["  express greeting", "  request access", '  "Access granted!"']
-    )
+    llm = FakeLLM(responses=["  express greeting", "  request access", '  "Access granted!"'])
 
     llm_rails = _get_llm_rails(rails_config, llm)
 
@@ -284,15 +274,11 @@ async def test_action_execution_with_parameter(rails_config):
     new_events = await llm_rails.runtime.generate_events(events)
     events.extend(new_events)
 
-    events.append(
-        {"type": "UtteranceUserActionFinished", "final_transcript": "Please let me in"}
-    )
+    events.append({"type": "UtteranceUserActionFinished", "final_transcript": "Please let me in"})
     new_events = await llm_rails.runtime.generate_events(events)
 
     # We check that is_allowed was correctly set to True
-    assert any_event_conforms(
-        {"data": {"is_allowed": True}, "type": "ContextUpdate"}, new_events
-    )
+    assert any_event_conforms({"data": {"is_allowed": True}, "type": "ContextUpdate"}, new_events)
 
 
 @pytest.mark.asyncio
@@ -309,6 +295,4 @@ async def test_action_execution_with_if(rails_config):
     new_events = await llm_rails.runtime.generate_events(events)
 
     # We check that is_allowed was correctly set to True
-    assert any_event_conforms(
-        {"intent": "inform access denied", "type": "BotIntent"}, new_events
-    )
+    assert any_event_conforms({"intent": "inform access denied", "type": "BotIntent"}, new_events)

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Generation options give more control over the generation and the result.
+"""Generation options give more control over the generation and the result.
 
 For example, to run only the input rails::
 
@@ -76,11 +76,12 @@ To get more details on the LLM calls that were executed, including the raw respo
     # {..., log: {"llm_calls": [...]}}
 
 """
+
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, root_validator
 
-from nemoguardrails.logging.explain import LLMCallInfo, LLMCallSummary
+from nemoguardrails.logging.explain import LLMCallInfo
 
 
 class GenerationLogOptions(BaseModel):
@@ -139,8 +140,7 @@ class GenerationOptions(BaseModel):
 
     rails: GenerationRailsOptions = Field(
         default_factory=GenerationRailsOptions,
-        description="Options for which rails should be applied for the generation. "
-        "By default, all rails are enabled.",
+        description="Options for which rails should be applied for the generation. By default, all rails are enabled.",
     )
     llm_params: Optional[dict] = Field(
         default=None,
@@ -189,36 +189,22 @@ class ExecutedAction(BaseModel):
     """Information about an action that was executed."""
 
     action_name: str = Field(description="The name of the action that was executed.")
-    action_params: Dict[str, Any] = Field(
-        default_factory=dict, description="The parameters for the action."
-    )
-    return_value: Any = Field(
-        default=None, description="The value returned by the action."
-    )
+    action_params: Dict[str, Any] = Field(default_factory=dict, description="The parameters for the action.")
+    return_value: Any = Field(default=None, description="The value returned by the action.")
     llm_calls: List[LLMCallInfo] = Field(
         default_factory=list,
         description="Information about the LLM calls made by the action.",
     )
-    started_at: Optional[float] = Field(
-        default=None, description="Timestamp for when the action started."
-    )
-    finished_at: Optional[float] = Field(
-        default=None, description="Timestamp for when the action finished."
-    )
-    duration: Optional[float] = Field(
-        default=None, description="How long the action took to execute, in seconds."
-    )
+    started_at: Optional[float] = Field(default=None, description="Timestamp for when the action started.")
+    finished_at: Optional[float] = Field(default=None, description="Timestamp for when the action finished.")
+    duration: Optional[float] = Field(default=None, description="How long the action took to execute, in seconds.")
 
 
 class ActivatedRail(BaseModel):
     """A rail that was activated during the generation."""
 
-    type: str = Field(
-        description="The type of the rail that was activated, e.g., input, output, dialog."
-    )
-    name: str = Field(
-        description="The name of the rail, i.e., the name of the flow implementing the rail."
-    )
+    type: str = Field(description="The type of the rail that was activated, e.g., input, output, dialog.")
+    name: str = Field(description="The name of the rail, i.e., the name of the flow implementing the rail.")
     decisions: List[str] = Field(
         default_factory=list,
         descriptino="A sequence of decisions made by the rail, e.g., 'bot refuse to respond', 'stop', 'continue'.",
@@ -230,15 +216,9 @@ class ActivatedRail(BaseModel):
         default=False,
         description="Whether the rail decided to stop any further processing.",
     )
-    additional_info: Optional[dict] = Field(
-        default=None, description="Additional information coming from rail."
-    )
-    started_at: Optional[float] = Field(
-        default=None, description="Timestamp for when the rail started."
-    )
-    finished_at: Optional[float] = Field(
-        default=None, description="Timestamp for when the rail finished."
-    )
+    additional_info: Optional[dict] = Field(default=None, description="Additional information coming from rail.")
+    started_at: Optional[float] = Field(default=None, description="Timestamp for when the rail started.")
+    finished_at: Optional[float] = Field(default=None, description="Timestamp for when the rail finished.")
     duration: Optional[float] = Field(
         default=None,
         description="The duration in seconds for applying the rail. "
@@ -265,24 +245,14 @@ class GenerationStats(BaseModel):
         default=None,
         description="The time in seconds spent in processing the output rails.",
     )
-    total_duration: Optional[float] = Field(
-        default=None, description="The total time in seconds."
-    )
-    llm_calls_duration: Optional[float] = Field(
-        default=0, description="The time in seconds spent in LLM calls."
-    )
-    llm_calls_count: Optional[int] = Field(
-        default=0, description="The number of LLM calls in total."
-    )
-    llm_calls_total_prompt_tokens: Optional[int] = Field(
-        default=0, description="The total number of prompt tokens."
-    )
+    total_duration: Optional[float] = Field(default=None, description="The total time in seconds.")
+    llm_calls_duration: Optional[float] = Field(default=0, description="The time in seconds spent in LLM calls.")
+    llm_calls_count: Optional[int] = Field(default=0, description="The number of LLM calls in total.")
+    llm_calls_total_prompt_tokens: Optional[int] = Field(default=0, description="The total number of prompt tokens.")
     llm_calls_total_completion_tokens: Optional[int] = Field(
         default=0, description="The total number of completion tokens."
     )
-    llm_calls_total_tokens: Optional[int] = Field(
-        default=0, description="The total number of tokens."
-    )
+    llm_calls_total_tokens: Optional[int] = Field(default=0, description="The total number of tokens.")
 
 
 class GenerationLog(BaseModel):
@@ -316,23 +286,17 @@ class GenerationLog(BaseModel):
 
         print(f"- Total time: {self.stats.total_duration:.2f}s")
         if self.stats.input_rails_duration:
-            _pc = round(
-                100 * self.stats.input_rails_duration / self.stats.total_duration, 2
-            )
+            _pc = round(100 * self.stats.input_rails_duration / self.stats.total_duration, 2)
             pc += _pc
             duration += self.stats.input_rails_duration
 
             print(f"  - [{self.stats.input_rails_duration:.2f}s][{_pc}%]: INPUT Rails")
         if self.stats.dialog_rails_duration:
-            _pc = round(
-                100 * self.stats.dialog_rails_duration / self.stats.total_duration, 2
-            )
+            _pc = round(100 * self.stats.dialog_rails_duration / self.stats.total_duration, 2)
             pc += _pc
             duration += self.stats.dialog_rails_duration
 
-            print(
-                f"  - [{self.stats.dialog_rails_duration:.2f}s][{_pc}%]: DIALOG Rails"
-            )
+            print(f"  - [{self.stats.dialog_rails_duration:.2f}s][{_pc}%]: DIALOG Rails")
         if self.stats.generation_rails_duration:
             _pc = round(
                 100 * self.stats.generation_rails_duration / self.stats.total_duration,
@@ -341,19 +305,13 @@ class GenerationLog(BaseModel):
             pc += _pc
             duration += self.stats.generation_rails_duration
 
-            print(
-                f"  - [{self.stats.generation_rails_duration:.2f}s][{_pc}%]: GENERATION Rails"
-            )
+            print(f"  - [{self.stats.generation_rails_duration:.2f}s][{_pc}%]: GENERATION Rails")
         if self.stats.output_rails_duration:
-            _pc = round(
-                100 * self.stats.output_rails_duration / self.stats.total_duration, 2
-            )
+            _pc = round(100 * self.stats.output_rails_duration / self.stats.total_duration, 2)
             pc += _pc
             duration += self.stats.output_rails_duration
 
-            print(
-                f"  - [{self.stats.output_rails_duration:.2f}s][{_pc}%]: OUTPUT Rails"
-            )
+            print(f"  - [{self.stats.output_rails_duration:.2f}s][{_pc}%]: OUTPUT Rails")
 
         processing_overhead = self.stats.total_duration - duration
         if processing_overhead >= 0.01:
@@ -371,16 +329,12 @@ class GenerationLog(BaseModel):
 
         print("\n# Detailed stats\n")
         for activated_rail in self.activated_rails:
-            action_names = ", ".join(
-                action.action_name for action in activated_rail.executed_actions
-            )
+            action_names = ", ".join(action.action_name for action in activated_rail.executed_actions)
             llm_calls_count = 0
             llm_calls_durations = []
             for action in activated_rail.executed_actions:
                 llm_calls_count += len(action.llm_calls)
-                llm_calls_durations.extend(
-                    [f"{round(llm_call.duration, 2)}s" for llm_call in action.llm_calls]
-                )
+                llm_calls_durations.extend([f"{round(llm_call.duration, 2)}s" for llm_call in action.llm_calls])
             print(
                 f"- [{activated_rail.duration:.2f}s] {activated_rail.type.upper()} ({activated_rail.name}): "
                 f"{len(activated_rail.executed_actions)} actions ({action_names}), "
@@ -391,19 +345,13 @@ class GenerationLog(BaseModel):
 
 class GenerationResponse(BaseModel):
     # TODO: add typing for the list of messages
-    response: Union[str, List[dict]] = Field(
-        description="The list of the generated messages."
-    )
-    llm_output: Optional[dict] = Field(
-        default=None, description="Contains any additional output coming from the LLM."
-    )
+    response: Union[str, List[dict]] = Field(description="The list of the generated messages.")
+    llm_output: Optional[dict] = Field(default=None, description="Contains any additional output coming from the LLM.")
     output_data: Optional[dict] = Field(
         default=None,
         description="The output data, i.e. a dict with the values corresponding to the `output_vars`.",
     )
-    log: Optional[GenerationLog] = Field(
-        default=None, description="Additional logging information."
-    )
+    log: Optional[GenerationLog] = Field(default=None, description="Additional logging information.")
     state: Optional[dict] = Field(
         default=None,
         description="A state object which can be used in subsequent calls to continue the interaction.",

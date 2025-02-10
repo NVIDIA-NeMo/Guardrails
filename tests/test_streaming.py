@@ -27,9 +27,7 @@ from tests.utils import TestChat
 
 @pytest.fixture
 def chat_1():
-    config: RailsConfig = RailsConfig.from_content(
-        config={"models": [], "streaming": True}
-    )
+    config: RailsConfig = RailsConfig.from_content(config={"models": [], "streaming": True})
     return TestChat(
         config,
         llm_completions=[
@@ -161,9 +159,7 @@ async def test_streaming_single_llm_call():
     )
     chat = TestChat(
         config,
-        llm_completions=[
-            '  express greeting\nbot express greeting\n  "Hi, how are you doing?"'
-        ],
+        llm_completions=['  express greeting\nbot express greeting\n  "Hi, how are you doing?"'],
         streaming=True,
     )
 
@@ -200,9 +196,7 @@ async def test_streaming_single_llm_call_with_message_override():
     )
     chat = TestChat(
         config,
-        llm_completions=[
-            '  express greeting\nbot express greeting\n  "Hi, how are you doing?"'
-        ],
+        llm_completions=['  express greeting\nbot express greeting\n  "Hi, how are you doing?"'],
         streaming=True,
     )
 
@@ -359,9 +353,7 @@ async def test_streaming_output_rails_allowed(output_rails_streaming_config):
     # number of buffered chunks should be equal to the number of actions
     # we are apply #calculate_number_of_actions of time the output rails
     # FIXME: nice but stupid
-    assert len(expected_chunks) == _calculate_number_of_actions(
-        len(llm_completions[1].lstrip().split(" ")), 4, 2
-    )
+    assert len(expected_chunks) == _calculate_number_of_actions(len(llm_completions[1].lstrip().split(" ")), 4, 2)
     # Wait for proper cleanup, otherwise we get a Runtime Error
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 

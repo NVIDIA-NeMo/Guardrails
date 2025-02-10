@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import nemoguardrails.rails.llm.llmrails
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import LLMRails
 from nemoguardrails.cli.chat import extract_scene_text_content, parse_events_inputs
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.utils import new_event_dict, new_uuid
@@ -49,18 +49,14 @@ class ChatInterface:
         asyncio.create_task(self.run())
 
         # Ensure that the semaphore is assigned to the same loop that we just created
-        nemoguardrails.rails.llm.llmrails.process_events_semaphore = asyncio.Semaphore(
-            1
-        )
+        nemoguardrails.rails.llm.llmrails.process_events_semaphore = asyncio.Semaphore(1)
         self.output_summary: list[str] = []
         self.should_terminate = False
         self.enable_input = asyncio.Event()
         self.enable_input.set()
 
     # Start an asynchronous timer
-    async def _start_timer(
-        self, timer_name: str, delay_seconds: float, action_uid: str
-    ):
+    async def _start_timer(self, timer_name: str, delay_seconds: float, action_uid: str):
         await asyncio.sleep(delay_seconds)
         self.chat_state.input_events.append(
             new_event_dict(
@@ -144,9 +140,7 @@ class ChatInterface:
 
             elif event["type"] == "StartVisualInformationSceneAction":
                 options = extract_scene_text_content(event["content"])
-                self._add_to_output_summary(
-                    f"Scene information: {event['title']}{options}"
-                )
+                self._add_to_output_summary(f"Scene information: {event['title']}{options}")
 
                 self.chat_state.input_events.append(
                     new_event_dict(
@@ -156,9 +150,7 @@ class ChatInterface:
                 )
 
             elif event["type"] == "StopVisualInformationSceneAction":
-                self._add_to_output_summary(
-                    f"scene information (stop): (action_uid={event['action_uid']})"
-                )
+                self._add_to_output_summary(f"scene information (stop): (action_uid={event['action_uid']})")
 
                 self.chat_state.input_events.append(
                     new_event_dict(
@@ -179,9 +171,7 @@ class ChatInterface:
                 )
 
             elif event["type"] == "StopVisualFormSceneAction":
-                self._add_to_output_summary(
-                    f"scene form (stop): (action_uid={event['action_uid']})"
-                )
+                self._add_to_output_summary(f"scene form (stop): (action_uid={event['action_uid']})")
                 self.chat_state.input_events.append(
                     new_event_dict(
                         "VisualFormSceneActionFinished",
@@ -202,9 +192,7 @@ class ChatInterface:
                 )
 
             elif event["type"] == "StopVisualChoiceSceneAction":
-                self._add_to_output_summary(
-                    f"scene choice (stop): (action_uid={event['action_uid']})"
-                )
+                self._add_to_output_summary(f"scene choice (stop): (action_uid={event['action_uid']})")
                 self.chat_state.input_events.append(
                     new_event_dict(
                         "VisualChoiceSceneActionFinished",
@@ -215,9 +203,7 @@ class ChatInterface:
 
             elif event["type"] == "StartTimerBotAction":
                 action_uid = event["action_uid"]
-                timer = self._start_timer(
-                    event["timer_name"], event["duration"], action_uid
-                )
+                timer = self._start_timer(event["timer_name"], event["duration"], action_uid)
                 # Manage timer tasks
                 if action_uid not in self.chat_state.running_timer_tasks:
                     task = asyncio.create_task(timer)
@@ -264,9 +250,7 @@ class ChatInterface:
             (
                 self.chat_state.output_events,
                 self.chat_state.output_state,
-            ) = await self.rails_app.process_events_async(
-                input_events_copy, self.chat_state.state
-            )
+            ) = await self.rails_app.process_events_async(input_events_copy, self.chat_state.state)
 
             self._process_output()
             # If we don't have a check task, we start it
@@ -291,9 +275,7 @@ class ChatInterface:
             (
                 self.chat_state.output_events,
                 self.chat_state.output_state,
-            ) = await self.rails_app.process_events_async(
-                input_events_copy, self.chat_state.state
-            )
+            ) = await self.rails_app.process_events_async(input_events_copy, self.chat_state.state)
 
             # Process output_events and potentially generate new input_events
             self._process_output()

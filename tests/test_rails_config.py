@@ -26,9 +26,7 @@ from nemoguardrails.llm.prompts import TaskPrompt
         [
             TaskPrompt(task="self_check_input", output_parser=None, content="..."),
             TaskPrompt(task="self_check_facts", output_parser="parser1", content="..."),
-            TaskPrompt(
-                task="self_check_output", output_parser="parser2", content="..."
-            ),
+            TaskPrompt(task="self_check_output", output_parser="parser2", content="..."),
         ],
         [
             {"task": "self_check_input", "output_parser": None},
@@ -48,8 +46,5 @@ def test_check_output_parser_exists(caplog, prompts):
     result = RailsConfig.check_output_parser_exists(values)
 
     assert result == values
-    assert (
-        "Deprecation Warning: Output parser is not registered for the task."
-        in caplog.text
-    )
+    assert "Deprecation Warning: Output parser is not registered for the task." in caplog.text
     assert "self_check_input" in caplog.text

@@ -121,9 +121,7 @@ async def test_fact_checking_wrong(httpx_mock):
     httpx_mock.add_response(
         method="POST",
         url=NEMO_API_URL_GPT_43B_002,
-        json={
-            "text": "NeMo Guardrails is a closed-source proprietary toolkit by Nvidia."
-        },
+        json={"text": "NeMo Guardrails is a closed-source proprietary toolkit by Nvidia."},
     )
 
     with aioresponses() as m:
@@ -156,9 +154,7 @@ async def test_fact_checking_uncertain(httpx_mock):
     httpx_mock.add_response(
         method="POST",
         url=NEMO_API_URL_GPT_43B_002,
-        json={
-            "text": "NeMo Guardrails is a closed-source proprietary toolkit by Nvidia."
-        },
+        json={"text": "NeMo Guardrails is a closed-source proprietary toolkit by Nvidia."},
     )
 
     with aioresponses() as m:

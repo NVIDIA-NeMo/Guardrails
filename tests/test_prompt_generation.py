@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from tests.utils import FakeLLM, clean_events
+from tests.utils import FakeLLM
 
 
 @pytest.fixture

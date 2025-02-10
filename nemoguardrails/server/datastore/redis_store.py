@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from typing import Optional
 
 import aioredis
@@ -24,9 +23,7 @@ from nemoguardrails.server.datastore.datastore import DataStore
 class RedisStore(DataStore):
     """A datastore implementation using Redis."""
 
-    def __init__(
-        self, url: str, username: Optional[str] = None, password: Optional[str] = None
-    ):
+    def __init__(self, url: str, username: Optional[str] = None, password: Optional[str] = None):
         """Constructor.
 
         Args:
@@ -38,9 +35,7 @@ class RedisStore(DataStore):
         self.url = url
         self.username = username
         self.password = password
-        self.client = aioredis.from_url(
-            url=url, username=username, password=password, decode_responses=True
-        )
+        self.client = aioredis.from_url(url=url, username=username, password=password, decode_responses=True)
 
     async def set(self, key: str, value: str):
         """Save data into the datastore.

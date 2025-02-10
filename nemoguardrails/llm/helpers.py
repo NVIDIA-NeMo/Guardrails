@@ -22,9 +22,7 @@ from langchain.callbacks.manager import (
 from langchain_core.language_models.llms import LLM, BaseLLM
 
 
-def get_llm_instance_wrapper(
-    llm_instance: Union[LLM, BaseLLM], llm_type: str
-) -> Type[LLM]:
+def get_llm_instance_wrapper(llm_instance: Union[LLM, BaseLLM], llm_type: str) -> Type[LLM]:
     """Wraps an LLM instance in a class that can be registered with LLMRails.
 
     This is useful to create specific types of LLMs using a generic LLM provider

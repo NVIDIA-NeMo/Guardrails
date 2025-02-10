@@ -50,11 +50,7 @@ def _extract_flow_code(file_content: str, flow_elements: List[dict]) -> Optional
     # If we have a range, we extract it
     if min_line >= 0:
         # Exclude all non-blank lines
-        flow_lines = [
-            _line
-            for _line in content_lines[min_line : max_line + 1]
-            if _line.strip() != ""
-        ]
+        flow_lines = [_line for _line in content_lines[min_line : max_line + 1] if _line.strip() != ""]
 
         return textwrap.dedent("\n".join(flow_lines))
 

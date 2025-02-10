@@ -198,9 +198,7 @@ class TestColang1SyntaxConversion:
     def test_config_variable_replacement(self):
         # TODO(Rdinu): Need to see if this conversion is correct
         input_lines = ["$config.setting = true"]
-        expected_output = [
-            "global $system.config.setting\n$system.config.setting = true"
-        ]
+        expected_output = ["global $system.config.setting\n$system.config.setting = true"]
         assert convert_colang_1_syntax(input_lines) == expected_output
 
     def test_flow_with_special_characters(self):

@@ -19,7 +19,6 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 
 from nemoguardrails.eval.models import Span
 from nemoguardrails.tracing import InteractionLog
@@ -74,9 +73,7 @@ class TestFileSystemAdapter(unittest.TestCase):
             self.assertEqual(len(log_dict["spans"]), 1)
             self.assertEqual(log_dict["spans"][0]["name"], "test_span")
 
-    @unittest.skipIf(
-        importlib.util.find_spec("aiofiles") is None, "aiofiles is not installed"
-    )
+    @unittest.skipIf(importlib.util.find_spec("aiofiles") is None, "aiofiles is not installed")
     def test_transform_async(self):
         async def run_test():
             adapter = FileSystemAdapter(filepath=self.filepath)

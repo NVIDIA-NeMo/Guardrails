@@ -13,10 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 
-from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails import RailsConfig
 from tests.utils import FakeLLM, TestChat
 
 COLANG_CONFIG = """
@@ -64,9 +62,7 @@ def test_llama_guard_check_all_safe():
     """
     Test the chat flow when both llama_guard_check_input and llama_guard_check_output actions return "safe"
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -92,9 +88,7 @@ def test_llama_guard_check_input_unsafe():
     """
     Test the chat flow when the llama_guard_check_input action returns "unsafe"
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -119,9 +113,7 @@ def test_llama_guard_check_input_error():
     """
     Test the chat flow when the llama_guard_check_input action raises an error
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -146,9 +138,7 @@ def test_llama_guard_check_output_unsafe():
     """
     Test the chat flow when the llama_guard_check_input action raises an error
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -174,9 +164,7 @@ def test_llama_guard_check_output_error():
     """
     Test the chat flow when the llama_guard_check_input action raises an error
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[

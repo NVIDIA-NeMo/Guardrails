@@ -31,9 +31,7 @@ API_URL_BASE = f"https://api.wolframalpha.com/v2/result?appid={APP_ID}"
 
 
 @action(name="wolfram alpha request")
-async def wolfram_alpha_request(
-    query: Optional[str] = None, context: Optional[dict] = None
-):
+async def wolfram_alpha_request(query: Optional[str] = None, context: Optional[dict] = None):
     """Makes a request to the Wolfram Alpha API.
 
     Args:
@@ -57,9 +55,7 @@ async def wolfram_alpha_request(
         return ActionResult(
             return_value=False,
             events=[
-                new_event_dict(
-                    "BotIntent", intent="inform wolfram alpha app id not set"
-                ),
+                new_event_dict("BotIntent", intent="inform wolfram alpha app id not set"),
                 new_event_dict(
                     "StartUtteranceBotAction",
                     script="Wolfram Alpha app ID is not set. Please set the WOLFRAM_ALPHA_APP_ID environment variable.",
@@ -79,9 +75,7 @@ async def wolfram_alpha_request(
                 return ActionResult(
                     return_value=False,
                     events=[
-                        new_event_dict(
-                            "BotIntent", intent="inform wolfram alpha not working"
-                        ),
+                        new_event_dict("BotIntent", intent="inform wolfram alpha not working"),
                         new_event_dict(
                             "StartUtteranceBotAction",
                             script="Apologies, but I cannot answer this question at this time. I am having trouble getting the answer from Wolfram Alpha.",

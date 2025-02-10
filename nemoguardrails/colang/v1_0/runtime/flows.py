@@ -15,7 +15,6 @@
 
 """A simplified modeling of the CoFlows engine."""
 
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from time import time
@@ -133,10 +132,7 @@ def _is_actionable(element: dict) -> bool:
         bool: True if the element is actionable, False otherwise.
     """
     if element["_type"] == "run_action":
-        if (
-            element["action_name"] == "utter"
-            and element["action_params"]["value"] == "..."
-        ):
+        if element["action_name"] == "utter" and element["action_params"]["value"] == "...":
             return False
 
         return True
@@ -167,10 +163,7 @@ def _is_match(element: dict, event: dict) -> bool:
         return (
             element_type == "run_action"
             and element["action_name"] == "utter"
-            and (
-                element["action_params"]["value"] == "..."
-                or element["action_params"]["value"] == event["intent"]
-            )
+            and (element["action_params"]["value"] == "..." or element["action_params"]["value"] == event["intent"])
         )
 
     elif event["type"] == "InternalSystemActionFinished":
@@ -178,15 +171,11 @@ def _is_match(element: dict, event: dict) -> bool:
         if event["status"] != "success":
             return False
 
-        return (
-            element_type == "run_action"
-            and element["action_name"] == event["action_name"]
-        )
+        return element_type == "run_action" and element["action_name"] == event["action_name"]
 
     elif event["type"] == "UtteranceUserActionFinished":
         return element_type == "UtteranceUserActionFinished" and (
-            element["final_transcript"] == "..."
-            or element["final_transcript"] == event["final_transcript"]
+            element["final_transcript"] == "..." or element["final_transcript"] == event["final_transcript"]
         )
 
     elif event["type"] == "StartUtteranceBotAction":
@@ -227,20 +216,15 @@ def _record_next_step(
         flow_config (FlowConfig): The configuration of the current flow.
         priority_modifier (float, optional): Priority modifier. Defaults to 1.0.
     """
-    if (
-        new_state.next_step is None
-        or new_state.next_step_priority < flow_config.priority
-    ) and _is_actionable(flow_config.elements[flow_state.head]):
+    if (new_state.next_step is None or new_state.next_step_priority < flow_config.priority) and _is_actionable(
+        flow_config.elements[flow_state.head]
+    ):
         new_state.next_step = flow_config.elements[flow_state.head]
         new_state.next_step_by_flow_uid = flow_state.uid
         new_state.next_step_priority = flow_config.priority * priority_modifier
 
         # Extract the comment, if any.
-        new_state.next_step_comment = (
-            flow_config.elements[flow_state.head]
-            .get("_source_mapping", {})
-            .get("comment")
-        )
+        new_state.next_step_comment = flow_config.elements[flow_state.head].get("_source_mapping", {}).get("comment")
 
 
 def _call_subflow(new_state: State, flow_state: FlowState) -> Optional[FlowState]:
@@ -391,10 +375,7 @@ def compute_next_state(state: State, event: dict) -> State:
         flow_config = state.flow_configs[flow_state.flow_id]
 
         # We skip processing any completed/aborted flows
-        if (
-            flow_state.status == FlowStatus.COMPLETED
-            or flow_state.status == FlowStatus.ABORTED
-        ):
+        if flow_state.status == FlowStatus.COMPLETED or flow_state.status == FlowStatus.ABORTED:
             continue
 
         # If the flow was interrupted, we just copy it to the new state
@@ -420,9 +401,7 @@ def compute_next_state(state: State, event: dict) -> State:
 
         if flow_head_element["_type"] == "branch":
             for branch_head in flow_head_element["branch_heads"]:
-                if _is_match(
-                    flow_config.elements[flow_state.head + branch_head], event
-                ):
+                if _is_match(flow_config.elements[flow_state.head + branch_head], event):
                     matching_head = flow_state.head + branch_head + 1
         else:
             if _is_match(flow_head_element, event):
@@ -441,10 +420,7 @@ def compute_next_state(state: State, event: dict) -> State:
                     extension_flow_completed = True
 
         # we don't interrupt on executable elements or if the flow is not interruptible
-        elif (
-            _is_actionable(flow_config.elements[flow_state.head])
-            or not flow_config.is_interruptible
-        ):
+        elif _is_actionable(flow_config.elements[flow_state.head]) or not flow_config.is_interruptible:
             flow_state.status = FlowStatus.ABORTED
         else:
             flow_state.status = FlowStatus.INTERRUPTED
@@ -460,9 +436,7 @@ def compute_next_state(state: State, event: dict) -> State:
 
         # If the flow can't be started multiple times in parallel and
         # a flow with the same id is started, we skip.
-        if not flow_config.allow_multiple and flow_config.id in [
-            fs.flow_id for fs in new_state.flow_states
-        ]:
+        if not flow_config.allow_multiple and flow_config.id in [fs.flow_id for fs in new_state.flow_states]:
             continue
 
         # We try to slide first, just in case a flow starts with sliding logic
@@ -471,9 +445,7 @@ def compute_next_state(state: State, event: dict) -> State:
         # If the first element matches the current event, we start a new flow
         if _is_match(flow_config.elements[start_head], event):
             flow_uid = new_uuid()
-            flow_state = FlowState(
-                uid=flow_uid, flow_id=flow_config.id, head=start_head + 1
-            )
+            flow_state = FlowState(uid=flow_uid, flow_id=flow_config.id, head=start_head + 1)
             new_state.flow_states.append(flow_state)
 
             _slide_with_subflows(new_state, flow_state)
@@ -491,10 +463,7 @@ def compute_next_state(state: State, event: dict) -> State:
     # If there are any flows that have been interrupted in this iteration, we consider
     # them to be interrupted by the flow that determined the next step.
     for flow_state in new_state.flow_states:
-        if (
-            flow_state.status == FlowStatus.INTERRUPTED
-            and flow_state.interrupted_by is None
-        ):
+        if flow_state.status == FlowStatus.INTERRUPTED and flow_state.interrupted_by is None:
             flow_state.interrupted_by = new_state.next_step_by_flow_uid
 
     # We compute the decision flow config and state
@@ -508,16 +477,9 @@ def compute_next_state(state: State, event: dict) -> State:
 
     # If we have aborted flows, and the current flow is an extension, when we interrupt them.
     # We are only interested when the extension flow actually decided, not just started.
-    if (
-        decision_flow_config
-        and decision_flow_config.is_extension
-        and decision_flow_state.head > 1
-    ):
+    if decision_flow_config and decision_flow_config.is_extension and decision_flow_state.head > 1:
         for flow_state in new_state.flow_states:
-            if (
-                flow_state.status == FlowStatus.ABORTED
-                and state.flow_configs[flow_state.flow_id].is_interruptible
-            ):
+            if flow_state.status == FlowStatus.ABORTED and state.flow_configs[flow_state.flow_id].is_interruptible:
                 flow_state.status = FlowStatus.INTERRUPTED
                 flow_state.interrupted_by = new_state.next_step_by_flow_uid
 
@@ -611,9 +573,7 @@ def compute_next_steps(
     Returns:
             List[dict]: The list of computed next steps.
     """
-    state = State(
-        context={}, flow_states=[], flow_configs=flow_configs, rails_config=rails_config
-    )
+    state = State(context={}, flow_states=[], flow_configs=flow_configs, rails_config=rails_config)
 
     # First, we process the history and apply any alterations e.g. 'hide_prev_turn'
     actual_history = []
@@ -621,9 +581,7 @@ def compute_next_steps(
         if event["type"] == "hide_prev_turn":
             # we look up the last `UtteranceUserActionFinished` event and remove everything after
             end = len(actual_history) - 1
-            while (
-                end > 0 and actual_history[end]["type"] != "UtteranceUserActionFinished"
-            ):
+            while end > 0 and actual_history[end]["type"] != "UtteranceUserActionFinished":
                 end -= 1
 
             assert actual_history[end]["type"] == "UtteranceUserActionFinished"
@@ -741,9 +699,7 @@ def _get_flow_params(flow_id: str) -> dict:
         if "=" in arg:
             key, value = arg.split("=")
             # Remove single or double quotes from the value
-            if (value.startswith("'") and value.endswith("'")) or (
-                value.startswith('"') and value.endswith('"')
-            ):
+            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
                 value = value[1:-1]
             params[key] = value
         else:

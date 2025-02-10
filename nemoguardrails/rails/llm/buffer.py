@@ -28,9 +28,7 @@ class BufferStrategy(ABC):
     # The abstract method is not async to ensure the return type
     # matches the async generator in the concrete implementation.
     @abstractmethod
-    def __call__(
-        self, streaming_handler
-    ) -> AsyncGenerator[Tuple[List[str], str], None]:
+    def __call__(self, streaming_handler) -> AsyncGenerator[Tuple[List[str], str], None]:
         pass
 
     @abstractmethod
@@ -53,13 +51,9 @@ class RollingBuffer(BufferStrategy):
 
     @classmethod
     def from_config(cls, config: OutputRailsStreamingConfig):
-        return cls(
-            buffer_context_size=config.context_size, buffer_chunk_size=config.chunk_size
-        )
+        return cls(buffer_context_size=config.context_size, buffer_chunk_size=config.chunk_size)
 
-    async def __call__(
-        self, streaming_handler
-    ) -> AsyncGenerator[Tuple[List[str], str], None]:
+    async def __call__(self, streaming_handler) -> AsyncGenerator[Tuple[List[str], str], None]:
         buffer = []
         index = 0
 
@@ -84,9 +78,7 @@ class RollingBuffer(BufferStrategy):
         if buffer:
             yield (
                 buffer,
-                self.generate_chunk_str(
-                    buffer[-self.buffer_chunk_size - self.buffer_context_size :], index
-                ),
+                self.generate_chunk_str(buffer[-self.buffer_chunk_size - self.buffer_context_size :], index),
             )
 
     def generate_chunk_str(self, buffer, current_index) -> str:

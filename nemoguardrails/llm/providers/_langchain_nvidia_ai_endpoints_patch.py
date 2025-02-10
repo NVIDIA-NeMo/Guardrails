@@ -39,9 +39,7 @@ def stream_decorator(func):
     ) -> ChatResult:
         should_stream = stream if stream is not None else self.streaming
         if should_stream:
-            stream_iter = self._stream(
-                messages, stop=stop, run_manager=run_manager, **kwargs
-            )
+            stream_iter = self._stream(messages, stop=stop, run_manager=run_manager, **kwargs)
             return generate_from_stream(stream_iter)
         else:
             return func(self, messages, stop, run_manager, **kwargs)
@@ -52,9 +50,7 @@ def stream_decorator(func):
 # NOTE: this needs to have the same name as the original class,
 #   otherwise, there's a check inside `langchain-nvidia-ai-endpoints` that will fail.
 class ChatNVIDIA(ChatNVIDIAOriginal):
-    streaming: bool = Field(
-        default=False, description="Whether to use streaming or not"
-    )
+    streaming: bool = Field(default=False, description="Whether to use streaming or not")
 
     @stream_decorator
     def _generate(
@@ -64,9 +60,7 @@ class ChatNVIDIA(ChatNVIDIAOriginal):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        return super()._generate(
-            messages=messages, stop=stop, run_manager=run_manager, **kwargs
-        )
+        return super()._generate(messages=messages, stop=stop, run_manager=run_manager, **kwargs)
 
 
 __all__ = ["ChatNVIDIA"]

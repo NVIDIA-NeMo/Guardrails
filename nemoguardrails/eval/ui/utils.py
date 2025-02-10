@@ -40,9 +40,7 @@ class EvalData(BaseModel):
     def update_results(self):
         """Updates back the evaluation results."""
         t0 = time()
-        results = [
-            r.dict() for r in self.eval_outputs[self.selected_output_path].results
-        ]
+        results = [r.dict() for r in self.eval_outputs[self.selected_output_path].results]
         update_dict_at_path(self.selected_output_path, {"results": results})
         print(f"Updating output results took {time() - t0:.2f} seconds.")
 
@@ -72,15 +70,11 @@ def collect_interaction_metrics(
     counters = {}
     for interaction_output in interaction_outputs:
         for metric in interaction_output.resource_usage:
-            metrics[metric] = (
-                metrics.get(metric, 0) + interaction_output.resource_usage[metric]
-            )
+            metrics[metric] = metrics.get(metric, 0) + interaction_output.resource_usage[metric]
             counters[metric] = counters.get(metric, 0) + 1
 
         for metric in interaction_output.latencies:
-            metrics[metric] = (
-                metrics.get(metric, 0) + interaction_output.latencies[metric]
-            )
+            metrics[metric] = metrics.get(metric, 0) + interaction_output.latencies[metric]
             counters[metric] = counters.get(metric, 0) + 1
 
     # For the avg metrics, we need to average them
@@ -99,14 +93,10 @@ def collect_interaction_metrics_with_expected_latencies(
     """Similar to collect_interaction_metrics but with expected latencies."""
     metrics = {}
     counters = {}
-    for interaction_output, interaction_log in zip(
-        interaction_outputs, interaction_logs
-    ):
+    for interaction_output, interaction_log in zip(interaction_outputs, interaction_logs):
         # Resource usage computation stays the same
         for metric in interaction_output.resource_usage:
-            metrics[metric] = (
-                metrics.get(metric, 0) + interaction_output.resource_usage[metric]
-            )
+            metrics[metric] = metrics.get(metric, 0) + interaction_output.resource_usage[metric]
             counters[metric] = counters.get(metric, 0) + 1
 
         # For the latency part, we need to first update the spans and then recompute the latencies.
@@ -129,19 +119,11 @@ def collect_interaction_metrics_with_expected_latencies(
                     if f"llm_call_{llm_name}_prompt_tokens_total" not in span.metrics:
                         continue
 
-                    prompt_tokens = span.metrics[
-                        f"llm_call_{llm_name}_prompt_tokens_total"
-                    ]
-                    completion_tokens = span.metrics[
-                        f"llm_call_{llm_name}_completion_tokens_total"
-                    ]
+                    prompt_tokens = span.metrics[f"llm_call_{llm_name}_prompt_tokens_total"]
+                    completion_tokens = span.metrics[f"llm_call_{llm_name}_completion_tokens_total"]
 
-                    fixed_latency = expected_latencies.get(
-                        f"llm_call_{llm_name}_fixed_latency", 0.25
-                    )
-                    prompt_token_latency = expected_latencies.get(
-                        f"llm_call_{llm_name}_prompt_token_latency", 0.0001
-                    )
+                    fixed_latency = expected_latencies.get(f"llm_call_{llm_name}_fixed_latency", 0.25)
+                    prompt_token_latency = expected_latencies.get(f"llm_call_{llm_name}_prompt_token_latency", 0.0001)
                     completion_token_latency = expected_latencies.get(
                         f"llm_call_{llm_name}_completion_token_latency", 0.01
                     )

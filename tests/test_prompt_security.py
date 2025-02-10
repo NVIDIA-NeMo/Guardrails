@@ -50,9 +50,7 @@ def test_prompt_security_protection_disabled():
         ],
     )
 
-    chat.app.register_action(
-        mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text"
-    )
+    chat.app.register_action(mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text")
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "Hi! My name is John as well."
 
@@ -88,9 +86,7 @@ def test_prompt_security_protection_input():
         ],
     )
 
-    chat.app.register_action(
-        mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text"
-    )
+    chat.app.register_action(mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text")
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "I can't answer that."
 
@@ -126,8 +122,6 @@ def test_prompt_security_protection_output():
         ],
     )
 
-    chat.app.register_action(
-        mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text"
-    )
+    chat.app.register_action(mock_protect_text({"is_blocked": True, "is_modified": False}), "protect_text")
     chat >> "Hi!"
     chat << "I can't answer that."

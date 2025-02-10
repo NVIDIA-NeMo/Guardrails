@@ -20,6 +20,7 @@ by the coflows engine.
 
 This also transpiles correctly to JS to be used on the client side.
 """
+
 import json
 import re
 from ast import literal_eval
@@ -205,9 +206,7 @@ def _dict_to_element(d):
             d_params[k] = positional_params[k]
 
         if "=" in action_name:
-            action_result_key, action_name = get_stripped_tokens(
-                split_max(d_value, "=", 1)
-            )
+            action_result_key, action_name = get_stripped_tokens(split_max(d_value, "=", 1))
 
             # if action_result starts with a $, which is recommended for clarity, we remove
             if action_result_key[0] == "$":
@@ -510,9 +509,7 @@ def _extract_elements(items: List) -> List[dict]:
             for branch_idx in range(len(branch_path_elements)):
                 branch_path = branch_path_elements[branch_idx]
                 # first, record the position of the branch head
-                branch_element["branch_heads"].append(
-                    len(elements) - branch_element_pos
-                )
+                branch_element["branch_heads"].append(len(elements) - branch_element_pos)
 
                 # Add the elements of the branch
                 elements.extend(branch_path)
@@ -520,9 +517,7 @@ def _extract_elements(items: List) -> List[dict]:
                 # We copy the source mapping for the branch element from the first element of the firt branch
                 if branch_idx == 0 and len(branch_path) > 0:
                     if "_source_mapping" in branch_path[0]:
-                        branch_element["_source_mapping"] = branch_path[0][
-                            "_source_mapping"
-                        ]
+                        branch_element["_source_mapping"] = branch_path[0]["_source_mapping"]
 
                 # Create the jump element
                 jump_element = {"_type": "jump", "_next": 1}

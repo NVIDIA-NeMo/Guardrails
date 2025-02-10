@@ -47,13 +47,11 @@ def topical(
     ),
     max_tests_intent: int = typer.Option(
         default=3,
-        help="Maximum number of test samples per intent to be used when testing. "
-        "If value is 0, no limit is used.",
+        help="Maximum number of test samples per intent to be used when testing. If value is 0, no limit is used.",
     ),
     max_samples_intent: int = typer.Option(
         default=0,
-        help="Maximum number of samples per intent indexed in vector database. "
-        "If value is 0, all samples are used.",
+        help="Maximum number of samples per intent indexed in vector database. If value is 0, all samples are used.",
     ),
     results_frequency: int = typer.Option(
         default=10,
@@ -63,12 +61,8 @@ def topical(
         default=0.0,
         help="Minimum similarity score to select the intent when exact match fails.",
     ),
-    random_seed: int = typer.Option(
-        default=None, help="Random seed used by the evaluation."
-    ),
-    output_dir: str = typer.Option(
-        default=None, help="Output directory for predictions."
-    ),
+    random_seed: int = typer.Option(default=None, help="Random seed used by the evaluation."),
+    output_dir: str = typer.Option(default=None, help="Output directory for predictions."),
 ):
     """Evaluates the performance of the topical rails defined in a Guardrails application.
     Computes accuracy for canonical form detection, next step generation, and next bot message generation.
@@ -92,7 +86,7 @@ def topical(
         set_verbose(True)
 
     if len(config) > 1:
-        typer.secho(f"Multiple configurations are not supported.", fg=typer.colors.RED)
+        typer.secho("Multiple configurations are not supported.", fg=typer.colors.RED)
         typer.echo("Please provide a single config path (folder or config file).")
         raise typer.Exit(1)
 
@@ -118,9 +112,7 @@ def topical(
 
 @app.command()
 def moderation(
-    config: str = typer.Option(
-        help="The path to the guardrails config.", default="config"
-    ),
+    config: str = typer.Option(help="The path to the guardrails config.", default="config"),
     dataset_path: str = typer.Option(
         "nemoguardrails/evaluate/data/moderation/harmful.txt",
         help="Path to dataset containing prompts",
@@ -128,9 +120,7 @@ def moderation(
     num_samples: int = typer.Option(50, help="Number of samples to evaluate"),
     check_input: bool = typer.Option(True, help="Evaluate input self-check rail"),
     check_output: bool = typer.Option(True, help="Evaluate output self-check rail"),
-    output_dir: str = typer.Option(
-        "eval_outputs/moderation", help="Output directory for predictions"
-    ),
+    output_dir: str = typer.Option("eval_outputs/moderation", help="Output directory for predictions"),
     write_outputs: bool = typer.Option(True, help="Write outputs to file"),
     split: str = typer.Option("harmful", help="Whether prompts are harmful or helpful"),
 ):
@@ -167,16 +157,10 @@ def moderation(
 
 @app.command()
 def hallucination(
-    config: str = typer.Option(
-        help="The path to the guardrails config.", default="config"
-    ),
-    dataset_path: str = typer.Option(
-        "nemoguardrails/evaluate/data/hallucination/sample.txt", help="Dataset path"
-    ),
+    config: str = typer.Option(help="The path to the guardrails config.", default="config"),
+    dataset_path: str = typer.Option("nemoguardrails/evaluate/data/hallucination/sample.txt", help="Dataset path"),
     num_samples: int = typer.Option(50, help="Number of samples to evaluate"),
-    output_dir: str = typer.Option(
-        "eval_outputs/hallucination", help="Output directory"
-    ),
+    output_dir: str = typer.Option("eval_outputs/hallucination", help="Output directory"),
     write_outputs: bool = typer.Option(True, help="Write outputs to file"),
 ):
     """
@@ -204,24 +188,18 @@ def hallucination(
 
 @app.command()
 def fact_checking(
-    config: str = typer.Option(
-        help="The path to the guardrails config.", default="config"
-    ),
+    config: str = typer.Option(help="The path to the guardrails config.", default="config"),
     dataset_path: str = typer.Option(
         "nemoguardrails/evaluate/data/factchecking/sample.json",
         help="Path to the folder containing the dataset",
     ),
     num_samples: int = typer.Option(50, help="Number of samples to be evaluated"),
-    create_negatives: bool = typer.Option(
-        True, help="create synthetic negative samples"
-    ),
+    create_negatives: bool = typer.Option(True, help="create synthetic negative samples"),
     output_dir: str = typer.Option(
         "eval_outputs/factchecking",
         help="Path to the folder where the outputs will be written",
     ),
-    write_outputs: bool = typer.Option(
-        True, help="Write outputs to the output directory"
-    ),
+    write_outputs: bool = typer.Option(True, help="Write outputs to the output directory"),
 ):
     """
     Evaluate the performance of the fact-checking rails defined in a Guardrails application.

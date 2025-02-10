@@ -17,7 +17,7 @@ import json
 import logging
 import re
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, List, Optional, Set
 
 import simpleeval
 from simpleeval import EvalWithCompoundTypes
@@ -41,18 +41,14 @@ class ComparisonExpression:
 
     def __init__(self, operator: Callable[[Any], bool], value: Any) -> None:
         if not isinstance(value, (int, float)):
-            raise ColangValueError(
-                f"Comparison operators don't support values of type '{type(value)}'"
-            )
+            raise ColangValueError(f"Comparison operators don't support values of type '{type(value)}'")
         self.value = value
         self.operator = operator
 
     def compare(self, value: Any) -> bool:
         """Compare given value with the expression's value."""
         if not isinstance(value, type(self.value)):
-            raise ColangValueError(
-                "Comparing variables of different types is not supported!"
-            )
+            raise ColangValueError("Comparing variables of different types is not supported!")
 
         return self.operator(value)
 
@@ -70,18 +66,12 @@ def eval_expression(expr: str, context: dict) -> Any:
 
     # We search for all expressions in strings within curly brackets and evaluate them first
     # Find first all strings
-    string_pattern = (
-        r'("""|\'\'\')((?:\\\1|(?!\1)[\s\S])*?)\1|("|\')((?:\\\3|(?!\3).)*?)\3'
-    )
+    string_pattern = r'("""|\'\'\')((?:\\\1|(?!\1)[\s\S])*?)\1|("|\')((?:\\\3|(?!\3).)*?)\3'
     string_expressions_matches = re.findall(string_pattern, expr)
     string_expression_values = []
     for string_expression_match in string_expressions_matches:
         character = string_expression_match[0] or string_expression_match[2]
-        string_expression = (
-            character
-            + (string_expression_match[1] or string_expression_match[3])
-            + character
-        )
+        string_expression = character + (string_expression_match[1] or string_expression_match[3]) + character
         if string_expression:
             # Find expressions within curly brackets, ignoring double curly brackets
             expression_pattern = r"{(?!\{)([^{}]+)\}(?!\})"
@@ -92,9 +82,7 @@ def eval_expression(expr: str, context: dict) -> Any:
                     try:
                         value = eval_expression(inner_expression, context)
                     except Exception as ex:
-                        raise ColangValueError(
-                            f"Error evaluating inner expression: '{inner_expression}'"
-                        ) from ex
+                        raise ColangValueError(f"Error evaluating inner expression: '{inner_expression}'") from ex
 
                     value = str(value)
 
@@ -172,9 +160,7 @@ def eval_expression(expr: str, context: dict) -> Any:
             }
         )
         if "system" in context and "state" in context["system"]:
-            functions.update(
-                {"flows_info": partial(_flows_info, context["system"]["state"])}
-            )
+            functions.update({"flows_info": partial(_flows_info, context["system"]["state"])})
 
         # TODO: replace this with something even more restrictive.
         s = EvalWithCompoundTypes(
@@ -223,11 +209,7 @@ def _pretty_str(data: Any) -> str:
 def _escape_string(string: str) -> str:
     """Escape a string and inner expressions."""
     return (
-        string.replace("\\", "\\\\")
-        .replace("{{", "\\{")
-        .replace("}}", "\\}")
-        .replace("'", "\\'")
-        .replace('"', '\\"')
+        string.replace("\\", "\\\\").replace("{{", "\\{").replace("}}", "\\}").replace("'", "\\'").replace('"', '\\"')
     )
 
 
@@ -290,17 +272,13 @@ def _flows_info(state: State, flow_instance_uid: Optional[str] = None) -> dict:
     """Return a summary of the provided state, or all states by default."""
     if flow_instance_uid is not None and flow_instance_uid in state.flow_states:
         summary = {"flow_instance_uid": flow_instance_uid}
-        summary.update(
-            _flow_state_related_to_source(state, state.flow_states[flow_instance_uid])
-        )
+        summary.update(_flow_state_related_to_source(state, state.flow_states[flow_instance_uid]))
 
         return summary
     else:
         summary = {}
         for flow_state in state.flow_states.values():
-            summary.update(
-                {flow_state.uid: _flow_state_related_to_source(state, flow_state)}
-            )
+            summary.update({flow_state.uid: _flow_state_related_to_source(state, flow_state)})
         return summary
 
 

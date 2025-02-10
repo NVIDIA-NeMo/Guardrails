@@ -115,13 +115,9 @@ class ActionDispatcher:
 
         actions_py_path = os.path.join(path, "actions.py")
         if os.path.exists(actions_py_path):
-            self._registered_actions.update(
-                self._load_actions_from_module(actions_py_path)
-            )
+            self._registered_actions.update(self._load_actions_from_module(actions_py_path))
 
-    def register_action(
-        self, action: callable, name: Optional[str] = None, override: bool = True
-    ):
+    def register_action(self, action: callable, name: Optional[str] = None, override: bool = True):
         """Registers an action with the given name.
 
         Args:
@@ -179,9 +175,7 @@ class ActionDispatcher:
         name = self._normalize_action_name(name)
         return self._registered_actions.get(name, None)
 
-    async def execute_action(
-        self, action_name: str, params: Dict[str, Any]
-    ) -> Tuple[Union[str, Dict[str, Any]], str]:
+    async def execute_action(self, action_name: str, params: Dict[str, Any]) -> Tuple[Union[str, Dict[str, Any]], str]:
         """Execute a registered action.
 
         Args:
@@ -213,9 +207,7 @@ class ActionDispatcher:
                         if inspect.iscoroutine(result):
                             result = await result
                         else:
-                            log.warning(
-                                f"Synchronous action `{action_name}` has been called."
-                            )
+                            log.warning(f"Synchronous action `{action_name}` has been called.")
 
                     elif isinstance(fn, Chain):
                         try:
@@ -224,9 +216,7 @@ class ActionDispatcher:
                             # For chains with only one output key, we use the `arun` function
                             # to return directly the result.
                             if len(chain.output_keys) == 1:
-                                result = await chain.arun(
-                                    **params, callbacks=logging_callbacks
-                                )
+                                result = await chain.arun(**params, callbacks=logging_callbacks)
                             else:
                                 # Otherwise, we return the dict with the output keys.
                                 result = await chain.acall(
@@ -253,11 +243,7 @@ class ActionDispatcher:
                     raise e
 
                 except Exception as e:
-                    filtered_params = {
-                        k: v
-                        for k, v in params.items()
-                        if k not in ["state", "events", "llm"]
-                    }
+                    filtered_params = {k: v for k, v in params.items() if k not in ["state", "events", "llm"]}
                     log.warning(
                         "Error while execution '%s' with parameters '%s': %s",
                         action_name,
@@ -309,9 +295,7 @@ class ActionDispatcher:
             # Loop through all members in the module and check for the `@action` decorator
             # If class has action decorator is_action class member is true
             for name, obj in inspect.getmembers(module):
-                if (inspect.isfunction(obj) or inspect.isclass(obj)) and hasattr(
-                    obj, "action_meta"
-                ):
+                if (inspect.isfunction(obj) or inspect.isclass(obj)) and hasattr(obj, "action_meta"):
                     try:
                         action_objects[obj.action_meta["name"]] = obj
                         log.info(f"Added {obj.action_meta['name']} to actions")
@@ -352,9 +336,7 @@ class ActionDispatcher:
                 if filename.endswith(".py"):
                     filepath = os.path.join(root, filename)
                     if is_action_file(filepath):
-                        action_objects.update(
-                            ActionDispatcher._load_actions_from_module(filepath)
-                        )
+                        action_objects.update(ActionDispatcher._load_actions_from_module(filepath))
         if not action_objects:
             log.debug(f"No actions found in {directory}")
             log.exception(f"No actions found in the directory {directory}.")

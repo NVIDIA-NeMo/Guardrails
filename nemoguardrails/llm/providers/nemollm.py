@@ -43,9 +43,7 @@ class NeMoLLM(BaseLLM):
     temperature: float = 0.7
     tokens_to_generate: int = 256
     stop: Optional[List[str]] = ["<extra_id_1>"]
-    api_host: Optional[str] = os.environ.get(
-        "NGC_API_HOST", "https://api.llm.ngc.nvidia.com"
-    )
+    api_host: Optional[str] = os.environ.get("NGC_API_HOST", "https://api.llm.ngc.nvidia.com")
     api_key: Optional[str] = os.environ.get("NGC_API_KEY")
     organization_id: Optional[str] = os.environ.get("NGC_ORGANIZATION_ID")
     customization_id: Optional[str] = None
@@ -152,9 +150,7 @@ class NeMoLLM(BaseLLM):
         stop = self.stop if stop is None else stop
         if self.streaming:
             completion = ""
-            for chunk in self._stream(
-                prompt=prompt, stop=stop, run_manager=run_manager, **kwargs
-            ):
+            for chunk in self._stream(prompt=prompt, stop=stop, run_manager=run_manager, **kwargs):
                 completion += chunk.text
             return completion
 
@@ -169,9 +165,7 @@ class NeMoLLM(BaseLLM):
             # Gives a more helpful error message for the forbidden status code 401
             # All other status codes except 200 and 401 are handled by response.raise_for_status()
             message = "Unauthorized request to the LLM API. Please set a valid API key using the NGC_API_KEY environment variable."
-            raise HTTPStatusError(
-                message=message, request=response._request, response=response
-            )
+            raise HTTPStatusError(message=message, request=response._request, response=response)
 
         response.raise_for_status()
 
@@ -188,9 +182,7 @@ class NeMoLLM(BaseLLM):
         generations = []
         for prompt in prompts:
             text = self._call(prompt, stop=stop, run_manager=run_manager, **kwargs)
-            generations.append(
-                [Generation(text=text, generation_info={"prompt": prompt})]
-            )
+            generations.append([Generation(text=text, generation_info={"prompt": prompt})])
         return LLMResult(
             generations=generations,
             llm_output={
@@ -254,9 +246,7 @@ class NeMoLLM(BaseLLM):
         stop = self.stop if stop is None else stop
         if self.streaming:
             completion = ""
-            async for chunk in self._astream(
-                prompt=prompt, stop=stop, run_manager=run_manager, **kwargs
-            ):
+            async for chunk in self._astream(prompt=prompt, stop=stop, run_manager=run_manager, **kwargs):
                 completion += chunk.text
             return completion
 
@@ -271,9 +261,7 @@ class NeMoLLM(BaseLLM):
             # Gives a more helpful error message for the forbidden status code 401
             # All other status codes except 200 and 401 are handled by response.raise_for_status()
             message = "Unauthorized request to the LLM API. Please set a valid API key using the NGC_API_KEY environment variable."
-            raise HTTPStatusError(
-                message=message, request=response._request, response=response
-            )
+            raise HTTPStatusError(message=message, request=response._request, response=response)
 
         response.raise_for_status()
 
@@ -289,12 +277,8 @@ class NeMoLLM(BaseLLM):
         stop = self.stop if stop is None else stop
         generations = []
         for prompt in prompts:
-            text = await self._acall(
-                prompt, stop=stop, run_manager=run_manager, **kwargs
-            )
-            generations.append(
-                [Generation(text=text, generation_info={"prompt": prompt})]
-            )
+            text = await self._acall(prompt, stop=stop, run_manager=run_manager, **kwargs)
+            generations.append([Generation(text=text, generation_info={"prompt": prompt})])
         return LLMResult(
             generations=generations,
             llm_output={

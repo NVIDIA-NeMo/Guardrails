@@ -44,16 +44,13 @@ def _get_analyzer(score_threshold: float = 0.4):
 
     except ImportError:
         raise ImportError(
-            "Could not import presidio, please install it with "
-            "`pip install presidio-analyzer presidio-anonymizer`."
+            "Could not import presidio, please install it with `pip install presidio-analyzer presidio-anonymizer`."
         )
 
     try:
         import spacy
     except ImportError:
-        raise RuntimeError(
-            "The spacy module is not installed. Please install it using pip: pip install spacy."
-        )
+        raise RuntimeError("The spacy module is not installed. Please install it using pip: pip install spacy.")
 
     if not spacy.util.is_package("en_core_web_lg"):
         raise RuntimeError(
@@ -72,9 +69,7 @@ def _get_analyzer(score_threshold: float = 0.4):
     nlp_engine = provider.create_engine()
 
     # TODO: One needs to experiment with the score threshold to get the right value
-    return AnalyzerEngine(
-        nlp_engine=nlp_engine, default_score_threshold=score_threshold
-    )
+    return AnalyzerEngine(nlp_engine=nlp_engine, default_score_threshold=score_threshold)
 
 
 def _get_ad_hoc_recognizers(sdd_config: SensitiveDataDetection):
@@ -171,8 +166,6 @@ async def mask_sensitive_data(source: str, text: str, config: RailsConfig):
         ad_hoc_recognizers=_get_ad_hoc_recognizers(sdd_config),
     )
     anonymizer = AnonymizerEngine()
-    masked_results = anonymizer.anonymize(
-        text=text, analyzer_results=results, operators=operators
-    )
+    masked_results = anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
 
     return masked_results.text

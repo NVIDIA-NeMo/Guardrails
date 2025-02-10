@@ -118,9 +118,7 @@ def test_load_actions_from_module_relative_path_exception(monkeypatch):
         try:
             actions = dispatcher._load_actions_from_module(str(module_path))
         finally:
-            monkeypatch.setattr(
-                "nemoguardrails.actions.action_dispatcher.Path.cwd", original_cwd
-            )
+            monkeypatch.setattr("nemoguardrails.actions.action_dispatcher.Path.cwd", original_cwd)
 
         assert actions == {}
         mock_logger.error.assert_called()

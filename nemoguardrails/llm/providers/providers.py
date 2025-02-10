@@ -88,9 +88,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
 
         # Streaming for NeMo Guardrails is not supported in sync calls.
         if self.model_kwargs and self.model_kwargs.get("streaming"):
-            raise Exception(
-                "Streaming mode not supported for HuggingFacePipeline in NeMo Guardrails!"
-            )
+            raise Exception("Streaming mode not supported for HuggingFacePipeline in NeMo Guardrails!")
 
         llm_result = self._generate(
             [prompt],
@@ -122,9 +120,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
             # Retrieve the streamer object, needs to be set in model_kwargs
             streamer = self.model_kwargs.get("streamer")
             if not streamer:
-                raise Exception(
-                    "Cannot stream, please add HuggingFace streamer object to model_kwargs!"
-                )
+                raise Exception("Cannot stream, please add HuggingFace streamer object to model_kwargs!")
 
             loop = asyncio.get_running_loop()
 
@@ -200,11 +196,7 @@ def discover_langchain_providers():
     # We also do some monkey patching to make sure that all LLM providers have async support
     for provider_cls in _providers.values():
         # If the "_acall" method is not defined, we add it.
-        if (
-            provider_cls
-            and issubclass(provider_cls, BaseLLM)
-            and "_acall" not in provider_cls.__dict__
-        ):
+        if provider_cls and issubclass(provider_cls, BaseLLM) and "_acall" not in provider_cls.__dict__:
             log.debug("Adding async support to %s", provider_cls.__name__)
             provider_cls._acall = _acall
 
@@ -234,21 +226,17 @@ def get_llm_provider(model_config: Model) -> Type[BaseLLM]:
             return ChatOpenAI
         except ImportError:
             raise ImportError(
-                "Could not import langchain_openai, please install it with "
-                "`pip install langchain-openai`."
+                "Could not import langchain_openai, please install it with `pip install langchain-openai`."
             )
 
-    elif model_config.engine == "azure" and (
-        "gpt-3.5" in model_config.model or "gpt-4" in model_config.model
-    ):
+    elif model_config.engine == "azure" and ("gpt-3.5" in model_config.model or "gpt-4" in model_config.model):
         try:
             from langchain_openai.chat_models import AzureChatOpenAI
 
             return AzureChatOpenAI
         except ImportError:
             raise ImportError(
-                "Could not import langchain_openai, please install it with "
-                "`pip install langchain-openai`."
+                "Could not import langchain_openai, please install it with `pip install langchain-openai`."
             )
     elif model_config.engine == "nvidia_ai_endpoints" or model_config.engine == "nim":
         try:

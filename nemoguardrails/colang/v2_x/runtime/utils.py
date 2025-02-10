@@ -14,9 +14,6 @@
 # limitations under the License.
 
 import re
-import uuid
-
-from nemoguardrails.utils import new_uuid
 
 
 class AttributeDict(dict):

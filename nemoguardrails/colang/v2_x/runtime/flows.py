@@ -49,7 +49,9 @@ class InternalEvents:
     FLOW_STARTED = "FlowStarted"  # Flow has started (reached first official match statement or end)
     FLOW_FINISHED = "FlowFinished"  # Flow has finished successfully
     FLOW_FAILED = "FlowFailed"  # Flow has failed
-    UNHANDLED_EVENT = "UnhandledEvent"  # For any unhandled event in a specific interaction loop we create an unhandled event
+    UNHANDLED_EVENT = (
+        "UnhandledEvent"  # For any unhandled event in a specific interaction loop we create an unhandled event
+    )
 
     # TODO: Check if we could convert them into just an internal list to track action/intents
     BOT_INTENT_LOG = "BotIntentLog"
@@ -103,18 +105,12 @@ class Event:
     def from_umim_event(cls, event: dict) -> Event:
         """Creates an event from a flat dictionary."""
         new_event = Event(event["type"], {})
-        new_event.arguments = dict(
-            [(key, event[key]) for key in event if key not in ["type"]]
-        )
+        new_event.arguments = dict([(key, event[key]) for key in event if key not in ["type"]])
         return new_event
 
     # Expose all event parameters as attributes of the event
     def __getattr__(self, name):
-        if (
-            name not in self.__dict__
-            and "arguments" in self.__dict__
-            and name in self.__dict__["arguments"]
-        ):
+        if name not in self.__dict__ and "arguments" in self.__dict__ and name in self.__dict__["arguments"]:
             return self.__dict__["arguments"][name]
         else:
             return object.__getattribute__(self, "params")[name]
@@ -143,9 +139,7 @@ class ActionEvent(Event):
     def from_umim_event(cls, event: dict) -> ActionEvent:
         """Creates an event from a flat dictionary."""
         new_event = ActionEvent(event["type"], {})
-        new_event.arguments = dict(
-            [(key, event[key]) for key in event if key not in ["type"]]
-        )
+        new_event.arguments = dict([(key, event[key]) for key in event if key not in ["type"]])
         if "action_uid" in event:
             new_event.action_uid = event["action_uid"]
         return new_event
@@ -154,9 +148,7 @@ class ActionEvent(Event):
 class ActionStatus(Enum):
     """The status of an action."""
 
-    INITIALIZED = (
-        "initialized"  # Action object created but StartAction event not yet sent
-    )
+    INITIALIZED = "initialized"  # Action object created but StartAction event not yet sent
     STARTING = "starting"  # StartAction event sent, waiting for ActionStarted event
     STARTED = "started"  # ActionStarted event received
     STOPPING = "stopping"  # StopAction event sent, waiting for ActionFinished event
@@ -184,17 +176,11 @@ class Action:
             if name in event.name:
                 action = Action(event.name.replace(name, ""), {})
                 action.uid = event.action_uid
-                action.status = (
-                    ActionStatus.STARTED
-                    if name != "Finished"
-                    else ActionStatus.FINISHED
-                )
+                action.status = ActionStatus.STARTED if name != "Finished" else ActionStatus.FINISHED
                 return action
         return None
 
-    def __init__(
-        self, name: str, arguments: Dict[str, Any], flow_uid: Optional[str] = None
-    ) -> None:
+    def __init__(self, name: str, arguments: Dict[str, Any], flow_uid: Optional[str] = None) -> None:
         # The unique id of the action
         self.uid: str = new_uuid()
 
@@ -229,9 +215,7 @@ class Action:
 
     @staticmethod
     def from_dict(d):
-        action = Action(
-            name=d["name"], arguments=d["start_event_arguments"], flow_uid=d["flow_uid"]
-        )
+        action = Action(name=d["name"], arguments=d["start_event_arguments"], flow_uid=d["flow_uid"])
         action.uid = d["uid"]
         action.status = ActionStatus[d["status"]]
         action.context = d["context"]
@@ -287,9 +271,7 @@ class Action:
 
     def change_event(self, args: dict) -> ActionEvent:
         """Changes a parameter of a started action."""
-        return ActionEvent(
-            name=f"Change{self.name}", arguments=args["arguments"], action_uid=self.uid
-        )
+        return ActionEvent(name=f"Change{self.name}", arguments=args["arguments"], action_uid=self.uid)
 
     def stop_event(self, _args: dict) -> ActionEvent:
         """Stops a started action. Takes no arguments."""
@@ -301,9 +283,7 @@ class Action:
         arguments = args.copy()
         if self.start_event_arguments:
             arguments["action_arguments"] = self.start_event_arguments
-        return ActionEvent(
-            name=f"{self.name}Started", arguments=arguments, action_uid=self.uid
-        )
+        return ActionEvent(name=f"{self.name}Started", arguments=arguments, action_uid=self.uid)
 
     def updated_event(self, args: dict) -> ActionEvent:
         """Returns the Updated parameter action event."""
@@ -323,17 +303,11 @@ class Action:
         arguments = args.copy()
         if self.start_event_arguments:
             arguments["action_arguments"] = self.start_event_arguments
-        return ActionEvent(
-            name=f"{self.name}Finished", arguments=arguments, action_uid=self.uid
-        )
+        return ActionEvent(name=f"{self.name}Finished", arguments=arguments, action_uid=self.uid)
 
     # Expose all action parameters as attributes
     def __getattr__(self, name):
-        if (
-            name not in self.__dict__
-            and "context" in self.__dict__
-            and name in self.__dict__["context"]
-        ):
+        if name not in self.__dict__ and "context" in self.__dict__ and name in self.__dict__["context"]:
             return self.__dict__["context"][name]
         else:
             return object.__getattribute__(self, "params")[name]
@@ -387,9 +361,7 @@ class FlowConfig:
             elif "$0" in parameters:
                 return parameters["$0"]
             else:
-                log.warning(
-                    "No loop id specified for @loop decorator for flow `%s`", self.id
-                )
+                log.warning("No loop id specified for @loop decorator for flow `%s`", self.id)
         return None
 
     @property
@@ -520,7 +492,7 @@ class FlowHead:
         return hash(self.uid)
 
     def __str__(self) -> str:
-        return f"flow='{self.flow_state_uid.split(')',1)[0][1:]}' pos={self.position}"
+        return f"flow='{self.flow_state_uid.split(')', 1)[0][1:]}' pos={self.position}"
 
     def __repr__(self) -> str:
         return f"FlowHead[uid={self.uid}, flow_state_uid={self.flow_state_uid}]"
@@ -534,9 +506,7 @@ class FlowStatus(Enum):
     STARTED = "started"  # Flow has started when head arrived at the first match statement ('_match' excluded)
     STOPPING = "stopping"  # Flow was stopped (e.g. by 'abort') but did not yet stop all child flows or actions
     STOPPED = "stopped"  # Flow has stopped/failed and all child flows and actions
-    FINISHED = (
-        "finished"  # Flow has finished and all child flows and actions were stopped
-    )
+    FINISHED = "finished"  # Flow has finished and all child flows and actions were stopped
 
 
 # TODO: Rename just to "Flow" for better clarity, also all variables flow_state -> flow
@@ -617,11 +587,7 @@ class FlowState:
     @property
     def active_heads(self) -> Dict[str, FlowHead]:
         """All active heads of this flow."""
-        return {
-            id: h
-            for (id, h) in self.heads.items()
-            if h.status != FlowHeadStatus.INACTIVE
-        }
+        return {id: h for (id, h) in self.heads.items() if h.status != FlowHeadStatus.INACTIVE}
 
     def __post_init__(self) -> None:
         self._event_name_map = {
@@ -636,9 +602,7 @@ class FlowState:
             "Failed": "failed_event",
         }
 
-    def get_event(
-        self, name: str, arguments: dict, matching_scores: Optional[List[float]] = None
-    ) -> InternalEvent:
+    def get_event(self, name: str, arguments: dict, matching_scores: Optional[List[float]] = None) -> InternalEvent:
         """Returns the corresponding action event."""
         assert name in self._event_name_map, f"Event '{name}' not available!"
         func = getattr(self, self._event_name_map[name])
@@ -647,9 +611,7 @@ class FlowState:
         return func(matching_scores, arguments)
 
     # Flow events to send
-    def start_event(
-        self, matching_scores: List[float], args: Optional[dict] = None
-    ) -> InternalEvent:
+    def start_event(self, matching_scores: List[float], args: Optional[dict] = None) -> InternalEvent:
         """Starts the flow. Takes no arguments."""
         arguments = {
             "flow_instance_uid": new_readable_uuid(self.flow_id),
@@ -701,13 +663,9 @@ class FlowState:
         )
 
     # Flow events to match
-    def started_event(
-        self, matching_scores: List[float], args: Optional[Dict[str, Any]] = None
-    ) -> InternalEvent:
+    def started_event(self, matching_scores: List[float], args: Optional[Dict[str, Any]] = None) -> InternalEvent:
         """Returns the flow Started event."""
-        return self._create_out_event(
-            InternalEvents.FLOW_STARTED, matching_scores, args
-        )
+        return self._create_out_event(InternalEvents.FLOW_STARTED, matching_scores, args)
 
     # def paused_event(self, args: dict) -> FlowEvent:
     #     """Returns the flow Pause event."""
@@ -717,21 +675,15 @@ class FlowState:
     #     """Returns the flow Resumed event."""
     #     return self._create_event(InternalEvents.FLOW_RESUMED, args)
 
-    def finished_event(
-        self, matching_scores: List[float], args: Optional[Dict[str, Any]] = None
-    ) -> InternalEvent:
+    def finished_event(self, matching_scores: List[float], args: Optional[Dict[str, Any]] = None) -> InternalEvent:
         """Returns the flow Finished event."""
         if not args:
             args = {}
         if "_return_value" in self.context:
             args["return_value"] = self.context["_return_value"]
-        return self._create_out_event(
-            InternalEvents.FLOW_FINISHED, matching_scores, args
-        )
+        return self._create_out_event(InternalEvents.FLOW_FINISHED, matching_scores, args)
 
-    def failed_event(
-        self, matching_scores: List[float], args: Optional[Dict[str, Any]] = None
-    ) -> InternalEvent:
+    def failed_event(self, matching_scores: List[float], args: Optional[Dict[str, Any]] = None) -> InternalEvent:
         """Returns the flow Failed event."""
         return self._create_out_event(InternalEvents.FLOW_FAILED, matching_scores, args)
 
@@ -751,18 +703,12 @@ class FlowState:
         return InternalEvent(event_type, arguments, matching_scores)
 
     def __repr__(self) -> str:
-        return (
-            f"FlowState[uid={self.uid}, flow_id={self.flow_id}, loop_id={self.loop_id}]"
-        )
+        return f"FlowState[uid={self.uid}, flow_id={self.flow_id}, loop_id={self.loop_id}]"
 
     # Expose all flow variables as attributes of the flow
     # TODO: Hide non public flow variables
     def __getattr__(self, name):
-        if (
-            name not in self.__dict__
-            and "context" in self.__dict__
-            and name in self.__dict__["context"]
-        ):
+        if name not in self.__dict__ and "context" in self.__dict__ and name in self.__dict__["context"]:
             return self.__dict__["context"][name]
         else:
             return object.__getattribute__(self, "params")[name]

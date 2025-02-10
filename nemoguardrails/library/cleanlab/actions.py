@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import logging
 import os
 from typing import Dict, Optional, Union
@@ -46,9 +45,7 @@ async def call_cleanlab_api(
     try:
         from cleanlab_studio import Studio
     except ImportError:
-        raise ImportError(
-            "Please install cleanlab-studio using 'pip install --upgrade cleanlab-studio' command"
-        )
+        raise ImportError("Please install cleanlab-studio using 'pip install --upgrade cleanlab-studio' command")
 
     bot_response = context.get("bot_message")
     user_input = context.get("user_message")
@@ -57,14 +54,10 @@ async def call_cleanlab_api(
     cleanlab_tlm = studio.TLM()
 
     if bot_response:
-        trustworthiness_result = await cleanlab_tlm.get_trustworthiness_score_async(
-            user_input, response=bot_response
-        )
+        trustworthiness_result = await cleanlab_tlm.get_trustworthiness_score_async(user_input, response=bot_response)
         trustworthiness_score = trustworthiness_result["trustworthiness_score"]
     else:
-        raise ValueError(
-            "Cannot compute trustworthiness score without a valid response from the LLM"
-        )
+        raise ValueError("Cannot compute trustworthiness score without a valid response from the LLM")
 
     log.info(f"Trustworthiness Score: {trustworthiness_score}")
     return {"trustworthiness_score": trustworthiness_score}

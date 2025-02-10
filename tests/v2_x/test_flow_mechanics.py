@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Test the core flow mechanics"""
+
 import logging
 
 from rich.logging import RichHandler

@@ -43,21 +43,15 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         self.mock_tracer = MagicMock()
         self.mock_get_tracer.return_value = self.mock_tracer
 
-        patcher_console_exporter = patch(
-            "opentelemetry.sdk.trace.export.ConsoleSpanExporter"
-        )
+        patcher_console_exporter = patch("opentelemetry.sdk.trace.export.ConsoleSpanExporter")
         self.mock_console_exporter_cls = patcher_console_exporter.start()
         self.addCleanup(patcher_console_exporter.stop)
 
-        patcher_batch_span_processor = patch(
-            "opentelemetry.sdk.trace.export.BatchSpanProcessor"
-        )
+        patcher_batch_span_processor = patch("opentelemetry.sdk.trace.export.BatchSpanProcessor")
         self.mock_batch_span_processor_cls = patcher_batch_span_processor.start()
         self.addCleanup(patcher_batch_span_processor.stop)
 
-        patcher_add_span_processor = patch(
-            "opentelemetry.sdk.trace.TracerProvider.add_span_processor"
-        )
+        patcher_add_span_processor = patch("opentelemetry.sdk.trace.TracerProvider.add_span_processor")
         self.mock_add_span_processor = patcher_add_span_processor.start()
         self.addCleanup(patcher_add_span_processor.stop)
 
@@ -68,9 +62,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
     def test_initialization(self):
         self.assertIsInstance(self.adapter.tracer_provider, SDKTracerProvider)
-        self.mock_add_span_processor.assert_called_once_with(
-            self.mock_batch_span_processor_cls
-        )
+        self.mock_add_span_processor.assert_called_once_with(self.mock_batch_span_processor_cls)
 
     def test_transform(self):
         interaction_log = InteractionLog(
@@ -98,9 +90,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         )
 
         # We retrieve the mock span instance here
-        span_instance = (
-            self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
-        )
+        span_instance = self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
 
         span_instance.set_attribute.assert_any_call("key", 123)
         span_instance.set_attribute.assert_any_call("span_id", "span_1")
@@ -134,9 +124,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
         self.adapter.transform(interaction_log)
 
-        span_instance = (
-            self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
-        )
+        span_instance = self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
 
         span_instance.set_attribute.assert_any_call("int_key", 42)
         span_instance.set_attribute.assert_any_call("float_key", 3.14)
@@ -161,9 +149,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         self.mock_tracer.start_as_current_span.assert_not_called()
 
     def test_transform_with_exporter_failure(self):
-        self.mock_tracer.start_as_current_span.side_effect = Exception(
-            "Exporter failure"
-        )
+        self.mock_tracer.start_as_current_span.side_effect = Exception("Exporter failure")
 
         interaction_log = InteractionLog(
             id="test_id",
@@ -214,9 +200,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             )
 
             # We retrieve the mock span instance here
-            span_instance = (
-                self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
-            )
+            span_instance = self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
 
             span_instance.set_attribute.assert_any_call("key", 123)
             span_instance.set_attribute.assert_any_call("span_id", "span_1")
@@ -243,9 +227,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         asyncio.run(run_test())
 
     def test_transform_async_with_exporter_failure(self):
-        self.mock_tracer.start_as_current_span.side_effect = Exception(
-            "Exporter failure"
-        )
+        self.mock_tracer.start_as_current_span.side_effect = Exception("Exporter failure")
 
         async def run_test():
             interaction_log = InteractionLog(

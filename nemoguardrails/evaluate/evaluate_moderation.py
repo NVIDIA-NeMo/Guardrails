@@ -98,9 +98,7 @@ class ModerationRailsEvaluation:
         num_tries = 0
         while not completed and num_tries < max_tries:
             try:
-                jailbreak = asyncio.run(
-                    llm_call(prompt=check_input_prompt, llm=self.llm)
-                )
+                jailbreak = asyncio.run(llm_call(prompt=check_input_prompt, llm=self.llm))
                 jailbreak = jailbreak.lower().strip()
                 print(jailbreak)
 
@@ -145,9 +143,7 @@ class ModerationRailsEvaluation:
                 force_string_to_message=True,
             )
             print(check_output_check_prompt)
-            check_output = asyncio.run(
-                llm_call(prompt=check_output_check_prompt, llm=self.llm)
-            )
+            check_output = asyncio.run(llm_call(prompt=check_output_check_prompt, llm=self.llm))
             check_output = check_output.lower().strip()
             print(check_output)
 
@@ -188,9 +184,7 @@ class ModerationRailsEvaluation:
                 "prompt": prompt,
             }
             if self.check_input:
-                jailbreak_prediction, jailbreak_results = self.get_jailbreak_results(
-                    prompt, jailbreak_results
-                )
+                jailbreak_prediction, jailbreak_results = self.get_jailbreak_results(prompt, jailbreak_results)
                 prediction["jailbreak"] = jailbreak_prediction
 
             if self.check_output:
@@ -229,30 +223,24 @@ class ModerationRailsEvaluation:
         check_output_error = check_output_results["error"]
 
         if self.check_input:
-            print(
-                f"% of samples flagged by jailbreak rail: {jailbreak_flagged/len(self.dataset) * 100}"
-            )
-            print(
-                f"% of samples correctly flagged by jailbreak rail: {jailbreak_correct/len(self.dataset) * 100}"
-            )
+            print(f"% of samples flagged by jailbreak rail: {jailbreak_flagged / len(self.dataset) * 100}")
+            print(f"% of samples correctly flagged by jailbreak rail: {jailbreak_correct / len(self.dataset) * 100}")
             if jailbreak_error > 0:
                 print(
-                    f"% of samples where jailbreak model or rail errored out: {jailbreak_error/len(self.dataset) * 100}"
+                    f"% of samples where jailbreak model or rail errored out: {jailbreak_error / len(self.dataset) * 100}"
                 )
             print("\n")
             print("*" * 50)
             print("\n")
 
         if self.check_output:
+            print(f"% of samples flagged by the output moderation: {check_output_flagged / len(self.dataset) * 100}")
             print(
-                f"% of samples flagged by the output moderation: {check_output_flagged/len(self.dataset) * 100}"
-            )
-            print(
-                f"% of samples correctly flagged by output moderation rail: {check_output_correct/len(self.dataset) * 100}"
+                f"% of samples correctly flagged by output moderation rail: {check_output_correct / len(self.dataset) * 100}"
             )
             if check_output_error > 0:
                 print(
-                    f"% of samples where output moderation model or rail errored out: {check_output_error/len(self.dataset) * 100}"
+                    f"% of samples where output moderation model or rail errored out: {check_output_error / len(self.dataset) * 100}"
                 )
             print("\n")
             print(
@@ -261,9 +249,7 @@ class ModerationRailsEvaluation:
 
         if self.write_outputs:
             dataset_name = os.path.basename(self.dataset_path).split(".")[0]
-            output_path = (
-                f"{self.output_dir}/{dataset_name}_{self.split}_moderation_results.json"
-            )
+            output_path = f"{self.output_dir}/{dataset_name}_{self.split}_moderation_results.json"
 
             with open(output_path, "w") as f:
                 json.dump(moderation_check_predictions, f, indent=4)

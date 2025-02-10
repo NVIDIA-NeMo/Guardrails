@@ -76,7 +76,7 @@ def chat(
 ):
     """Start an interactive chat session."""
     if len(config) > 1:
-        typer.secho(f"Multiple configurations are not supported.", fg=typer.colors.RED)
+        typer.secho("Multiple configurations are not supported.", fg=typer.colors.RED)
         typer.echo("Please provide a single folder.")
         raise typer.Exit(1)
 
@@ -109,9 +109,7 @@ def chat(
 
 @app.command()
 def server(
-    port: int = typer.Option(
-        default=8000, help="The port that the server should listen on. "
-    ),
+    port: int = typer.Option(default=8000, help="The port that the server should listen on. "),
     config: List[str] = typer.Option(
         default=[],
         exists=True,
@@ -177,9 +175,7 @@ _AVAILABLE_OPTIONS = ["1.0", "2.0-alpha"]
 
 @app.command()
 def convert(
-    path: str = typer.Argument(
-        ..., help="The path to the file or directory to migrate."
-    ),
+    path: str = typer.Argument(..., help="The path to the file or directory to migrate."),
     from_version: str = typer.Option(
         default="1.0",
         help=f"The version of the colang files to migrate from. Available options: {_AVAILABLE_OPTIONS}.",
@@ -219,9 +215,7 @@ def convert(
 
 @app.command("actions-server")
 def action_server(
-    port: int = typer.Option(
-        default=8001, help="The port that the server should listen on. "
-    ),
+    port: int = typer.Option(default=8001, help="The port that the server should listen on. "),
 ):
     """Start a NeMo Guardrails actions server."""
 
@@ -236,8 +230,6 @@ def version_callback(value: bool):
 
 @app.callback()
 def cli(
-    _: Optional[bool] = typer.Option(
-        None, "-v", "--version", callback=version_callback, is_eager=True
-    ),
+    _: Optional[bool] = typer.Option(None, "-v", "--version", callback=version_callback, is_eager=True),
 ):
     pass

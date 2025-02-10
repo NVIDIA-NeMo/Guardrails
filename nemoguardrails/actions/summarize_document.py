@@ -44,9 +44,7 @@ class SummarizeDocument:
 
     def run(self):
         summary_chain = load_summarize_chain(self.llm, "map_reduce")
-        summarize_document_chain = AnalyzeDocumentChain(
-            combine_docs_chain=summary_chain
-        )
+        summarize_document_chain = AnalyzeDocumentChain(combine_docs_chain=summary_chain)
         try:
             with open(self.document_path) as f:
                 document = f.read()

@@ -31,8 +31,7 @@ models_path = os.environ.get("ALIGN_SCORE_PATH")
 
 if models_path is None:
     raise ValueError(
-        "Please set the ALIGN_SCORE_PATH environment variable "
-        "to point to the AlignScore checkpoints folder. "
+        "Please set the ALIGN_SCORE_PATH environment variable to point to the AlignScore checkpoints folder. "
     )
 
 app = FastAPI()
@@ -64,11 +63,11 @@ class AlignScoreRequest(BaseModel):
 @app.get("/")
 def hello_world():
     welcome_str = (
-        f"This is a development server to host AlignScore models.\n"
-        + f"<br>Hit the /alignscore_base or alignscore_large endpoints with "
-        f"a POST request containing evidence and claim.\n"
-        + f"<br>Example: curl -X POST -d 'evidence=This is an evidence "
-        f"passage&claim=This is a claim.' http://localhost:8000/alignscore_base\n"
+        "This is a development server to host AlignScore models.\n"
+        + "<br>Hit the /alignscore_base or alignscore_large endpoints with "
+        "a POST request containing evidence and claim.\n"
+        + "<br>Example: curl -X POST -d 'evidence=This is an evidence "
+        "passage&claim=This is a claim.' http://localhost:8000/alignscore_base\n"
     )
     return welcome_str
 
@@ -94,16 +93,12 @@ cli_app = typer.Typer()
 
 @cli_app.command()
 def start(
-    port: int = typer.Option(
-        default=5000, help="The port that the server should listen on. "
-    ),
+    port: int = typer.Option(default=5000, help="The port that the server should listen on. "),
     models: List[str] = typer.Option(
         default=["base"],
         help="The list of models to be loaded on startup",
     ),
-    initialize_only: bool = typer.Option(
-        default=False, help="Whether to run only the initialization for the models."
-    ),
+    initialize_only: bool = typer.Option(default=False, help="Whether to run only the initialization for the models."),
 ):
     # Preload the models
     for model in models:

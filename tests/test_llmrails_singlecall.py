@@ -35,7 +35,7 @@ def test_1():
     chat = TestChat(
         config,
         llm_completions=[
-            "  express greeting\n" "bot express greeting\n" '  "Hello, there!"',
+            '  express greeting\nbot express greeting\n  "Hello, there!"',
         ],
     )
 

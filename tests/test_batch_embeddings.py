@@ -26,9 +26,7 @@ from nemoguardrails.embeddings.index import IndexItem
 @pytest.mark.skip(reason="Run manually.")
 @pytest.mark.asyncio
 async def test_search_speed():
-    embeddings_index = BasicEmbeddingsIndex(
-        embedding_model="all-MiniLM-L6-v2", embedding_engine="SentenceTransformers"
-    )
+    embeddings_index = BasicEmbeddingsIndex(embedding_model="all-MiniLM-L6-v2", embedding_engine="SentenceTransformers")
 
     # We compute an initial embedding, to warm up the model.
     await embeddings_index._get_embeddings(["warm up"])
@@ -77,9 +75,7 @@ async def test_search_speed():
     t0 = time()
     semaphore = asyncio.Semaphore(concurrency)
     for i in range(requests):
-        task = asyncio.ensure_future(
-            _search(f"This is a long sentence meant to mimic a user request {i}." * 5)
-        )
+        task = asyncio.ensure_future(_search(f"This is a long sentence meant to mimic a user request {i}." * 5))
         tasks.append(task)
 
     await asyncio.gather(*tasks)
@@ -88,7 +84,5 @@ async def test_search_speed():
     print(f"Processing {completed_requests} took {took:0.2f}.")
 
     print(f"Completed {completed_requests} requests in {total_time:.2f} seconds.")
-    print(
-        f"Average latency: {total_time / completed_requests if completed_requests else 0:.2f} seconds."
-    )
+    print(f"Average latency: {total_time / completed_requests if completed_requests else 0:.2f} seconds.")
     print(f"Maximum concurrency: {concurrency}")

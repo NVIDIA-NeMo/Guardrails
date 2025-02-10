@@ -49,9 +49,7 @@ def test_override_default_parameter():
     event_type = "StartUtteranceBotAction"
     script = "Hello. Nice to see you!"
     intensity = 0.5
-    e = new_event_dict(
-        event_type, script=script, intensity=intensity, source_uid="my_uid"
-    )
+    e = new_event_dict(event_type, script=script, intensity=intensity, source_uid="my_uid")
 
     assert "event_created_at" in e
     assert "source_uid" in e

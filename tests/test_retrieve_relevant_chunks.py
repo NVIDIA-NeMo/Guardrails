@@ -14,9 +14,7 @@
 # limitations under the License.
 from unittest.mock import MagicMock
 
-import pytest
-
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import RailsConfig
 from nemoguardrails.kb.kb import KnowledgeBase
 from tests.utils import TestChat
 
@@ -50,9 +48,7 @@ flow greeting
 def test_relevant_chunk_inserted_in_prompt():
     mock_kb = MagicMock(spec=KnowledgeBase)
 
-    mock_kb.search_relevant_chunks.return_value = [
-        {"title": "Test Title", "body": "Test Body"}
-    ]
+    mock_kb.search_relevant_chunks.return_value = [{"title": "Test Title", "body": "Test Body"}]
 
     chat = TestChat(
         config,

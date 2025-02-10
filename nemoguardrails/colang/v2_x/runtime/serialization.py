@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Utilities for serializing and deserializing state objects to and from JSON."""
+
 import functools
 import json
 from collections import deque
@@ -67,12 +68,7 @@ def encode_to_dict(obj: Any, refs: Dict[int, Any]):
     # For primitive values and lists, we leave as is
     if isinstance(obj, list):
         return [encode_to_dict(v, refs) for v in obj]
-    elif (
-        isinstance(obj, str)
-        or isinstance(obj, int)
-        or isinstance(obj, float)
-        or obj is None
-    ):
+    elif isinstance(obj, str) or isinstance(obj, int) or isinstance(obj, float) or obj is None:
         return obj
     elif isinstance(obj, functools.partial):
         # We don't encode the partial functions.
@@ -88,17 +84,12 @@ def encode_to_dict(obj: Any, refs: Dict[int, Any]):
         elif is_dataclass(obj):
             value = {
                 "__type": type(obj).__name__,
-                "value": {
-                    k: encode_to_dict(getattr(obj, k), refs)
-                    for k in obj.__dataclass_fields__.keys()
-                },
+                "value": {k: encode_to_dict(getattr(obj, k), refs) for k in obj.__dataclass_fields__.keys()},
             }
         elif isinstance(obj, RailsConfig):
             value = {
                 "__type": "RailsConfig",
-                "value": {
-                    k: encode_to_dict(v, refs) for k, v in obj.model_dump().items()
-                },
+                "value": {k: encode_to_dict(v, refs) for k, v in obj.model_dump().items()},
             }
         elif isinstance(obj, colang_ast_module.SpecType):
             value = {"__type": "SpecType", "value": obj.value}
@@ -163,9 +154,7 @@ def decode_from_dict(d: Any, refs: Dict[int, Any]):
 
                 # Attributes starting with "_" can't be passed to the constructor
                 # for dataclasses, so we set them afterward.
-                obj = name_to_class[d_type](
-                    **{k: v for k, v in args.items() if k[0] != "_"}
-                )
+                obj = name_to_class[d_type](**{k: v for k, v in args.items() if k[0] != "_"})
                 for k in args:
                     if k[0] == "_":
                         setattr(obj, k, args[k])
@@ -227,10 +216,6 @@ def json_to_state(s: str) -> State:
     # Redo the callbacks.
     for flow_uid, flow_state in state.flow_states.items():
         for head_id, head in flow_state.heads.items():
-            head.position_changed_callback = partial(
-                _flow_head_changed, state, flow_state
-            )
-            head.status_changed_callback = partial(
-                _flow_head_changed, state, flow_state
-            )
+            head.position_changed_callback = partial(_flow_head_changed, state, flow_state)
+            head.status_changed_callback = partial(_flow_head_changed, state, flow_state)
     return state

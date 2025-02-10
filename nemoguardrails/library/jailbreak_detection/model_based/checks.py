@@ -14,13 +14,8 @@
 # limitations under the License.
 
 import os
-import pickle
 from functools import lru_cache
 from pathlib import Path
-from typing import Tuple, Union
-
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
 
 from nemoguardrails.library.jailbreak_detection.model_based.models import (
     JailbreakClassifier,
@@ -45,9 +40,7 @@ def initialize_model(classifier_path: str = models_path) -> JailbreakClassifier:
         jailbreak_classifier: JailbreakClassifier object combining embedding model and NemoGuard JailbreakDetect RF
     """
 
-    jailbreak_classifier = JailbreakClassifier(
-        str(Path(classifier_path).joinpath("snowflake.pkl"))
-    )
+    jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.pkl")))
 
     return jailbreak_classifier
 

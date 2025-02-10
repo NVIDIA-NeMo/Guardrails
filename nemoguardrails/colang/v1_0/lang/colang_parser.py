@@ -21,9 +21,7 @@ from typing import List, Optional
 import yaml
 
 from .utils import (
-    char_split,
     extract_main_token,
-    extract_topic_object,
     get_first_key,
     get_numbered_lines,
     get_stripped_tokens,
@@ -181,10 +179,7 @@ class ColangParser:
             # The label that should be used for "..." is decided dynamically, based
             # on what's on the next line
             ellipsis_label = "auto_resume"
-            if self.next_line and (
-                self.next_line["text"].startswith("bot ")
-                or " bot " in self.next_line["text"]
-            ):
+            if self.next_line and (self.next_line["text"].startswith("bot ") or " bot " in self.next_line["text"]):
                 ellipsis_label = "force_interrupt"
 
             # Regex normalization rules
@@ -255,10 +250,7 @@ class ColangParser:
                 # We add a hash computed from all the lines with a higher indentation level
                 flow_text = ""
                 ll = self.current_line_idx + 1
-                while (
-                    ll < len(self.lines)
-                    and self.lines[ll]["indentation"] > self.current_line["indentation"]
-                ):
+                while ll < len(self.lines) and self.lines[ll]["indentation"] > self.current_line["indentation"]:
                     flow_text += self.lines[ll]["text"]
                     ll += 1
 
@@ -272,21 +264,14 @@ class ColangParser:
             # TODO: this is a bit hackish, to think of a better way
             # if we have an "else" for a when, we turn it into "else when flow resuming"
             if self.main_token == "else":
-                if (
-                    len(self.ifs) == 0
-                    or self.ifs[-1]["indentation"] <= self.current_indentation
-                ):
+                if len(self.ifs) == 0 or self.ifs[-1]["indentation"] <= self.current_indentation:
                     self.text = "else when flow resuming"
 
     def _fetch_current_line(self):
         self.current_line = self.lines[self.current_line_idx]
         self.current_indentation = self.current_line["indentation"]
         self.current_params_indentation = 1
-        self.next_line = (
-            self.lines[self.current_line_idx + 1]
-            if self.current_line_idx < len(self.lines) - 1
-            else None
-        )
+        self.next_line = self.lines[self.current_line_idx + 1] if self.current_line_idx < len(self.lines) - 1 else None
 
         # Normalize the text of the line
         self.text = self.current_line["text"]
@@ -303,10 +288,7 @@ class ColangParser:
     def _create_namespace(self, namespace):
         """create a namespace."""
         # First we need to pop all the namespaces at deeper indentation
-        while (
-            len(self.current_indentations) > 0
-            and self.current_indentations[-1] > self.current_line["indentation"]
-        ):
+        while len(self.current_indentations) > 0 and self.current_indentations[-1] > self.current_line["indentation"]:
             self.current_indentations.pop()
             self.current_namespaces.pop()
 
@@ -401,10 +383,7 @@ class ColangParser:
 
     def _check_ifs_and_branches(self):
         # If the current indentation is lower than the branch, we pop branches
-        while (
-            len(self.branches) > 0
-            and self.current_indentation < self.branches[-1]["indentation"]
-        ):
+        while len(self.branches) > 0 and self.current_indentation < self.branches[-1]["indentation"]:
             self.branches.pop()
 
         # If the current indentation is lower than then the if, we pop the if
@@ -462,9 +441,7 @@ class ColangParser:
                 "attr",
                 "prop",
             ]:
-                assert (
-                    (len(tokens) == 4) or (len(tokens) == 5) and tokens[2] == "as"
-                ), "Invalid parameters syntax."
+                assert (len(tokens) == 4) or (len(tokens) == 5) and tokens[2] == "as", "Invalid parameters syntax."
 
                 # If we have 5 tokens, we join the last two with ":".
                 # This is for support for "define X as lookup Y"
@@ -501,9 +478,7 @@ class ColangParser:
                     if_levels.append(if_level)
 
                 # We turn if's into contexts
-                if tokens[0] == "if" or (
-                    len(tokens) > 1 and tokens[0] == "else" and tokens[1] == "if"
-                ):
+                if tokens[0] == "if" or (len(tokens) > 1 and tokens[0] == "else" and tokens[1] == "if"):
                     if tokens[0] == "if":
                         expr = " ".join(tokens[1:])
 
@@ -514,9 +489,7 @@ class ColangParser:
 
                         if len(expressions[if_level]) > 0:
                             # We need to negate the last one before adding the new one
-                            expressions[if_level][
-                                -1
-                            ] = f"not({expressions[if_level][-1]})"
+                            expressions[if_level][-1] = f"not({expressions[if_level][-1]})"
 
                         expressions[if_level].append(expr)
                 else:
@@ -575,9 +548,7 @@ class ColangParser:
 
                 if yaml:
                     # we don't add the stripped version as we need the proper indentation
-                    self.md_content.append(
-                        f"{' ' * self.current_indentation}{self.text}"
-                    )
+                    self.md_content.append(f"{' ' * self.current_indentation}{self.text}")
                 else:
                     # we split the line in multiple components separated by " and "
                     parts = word_split(md_line, " and ")
@@ -597,13 +568,9 @@ class ColangParser:
                             # We also transform "$xyz" into "[x](xyz)", but not for utterances
                             if self.symbol_type != "utterance":
                                 replaced_params = {}
-                                for param in re.findall(
-                                    r"\$([^ \"'!?\-,;</]*(?:\w|]))", parts[i]
-                                ):
+                                for param in re.findall(r"\$([^ \"'!?\-,;</]*(?:\w|]))", parts[i]):
                                     if param not in replaced_params:
-                                        parts[i] = parts[i].replace(
-                                            f"${param}", f"[x]({param})"
-                                        )
+                                        parts[i] = parts[i].replace(f"${param}", f"[x]({param})")
                                         replaced_params[param] = True
                         else:
                             # We're dealing with another intent here, so we prefix with "sym:"
@@ -623,11 +590,9 @@ class ColangParser:
 
                         # If we're left with nothing, we just set a simple "True" expression
                         if len(all_expressions) == 0:
-                            self.md_content.append(f">   _context: True")
+                            self.md_content.append(">   _context: True")
                         else:
-                            self.md_content.append(
-                                f">   _context: {' and '.join(all_expressions)}"
-                            )
+                            self.md_content.append(f">   _context: {' and '.join(all_expressions)}")
 
                     self.md_content.append(f" - {md_line}")
 
@@ -666,9 +631,9 @@ class ColangParser:
             }
             self.lines.insert(self.current_line_idx + 1, self.next_line)
 
-        assert (
-            self.next_line["indentation"] > self.current_line["indentation"]
-        ), "Expected indented block after define statement."
+        assert self.next_line["indentation"] > self.current_line["indentation"], (
+            "Expected indented block after define statement."
+        )
 
         self.text = remove_token("define", self.text)
 
@@ -750,7 +715,7 @@ class ColangParser:
                     self.lines.insert(
                         self.current_line_idx + 1,
                         {
-                            "text": f"meta",
+                            "text": "meta",
                             # We keep the line mapping the same
                             "number": self.current_line["number"],
                             # We take the indentation of the flow elements that follow
@@ -759,9 +724,7 @@ class ColangParser:
                     )
                     meta_indentation = self.next_line["indentation"] + 2
                 else:
-                    meta_indentation = self.lines[self.current_line_idx + 2][
-                        "indentation"
-                    ]
+                    meta_indentation = self.lines[self.current_line_idx + 2]["indentation"]
 
                 # We add all modifier information
                 for modifier in modifiers.keys():
@@ -813,11 +776,7 @@ class ColangParser:
         indentations = []
         p = self.current_line_idx + 1
 
-        while (
-            p < len(self.lines)
-            and self.lines[p]["indentation"]
-            > self.lines[self.current_line_idx]["indentation"]
-        ):
+        while p < len(self.lines) and self.lines[p]["indentation"] > self.lines[self.current_line_idx]["indentation"]:
             if self.lines[p]["indentation"] not in indentations:
                 indentations.append(self.lines[p]["indentation"])
             p += 1
@@ -834,11 +793,7 @@ class ColangParser:
         p = self.current_line_idx + 1
 
         indented_lines = []
-        while (
-            p < len(self.lines)
-            and self.lines[p]["indentation"]
-            > self.lines[self.current_line_idx]["indentation"]
-        ):
+        while p < len(self.lines) and self.lines[p]["indentation"] > self.lines[self.current_line_idx]["indentation"]:
             indented_lines.append(self.lines[p])
             p += 1
 
@@ -925,10 +880,7 @@ class ColangParser:
                 # turn single element into a key or a list element
                 # TODO: add support for list of dicts as this is not yet supported
                 elif len(tokens) == 1:
-                    if (
-                        next_param_line is None
-                        or next_param_line["indentation"] <= param_line["indentation"]
-                    ):
+                    if next_param_line is None or next_param_line["indentation"] <= param_line["indentation"]:
                         tokens = ["-", tokens[0]]
                     else:
                         tokens = [tokens[0], ":"]
@@ -1004,9 +956,9 @@ class ColangParser:
 
     def _parse_when(self):
         # TODO: deal with "when" after "else when"
-        assert (
-            self.next_line["indentation"] > self.current_line["indentation"]
-        ), "Expected indented block after 'when' statement."
+        assert self.next_line["indentation"] > self.current_line["indentation"], (
+            "Expected indented block after 'when' statement."
+        )
 
         # Create the new branch
         new_branch = {"elements": [], "indentation": self.next_line["indentation"]}
@@ -1043,7 +995,7 @@ class ColangParser:
                 self.lines.insert(
                     self.current_line_idx + 1,
                     {
-                        "text": f"continue",
+                        "text": "continue",
                         # We keep the line mapping the same
                         "number": self.current_line["number"],
                         "indentation": self.next_line["indentation"],
@@ -1052,7 +1004,7 @@ class ColangParser:
                 self.lines.insert(
                     self.current_line_idx + 2,
                     {
-                        "text": f"else",
+                        "text": "else",
                         # We keep the line mapping the same
                         "number": self.current_line["number"],
                         "indentation": self.current_indentation,
@@ -1085,7 +1037,7 @@ class ColangParser:
                 self.lines.insert(
                     p,
                     {
-                        "text": f"any",
+                        "text": "any",
                         # We keep the line mapping the same
                         "number": self.current_line["number"],
                         "indentation": self.current_indentation,
@@ -1123,13 +1075,9 @@ class ColangParser:
 
             # Check if the with syntax is used for parameters
             re_with_params_1 = r"(?P<intent>.*?)(?: (?:with|for) (?P<vars>\$.+)$)"
-            re_with_params_2 = (
-                r"(?P<intent>.*?)(?: (?:with|for) (?P<vars>\w+\s*=\s*.+)$)"
-            )
+            re_with_params_2 = r"(?P<intent>.*?)(?: (?:with|for) (?P<vars>\w+\s*=\s*.+)$)"
 
-            match = re.match(re_with_params_1, user_value) or re.match(
-                re_with_params_2, user_value
-            )
+            match = re.match(re_with_params_1, user_value) or re.match(re_with_params_2, user_value)
             if match:
                 d = match.groupdict()
                 # in this case we convert it to the canonical "(" ")" syntax
@@ -1150,10 +1098,7 @@ class ColangParser:
                 self.current_element["_is_example"] = True
 
             # parse additional parameters if it's the case
-            if (
-                self.next_line
-                and self.next_line["indentation"] > self.current_indentation
-            ):
+            if self.next_line and self.next_line["indentation"] > self.current_indentation:
                 self._extract_params()
 
             # Add to current branch
@@ -1206,11 +1151,11 @@ class ColangParser:
 
                 # re_params_at_end = r'^.* ((?:with|for) (?:,?\s*\$?[\w.]+\s*(?:=\s*(?:"[^"]*"|\$[\w.]+|[-\d.]+))?)*)$'
                 re_param_def = r'\$?[\w.]+\s*(?:=\s*(?:"[^"]*"|\$[\w.]+|[-\d.]+))?'
-                re_first_param_def_without_marker = (
-                    r'\$?[\w.]+\s*=\s*(?:"[^"]*"|\$[\w.]+|[-\d.]+)'
-                )
+                re_first_param_def_without_marker = r'\$?[\w.]+\s*=\s*(?:"[^"]*"|\$[\w.]+|[-\d.]+)'
                 re_first_param_def_just_variable = r"\$[\w.]+"
-                re_first_param_def = rf"(?:(?:{re_first_param_def_just_variable})|(?:{re_first_param_def_without_marker}))"
+                re_first_param_def = (
+                    rf"(?:(?:{re_first_param_def_just_variable})|(?:{re_first_param_def_without_marker}))"
+                )
 
                 # IMPORTANT! We must not mix escapes with r"" formatted strings; they don't transpile correctly to js
                 # Hence, why we've extracted re_comma_space separately
@@ -1226,9 +1171,7 @@ class ColangParser:
                     params_str = re.findall(re_params_at_end, text)
 
                     # Should be only one
-                    assert (
-                        len(params_str) == 1
-                    ), f"Expected only 1 parameter assignment, got {len(params_str)}."
+                    assert len(params_str) == 1, f"Expected only 1 parameter assignment, got {len(params_str)}."
                     params_str = params_str[0]
 
                     # remove the parameters from the string
@@ -1272,9 +1215,7 @@ class ColangParser:
                 # Next we check if we have an utterance text
                 results = re.findall(r'"[^"]*"', text)
                 if len(results) > 0:
-                    assert (
-                        len(results) == 1
-                    ), f"Expected only 1 parameter assignment, got {len(results)}."
+                    assert len(results) == 1, f"Expected only 1 parameter assignment, got {len(results)}."
                     utterance_text = results[0]
 
                     # And remove it from the text
@@ -1306,9 +1247,7 @@ class ColangParser:
 
                 # If we have an utterance id and at least one example, we need to parse markdown.
                 # However, we only do this for non-test flows
-                if utterance_id is not None and (
-                    utterance_text is not None or i < len(indented_lines)
-                ):
+                if utterance_id is not None and (utterance_text is not None or i < len(indented_lines)):
                     if not self._is_test_flow() and not self._is_sample_flow():
                         # We need to reposition the current line, before the first line we need to parse
                         self.current_line_idx = initial_line_idx + i
@@ -1348,9 +1287,7 @@ class ColangParser:
 
                     # if we have quick_replies, we move them in the element
                     if "quick_replies" in self.current_element:
-                        self.current_element["bot"][
-                            "quick_replies"
-                        ] = self.current_element["quick_replies"]
+                        self.current_element["bot"]["quick_replies"] = self.current_element["quick_replies"]
                         del self.current_element["quick_replies"]
                 else:
                     self.current_element["bot"] = utterance_id
@@ -1377,9 +1314,7 @@ class ColangParser:
 
         # Check if the with syntax is used for parameters
         re_with_params_1 = r"(?P<event_name>.*?)(?: (?:with|for) (?P<vars>\$.+)$)"
-        re_with_params_2 = (
-            r"(?P<event_name>.*?)(?: (?:with|for) (?P<vars>\w+\s*=\s*.+)$)"
-        )
+        re_with_params_2 = r"(?P<event_name>.*?)(?: (?:with|for) (?P<vars>\w+\s*=\s*.+)$)"
 
         match = re.match(re_with_params_1, text) or re.match(re_with_params_2, text)
         if match:
@@ -1697,10 +1632,7 @@ class ColangParser:
                 ):
                     # We can only create a namespace if there are no elements in the current branch
                     # or there is no current branch
-                    if (
-                        len(self.branches) == 0
-                        or len(self.branches[-1]["elements"]) == 0
-                    ):
+                    if len(self.branches) == 0 or len(self.branches[-1]["elements"]) == 0:
                         namespace = self.text
                         # We make sure to remove the pre-pended ":" if it's the case
                         if namespace.startswith(":"):
@@ -1755,9 +1687,7 @@ class ColangParser:
                 elif self.main_token in ["return", "done"]:
                     self._parse_return()
                 else:
-                    raise Exception(
-                        f"Unknown main token '{self.main_token}' on line {self.current_line['number']}"
-                    )
+                    raise Exception(f"Unknown main token '{self.main_token}' on line {self.current_line['number']}")
 
                 # Include the source mappings if needed
                 self._include_source_mappings()
@@ -1791,10 +1721,7 @@ class ColangParser:
         # of the snippet, which can have spaces in it
         snippet_params_start_pos = 0
         while snippet_params_start_pos < len(self.text):
-            if (
-                self.text[snippet_params_start_pos] == '"'
-                or self.text[snippet_params_start_pos] == "<"
-            ):
+            if self.text[snippet_params_start_pos] == '"' or self.text[snippet_params_start_pos] == "<":
                 break
             else:
                 snippet_params_start_pos += 1

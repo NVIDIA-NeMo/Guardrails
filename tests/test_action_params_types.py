@@ -39,9 +39,7 @@ def test_1():
         ],
     )
 
-    async def custom_action(
-        name: str, age: int, height: float, colors: List[str], data: dict
-    ):
+    async def custom_action(name: str, age: int, height: float, colors: List[str], data: dict):
         assert name == "John"
         assert age == 20
         assert height == 5.8

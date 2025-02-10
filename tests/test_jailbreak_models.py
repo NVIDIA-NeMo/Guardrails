@@ -22,9 +22,7 @@ from tests.utils import TestChat
 
 try:
     if not os.getenv("EMBEDDING_CLASSIFIER_PATH"):
-        raise EnvironmentError(
-            "EMBEDDING_CLASSIFIER_PATH environment variable is not set."
-        )
+        raise EnvironmentError("EMBEDDING_CLASSIFIER_PATH environment variable is not set.")
 
     import torch
     import transformers
