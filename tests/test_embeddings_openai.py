@@ -45,20 +45,6 @@ def test_custom_llm_registration(app):
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 @pytest.mark.asyncio
-async def test_live_query():
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_openai_embeddings"))
-    app = LLMRails(config)
-
-    result = await app.generate_async(messages=[{"role": "user", "content": "tell me what you can do"}])
-
-    assert result == {
-        "role": "assistant",
-        "content": "I am an AI assistant that helps answer questions.",
-    }
-
-
-@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
-@pytest.mark.asyncio
 def test_live_query(app):
     result = app.generate(messages=[{"role": "user", "content": "tell me what you can do"}])
 

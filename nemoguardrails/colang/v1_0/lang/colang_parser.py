@@ -1306,7 +1306,7 @@ class ColangParser:
                     }
                 )
         # noinspection PyBroadException
-        except:
+        except KeyError:
             pass
 
     def _parse_event(self):

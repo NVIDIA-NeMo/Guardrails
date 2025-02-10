@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
 import logging
 from typing import Optional
 
@@ -52,9 +53,7 @@ async def self_check_hallucination(
 
     :return: True if hallucination is detected, False otherwise.
     """
-    try:
-        from langchain_openai import OpenAI
-    except ImportError:
+    if importlib.util.find_spec("langchain_openai") is None:
         log.warning(
             "The langchain_openai module is not installed. Please install it using pip: pip install langchain_openai"
         )

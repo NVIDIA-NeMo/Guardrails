@@ -87,7 +87,7 @@ def _fix_prefix_and_type_in_code_blocks(md_file_path):
                     updated_block = "\n".join(lines)
                     content = content.replace(block, updated_block)
                     block = updated_block
-            except:
+            except yaml.YAMLError:
                 pass
 
         if lines[0] == "```" and "from nemoguardrails" in block:

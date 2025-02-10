@@ -13,17 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
 import logging
 from typing import Optional
 
-try:
-    from google.cloud import language_v2
-except ImportError:
-    # The exception about installing google-cloud-language will be on the first call to the moderation api
-    pass
-
-
 from nemoguardrails.actions import action
+
+log = logging.getLogger(__name__)
+
+
+if importlib.util.find_spec("google.cloud.language_v2") is None:
+    log.warning(
+        "The google-cloud-language module is not installed. Please install it using pip: pip install google-cloud-language"
+    )
+
 
 log = logging.getLogger(__name__)
 

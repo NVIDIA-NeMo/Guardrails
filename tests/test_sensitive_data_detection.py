@@ -13,6 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# We detect if the environment is set up correct for SDD (presidio + downloaded spacy model)
+# poetry install -e "sdd" --with dev
+# python -m spacy download en_core_web_lg
+import importlib.util
+
 import pytest
 
 from nemoguardrails import RailsConfig
@@ -20,17 +25,19 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
 from tests.utils import TestChat
 
-# We detect if the environment is set up correct for SDD (presidio + downloaded spacy model)
-# poetry install -e "sdd" --with dev
-# python -m spacy download en_core_web_lg
 try:
-    import presidio_analyzer
-    import presidio_anonymizer
-    import spacy
+    presidio_analyzer_available = importlib.util.find_spec("presidio_analyzer") is not None
+    presidio_anonymizer_available = importlib.util.find_spec("presidio_anonymizer") is not None
+    spacy_available = importlib.util.find_spec("spacy") is not None
 
-    assert spacy.util.is_package("en_core_web_lg")
+    if presidio_analyzer_available and presidio_anonymizer_available and spacy_available:
+        import spacy
 
-    SDD_SETUP_PRESENT = True
+        assert spacy.util.is_package("en_core_web_lg")
+
+        SDD_SETUP_PRESENT = True
+    else:
+        SDD_SETUP_PRESENT = False
 except (ImportError, AssertionError):
     SDD_SETUP_PRESENT = False
 

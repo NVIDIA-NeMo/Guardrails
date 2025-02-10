@@ -47,7 +47,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
     ):
         try:
             import openai
-            from openai import AsyncOpenAI, OpenAI
+            from openai import OpenAI
         except ImportError:
             raise ImportError("Could not import openai, please install it with `pip install openai`.")
         if openai.__version__ < "1.0.0":

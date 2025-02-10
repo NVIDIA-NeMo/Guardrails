@@ -14,3 +14,5 @@
 # limitations under the License.
 
 from .actions import action
+
+__all__ = ["action"]

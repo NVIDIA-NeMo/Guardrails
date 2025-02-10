@@ -73,7 +73,7 @@ class HallucinationRailsEvaluation:
             try:
                 response = self.llm(prompt)
                 return response
-            except:
+            except Exception:
                 num_tries += 1
         return None
 
