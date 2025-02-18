@@ -6,6 +6,9 @@
     "files.trimFinalNewlines": true,
     "prettier.tabWidth": 4,
     "isort.args": ["--profile", "black"],
+    "markdownlint.config": {
+        "commands-show-output": false
+    },
 
     // MARKDOWN
     "[markdown]": {
@@ -50,6 +53,7 @@
     ],
     "python.testing.unittestEnabled": false,
     //"python.envFile": "${workspaceFolder}/python_release.env",
+
 
     // MYPY
     "mypy-type-checker.args": [
