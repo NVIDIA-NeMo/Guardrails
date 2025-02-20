@@ -1,12 +1,11 @@
 models:
   - type: main
-    engine: nim
-    model: meta/llama-3.1-70b-instruct
+    engine: nvidia_ai_endpoints
+    model_name: meta/llama-3.3-70b-instruct
 
   - type: content_safety
-    engine: nim
-    parameters:
-      model_name: nvidia/llama-3.1-nemoguard-8b-content-safety
+    engine: nvidia_ai_endpoints
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
 
 rails:
   input:
@@ -15,3 +14,8 @@ rails:
   output:
     flows:
       - content safety check output $model=content_safety
+    streaming:
+      chunk_size: 200
+      context_size: 50
+
+streaming: True

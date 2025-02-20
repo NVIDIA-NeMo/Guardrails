@@ -22,7 +22,7 @@ To simplify configuration, the sample code sends the user input to the
 - You installed LangChain NVIDIA AI Foundation Model Playground Integration:
 
   ```console
-  $ pip install langchain_nvidia_ai_endpoints
+  $ pip install langchain-nvidia-ai-endpoints
   ```
 
 ## Procedure
@@ -30,7 +30,7 @@ To simplify configuration, the sample code sends the user input to the
 1. Set your NVIDIA API key as an environment variable:
 
    ```console
-   export NVIDIA_API_KEY=<nvapi-...>
+   $ export NVIDIA_API_KEY=<nvapi-...>
    ```
 
 1. Create a _configuration store_ directory, such as `config` and add a `config/config.yml` file with the following contents:
@@ -65,8 +65,38 @@ To simplify configuration, the sample code sends the user input to the
    :end-before: "# end-generate-response"
    ```
 
-   *Example Output*
+   _Example Output_
 
-   ```output
-   "I'm sorry, I can't respond to that."
+   ```{literalinclude} ../examples/configs/gs_content_safety/demo-out.txt
+   :language: text
+   :start-after: "# start-generate-response"
+   :end-before: "# end-generate-response"
    ```
+
+## Timing and Token Information
+
+The following modification of the sample code shows the timing and token information for the guardrail.
+
+- Generate a response and print the timing and token information:
+
+  ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
+  :language: python
+  :start-after: "# start-get-duration"
+  :end-before: "# end-get-duration"
+  ```
+
+  _Example Output_
+
+  ```{literalinclude} ../examples/configs/gs_content_safety/demo-out.txt
+  :language: text
+  :start-after: "# start-get-duration"
+  :end-before: "# end-get-duration"
+  ```
+
+  The timing and token information is available with the `print_llm_calls_summary()` method.
+
+  ```{literalinclude} ../examples/configs/gs_content_safety/demo-out.txt
+  :language: text
+  :start-after: "# start-explain-info"
+  :end-before: "# end-explain-info"
+  ```

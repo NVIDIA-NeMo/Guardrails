@@ -1,0 +1,19 @@
+# start-generate-response
+I'm sorry, I can't respond to that.
+# end-generate-response
+
+
+# start-get-duration
+Cape Hatteras National Seashore! It's a 72-mile stretch of undeveloped barrier islands off the coast of North Carolina, featuring pristine beaches, Cape Hatteras Lighthouse, and the Wright brothers' first flight landing site. Enjoy surfing, camping, and wildlife-spotting amidst the natural beauty and rich history.
+# end-get-duration
+
+
+# start-explain-info
+Summary: 3 LLM call(s) took 1.50 seconds and used 22394 tokens.
+
+1. Task `content_safety_check_input $model=content_safety` took 0.35 seconds and used 7764 tokens.
+2. Task `general` took 0.67 seconds and used 164 tokens.
+3. Task `content_safety_check_output $model=content_safety` took 0.48 seconds and used 14466 tokens.
+
+# end-explain-info
+
