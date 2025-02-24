@@ -163,3 +163,35 @@ def test_hash_with_md5():
     hash_value = compute_hash("test")
     assert isinstance(hash_value, str)
     assert len(hash_value) == 32  # MD5 hash is 32 characters long
+
+
+@pytest.mark.asyncio
+async def test_extract_error_json():
+    """Test the extract_error_json function with different formats of error messages."""
+    from nemoguardrails.utils import extract_error_json
+
+    # Test standard format with dict
+    error_message = "Error code: 401 - {'error': {'message': 'Incorrect API key provided', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+    result = extract_error_json(error_message)
+    assert result["error"]["message"] == "Incorrect API key provided"
+    assert result["error"]["type"] == "invalid_request_error"
+    assert result["error"]["code"] == "invalid_api_key"
+
+    # Test with json format
+    error_message = 'Error code: 401 - {"error": {"message": "Incorrect API key provided", "type": "invalid_request_error", "param": null, "code": "invalid_api_key"}}'
+    result = extract_error_json(error_message)
+    assert result["error"]["message"] == "Incorrect API key provided"
+    assert result["error"]["type"] == "invalid_request_error"
+    assert result["error"]["code"] == "invalid_api_key"
+
+    # Test with no json part
+    error_message = "Some generic error without JSON"
+    result = extract_error_json(error_message)
+    assert result["error"]["message"] == "Some generic error without JSON"
+
+    # Test with malformed json
+    error_message = "Error code: 500 - {malformed json}"
+    result = extract_error_json(error_message)
+    assert "Error code: 500" in result["error"]["message"]
+    assert "code" in result["error"]
+    assert result["error"]["code"] == "500"

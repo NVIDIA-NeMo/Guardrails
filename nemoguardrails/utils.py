@@ -431,3 +431,53 @@ def compute_hash(text: str) -> str:
         hash_func = hashlib.sha256
 
     return hash_func(text.encode("utf-8")).hexdigest()
+
+
+def extract_error_json(error_message):
+    """
+    Extracts the JSON part from the exception message.
+
+    Args:
+        error_message (str): The exception message.
+
+    Returns:
+        dict: The extracted JSON part as a dictionary, or an error dictionary if extraction fails.
+    """
+    # OpenAI error format typically has "Error code: XXX - {...}" format
+
+    if " - " in error_message:
+        json_part = error_message.split(" - ", 1)[1]
+        try:
+            # If it's already a valid JSON string, parse it directly
+            try:
+                return json.loads(json_part)
+            except json.JSONDecodeError:
+                # If it looks like a Python dict, eval it safely
+                if json_part.startswith("{") and json_part.endswith("}"):
+                    try:
+                        import ast
+
+                        return ast.literal_eval(json_part)
+                    except (SyntaxError, ValueError):
+                        pass
+
+            # If we're still here, try replacing single quotes with double quotes
+            json_part = json_part.replace("'", '"')
+            return json.loads(json_part)
+        except json.JSONDecodeError:
+            # If JSON parsing fails, look for nested error structure
+            error_dict = {"error": {"message": error_message}}
+            # Try to extract error code if available
+            if "Error code:" in error_message:
+                try:
+                    code = (
+                        error_message.split("Error code:", 1)[1]
+                        .strip()
+                        .split(" ", 1)[0]
+                    )
+                    error_dict["error"]["code"] = code
+                except (IndexError, ValueError):
+                    pass
+            return error_dict
+    else:
+        return {"error": {"message": error_message}}

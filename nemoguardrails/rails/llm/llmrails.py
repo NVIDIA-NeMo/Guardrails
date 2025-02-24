@@ -17,6 +17,7 @@
 
 import asyncio
 import importlib.util
+import json
 import logging
 import os
 import re
@@ -68,7 +69,12 @@ from nemoguardrails.rails.llm.options import (
 )
 from nemoguardrails.rails.llm.utils import get_history_cache_key
 from nemoguardrails.streaming import StreamingHandler
-from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
+from nemoguardrails.utils import (
+    extract_error_json,
+    get_or_create_event_loop,
+    new_event_dict,
+    new_uuid,
+)
 
 log = logging.getLogger(__name__)
 
@@ -684,11 +690,27 @@ class LLMRails:
                 assert isinstance(state, dict)
                 state_events = state["events"]
 
+            new_events = []
             # Compute the new events.
-            new_events = await self.runtime.generate_events(
-                state_events + events, processing_log=processing_log
-            )
-            output_state = None
+            try:
+                new_events = await self.runtime.generate_events(
+                    state_events + events, processing_log=processing_log
+                )
+                output_state = None
+
+            except Exception as e:
+                log.error("Error in generate_async: %s", e, exc_info=True)
+                streaming_handler = streaming_handler_var.get()
+                if streaming_handler:
+                    # Push an error chunk instead of None.
+                    error_message = str(e)
+                    error_dict = extract_error_json(error_message)
+                    error_payload = json.dumps(error_dict)
+                    await streaming_handler.push_chunk(error_payload)
+                    # push a termination signal
+                    await streaming_handler.push_chunk(None)
+                # Re-raise the exact exception
+                raise
         else:
             # In generation mode, by default the bot response is an instant action.
             instant_actions = ["UtteranceBotAction"]
@@ -1267,6 +1289,15 @@ class LLMRails:
         async for chunk_list, chunk_str_rep in buffer_strategy(streaming_handler):
             chunk_str = " ".join(chunk_list)
 
+            # Check if chunk_str_rep is a JSON string
+            # we yield a json error payload in generate_async when
+            # streaming has errors
+            try:
+                json.loads(chunk_str_rep)
+                yield chunk_str_rep
+                return
+            except json.JSONDecodeError:
+                pass
             if stream_first:
                 words = chunk_str_rep.split()
                 if words:

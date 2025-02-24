@@ -425,3 +425,54 @@ def _calculate_number_of_actions(input_length, chunk_size, context_size):
     if input_length <= chunk_size:
         return 1
     return math.ceil((input_length - context_size) / (chunk_size - context_size))
+
+
+@pytest.mark.asyncio
+async def test_streaming_error_handling():
+    """Test that errors during streaming are properly formatted and returned."""
+    # Create a config with an invalid model to trigger an error
+    config: RailsConfig = RailsConfig.from_content(
+        config={
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "openai",
+                    "model": "non-existent-model",
+                }
+            ],
+            "streaming": True,
+        }
+    )
+
+    # Create a mock chat with an error response
+    chat = TestChat(
+        config,
+        llm_completions=["Error"],  # This isn't going to be used due to the error
+        streaming=True,
+        llm_exception=Exception(
+            "Error code: 404 - {'error': {'message': 'The model `non-existent-model` does not exist or you do not have access to it.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}}"
+        ),
+    )
+
+    chunks = []
+    async for chunk in chat.app.stream_async(
+        messages=[{"role": "user", "content": "Hi!"}],
+    ):
+        chunks.append(chunk)
+
+    assert len(chunks) == 1
+    error_chunk = chunks[0]
+
+    # Verify the error chunk is a valid json
+    error_data = json.loads(error_chunk)
+    assert "error" in error_data
+    assert "message" in error_data["error"]
+    assert (
+        "The model `non-existent-model` does not exist"
+        in error_data["error"]["message"]
+    )
+    assert error_data["error"]["type"] == "invalid_request_error"
+    assert error_data["error"]["code"] == "model_not_found"
+
+    # Wait for proper cleanup, otherwise we get a Runtime Error
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
