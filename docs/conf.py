@@ -31,6 +31,7 @@ with open("../pyproject.toml") as f:
 extensions = [
     "myst_parser",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
     "sphinx_copybutton",
     "sphinx_reredirects",
 ]
@@ -40,13 +41,17 @@ redirects = {
     "documentation": "index.html",
 }
 
+autosectionlabel_prefix_document = True
+autosectionlabel_maxdepth = 2
+
 copybutton_exclude = ".linenos, .gp, .go"
 
 exclude_patterns = [
     "README.md",
+    "_build/**",
 ]
 
-myst_linkify_fuzzy_links = False
+# myst_linkify_fuzzy_links = False
 myst_heading_anchors = 3
 myst_enable_extensions = [
     "deflist",
@@ -58,10 +63,6 @@ myst_enable_extensions = [
 myst_substitutions = {
     "version": release,
 }
-
-exclude_patterns = [
-    "_build/**",
-]
 
 # intersphinx_mapping = {
 #     'gpu-op': ('https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest', None),
