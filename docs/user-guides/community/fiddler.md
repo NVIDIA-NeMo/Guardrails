@@ -6,7 +6,7 @@ Currently, only Fiddler Trust Models ([Faithfulness](https://docs.fiddler.ai/pro
 
 ## Setup
 
-1. Ensure that you have access to a valid Fiddler environment. To obtain one, please [contact us](https://www.fiddler.ai/contact-sale).
+1. Ensure that you have access to a valid Fiddler environment. To obtain one, please [contact us](https://www.fiddler.ai/contact-sales).
 
 2. Create a new [Fiddler environment key](https://docs.fiddler.ai/ui-guide/administration-ui/settings#credentials) and set the `FIDDLER_API_KEY` environment variable to this key to authenticate into the Fiddler service.
 
