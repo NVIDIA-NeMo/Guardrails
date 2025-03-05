@@ -59,7 +59,7 @@ datastore: Optional[DataStore] = None
 
 
 @asynccontextmanager
-def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):
     # Startup logic here
     """Register any additional challenges, if available at startup."""
     challenges_files = os.path.join(app.rails_config_path, "challenges.json")
