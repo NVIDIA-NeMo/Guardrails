@@ -57,7 +57,24 @@ async def call_fiddler_guardrail(
                     return False
 
                 response_json = await response.json()
-                detection_score = response_json[0].get(score_key, default_score)
+                if score_key == "safety":
+                    detection_score = max(
+                        response_json.get(key, default_score)
+                        for key in [
+                            "fdl_harmful",
+                            "fdl_violent",
+                            "fdl_unethical",
+                            "fdl_illegal",
+                            "fdl_sexual",
+                            "fdl_racist",
+                            "fdl_jailbreaking",
+                            "fdl_harassing",
+                            "fdl_hateful",
+                            "fdl_sexist",
+                        ]
+                    )
+                else:
+                    detection_score = response_json.get(score_key, default_score)
                 return compare(detection_score, threshold)
     except aiohttp.ClientError as e:
         log.error(f"{guardrail_name} request failed: {e}")
@@ -88,7 +105,7 @@ async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] 
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
         guardrail_name="Fiddler Jailbreak Guardrails",
-        score_key="any_score",
+        score_key="safety",
         threshold=fiddler_config.safety_threshold,
         compare=lambda score, threshold: score >= threshold,
         default_score=0,
@@ -116,7 +133,7 @@ async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] =
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
         guardrail_name="Fiddler Safety Guardrails",
-        score_key="any_score",
+        score_key="safety",
         threshold=fiddler_config.safety_threshold,
         compare=lambda score, threshold: score >= threshold,
         default_score=0,
@@ -147,7 +164,7 @@ async def call_fiddler_faithfulness(
         endpoint=base_url + "/v3/guardrails/ftl-response-faithfulness",
         data=data,
         guardrail_name="Fiddler Faithfulness Guardrails",
-        score_key="faithful_score",
+        score_key="fdl_faithful_score",
         threshold=fiddler_config.faithfulness_threshold,
         compare=lambda score, threshold: score <= threshold,
         default_score=1,

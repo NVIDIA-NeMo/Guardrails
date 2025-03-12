@@ -51,7 +51,18 @@ async def test_fiddler_safety_rails(monkeypatch):
     with aioresponses() as m:
         m.post(
             "https://testfiddler.ai/v3/guardrails/ftl-safety",
-            payload=[{"any_score": 0.5}],
+            payload={
+                "fdl_harmful": 0.5,
+                "fdl_violent": 0.5,
+                "fdl_unethical": 0.5,
+                "fdl_illegal": 0.5,
+                "fdl_sexual": 0.5,
+                "fdl_racist": 0.5,
+                "fdl_jailbreaking": 0.5,
+                "fdl_harassing": 0.5,
+                "fdl_hateful": 0.5,
+                "fdl_sexist": 0.5,
+            },
         )
 
         chat >> "Do you ship within 2 days?"
@@ -77,7 +88,18 @@ async def test_fiddler_safety_rails_pass(monkeypatch):
     with aioresponses() as m:
         m.post(
             "https://testfiddler.ai/v3/guardrails/ftl-safety",
-            payload=[{"any_score": 0.02}],
+            payload={
+                "fdl_harmful": 0.02,
+                "fdl_violent": 0.02,
+                "fdl_unethical": 0.02,
+                "fdl_illegal": 0.02,
+                "fdl_sexual": 0.02,
+                "fdl_racist": 0.02,
+                "fdl_jailbreaking": 0.02,
+                "fdl_harassing": 0.02,
+                "fdl_hateful": 0.02,
+                "fdl_sexist": 0.02,
+            },
         )
         chat >> "Do you ship within 2 days?"
         await chat.bot_async("Yes, shipping can be done in 2 days.")
@@ -101,7 +123,18 @@ async def test_fiddler_thresholds(monkeypatch):
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             "https://testfiddler.ai/v3/guardrails/ftl-safety",
-            payload=[{"any_score": 0.5}],
+            payload={
+                "fdl_harmful": 0.5,
+                "fdl_violent": 0.5,
+                "fdl_unethical": 0.5,
+                "fdl_illegal": 0.5,
+                "fdl_sexual": 0.5,
+                "fdl_racist": 0.5,
+                "fdl_jailbreaking": 0.5,
+                "fdl_harassing": 0.5,
+                "fdl_hateful": 0.5,
+                "fdl_sexist": 0.5,
+            },
         )
         chat >> "Do you ship within 2 days?"
         await chat.bot_async("I'm sorry, I can't respond to that.")
@@ -125,7 +158,7 @@ async def test_fiddler_faithfulness_rails(monkeypatch):
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             "https://testfiddler.ai/v3/guardrails/ftl-response-faithfulness",
-            payload=[{"faithful_score": 0.001}],
+            payload={"fdl_faithful_score": 0.001},
         )
         chat >> "Do you ship within 2 days?"
         await chat.bot_async("I'm sorry, I can't respond to that.")
@@ -149,7 +182,7 @@ async def test_fiddler_faithfulness_rails_pass(monkeypatch):
         chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
         m.post(
             "https://testfiddler.ai/v3/guardrails/ftl-response-faithfulness",
-            payload=[{"faithful_score": 0.5}],
+            payload={"fdl_faithful_score": 0.5},
         )
         chat >> "Do you ship within 2 days?"
         await chat.bot_async("Yes, shipping can be done in 2 days.")
