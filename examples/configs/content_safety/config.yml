@@ -1,23 +1,11 @@
 models:
   - type: main
-    engine: openai
-    model: gpt-3.5-turbo-instruct
+    engine: nim
+    model_name: nvdev/meta/llama-3.3-70b-instruct
 
   - type: content_safety
     engine: nim
-    model: llama-3.1-nemoguard-8b-content-safety
-    parameters:
-      base_url: "http://localhost:8123/v1"
-
-  - type: shieldgemma
-    engine: nvidia_ai_endpoints
-    model: google/shieldgemma-9b
-
-  - type: llama_guard_2
-    engine: vllm_openai
-    parameters:
-      openai_api_base: "http://localhost:5005/v1"
-      model_name: "meta-llama/Meta-Llama-Guard-2-8B"
+    model: nvdev/nvidia/nemoguard-8b-content-safety
 
 rails:
   input:
