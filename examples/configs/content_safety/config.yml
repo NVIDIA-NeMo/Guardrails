@@ -1,11 +1,11 @@
 models:
   - type: main
     engine: nim
-    model_name: nvdev/meta/llama-3.3-70b-instruct
+    model_name: meta/llama-3.3-70b-instruct
 
   - type: content_safety
     engine: nim
-    model: nvdev/nvidia/nemoguard-8b-content-safety
+    model: nvidia/nemoguard-8b-content-safety
 
 rails:
   input:
