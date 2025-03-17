@@ -30,6 +30,7 @@ user-guides/guardrails-library
 user-guides/guardrails-process
 user-guides/colang-language-syntax-guide
 user-guides/llm-support
+Multimodal Data <user-guides/multimodal>
 user-guides/python-api
 user-guides/cli
 user-guides/server-guide
