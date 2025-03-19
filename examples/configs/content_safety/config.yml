@@ -5,7 +5,7 @@ models:
 
   - type: content_safety
     engine: nim
-    model: nvidia/nemoguard-8b-content-safety
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
 
 rails:
   input:
