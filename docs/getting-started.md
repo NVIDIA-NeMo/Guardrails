@@ -9,8 +9,11 @@
 
 The following procedure adds a guardrail to check user input against a content safety model.
 
-To simplify configuration, the sample code sends the user input to the
+To simplify configuration, the sample code sends the prompt text and the model response to the
 [Llama 3.1 NemoGuard 8B Content Safety model](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety) deployed on the NVIDIA API Catalog.
+
+The prompt text is also sent to NVIDIA API Catalog as the application LLM.
+The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com/meta/llama-3_3-70b-instruct).
 
 ## Prerequisites
 
