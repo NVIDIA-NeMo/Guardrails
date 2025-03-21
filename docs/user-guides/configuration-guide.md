@@ -96,9 +96,15 @@ Although you can instantiate any of the previously mentioned LLM providers, depe
 
 #### Using LLMs with Reasoning Traces
 
-To use an LLM that outputs the reasoning traces as part of the response (e.g. [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d)), the following model config should be used:
+By default, reasoning models, such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d), include the reasoning traces in the model response.
+DeepSeek models use `<think>` and `</think>` as tokens to identify the traces.
+
+The reasoning traces and the tokens usually interfere with NeMo Guardrails and result in falsely triggering output guardrails for safe responses.
+To use these reasoning models, you can remove the traces and tokens from the model response with a configuration like the following example.
 
 ```yaml
+:emphasize-lines: 5-
+
 models:
   - type: main
     engine: deepseek
@@ -109,13 +115,14 @@ models:
       end_token: "</think>"
 ```
 
-The `reasoning_config` attribute for a model contains all the required configuration for a reasoning model that outputs reasoning traces.
-In most of the cases, the reasoning traces need to be removed and the guardrails runtime will only process the actual responses from the LLM.
+The `reasoning_config` field for a model specifies the required configuration for a reasoning model that returns reasoning traces.
+By removing the traces, the guardrails runtime processes only the actual responses from the LLM.
 
-The attributes that can be configured for a reasoning model are:
-- `remove_thinking_traces`: if the reasoning traces should be ignored (defaults to `True`.
-- `start_token`: the start token for the reasoning process (e.g. `<think>` for DeepSeek-R1).
-- `end_token`: the end token for the reasoning process (e.g. `</think>` for DeepSeek-R1).
+You can specify the following parameters for a reasoning model:
+
+- `remove_thinking_traces`: if the reasoning traces should be ignored (default `True`).
+- `start_token`: the start token for the reasoning process (default `<think>`).
+- `end_token`: the end token for the reasoning process (default `</think>`).
 
 #### NIM for LLMs
 
