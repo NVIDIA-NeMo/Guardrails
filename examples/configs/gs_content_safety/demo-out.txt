@@ -16,4 +16,3 @@ Summary: 3 LLM call(s) took 1.50 seconds and used 22394 tokens.
 3. Task `content_safety_check_output $model=content_safety` took 0.48 seconds and used 14466 tokens.
 
 # end-explain-info
-
