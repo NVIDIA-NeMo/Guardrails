@@ -163,6 +163,29 @@ class Document(BaseModel):
     content: str
 
 
+class InjectionDetection(BaseModel):
+    injections: List[str] = Field(
+        default_factory=list,
+        description="The list of injection types to detect. Options are 'sqli', 'template', 'code', 'xss'."
+        "Currently, only SQL injection, template injection, code injection, "
+        "and markdown cross-site scripting are supported. "
+        "Custom rules can be added, provided they are in the `yara_path` and follow the "
+        "{injection_name}.yara naming convention.",
+    )
+    action: str = Field(
+        default="reject",
+        pattern=r"^(reject|omit)$",
+        description="Action to take. Options are 'reject' to offer a rejection message, "
+        "'omit' to mask the offending content, and 'sanitize' to pass the content as-is in the safest way. "
+        "These options are listed in descending order of relative safety. 'sanitize' is not implemented at this time.",
+    )
+    yara_path: str = Field(
+        default="",
+        description="Location on disk where YARA rules are located. If this parameter is an empty string, "
+        "the default location defined in injection_detection's actions.py file will be used.",
+    )
+
+
 class SensitiveDataDetectionOptions(BaseModel):
     entities: List[str] = Field(
         default_factory=list,
@@ -626,6 +649,11 @@ class RailsConfigData(BaseModel):
     jailbreak_detection: Optional[JailbreakDetectionConfig] = Field(
         default_factory=JailbreakDetectionConfig,
         description="Configuration for jailbreak detection.",
+    )
+
+    injection: Optional[InjectionDetection] = Field(
+        default_factory=InjectionDetection,
+        description="Configuration for injection detection.",
     )
 
     privateai: Optional[PrivateAIDetection] = Field(
