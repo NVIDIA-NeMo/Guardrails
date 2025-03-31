@@ -15,10 +15,13 @@
 
 # fmt: off
 
+import asyncio
 import atexit
 import os
 import sys
 from pathlib import Path
+
+from nemoguardrails import LLMRails, RailsConfig
 
 curdir = os.getcwd()
 
@@ -27,11 +30,6 @@ def cleanup():
     os.chdir(curdir)
 
 os.chdir(Path(__file__).parent)
-
-# start-load-config
-import asyncio
-
-from nemoguardrails import LLMRails, RailsConfig
 
 config = RailsConfig.from_path("./config")
 rails = LLMRails(config)

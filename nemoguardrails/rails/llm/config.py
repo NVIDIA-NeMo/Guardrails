@@ -17,7 +17,6 @@
 
 import logging
 import os
-import re
 import warnings
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -52,9 +51,7 @@ standard_library_path = os.path.normpath(
 )
 
 # nemoguardrails/library
-guardrails_stdlib_path = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..")
-)
+guardrails_stdlib_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 colang_path_dirs.append(standard_library_path)
 colang_path_dirs.append(guardrails_stdlib_path)
 

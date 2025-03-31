@@ -480,10 +480,7 @@ async def test_streaming_error_handling():
     error_data = json.loads(error_chunk)
     assert "error" in error_data
     assert "message" in error_data["error"]
-    assert (
-        "The model `non-existent-model` does not exist"
-        in error_data["error"]["message"]
-    )
+    assert "The model `non-existent-model` does not exist" in error_data["error"]["message"]
     assert error_data["error"]["type"] == "invalid_request_error"
     assert error_data["error"]["code"] == "model_not_found"
 

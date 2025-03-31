@@ -106,9 +106,7 @@ async def jailbreak_nim_request(
             try:
                 async with session.post(endpoint, json=payload, timeout=30) as resp:
                     if resp.status != 200:
-                        log.error(
-                            f"NemoGuard JailbreakDetect NIM request failed with status {resp.status}"
-                        )
+                        log.error(f"NemoGuard JailbreakDetect NIM request failed with status {resp.status}")
                         return None
 
                     result = await resp.json()

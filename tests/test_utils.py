@@ -199,9 +199,7 @@ async def test_extract_error_json():
     assert "Invalid error format: Potentially unsafe" in result["error"]["message"]
 
     # None in error dict
-    error_message = (
-        "Error code: 500 - {'error': {'message': 'Test message', 'param': None}}"
-    )
+    error_message = "Error code: 500 - {'error': {'message': 'Test message', 'param': None}}"
     result = extract_error_json(error_message)
     assert isinstance(result, dict)
     assert "error" in result
@@ -210,9 +208,7 @@ async def test_extract_error_json():
         assert result["error"]["param"] is None
 
     # very nested structure
-    error_message = (
-        "Error code: 500 - {'error': {'nested': {'deeper': {'message': 'Too deep'}}}}"
-    )
+    error_message = "Error code: 500 - {'error': {'nested': {'deeper': {'message': 'Too deep'}}}}"
     result = extract_error_json(error_message)
     assert "Invalid error format: Object too deeply" in result["error"]["message"]
 
@@ -224,9 +220,7 @@ async def test_extract_error_json():
     assert "... (truncated)" in result["error"]["message"]
 
     # list in errors
-    error_message = (
-        "Error code: 500 - {'error': {'items': [1, 2, 3], 'message': 'List test'}}"
-    )
+    error_message = "Error code: 500 - {'error': {'items': [1, 2, 3], 'message': 'List test'}}"
     result = extract_error_json(error_message)
     assert "deeply nested" in result["error"]["message"]
 
@@ -247,9 +241,7 @@ async def test_extract_error_json():
 
     # multiple error codes
     # we cannot parse it
-    error_message = (
-        "Error code: 500 - Error code: 401 - {'error': {'message': 'Multiple codes'}}"
-    )
+    error_message = "Error code: 500 - Error code: 401 - {'error': {'message': 'Multiple codes'}}"
     result = extract_error_json(error_message)
     assert result["error"]["message"] == error_message
     with pytest.raises(KeyError):

@@ -145,9 +145,7 @@ class StreamingHandler(AsyncCallbackHandler, AsyncIterator):
                     break
 
                 if isinstance(element, dict):
-                    if element is not None and (
-                        element.get("text") is None or element.get("text") == ""
-                    ):
+                    if element is not None and (element.get("text") is None or element.get("text") == ""):
                         yield element
                         break
                 yield element
@@ -168,16 +166,12 @@ class StreamingHandler(AsyncCallbackHandler, AsyncIterator):
             raise StopAsyncIteration
 
         if isinstance(element, dict):
-            if element is not None and (
-                element.get("text") is None or element.get("text") == ""
-            ):
+            if element is not None and (element.get("text") is None or element.get("text") == ""):
                 raise StopAsyncIteration
         else:
             return element
 
-    async def _process(
-        self, chunk: str, generation_info: Optional[Dict[str, Any]] = None
-    ):
+    async def _process(self, chunk: str, generation_info: Optional[Dict[str, Any]] = None):
         """Process a chunk of text.
 
         If we're in buffering mode, record the text.
@@ -297,14 +291,8 @@ class StreamingHandler(AsyncCallbackHandler, AsyncIterator):
                 return
             else:
                 if chunk == "" or chunk is None:
-                    if (
-                        self.current_chunk
-                        and self.suffix
-                        and self.current_chunk.endswith(self.suffix)
-                    ):
-                        self.current_chunk = self.current_chunk[
-                            0 : -1 * len(self.suffix)
-                        ]
+                    if self.current_chunk and self.suffix and self.current_chunk.endswith(self.suffix):
+                        self.current_chunk = self.current_chunk[0 : -1 * len(self.suffix)]
                 await self._process(self.current_chunk, generation_info)
                 self.current_chunk = ""
         else:
@@ -339,9 +327,7 @@ class StreamingHandler(AsyncCallbackHandler, AsyncIterator):
             if token == "":
                 return
         # Pass token as generation metadata.
-        generation_info = (
-            chunk.generation_info if chunk and hasattr(chunk, "generation_info") else {}
-        )
+        generation_info = chunk.generation_info if chunk and hasattr(chunk, "generation_info") else {}
         await self.push_chunk(chunk, generation_info=generation_info)
 
     async def on_llm_end(

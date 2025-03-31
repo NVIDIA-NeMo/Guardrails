@@ -17,7 +17,6 @@
 
 import asyncio
 import json
-import math
 from json.decoder import JSONDecodeError
 
 import pytest
@@ -94,9 +93,7 @@ async def test_stream_async_streaming_disabled(output_rails_streaming_config_def
     llmrails = LLMRails(output_rails_streaming_config_default)
 
     result = llmrails.stream_async(prompt="test")
-    assert isinstance(
-        result, StreamingHandler
-    ), "Expected StreamingHandler instance when streaming is disabled"
+    assert isinstance(result, StreamingHandler), "Expected StreamingHandler instance when streaming is disabled"
 
 
 @pytest.mark.asyncio
@@ -106,9 +103,9 @@ async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     llmrails = LLMRails(output_rails_streaming_config)
 
     result = llmrails.stream_async(prompt="test")
-    assert not isinstance(
-        result, StreamingHandler
-    ), "Did not expect StreamingHandler instance when streaming is enabled"
+    assert not isinstance(result, StreamingHandler), (
+        "Did not expect StreamingHandler instance when streaming is enabled"
+    )
 
 
 @action(is_system_action=True, output_mapping=lambda result: not result)
@@ -162,9 +159,7 @@ async def test_streaming_output_rails_blocked_explicit(output_rails_streaming_co
         }
     }
 
-    error_chunks = [
-        json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')
-    ]
+    error_chunks = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
     assert len(error_chunks) > 0
     assert expected_error in error_chunks
 
@@ -183,9 +178,7 @@ async def test_streaming_output_rails_blocked_default_config(
         '  "This is a [BLOCK] joke that should be blocked."',
     ]
 
-    chunks = await run_self_check_test(
-        output_rails_streaming_config_default, llm_completions
-    )
+    chunks = await run_self_check_test(output_rails_streaming_config_default, llm_completions)
 
     expected_error = {
         "error": {
@@ -196,9 +189,7 @@ async def test_streaming_output_rails_blocked_default_config(
         }
     }
 
-    error_chunks = [
-        json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')
-    ]
+    error_chunks = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
     assert len(error_chunks) == 0
     assert expected_error not in error_chunks
 
@@ -242,9 +233,7 @@ async def test_streaming_output_rails_default_config_not_blocked_at_start(
         '  "[BLOCK] This should be blocked immediately at the start."',
     ]
 
-    chunks = await run_self_check_test(
-        output_rails_streaming_config_default, llm_completions
-    )
+    chunks = await run_self_check_test(output_rails_streaming_config_default, llm_completions)
 
     with pytest.raises(JSONDecodeError):
         json.loads(chunks[0])

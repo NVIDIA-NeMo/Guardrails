@@ -677,9 +677,7 @@ def test_get_action_details_exact_match(dummy_flows):
 
 
 def test_get_action_details_exact_match_any_co_file(dummy_flows):
-    action_name, action_params = _get_action_details_from_flow_id(
-        "test_rails_co", dummy_flows
-    )
+    action_name, action_params = _get_action_details_from_flow_id("test_rails_co", dummy_flows)
     assert action_name == "test_action_supported"
     assert action_params == {"param1": "value1"}
 

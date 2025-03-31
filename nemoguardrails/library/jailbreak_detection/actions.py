@@ -107,13 +107,9 @@ async def jailbreak_detection_model(
         return jailbreak["jailbreak"]
 
     if nim_url:
-        jailbreak = await jailbreak_nim_request(
-            prompt=prompt, nim_url=nim_url, nim_port=nim_port
-        )
+        jailbreak = await jailbreak_nim_request(prompt=prompt, nim_url=nim_url, nim_port=nim_port)
     elif jailbreak_api_url:
-        jailbreak = await jailbreak_detection_model_request(
-            prompt=prompt, api_url=jailbreak_api_url
-        )
+        jailbreak = await jailbreak_detection_model_request(prompt=prompt, api_url=jailbreak_api_url)
 
     if jailbreak is None:
         log.warning("Jailbreak endpoint not set up properly.")

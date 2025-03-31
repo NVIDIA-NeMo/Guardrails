@@ -215,9 +215,7 @@ class LLMTaskManager:
                     if isinstance(item, dict):
                         if item.get("type") == "text":
                             result_text += item.get("text", "") + "\n"
-                        elif item.get("type") == "image_url" and isinstance(
-                            item.get("image_url"), dict
-                        ):
+                        elif item.get("type") == "image_url" and isinstance(item.get("image_url"), dict):
                             # image_url items, only count a placeholder length
                             result_text += "[IMAGE_CONTENT]\n"
 
@@ -226,9 +224,7 @@ class LLMTaskManager:
                 base64_pattern = r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+"
                 if re.search(base64_pattern, content):
                     # Replace base64 content with placeholder using regex
-                    result_text += (
-                        re.sub(base64_pattern, "[IMAGE_CONTENT]", content) + "\n"
-                    )
+                    result_text += re.sub(base64_pattern, "[IMAGE_CONTENT]", content) + "\n"
                 else:
                     result_text += content + "\n"
 
@@ -294,9 +290,7 @@ class LLMTaskManager:
                 task_prompt_length = self._get_messages_text_length(task_messages)
             return task_messages
 
-    def parse_task_output(
-        self, task: Task, output: str, forced_output_parser: Optional[str] = None
-    ):
+    def parse_task_output(self, task: Task, output: str, forced_output_parser: Optional[str] = None):
         """Parses the output for the provided tasks.
 
         If an output parser is associated with the prompt, it will be used.
@@ -313,11 +307,7 @@ class LLMTaskManager:
             logging.info("No output parser found for %s", prompt.output_parser)
 
         model = get_task_model(self.config, task)
-        if (
-            model
-            and model.reasoning_config
-            and model.reasoning_config.remove_thinking_traces
-        ):
+        if model and model.reasoning_config and model.reasoning_config.remove_thinking_traces:
             start_token = model.reasoning_config.start_token
             end_token = model.reasoning_config.end_token
             output = remove_reasoning_traces(output, start_token, end_token)

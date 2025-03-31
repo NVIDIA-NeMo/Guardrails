@@ -70,9 +70,9 @@ async def lifespan(app: FastAPI):
 
     # If there is a `config.yml` in the root `app.rails_config_path`, then
     # that means we are in single config mode.
-    if os.path.exists(
-        os.path.join(app.rails_config_path, "config.yml")
-    ) or os.path.exists(os.path.join(app.rails_config_path, "config.yaml")):
+    if os.path.exists(os.path.join(app.rails_config_path, "config.yml")) or os.path.exists(
+        os.path.join(app.rails_config_path, "config.yaml")
+    ):
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
     else:

@@ -352,9 +352,7 @@ class LLMGenerationActions:
             examples = ""
             potential_user_intents = []
             if isinstance(event["text"], list):
-                text = " ".join(
-                    [item["text"] for item in event["text"] if item["type"] == "text"]
-                )
+                text = " ".join([item["text"] for item in event["text"] if item["type"] == "text"])
             else:
                 text = event["text"]
 
@@ -364,9 +362,7 @@ class LLMGenerationActions:
                 if config.rails.dialog.user_messages:
                     threshold = config.rails.dialog.user_messages.embeddings_only_similarity_threshold
 
-                results = await self.user_message_index.search(
-                    text=text, max_results=5, threshold=threshold
-                )
+                results = await self.user_message_index.search(text=text, max_results=5, threshold=threshold)
 
                 # If the option to use only the embeddings is activated, we take the first
                 # canonical form.
@@ -383,9 +379,7 @@ class LLMGenerationActions:
 
                     return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
                 else:
-                    results = await self.user_message_index.search(
-                        text=text, max_results=5
-                    )
+                    results = await self.user_message_index.search(text=text, max_results=5)
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
                     examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
@@ -482,9 +476,7 @@ class LLMGenerationActions:
                             prompt,
                             custom_callback_handlers=[streaming_handler_var.get()],
                         )
-                    text = self.llm_task_manager.parse_task_output(
-                        Task.GENERAL, output=text
-                    )
+                    text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
             else:
                 # Initialize the LLMCallInfo object
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
@@ -515,9 +507,7 @@ class LLMGenerationActions:
                         stop=["User:"],
                     )
 
-                text = self.llm_task_manager.parse_task_output(
-                    Task.GENERAL, output=result
-                )
+                text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
                 text = text.strip()
                 if text.startswith('"'):
                     text = text[1:-1]
@@ -816,9 +806,7 @@ class LLMGenerationActions:
                     ):
                         result = await llm_call(llm, prompt, custom_callback_handlers=[streaming_handler])
 
-                        result = self.llm_task_manager.parse_task_output(
-                            Task.GENERAL, output=result
-                        )
+                        result = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
 
                     log.info(
                         "--- :: LLM Bot Message Generation passthrough call took %.2f seconds",
@@ -1071,9 +1059,7 @@ class LLMGenerationActions:
                                 for bot_message_result in bot_messages_results:
                                     if bot_message_result.text == bot_canonical_form:
                                         found_bot_message = True
-                                        example += (
-                                            f'  "{bot_message_result.meta["text"]}"\n'
-                                        )
+                                        example += f'  "{bot_message_result.meta["text"]}"\n'
                                         # Only use the first bot message for now
                                         break
 
@@ -1223,9 +1209,7 @@ class LLMGenerationActions:
             with llm_params(llm, **((generation_options and generation_options.llm_params) or {})):
                 result = await llm_call(llm, prompt)
 
-            result = self.llm_task_manager.parse_task_output(
-                Task.GENERAL, output=result
-            )
+            result = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
             text = result.strip()
             if text.startswith('"'):
                 text = text[1:-1]

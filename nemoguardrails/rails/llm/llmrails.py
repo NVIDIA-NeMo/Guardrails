@@ -651,9 +651,7 @@ class LLMRails:
             new_events = []
             # Compute the new events.
             try:
-                new_events = await self.runtime.generate_events(
-                    state_events + events, processing_log=processing_log
-                )
+                new_events = await self.runtime.generate_events(state_events + events, processing_log=processing_log)
                 output_state = None
 
             except Exception as e:
@@ -741,10 +739,7 @@ class LLMRails:
 
         else:
             # Ensure all items in responses are strings
-            responses = [
-                str(response) if not isinstance(response, str) else response
-                for response in responses
-            ]
+            responses = [str(response) if not isinstance(response, str) else response for response in responses]
             new_message = {"role": "assistant", "content": "\n".join(responses)}
         if response_tool_calls:
             new_message["tool_calls"] = response_tool_calls
@@ -897,9 +892,7 @@ class LLMRails:
         include_generation_metadata: Optional[bool] = False,
     ) -> AsyncIterator[str]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
-        streaming_handler = StreamingHandler(
-            include_generation_metadata=include_generation_metadata
-        )
+        streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
 
         # todo use a context var for buffer strategy and return it here?
         # then iterating over buffer strategy is nested loop?

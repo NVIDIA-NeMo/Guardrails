@@ -265,8 +265,7 @@ def get_llm_provider(model_config: Model) -> Type[BaseLLM]:
             return ChatGoogleGenerativeAI
         except ImportError:
             raise ImportError(
-                "Could not import langchain_google_genai, please install it with "
-                "`pip install langchain_google_genai`."
+                "Could not import langchain_google_genai, please install it with `pip install langchain_google_genai`."
             )
 
     elif model_config.engine == "deepseek":
@@ -276,8 +275,7 @@ def get_llm_provider(model_config: Model) -> Type[BaseLLM]:
             return ChatDeepSeek
         except ImportError:
             raise ImportError(
-                "Could not import langchain_deepseek, please install it with "
-                "`pip install langchain_deepseek`."
+                "Could not import langchain_deepseek, please install it with `pip install langchain_deepseek`."
             )
 
     elif model_config.engine == "vertexai":
@@ -299,8 +297,7 @@ def get_llm_provider(model_config: Model) -> Type[BaseLLM]:
             return ChatTogether
         except ImportError:
             raise ImportError(
-                "Could not import langchain_together, please install it with "
-                "`pip install langchain-together`."
+                "Could not import langchain_together, please install it with `pip install langchain-together`."
             )
 
     else:

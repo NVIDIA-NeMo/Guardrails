@@ -122,10 +122,7 @@ def test_to_chat_messages_multimodal_integration():
     assert chat_messages[0]["content"][0]["type"] == "text"
     assert chat_messages[0]["content"][0]["text"] == "What's in this image?"
     assert chat_messages[0]["content"][1]["type"] == "image_url"
-    assert (
-        chat_messages[0]["content"][1]["image_url"]["url"]
-        == "https://example.com/image.jpg"
-    )
+    assert chat_messages[0]["content"][1]["image_url"]["url"] == "https://example.com/image.jpg"
 
     assert chat_messages[1]["role"] == "assistant"
     assert chat_messages[1]["content"] == "I see a cat in the image."
@@ -181,9 +178,7 @@ def test_message_length_with_base64_image(task_manager, image_type):
                 },
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/{image_type};base64,{long_base64}"
-                    },
+                    "image_url": {"url": f"data:image/{image_type};base64,{long_base64}"},
                 },
             ],
         }
@@ -201,9 +196,7 @@ def test_message_length_with_base64_image(task_manager, image_type):
     )
 
     # length is much shorter than the actual base64 data
-    assert length < len(
-        long_base64
-    ), "Length should be much shorter than the actual base64 data"
+    assert length < len(long_base64), "Length should be much shorter than the actual base64 data"
 
 
 def test_regular_url_length(task_manager):
@@ -234,8 +227,7 @@ def test_regular_url_length(task_manager):
     expected_length = len("This is a test\n" + image_placeholder)
 
     assert length == expected_length, (
-        f"Expected length {expected_length}, got {length} "
-        f"(Should include full URL length of {len(regular_url)})"
+        f"Expected length {expected_length}, got {length} (Should include full URL length of {len(regular_url)})"
     )
 
 
@@ -254,8 +246,7 @@ def test_base64_embedded_in_string(task_manager):
     expected_length = len("System message with embedded image: [IMAGE_CONTENT]\n")
 
     assert length == expected_length, (
-        f"Expected length {expected_length}, got {length}. "
-        f"Base64 string should be replaced with placeholder."
+        f"Expected length {expected_length}, got {length}. Base64 string should be replaced with placeholder."
     )
 
 
@@ -289,8 +280,7 @@ def test_multiple_base64_images(task_manager):
     expected_length = len("Here are two images:\n[IMAGE_CONTENT]\n[IMAGE_CONTENT]\n")
 
     assert length == expected_length, (
-        f"Expected length {expected_length}, got {length}. "
-        f"Both base64 strings should be replaced with placeholders."
+        f"Expected length {expected_length}, got {length}. Both base64 strings should be replaced with placeholders."
     )
 
 
@@ -301,8 +291,7 @@ def test_multiple_base64_embedded_in_string(task_manager):
 
     # openai supports multiple images in a single message
     content_string = (
-        f"First image: data:image/jpeg;base64,{base64_segment} "
-        f"Second image: data:image/png;base64,{base64_segment}"
+        f"First image: data:image/jpeg;base64,{base64_segment} Second image: data:image/png;base64,{base64_segment}"
     )
 
     messages = [
@@ -313,9 +302,7 @@ def test_multiple_base64_embedded_in_string(task_manager):
     ]
 
     length = task_manager._get_messages_text_length(messages)
-    expected_length = len(
-        "First image: [IMAGE_CONTENT] Second image: [IMAGE_CONTENT]\n"
-    )
+    expected_length = len("First image: [IMAGE_CONTENT] Second image: [IMAGE_CONTENT]\n")
 
     assert length == expected_length, (
         f"Expected length {expected_length}, got {length}. "

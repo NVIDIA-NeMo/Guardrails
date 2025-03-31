@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import os
 from unittest.mock import patch
 
@@ -71,8 +70,7 @@ JAILBREAK_SETUP_PRESENT, JAILBREAK_SKIP_REASON = check_jailbreak_nim_availabilit
 
 @pytest.mark.skipif(
     not JAILBREAK_SETUP_PRESENT,
-    reason=JAILBREAK_SKIP_REASON
-    or "JailbreakDetect NIM not running or endpoint is not in config.",
+    reason=JAILBREAK_SKIP_REASON or "JailbreakDetect NIM not running or endpoint is not in config.",
 )
 @patch("nemoguardrails.library.jailbreak_detection.request.jailbreak_nim_request")
 def test_jb_detect_nim_unsafe(mock_jailbreak_nim):
@@ -102,8 +100,7 @@ def test_jb_detect_nim_unsafe(mock_jailbreak_nim):
 
 @pytest.mark.skipif(
     not JAILBREAK_SETUP_PRESENT,
-    reason=JAILBREAK_SKIP_REASON
-    or "JailbreakDetect NIM not running or endpoint is not in config.",
+    reason=JAILBREAK_SKIP_REASON or "JailbreakDetect NIM not running or endpoint is not in config.",
 )
 @patch("nemoguardrails.library.jailbreak_detection.request.jailbreak_nim_request")
 def test_jb_detect_nim_safe(mock_jailbreak_nim):

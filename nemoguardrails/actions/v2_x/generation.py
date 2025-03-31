@@ -488,9 +488,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         with llm_params(llm, temperature=self.config.lowest_temperature):
             result = await llm_call(llm, prompt)
 
-        result = self.llm_task_manager.parse_task_output(
-            task=Task.GENERATE_FLOW_FROM_INSTRUCTIONS, output=result
-        )
+        result = self.llm_task_manager.parse_task_output(task=Task.GENERATE_FLOW_FROM_INSTRUCTIONS, output=result)
 
         # TODO: why this is not part of a filter or output_parser?
         #
@@ -556,9 +554,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         with llm_params(llm, temperature=self.config.lowest_temperature):
             result = await llm_call(llm, prompt, stop)
 
-        result = self.llm_task_manager.parse_task_output(
-            task=Task.GENERATE_FLOW_FROM_NAME, output=result
-        )
+        result = self.llm_task_manager.parse_task_output(task=Task.GENERATE_FLOW_FROM_NAME, output=result)
 
         lines = _remove_leading_empty_lines(result).split("\n")
 
@@ -621,9 +617,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         # TODO: Currently, we only support generating a bot action as continuation. This could be generalized
         # Colang statements.
 
-        result = self.llm_task_manager.parse_task_output(
-            task=Task.GENERATE_FLOW_CONTINUATION, output=result
-        )
+        result = self.llm_task_manager.parse_task_output(task=Task.GENERATE_FLOW_CONTINUATION, output=result)
 
         lines = _remove_leading_empty_lines(result).split("\n")
 

@@ -34,3 +34,4 @@ patch_asyncio.apply()
 warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
 
 __version__ = "0.13.0"
+__all__ = ["LLMRails", "RailsConfig"]
