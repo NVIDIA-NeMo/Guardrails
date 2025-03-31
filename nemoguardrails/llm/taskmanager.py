@@ -34,10 +34,8 @@ from nemoguardrails.llm.filters import (
     to_intent_messages,
     to_intent_messages_2,
     to_messages,
-    to_messages_nemollm,
     to_messages_v2,
     user_assistant_sequence,
-    user_assistant_sequence_nemollm,
     verbose_v1,
 )
 from nemoguardrails.llm.output_parsers import (
@@ -73,15 +71,11 @@ class LLMTaskManager:
         self.env.filters["last_turns"] = last_turns
         self.env.filters["indent"] = indent
         self.env.filters["user_assistant_sequence"] = user_assistant_sequence
-        self.env.filters[
-            "user_assistant_sequence_nemollm"
-        ] = user_assistant_sequence_nemollm
         self.env.filters["to_messages"] = to_messages
         self.env.filters["to_messages_v2"] = to_messages_v2
         self.env.filters["to_intent_messages"] = to_intent_messages
         self.env.filters["to_intent_messages_2"] = to_intent_messages_2
         self.env.filters["to_chat_messages"] = to_chat_messages
-        self.env.filters["to_messages_nemollm"] = to_messages_nemollm
         self.env.filters["verbose_v1"] = verbose_v1
 
         self.output_parsers = {

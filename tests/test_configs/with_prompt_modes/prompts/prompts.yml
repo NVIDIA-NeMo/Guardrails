@@ -15,13 +15,13 @@ prompts:
 
   - task: self_check_hallucination
     models:
-      - nemollm
+      - openai/gpt-3.5-turbo
     content: |-
       <<This is a long placeholder prompt to check for hallucinations>>
 
   - task: self_check_hallucination
     models:
-      - nemollm
+      - openai/gpt-3.5-turbo
     mode: compact
     content: |-
       <<Check for hallucinations>>

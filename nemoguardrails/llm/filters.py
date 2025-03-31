@@ -15,6 +15,7 @@
 
 import re
 import textwrap
+import warnings
 from typing import List
 
 from nemoguardrails.actions.llm.utils import (
@@ -100,7 +101,7 @@ def co_v2(
                     history += f'  bot say "{event["script"]}"\n'
 
                 elif event["type"] == "StartTool":
-                    s = f'  await {event["flow_name"]}'
+                    s = f"  await {event['flow_name']}"
                     for k, v in event.items():
                         if k in [
                             "type",
@@ -400,6 +401,12 @@ def user_assistant_sequence_nemollm(events: List[dict]) -> str:
        I can help with many things.
        ```
     """
+
+    warnings.warn(
+        "user_assistant_sequence_nemollm is deprecated and will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     history_items = []
     for event in events:
         if event["type"] == "UserMessage":
@@ -413,6 +420,7 @@ def user_assistant_sequence_nemollm(events: List[dict]) -> str:
 
 def _previous_line(lines: List[str], i: int):
     """Returns the previous lines, skipping comments."""
+
     i = i - 1
     while i > 0 and lines[i].strip().startswith("#"):
         i -= 1
@@ -422,6 +430,12 @@ def _previous_line(lines: List[str], i: int):
 def to_messages_nemollm(colang_history: str) -> str:
     """Filter that given a history in colang format, returns a messages string
     in the chat format used by NeMo LLM models."""
+
+    warnings.warn(
+        "to_messages_nemollm is deprecated and will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     messages = []
 
     # For now, we use a simple heuristic. The line `user "xxx"` gets translated to
