@@ -102,7 +102,7 @@ DeepSeek models use `<think>` and `</think>` as tokens to identify the traces.
 The reasoning traces and the tokens usually interfere with NeMo Guardrails and result in falsely triggering output guardrails for safe responses.
 To use these reasoning models, you can remove the traces and tokens from the model response with a configuration like the following example.
 
-```yaml
+```{code-block} yaml
 :emphasize-lines: 5-
 
 models:
