@@ -23,7 +23,13 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError, root_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationError,
+    model_validator,
+    root_validator,
+)
 from pydantic.fields import Field
 
 from nemoguardrails import utils
@@ -102,6 +108,40 @@ class Model(BaseModel):
         description="Configuration parameters for reasoning LLMs.",
     )
     parameters: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_and_validate_model(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            parameters = data.get("parameters")
+            if parameters is None:
+                return data
+            model_field = data.get("model")
+            model_from_params = parameters.get("model_name") or parameters.get("model")
+
+            if model_field and model_from_params:
+                raise ValueError(
+                    "Model name must be specified in exactly one place: either in the 'model' field or in parameters, not both."
+                )
+            if not model_field and model_from_params:
+                data["model"] = model_from_params
+                if (
+                    "model_name" in parameters
+                    and parameters["model_name"] == model_from_params
+                ):
+                    parameters.pop("model_name")
+                elif "model" in parameters and parameters["model"] == model_from_params:
+                    parameters.pop("model")
+            return data
+
+    @model_validator(mode="after")
+    def model_must_be_non_empty(self) -> "Model":
+        """Validate that a model name is present either directly or in parameters."""
+        if not self.model or not self.model.strip():
+            raise ValueError(
+                "Model name must be specified either directly in the 'model' field or through 'model_name'/'model' in parameters"
+            )
+        return self
 
 
 class Instruction(BaseModel):
