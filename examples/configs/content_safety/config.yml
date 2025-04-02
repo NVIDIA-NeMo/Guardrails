@@ -1,7 +1,7 @@
 models:
   - type: main
     engine: nim
-    model_name: meta/llama-3.3-70b-instruct
+    model: meta/llama-3.3-70b-instruct
 
   - type: content_safety
     engine: nim

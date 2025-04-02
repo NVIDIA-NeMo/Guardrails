@@ -23,10 +23,11 @@ import sys
 import threading
 from functools import lru_cache
 from time import time
-from typing import Callable, List, Optional, cast
+from typing import Callable, List, Optional, Union, cast
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
+from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import ActionResult, action
@@ -81,7 +82,7 @@ class LLMGenerationActions:
     def __init__(
         self,
         config: RailsConfig,
-        llm: BaseLLM,
+        llm: Union[BaseLLM, BaseChatModel],
         llm_task_manager: LLMTaskManager,
         get_embedding_search_provider_instance: Callable[
             [Optional[EmbeddingSearchProvider]], EmbeddingsIndex
@@ -417,7 +418,7 @@ class LLMGenerationActions:
                     )
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
-                    examples += f"user \"{result.text}\"\n  {result.meta['intent']}\n\n"
+                    examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
                     if result.meta["intent"] not in potential_user_intents:
                         potential_user_intents.append(result.meta["intent"])
 

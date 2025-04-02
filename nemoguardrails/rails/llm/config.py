@@ -20,7 +20,7 @@ import os
 import re
 import warnings
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
 from pydantic import (
@@ -109,6 +109,11 @@ class Model(BaseModel):
     )
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
+    mode: Literal["chat", "text"] = Field(
+        default="chat",
+        description="Whether the mode is 'text' completion or 'chat' completion. Allowed values are 'chat' or 'text'.",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def set_and_validate_model(cls, data: Any) -> Any:
@@ -135,7 +140,7 @@ class Model(BaseModel):
             return data
 
     @model_validator(mode="after")
-    def model_must_be_non_empty(self) -> "Model":
+    def model_must_be_none_empty(self) -> "Model":
         """Validate that a model name is present either directly or in parameters."""
         if not self.model or not self.model.strip():
             raise ValueError(

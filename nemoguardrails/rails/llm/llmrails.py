@@ -27,7 +27,7 @@ import warnings
 from functools import partial
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Type, Union, cast
 
-from langchain_core.language_models import BaseLanguageModel
+from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
@@ -54,7 +54,10 @@ from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.kb.kb import KnowledgeBase
-from nemoguardrails.llm.providers import get_llm_provider, get_llm_provider_names
+from nemoguardrails.llm.models.initializer import (
+    ModelInitializationError,
+    init_llm_model,
+)
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.logging.processing_log import compute_generation_log
 from nemoguardrails.logging.stats import LLMStats
@@ -85,11 +88,14 @@ class LLMRails:
     """Rails based on a given configuration."""
 
     config: RailsConfig
-    llm: Optional[BaseLLM]
+    llm: Optional[Union[BaseLLM, BaseChatModel]]
     runtime: Runtime
 
     def __init__(
-        self, config: RailsConfig, llm: Optional[BaseLLM] = None, verbose: bool = False
+        self,
+        config: RailsConfig,
+        llm: Optional[Union[BaseLLM, BaseChatModel]] = None,
+        verbose: bool = False,
     ):
         """Initializes the LLMRails instance.
 
@@ -320,8 +326,8 @@ class LLMRails:
         # If both passthrough mode and single call mode are specified, we raise an exception.
         if self.config.passthrough and self.config.rails.dialog.single_call.enabled:
             raise ValueError(
-                f"The passthrough mode and the single call dialog rails mode can't be used at the same time. "
-                f"The single call mode needs to use an altered prompt when prompting the LLM. "
+                "The passthrough mode and the single call dialog rails mode can't be used at the same time. "
+                "The single call mode needs to use an altered prompt when prompting the LLM. "
             )
 
     async def _init_kb(self):
@@ -340,33 +346,6 @@ class LLMRails:
         self.kb.init()
         await self.kb.build()
 
-    @staticmethod
-    def get_model_cls_and_kwargs(
-        model_config: Model,
-    ) -> Tuple[Type[BaseLanguageModel], Dict[str, Any]]:
-        """Helper to return the model class and kwargs for initialization."""
-        if model_config.engine not in get_llm_provider_names():
-            msg = f"Unknown LLM engine: {model_config.engine}."
-            if model_config.engine == "openai":
-                msg += " Please install langchain-openai using `pip install langchain-openai`."
-
-            raise Exception(msg)
-
-        provider_cls = get_llm_provider(model_config)
-        # We need to compute the kwargs for initializing the LLM
-        kwargs = model_config.parameters
-
-        # We also need to pass the model, if specified
-        if model_config.model:
-            # Some LLM providers use `model_name` instead of `model`.
-            # Use the `__fields__` attribute which is computed dynamically by pydantic.
-            if "model" in provider_cls.__fields__:
-                kwargs["model"] = model_config.model
-            if "model_name" in provider_cls.__fields__:
-                kwargs["model_name"] = model_config.model
-
-        return provider_cls, kwargs
-
     def _init_llms(self):
         """
         Initializes the right LLM engines based on the configuration.
@@ -376,8 +355,10 @@ class LLMRails:
 
         The reason we provide an option for decoupling the main LLM engine from the action LLM
         is to allow for flexibility in using specialized LLM engines for specific actions.
-        """
 
+        Raises:
+            ModelInitializationError: If any model initialization fails
+        """
         # If we already have a pre-configured one,
         # we just need to register the LLM as an action param.
         if self.llm is not None:
@@ -385,34 +366,55 @@ class LLMRails:
             return
 
         llms = dict()
+
         for llm_config in self.config.models:
             if llm_config.type == "embeddings":
-                pass
-            else:
-                provider_cls, kwargs = self.get_model_cls_and_kwargs(llm_config)
+                continue
+
+            try:
+                model_name = llm_config.model
+                provider_name = llm_config.engine
+                kwargs = llm_config.parameters or {}
+                mode = llm_config.mode
+
+                llm_model = init_llm_model(
+                    model_name=model_name,
+                    provider_name=provider_name,
+                    mode=mode,
+                    kwargs=kwargs,
+                )
 
                 if self.config.streaming:
-                    if "streaming" in provider_cls.__fields__:
-                        kwargs["streaming"] = True
+                    if "streaming" in llm_model.model_fields:
+                        llm_model.streaming = True
                         self.main_llm_supports_streaming = True
                     else:
                         log.warning(
-                            f"The provider {provider_cls.__name__} does not support streaming."
+                            "Model %s from provider %s does not support streaming.",
+                            model_name,
+                            provider_name,
                         )
 
                 if llm_config.type == "main" or len(self.config.models) == 1:
-                    self.llm = provider_cls(**kwargs)
+                    self.llm = llm_model
                     self.runtime.register_action_param("llm", self.llm)
                 else:
                     model_name = f"{llm_config.type}_llm"
-                    setattr(self, model_name, provider_cls(**kwargs))
+                    setattr(self, model_name, llm_model)
                     self.runtime.register_action_param(
                         model_name, getattr(self, model_name)
                     )
                     # this is used for content safety and topic control
                     llms[llm_config.type] = getattr(self, model_name)
 
-            self.runtime.register_action_param("llms", llms)
+            except ModelInitializationError as e:
+                log.error("Failed to initialize model: %s", str(e))
+                raise
+            except Exception as e:
+                log.error("Unexpected error initializing model: %s", str(e))
+                raise
+
+        self.runtime.register_action_param("llms", llms)
 
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
@@ -1395,7 +1397,7 @@ def _get_action_details_from_flow_id(
             if flow_id.startswith(prefix) and flow["id"].startswith(prefix):
                 candidate_flow = flow
                 # We don't break immediately here because an exact match would have been preferred,
-                # but since we’re in the else branch it’s fine to choose the first matching candidate.
+                # but since we're in the else branch it's fine to choose the first matching candidate.
                 # TODO:we should avoid having multiple matchin prefixes
                 break
 

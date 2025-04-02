@@ -14,8 +14,8 @@
 # limitations under the License.
 
 from .providers import (
-    HuggingFacePipelineCompatible,
-    get_llm_provider,
+    get_chat_provider_names,
     get_llm_provider_names,
+    register_chat_provider,
     register_llm_provider,
 )

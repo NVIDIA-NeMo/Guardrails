@@ -13,29 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+import pytest
 
-from nemoguardrails.llm.models.initializer import init_llm_model
-from nemoguardrails.rails.llm.config import Model
-
-
-def initialize_llm(model_config: Model):
-    """Initializes the model from LLM provider."""
-
-    return init_llm_model(
-        model_name=model_config.model,
-        provider_name=model_config.engine,
-        kwargs=model_config.parameters,
-    )
+from nemoguardrails.llm.providers.providers import _llm_providers
 
 
-def load_dataset(dataset_path: str):
-    """Loads a dataset from a file."""
-
-    with open(dataset_path, "r") as f:
-        if dataset_path.endswith(".json"):
-            dataset = json.load(f)
-        else:
-            dataset = f.readlines()
-
-    return dataset
+def test_acall_method_added():
+    for provider_name, provider_cls in _llm_providers.items():
+        assert hasattr(provider_cls, "_acall"), f"_acall not added to {provider_name}"
+        assert callable(
+            getattr(provider_cls, "_acall")
+        ), f"_acall is not callable in {provider_name}"
