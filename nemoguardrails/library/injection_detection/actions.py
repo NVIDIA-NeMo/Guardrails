@@ -29,8 +29,8 @@ PROVIDED_MODULES = ["sqli", "template", "code", "xss"]
 log = logging.getLogger(__name__)
 
 
-def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, list[str]]:
-    command_injection_config = config.rails.config.injection
+def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]:
+    command_injection_config = config.rails.config.injection_detection
     yara_path = command_injection_config.yara_path
     if not yara_path:
         yara_path = YARA_DIR
@@ -49,7 +49,7 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, list[str]]:
         msg = f"Expected 'reject', 'omit', or 'sanitize' action in injection config but got {action_option}"
         log.error(msg)
         raise ValueError(msg)
-    injection_rules = command_injection_config.injections
+    injection_rules = tuple(command_injection_config.injections)
     if not set(injection_rules) <= set(PROVIDED_MODULES):
         # Do the easy check above first. If they provide a custom dir or a custom rules file, check the filesystem
         if not all(
@@ -69,27 +69,28 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, list[str]]:
 
 
 @lru_cache()
-def load_rules(config: RailsConfig) -> Tuple[str, Union[yara.Rules, None]]:
+def load_rules(yara_path: Path, rule_names: Tuple) -> Union[yara.Rules, None]:
     """
-    Take a RailsConfig object and load compiled yara rules
+    Take a path to the YARA rules and a list of rule names, return the compiled rules.
 
     Parameters
     ----------
-    config : rails configuration object
+    yara_path : Path to YARA rules
+    rule_names: Names of YARA rules
 
     Returns
     -------
     the action option as a string
     compiled YARA rules object
     """
-    action_option, yara_path, rule_names = _validate_unpack_config(config)
     if len(rule_names) == 0:
         log.warning(
             "Injection config was provided but no modules were specified. Returning None."
         )
-        return action_option, None
+        return None
     rules_to_load = {
-        rule_name: yara_path.joinpath(f"{rule_name}.yara") for rule_name in rule_names
+        rule_name: str(yara_path.joinpath(f"{rule_name}.yara"))
+        for rule_name in rule_names
     }
     try:
         rules = yara.compile(filepaths=rules_to_load)
@@ -97,7 +98,7 @@ def load_rules(config: RailsConfig) -> Tuple[str, Union[yara.Rules, None]]:
         msg = f"Encountered SyntaxError: {e}"
         log.error(msg)
         raise e
-    return action_option, rules
+    return rules
 
 
 def detect_injection_mapping(result: bool) -> bool:
@@ -159,7 +160,7 @@ def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
 
 
 @action(is_system_action=True, output_mapping=detect_injection_mapping)
-def reject_injection(text: str, config: RailsConfig) -> bool:
+async def reject_injection(text: str, config: RailsConfig) -> bool:
     """
     Detect whether the text contains potential injection.
     Recommended as an output or execution rail.
@@ -174,7 +175,8 @@ def reject_injection(text: str, config: RailsConfig) -> bool:
     -------
     True if command injection is detected, False otherwise.
     """
-    action_option, rules = load_rules(config)
+    action_option, yara_path, rule_names = _validate_unpack_config(config)
+    rules = load_rules(yara_path, rule_names)
     if action_option != "reject":
         log.warning(
             f"reject_injection guardrail expects config `action` parameter to be 'reject', but got '{action_option}' "
@@ -195,7 +197,7 @@ def reject_injection(text: str, config: RailsConfig) -> bool:
 
 
 @action(is_system_action=True)
-def mitigate_injection(text: str, config: RailsConfig) -> str:
+async def mitigate_injection(text: str, config: RailsConfig) -> str:
     """
     Detect whether the text contains potential injection.
 
@@ -208,7 +210,8 @@ def mitigate_injection(text: str, config: RailsConfig) -> str:
     -------
     String object with the detected injection attempt omitted or relatively sanitized.
     """
-    action_option, rules = load_rules(config)
+    action_option, yara_path, rule_names = _validate_unpack_config(config)
+    rules = load_rules(yara_path, rule_names)
     if action_option == "reject":
         log.warning(
             "mitigate_injection expects config `action` parameter to be 'omit' or 'sanitize' but got 'reject' "
