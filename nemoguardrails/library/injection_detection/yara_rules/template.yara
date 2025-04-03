@@ -12,8 +12,8 @@ rule jinja_injection
         $close_condition = "%}"
 
     condition:
-        ($template_open and 
-            $template_close and 
+        ($template_open and
+            $template_close and
             (@template_open < @template_close)
             ) or
         ($open_condition and

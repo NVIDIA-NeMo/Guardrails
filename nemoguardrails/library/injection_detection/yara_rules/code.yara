@@ -15,14 +15,14 @@ rule import_shells
         $mod_shutil = "shutil"
 
     condition:
-        ($imp and 
-            any of ($mod*) and 
+        ($imp and
+            any of ($mod*) and
             for any of ($mod*) : (@imp < @)
-            ) or 
-        ($imp and 
+            ) or
+        ($imp and
             $from and
-            any of ($mod*) and 
-            for any of ($mod*) : (@from < @) and 
+            any of ($mod*) and
+            for any of ($mod*) : (@from < @) and
             for any of ($mod*) : (@ < @imp)
             )
 }
@@ -48,14 +48,14 @@ rule import_networking
         $mod_asyncssh = "asyncssh"
 
     condition:
-        ($imp and 
-            any of ($mod*) and 
+        ($imp and
+            any of ($mod*) and
             for any of ($mod*) : (@imp < @)
-            ) or 
-        ($imp and 
+            ) or
+        ($imp and
             $from and
-            any of ($mod*) and 
-            for any of ($mod*) : (@from < @) and 
+            any of ($mod*) and
+            for any of ($mod*) : (@from < @) and
             for any of ($mod*) : (@ < @imp)
             )
 }

@@ -964,7 +964,7 @@ NeMo Guardrails ships with some basic rules for the following categories:
 Additional rules can be added by including them in the `library/injection_detection/yara_rules` folder or specifying a `yara_path` with all the rules.
 
 #### Configuring Injection Detection
-To activate injection detection, you must include either the `reject injection` or the `mitigate injection` output flow. 
+To activate injection detection, you must include either the `reject injection` or the `mitigate injection` output flow.
 As an example config:
 
 ```colang
@@ -984,10 +984,10 @@ rails:
       - reject injection
 ```
 
-Note that the `reject injection` flow corresponds with the `reject` value of the `action` parameter in the config, while `mitigate injection` corresponds with the `omit` and `sanitize` actions. 
+Note that the `reject injection` flow corresponds with the `reject` value of the `action` parameter in the config, while `mitigate injection` corresponds with the `omit` and `sanitize` actions.
 If the specified `action` does not align with the rail, a warning will be logged and guardrails will default to the `reject injection` rail.
 
-**SECURITY WARNING:** It is _strongly_ advised that the `sanitize` action not be used in production systems, as there is no guarantee of its efficacy, and it may lead to adverse security outcomes. 
+**SECURITY WARNING:** It is _strongly_ advised that the `sanitize` action not be used in production systems, as there is no guarantee of its efficacy, and it may lead to adverse security outcomes.
 
 This rail is primarily intended to be used in agentic systems to _enhance_ other security controls as part of a defense in depth strategy.
 The provided rules are recommended to be used in the following settings:
@@ -996,5 +996,5 @@ The provided rules are recommended to be used in the following settings:
 * `template`: Recommended for use if LLM output is rendered using templating languages like Jinja. This rule should usually be paired with `code` rules.
 * `xss`: Recommended if LLM output will be rendered directly in HTML or Markdown
 
-The included rules are in no way comprehensive. 
+The included rules are in no way comprehensive.
 They can and should be extended by security teams for use in your application's particular context and paired with additional security controls.

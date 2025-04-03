@@ -21,5 +21,3 @@ define subflow mitigate injection
   Omit or sanitize injection attempts from the bot.
   """
   $bot_message = execute mitigate_injection(source="output", text=$bot_message)
-
-
