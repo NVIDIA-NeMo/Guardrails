@@ -99,5 +99,5 @@ docker run -it --name=$MODEL_NAME \
 For more details on the TopicControl model, check out the other resources:
 
 - NeMo Guardrails library for [NVIDIA NemoGuard models](../guardrails-library.md#nvidia-models)
-- [TopicControl topic safety example config](../../../examples/configs/topic_safety/README.md)
+- TopicControl topic safety example [configuration and prompts](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/topic_safety)
 - [Paper at EMNLP 2024](https://arxiv.org/abs/2404.03820)
