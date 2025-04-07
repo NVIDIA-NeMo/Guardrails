@@ -45,17 +45,17 @@ repository = "https://github.com/NVIDIA/NeMo-Guardrails"
 nemoguardrails = "nemoguardrails.__main__:app"
 
 [tool.poetry.dependencies]
-python = ">=3.9,!=3.9.7,<3.13"
+python = ">3.9,!=3.9.7,<3.14"
 aiohttp = ">=3.10.11"
 annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
-fastembed = ">=0.2.2, <0.4.1"
+fastembed = ">=0.5.0, <=0.6.0"
 # onnxruntime in 1.20 has dropped python 3.9 support
 # fastembed has also dropped python 3.9 support entirely as of 0.5.0
 # fastembed depends on onnxruntime we pindown the working version for 3.9 here
 # as it is a transient dependency we must remove it later
 onnxruntime = [
-  { version = ">=1.17.0,<=1.19.2", python = "^3.9" },
+  # { version = ">=1.17.0,<=1.19.2", python = "^3.9" },
   { version = ">=1.17.0,<2.0.0", python = ">=3.10" },
 ]
 httpx = ">=0.24.1"
@@ -85,7 +85,7 @@ langchain-openai = { version = ">=0.0.5", optional = true }
 
 # eval
 tqdm = { version = ">=4.65,<5.0", optional = true }
-numpy = { version = ">=1.24,<2.0", optional = true }
+numpy = { version = ">=1.24,<2.2.0", optional = true }
 streamlit = { version = "^1.37.0", optional = true, python = ">=3.9,!=3.9.7,<3.12" }
 pandas = { version = ">=1.4.0,<3", optional = true }
 
@@ -149,7 +149,7 @@ sphinx-reredirects = "<0.2"
 sphinx = "<=7.5"
 myst-parser = "<=5"
 sphinx-copybutton = "<=0.6"
-nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10"}
+nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
 
 
 [tool.pytest.ini_options]
