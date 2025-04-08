@@ -31,6 +31,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 
 [tool.poetry.urls]
@@ -49,16 +50,20 @@ python = ">3.9,!=3.9.7,<3.14"
 aiohttp = ">=3.10.11"
 annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
-fastembed = ">=0.5.0, <=0.6.0"
+fastembed = [
+  { version = ">=0.2.2, <0.5", python = ">=3.9,<3.10" },
+  { version = ">=0.5.0, <=0.6.0", python = ">=3.10, <3.14" },
+]
+onnxruntime = [
+  { version = ">=1.17.0, <=1.19.2", python = ">=3.9, <3.10" },
+  { version = ">=1.20.0", python = ">=3.10, <3.14" },
+]
+
+httpx = ">=0.24.1"
 # onnxruntime in 1.20 has dropped python 3.9 support
 # fastembed has also dropped python 3.9 support entirely as of 0.5.0
 # fastembed depends on onnxruntime we pindown the working version for 3.9 here
 # as it is a transient dependency we must remove it later
-onnxruntime = [
-  # { version = ">=1.17.0,<=1.19.2", python = "^3.9" },
-  { version = ">=1.17.0,<2.0.0", python = ">=3.10" },
-]
-httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
 langchain = ">=0.2.14,<0.4.0"
 langchain-core = ">=0.2.14,<0.4.0"
@@ -85,7 +90,10 @@ langchain-openai = { version = ">=0.0.5", optional = true }
 
 # eval
 tqdm = { version = ">=4.65,<5.0", optional = true }
-numpy = { version = ">=1.24,<2.2.0", optional = true }
+numpy = [
+  { version = ">=1.21,<1.24", python = ">=3.9,<3.10" },
+  { version = ">=1.24,<2.2.0", python = ">=3.10,<3.14" },
+]
 streamlit = { version = "^1.37.0", optional = true, python = ">=3.9,!=3.9.7,<3.12" }
 pandas = { version = ">=1.4.0,<3", optional = true }
 
