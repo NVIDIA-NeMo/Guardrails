@@ -14,11 +14,15 @@
 # limitations under the License.
 
 import asyncio
-import unittest
-from unittest.mock import AsyncMock, MagicMock
+import os
 
+import pytest
+import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from nemoguardrails import LLMRails
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.rails.llm.config import TracingConfig
+from nemoguardrails.rails.llm.config import TracingConfig, RailsConfig
 from nemoguardrails.rails.llm.options import (
     ActivatedRail,
     ExecutedAction,
@@ -199,6 +203,39 @@ class TestTracer(unittest.TestCase):
 
         asyncio.run(tracer_non_empty.export_async())
         adapter_non_empty.transform_async.assert_called_once()
+
+@patch.object(Tracer, "export_async", return_value="")
+@pytest.mark.asyncio
+async def test_tracing_enable_no_crash_issue_1093(mockTracer):
+    config = RailsConfig.from_content(
+        colang_content="""
+    define user express greeting
+        "hello"
+
+    define flow
+        user express greeting
+        bot express greeting
+
+    define bot express greeting
+        "Hello World!\\n NewLine World!"
+    """,
+        config={
+            "models": [],
+            "rails": {"dialog": {"user_messages": {"embeddings_only": True}}},
+        },
+    )
+    # Force Tracing to be enabled
+    config.tracing.enabled = True
+    rails = LLMRails(config)
+    res = await rails.generate_async(
+        messages=[
+            {"role": "user", "content": "hi!"},
+            {"role": "assistant", "content": "hi!"},
+            {"role": "user", "content": "hi!"},
+        ]
+    )
+    assert mockTracer.called == True
+    assert res.response != None
 
 
 if __name__ == "__main__":
