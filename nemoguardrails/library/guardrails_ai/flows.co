@@ -1,0 +1,22 @@
+define subflow guardrails_ai check input
+  """Check input text using Guardrails AI toxic language detection."""
+  $result = execute validate_guardrails_ai(text=$user_message)
+  if not $result.valid
+    if $config.enable_rails_exceptions
+      create event GuardrailsAIInputException(message="Guardrails AI input validation failed")
+    else
+      bot refuse to respond
+    stop
+
+define subflow guardrails_ai check output
+  """Check output text using Guardrails AI toxic language detection."""
+  $result = execute validate_guardrails_ai(text=$bot_message)
+  if not $result.valid
+    if $config.enable_rails_exceptions
+      create event GuardrailsAIOutputException(message="Guardrails AI output validation failed")
+    else
+      bot refuse to respond
+    stop
+
+define bot refuse to respond
+  "I apologize, but I cannot respond to that as it may contain inappropriate content."
