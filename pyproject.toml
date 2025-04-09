@@ -62,7 +62,7 @@ httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
 langchain = ">=0.2.14,<0.4.0"
 langchain-core = ">=0.2.14,<0.4.0"
-langchain-community = ">=0.0.16,<0.4.0"
+langchain-community = ">=0.2.0,<0.4.0"
 lark = ">=1.1.7"
 nest-asyncio = ">=1.5.6,"
 prompt-toolkit = ">=3.0"
@@ -95,6 +95,9 @@ presidio-anonymizer = { version = ">=2.2", optional = true }
 # poetry 3.8.4 does not exist for python 3.9
 spacy = { version = ">=3.7.2,<3.8.0", optional = true } # Capping spacy to spacy<3.8.0  see https://github.com/explosion/cython-blis/issues/117
 
+# nim
+langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
+
 # gpc
 google-cloud-language = { version = ">=2.14.0", optional = true }
 
@@ -104,6 +107,7 @@ eval = ["tqdm", "numpy", "streamlit"]
 openai = ["langchain-openai"]
 gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "opentelemetry-sdk", "aiofiles"]
+nvidia = ["langchain-nvidia-ai-endpoints"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
@@ -119,6 +123,7 @@ all = [
   "opentelemetry-api",
   "opentelemetry-sdk",
   "aiofiles",
+  "langchain-nvidia-ai-endpoints",
 ]
 
 [tool.poetry.group.dev]
