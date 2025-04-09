@@ -46,6 +46,21 @@ log = logging.getLogger(__name__)
 
 
 def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]:
+    """
+    Validates and unpacks the injection detection configuration.
+
+    Args:
+        config (RailsConfig): The Rails configuration object containing injection detection settings.
+
+    Returns:
+        Tuple[str, Path, Tuple[str]]: A tuple containing the action option, the YARA path,
+        and the injection rules.
+
+    Raises:
+        FileNotFoundError: If the provided `yara_path` is not a directory.
+        ValueError: If `yara_path` is not a string, the action option is invalid,
+        or the injection rules contain invalid elements.
+    """
     command_injection_config = config.rails.config.injection_detection
     yara_path = command_injection_config.yara_path
     if not yara_path:
@@ -87,17 +102,18 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
 @lru_cache()
 def load_rules(yara_path: Path, rule_names: Tuple) -> Union[yara.Rules, None]:
     """
-    Take a path to the YARA rules and a list of rule names, return the compiled rules.
+    Loads and compiles YARA rules from the specified path and rule names.
 
-    Parameters
-    ----------
-    yara_path : Path to YARA rules
-    rule_names: Names of YARA rules
+    Args:
+        yara_path (Path): The path to the directory containing YARA rule files.
+        rule_names (Tuple): A tuple of YARA rule names to load.
 
-    Returns
-    -------
-    the action option as a string
-    compiled YARA rules object
+    Returns:
+        Union[yara.Rules, None]: The compiled YARA rules object if successful,
+        or None if no rule names are provided.
+
+    Raises:
+        yara.SyntaxError: If there is a syntax error in the YARA rules.
     """
     if len(rule_names) == 0:
         log.warning(
@@ -129,17 +145,18 @@ def detect_injection_mapping(result: bool) -> bool:
 
 def omit_injection(text: str, matches: list[yara.Match]) -> str:
     """
-    Attempt to strip the offending injection attempt.
-    Note that this may not be completely effective and may still result in malicious activity.
+    Attempts to strip the offending injection attempts from the provided text.
 
-    Parameters
-    ----------
-    text : text to check for command injection
-    matches : YARA rule matches
+    Note:
+        This method may not be completely effective and could still result in
+        malicious activity.
 
-    Returns
-    -------
-    the text to check for command injection with the detected injections stripped out.
+    Args:
+        text (str): The text to check for command injection.
+        matches (list[yara.Match]): A list of YARA rule matches.
+
+    Returns:
+        str: The text with the detected injections stripped out.
     """
     # Copy the text to a placeholder variable
     modified_text = text
@@ -156,19 +173,22 @@ def omit_injection(text: str, matches: list[yara.Match]) -> str:
 
 def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
     """
-    Attempt to sanitize the offending injection attempt.
-    Note that this may not be completely effective and may still result in malicious activity.
-    Attempting to sanitize the malicious input but continuing to pass it instead of rejecting or omitting
-    is inherently risky and generally not recommended.
+    Attempts to sanitize the offending injection attempts in the provided text.
 
-    Parameters
-    ----------
-    text : text to check for command injection
-    matches : YARA rule matches
+    Note:
+        This method may not be completely effective and could still result in
+        malicious activity. Sanitizing malicious input instead of rejecting or
+        omitting it is inherently risky and generally not recommended.
 
-    Returns
-    -------
-    the text to check for command injection with the detected injections stripped out.
+    Args:
+        text (str): The text to check for command injection.
+        matches (list[yara.Match]): A list of YARA rule matches.
+
+    Returns:
+        str: The text with the detected injections sanitized.
+
+    Raises:
+        NotImplementedError: If the sanitization logic is not implemented.
     """
     raise NotImplementedError(
         "Injection sanitization is not yet implemented. Please use 'reject' or 'omit'"
@@ -178,18 +198,20 @@ def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
 @action(is_system_action=True, output_mapping=detect_injection_mapping)
 async def reject_injection(text: str, config: RailsConfig) -> bool:
     """
-    Detect whether the text contains potential injection.
-    Recommended as an output or execution rail.
-    Note that this will load all relevant YARA rules and compile them according to the provided config.
+    Detects whether the provided text contains potential injection attempts.
 
-    Parameters
-    ----------
-    text : text to check for command injection
-    config : rails configuration object
+    This function is recommended as an output or execution guardrail. It loads
+    all relevant YARA rules and compiles them according to the provided configuration.
 
-    Returns
-    -------
-    True if command injection is detected, False otherwise.
+    Args:
+        text (str): The text to check for command injection.
+        config (RailsConfig): The Rails configuration object containing injection detection settings.
+
+    Returns:
+        bool: True if command injection is detected, False otherwise.
+
+    Raises:
+        ValueError: If the `action` parameter in the configuration is invalid.
     """
     action_option, yara_path, rule_names = _validate_unpack_config(config)
     rules = load_rules(yara_path, rule_names)
@@ -215,16 +237,22 @@ async def reject_injection(text: str, config: RailsConfig) -> bool:
 @action(is_system_action=True)
 async def mitigate_injection(text: str, config: RailsConfig) -> str:
     """
-    Detect whether the text contains potential injection.
+    Detects and mitigates potential injection attempts in the provided text.
 
-    Parameters
-    ----------
-    text : text to check for command injection
-    config : rails configuration object
+    Depending on the configuration, this function can omit or sanitize the detected
+    injection attempts. If the action is set to "reject", it delegates to the
+    `reject_injection` function.
 
-    Returns
-    -------
-    String object with the detected injection attempt omitted or relatively sanitized.
+    Args:
+        text (str): The text to check for command injection.
+        config (RailsConfig): The Rails configuration object containing injection detection settings.
+
+    Returns:
+        str: The sanitized or original text, depending on the action specified in the configuration.
+
+    Raises:
+        ValueError: If the `action` parameter in the configuration is invalid.
+        NotImplementedError: If an unsupported action is encountered.
     """
     action_option, yara_path, rule_names = _validate_unpack_config(config)
     rules = load_rules(yara_path, rule_names)
