@@ -62,6 +62,7 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
         or the injection rules contain invalid elements.
     """
     command_injection_config = config.rails.config.injection_detection
+
     if command_injection_config is None:
         msg = (
             "Injection detection configuration is missing in the provided RailsConfig."
@@ -169,11 +170,13 @@ def omit_injection(text: str, matches: list[yara.Match]) -> str:
     for match in matches:
         if match.strings:
             for match_string in match.strings:
-                for instance in match_string:
-                    if instance in modified_text:
-                        modified_text = modified_text.replace(
-                            instance.plaintext().decode("utf-8"), ""
-                        )
+                for instance in match_string.instances:
+                    try:
+                        plaintext = instance.plaintext().decode("utf-8")
+                        if plaintext in modified_text:
+                            modified_text = modified_text.replace(plaintext, "")
+                    except (AttributeError, UnicodeDecodeError) as e:
+                        log.warning(f"Error processing match: {e}")
     return modified_text
 
 
