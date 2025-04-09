@@ -251,15 +251,14 @@ async def mitigate_injection(text: str, config: RailsConfig) -> str:
     if matches:
         matches_string = ", ".join([match_name.rule for match_name in matches])
         log.info(f"Input matched on rule {matches_string}.")
-        match action_option:
-            case "omit":
-                return omit_injection(text, matches)
-            case "sanitize":
-                return sanitize_injection(text, matches)
+        if action_option == "omit":
+            return omit_injection(text, matches)
+        elif action_option == "sanitize":
+            return sanitize_injection(text, matches)
+        else:
             # We should never ever hit this since we inspect the action option above, but putting an error here anyway.
-            case _:
-                raise NotImplementedError(
-                    f"Expected `action` parameter to be 'omit' or 'sanitize' but got {action_option} instead."
-                )
+            raise NotImplementedError(
+                f"Expected `action` parameter to be 'omit' or 'sanitize' but got {action_option} instead."
+            )
     else:
         return text
