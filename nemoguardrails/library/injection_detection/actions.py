@@ -39,7 +39,7 @@ import yara
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 
-YARA_DIR = Path(__file__).parent.joinpath("yara_rules")
+YARA_DIR = Path(__file__).resolve().parent / "yara_rules"
 PROVIDED_MODULES = ["sqli", "template", "code", "xss"]
 
 log = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
         yara_path = YARA_DIR
     elif isinstance(yara_path, str):
         yara_path = Path(yara_path)
-        if not yara_path.exists() and yara_path.is_dir():
+        if not yara_path.exists() or not yara_path.is_dir():
             msg = f"Provided `yara_path` value in injection config {yara_path} is not a directory."
             log.error(msg)
             raise FileNotFoundError(msg)
