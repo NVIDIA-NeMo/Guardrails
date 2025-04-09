@@ -62,7 +62,7 @@ httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
 langchain = ">=0.2.14,<0.4.0"
 langchain-core = ">=0.2.14,<0.4.0"
-langchain-community = ">=0.2.0,<0.4.0"
+langchain-community = ">=0.2.5,<0.4.0"
 lark = ">=1.1.7"
 nest-asyncio = ">=1.5.6,"
 prompt-toolkit = ">=3.0"
@@ -154,7 +154,7 @@ sphinx-reredirects = "<0.2"
 sphinx = "<=7.5"
 myst-parser = "<=5"
 sphinx-copybutton = "<=0.6"
-nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10"}
+nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
 
 
 [tool.pytest.ini_options]
