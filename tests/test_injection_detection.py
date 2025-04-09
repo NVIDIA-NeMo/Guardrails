@@ -350,3 +350,155 @@ async def test_omit_action_with_real_yara():
         result["content"]
         == "This is a  * FROM usersmalicious comment in the middle of text"
     )
+
+
+@pytest.mark.asyncio
+async def test_xss_injection_with_reject_action():
+    """Test the reject action for XSS injection detection using real YARA rules from the library."""
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - xss
+                      action:
+                        reject
+                  output:
+                    flows:
+                      - mitigate injection
+
+                """
+    )
+
+    xss_injection = "Hello <script>alert('xss')</script> world"
+    chat = TestChat(config, llm_completions=[xss_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
+    )
+
+    assert result["content"] == "I'm sorry, I can't help you with that."
+
+
+@pytest.mark.asyncio
+async def test_template_injection_with_reject_action():
+    """Test the reject action for template injection detection using real YARA rules from the library."""
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - template
+                      action:
+                        reject
+                  output:
+                    flows:
+                      - mitigate injection
+
+                """
+    )
+
+    template_injection = "Hello {{self.__init__.__globals__.__builtins__.__import__('os').popen('id').read()}} world"
+    chat = TestChat(config, llm_completions=[template_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
+    )
+
+    assert result["content"] == "I'm sorry, I can't help you with that."
+
+
+@pytest.mark.asyncio
+async def test_code_injection_with_reject_action():
+    """Test the reject action for code injection detection using real YARA rules from the library."""
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - code
+                      action:
+                        reject
+                  output:
+                    flows:
+                      - mitigate injection
+
+                """
+    )
+
+    code_injection = (
+        "Hello __import__('subprocess').run('touch /tmp/pwnd', shell=True) world"
+    )
+    chat = TestChat(config, llm_completions=[code_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
+    )
+
+    assert result["content"] == "I'm sorry, I can't help you with that."
+
+
+@pytest.mark.asyncio
+async def test_multiple_injection_types_with_reject_action():
+    """Test the reject action for multiple injection types using real YARA rules from the library."""
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - sqli
+                        - xss
+                        - template
+                        - code
+                      action:
+                        reject
+                  output:
+                    flows:
+                      - mitigate injection
+
+                """
+    )
+
+    multi_injection = "Hello <script>alert('xss')</script> {{self.__init__.__globals__.__builtins__.__import__('os').popen('id').read()}} __import__('subprocess').run('touch /tmp/pwnd', shell=True) SELECT * FROM users; -- comment world"
+    chat = TestChat(config, llm_completions=[multi_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
+    )
+
+    assert result["content"] == "I'm sorry, I can't help you with that."
+
+
+@pytest.mark.asyncio
+async def test_sanitize_action_not_implemented():
+    """Test that the sanitize action raises NotImplementedError when used with real YARA rules."""
+
+    with pytest.raises(ValidationError):
+        _ = RailsConfig.from_content(
+            yaml_content="""
+                    models: []
+                    rails:
+                    config:
+                        injection_detection:
+                        injections:
+                            - sqli
+                        action:
+                            sanitize
+                    output:
+                        flows:
+                          - mitigate injection
+
+                    """
+        )
