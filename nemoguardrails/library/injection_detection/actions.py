@@ -62,6 +62,12 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
         or the injection rules contain invalid elements.
     """
     command_injection_config = config.rails.config.injection_detection
+    if command_injection_config is None:
+        msg = (
+            "Injection detection configuration is missing in the provided RailsConfig."
+        )
+        log.error(msg)
+        raise ValueError(msg)
     yara_path = command_injection_config.yara_path
     if not yara_path:
         yara_path = YARA_DIR
