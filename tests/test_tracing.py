@@ -204,6 +204,7 @@ class TestTracer(unittest.TestCase):
         asyncio.run(tracer_non_empty.export_async())
         adapter_non_empty.transform_async.assert_called_once()
 
+
 @patch.object(Tracer, "export_async", return_value="")
 @pytest.mark.asyncio
 async def test_tracing_enable_no_crash_issue_1093(mockTracer):
