@@ -4,7 +4,7 @@ flow reject injection
   """
   Reject injection attempts
   """
-  $injection = await RejectInjectionAction(source="output", text=$bot_message)
+  $injection = await RejectInjectionAction(text=$bot_message)
 
   if $injection
     if $system.config.enable_rails_exceptions
@@ -18,4 +18,4 @@ flow mitigate injection
   """
   Omit or sanitize injection attempts from the bot.
   """
-  $bot_message = await MitigateInjectionAction(source="output", text=$bot_message)
+  $bot_message = await MitigateInjectionAction(text=$bot_message)

@@ -6,7 +6,7 @@ define subflow reject injection
   """
   Reject injection attempts
   """
-  $injection = execute reject_injection(source="output", text=$bot_message)
+  $injection = execute reject_injection(text=$bot_message)
 
   if $injection
     if $config.enable_rails_exceptions
@@ -20,4 +20,4 @@ define subflow mitigate injection
   """
   Omit or sanitize injection attempts from the bot.
   """
-  $bot_message = execute mitigate_injection(source="output", text=$bot_message)
+  $bot_message = execute mitigate_injection(text=$bot_message)
