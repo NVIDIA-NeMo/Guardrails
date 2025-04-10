@@ -488,17 +488,20 @@ async def test_sanitize_action_not_implemented():
     with pytest.raises(ValidationError):
         _ = RailsConfig.from_content(
             yaml_content="""
-                    models: []
-                    rails:
-                    config:
-                        injection_detection:
-                        injections:
-                            - sqli
-                        action:
-                            sanitize
-                    output:
-                        flows:
-                          - mitigate injection
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - sqli
+                        - xss
+                        - template
+                        - code
+                      action:
+                        sanitize
+                  output:
+                    flows:
+                      - mitigate injection
 
                     """
         )
