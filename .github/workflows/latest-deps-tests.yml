@@ -1,26 +1,26 @@
 name: Test with Latest Dependencies
 
 on:
-  push:
-  schedule:
-    - cron: "0 22 * * *" # 10:00 PM UTC, daily
+    push:
+    schedule:
+        - cron: "0 22 * * *" # 10:00 PM UTC, daily
 jobs:
-  call-tests:
-    strategy:
-      matrix:
-        os: [Ubuntu]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-        include:
-          - os: Ubuntu
-            image: ubuntu-latest
-          - os: macOS
-            image: macos-15
-          - os: Windows
-            image: windows-latest
-      fail-fast: false
-    uses: ./.github/workflows/_test.yml
-    with:
-      os: ${{ matrix.os }}
-      image: ${{ matrix.image }}
-      python-version: ${{ matrix.python-version }}
-      upgrade-deps: true
+    call-tests:
+        strategy:
+            matrix:
+                os: [Ubuntu]
+                python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+                include:
+                    - os: Ubuntu
+                      image: ubuntu-latest
+                    - os: macOS
+                      image: macos-15
+                    - os: Windows
+                      image: windows-latest
+            fail-fast: false
+        uses: ./.github/workflows/_test.yml
+        with:
+            os: ${{ matrix.os }}
+            image: ${{ matrix.image }}
+            python-version: ${{ matrix.python-version }}
+            upgrade-deps: true

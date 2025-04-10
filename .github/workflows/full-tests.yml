@@ -6,9 +6,9 @@ on:
         paths-ignore:
             - "**/*.md"
             - ".github/**"
-    # push:
-    #     tags:
-    #         - "v*"
+    push:
+        tags:
+            - "v*"
     workflow_dispatch:
 
 jobs:
