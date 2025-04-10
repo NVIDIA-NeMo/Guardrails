@@ -15,14 +15,14 @@
 
 import asyncio
 import os
-
-import pytest
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from nemoguardrails import LLMRails
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.rails.llm.config import TracingConfig, RailsConfig
+from nemoguardrails.rails.llm.config import RailsConfig, TracingConfig
 from nemoguardrails.rails.llm.options import (
     ActivatedRail,
     ExecutedAction,
