@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import logging
+import os
 
 import pytest
 
@@ -53,3 +54,84 @@ def test_check_output_parser_exists(caplog, prompts):
         in caplog.text
     )
     assert "self_check_input" in caplog.text
+
+
+def test_check_prompt_exist_for_self_check_rails():
+    """Test that prompts are correctly validated for self-check rails."""
+
+    values = {
+        "rails": {
+            "input": {"flows": ["self check input"]},
+            "output": {"flows": ["self check facts", "self check output"]},
+        },
+        "prompts": [
+            {"task": "self_check_input", "content": "..."},
+            {"task": "self_check_facts", "content": "..."},
+            {"task": "self_check_output", "content": "..."},
+        ],
+    }
+    result = RailsConfig.check_prompt_exist_for_self_check_rails(values)
+    assert result == values
+
+    # missing prompt is an invalid case
+    values = {
+        "rails": {
+            "input": {"flows": ["self check input"]},
+            "output": {"flows": ["self check facts", "self check output"]},
+        },
+        "prompts": [
+            {"task": "self_check_input", "content": "..."},
+            {"task": "self_check_facts", "content": "..."},
+            # missings self_check_output prompt
+        ],
+    }
+    with pytest.raises(
+        ValueError, match="You must provide a `self_check_output` prompt template"
+    ):
+        RailsConfig.check_prompt_exist_for_self_check_rails(values)
+
+
+def test_fill_in_default_values_for_v2_x():
+    """Test that default values are correctly filled in for v2.x."""
+
+    values = {"instructions": [], "sample_conversation": None, "colang_version": "2.x"}
+    result = RailsConfig.fill_in_default_values_for_v2_x(values)
+    assert "instructions" in result
+    assert len(result["instructions"]) > 0
+    assert "sample_conversation" in result
+    assert result["sample_conversation"] is not None
+
+
+def test_rails_config_from_path():
+    """Test loading RailsConfig from path."""
+
+    config_path = os.path.join(os.path.dirname(__file__), "test_configs", "general")
+    config = RailsConfig.from_path(config_path)
+    assert config is not None
+    assert len(config.instructions) > 0
+    assert config.sample_conversation is not None
+
+
+def test_rails_config_parse_obj():
+    """Test parsing RailsConfig from object."""
+
+    config_obj = {
+        "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}],
+        "instructions": [{"type": "general", "content": "Test instruction"}],
+        "sample_conversation": "Test conversation",
+        "flows": [
+            {
+                "id": "test_flow",
+                "elements": [
+                    {"type": "user_say", "content": "Hello"},
+                    {"type": "bot_say", "content": "Hi there!"},
+                ],
+            }
+        ],
+    }
+    config = RailsConfig.model_validate(config_obj)
+    assert config is not None
+    assert len(config.instructions) == 1
+    assert config.sample_conversation == "Test conversation"
+    assert len(config.flows) == 1
+    assert config.flows[0]["id"] == "test_flow"
