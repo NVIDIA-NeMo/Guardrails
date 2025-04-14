@@ -12,7 +12,7 @@ rule alwaystrue
 {
     meta:
         author = "Erick Galinkin"
-        description = "Test always returns false"
+        description = "Test always returns true"
         date = "2025-03-25"
     condition:
         true
