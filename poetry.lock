@@ -3360,6 +3360,17 @@ files = [
 ]
 
 [[package]]
+name = "phonenumbers"
+version = "8.13.55"
+description = "Python version of Google's common library for parsing, formatting, storing and validating international phone numbers."
+optional = true
+python-versions = "*"
+files = [
+    {file = "phonenumbers-8.13.55-py2.py3-none-any.whl", hash = "sha256:25feaf46135f0fb1e61b69513dc97c477285ba98a69204bf5a8cf241a844a718"},
+    {file = "phonenumbers-8.13.55.tar.gz", hash = "sha256:57c989dda3eabab1b5a9e3d24438a39ebd032fa0172bf68bfd90ab70b3d5e08b"},
+]
+
+[[package]]
 name = "pillow"
 version = "11.2.1"
 description = "Python Imaging Library (Fork)"
@@ -3552,6 +3563,30 @@ files = [
 [package.dependencies]
 cymem = ">=2.0.2,<2.1.0"
 murmurhash = ">=0.28.0,<1.1.0"
+
+[[package]]
+name = "presidio-analyzer"
+version = "2.2.358"
+description = "Presidio Analyzer package"
+optional = true
+python-versions = "<4.0,>=3.9"
+files = [
+    {file = "presidio_analyzer-2.2.358-py3-none-any.whl", hash = "sha256:21f0b56feb61c91f80a50662da4446a040080bb8989b20bccf9cb826189e4b93"},
+]
+
+[package.dependencies]
+phonenumbers = ">=8.12,<9.0.0"
+pyyaml = "*"
+regex = "*"
+spacy = ">=3.4.4,<3.7.0 || >3.7.0,<4.0.0"
+tldextract = "*"
+
+[package.extras]
+azure-ai-language = ["azure-ai-textanalytics", "azure-core"]
+gliner = ["gliner (>=0.2.13,<1.0.0)", "huggingface_hub", "onnxruntime (>=1.19)", "transformers"]
+server = ["flask (>=1.1)", "gunicorn"]
+stanza = ["stanza (>=1.10.1,<2.0.0)"]
+transformers = ["huggingface_hub", "spacy_huggingface_pipelines", "transformers"]
 
 [[package]]
 name = "presidio-anonymizer"
@@ -4499,6 +4534,20 @@ urllib3 = ">=1.21.1,<3"
 [package.extras]
 socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
+
+[[package]]
+name = "requests-file"
+version = "2.1.0"
+description = "File transport adapter for Requests"
+optional = true
+python-versions = "*"
+files = [
+    {file = "requests_file-2.1.0-py2.py3-none-any.whl", hash = "sha256:cf270de5a4c5874e84599fc5778303d496c10ae5e870bfa378818f35d21bda5c"},
+    {file = "requests_file-2.1.0.tar.gz", hash = "sha256:0f549a3f3b0699415ac04d167e9cb39bccfb730cb832b4d20be3d9867356e658"},
+]
+
+[package.dependencies]
+requests = ">=1.0.0"
 
 [[package]]
 name = "requests-toolbelt"
@@ -5489,6 +5538,27 @@ requests = ">=2.26.0"
 blobfile = ["blobfile (>=2)"]
 
 [[package]]
+name = "tldextract"
+version = "5.2.0"
+description = "Accurately separates a URL's subdomain, domain, and public suffix, using the Public Suffix List (PSL). By default, this includes the public ICANN TLDs and their exceptions. You can optionally support the Public Suffix List's private domains as well."
+optional = true
+python-versions = ">=3.9"
+files = [
+    {file = "tldextract-5.2.0-py3-none-any.whl", hash = "sha256:59509cbf99628c9440f4d19d3a1fd8488d50297ea23879c136576263c5a04eba"},
+    {file = "tldextract-5.2.0.tar.gz", hash = "sha256:c3a8c4daf2c25a57f54d6ef6762aeac7eff5ac3da04cdb607130be757b8457ab"},
+]
+
+[package.dependencies]
+filelock = ">=3.0.8"
+idna = "*"
+requests = ">=2.1.0"
+requests-file = ">=1.4"
+
+[package.extras]
+release = ["build", "twine"]
+testing = ["mypy", "pytest", "pytest-gitignore", "pytest-mock", "responses", "ruff", "syrupy", "tox", "tox-uv", "types-filelock", "types-requests"]
+
+[[package]]
 name = "tokenizers"
 version = "0.15.2"
 description = ""
@@ -6326,15 +6396,15 @@ cffi = {version = ">=1.11", markers = "platform_python_implementation == \"PyPy\
 cffi = ["cffi (>=1.11)"]
 
 [extras]
-all = ["aiofiles", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "opentelemetry-api", "opentelemetry-sdk", "presidio-anonymizer", "spacy", "streamlit", "tqdm"]
+all = ["aiofiles", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "opentelemetry-api", "opentelemetry-sdk", "presidio-analyzer", "presidio-anonymizer", "spacy", "streamlit", "tqdm"]
 eval = ["numpy", "numpy", "streamlit", "tqdm"]
 gcp = ["google-cloud-language"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 openai = ["langchain-openai"]
-sdd = ["presidio-anonymizer", "spacy"]
+sdd = ["presidio-analyzer", "presidio-anonymizer", "spacy"]
 tracing = ["aiofiles", "opentelemetry-api", "opentelemetry-sdk"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,!=3.9.7,<3.14"
-content-hash = "37a5145179ee60c2d6a73385a4d0156cdd6477ff25dc697a25c3a38c89ddd4e6"
+content-hash = "04b51f02e5776ef3d64f6e711ea5fe06a0de579089cc1da9aa2d8bc24f772331"
