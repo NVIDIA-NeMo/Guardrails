@@ -963,6 +963,13 @@ NeMo Guardrails ships with some basic rules for the following categories:
 
 Additional rules can be added by including them in the `library/injection_detection/yara_rules` folder or specifying a `yara_path` with all the rules.
 
+Injection detection has a number of action options that indicate what to do when potential exploitation is detected.
+Two options are currently available: `reject` and `omit`, with `sanitize` planned for a future release.
+
+* `reject` will return a message to the user indicating that their query could not be handled and they should try again.
+* `omit` will return the model's output, removing the offending detected content.
+* `sanitize` attempts to "de-fang" the malicious content, returning the output in a way that is less likely to result exploitation. This action is generally considered unsuitable for production use.
+
 #### Configuring Injection Detection
 To activate injection detection, you must include either the `reject injection` or the `mitigate injection` output flow.
 As an example config:
@@ -986,6 +993,7 @@ rails:
 
 Note that the `reject injection` flow corresponds with the `reject` value of the `action` parameter in the config, while `mitigate injection` corresponds with the `omit` and `sanitize` actions.
 If the specified `action` does not align with the rail, a warning will be logged and guardrails will default to the `reject injection` rail.
+`sanitize` is not currently supported.
 
 **SECURITY WARNING:** It is _strongly_ advised that the `sanitize` action not be used in production systems, as there is no guarantee of its efficacy, and it may lead to adverse security outcomes.
 

@@ -38,9 +38,9 @@ import yara
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.library.injection_detection.yara_config import Rules, ActionOptions
 
-YARA_DIR = Path(__file__).resolve().parent / "yara_rules"
-PROVIDED_MODULES = ["sqli", "template", "code", "xss"]
+YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
 
 log = logging.getLogger(__name__)
 
@@ -75,20 +75,27 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
     elif isinstance(yara_path, str):
         yara_path = Path(yara_path)
         if not yara_path.exists() or not yara_path.is_dir():
-            msg = f"Provided `yara_path` value in injection config {yara_path} is not a directory."
+            msg = (
+                "Provided `yara_path` value in injection config %s is not a directory."
+                % yara_path
+            )
             log.error(msg)
             raise FileNotFoundError(msg)
     else:
-        msg = f"Expected a string value for `yara_path` but got {type(yara_path)} instead."
+        msg = "Expected a string value for `yara_path` but got %r instead." % type(yara_path)
+
         log.error(msg)
         raise ValueError(msg)
     action_option = command_injection_config.action
-    if action_option not in ["reject", "omit", "sanitize"]:
-        msg = f"Expected 'reject', 'omit', or 'sanitize' action in injection config but got {action_option}"
+    if action_option not in ActionOptions:
+        msg = (
+            "Expected 'reject', 'omit', or 'sanitize' action in injection config but got %s"
+            % action_option
+        )
         log.error(msg)
         raise ValueError(msg)
     injection_rules = tuple(command_injection_config.injections)
-    if not set(injection_rules) <= set(PROVIDED_MODULES):
+    if not set(injection_rules) <= Rules:
         # Do the easy check above first. If they provide a custom dir or a custom rules file, check the filesystem
         if not all(
             [
@@ -96,10 +103,11 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
                 for module_name in injection_rules
             ]
         ):
+            default_rule_names = ", ".join([member.value for member in Rules])
             msg = (
-                f"Provided set of `injections` in injection config {injection_rules} contains elements not in "
-                f"available rules. Provided rules are in {PROVIDED_MODULES}."
-            )
+                "Provided set of `injections` in injection config %r contains elements not in available rules. "
+                "Provided rules are in %r."
+            ) % (injection_rules, default_rule_names)
             log.error(msg)
             raise ValueError(msg)
 
@@ -140,16 +148,6 @@ def load_rules(yara_path: Path, rule_names: Tuple) -> Union[yara.Rules, None]:
     return rules
 
 
-def detect_injection_mapping(result: bool) -> bool:
-    """
-    Mapping for detect_*_injection actions.
-
-    The detect_*_injection functions return True when the relevant type of data is detected, and we take the prescribed
-    action if the result is true.
-    """
-    return result
-
-
 def omit_injection(text: str, matches: list[yara.Match]) -> str:
     """
     Attempts to strip the offending injection attempts from the provided text.
@@ -183,6 +181,8 @@ def omit_injection(text: str, matches: list[yara.Match]) -> str:
 def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
     """
     Attempts to sanitize the offending injection attempts in the provided text.
+    This is done by 'de-fanging' the offending content, transforming it into a state that will not execute
+    downstream commands.
 
     Note:
         This method may not be completely effective and could still result in
@@ -204,7 +204,7 @@ def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
     )
 
 
-@action(is_system_action=True, output_mapping=detect_injection_mapping)
+@action()
 async def reject_injection(text: str, config: RailsConfig) -> bool:
     """
     Detects whether the provided text contains potential injection attempts.
@@ -243,7 +243,7 @@ async def reject_injection(text: str, config: RailsConfig) -> bool:
         return False
 
 
-@action(is_system_action=True)
+@action()
 async def mitigate_injection(text: str, config: RailsConfig) -> str:
     """
     Detects and mitigates potential injection attempts in the provided text.
