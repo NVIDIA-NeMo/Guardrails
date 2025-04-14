@@ -97,11 +97,12 @@ numpy = [
 streamlit = { version = "^1.37.0", optional = true, python = ">=3.9,!=3.9.7,<3.12" }
 pandas = { version = ">=1.4.0,<3", optional = true }
 
-# sdd
-presidio-analyzer = { version = ">=2.2", optional = true }
+spacy = [
+  { version = ">=3.7.2,<3.8.0", optional = true, python = ">=3.9,<3.13" },
+  # { version = "==3.7.2", optional = true, python = ">=3.13,<3.14" },
+] # Capping spacy to spacy<3.8.0  see https://github.com/explosion/cython-blis/issues/117# poetry 3.8.4 does not exist for python 3.9presidio-analyzer = { version = ">=2.2", optional = true }# sdd
+# No spacy support for python 3.13 (https://github.com/explosion/spaCy/issues/13658)
 presidio-anonymizer = { version = ">=2.2", optional = true }
-# poetry 3.8.4 does not exist for python 3.9
-spacy = { version = ">=3.7.2,<3.8.0", optional = true } # Capping spacy to spacy<3.8.0  see https://github.com/explosion/cython-blis/issues/117
 
 # nim
 langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
