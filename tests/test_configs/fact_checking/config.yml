@@ -1,7 +1,7 @@
 models:
   - type: main
-    engine: openai
-    model: gpt-3.5-instruct-turbo
+    engine: nim
+    model_name: meta/llama-3.1-70b-instruct
 
 rails:
   config:

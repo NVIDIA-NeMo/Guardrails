@@ -100,7 +100,7 @@ def co_v2(
                     history += f'  bot say "{event["script"]}"\n'
 
                 elif event["type"] == "StartTool":
-                    s = f'  await {event["flow_name"]}'
+                    s = f"  await {event['flow_name']}"
                     for k, v in event.items():
                         if k in [
                             "type",
@@ -385,87 +385,13 @@ def indent(text: str, n_spaces: int) -> str:
     return textwrap.indent(text, " " * n_spaces)
 
 
-def user_assistant_sequence_nemollm(events: List[dict]) -> str:
-    """Filter that turns an array of events into a sequence of user/assistant messages.
-
-    The output will look like:
-       ```
-       <extra_id_1>User
-       hi
-       <extra_id_1>Assistant
-       Hello there!
-       <extra_id_1>User
-       What can you do?
-       <extra_id_1>Assistant
-       I can help with many things.
-       ```
-    """
-    history_items = []
-    for event in events:
-        if event["type"] == "UserMessage":
-            # Convert text to string regardless of type (handles both text and multimodal)
-            history_items.append("<extra_id_1>User\n" + str(event["text"]))
-        elif event["type"] == "StartUtteranceBotAction":
-            history_items.append("<extra_id_1>Assistant\n" + event["script"])
-
-    return "\n".join(history_items)
-
-
 def _previous_line(lines: List[str], i: int):
     """Returns the previous lines, skipping comments."""
+
     i = i - 1
     while i > 0 and lines[i].strip().startswith("#"):
         i -= 1
     return lines[i]
-
-
-def to_messages_nemollm(colang_history: str) -> str:
-    """Filter that given a history in colang format, returns a messages string
-    in the chat format used by NeMo LLM models."""
-    messages = []
-
-    # For now, we use a simple heuristic. The line `user "xxx"` gets translated to
-    # a message from the user, and the rest gets translated to messages from the assistant.
-    lines = colang_history.split("\n")
-
-    bot_lines = []
-    for i, line in enumerate(lines):
-        if line.startswith('user "'):
-            # If we have bot lines in the buffer, we first add a bot message.
-            if bot_lines:
-                messages.append({"type": "assistant", "content": "\n".join(bot_lines)})
-                bot_lines = []
-
-            messages.append({"type": "user", "content": line[6:-1]})
-
-        elif line.strip() == "":
-            # On empty lines, we also reset the bot buffer.
-            if bot_lines:
-                messages.append({"type": "assistant", "content": "\n".join(bot_lines)})
-                bot_lines = []
-        else:
-            if i > 0 and _previous_line(lines, i).startswith('user "'):
-                if not line.strip().startswith("#"):
-                    line = "User intent: " + line.strip()
-            elif line.startswith("user "):
-                line = "User intent: " + line[5:].strip()
-            elif line.startswith("bot "):
-                line = "Bot intent: " + line[4:].strip()
-            elif line.startswith('  "'):
-                line = "Bot message: " + line[2:].strip()
-            bot_lines.append(line)
-
-    # Check if there is a last message from the bot.
-    if bot_lines:
-        messages.append({"type": "bot", "content": "\n".join(bot_lines)})
-
-    messages_string = ""
-    for m in messages:
-        if m["type"] == "assistant" or m["type"] == "bot":
-            messages_string += "<extra_id_1>Assistant\n" + m["content"] + "\n"
-        elif m["type"] == "user":
-            messages_string += "<extra_id_1>User\n" + m["content"] + "\n"
-    return messages_string
 
 
 def remove_trailing_new_line(s: str):

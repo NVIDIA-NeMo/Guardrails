@@ -34,8 +34,8 @@ define flow greeting
     yaml_content="""
     models:
       - type: main
-        engine: nemollm
-        model: gpt-43b-002
+        engine: openai
+        model: gpt-3.5-instruct-turbo
     """,
 )
 

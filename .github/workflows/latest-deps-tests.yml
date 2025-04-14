@@ -1,9 +1,8 @@
 name: Test with Latest Dependencies
 
 on:
-    push:
-    schedule:
-        - cron: "0 22 * * *" # 10:00 PM UTC, daily
+  schedule:
+    - cron: "0 22 * * *" # 10:00 PM UTC, daily
 jobs:
     call-tests:
         strategy:

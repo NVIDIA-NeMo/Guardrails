@@ -91,7 +91,7 @@ To use any of the providers, you must install additional packages; when you firs
 ```
 
 ```{important}
-Although you can instantiate any of the previously mentioned LLM providers, depending on the capabilities of the model, the NeMo Guardrails toolkit works better with some providers than others. The toolkit includes prompts that have been optimized for certain types of models, such as `openai` and `nemollm`. For others, you can optimize the prompts yourself following the information in the [LLM Prompts](#llm-prompts) section.
+Although you can instantiate any of the previously mentioned LLM providers, depending on the capabilities of the model, the NeMo Guardrails toolkit works better with some providers than others. The toolkit includes prompts that have been optimized for certain types of models, such as models provided by`openai` or `llama3` models. For others, you can optimize the prompts yourself following the information in the [LLM Prompts](#llm-prompts) section.
 ```
 
 #### Using LLMs with Reasoning Traces
@@ -196,44 +196,6 @@ models:
     parameters:
       base_url: http://your_base_url
 ```
-
-#### NeMo LLM Service
-
-In addition to the LLM providers supported by LangChain, NeMo Guardrails also supports NeMo LLM Service. For example, to use the GPT-43B-905 model as the main LLM, you should use the following configuration:
-
-```yaml
-models:
-  - type: main
-    engine: nemollm
-    model: gpt-43b-905
-```
-
-You can also use customized NeMo LLM models for specific tasks, e.g., self-checking the user input or the bot output. For example:
-
-```yaml
-models:
-  # ...
-  - type: self_check_input
-    engine: nemollm
-    model: gpt-43b-002
-    parameters:
-      tokens_to_generate: 10
-      customization_id: 6e5361fa-f878-4f00-8bc6-d7fbaaada915
-```
-
-You can specify additional parameters when using NeMo LLM models using the `parameters` key. The supported parameters are:
-
-- `temperature`: the temperature that should be used for making the calls;
-- `api_host`: points to the NeMo LLM Service host (default '<https://api.llm.ngc.nvidia.com>');
-- `api_key`: the NeMo LLM Service key that should be used;
-- `organization_id`: the NeMo LLM Service organization ID that should be used;
-- `tokens_to_generate`: the maximum number of tokens to generate;
-- `stop`: the list of stop words that should be used;
-- `customization_id`: if a customization is used, the id should be specified.
-
-The `api_host`, `api_key`, and `organization_id` are fetched automatically from the environment variables `NGC_API_HOST`, `NGC_API_KEY`, and `NGC_ORGANIZATION_ID`, respectively.
-
-For more details, please refer to the NeMo LLM Service documentation and check out the [NeMo LLM example configuration](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/llm/nemollm/README.md).
 
 #### TRT-LLM
 

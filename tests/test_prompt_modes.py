@@ -63,8 +63,8 @@ def yaml_config(task_name):
         engine = "openai"
         model = "gpt-3.5-turbo"
     else:
-        engine = "nemollm"
-        model = "gpt-43b-905"
+        engine = "nim"
+        model = "meta"
 
     prompting_mode = "compact" if "compact" in task_name else "standard"
 

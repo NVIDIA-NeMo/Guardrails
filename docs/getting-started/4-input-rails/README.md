@@ -283,9 +283,11 @@ print(info.llm_calls[0].completion)
 
 The following figure depicts in more details how the self-check input rail works:
 
-<div align="center">
-<img src="../../_static/puml/input_rails_fig_1.png" width="815">
-</div>
+```{image} ../../_static/puml/input_rails_fig_1.png
+:alt: "Sequence diagram showing how the self-check input rail works in NeMo Guardrails: 1) Application code sends a user message to the Programmable Guardrails system, 2) The message is passed to the Input Rails component, 3) Input Rails calls the self_check_input action, 4) The action uses an LLM to evaluate the message, 5) If the LLM returns 'Yes' indicating inappropriate content, the input is blocked and the bot responds with 'I am not able to respond to this.'"
+:width: 815px
+:align: center
+```
 
 The `self check input` rail calls the `self_check_input` action, which in turn calls the LLM using the `self_check_input` task prompt.
 
@@ -327,9 +329,11 @@ print(info.llm_calls[0].completion)
 
 Because the input rail was not triggered, the flow continued as usual.
 
-<div align="center">
-<img src="../../_static/puml/input_rails_fig_2.png" width="740">
-</div>
+```{image} ../../_static/puml/input_rails_fig_2.png
+:alt: "Sequence diagram showing how the self-check input rail works in NeMo Guardrails when processing a valid user message: 1) Application code sends a user message to the Programmable Guardrails system, 2) The message is passed to the Input Rails component, 3) Input Rails calls the self_check_input action, 4) The action uses an LLM to evaluate the message, 5) If the LLM returns 'No' (indicating appropriate content), the input is allowed to continue, 6) The system then proceeds to generate a bot response using the general task prompt"
+:width: 740px
+:align: center
+```
 
 Note that the final answer is not correct.
 

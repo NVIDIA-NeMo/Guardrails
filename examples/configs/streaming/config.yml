@@ -9,11 +9,6 @@ models:
     engine: openai
     model: gpt-4
 
-# # Uncomment this and comment the 3 lines above to test with NeMo LLM.
-#  - type: main
-#    engine: "nemollm"
-#    model: "gpt-43b-905"
-
 rails:
   dialog:
     single_call:

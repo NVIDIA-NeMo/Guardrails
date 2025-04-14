@@ -38,7 +38,6 @@ from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.rails.llm.config import Model
 
-from .nemollm import NeMoLLM
 from .trtllm.llm import TRTLLM
 
 # NOTE: this is temp
@@ -54,7 +53,6 @@ log = logging.getLogger(__name__)
 # Initialize the providers with the default ones
 # We set nvidia_ai_endpoints provider to None because it's only supported if `langchain_nvidia_ai_endpoints` is installed.
 _providers: Dict[str, Optional[Type[BaseLLM]]] = {
-    "nemollm": NeMoLLM,
     "trt_llm": TRTLLM,
     "nvidia_ai_endpoints": None,
     "google_genai": None,
@@ -314,6 +312,11 @@ def get_llm_provider(model_config: Model) -> Type[BaseLLM]:
                 "Could not import langchain_together, please install it with "
                 "`pip install langchain-together`."
             )
+
+    elif model_config.engine == "nemollm":
+        raise RuntimeError(
+            "'nemollm' engine is deprecated and has been removed in v0.14.0 release."
+        )
 
     else:
         return _providers[model_config.engine]

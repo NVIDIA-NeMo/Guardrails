@@ -1,11 +1,10 @@
-name: Build and Test Python Wheel
+name: Build and Test Distribution
 
 on:
-  pull_request:
-    types: [review_requested, ready_for_review]
-    paths-ignore:
-      - "**/*.md"
   push:
+    branches:
+      - main
+      - develop
     tags:
       - "v*"
   schedule:

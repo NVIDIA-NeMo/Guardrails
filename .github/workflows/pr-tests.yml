@@ -1,8 +1,9 @@
 name: PR Tests
 
-# we don't ignore markdkowns to run pre-commits
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    # we don't ignore markdkowns to run pre-commits
     paths-ignore:
       - ".github/**"
 
