@@ -1,21 +1,7 @@
 # OUTPUT RAILS
 
-flow reject injection
+flow injection detection
   """
-  Reject injection attempts
+  Reject, omit, or sanitize injection attempts from the bot.
   """
-  $injection = await RejectInjectionAction(text=$bot_message)
-
-  if $injection
-    if $system.config.enable_rails_exceptions
-      send InjectionDetectionRailException(message="Injection attempt detected. Bot output contained a potential injection attempt.")
-    else
-      bot refuse to respond
-    abort
-
-
-flow mitigate injection
-  """
-  Omit or sanitize injection attempts from the bot.
-  """
-  $bot_message = await MitigateInjectionAction(text=$bot_message)
+  $bot_message = await InjectionDetectionAction(text=$bot_message)

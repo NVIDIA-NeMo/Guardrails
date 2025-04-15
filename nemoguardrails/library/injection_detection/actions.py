@@ -82,7 +82,9 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
             log.error(msg)
             raise FileNotFoundError(msg)
     else:
-        msg = "Expected a string value for `yara_path` but got %r instead." % type(yara_path)
+        msg = "Expected a string value for `yara_path` but got %r instead." % type(
+            yara_path
+        )
 
         log.error(msg)
         raise ValueError(msg)
@@ -204,8 +206,7 @@ def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
     )
 
 
-@action()
-async def reject_injection(text: str, config: RailsConfig) -> bool:
+def reject_injection(text: str, rules: yara.Rules) -> Tuple[bool, str]:
     """
     Detects whether the provided text contains potential injection attempts.
 
@@ -214,37 +215,31 @@ async def reject_injection(text: str, config: RailsConfig) -> bool:
 
     Args:
         text (str): The text to check for command injection.
-        config (RailsConfig): The Rails configuration object containing injection detection settings.
+        rules (yara.Rules): The loaded YARA rules.
 
     Returns:
-        bool: True if command injection is detected, False otherwise.
+        bool: True if attempted exploitation is detected, False otherwise.
+        str: list of matches as a string
 
     Raises:
         ValueError: If the `action` parameter in the configuration is invalid.
     """
-    action_option, yara_path, rule_names = _validate_unpack_config(config)
-    rules = load_rules(yara_path, rule_names)
-    if action_option != "reject":
-        log.warning(
-            f"reject_injection guardrail expects config `action` parameter to be 'reject', but got '{action_option}' "
-            f"instead. Proceeding with rejection rail. Please modify your config if you want a different action."
-        )
     if rules is None:
         log.warning(
             "reject_injection guardrail was invoked but no rules were specified in the InjectionDetection config."
         )
-        return False
+        return False, ""
     matches = rules.match(data=text)
     if matches:
         matches_string = ", ".join([match_name.rule for match_name in matches])
         log.info(f"Input matched on rule {matches_string}.")
-        return True
+        return True, matches_string
     else:
-        return False
+        return False, ""
 
 
 @action()
-async def mitigate_injection(text: str, config: RailsConfig) -> str:
+async def injection_detection(text: str, config: RailsConfig) -> str:
     """
     Detects and mitigates potential injection attempts in the provided text.
 
@@ -266,22 +261,14 @@ async def mitigate_injection(text: str, config: RailsConfig) -> str:
     action_option, yara_path, rule_names = _validate_unpack_config(config)
     rules = load_rules(yara_path, rule_names)
     if action_option == "reject":
-        log.warning(
-            "mitigate_injection expects config `action` parameter to be 'omit' or 'sanitize' but got 'reject' "
-            "instead. Using reject_injection rail instead of mitigate_injection rail. "
-            "Please modify your config if you want a different action"
-        )
-        if reject_injection(text, config):
-            return "I'm sorry, I can't help you with that."
+        verdict, detections = reject_injection(text, rules)
+        if verdict:
+            return f"I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {detections}."
         else:
             return text
-    if action_option not in ["omit", "sanitize"]:
-        msg = f"Expected `action` parameter to be 'omit' or 'sanitize' but got {action_option} instead."
-        log.error(msg)
-        raise ValueError(msg)
     if rules is None:
         log.warning(
-            "mitigate_injection guardrail was invoked but no rules were specified in the InjectionDetection config."
+            "injection detection guardrail was invoked but no rules were specified in the InjectionDetection config."
         )
         return text
     matches = rules.match(data=text)

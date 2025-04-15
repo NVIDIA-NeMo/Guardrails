@@ -11,4 +11,4 @@ rails:
 
   output:
     flows:
-      - reject injection
+      - injection detection

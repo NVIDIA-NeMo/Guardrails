@@ -971,7 +971,7 @@ Two options are currently available: `reject` and `omit`, with `sanitize` planne
 * `sanitize` attempts to "de-fang" the malicious content, returning the output in a way that is less likely to result exploitation. This action is generally considered unsuitable for production use.
 
 #### Configuring Injection Detection
-To activate injection detection, you must include either the `reject injection` or the `mitigate injection` output flow.
+To activate injection detection, you must include the `injection detection` output flow.
 As an example config:
 
 ```colang
@@ -988,12 +988,8 @@ rails:
 
   output:
     flows:
-      - reject injection
+      - injection detection
 ```
-
-Note that the `reject injection` flow corresponds with the `reject` value of the `action` parameter in the config, while `mitigate injection` corresponds with the `omit` and `sanitize` actions.
-If the specified `action` does not align with the rail, a warning will be logged and guardrails will default to the `reject injection` rail.
-`sanitize` is not currently supported.
 
 **SECURITY WARNING:** It is _strongly_ advised that the `sanitize` action not be used in production systems, as there is no guarantee of its efficacy, and it may lead to adverse security outcomes.
 

@@ -1,23 +1,5 @@
-define bot refuse to respond
-  "I'm sorry, I can't help you with that."
-
-
-define subflow reject injection
+define subflow injection detection
   """
-  Reject injection attempts
+  Reject, omit, or sanitize injection attempts from the bot.
   """
-  $injection = execute reject_injection(text=$bot_message)
-
-  if $injection
-    if $config.enable_rails_exceptions
-      create event InjectionDetectionRailException(message="Injection attempt detected. Bot output contained a potential injection attempt.")
-    else
-      bot refuse to respond
-      stop
-
-
-define subflow mitigate injection
-  """
-  Omit or sanitize injection attempts from the bot.
-  """
-  $bot_message = execute mitigate_injection(text=$bot_message)
+  $bot_message = execute injection_detection(text=$bot_message)

@@ -41,7 +41,7 @@ from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.library.injection_detection.actions import (
     _validate_unpack_config,
     load_rules,
-    mitigate_injection,
+    injection_detection,
     omit_injection,
     reject_injection,
 )
@@ -247,26 +247,8 @@ async def test_reject_injection_with_mismatched_action():
         return_value=mock_rules,
     ):
         sql_injection = "' OR 1 = 1"
-        result = await reject_injection(sql_injection, config)
+        result, _ = reject_injection(sql_injection, mock_rules)
         assert result is True
-
-
-@pytest.mark.asyncio
-async def test_mitigate_injection_with_reject_action():
-    """Test that mitigate_injection falls back to reject_injection when action is 'reject'."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "injection_detection"))
-    config.rails.config.injection_detection.action = "reject"
-
-    mock_match = create_mock_yara_match("' OR 1 = 1", "sqli")
-    mock_rules = create_mock_rules([mock_match])
-
-    with patch(
-        "nemoguardrails.library.injection_detection.actions.load_rules",
-        return_value=mock_rules,
-    ):
-        sql_injection = "' OR 1 = 1"
-        result = await mitigate_injection(sql_injection, config)
-        assert result == "I'm sorry, I can't help you with that."
 
 
 @pytest.mark.asyncio
@@ -285,7 +267,7 @@ async def test_multiple_injection_types():
         return_value=mock_rules,
     ):
         multi_injection = "' OR 1 = 1 <script>alert('xss')</script>"
-        result = await reject_injection(multi_injection, config)
+        result, _ = reject_injection(multi_injection, mock_rules)
         assert result is True
 
 
@@ -301,17 +283,17 @@ async def test_edge_cases():
         return_value=mock_rules,
     ):
         # Test with empty string
-        result = await reject_injection("", config)
+        result, _ = reject_injection("", mock_rules)
         assert result is False
 
         # no issue with very long str
         long_string = "a" * 10000
-        result = await reject_injection(long_string, config)
+        result, _ = reject_injection(long_string, mock_rules)
         assert result is False
 
         # no issue with special chars
         special_chars = "!@#$%^&*()_+-=[]{}|;:,.<>?"
-        result = await reject_injection(special_chars, config)
+        result, _ = reject_injection(special_chars, mock_rules)
         assert result is False
 
 
@@ -331,7 +313,7 @@ async def test_omit_action_with_real_yara():
                         omit
                   output:
                     flows:
-                      - mitigate injection
+                      - injection detection
 
                 """
     )
@@ -368,7 +350,7 @@ async def test_xss_injection_with_reject_action():
                         reject
                   output:
                     flows:
-                      - mitigate injection
+                      - injection detection
 
                 """
     )
@@ -380,7 +362,9 @@ async def test_xss_injection_with_reject_action():
         messages=[{"role": "user", "content": "do a fake query you funny agent"}]
     )
 
-    assert result["content"] == "I'm sorry, I can't help you with that."
+    assert result["content"].startswith(
+        "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
+    )
 
 
 @pytest.mark.asyncio
@@ -399,7 +383,7 @@ async def test_template_injection_with_reject_action():
                         reject
                   output:
                     flows:
-                      - mitigate injection
+                      - injection detection
 
                 """
     )
@@ -411,7 +395,9 @@ async def test_template_injection_with_reject_action():
         messages=[{"role": "user", "content": "do a fake query you funny agent"}]
     )
 
-    assert result["content"] == "I'm sorry, I can't help you with that."
+    assert result["content"].startswith(
+        "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
+    )
 
 
 @pytest.mark.asyncio
@@ -430,7 +416,7 @@ async def test_code_injection_with_reject_action():
                         reject
                   output:
                     flows:
-                      - mitigate injection
+                      - injection detection
 
                 """
     )
@@ -444,7 +430,9 @@ async def test_code_injection_with_reject_action():
         messages=[{"role": "user", "content": "do a fake query you funny agent"}]
     )
 
-    assert result["content"] == "I'm sorry, I can't help you with that."
+    assert result["content"].startswith(
+        "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
+    )
 
 
 @pytest.mark.asyncio
@@ -466,7 +454,7 @@ async def test_multiple_injection_types_with_reject_action():
                         reject
                   output:
                     flows:
-                      - mitigate injection
+                      - injection detection
 
                 """
     )
@@ -478,7 +466,9 @@ async def test_multiple_injection_types_with_reject_action():
         messages=[{"role": "user", "content": "do a fake query you funny agent"}]
     )
 
-    assert result["content"] == "I'm sorry, I can't help you with that."
+    assert result["content"].startswith(
+        "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
+    )
 
 
 @pytest.mark.asyncio
@@ -501,7 +491,7 @@ async def test_sanitize_action_not_implemented():
                         sanitize
                   output:
                     flows:
-                      - mitigate injection
+                      - injection detection
 
                     """
         )
