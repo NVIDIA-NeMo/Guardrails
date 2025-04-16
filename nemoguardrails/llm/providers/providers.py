@@ -25,7 +25,7 @@ import asyncio
 import importlib
 import logging
 import warnings
-from typing import Dict, List, Type
+from typing import Dict, List, Set, Type
 
 from langchain.chat_models.base import BaseChatModel
 from langchain_community import llms
@@ -80,6 +80,16 @@ def _discover_langchain_community_llm_providers():
         type_to_cls_dict = llms.type_to_cls_dict
 
     return type_to_cls_dict
+
+
+# this is needed as we perform the mapping in langchain_initializer.py
+_CUSTOM_CHAT_PROVIDERS = {"nim"}
+
+
+def _discover_langchain_partner_chat_providers() -> Set[str]:
+    from langchain.chat_models.base import _SUPPORTED_PROVIDERS
+
+    return _SUPPORTED_PROVIDERS | _CUSTOM_CHAT_PROVIDERS
 
 
 def _discover_langchain_community_chat_providers():
@@ -157,6 +167,17 @@ def get_llm_provider_names() -> List[str]:
 def get_community_chat_provider_names() -> List[str]:
     """Returns the list of supported chat providers."""
     return list(sorted(list(_chat_providers.keys())))
+
+
+def _get_all_chat_provider_names() -> List[str]:
+    """Consolidates all chat provider names."""
+
+    return list(_chat_providers.keys() | _discover_langchain_partner_chat_providers())
+
+
+def get_chat_provider_names() -> List[str]:
+    """Returns the list of supported chat providers."""
+    return list(sorted(_get_all_chat_provider_names()))
 
 
 def _get_text_completion_provider(provider_name: str) -> Type[BaseLLM]:

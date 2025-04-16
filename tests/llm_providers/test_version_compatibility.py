@@ -24,8 +24,9 @@ from nemoguardrails.llm.providers.providers import (
     _chat_providers,
     _discover_langchain_community_chat_providers,
     _discover_langchain_community_llm_providers,
+    _discover_langchain_partner_chat_providers,
     _llm_providers,
-    _parse_version,
+    get_chat_provider_names,
     get_community_chat_provider_names,
     get_llm_provider_names,
 )
@@ -133,7 +134,7 @@ _LLM_PROVIDERS_NAMES = [
     "yi",
     "you",
 ]
-_CHAT_PROVIDERS_NAMES = [
+_COMMUNITY_CHAT_PROVIDERS_NAMES = [
     "azure_openai",
     "bedrock",
     "anthropic",
@@ -195,6 +196,26 @@ _CHAT_PROVIDERS_NAMES = [
     "llamacpp",
     "yi",
 ]
+
+_PARTNER_CHAT_PROVIDERS_NAMES = {
+    "anthropic",
+    "azure_openai",
+    "bedrock",
+    "bedrock_converse",
+    "cohere",
+    "deepseek",
+    "fireworks",
+    "google_anthropic_vertex",
+    "google_genai",
+    "google_vertexai",
+    "groq",
+    "huggingface",
+    "mistralai",
+    "nim",
+    "ollama",
+    "openai",
+    "together",
+}
 # at some point we might care about certain providers
 CRITICAL_LLM_PROVIDERS = [
     "openai",
@@ -316,16 +337,38 @@ def test_provider_imports():
 
 
 def test_discover_langchain_community_chat_providers():
-    """Test that the function correctly discovers LangChain chat providers."""
+    """Test that the function correctly discovers LangChain community chat providers."""
+
     providers = _discover_langchain_community_chat_providers()
     chat_provider_names = get_community_chat_provider_names()
     assert set(chat_provider_names) == set(
         providers.keys()
     ), "it seems that we are registering a provider that is not in the LC community chat provider"
-    assert _CHAT_PROVIDERS_NAMES == list(providers.keys()), (
+    assert _COMMUNITY_CHAT_PROVIDERS_NAMES == list(providers.keys()), (
         "LangChain chat community providers may have changed. "
         "please investigate and update the test if necessary."
     )
+
+
+def test_dicsover_partner_chat_providers():
+    """Test that the function correctly discovers LangChain partner chat providers."""
+
+    partner_chat_providers = _discover_langchain_partner_chat_providers()
+    assert _PARTNER_CHAT_PROVIDERS_NAMES.issubset(partner_chat_providers), (
+        "LangChain partner chat providers may have changed. Update "
+        "_PARTNER_CHAT_PROVIDERS_NAMES to include all expected providers."
+    )
+    chat_providers = get_chat_provider_names()
+
+    assert partner_chat_providers.issubset(
+        chat_providers
+    ), "partner chat providers are not a subset of the list of chat providers"
+
+    if not partner_chat_providers == _PARTNER_CHAT_PROVIDERS_NAMES:
+        warnings.warn(
+            "LangChain partner chat providers may have changed. Update "
+            "_PARTNER_CHAT_PROVIDERS_NAMES to include all expected providers."
+        )
 
 
 def test_discover_langchain_community_llm_providers():
