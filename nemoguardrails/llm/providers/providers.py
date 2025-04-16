@@ -154,7 +154,7 @@ def get_llm_provider_names() -> List[str]:
     return list(sorted(list(_llm_providers.keys())))
 
 
-def get_chat_provider_names() -> List[str]:
+def get_community_chat_provider_names() -> List[str]:
     """Returns the list of supported chat providers."""
     return list(sorted(list(_chat_providers.keys())))
 
@@ -181,7 +181,7 @@ __all__ = [
     "_llm_providers",
     "_parse_version",
     "get_llm_provider_names",
-    "get_chat_provider_names",
+    "get_community_chat_provider_names",
     "register_llm_provider",
     "register_chat_provider",
 ]

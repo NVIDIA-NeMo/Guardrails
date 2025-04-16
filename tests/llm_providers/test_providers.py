@@ -29,7 +29,7 @@ from nemoguardrails.llm.providers.providers import (
     _llm_providers,
     _parse_version,
     _patch_acall_method_to,
-    get_chat_provider_names,
+    get_community_chat_provider_names,
     get_llm_provider_names,
     register_chat_provider,
     register_llm_provider,
@@ -167,7 +167,7 @@ def test_get_llm_provider_names():
 
 
 def test_get_chat_provider_names():
-    provider_names = get_chat_provider_names()
+    provider_names = get_community_chat_provider_names()
     assert isinstance(provider_names, list)
 
     # check for common providers that should be available

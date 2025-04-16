@@ -26,7 +26,7 @@ from nemoguardrails.llm.providers.providers import (
     _discover_langchain_community_llm_providers,
     _llm_providers,
     _parse_version,
-    get_chat_provider_names,
+    get_community_chat_provider_names,
     get_llm_provider_names,
 )
 
@@ -240,7 +240,7 @@ def test_critical_llm_providers_available():
 
 def test_critical_chat_providers_available():
     """Test that critical chat providers are available."""
-    provider_names = get_chat_provider_names()
+    provider_names = get_community_chat_provider_names()
 
     for provider in CRITICAL_CHAT_PROVIDERS:
         if provider not in provider_names:
@@ -253,7 +253,7 @@ def test_critical_chat_providers_available():
 def test_renamed_providers():
     """Test for providers that have been renamed or moved."""
     llm_provider_names = get_llm_provider_names()
-    chat_provider_names = get_chat_provider_names()
+    chat_provider_names = get_community_chat_provider_names()
 
     for old_name, new_name in RENAMED_PROVIDERS.items():
         if old_name in llm_provider_names or old_name in chat_provider_names:
@@ -267,10 +267,9 @@ def test_provider_registry_stability():
     """Test that the provider registry is stable and doesn't change unexpectedly."""
     # Get the current providers
     current_llm_providers = set(get_llm_provider_names())
-    current_chat_providers = set(get_chat_provider_names())
+    current_chat_providers = set(get_community_chat_provider_names())
 
     # This test will fail if the registry changes unexpectedly
-    # You can update this test when you intentionally change the registry
     expected_llm_providers = set(_llm_providers.keys())
     expected_chat_providers = set(_chat_providers.keys())
 
@@ -292,7 +291,7 @@ def test_provider_imports():
 
     # get all provider names
     llm_provider_names = get_llm_provider_names()
-    chat_provider_names = get_chat_provider_names()
+    chat_provider_names = get_community_chat_provider_names()
 
     # try to import each provider
     for provider_name in llm_provider_names:
@@ -319,7 +318,7 @@ def test_provider_imports():
 def test_discover_langchain_community_chat_providers():
     """Test that the function correctly discovers LangChain chat providers."""
     providers = _discover_langchain_community_chat_providers()
-    chat_provider_names = get_chat_provider_names()
+    chat_provider_names = get_community_chat_provider_names()
     assert set(chat_provider_names) == set(
         providers.keys()
     ), "it seems that we are registering a provider that is not in the LC community chat provider"

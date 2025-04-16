@@ -17,7 +17,7 @@ import os
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.llm.providers import get_llm_provider_names
-from nemoguardrails.llm.providers.providers import get_chat_provider_names
+from nemoguardrails.llm.providers.providers import get_community_chat_provider_names
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
@@ -37,4 +37,4 @@ def test_custom_chat_model_registration():
     )
     _ = LLMRails(config)
 
-    assert "custom_chat_model" in get_chat_provider_names()
+    assert "custom_chat_model" in get_community_chat_provider_names()
