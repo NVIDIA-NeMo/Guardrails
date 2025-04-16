@@ -38,7 +38,7 @@ import yara
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.library.injection_detection.yara_config import Rules, ActionOptions
+from nemoguardrails.library.injection_detection.yara_config import ActionOptions, Rules
 
 YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
 

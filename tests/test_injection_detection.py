@@ -40,8 +40,8 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.library.injection_detection.actions import (
     _validate_unpack_config,
-    load_rules,
     injection_detection,
+    load_rules,
     omit_injection,
     reject_injection,
 )
