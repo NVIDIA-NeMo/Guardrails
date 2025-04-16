@@ -27,5 +27,5 @@ jobs:
     needs: pr-tests-matrix
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm all tests passed
-        run: echo "All matrix tests completed successfully."
+      - name: Confirm all PR tests passed
+        run: echo "All PR Tests completed successfully"
