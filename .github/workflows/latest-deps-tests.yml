@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "0 22 * * *" # 10:00 PM UTC, daily
 jobs:
-    call-tests:
+    latest-deps-tests-matrix:
         strategy:
             matrix:
                 os: [Ubuntu]

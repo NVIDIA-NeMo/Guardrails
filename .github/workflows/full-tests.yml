@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 jobs:
-    call-tests:
+    full-tests-matrix:
         strategy:
             matrix:
                 os: [Windows, macOS] # exclude Ubuntu as it is available in pr-tests

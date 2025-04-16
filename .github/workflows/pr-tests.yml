@@ -8,7 +8,7 @@ on:
             - ".github/**"
 
 jobs:
-    call-tests:
+    pr-tests-matrix:
         strategy:
             matrix:
                 os: [Ubuntu]
