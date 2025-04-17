@@ -146,3 +146,80 @@ Options:
 --use-active-decorator          --no-use-active-decorator   If the migration should use the active decorator. [default: use-active-decorator]
 --help                                                      Show this message and exit.
 ```
+
+### providers
+
+```bash
+> nemoguardrails providers --help
+
+Usage: nemoguardrails find-providers [OPTIONS]
+
+Interactive provider selection.
+
+This command provides an interactive interface to select between text completion
+and chat completion providers. It will guide you through selecting the type of
+provider (text completion or chat completion) and then show you the available
+providers for that type.
+
+Options:
+  --list, -l    Just list all available providers without interactive selection
+  --help        Show this message and exit.
+```
+
+### Find Providers Command
+
+The `providers` command provides an interactive interface to explore and select LLM providers. It supports both text completion and chat completion providers.
+
+```bash
+nemoguardrails find-providers [--list]
+```
+
+#### Options
+
+- `--list`, `-l`: Just list all available providers without interactive selection
+
+#### Interactive Mode
+
+When run without the `--list` option, the command provides an interactive interface:
+
+1. First, you'll be prompted to select a provider type:
+   - Type to filter between "text completion" and "chat completion", you can press Tab to autocomplete.
+   - Use arrow keys to navigate through matches
+   - Press Tab to autocomplete
+   - Press Enter to select
+
+2. Then, you'll be prompted to select a specific provider:
+   - Type to filter through available providers
+   - Use arrow keys to navigate through matches
+   - Press Tab to autocomplete
+   - Press Enter to select
+
+#### Example Usage
+
+```bash
+# List all available providers
+nemoguardrails find-providers --list
+
+# Interactive provider selection
+nemoguardrails find-providers
+```
+
+#### Example Output
+
+```
+Available Provider Types: (type to filter, use arrows to select)
+  • text completion
+  • chat completion
+
+Select provider type: text
+
+Available text completion providers: (type to filter, use arrows to select)
+  • anthropic
+  • google_palm
+  • openai
+  • ...
+
+Select provider: openai
+
+Selected text completion provider: openai
+```
