@@ -94,6 +94,22 @@ To use any of the providers, you must install additional packages; when you firs
 Although you can instantiate any of the previously mentioned LLM providers, depending on the capabilities of the model, the NeMo Guardrails toolkit works better with some providers than others. The toolkit includes prompts that have been optimized for certain types of models, such as models provided by`openai` or `llama3` models. For others, you can optimize the prompts yourself following the information in the [LLM Prompts](#llm-prompts) section.
 ```
 
+#### Exploring Available Providers
+
+To help you explore and select the right LLM provider for your needs, NeMo Guardrails provides the `find-providers` command. This command offers an interactive interface to discover available providers:
+
+```bash
+nemoguardrails find-providers [--list]
+```
+
+The command supports two modes:
+- Interactive mode (default): Guides you through selecting a provider type (text completion or chat completion) and then shows available providers for that type
+- List mode (`--list`): Simply lists all available providers without interactive selection
+
+This can be particularly helpful when you're setting up your configuration and need to explore which providers are available and supported.
+
+For more details about the command and its usage, see the [CLI documentation](../cli.md#find-providers-command).
+
 #### Using LLMs with Reasoning Traces
 
 By default, reasoning models, such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d), include the reasoning traces in the model response.
@@ -1038,7 +1054,7 @@ register_log_adapter(YourCustomAdapter, "CustomLogAdapter")
 
 #### Example: Creating a Custom Adapter
 
-Here’s a simple example of a custom adapter that logs interaction logs to a custom backend:
+Here's a simple example of a custom adapter that logs interaction logs to a custom backend:
 
 ```python
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
