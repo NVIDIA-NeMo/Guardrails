@@ -9,4 +9,4 @@ define flow self check output
       create event OutputRailException(message="Output not allowed. The output was blocked by the 'self check output' flow.")
     else
       bot refuse to respond
-      stop
+    stop
