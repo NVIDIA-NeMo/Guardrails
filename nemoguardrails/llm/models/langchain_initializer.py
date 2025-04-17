@@ -117,7 +117,7 @@ def try_initialization_method(
 
 
 def init_langchain_model(
-    model_name: Optional[str],
+    model_name: str,
     provider_name: str,
     mode: Literal["chat", "text"],
     kwargs: Dict[str, Any],
