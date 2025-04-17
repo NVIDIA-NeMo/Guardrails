@@ -150,7 +150,8 @@ def init_langchain_model(
 
     # Track the last exception for better error reporting
     last_exception = None
-
+    # but also remember the first import‐error we see
+    first_import_error: Optional[ImportError] = None
     # Try each initializer in sequence
     for initializer in initializers:
         try:
@@ -163,14 +164,34 @@ def init_langchain_model(
             )
             if result is not None:
                 return result
-        except Exception as e:
-            # Keep track of the last exception
+        except ImportError as e:
+            # remember only the first import‐error we encounter
+            if first_import_error is None:
+                first_import_error = e
             last_exception = e
-            log.debug(f"Initialization failed with {initializer}: {str(e)}")
+            log.debug(f"Initialization import‐failure in {initializer}: {e}")
+        except Exception as e:
+            last_exception = e
+            log.debug(f"Initialization failed with {initializer}: {e}")
+    # build the final message, preferring that first ImportError if we saw one
+    base = (
+        f"Failed to initialize model {model_name!r} "
+        f"with provider {provider_name!r} in {mode!r} mode"
+    )
 
-    raise ModelInitializationError(
-        f"Failed to initialize model {model_name} with provider {provider_name} in {mode} mode"
-    ) from last_exception
+    # if we ever hit an ImportError, surface its message:
+    if first_import_error is not None:
+        base += f": {first_import_error}"
+        # chain from that importer
+        raise ModelInitializationError(base) from first_import_error
+
+    # otherwise fall back to the last exception we saw
+    if last_exception is not None:
+        base += f": {last_exception}"
+        raise ModelInitializationError(base) from last_exception
+
+    # (should never happen—no initializer claimed success, no exception thrown)
+    raise ModelInitializationError(base)
 
 
 def _init_chat_completion_model(

@@ -143,7 +143,7 @@ def test_all_initializers_raise_exceptions(mock_initializers):
     mock_initializers["community"].side_effect = ImportError("Community model failed")
     mock_initializers["text"].side_effect = KeyError("Text model failed")
     with pytest.raises(
-        ModelInitializationError, match="Failed to initialize model unknown-model"
+        ModelInitializationError, match=r"Failed to initialize model 'unknown-model'"
     ):
         init_langchain_model("unknown-model", "provider", "chat", {})
     mock_initializers["special"].assert_called_once()
