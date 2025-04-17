@@ -203,6 +203,7 @@ __all__ = [
     "_parse_version",
     "get_llm_provider_names",
     "get_community_chat_provider_names",
+    "get_chat_provider_names",
     "register_llm_provider",
     "register_chat_provider",
 ]
