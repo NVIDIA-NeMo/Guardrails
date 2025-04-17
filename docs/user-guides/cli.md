@@ -168,7 +168,7 @@ Options:
 
 ### Find Providers Command
 
-The `providers` command provides an interactive interface to explore and select LLM providers. It supports both text completion and chat completion providers.
+The `providers` command provides an interactive interface to explore and select LLM providers available in NeMo Guardrails. It supports both text completion and chat completion providers.
 
 ```bash
 nemoguardrails find-providers [--list]
