@@ -150,7 +150,7 @@ Options:
 ### providers
 
 ```bash
-> nemoguardrails providers --help
+> nemoguardrails find-providers --help
 
 Usage: nemoguardrails find-providers [OPTIONS]
 
