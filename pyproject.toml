@@ -52,10 +52,6 @@ annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
 fastembed = [{ version = ">=0.2.2, <=0.6.0", python = ">=3.9,<3.14" }]
 httpx = ">=0.24.1"
-# onnxruntime in 1.20 has dropped python 3.9 support
-# fastembed has also dropped python 3.9 support entirely as of 0.5.0
-# fastembed depends on onnxruntime we pindown the working version for 3.9 here
-# as it is a transient dependency we must remove it later
 jinja2 = ">=3.1.6"
 langchain = ">=0.2.14,<0.4.0"
 langchain-core = ">=0.2.14,<0.4.0"
@@ -90,12 +86,7 @@ numpy = [
   { version = ">=2.1.0", python = ">=3.13" },
   { version = ">=1.21,<2.1.0", python = "<3.10" },
 ]
-spacy = [
-  { version = ">=3.7.2,<3.8.0", optional = true, python = ">=3.9,<3.13" },
-  # { version = "==3.7.2", optional = true, python = ">=3.13,<3.14" },
-] # Capping spacy to spacy<3.8.0  see https://github.com/explosion/cython-blis/issues/117# poetry 3.8.4 does not exist for python 3.9
-# No spacy support for python 3.13 (https://github.com/explosion/spaCy/issues/13658)
-presidio-analyzer = { version = ">=2.2", optional = true }   # sdd
+presidio-analyzer = { version = ">=2.2", optional = true } # sdd
 presidio-anonymizer = { version = ">=2.2", optional = true }
 
 # nim
@@ -108,7 +99,7 @@ google-cloud-language = { version = ">=2.14.0", optional = true }
 yara-python = { version = "^4.5.1", optional = true }
 
 [tool.poetry.extras]
-sdd = ["presidio-analyzer", "presidio-anonymizer", "spacy"]
+sdd = ["presidio-analyzer", "presidio-anonymizer"]
 eval = ["tqdm", "numpy", "streamlit"]
 openai = ["langchain-openai"]
 gcp = ["google-cloud-language"]
@@ -121,7 +112,6 @@ jailbreak = ["yara-python"]
 all = [
   "presidio-analyzer",
   "presidio-anonymizer",
-  "spacy",
   "tqdm",
   "numpy",
   "streamlit",
