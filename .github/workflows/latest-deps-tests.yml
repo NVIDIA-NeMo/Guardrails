@@ -4,8 +4,6 @@ on:
   schedule:
     - cron: "0 22 * * *" # 10:00 PM UTC, daily
 
-  push:
-
   workflow_dispatch:
 jobs:
   latest-deps-tests-matrix:

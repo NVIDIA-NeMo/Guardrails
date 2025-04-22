@@ -7,11 +7,11 @@ on:
       - "**/*.md"
       - ".github/**"
   push:
-    # branches:
-    #   - main
-    #   - develop
-    # tags:
-    #   - "v*"
+    branches:
+      - main
+      - develop
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
