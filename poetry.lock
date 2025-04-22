@@ -6194,16 +6194,16 @@ cffi = {version = ">=1.11", markers = "platform_python_implementation == \"PyPy\
 cffi = ["cffi (>=1.11)"]
 
 [extras]
-all = ["aiofiles", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "opentelemetry-api", "opentelemetry-sdk", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
+all = ["aiofiles", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "opentelemetry-api", "opentelemetry-sdk", "presidio-analyzer", "presidio-anonymizer", "spacy", "streamlit", "tqdm", "yara-python"]
 eval = ["numpy", "numpy", "numpy", "numpy", "streamlit", "tqdm"]
 gcp = ["google-cloud-language"]
 jailbreak = ["yara-python"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 openai = ["langchain-openai"]
-sdd = ["presidio-analyzer", "presidio-anonymizer"]
+sdd = ["presidio-analyzer", "presidio-anonymizer", "spacy"]
 tracing = ["aiofiles", "opentelemetry-api", "opentelemetry-sdk"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,!=3.9.7,<3.14"
-content-hash = "34df96899d78217f34f216be543cfcdc4884884436730aebe8b09094ec07c0f9"
+content-hash = "b249a0799253edaf98a8389e02b65959bcd1278be570c86a0299d30210bf6adc"
