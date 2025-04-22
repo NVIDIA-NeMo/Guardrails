@@ -69,6 +69,8 @@ exclude_patterns = [
 
 # suppress_warnings = ["etoc.toctree", "myst.header", "misc.highlighting_failure"]
 
+templates_path = ["_templates"]
+
 html_theme = "nvidia_sphinx_theme"
 html_copy_source = False
 html_show_sourcelink = False
