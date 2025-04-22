@@ -16,6 +16,7 @@
 import os
 
 import pytest
+from pydantic import ValidationError
 
 from nemoguardrails.eval.models import (
     ComplianceCheckLog,
@@ -140,3 +141,130 @@ def test_eval_output():
     assert len(output.results[0].compliance_checks) == 1
     assert output.results[0].compliance_checks[0].id == "check_id"
     assert output.results[0].compliance_checks[0].interaction_id == "test_id"
+
+
+def test_eval_config_policy_validation_empty_lists():
+    """Test that empty policies and interactions lists are handled correctly."""
+    config = EvalConfig.model_validate(
+        {
+            "policies": [],
+            "interactions": [],
+        }
+    )
+    assert len(config.policies) == 0
+    assert len(config.interactions) == 0
+
+
+def test_eval_config_policy_validation_invalid_polocy_format_missing_description():
+    """Test that invalid policy formats are rejected."""
+    with pytest.raises(ValueError):
+        EvalConfig.model_validate(
+            {
+                "policies": [{"id": "policy1"}],
+                "interactions": [],
+            }
+        )
+
+
+def test_eval_config_policy_validation_invalid_interaction_format_missing_inputs():
+    """Test that invalid interaction formats are rejected."""
+    with pytest.raises(ValueError):
+        EvalConfig.model_validate(
+            {
+                "policies": [{"id": "policy1", "description": "Test policy"}],
+                "interactions": [
+                    {
+                        "id": "test_id",
+                        "expected_output": [{"type": "string", "policy": "policy1"}],
+                    }
+                ],
+            }
+        )
+
+
+def test_interaction_set_empty_expected_output():
+    """Test that empty expected_output list is handled correctly."""
+    interaction_set = InteractionSet.model_validate(
+        {"id": "test_id", "inputs": ["test input"], "expected_output": []}
+    )
+    assert len(interaction_set.expected_output) == 0
+
+
+def test_interaction_set_invalid_format():
+    """Test that invalid expected_output format is rejected."""
+    with pytest.raises(ValueError):
+        InteractionSet.model_validate(
+            {
+                "id": "test_id",
+                "inputs": ["test input"],
+                "expected_output": [{"type": "string"}],
+            }
+        )
+
+    # TODO: The model currently doesn't validate the type field values.
+    # This test should pass once type validation is implemented.
+    # with pytest.raises(ValueError):
+    #     InteractionSet.model_validate(
+    #         {
+    #             "id": "test_id",
+    #             "inputs": ["test input"],
+    #             "expected_output": [{"type": "invalid_type", "policy": "test_policy"}],
+    #         }
+    #     )
+
+
+def test_compliance_check_log_invalid_format():
+    """Test that invalid ComplianceCheckLog format is rejected."""
+    with pytest.raises(ValueError):
+        ComplianceCheckLog.model_validate({})
+
+    # invalid llm_calls format
+    with pytest.raises(ValueError):
+        ComplianceCheckLog.model_validate({"id": "test_id", "llm_calls": "invalid"})
+
+
+def test_policy_creation():
+    policy = Policy(
+        id="policy_1",
+        description="Test policy description",
+        weight=50,
+        apply_to_all=False,
+    )
+    assert policy.id == "policy_1"
+    assert policy.description == "Test policy description"
+    assert policy.weight == 50
+    assert not policy.apply_to_all
+
+
+def test_policy_default_values():
+    policy = Policy(
+        id="policy_2",
+        description="Another test policy",
+    )
+    assert policy.weight == 100
+    assert policy.apply_to_all
+
+
+def test_policy_invalid_weight():
+    with pytest.raises(ValidationError):
+        Policy(
+            id="policy_3",
+            description="Invalid weight test",
+            weight="invalid_weight",
+        )
+
+
+def test_expected_output_creation():
+    output = ExpectedOutput(
+        type="refusal",
+        policy="policy_1",
+    )
+    assert output.type == "refusal"
+    assert output.policy == "policy_1"
+
+
+def test_expected_output_missing_field():
+    with pytest.raises(ValidationError):
+        ExpectedOutput(
+            type="refusal",
+        )
