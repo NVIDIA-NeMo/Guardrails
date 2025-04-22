@@ -34,7 +34,6 @@ from pydantic.fields import Field
 
 from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
-from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
 
