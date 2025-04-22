@@ -1018,14 +1018,14 @@ loguru = ">=0.7.2,<0.8.0"
 mmh3 = ">=4.1.0,<6.0.0"
 numpy = [
     {version = ">=1.21", markers = "python_version >= \"3.10\" and python_version < \"3.12\""},
+    {version = ">=1.21,<2.1.0", markers = "python_version < \"3.10\""},
     {version = ">=1.26", markers = "python_version == \"3.12\""},
     {version = ">=2.1.0", markers = "python_version >= \"3.13\""},
-    {version = ">=1.21,<2.1.0", markers = "python_version < \"3.10\""},
 ]
 onnxruntime = [
     {version = ">=1.17.0,<1.20.0 || >1.20.0", markers = "python_version >= \"3.10\" and python_version < \"3.13\""},
-    {version = ">1.20.0", markers = "python_version >= \"3.13\""},
     {version = ">=1.17.0,<1.20.0", markers = "python_version < \"3.10\""},
+    {version = ">1.20.0", markers = "python_version >= \"3.13\""},
 ]
 pillow = ">=10.3.0,<12.0.0"
 py-rust-stemmers = ">=0.1.0,<0.2.0"
@@ -6206,4 +6206,4 @@ tracing = ["aiofiles", "opentelemetry-api", "opentelemetry-sdk"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,!=3.9.7,<3.14"
-content-hash = "5958d6f981c5b52c31923279f4fc009d43e7e8049ce7be4c68c6713a123767b6"
+content-hash = "f0265427ea78522d5cd63d75e88299c04a102be0fb182fa8833c59bbdf0cba26"
