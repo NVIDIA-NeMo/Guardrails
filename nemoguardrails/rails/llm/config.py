@@ -325,12 +325,10 @@ class TaskPrompt(BaseModel):
     @root_validator(pre=True, allow_reuse=True)
     def check_fields(cls, values):
         if not values.get("content") and not values.get("messages"):
-            raise ValidationError("One of `content` or `messages` must be provided.")
+            raise ValueError("One of `content` or `messages` must be provided.")
 
         if values.get("content") and values.get("messages"):
-            raise ValidationError(
-                "Only one of `content` or `messages` must be provided."
-            )
+            raise ValueError("Only one of `content` or `messages` must be provided.")
 
         return values
 
