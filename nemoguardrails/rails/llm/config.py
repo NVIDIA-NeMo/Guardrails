@@ -1133,6 +1133,47 @@ class RailsConfig(BaseModel):
     )
 
     @root_validator(pre=True, allow_reuse=True)
+    def check_reasoning_traces_with_dialog_rails(cls, values):
+        """Check that reasoning traces are not enabled when dialog rails are present."""
+
+        models = values.get("models", [])
+        rails = values.get("rails", {})
+        dialog_rails = rails.get("dialog", {})
+
+        # check if any model has reasoning traces enabled
+        # TODO: we must check for models that are used in a specific dialog task
+        has_reasoning_traces = False
+        for model in models:
+            if isinstance(model, dict):
+                reasoning_config = model.get("reasoning_config", {})
+                if not reasoning_config.get("remove_thinking_traces", True):
+                    has_reasoning_traces = True
+                    break
+            elif hasattr(model, "reasoning_config"):
+                if not model.reasoning_config.remove_thinking_traces:
+                    has_reasoning_traces = True
+                    break
+
+        # check if dialog rails are present (explicitly or implicitly)
+        has_dialog_rails = bool(dialog_rails)
+
+        # check implicit dialog rails through user messages, bot messages, or flows
+        if not has_dialog_rails:
+            has_dialog_rails = (
+                bool(values.get("user_messages"))
+                or bool(values.get("bot_messages"))
+                or bool(values.get("flows"))
+            )
+
+        if has_reasoning_traces and has_dialog_rails:
+            raise ValueError(
+                "Reasoning traces cannot be enabled when dialog rails are present. "
+                "Please either disable reasoning traces or remove dialog rails."
+            )
+
+        return values
+
+    @root_validator(pre=True, allow_reuse=True)
     def check_prompt_exist_for_self_check_rails(cls, values):
         rails = values.get("rails", {})
 
