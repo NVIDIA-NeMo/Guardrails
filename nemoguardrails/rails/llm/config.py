@@ -305,6 +305,7 @@ class TaskPrompt(BaseModel):
     max_length: Optional[int] = Field(
         default=16000,
         description="The maximum length of the prompt in number of characters.",
+        ge=1,
     )
     mode: Optional[str] = Field(
         default=_default_config["prompting_mode"],
@@ -318,6 +319,7 @@ class TaskPrompt(BaseModel):
     max_tokens: Optional[int] = Field(
         default=None,
         description="The maximum number of tokens that can be generated in the chat completion.",
+        ge=1,
     )
 
     @root_validator(pre=True, allow_reuse=True)
