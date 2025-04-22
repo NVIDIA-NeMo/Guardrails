@@ -13,6 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# We detect if the environment is set up correct for SDD (presidio + downloaded spacy model)
+# poetry install -e "sdd" --with dev
+# python -m spacy download en_core_web_lg
+
+import subprocess
+
 import pytest
 
 from nemoguardrails import RailsConfig
@@ -20,19 +26,45 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
 from tests.utils import TestChat
 
-# We detect if the environment is set up correct for SDD (presidio + downloaded spacy model)
-# poetry install -e "sdd" --with dev
-# python -m spacy download en_core_web_lg
 try:
     import presidio_analyzer
     import presidio_anonymizer
     import spacy
 
-    assert spacy.util.is_package("en_core_web_lg")
-
     SDD_SETUP_PRESENT = True
-except (ImportError, AssertionError):
+except ImportError:
     SDD_SETUP_PRESENT = False
+
+
+def setup_module(module):
+    if not SDD_SETUP_PRESENT:
+        pytest.skip("Required dependencies not found")
+
+    try:
+        # check if the model is already downloaded
+        if not spacy.util.is_package("en_core_web_lg"):
+            subprocess.run(
+                ["python", "-m", "spacy", "download", "en_core_web_lg"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        # ensure the model is now available
+
+        if not spacy.util.is_package("en_core_web_lg"):
+            pytest.skip("Failed to download or verify spaCy model 'en_core_web_lg'")
+
+    except subprocess.CalledProcessError as e:
+        pytest.skip(f"Error downloading spaCy model: {e.stderr}")
+    except Exception as e:
+        pytest.skip(f"Unexpected error during setup: {str(e)}")
+
+
+def teardown_module(module):
+    """No cleanup needed as the spaCy model is a persistent dependency
+    that should remain available for future test runs."""
+    pass
 
 
 @pytest.mark.skipif(
