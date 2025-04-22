@@ -87,9 +87,9 @@ numpy = [
   { version = ">=1.21,<2.1.0", python = "<3.10" },
 ]
 # sdd
-presidio-analyzer = { version = ">=2.2", optional = true }
-presidio-anonymizer = { version = ">=2.2", optional = true }
-spacy = { version = ">=3.4,<4.0", python = "<3.13", optional = true }
+spacy = { version = ">=3.4.4,<4.0.0,!=3.7.0", python = "<3.13", optional = true }
+presidio-analyzer = { version = ">=2.2", optional = true, python = "<3.13" }
+presidio-anonymizer = { version = ">=2.2", optional = true, python = "<3.13" }
 
 # nim
 langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
