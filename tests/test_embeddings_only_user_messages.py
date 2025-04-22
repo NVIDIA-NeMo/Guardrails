@@ -42,7 +42,7 @@ def colang_1_config():
             dialog:
                 user_messages:
                     embeddings_only: True
-                    embeddings_only_similarity_threshold: 0.99
+                    embeddings_only_similarity_threshold: 0.8
                     embeddings_only_fallback_intent: "express greeting"
         """,
     )
@@ -76,7 +76,7 @@ def colang_2_config():
         dialog:
             user_messages:
                 embeddings_only: True
-                embeddings_only_similarity_threshold: 0.99
+                embeddings_only_similarity_threshold: 0.8
                 embeddings_only_fallback_intent: "user expressed greeting"
     """,
     )
