@@ -2,11 +2,11 @@ name: Build and Test Distribution
 
 on:
   push:
-    branches:
-      - main
-      - develop
-    tags:
-      - "v*"
+    # branches:
+    #   - main
+    #   - develop
+    # tags:
+    #   - "v*"
   schedule:
     - cron: "0 23 * * *" # 11:00 PM UTC, daily
 
