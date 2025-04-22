@@ -52,49 +52,6 @@ def test_interaction_set_expected_output_instantiation():
     assert interaction_set.expected_output[0].policy == "test_policy"
 
 
-def test_eval_config_policy_validation_valid():
-    """Test that policy validation works correctly."""
-
-    config = EvalConfig.model_validate(
-        {
-            "policies": [{"id": "policy1", "description": "Test policy"}],
-            "interactions": [
-                {
-                    "id": "test_id",
-                    "inputs": ["test input"],
-                    "expected_output": [{"type": "string", "policy": "policy1"}],
-                }
-            ],
-        }
-    )
-    assert len(config.policies) == 1
-    assert len(config.interactions) == 1
-
-
-def test_eval_config_policy_validation_invalid_policy_not_found():
-    # invalid case, policy not found
-    with pytest.raises(
-        ValueError, match="Invalid policy id policy2 used in interaction set"
-    ):
-        EvalConfig.model_validate(
-            {
-                "policies": [{"id": "policy1", "description": "Test policy"}],
-                "interactions": [
-                    {
-                        "id": "test_id",
-                        "inputs": ["test input"],
-                        "expected_output": [
-                            {
-                                "type": "string",
-                                "policy": "policy2",
-                            }
-                        ],
-                    }
-                ],
-            }
-        )
-
-
 def test_eval_config_from_path():
     """Test loading config from path."""
 
@@ -268,3 +225,118 @@ def test_expected_output_missing_field():
         ExpectedOutput(
             type="refusal",
         )
+
+
+def test_eval_config_policy_validation_valid():
+    """Test that policy validation works correctly."""
+
+    config = EvalConfig.model_validate(
+        {
+            "policies": [{"id": "policy1", "description": "Test policy"}],
+            "interactions": [
+                {
+                    "id": "test_id",
+                    "inputs": ["test input"],
+                    "expected_output": [{"type": "string", "policy": "policy1"}],
+                }
+            ],
+        }
+    )
+    assert len(config.policies) == 1
+    assert len(config.interactions) == 1
+
+
+def test_eval_config_policy_validation_invalid_policy_not_found():
+    # invalid case, policy not found
+    with pytest.raises(
+        ValueError, match="Invalid policy id policy2 used in interaction set"
+    ):
+        EvalConfig.model_validate(
+            {
+                "policies": [{"id": "policy1", "description": "Test policy"}],
+                "interactions": [
+                    {
+                        "id": "test_id",
+                        "inputs": ["test input"],
+                        "expected_output": [
+                            {
+                                "type": "string",
+                                "policy": "policy2",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+
+def test_eval_config_policy_validation_multiple_interactions():
+    """Test that policy validation works with multiple interactions."""
+    config = EvalConfig.model_validate(
+        {
+            "policies": [{"id": "policy1", "description": "Test policy"}],
+            "interactions": [
+                {
+                    "id": "test_id1",
+                    "inputs": ["test input 1"],
+                    "expected_output": [{"type": "string", "policy": "policy1"}],
+                },
+                {
+                    "id": "test_id2",
+                    "inputs": ["test input 2"],
+                    "expected_output": [{"type": "string", "policy": "policy1"}],
+                },
+            ],
+        }
+    )
+    assert len(config.interactions) == 2
+
+
+def test_eval_config_policy_validation_multiple_policies():
+    """Test that policy validation works with multiple policies."""
+    config = EvalConfig.model_validate(
+        {
+            "policies": [
+                {"id": "policy1", "description": "Test policy 1"},
+                {"id": "policy2", "description": "Test policy 2"},
+            ],
+            "interactions": [
+                {
+                    "id": "test_id",
+                    "inputs": ["test input"],
+                    "expected_output": [
+                        {"type": "string", "policy": "policy1"},
+                        {"type": "string", "policy": "policy2"},
+                    ],
+                }
+            ],
+        }
+    )
+    assert len(config.policies) == 2
+    assert len(config.interactions[0].expected_output) == 2
+
+
+def test_eval_config_policy_validation_duplicate_policy_ids():
+    """Test that duplicate policy IDs are handled.
+
+    Note: The model currently doesn't validate for duplicate policy IDs.
+    This test should be updated if duplicate policy ID validation is added.
+    """
+    config = EvalConfig.model_validate(
+        {
+            "policies": [
+                {"id": "policy1", "description": "Test policy 1"},
+                {"id": "policy1", "description": "Test policy 2"},
+            ],
+            "interactions": [
+                {
+                    "id": "test_id",
+                    "inputs": ["test input"],
+                    "expected_output": [{"type": "string", "policy": "policy1"}],
+                }
+            ],
+        }
+    )
+    assert len(config.policies) == 2
+    assert config.policies[0].id == "policy1"
+    assert config.policies[1].id == "policy1"
