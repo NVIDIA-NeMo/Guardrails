@@ -51,10 +51,9 @@ def test_interaction_set_expected_output_instantiation():
     assert interaction_set.expected_output[0].policy == "test_policy"
 
 
-def test_eval_config_policy_validation():
+def test_eval_config_policy_validation_valid():
     """Test that policy validation works correctly."""
 
-    # valid case
     config = EvalConfig.model_validate(
         {
             "policies": [{"id": "policy1", "description": "Test policy"}],
@@ -70,6 +69,8 @@ def test_eval_config_policy_validation():
     assert len(config.policies) == 1
     assert len(config.interactions) == 1
 
+
+def test_eval_config_policy_validation_invalid_policy_not_found():
     # invalid case, policy not found
     with pytest.raises(
         ValueError, match="Invalid policy id policy2 used in interaction set"
