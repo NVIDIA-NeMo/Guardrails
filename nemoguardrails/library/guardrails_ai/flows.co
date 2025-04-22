@@ -1,22 +1,34 @@
-define subflow guardrails_ai check input
-  """Check input text using Guardrails AI toxic language detection."""
-  $result = execute validate_guardrails_ai(text=$user_message)
+# Define reusable validation logic
+define subflow run_guardrails_ai_validation(action_name, text)
+  $result = execute $action_name(text=$text)
   if not $result.valid
     if $config.enable_rails_exceptions
-      create event GuardrailsAIInputException(message="Guardrails AI input validation failed")
+      # Consider making the exception type dynamic based on action_name if needed
+      create event GuardrailsAIException(message="Guardrails AI validation failed for {action_name}")
     else
       bot refuse to respond
     stop
 
+# Define the main input check flow
+define subflow guardrails_ai check input
+  """Check input text using relevant Guardrails AI validators."""
+  # Example: Run jailbreak and toxicity checks on input
+  execute run_guardrails_ai_validation(action_name="validate_guardrails_ai_detect_jailbreak", text=$user_message)
+  execute run_guardrails_ai_validation(action_name="validate_guardrails_ai_toxic_language", text=$user_message)
+  # Add other relevant input checks, e.g., restrict to topic
+  # execute run_guardrails_ai_validation(action_name="validate_guardrails_ai_restrict_to_topic", text=$user_message)
+
+
+# Define the main output check flow
 define subflow guardrails_ai check output
-  """Check output text using Guardrails AI toxic language detection."""
-  $result = execute validate_guardrails_ai(text=$bot_message)
-  if not $result.valid
-    if $config.enable_rails_exceptions
-      create event GuardrailsAIOutputException(message="Guardrails AI output validation failed")
-    else
-      bot refuse to respond
-    stop
+  """Check output text using relevant Guardrails AI validators."""
+  # Example: Run PII, competitor, and provenance checks on output
+  execute run_guardrails_ai_validation(action_name="validate_guardrails_ai_pii", text=$bot_message)
+  execute run_guardrails_ai_validation(action_name="validate_guardrails_ai_competitor_check", text=$bot_message)
+  # Provenance might need different inputs/context
+  # execute run_guardrails_ai_validation(action_name="validate_guardrails_ai_provenance_llm", text=$bot_message)
+  # Add other relevant output checks
+
 
 define bot refuse to respond
-  "I apologize, but I cannot respond to that as it may contain inappropriate content."
+  "I apologize, but I cannot respond to that as it may contain inappropriate content or violate policy."

@@ -1,16 +1,32 @@
 models:
-  - type: main
-    engine: openai
-    model: gpt-3.5-turbo
+    - type: main
+      engine: openai
+      model: gpt-3.5-turbo
 
 rails:
-  input:
-    flows:
-      - guardrails_ai check input
-  output:
-    flows:
-      - guardrails_ai check output
+    input:
+        flows:
+            - guardrails_ai check input
+            # Example: Add specific flows if needed
+            # - guardrails_ai check input jailbreak
+            # - guardrails_ai check input toxicity
+    output:
+        flows:
+            - guardrails_ai check output
+            # Example: Add specific flows if needed
+            # - guardrails_ai check output pii
+            # - guardrails_ai check output competitor_check
 
 # Optional configuration for Guardrails AI
 guardrails_ai:
-  enabled: true
+    enabled: true
+    # Example: Add parameters for specific validators if they accept them
+    # parameters:
+    #   detect_jailbreak:
+    #     threshold: 0.75
+    #   toxic_language:
+    #     threshold: 0.6
+    #   guardrails_pii:
+    #     redact_fixed_length: 4 # Example parameter
+    #   competitor_check:
+    #     competitor_list: ["Competitor A", "Competitor B"] # Example parameter
