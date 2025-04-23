@@ -1143,7 +1143,7 @@ class RailsConfig(BaseModel):
 
         # dialog rail tasks that should not have reasoning traces
         dialog_rail_tasks = [
-            Task.GENERATE_BOT_MESSAGE,
+            # Task.GENERATE_BOT_MESSAGE,
             Task.GENERATE_USER_INTENT,
             Task.GENERATE_NEXT_STEPS,
             Task.GENERATE_INTENT_STEPS_MESSAGE,
@@ -1158,7 +1158,6 @@ class RailsConfig(BaseModel):
         )
 
         if has_dialog_rails:
-            # Get the main model if it exists
             main_model = next(
                 (model for model in models if model.get("type") == "main"), None
             )
@@ -1166,13 +1165,11 @@ class RailsConfig(BaseModel):
             violations = []
 
             for task in dialog_rail_tasks:
-                # Check if there's a dedicated model for this task
                 task_model = next(
                     (model for model in models if model.get("type") == task.value), None
                 )
 
                 if task_model:
-                    # Handle both dictionary and Model object cases
                     reasoning_config = (
                         task_model.reasoning_config
                         if hasattr(task_model, "reasoning_config")
@@ -1185,7 +1182,6 @@ class RailsConfig(BaseModel):
                             f"Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config for this model."
                         )
                 elif main_model:
-                    # Handle both dictionary and Model object cases
                     reasoning_config = (
                         main_model.reasoning_config
                         if hasattr(main_model, "reasoning_config")

@@ -401,7 +401,7 @@ def test_reasoning_traces_with_dedicated_task_models():
         )
 
     assert (
-        "Model 'generate_bot_message' has reasoning traces enabled in config.yml"
+        "Model 'generate_user_intent' has reasoning traces enabled in config.yml"
         in str(exc_info.value)
     )
     assert "Reasoning traces must be disabled for dialog rail tasks" in str(
@@ -489,7 +489,7 @@ def test_reasoning_traces_with_all_dialog_tasks():
     error_message = str(exc_info.value)
     assert (
         "Model 'generate_bot_message' has reasoning traces enabled in config.yml"
-        in error_message
+        not in error_message
     )
     assert (
         "Model 'generate_next_steps' has reasoning traces enabled in config.yml"
@@ -535,7 +535,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_and_dedicated_models():
               - type: main
                 engine: openai
                 model: gpt-3.5-turbo-instruct
-              - type: generate_bot_message
+              - type: generate_user_intent
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
@@ -556,7 +556,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_and_dedicated_models():
         )
 
     assert (
-        "Model 'generate_bot_message' has reasoning traces enabled in config.yml"
+        "Model 'generate_user_intent' has reasoning traces enabled in config.yml"
         in str(exc_info.value)
     )
     assert "Reasoning traces must be disabled for dialog rail tasks" in str(
