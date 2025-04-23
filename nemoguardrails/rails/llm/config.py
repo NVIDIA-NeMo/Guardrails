@@ -36,6 +36,7 @@ from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
+from nemoguardrails.llm.types import Task
 
 log = logging.getLogger(__name__)
 
@@ -1140,36 +1141,65 @@ class RailsConfig(BaseModel):
         rails = values.get("rails", {})
         dialog_rails = rails.get("dialog", {})
 
-        # check if any model has reasoning traces enabled
-        # TODO: we must check for models that are used in a specific dialog task
-        has_reasoning_traces = False
-        for model in models:
-            if isinstance(model, dict):
-                reasoning_config = model.get("reasoning_config", {})
-                if not reasoning_config.get("remove_thinking_traces", True):
-                    has_reasoning_traces = True
-                    break
-            elif hasattr(model, "reasoning_config"):
-                if not model.reasoning_config.remove_thinking_traces:
-                    has_reasoning_traces = True
-                    break
+        # dialog rail tasks that should not have reasoning traces
+        dialog_rail_tasks = [
+            Task.GENERATE_BOT_MESSAGE,
+            Task.GENERATE_USER_INTENT,
+            Task.GENERATE_NEXT_STEPS,
+            Task.GENERATE_INTENT_STEPS_MESSAGE,
+        ]
 
-        # check if dialog rails are present (explicitly or implicitly)
-        has_dialog_rails = bool(dialog_rails)
+        # dialog rails are activated (explicitly or implicitly)
+        has_dialog_rails = (
+            bool(dialog_rails)
+            or bool(values.get("user_messages"))
+            or bool(values.get("bot_messages"))
+            or bool(values.get("flows"))
+        )
 
-        # check implicit dialog rails through user messages, bot messages, or flows
-        if not has_dialog_rails:
-            has_dialog_rails = (
-                bool(values.get("user_messages"))
-                or bool(values.get("bot_messages"))
-                or bool(values.get("flows"))
+        if has_dialog_rails:
+            # Get the main model if it exists
+            main_model = next(
+                (model for model in models if model.get("type") == "main"), None
             )
 
-        if has_reasoning_traces and has_dialog_rails:
-            raise ValueError(
-                "Reasoning traces cannot be enabled when dialog rails are present. "
-                "Please either disable reasoning traces or remove dialog rails."
-            )
+            violations = []
+
+            for task in dialog_rail_tasks:
+                # Check if there's a dedicated model for this task
+                task_model = next(
+                    (model for model in models if model.get("type") == task.value), None
+                )
+
+                if task_model:
+                    # Handle both dictionary and Model object cases
+                    reasoning_config = (
+                        task_model.reasoning_config
+                        if hasattr(task_model, "reasoning_config")
+                        else task_model.get("reasoning_config", {})
+                    )
+                    if not reasoning_config.get("remove_thinking_traces", True):
+                        violations.append(
+                            f"Model '{task_model.get('type')}' has reasoning traces enabled in config.yml. "
+                            f"Reasoning traces must be disabled for dialog rail tasks. "
+                            f"Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config for this model."
+                        )
+                elif main_model:
+                    # Handle both dictionary and Model object cases
+                    reasoning_config = (
+                        main_model.reasoning_config
+                        if hasattr(main_model, "reasoning_config")
+                        else main_model.get("reasoning_config", {})
+                    )
+                    if not reasoning_config.get("remove_thinking_traces", True):
+                        violations.append(
+                            f"Main model has reasoning traces enabled in config.yml and is being used for dialog rail task '{task.value}'. "
+                            f"Reasoning traces must be disabled when dialog rails are present. "
+                            f"Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config for the main model."
+                        )
+
+            if violations:
+                raise ValueError("\n".join(violations))
 
         return values
 
