@@ -112,7 +112,7 @@ def test_eval_config_policy_validation_empty_lists():
     assert len(config.interactions) == 0
 
 
-def test_eval_config_policy_validation_invalid_polocy_format_missing_description():
+def test_eval_config_policy_validation_invalid_policy_format_missing_description():
     """Test that invalid policy formats are rejected."""
     with pytest.raises(ValueError):
         EvalConfig.model_validate(
