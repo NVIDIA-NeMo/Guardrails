@@ -37,7 +37,7 @@ def detect_pii_mapping(result: bool) -> bool:
     return result
 
 
-@action(is_system_action=True, output_mapping=detect_pii_mapping)
+@action(is_system_action=False, output_mapping=detect_pii_mapping)
 async def detect_pii(
     source: str,
     text: str,
@@ -89,7 +89,7 @@ async def detect_pii(
     return entity_detected
 
 
-@action(is_system_action=True)
+@action(is_system_action=False)
 async def mask_pii(source: str, text: str, config: RailsConfig):
     """Masks any detected PII in the provided text.
 

@@ -2,7 +2,6 @@
 
 # INPUT RAILS
 
-@active
 flow detect pii on input
   """Check if the user input has PII."""
   $has_pii = await DetectPiiAction(source="input", text=$user_message)
@@ -14,7 +13,6 @@ flow detect pii on input
 
 # INPUT RAILS
 
-@active
 flow detect pii on output
   """Check if the bot output has PII."""
   $has_pii = await DetectPiiAction(source="output", text=$bot_message)
@@ -26,7 +24,6 @@ flow detect pii on output
 
 # RETRIVAL RAILS
 
-@active
 flow detect pii on retrieval
   """Check if the relevant chunks from the knowledge base have any PII."""
   $has_pii = await DetectPiiAction(source="retrieval", text=$relevant_chunks)
@@ -43,7 +40,6 @@ flow detect pii on retrieval
 
 # INPUT RAILS
 
-@active
 flow mask pii on input
   """Mask any detected PII in the user input."""
   $masked_input = await MaskPiiAction(source="input", text=$user_message)
@@ -54,7 +50,6 @@ flow mask pii on input
 
 # OUTPUT RAILS
 
-@active
 flow mask pii on output
   """Mask any detected PII in the bot output."""
   $bot_message = await MaskPiiAction(source="output", text=$bot_message)
@@ -62,7 +57,6 @@ flow mask pii on output
 
 # RETRIVAL RAILS
 
-@active
 flow mask pii on retrieval
   """Mask any detected PII in the relevant chunks from the knowledge base."""
   $relevant_chunks = await MaskPiiAction(source="retrieval", text=$relevant_chunks)
