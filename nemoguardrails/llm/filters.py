@@ -15,12 +15,23 @@
 
 import re
 import textwrap
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 from nemoguardrails.actions.llm.utils import (
     get_colang_history,
     remove_action_intent_identifiers,
 )
+
+
+@dataclass
+class ReasoningExtractionResult:
+    """
+    Holds cleaned text and optional chain-of-thought reasoning trace extracted from LLM output.
+    """
+
+    text: str
+    reasoning_trace: Optional[str] = None
 
 
 def colang(events: List[dict]) -> str:
@@ -439,24 +450,94 @@ def conversation_to_events(conversation: List) -> List[dict]:
     return events
 
 
-def remove_reasoning_traces(response: str, start_token: str, end_token: str) -> str:
-    """Removes the text between the first occurrence of the start token and the
-    last occurrence of the last token, if these tokens exist in the response.
+def _find_token_positions_for_removal(
+    response: str, start_token: str, end_token: str
+) -> Tuple[int, int]:
+    """Helper function to find token positions specifically for text removal.
 
-    This utility function is useful to strip reasoning traces from reasoning LLMs
-    that encode the reasoning traces between specific tokens.
+    This is optimized for the removal use case:
+    1. Uses find() for first start token
+    2. Uses rfind() for last end token
+    3. Sets start_index to 0 if start token is missing
+
+    Args:
+        response(str): The text to search in
+        start_token(str): The token marking the start of text to remove
+        end_token(str): The token marking the end of text to remove
+
+    Returns:
+        A tuple of (start_index, end_index) where both are -1 if not found
     """
-    if start_token and end_token:
-        start_index = response.find(start_token)
-        # If the start index is missing, this is probably a continuation of a bot message
-        # started in the prompt.
-        if start_index == -1:
-            start_index = 0
-        end_index = response.rfind(end_token)
-        if end_index == -1:
-            return response
+    if not start_token or not end_token:
+        return -1, -1
 
-        if start_index != -1 and end_index != -1 and start_index < end_index:
-            return response[:start_index] + response[end_index + len(end_token) :]
+    start_index = response.find(start_token)
+    # if the start index is missing, this is probably a continuation of a bot message
+    # started in the prompt.
+    if start_index == -1:
+        start_index = 0
 
-    return response
+    end_index = response.rfind(end_token)
+
+    return start_index, end_index
+
+
+def find_reasoning_tokens_position(
+    response: str, start_token: str, end_token: str
+) -> Tuple[int, int]:
+    """Finds the positions of the first start token and the last end token.
+
+    This is intended to find the outermost boundaries of potential
+    reasoning sections, typically for removal.
+
+    Args:
+        response(str): The text to search in.
+        start_token(str): The token marking the start of reasoning.
+        end_token(str): The token marking the end of reasoning.
+
+    Returns:
+        A tuple (start_index, end_index).
+        - start_index: Position of the first `start_token`, or 0 if not found.
+        - end_index: Position of the last `end_token`, or -1 if not found.
+    """
+
+    return _find_token_positions_for_removal(response, start_token, end_token)
+
+
+def extract_and_strip_trace(
+    response: str, start_token: str, end_token: str
+) -> ReasoningExtractionResult:
+    """Extracts and removes reasoning traces from the given text.
+
+    This function identifies reasoning traces in the text that are marked
+    by specific start and end tokens. It extracts these traces, removes
+    them from the original text, and returns both the cleaned text and
+    the extracted reasoning trace.
+
+    Args:
+        response (str): The text to process.
+        start_token (str): The token marking the start of a reasoning trace.
+        end_token (str): The token marking the end of a reasoning trace.
+
+    Returns:
+        ReasoningExtractionResult: An object containing the cleaned text
+        without reasoning traces and the extracted reasoning trace, if any.
+    """
+    if not start_token or not end_token:
+        return ReasoningExtractionResult(text=response, reasoning_trace=None)
+
+    start_index, end_index = find_reasoning_tokens_position(
+        response, start_token, end_token
+    )
+
+    if end_index == -1:
+        return ReasoningExtractionResult(text=response, reasoning_trace=None)
+
+    if start_index != -1 and end_index != -1 and start_index < end_index:
+        reasoning_trace = response[start_index : end_index + len(end_token)]
+        cleaned_text = response[:start_index] + response[end_index + len(end_token) :]
+        return ReasoningExtractionResult(
+            text=cleaned_text, reasoning_trace=reasoning_trace
+        )
+
+    return ReasoningExtractionResult(text=response, reasoning_trace=None)

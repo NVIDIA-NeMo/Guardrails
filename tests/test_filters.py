@@ -14,13 +14,15 @@
 # limitations under the License.
 
 import textwrap
+from typing import List, Tuple, Union
 
 import pytest
 
 from nemoguardrails.llm.filters import (
+    extract_and_strip_trace,
+    find_reasoning_tokens_position,
     first_turns,
     last_turns,
-    remove_reasoning_traces,
     to_chat_messages,
     user_assistant_sequence,
 )
@@ -92,6 +94,130 @@ def test_last_turns():
     assert last_turns(colang_history, 2) == colang_history
 
 
+def _build_test_string(parts: List[Union[str, Tuple[str, int]]]) -> str:
+    """Builds a test string from a list of parts.
+
+    Each part can be a literal string or a (character, count) tuple.
+    Example: [("a", 3), "[START]", ("b", 5)] -> "aaa[START]bbbbb"
+    """
+    result = []
+    for part in parts:
+        if isinstance(part, str):
+            result.append(part)
+        elif isinstance(part, tuple) and len(part) == 2:
+            char, count = part
+            result.append(char * count)
+        else:
+            raise TypeError(f"Invalid part type in _build_test_string: {part}")
+    return "".join(result)
+
+
+@pytest.mark.parametrize(
+    "response, start_token, end_token, expected",
+    [
+        (
+            _build_test_string(
+                [
+                    ("a", 5),
+                    "[START]",
+                    ("b", 10),
+                    "[END]",
+                    ("c", 5),
+                ]
+            ),
+            "[START]",
+            "[END]",
+            (5, 22),  # 5 a's + 7 START + 10 b = 22
+        ),
+        # multiple reasoning sections
+        (
+            _build_test_string(
+                [
+                    ("a", 3),
+                    "[START]",
+                    ("b", 4),
+                    "[END]",
+                    ("c", 3),
+                    "[START]",
+                    ("d", 4),
+                    "[END]",
+                    ("e", 3),
+                ]
+            ),
+            "[START]",
+            "[END]",
+            (
+                3,
+                33,
+            ),
+        ),
+        (
+            _build_test_string(
+                [
+                    ("a", 2),
+                    "[START]",
+                    ("b", 2),
+                    "[START]",
+                    ("c", 2),
+                    "[END]",
+                    ("d", 2),
+                    "[END]",
+                    ("e", 2),
+                ]
+            ),
+            "[START]",
+            "[END]",
+            (
+                2,
+                27,
+            ),
+        ),
+        (
+            _build_test_string([("a", 10)]),
+            "[START]",
+            "[END]",
+            (0, -1),  # no tokens found, start_index is 0
+        ),
+        (
+            _build_test_string(
+                [
+                    ("a", 5),
+                    "[START]",
+                    ("b", 5),
+                ]
+            ),
+            "[START]",
+            "[END]",
+            (5, -1),  # [START] at pos 5, no end token
+        ),
+        (
+            _build_test_string(
+                [
+                    ("a", 5),
+                    "[END]",
+                    ("b", 5),
+                ]
+            ),
+            "[START]",
+            "[END]",
+            (0, 5),  # no start token so 0, end at pos 5
+        ),
+        (
+            "",
+            "[START]",
+            "[END]",
+            (0, -1),  # empty string, start_index is 0
+        ),
+    ],
+)
+def test_find_token_positions_for_removal(response, start_token, end_token, expected):
+    """Test finding token positions for removal.
+
+    Test cases use _build_test_string for clarity and mathematical obviousness.
+    """
+    assert find_reasoning_tokens_position(response, start_token, end_token) == expected
+
+
 @pytest.mark.parametrize(
     "response, start_token, end_token, expected",
     [
@@ -102,19 +228,7 @@ def test_last_turns():
             "This is an example  of a response.",
         ),
         (
-            "This is an example without an end token.",
-            "[START]",
-            "[END]",
-            "This is an example without an end token.",
-        ),
-        (
-            "This is an example [START] with a start token but no end token.",
-            "[START]",
-            "[END]",
-            "This is an example [START] with a start token but no end token.",
-        ),
-        (
-            "Before [START]hidden[END] middle [START]extra hidden[END] after.",
+            "Before [START]first[END] middle [START]second[END] after.",
             "[START]",
             "[END]",
             "Before  after.",
@@ -126,17 +240,35 @@ def test_last_turns():
             "Text  more text.",
         ),
         (
-            "[START]Remove this[END] but keep this.",
+            "No tokens here",
             "[START]",
             "[END]",
-            " but keep this.",
+            "No tokens here",
         ),
-        ("", "[START]", "[END]", ""),
+        (
+            "Only [START] start token",
+            "[START]",
+            "[END]",
+            "Only [START] start token",
+        ),
+        (
+            "Only end token [END]",
+            "[START]",
+            "[END]",
+            "",
+        ),
+        (
+            "",
+            "[START]",
+            "[END]",
+            "",
+        ),
     ],
 )
 def test_remove_reasoning_traces(response, start_token, end_token, expected):
-    """Test removal of text between start and end tokens with multiple cases."""
-    assert remove_reasoning_traces(response, start_token, end_token) == expected
+    """Test removal of text between start and end tokens."""
+    result = extract_and_strip_trace(response, start_token, end_token)
+    assert result.text == expected
 
 
 class TestToChatMessages:
