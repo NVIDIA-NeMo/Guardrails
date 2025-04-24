@@ -123,3 +123,18 @@ def test_model_name_none_in_parameters():
     """Test that None model_name in parameters fails validation."""
     with pytest.raises(ValueError, match="Model name must be specified"):
         Model(type="main", engine="openai", parameters={"model_name": None})
+
+
+def test_model_api_key_not_set():
+    """Create a `Model` pydantic model without APi Key field"""
+    no_api_key_model = Model(type="main", engine="openai", model="gpt-4")
+    assert no_api_key_model.api_key is None
+
+
+def test_model_api_key_set():
+    """Create a `Model` pydantic model without APi Key field"""
+    api_key = "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"
+    no_api_key_model = Model(
+        type="main", engine="openai", model="gpt-4", api_key=api_key
+    )
+    assert no_api_key_model.api_key == api_key
