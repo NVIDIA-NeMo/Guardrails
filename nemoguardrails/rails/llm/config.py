@@ -101,10 +101,7 @@ class Model(BaseModel):
         default=None,
         description="The name of the model. If not specified, it should be specified through the parameters attribute.",
     )
-    api_key: Optional[str] = Field(
-        default=None,
-        description="The API Key to use in requests to this model",
-    )
+
     reasoning_config: Optional[ReasoningModelConfig] = Field(
         default_factory=ReasoningModelConfig,
         description="Configuration parameters for reasoning LLMs.",
