@@ -87,6 +87,7 @@ async def self_check_output(
                 task, output=response, forced_output_parser="is_content_safe"
             )
 
+        result = result.text
         is_safe, _ = result
 
         return is_safe

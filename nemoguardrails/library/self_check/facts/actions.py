@@ -82,6 +82,7 @@ async def self_check_facts(
             task, output=response, forced_output_parser="is_content_safe"
         )
 
+    result = result.text
     is_not_safe, _ = result
 
     result = float(not is_not_safe)

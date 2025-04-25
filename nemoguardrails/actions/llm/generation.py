@@ -442,8 +442,9 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERATE_USER_INTENT, output=result
             )
+            text = result.text
 
-            user_intent = get_first_nonempty_line(result)
+            user_intent = get_first_nonempty_line(text)
             if user_intent is None:
                 user_intent = "unknown message"
 
@@ -527,9 +528,11 @@ class LLMGenerationActions:
                             prompt,
                             custom_callback_handlers=[streaming_handler_var.get()],
                         )
-                    text = self.llm_task_manager.parse_task_output(
+                    result = self.llm_task_manager.parse_task_output(
                         Task.GENERAL, output=text
                     )
+                    text = result.text
+                    text = text.strip()
             else:
                 # Initialize the LLMCallInfo object
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
@@ -562,9 +565,10 @@ class LLMGenerationActions:
                         stop=["User:"],
                     )
 
-                text = self.llm_task_manager.parse_task_output(
+                result = self.llm_task_manager.parse_task_output(
                     Task.GENERAL, output=result
                 )
+                text = result.text
                 text = text.strip()
                 if text.startswith('"'):
                     text = text[1:-1]
@@ -646,10 +650,11 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERATE_NEXT_STEPS, output=result
             )
+            text = result.text
 
             # If we don't have multi-step generation enabled, we only look at the first line.
             if not self.config.enable_multi_step_generation:
-                result = get_first_nonempty_line(result)
+                result = get_first_nonempty_line(text)
 
                 if result and result.startswith("bot "):
                     bot_intent = result[4:]
@@ -687,7 +692,7 @@ class LLMGenerationActions:
                 # Otherwise, we parse the output as a single flow.
                 # If we have a parsing error, we try to reduce size of the flow, potentially
                 # up to a single step.
-                lines = result.split("\n")
+                lines = text.split("\n")
                 while True:
                     try:
                         parse_colang_file("dynamic.co", content="\n".join(lines))
@@ -896,9 +901,14 @@ class LLMGenerationActions:
                             llm, prompt, custom_callback_handlers=[streaming_handler]
                         )
 
+                        # it seems that removing the reasoning traces is llm_call responsibility
+                        #
+
                         result = self.llm_task_manager.parse_task_output(
                             Task.GENERAL, output=result
                         )
+
+                        result = result.text
 
                     log.info(
                         "--- :: LLM Bot Message Generation passthrough call took %.2f seconds",
@@ -962,6 +972,8 @@ class LLMGenerationActions:
                 result = self.llm_task_manager.parse_task_output(
                     Task.GENERATE_BOT_MESSAGE, output=result
                 )
+
+                result = result.text
 
                 # TODO: catch openai.error.InvalidRequestError from exceeding max token length
 
@@ -1055,10 +1067,11 @@ class LLMGenerationActions:
         result = self.llm_task_manager.parse_task_output(
             Task.GENERATE_VALUE, output=result
         )
+        text = result.text
 
         # We only use the first line for now
         # TODO: support multi-line values?
-        value = result.strip().split("\n")[0]
+        value = text.strip().split("\n")[0]
 
         # Because of conventions from other languages, sometimes the LLM might add
         # a ";" at the end of the line. We remove that
@@ -1266,6 +1279,7 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERATE_INTENT_STEPS_MESSAGE, output=result
             )
+            text = result.text
 
             # TODO: Implement logic for generating more complex Colang next steps (multi-step),
             #  not just a single bot intent.
@@ -1273,15 +1287,15 @@ class LLMGenerationActions:
             # Get the next 2 non-empty lines, these should contain:
             # line 1 - user intent, line 2 - bot intent.
             # Afterwards we have the bot message.
-            next_three_lines = get_top_k_nonempty_lines(result, k=2)
+            next_three_lines = get_top_k_nonempty_lines(text, k=2)
             user_intent = next_three_lines[0] if len(next_three_lines) > 0 else None
             bot_intent = next_three_lines[1] if len(next_three_lines) > 1 else None
             bot_message = None
             if bot_intent:
-                pos = result.find(bot_intent)
+                pos = text.find(bot_intent)
                 if pos != -1:
                     # The bot message could be multiline
-                    bot_message = result[pos + len(bot_intent) :]
+                    bot_message = text[pos + len(bot_intent) :]
                     bot_message = get_multiline_response(bot_message)
                     bot_message = strip_quotes(bot_message)
                     # Quick hack for degenerated / empty bot messages
@@ -1348,7 +1362,8 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERAL, output=result
             )
-            text = result.strip()
+            text = result.text
+            text = text.strip()
             if text.startswith('"'):
                 text = text[1:-1]
 

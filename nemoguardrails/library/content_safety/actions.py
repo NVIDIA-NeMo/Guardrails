@@ -80,6 +80,7 @@ async def content_safety_check_input(
         result = await llm_call(llm, check_input_prompt, stop=stop)
 
     result = llm_task_manager.parse_task_output(task, output=result)
+    result = result.text
 
     try:
         is_safe, violated_policies = result
@@ -161,6 +162,8 @@ async def content_safety_check_output(
         result = await llm_call(llm, check_output_prompt, stop=stop)
 
     result = llm_task_manager.parse_task_output(task, output=result)
+
+    result = result.text
 
     try:
         is_safe, violated_policies = result
