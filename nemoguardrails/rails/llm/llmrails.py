@@ -572,7 +572,6 @@ class LLMRails:
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
         streaming_handler: Optional[StreamingHandler] = None,
-        return_context: bool = False,
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate a completion or a next message.
 
@@ -595,7 +594,6 @@ class LLMRails:
             state: The state object that should be used as the starting point.
             streaming_handler: If specified, and the config supports streaming, the
               provided handler will be used for streaming.
-            return_context: Whether to return the context at the end of the run.
 
         Returns:
             The completion (when a prompt is provided) or the next message.
@@ -618,19 +616,6 @@ class LLMRails:
 
         # Save the generation options in the current async context.
         generation_options_var.set(options)
-
-        if return_context:
-            warnings.warn(
-                "The `return_context` argument is deprecated and will be removed in 0.9.0. "
-                "Use `GenerationOptions.output_vars = True` instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            # And we use the generation options mechanism instead.
-            if options is None:
-                options = GenerationOptions()
-            options.output_vars = True
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
@@ -859,12 +844,6 @@ class LLMRails:
                         # Otherwise, we return the full context
                         res.output_data = context
 
-                    # If the `return_context` is used, then we return a tuple to keep
-                    # the interface compatible.
-                    # TODO: remove this in 0.10.0.
-                    if return_context:
-                        return new_message, context
-
                 _log = compute_generation_log(processing_log)
 
                 # Include information about activated rails and LLM calls if requested
@@ -989,7 +968,6 @@ class LLMRails:
         self,
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
-        return_context: bool = False,
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[dict] = None,
     ):
@@ -1009,7 +987,6 @@ class LLMRails:
                 messages=messages,
                 options=options,
                 state=state,
-                return_context=return_context,
             )
         )
 
