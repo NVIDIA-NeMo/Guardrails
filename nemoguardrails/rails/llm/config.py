@@ -1186,6 +1186,10 @@ class RailsConfig(BaseModel):
         description="The source ID of events sent by the Colang Runtime. Useful to identify the component that has sent an event.",
     )
 
+    guardrail_reasoning_traces: bool = Field(
+        default=False, description="Whether to run guardrails against reasoning traces."
+    )
+
     tracing: TracingConfig = Field(
         default_factory=TracingConfig,
         description="Configuration for tracing.",
