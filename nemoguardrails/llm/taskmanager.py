@@ -16,7 +16,8 @@
 import logging
 import re
 from ast import literal_eval
-from typing import Any, Callable, List, Optional, Union
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
@@ -25,10 +26,10 @@ from nemoguardrails.llm.filters import (
     co_v2,
     colang,
     colang_without_identifiers,
+    extract_and_strip_trace,
     first_turns,
     indent,
     last_turns,
-    remove_reasoning_traces,
     remove_text_messages,
     to_chat_messages,
     to_intent_messages,
@@ -52,13 +53,57 @@ from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig
 
 
+@dataclass
+class ParsedTaskOutput:
+    """
+    Encapsulates the result of running and parsing an LLM task.
+
+    Attributes:
+        text (str): The cleaned and parsed output string, representing
+            the main result of the task.
+        reasoning_trace (Optional[str]): An optional chain-of-thought
+            reasoning trace, providing insights into the reasoning
+            process behind the task output, if available.
+    """
+
+    text: str
+    reasoning_trace: Optional[str] = None
+
+
+def should_return_traces(task):
+    if task == Task.GENERATE_BOT_MESSAGE:
+        return True
+    return False
+
+
+def should_remove_reasoning_traces(config, task):
+    model = get_task_model(config, task)
+
+    model_config = (
+        model
+        and model.reasoning_config
+        and model.reasoning_config.remove_thinking_traces
+    )
+
+    if config.guardrail_reasoning_traces:
+        return False
+    else:
+        return model_config
+
+
+def get_reasoning_token_tags(config, task):
+    model = get_task_model(config, task)
+    start_token = model.reasoning_config.start_token
+    end_token = model.reasoning_config.end_token
+    return start_token, end_token
+
+
 class LLMTaskManager:
     """Interface for interacting with an LLM in a task-oriented way."""
 
     def __init__(self, config: RailsConfig):
         # Save the config as we need access to instructions and sample conversations.
         self.config = config
-
         # Initialize the environment for rendering templates.
         self.env = SandboxedEnvironment()
 
@@ -78,7 +123,7 @@ class LLMTaskManager:
         self.env.filters["to_chat_messages"] = to_chat_messages
         self.env.filters["verbose_v1"] = verbose_v1
 
-        self.output_parsers = {
+        self.output_parsers: Dict[Optional[str], Callable] = {
             "user_intent": user_intent_parser,
             "bot_intent": bot_intent_parser,
             "bot_message": bot_message_parser,
@@ -308,36 +353,35 @@ class LLMTaskManager:
 
     def parse_task_output(
         self, task: Task, output: str, forced_output_parser: Optional[str] = None
-    ):
-        """Parses the output for the provided tasks.
+    ) -> ParsedTaskOutput:
+        """ """
+        reasoning_trace: Optional[str] = None
 
-        If an output parser is associated with the prompt, it will be used.
-        Otherwise, the output is returned as is.
-        """
+        # 1. strip and capture reasoning traces if configured
+        if should_remove_reasoning_traces(self.config, task):
+            start_token, end_token = get_reasoning_token_tags(self.config, task)
+            reasoning_trace_result = extract_and_strip_trace(
+                output, start_token, end_token
+            )
+            output = reasoning_trace_result.text
+            reasoning_trace = reasoning_trace_result.reasoning_trace
+
+        # 2. delegate to existing parser
         prompt = get_prompt(self.config, task)
+        parser_name = forced_output_parser or prompt.output_parser
+        parser_fn = self.output_parsers.get(parser_name)
 
-        output_parser = None
-        if forced_output_parser:
-            output_parser = self.output_parsers.get(forced_output_parser)
-        elif prompt.output_parser:
-            output_parser = self.output_parsers.get(prompt.output_parser)
-        if not output_parser:
-            logging.info("No output parser found for %s", prompt.output_parser)
-
-        model = get_task_model(self.config, task)
-        if (
-            model
-            and model.reasoning_config
-            and model.reasoning_config.remove_thinking_traces
-        ):
-            start_token = model.reasoning_config.start_token
-            end_token = model.reasoning_config.end_token
-            output = remove_reasoning_traces(output, start_token, end_token)
-
-        if output_parser:
-            return output_parser(output)
+        if parser_fn:
+            parsed_text = parser_fn(output)
         else:
-            return output
+            logging.info("No output parser found for %s", prompt.output_parser)
+            parsed_text = output
+
+        # return_trace = should_return_traces(task)
+        #
+        # if not return_trace:
+        #     trace = None
+        return ParsedTaskOutput(text=parsed_text, reasoning_trace=reasoning_trace)
 
     def has_output_parser(self, task: Task):
         prompt = get_prompt(self.config, task)
