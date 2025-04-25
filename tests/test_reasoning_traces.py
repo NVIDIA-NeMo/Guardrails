@@ -24,7 +24,7 @@ from nemoguardrails.context import (
     llm_call_info_var,
     streaming_handler_var,
 )
-from nemoguardrails.llm.filters import remove_reasoning_traces
+from nemoguardrails.llm.filters import extract_and_strip_trace
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -38,8 +38,8 @@ class TestReasoningTraces:
         """Test basic removal of reasoning traces."""
         input_text = "This is a <thinking>\nSome reasoning here\nMore reasoning\n</thinking> response."
         expected = "This is a  response."
-        result = remove_reasoning_traces(input_text, "<thinking>", "</thinking>")
-        assert result == expected
+        result = extract_and_strip_trace(input_text, "<thinking>", "</thinking>")
+        assert result.text == expected
 
     def test_remove_reasoning_traces_multiline(self):
         """Test removal of multiline reasoning traces."""
@@ -52,8 +52,8 @@ class TestReasoningTraces:
         </thinking> response after thinking.
         """
         expected = "\n        Here is my  response after thinking.\n        "
-        result = remove_reasoning_traces(input_text, "<thinking>", "</thinking>")
-        assert result == expected
+        result = extract_and_strip_trace(input_text, "<thinking>", "</thinking>")
+        assert result.text == expected
 
     def test_remove_reasoning_traces_multiple_sections(self):
         """Test removal of multiple reasoning trace sections."""
@@ -61,8 +61,8 @@ class TestReasoningTraces:
         # Note: The current implementation removes all content between the first start and last end token
         # So the expected result is "Start  end." not "Start  middle  end."
         expected = "Start  end."
-        result = remove_reasoning_traces(input_text, "<thinking>", "</thinking>")
-        assert result == expected
+        result = extract_and_strip_trace(input_text, "<thinking>", "</thinking>")
+        assert result.text == expected
 
     def test_remove_reasoning_traces_nested(self):
         """Test handling of nested reasoning trace markers (should be handled correctly)."""
@@ -70,22 +70,22 @@ class TestReasoningTraces:
             "Begin <thinking>Outer <thinking>Inner</thinking> Outer</thinking> End."
         )
         expected = "Begin  End."
-        result = remove_reasoning_traces(input_text, "<thinking>", "</thinking>")
-        assert result == expected
+        result = extract_and_strip_trace(input_text, "<thinking>", "</thinking>")
+        assert result.text == expected
 
     def test_remove_reasoning_traces_unmatched(self):
         """Test handling of unmatched reasoning trace markers."""
         input_text = "Begin <thinking>Unmatched end."
-        result = remove_reasoning_traces(input_text, "<thinking>", "</thinking>")
+        result = extract_and_strip_trace(input_text, "<thinking>", "</thinking>")
         # We ~hould keep the unmatched tag since it's not a complete section
-        assert result == "Begin <thinking>Unmatched end."
+        assert result.text == "Begin <thinking>Unmatched end."
 
     @pytest.mark.asyncio
     async def test_task_manager_parse_task_output(self):
         """Test that the task manager correctly removes reasoning traces."""
         # mock config
         config = MagicMock(spec=RailsConfig)
-
+        config.guardrail_reasoning_traces = False
         # Create a ReasoningModelConfig
         reasoning_config = ReasoningModelConfig(
             remove_thinking_traces=True,
@@ -121,12 +121,13 @@ class TestReasoningTraces:
             expected = "This is a  final answer."
 
             result = llm_task_manager.parse_task_output(Task.GENERAL, input_text)
-            assert result == expected
+            assert result.text == expected
 
     @pytest.mark.asyncio
     async def test_parse_task_output_without_reasoning_config(self):
         """Test that parse_task_output works without a reasoning config."""
         config = MagicMock(spec=RailsConfig)
+        config.guardrail_reasoning_traces = False
 
         # a Model without reasoning_config
         model_config = Model(type="main", engine="test", model="test-model")
@@ -147,18 +148,22 @@ class TestReasoningTraces:
             input_text = (
                 "This is a <thinking>Some reasoning here</thinking> final answer."
             )
-
-            # Without a reasoning config, the text should remain unchanged
             result = llm_task_manager.parse_task_output(Task.GENERAL, input_text)
-            assert result == input_text
+            assert result.text == input_text
 
     @pytest.mark.asyncio
     async def test_parse_task_output_with_default_reasoning_traces(self):
-        """Test that parse_task_output works without a reasoning config."""
+        """Test that parse_task_output works with default reasoning traces."""
         config = MagicMock(spec=RailsConfig)
+        config.guardrail_reasoning_traces = False
 
-        # a Model without reasoning_config
-        model_config = Model(type="main", engine="test", model="test-model")
+        # Create a Model with default reasoning_config
+        model_config = Model(
+            type="main",
+            engine="test",
+            model="test-model",
+            reasoning_config=ReasoningModelConfig(),
+        )
 
         # Mock the get_prompt and get_task_model functions
         with (
@@ -172,42 +177,51 @@ class TestReasoningTraces:
 
             llm_task_manager = LLMTaskManager(config)
 
-            # test parsing without a reasoning config
+            # test parsing with default reasoning traces
             input_text = "This is a <think>Some reasoning here</think> final answer."
-            expected = "This is a  final answer."
-
-            # without a reasoning config, the default start_token and stop_token are used thus the text should change
             result = llm_task_manager.parse_task_output(Task.GENERAL, input_text)
-            assert result == expected
+            assert result.text == "This is a  final answer."
 
     @pytest.mark.asyncio
     async def test_parse_task_output_with_output_parser(self):
-        """Test that parse_task_output correctly applies output parsers before returning."""
+        """Test that parse_task_output works with an output parser."""
         config = MagicMock(spec=RailsConfig)
+        config.guardrail_reasoning_traces = False
 
-        # mock output parser function
+        # Create a Model with reasoning_config
+        model_config = Model(
+            type="main",
+            engine="test",
+            model="test-model",
+            reasoning_config=ReasoningModelConfig(
+                remove_thinking_traces=True,
+                start_token="<thinking>",
+                end_token="</thinking>",
+            ),
+        )
+
         def mock_parser(text):
-            return text.upper()
+            return f"PARSED: {text}"
 
-        llm_task_manager = LLMTaskManager(config)
-        llm_task_manager.output_parsers["test_parser"] = mock_parser
-
-        # mock the get_prompt and get_task_model functions
+        # Mock the get_prompt and get_task_model functions
         with (
             patch("nemoguardrails.llm.taskmanager.get_prompt") as mock_get_prompt,
             patch(
                 "nemoguardrails.llm.taskmanager.get_task_model"
             ) as mock_get_task_model,
         ):
-            mock_get_prompt.return_value = MagicMock(output_parser="test_parser")
-            mock_get_task_model.return_value = None
+            mock_get_prompt.return_value = MagicMock(output_parser="mock_parser")
+            mock_get_task_model.return_value = model_config
 
-            # Test with output parser
-            input_text = "this should be uppercase"
-            expected = "THIS SHOULD BE UPPERCASE"
+            llm_task_manager = LLMTaskManager(config)
+            llm_task_manager.output_parsers["mock_parser"] = mock_parser
 
+            # test parsing with an output parser
+            input_text = (
+                "This is a <thinking>Some reasoning here</thinking> final answer."
+            )
             result = llm_task_manager.parse_task_output(Task.GENERAL, input_text)
-            assert result == expected
+            assert result.text == "PARSED: This is a  final answer."
 
     @pytest.mark.asyncio
     async def test_passthrough_llm_action_removes_reasoning(self):
