@@ -34,7 +34,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Tuple, Union
 
-import yara
+yara = None
+try:
+    import yara
+except ImportError:
+    pass
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -43,6 +47,14 @@ from nemoguardrails.library.injection_detection.yara_config import ActionOptions
 YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
 
 log = logging.getLogger(__name__)
+
+
+def _check_yara_available():
+    if yara is None:
+        raise ImportError(
+            "The yara module is required for injection detection. "
+            "Please install it using: pip install yara-python"
+        )
 
 
 def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]:
@@ -117,7 +129,7 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
 
 
 @lru_cache()
-def load_rules(yara_path: Path, rule_names: Tuple) -> Union[yara.Rules, None]:
+def load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]:
     """
     Loads and compiles YARA rules from the specified path and rule names.
 
@@ -126,12 +138,15 @@ def load_rules(yara_path: Path, rule_names: Tuple) -> Union[yara.Rules, None]:
         rule_names (Tuple): A tuple of YARA rule names to load.
 
     Returns:
-        Union[yara.Rules, None]: The compiled YARA rules object if successful,
+        Union['yara.Rules', None]: The compiled YARA rules object if successful,
         or None if no rule names are provided.
 
     Raises:
         yara.SyntaxError: If there is a syntax error in the YARA rules.
+        ImportError: If the yara module is not installed.
     """
+    _check_yara_available()
+
     if len(rule_names) == 0:
         log.warning(
             "Injection config was provided but no modules were specified. Returning None."
@@ -150,7 +165,7 @@ def load_rules(yara_path: Path, rule_names: Tuple) -> Union[yara.Rules, None]:
     return rules
 
 
-def omit_injection(text: str, matches: list[yara.Match]) -> str:
+def omit_injection(text: str, matches: list["yara.Match"]) -> str:
     """
     Attempts to strip the offending injection attempts from the provided text.
 
@@ -160,11 +175,16 @@ def omit_injection(text: str, matches: list[yara.Match]) -> str:
 
     Args:
         text (str): The text to check for command injection.
-        matches (list[yara.Match]): A list of YARA rule matches.
+        matches (list['yara.Match']): A list of YARA rule matches.
 
     Returns:
         str: The text with the detected injections stripped out.
+
+    Raises:
+        ImportError: If the yara module is not installed.
     """
+    _check_yara_available()
+
     # Copy the text to a placeholder variable
     modified_text = text
     for match in matches:
@@ -180,7 +200,7 @@ def omit_injection(text: str, matches: list[yara.Match]) -> str:
     return modified_text
 
 
-def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
+def sanitize_injection(text: str, matches: list["yara.Match"]) -> str:
     """
     Attempts to sanitize the offending injection attempts in the provided text.
     This is done by 'de-fanging' the offending content, transforming it into a state that will not execute
@@ -193,20 +213,23 @@ def sanitize_injection(text: str, matches: list[yara.Match]) -> str:
 
     Args:
         text (str): The text to check for command injection.
-        matches (list[yara.Match]): A list of YARA rule matches.
+        matches (list['yara.Match']): A list of YARA rule matches.
 
     Returns:
         str: The text with the detected injections sanitized.
 
     Raises:
         NotImplementedError: If the sanitization logic is not implemented.
+        ImportError: If the yara module is not installed.
     """
+    _check_yara_available()
+
     raise NotImplementedError(
         "Injection sanitization is not yet implemented. Please use 'reject' or 'omit'"
     )
 
 
-def reject_injection(text: str, rules: yara.Rules) -> Tuple[bool, str]:
+def reject_injection(text: str, rules: "yara.Rules") -> Tuple[bool, str]:
     """
     Detects whether the provided text contains potential injection attempts.
 
@@ -215,7 +238,7 @@ def reject_injection(text: str, rules: yara.Rules) -> Tuple[bool, str]:
 
     Args:
         text (str): The text to check for command injection.
-        rules (yara.Rules): The loaded YARA rules.
+        rules ('yara.Rules'): The loaded YARA rules.
 
     Returns:
         bool: True if attempted exploitation is detected, False otherwise.
@@ -223,7 +246,10 @@ def reject_injection(text: str, rules: yara.Rules) -> Tuple[bool, str]:
 
     Raises:
         ValueError: If the `action` parameter in the configuration is invalid.
+        ImportError: If the yara module is not installed.
     """
+    _check_yara_available()
+
     if rules is None:
         log.warning(
             "reject_injection guardrail was invoked but no rules were specified in the InjectionDetection config."
