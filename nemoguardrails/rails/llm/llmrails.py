@@ -378,6 +378,11 @@ class LLMRails:
                 mode = llm_config.mode
                 api_key = os.environ.get(llm_config.api_key_env_var)
 
+                # Add the api_key to kwargs if it's set
+                api_key = os.environ.get(llm_config.api_key_env_var)
+                if api_key:
+                    kwargs["api_key"] = api_key
+
                 llm_model = init_llm_model(
                     model_name=model_name,
                     provider_name=provider_name,
