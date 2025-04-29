@@ -133,7 +133,7 @@ def _patch_acall_method_to(llm_providers: Dict[str, Type[BaseLLM]]):
             setattr(provider_cls, "_acall", _acall)
 
 
-# Initialize the providers with the default onesBTW
+# Initialize the providers with the default ones
 _llm_providers: Dict[str, Type[BaseLLM]] = {
     "trt_llm": TRTLLM,
 }

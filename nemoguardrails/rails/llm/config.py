@@ -102,9 +102,9 @@ class Model(BaseModel):
         default=None,
         description="The name of the model. If not specified, it should be specified through the parameters attribute.",
     )
-    api_key_env_var: str = Field(
+    api_key_env_var: Optional[str] = Field(
         default=None,
-        description='The environment variable containing the model\'s API Key. Do not include "$".',
+        description='Optional environment variable with model\'s API Key. Do not include "$".',
     )
     reasoning_config: Optional[ReasoningModelConfig] = Field(
         default_factory=ReasoningModelConfig,
@@ -1361,7 +1361,7 @@ class RailsConfig(BaseModel):
         """Model API Key Env var must be set to make LLM calls"""
         api_keys = [m.api_key_env_var for m in models]
         for api_key in api_keys:
-            if not os.environ.get(api_key):
+            if api_key and not os.environ.get(api_key):
                 raise ValueError(
                     f"Model API Key environment variable '{api_key}' not set."
                 )
