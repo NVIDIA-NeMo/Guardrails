@@ -12,10 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+
 import pytest
 
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
+
+OPENAI_KEY_ENV_VAR = "NG_OPENAI_API_KEY"
+os.environ[OPENAI_KEY_ENV_VAR] = "sk-svcacct-abcdef12345"
 
 config = RailsConfig.from_content(
     """
@@ -31,11 +36,12 @@ define flow greeting
     user express greeting
     bot express greeting
 """,
-    yaml_content="""
+    yaml_content=f"""
     models:
       - type: main
         engine: openai
         model: gpt-3.5-instruct-turbo
+        api_key_env_var: {OPENAI_KEY_ENV_VAR}
     """,
 )
 

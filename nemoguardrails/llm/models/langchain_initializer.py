@@ -47,7 +47,7 @@ class ModelInitializationError(Exception):
 
 
 ModelInitMethod = Callable[
-    [str, str, Dict[str, Any]], Optional[Union[BaseChatModel, BaseLLM]]
+    [str, str, str, Dict[str, Any]], Optional[Union[BaseChatModel, BaseLLM]]
 ]
 
 
@@ -67,10 +67,10 @@ class ModelInitializer:
         return mode in self.supported_modes
 
     def execute(
-        self, model_name: str, provider_name: str, kwargs: Dict[str, Any]
+        self, model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
     ) -> Optional[Union[BaseChatModel, BaseLLM]]:
         """Execute this initializer to initialize a model."""
-        return self.init_method(model_name, provider_name, kwargs)
+        return self.init_method(model_name, provider_name, api_key, kwargs)
 
     def __str__(self) -> str:
         return f"{self.init_method.__name__}(modes={self.supported_modes})"
@@ -81,6 +81,7 @@ def try_initialization_method(
     model_name: str,
     provider_name: str,
     mode: Literal["chat", "text"],
+    api_key: str,
     kwargs: Dict[str, Any],
 ):
     """Wrap an initialization method execution with a try/except to capture errors.
@@ -103,7 +104,10 @@ def try_initialization_method(
             f"Trying initializer: {initializer.init_method.__name__} for model: {model_name} and provider: {provider_name}"
         )
         result = initializer.execute(
-            model_name=model_name, provider_name=provider_name, kwargs=kwargs
+            model_name=model_name,
+            provider_name=provider_name,
+            api_key=api_key,
+            kwargs=kwargs,
         )
         log.debug(f"Initializer {initializer.init_method.__name__} returned: {result}")
         if result is not None:
@@ -120,6 +124,7 @@ def init_langchain_model(
     model_name: str,
     provider_name: str,
     mode: Literal["chat", "text"],
+    api_key: str,
     kwargs: Dict[str, Any],
 ) -> Union[BaseChatModel, BaseLLM]:
     """Initialize a LangChain model using a series of initialization methods.
@@ -160,6 +165,7 @@ def init_langchain_model(
                 model_name=model_name,
                 provider_name=provider_name,
                 mode=mode,
+                api_key=api_key,
                 kwargs=kwargs,
             )
             if result is not None:
@@ -195,13 +201,14 @@ def init_langchain_model(
 
 
 def _init_chat_completion_model(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
 ) -> BaseChatModel:  # noqa #type: ignore
     """Initialize a chat completion model.
 
     Args:
         model_name: Name of the model to initialize
         provider_name: Name of the provider to use
+        api_key: LLM API key to initialize client with
         kwargs: Additional arguments to pass to the model initialization
 
     Returns:
@@ -213,8 +220,12 @@ def _init_chat_completion_model(
 
     # just to document the expected behavior
     # we don't support pre-0.2.7 versions of langchain-core it is in
-    # line wiht our pyproject.toml
+    # line with our pyproject.toml
     package_version = version("langchain-core")
+
+    # Langchain's `init_chat_model()` doesn't have an argument for api_key, so
+    # copy kwargs and include api_key there instead
+    kwargs["api_key"] = api_key
 
     if _parse_version(package_version) < (0, 2, 7):
         raise RuntimeError(
@@ -225,19 +236,21 @@ def _init_chat_completion_model(
         return init_chat_model(
             model=model_name,
             model_provider=provider_name,
+            kwargs=kwargs,
         )
     except ValueError:
         raise
 
 
 def _init_text_completion_model(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
 ) -> BaseLLM:
     """Initialize a text completion model.
 
     Args:
         model_name: Name of the model to initialize
         provider_name: Name of the provider to use
+        api_key: API Key to use for LLM call
         kwargs: Additional arguments to pass to the model initialization
 
     Returns:
@@ -249,19 +262,20 @@ def _init_text_completion_model(
     provider_cls = _get_text_completion_provider(provider_name)
     if provider_cls is None:
         raise ValueError()
-    kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
-
+    kwargs = _update_model_kwargs(provider_cls, model_name, api_key, kwargs)
+    kwargs["api_key"] = api_key
     return provider_cls(**kwargs)
 
 
 def _init_community_chat_models(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
 ) -> BaseChatModel:
     """Initialize community chat models.
 
     Args:
         provider_name: Name of the provider to use
         model_name: Name of the model to initialize
+        api_key: API Key to use for LLM call
         kwargs: Additional arguments to pass to the model initialization
 
     Returns:
@@ -274,12 +288,12 @@ def _init_community_chat_models(
     provider_cls = _get_chat_completion_provider(provider_name)
     if provider_cls is None:
         raise ValueError()
-    kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
+    kwargs = _update_model_kwargs(provider_cls, model_name, api_key, kwargs)
     return provider_cls(**kwargs)
 
 
 def _init_gpt35_turbo_instruct(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
 ) -> BaseLLM:
     """Initialize GPT-3.5 Turbo Instruct model.
 
@@ -291,6 +305,7 @@ def _init_gpt35_turbo_instruct(
     Args:
         model_name: Name of the model to initialize
         provider_name: Name of the provider to use
+        api_key: API key value for LLM call
         kwargs: Additional arguments to pass to the model initialization
 
     Returns:
@@ -303,6 +318,7 @@ def _init_gpt35_turbo_instruct(
         return _init_text_completion_model(
             model_name=model_name,
             provider_name=provider_name,
+            api_key=api_key,
             kwargs=kwargs,
         )
     except Exception as e:
@@ -312,13 +328,14 @@ def _init_gpt35_turbo_instruct(
 
 
 def _init_nvidia_model(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
 ) -> BaseChatModel:
     """Initialize NVIDIA AI Endpoints model.
 
     Args:
         model_name: Name of the model to initialize
         provider_name: Name of the provider to use
+        api_key: API key
         **kwargs: Additional arguments to pass to the model initialization
 
     Returns:
@@ -341,7 +358,7 @@ def _init_nvidia_model(
                 " Please upgrade it with `pip install langchain-nvidia-ai-endpoints --upgrade`."
             )
 
-        return ChatNVIDIA(model=model_name, **kwargs)
+        return ChatNVIDIA(model=model_name, api_key=api_key, **kwargs)
     except ImportError as e:
         raise ImportError(
             "Could not import langchain_nvidia_ai_endpoints, please install it with "
@@ -362,7 +379,7 @@ _PROVIDER_INITIALIZERS = {
 
 
 def _handle_model_special_cases(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+    model_name: str, provider_name: str, api_key: str, kwargs: Dict[str, Any]
 ) -> Optional[Union[BaseChatModel, BaseLLM]]:
     """Handle model initialization for special cases that need custom logic.
 
@@ -391,13 +408,15 @@ def _handle_model_special_cases(
     if initializer is None:
         return None
 
-    result = initializer(model_name, provider_name, kwargs)
+    result = initializer(model_name, provider_name, api_key, kwargs)
     if not isinstance(result, (BaseChatModel, BaseLLM)):
         raise TypeError("Initializer returned an invalid type")
     return result
 
 
-def _update_model_kwargs(provider_cls: type, model_name: str, kwargs: dict) -> Dict:
+def _update_model_kwargs(
+    provider_cls: type, model_name: str, api_key: str, kwargs: dict
+) -> Dict:
     """Update kwargs with the model name based on the provider's expected fields.
 
     If provider_cls.model_fields contains 'model' or 'model_name',
@@ -406,4 +425,5 @@ def _update_model_kwargs(provider_cls: type, model_name: str, kwargs: dict) -> D
     for key in ("model", "model_name"):
         if key in getattr(provider_cls, "model_fields", {}):
             kwargs[key] = model_name
+    kwargs["api_key"] = api_key
     return kwargs

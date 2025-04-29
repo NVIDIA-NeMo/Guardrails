@@ -376,11 +376,13 @@ class LLMRails:
                 provider_name = llm_config.engine
                 kwargs = llm_config.parameters or {}
                 mode = llm_config.mode
+                api_key = os.environ.get(llm_config.api_key_env_var)
 
                 llm_model = init_llm_model(
                     model_name=model_name,
                     provider_name=provider_name,
                     mode=mode,
+                    api_key=api_key,
                     kwargs=kwargs,
                 )
 

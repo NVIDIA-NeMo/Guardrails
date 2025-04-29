@@ -23,11 +23,12 @@ from langchain_core.language_models.llms import BaseLLM
 from .langchain_initializer import ModelInitializationError, init_langchain_model
 
 
-# later we can easily conver it to a class
+# later we can easily convert it to a class
 def init_llm_model(
     model_name: Optional[str],
     provider_name: str,
     mode: Literal["chat", "text"],
+    api_key: str,
     kwargs: Dict[str, Any],
 ) -> Union[BaseChatModel, BaseLLM]:
     """Initialize an LLM model with proper error handling.
@@ -38,6 +39,8 @@ def init_llm_model(
     Args:
         model_name: Name of the model to initialize
         provider_name: Name of the provider to use
+        mode: Literal taking either "chat" or "text" values
+        api_key: String with LLM API Key to use by client
         kwargs: Additional arguments to pass to the model initialization
 
     Returns:
@@ -48,7 +51,11 @@ def init_llm_model(
     """
     # currently we only support LangChain models
     return init_langchain_model(
-        model_name=model_name, provider_name=provider_name, mode=mode, kwargs=kwargs
+        model_name=model_name,
+        provider_name=provider_name,
+        mode=mode,
+        api_key=api_key,
+        kwargs=kwargs,
     )
 
 

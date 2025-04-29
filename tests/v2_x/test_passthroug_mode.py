@@ -13,10 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 import unittest
 
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
+
+OPENAI_KEY_ENV_VAR = "NG_OPENAI_API_KEY"
+os.environ[OPENAI_KEY_ENV_VAR] = "sk-svcacct-abcdef12345"
 
 colang_content = '''
     import core
@@ -44,13 +48,13 @@ colang_content = '''
         user said "This is boring"
     '''
 
-yaml_content = """
+yaml_content = f"""
 colang_version: "2.x"
 models:
   - type: main
     engine: openai
     model: gpt-3.5-turbo-instruct
-
+    api_key_env_var: {OPENAI_KEY_ENV_VAR}
     """
 
 

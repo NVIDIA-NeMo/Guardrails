@@ -28,6 +28,7 @@ from pydantic import (
     ValidationError,
     model_validator,
     root_validator,
+    validator,
 )
 from pydantic.fields import Field
 
@@ -101,9 +102,9 @@ class Model(BaseModel):
         default=None,
         description="The name of the model. If not specified, it should be specified through the parameters attribute.",
     )
-    api_key: Optional[str] = Field(
+    api_key_env_var: str = Field(
         default=None,
-        description="The API Key to use in requests to this model",
+        description='The environment variable containing the model\'s API Key. Do not include "$".',
     )
     reasoning_config: Optional[ReasoningModelConfig] = Field(
         default_factory=ReasoningModelConfig,
@@ -1354,6 +1355,17 @@ class RailsConfig(BaseModel):
                 ]
 
         return values
+
+    @validator("models")
+    def validate_models_api_key_env_var(cls, models):
+        """Model API Key Env var must be set to make LLM calls"""
+        api_keys = [m.api_key_env_var for m in models]
+        for api_key in api_keys:
+            if not os.environ.get(api_key):
+                raise ValueError(
+                    f"Model API Key environment variable '{api_key}' not set."
+                )
+        return models
 
     raw_llm_call_action: Optional[str] = Field(
         default="raw llm call",

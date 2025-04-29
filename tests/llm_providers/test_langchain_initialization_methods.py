@@ -44,7 +44,9 @@ class TestChatCompletionInitializer:
                 "nemoguardrails.llm.models.langchain_initializer.version"
             ) as mock_version:
                 mock_version.return_value = "0.2.7"
-                result = _init_chat_completion_model("gpt-3.5-turbo", "openai", {})
+                result = _init_chat_completion_model(
+                    "gpt-3.5-turbo", "openai", "sk-svcacct-abcdef12345", {}
+                )
                 assert result == "chat_model"
                 mock_init.assert_called_once_with(
                     model="gpt-3.5-turbo",
@@ -60,7 +62,9 @@ class TestChatCompletionInitializer:
                 RuntimeError,
                 match="this feature is supported from v0.2.7 of langchain-core",
             ):
-                _init_chat_completion_model("gpt-3.5-turbo", "openai", {})
+                _init_chat_completion_model(
+                    "gpt-3.5-turbo", "openai", "sk-svcacct-abcdef12345", {}
+                )
 
     def test_init_chat_completion_model_error(self):
         with patch(
@@ -72,7 +76,9 @@ class TestChatCompletionInitializer:
             ) as mock_version:
                 mock_version.return_value = "0.2.7"
                 with pytest.raises(ValueError, match="Chat model failed"):
-                    _init_chat_completion_model("gpt-3.5-turbo", "openai", {})
+                    _init_chat_completion_model(
+                        "gpt-3.5-turbo", "openai", "sk-svcacct-abcdef12345", {}
+                    )
 
 
 class TestCommunityChatInitializer:
@@ -86,7 +92,9 @@ class TestCommunityChatInitializer:
             mock_provider_cls.model_fields = {"model": None}
             mock_provider_cls.return_value = "community_model"
             mock_get_provider.return_value = mock_provider_cls
-            result = _init_community_chat_models("community-model", "provider", {})
+            result = _init_community_chat_models(
+                "community-model", "provider", "sk-svcacct-abcdef12345", {}
+            )
             assert result == "community_model"
             mock_get_provider.assert_called_once_with("provider")
             mock_provider_cls.assert_called_once_with(model="community-model")
@@ -97,7 +105,9 @@ class TestCommunityChatInitializer:
         ) as mock_get_provider:
             mock_get_provider.return_value = None
             with pytest.raises(ValueError):
-                _init_community_chat_models("community-model", "provider", {})
+                _init_community_chat_models(
+                    "community-model", "provider", "sk-svcacct-abcdef12345", {}
+                )
 
 
 class TestTextCompletionInitializer:
@@ -111,7 +121,9 @@ class TestTextCompletionInitializer:
             mock_provider_cls.model_fields = {"model": None}
             mock_provider_cls.return_value = "text_model"
             mock_get_provider.return_value = mock_provider_cls
-            result = _init_text_completion_model("text-model", "provider", {})
+            result = _init_text_completion_model(
+                "text-model", "provider", "sk-svcacct-abcdef12345", {}
+            )
             assert result == "text_model"
             mock_get_provider.assert_called_once_with("provider")
             mock_provider_cls.assert_called_once_with(model="text-model")
@@ -122,7 +134,9 @@ class TestTextCompletionInitializer:
         ) as mock_get_provider:
             mock_get_provider.return_value = None
             with pytest.raises(ValueError):
-                _init_text_completion_model("text-model", "provider", {})
+                _init_text_completion_model(
+                    "text-model", "provider", "sk-svcacct-abcdef12345", {}
+                )
 
 
 class TestUpdateModelKwargs:
@@ -132,7 +146,9 @@ class TestUpdateModelKwargs:
         mock_provider_cls = MagicMock()
         mock_provider_cls.model_fields = {"model": {}}
         kwargs = {}
-        updated_kwargs = _update_model_kwargs(mock_provider_cls, "test-model", kwargs)
+        updated_kwargs = _update_model_kwargs(
+            mock_provider_cls, "test-model", "sk-svcacct-abcdef12345", kwargs
+        )
         assert updated_kwargs == {"model": "test-model"}
 
     def test_update_model_kwargs_with_model_name_field(self):
@@ -140,7 +156,9 @@ class TestUpdateModelKwargs:
         mock_provider_cls = MagicMock()
         mock_provider_cls.model_fields = {"model_name": {}}
         kwargs = {}
-        updated_kwargs = _update_model_kwargs(mock_provider_cls, "test-model", kwargs)
+        updated_kwargs = _update_model_kwargs(
+            mock_provider_cls, "test-model", "sk-svcacct-abcdef12345", kwargs
+        )
         assert updated_kwargs == {"model_name": "test-model"}
 
     def test_update_model_kwargs_with_both_fields(self):
@@ -149,7 +167,9 @@ class TestUpdateModelKwargs:
         mock_provider_cls = MagicMock()
         mock_provider_cls.model_fields = {"model": {}, "model_name": {}}
         kwargs = {}
-        updated_kwargs = _update_model_kwargs(mock_provider_cls, "test-model", kwargs)
+        updated_kwargs = _update_model_kwargs(
+            mock_provider_cls, "test-model", "sk-svcacct-abcdef12345", kwargs
+        )
         assert updated_kwargs == {"model": "test-model", "model_name": "test-model"}
 
     def test_update_model_kwargs_with_existing_kwargs(self):
@@ -158,5 +178,7 @@ class TestUpdateModelKwargs:
         mock_provider_cls = MagicMock()
         mock_provider_cls.model_fields = {"model": {}}
         kwargs = {"temperature": 0.7}
-        updated_kwargs = _update_model_kwargs(mock_provider_cls, "test-model", kwargs)
+        updated_kwargs = _update_model_kwargs(
+            mock_provider_cls, "test-model", "sk-svcacct-abcdef12345", kwargs
+        )
         assert updated_kwargs == {"model": "test-model", "temperature": 0.7}
