@@ -15,11 +15,16 @@
 
 import logging
 import os
+from unittest import mock
 
 import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.llm.prompts import TaskPrompt
+from nemoguardrails.rails.llm.config import Model, RailsConfig
+
+TEST_API_KEY_NAME = "NG_OPENAI_API_KEY"
+TEST_API_KEY_VALUE = "sk-svcacct-abcdefGHIJKlmnoPQRSTuvXYZ1234567890"
 
 
 @pytest.fixture(
@@ -135,3 +140,151 @@ def test_rails_config_parse_obj():
     assert config.sample_conversation == "Test conversation"
     assert len(config.flows) == 1
     assert config.flows[0]["id"] == "test_flow"
+
+
+def test_model_api_key_optional():
+    """Check if we don't set an `api_key_env_var` the Model can still be created"""
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="openai",
+                model="gpt-3.5-turbo-instruct",
+                api_key_env_var=None,
+            )
+        ]
+    )
+    assert config.models[0].api_key_env_var is None
+
+
+def test_model_api_key_var_not_set():
+    """Check if we reference an invalid env key we throw an error"""
+    with pytest.raises(
+        ValueError,
+        match=f"Model API Key environment variable '{TEST_API_KEY_NAME}' not set.",
+    ):
+        _ = RailsConfig(
+            models=[
+                Model(
+                    type="main",
+                    engine="openai",
+                    model="gpt-3.5-turbo-instruct",
+                    api_key_env_var=TEST_API_KEY_NAME,
+                )
+            ]
+        )
+
+
+@mock.patch.dict(os.environ, {TEST_API_KEY_NAME: ""})
+def test_model_api_key_var_empty_string():
+    """Check if we reference a valid env var with empty string as value we throw an error"""
+    with pytest.raises(
+        ValueError,
+        match=f"Model API Key environment variable '{TEST_API_KEY_NAME}' not set.",
+    ):
+        _ = RailsConfig(
+            models=[
+                Model(
+                    type="main",
+                    engine="openai",
+                    model="gpt-3.5-turbo-instruct",
+                    api_key_env_var=TEST_API_KEY_NAME,
+                )
+            ]
+        )
+
+
+@mock.patch.dict(os.environ, {TEST_API_KEY_NAME: TEST_API_KEY_VALUE})
+def test_model_api_key_value_valid_string():
+    """Check if we reference a valid api_key_env_var we can create the Model"""
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="openai",
+                model="gpt-3.5-turbo-instruct",
+                api_key_env_var=TEST_API_KEY_NAME,
+            )
+        ]
+    )
+    assert config.models[0].api_key_env_var == TEST_API_KEY_NAME
+
+
+@mock.patch.dict(
+    os.environ,
+    {TEST_API_KEY_NAME: TEST_API_KEY_VALUE, "NVIDIA_API_KEY": "nvapi-abcdef12345"},
+)
+def test_model_api_key_value_multiple_strings():
+    """Check if we reference a valid api_key_env_var we can create the Model"""
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="openai",
+                model="gpt-3.5-turbo-instruct",
+                api_key_env_var=TEST_API_KEY_NAME,
+            ),
+            Model(
+                type="content_safety",
+                engine="nim",
+                model="nvidia/llama-3.1-nemoguard-8b-content-safety",
+                api_key_env_var="NVIDIA_API_KEY",
+            ),
+        ]
+    )
+    assert config.models[0].api_key_env_var == TEST_API_KEY_NAME
+    assert config.models[1].api_key_env_var == "NVIDIA_API_KEY"
+
+
+@mock.patch.dict(os.environ, {TEST_API_KEY_NAME: TEST_API_KEY_VALUE})
+def test_model_api_key_value_multiple_strings_one_missing():
+    """Check if we have multiple models and one references an invalid api_key_env_var we throw error"""
+    with pytest.raises(
+        ValueError,
+        match=f"Model API Key environment variable 'NVIDIA_API_KEY' not set.",
+    ):
+        _ = RailsConfig(
+            models=[
+                Model(
+                    type="main",
+                    engine="openai",
+                    model="gpt-3.5-turbo-instruct",
+                    api_key_env_var=TEST_API_KEY_NAME,
+                ),
+                Model(
+                    type="content_safety",
+                    engine="nim",
+                    model="nvidia/llama-3.1-nemoguard-8b-content-safety",
+                    api_key_env_var="NVIDIA_API_KEY",
+                ),
+            ]
+        )
+
+
+@mock.patch.dict(
+    os.environ, {TEST_API_KEY_NAME: TEST_API_KEY_VALUE, "NVIDIA_API_KEY": ""}
+)
+def test_model_api_key_value_multiple_strings_one_empty():
+    """Check if we have multiple models and one references an invalid api_key_env_var we throw error"""
+    with pytest.raises(
+        ValueError,
+        match=f"Model API Key environment variable 'NVIDIA_API_KEY' not set.",
+    ):
+        _ = RailsConfig(
+            models=[
+                Model(
+                    type="main",
+                    engine="openai",
+                    model="gpt-3.5-turbo-instruct",
+                    api_key_env_var=TEST_API_KEY_NAME,
+                ),
+                Model(
+                    type="content_safety",
+                    engine="nim",
+                    model="nvidia/llama-3.1-nemoguard-8b-content-safety",
+                    api_key_env_var="NVIDIA_API_KEY",
+                ),
+            ]
+        )
