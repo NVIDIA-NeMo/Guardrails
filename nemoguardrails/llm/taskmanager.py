@@ -53,6 +53,11 @@ from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig
 
 
+def output_has_reasoning_traces(output: str, start_token: str, end_token: str) -> bool:
+    """Checks if the output string contains both start and end reasoning tokens."""
+    return start_token in output and end_token in output
+
+
 @dataclass
 class ParsedTaskOutput:
     """
@@ -76,7 +81,7 @@ def should_return_traces(task):
     return False
 
 
-def should_remove_reasoning_traces(config, task):
+def should_remove_reasoning_traces_from_output(config, task):
     model = get_task_model(config, task)
 
     model_config = (
@@ -93,8 +98,14 @@ def should_remove_reasoning_traces(config, task):
 
 def get_reasoning_token_tags(config, task):
     model = get_task_model(config, task)
-    start_token = model.reasoning_config.start_token
-    end_token = model.reasoning_config.end_token
+
+    if model and model.reasoning_config:
+        start_token = model.reasoning_config.start_token
+        end_token = model.reasoning_config.end_token
+    else:
+        start_token = ""
+        end_token = ""
+
     return start_token, end_token
 
 
@@ -357,14 +368,18 @@ class LLMTaskManager:
         """ """
         reasoning_trace: Optional[str] = None
 
-        # 1. strip and capture reasoning traces if configured
-        if should_remove_reasoning_traces(self.config, task):
-            start_token, end_token = get_reasoning_token_tags(self.config, task)
+        # Get the tokens first to check for their presence
+        start_token, end_token = get_reasoning_token_tags(self.config, task)
+
+        # 1. strip and capture reasoning traces if configured and present
+        if output_has_reasoning_traces(output, start_token, end_token):
             reasoning_trace_result = extract_and_strip_trace(
                 output, start_token, end_token
             )
-            output = reasoning_trace_result.text
             reasoning_trace = reasoning_trace_result.reasoning_trace
+
+            if should_remove_reasoning_traces_from_output(self.config, task):
+                output = reasoning_trace_result.text
 
         # 2. delegate to existing parser
         prompt = get_prompt(self.config, task)
