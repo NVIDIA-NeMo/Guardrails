@@ -1199,11 +1199,10 @@ class RailsConfig(BaseModel):
         ]
 
         # dialog rails are activated (explicitly or implicitly)
-        has_dialog_rails = (
-            bool(dialog_rails)
-            or bool(values.get("user_messages"))
-            or bool(values.get("bot_messages"))
-            or bool(values.get("flows"))
+        has_dialog_rails = bool(dialog_rails) or (
+            bool(values.get("user_messages"))
+            and bool(values.get("bot_messages"))
+            # and bool(values.get("flows"))
         )
 
         if has_dialog_rails:

@@ -289,12 +289,16 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_thinking_traces: False
             """,
             colang_content="""
             define flow
               user express greeting
               bot express greeting
+            define user express greeting
+                "hi"
+            define bot express greeting
+                "HI HI"
             """,
         )
 
@@ -313,63 +317,39 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
 def test_reasoning_traces_with_implicit_dialog_rails_user_messages_only():
     """Test that reasoning traces cannot be enabled when dialog rails are implicitly enabled thru user messages only."""
 
-    with pytest.raises(ValueError) as exc_info:
-        _ = RailsConfig.from_content(
-            yaml_content="""
-            models:
-              - type: main
-                engine: openai
-                model: gpt-3.5-turbo-instruct
-                reasoning_config:
-                  remove_thinking_traces: false
-            """,
-            colang_content="""
+    _ = RailsConfig.from_content(
+        yaml_content="""
+        models:
+        - type: main
+          engine: openai
+          model: gpt-3.5-turbo-instruct
+          reasoning_config:
+              remove_thinking_traces: False
+        """,
+        colang_content="""
             define user express greeting
               "hello"
               "hi"
-            """,
-        )
-
-    assert "Main model has reasoning traces enabled in config.yml" in str(
-        exc_info.value
-    )
-    assert "Reasoning traces must be disabled when dialog rails are present" in str(
-        exc_info.value
-    )
-    assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
-        in str(exc_info.value)
+        """,
     )
 
 
-def test_reasoning_traces_with_implicit_dialog_rails_bot_messages_only():
-    """Test that reasoning traces cannot be enabled when dialog rails are implicitly enabled thru bot messages only."""
+def test_reasoning_traces_with_bot_messages_only():
+    """Test that reasoning taces can exist with bot messages only."""
 
-    with pytest.raises(ValueError) as exc_info:
-        _ = RailsConfig.from_content(
-            yaml_content="""
-            models:
-              - type: main
-                engine: openai
-                model: gpt-3.5-turbo-instruct
-                reasoning_config:
-                  remove_thinking_traces: false
-            """,
-            colang_content="""
-            define bot express greeting
-              "Hello there!"
-            """,
-        )
-
-    assert "Main model has reasoning traces enabled in config.yml" in str(
-        exc_info.value
-    )
-    assert "Reasoning traces must be disabled when dialog rails are present" in str(
-        exc_info.value
-    )
-    assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
-        in str(exc_info.value)
+    _ = RailsConfig.from_content(
+        yaml_content="""
+        models:
+        - type: main
+          engine: openai
+          model: gpt-3.5-turbo-instruct
+          reasoning_config:
+              remove_thinking_traces: False
+        """,
+        colang_content="""
+        define bot express greeting
+            "Hello there!"
+        """,
     )
 
 
