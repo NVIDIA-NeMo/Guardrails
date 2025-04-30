@@ -69,10 +69,10 @@ def rails_config():
 async def test_1(rails_config):
     llm = FakeLLM(
         responses=[
-            "<think>some text</think>\n  express greeting",
-            "<think>some text</think>\n  ask math question",
-            '<think>some text</think>\n  "The answer is 5"',
-            '<think>some text</think>\n  "Are you happy with the result?"',
+            "<think>some redundant CoT text 1</think>\n  express greeting",
+            "<think>some redundant CoT text 2</think>\n  ask math question",
+            '<think>some redundant CoT text 3</think>\n  "The answer is 5"',
+            '<think>some important COT text</think>\n  "Are you happy with the result?"',
         ]
     )
 
@@ -92,5 +92,5 @@ async def test_1(rails_config):
     bot_message = await llm_rails.generate_async(messages=messages)
     assert bot_message == {
         "role": "assistant",
-        "content": "The answer is 5\nAre you happy with the result?",
+        "content": "<think>some important COT text</think>The answer is 5\nAre you happy with the result?",
     }

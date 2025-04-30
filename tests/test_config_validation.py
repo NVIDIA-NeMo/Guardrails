@@ -289,7 +289,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_thinking_traces: False
             """,
             colang_content="""
             define flow
@@ -321,18 +321,18 @@ def test_reasoning_traces_with_implicit_dialog_rails_user_messages_only():
         _ = RailsConfig.from_content(
             yaml_content="""
             models:
-              - type: main
-                engine: openai
-                model: gpt-3.5-turbo-instruct
-                reasoning_config:
-                  remove_thinking_traces: false
+            - type: main
+            engine: openai
+            model: gpt-3.5-turbo-instruct
+            reasoning_config:
+                remove_thinking_traces: False
             """,
             colang_content="""
-            define user express greeting
-                "hello"
-                "hi"
-            """,
-        )
+                define user express greeting
+                    "hello"
+                    "hi"
+                """,
+            )
 
     assert "Reasoning traces must be disabled when dialog rails are present" in str(
         exc_info.value

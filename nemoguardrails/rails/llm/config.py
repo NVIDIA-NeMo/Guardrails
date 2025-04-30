@@ -453,6 +453,12 @@ class OutputRails(BaseModel):
         description="Configuration for streaming output rails.",
     )
 
+    guardrail_reasoning_traces: bool = Field(
+        default=False,
+        description="If True, output rails will apply guardrails to both reasoning traces and output response. "
+        "If False, output rails will only apply guardrails to the output response while keeping reasoning traces unaltered. ",
+    )
+
 
 class RetrievalRails(BaseModel):
     """Configuration of retrieval rails."""
@@ -1184,10 +1190,6 @@ class RailsConfig(BaseModel):
     event_source_uid: str = Field(
         default="NeMoGuardrails-Colang-2.x",
         description="The source ID of events sent by the Colang Runtime. Useful to identify the component that has sent an event.",
-    )
-
-    guardrail_reasoning_traces: bool = Field(
-        default=False, description="Whether to run guardrails against reasoning traces."
     )
 
     tracing: TracingConfig = Field(

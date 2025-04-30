@@ -17,7 +17,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nemoguardrails.actions.llm.generation import LLMGenerationActions
+from nemoguardrails.actions.llm.generation import (
+    LLMGenerationActions,
+    _get_guardrail_reasoning_traces,
+    _process_parsed_output,
+)
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
 from nemoguardrails.context import (
     generation_options_var,
@@ -25,10 +29,18 @@ from nemoguardrails.context import (
     streaming_handler_var,
 )
 from nemoguardrails.llm.filters import extract_and_strip_trace
-from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.llm.taskmanager import LLMTaskManager, ParsedTaskOutput
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.config import Model, RailsConfig, ReasoningModelConfig
+
+
+def create_mock_config():
+    config = MagicMock(spec=RailsConfig)
+    config.rails = MagicMock()
+    config.rails.output = MagicMock()
+    config.rails.output.guardrail_reasoning_traces = False
+    return config
 
 
 class TestReasoningTraces:
@@ -84,8 +96,7 @@ class TestReasoningTraces:
     async def test_task_manager_parse_task_output(self):
         """Test that the task manager correctly removes reasoning traces."""
         # mock config
-        config = MagicMock(spec=RailsConfig)
-        config.guardrail_reasoning_traces = False
+        config = create_mock_config()
         # Create a ReasoningModelConfig
         reasoning_config = ReasoningModelConfig(
             remove_thinking_traces=True,
@@ -126,8 +137,8 @@ class TestReasoningTraces:
     @pytest.mark.asyncio
     async def test_parse_task_output_without_reasoning_config(self):
         """Test that parse_task_output works without a reasoning config."""
-        config = MagicMock(spec=RailsConfig)
-        config.guardrail_reasoning_traces = False
+
+        config = create_mock_config()
 
         # a Model without reasoning_config
         model_config = Model(type="main", engine="test", model="test-model")
@@ -154,8 +165,8 @@ class TestReasoningTraces:
     @pytest.mark.asyncio
     async def test_parse_task_output_with_default_reasoning_traces(self):
         """Test that parse_task_output works with default reasoning traces."""
-        config = MagicMock(spec=RailsConfig)
-        config.guardrail_reasoning_traces = False
+
+        config = create_mock_config()
 
         # Create a Model with default reasoning_config
         model_config = Model(
@@ -185,8 +196,8 @@ class TestReasoningTraces:
     @pytest.mark.asyncio
     async def test_parse_task_output_with_output_parser(self):
         """Test that parse_task_output works with an output parser."""
-        config = MagicMock(spec=RailsConfig)
-        config.guardrail_reasoning_traces = False
+
+        config = create_mock_config()
 
         # Create a Model with reasoning_config
         model_config = Model(
@@ -358,3 +369,47 @@ class TestReasoningTraces:
         )
 
         assert mock_result.events[0]["text"] == "This is a final answer."
+
+
+class TestProcessParsedOutput:
+    """Test the _process_parsed_output function."""
+
+    def test_process_parsed_output_with_reasoning_trace(self):
+        """Test processing output with reasoning trace when guardrail is enabled."""
+        result = ParsedTaskOutput(
+            text="final answer",
+            reasoning_trace="<thinking>some reasoning</thinking>",
+        )
+        output = _process_parsed_output(result, include_reasoning_trace=True)
+        assert output == "<thinking>some reasoning</thinking>final answer"
+
+    def test_process_parsed_output_with_reasoning_trace_disabled(self):
+        """Test processing output with reasoning trace when guardrail is disabled."""
+        result = ParsedTaskOutput(
+            text="final answer",
+            reasoning_trace="<thinking>some reasoning</thinking>",
+        )
+        output = _process_parsed_output(result, include_reasoning_trace=False)
+        assert output == "final answer"
+
+    def test_process_parsed_output_without_reasoning_trace(self):
+        """Test processing output without reasoning trace."""
+        result = ParsedTaskOutput(text="final answer", reasoning_trace=None)
+        output = _process_parsed_output(result, include_reasoning_trace=True)
+        assert output == "final answer"
+
+
+class TestGuardrailReasoningTraces:
+    """Test the guardrail reasoning traces configuration."""
+
+    def test_get_guardrail_reasoning_traces_enabled(self):
+        """Test getting guardrail reasoning traces when enabled."""
+        config = create_mock_config()
+        config.rails.output.guardrail_reasoning_traces = True
+        assert _get_guardrail_reasoning_traces(config) is True
+
+    def test_get_guardrail_reasoning_traces_disabled(self):
+        """Test getting guardrail reasoning traces when disabled."""
+        config = create_mock_config()
+        config.rails.output.guardrail_reasoning_traces = False
+        assert _get_guardrail_reasoning_traces(config) is False
