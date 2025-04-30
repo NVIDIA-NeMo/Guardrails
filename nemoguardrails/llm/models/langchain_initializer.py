@@ -227,7 +227,7 @@ def _init_chat_completion_model(
         return init_chat_model(
             model=model_name,
             model_provider=provider_name,
-            kwargs=kwargs,
+            **kwargs,
         )
     except ValueError:
         raise
