@@ -49,7 +49,6 @@ class TestChatCompletionInitializer:
                 mock_init.assert_called_once_with(
                     model="gpt-3.5-turbo",
                     model_provider="openai",
-                    kwargs={},  # No API Key passed
                 )
 
     def test_init_chat_completion_model_with_api_key_success(self):
@@ -68,7 +67,7 @@ class TestChatCompletionInitializer:
                 mock_init.assert_called_once_with(
                     model="gpt-3.5-turbo",
                     model_provider="openai",
-                    kwargs=kwargs,
+                    api_key="sk-svcacct-abcdef12345",
                 )
 
     def test_init_chat_completion_model_old_version(self):
