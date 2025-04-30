@@ -23,7 +23,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.llm.prompts import TaskPrompt
 from nemoguardrails.rails.llm.config import Model, RailsConfig
 
-TEST_API_KEY_NAME = "NG_OPENAI_API_KEY"
+TEST_API_KEY_NAME = "DUMMY_OPENAI_API_KEY"
 TEST_API_KEY_VALUE = "sk-svcacct-abcdefGHIJKlmnoPQRSTuvXYZ1234567890"
 
 
@@ -213,7 +213,10 @@ def test_model_api_key_value_valid_string():
 
 @mock.patch.dict(
     os.environ,
-    {TEST_API_KEY_NAME: TEST_API_KEY_VALUE, "NVIDIA_API_KEY": "nvapi-abcdef12345"},
+    {
+        TEST_API_KEY_NAME: TEST_API_KEY_VALUE,
+        "DUMMY_NVIDIA_API_KEY": "nvapi-abcdef12345",
+    },
 )
 def test_model_api_key_value_multiple_strings():
     """Check if we reference a valid api_key_env_var we can create the Model"""
@@ -230,12 +233,12 @@ def test_model_api_key_value_multiple_strings():
                 type="content_safety",
                 engine="nim",
                 model="nvidia/llama-3.1-nemoguard-8b-content-safety",
-                api_key_env_var="NVIDIA_API_KEY",
+                api_key_env_var="DUMMY_NVIDIA_API_KEY",
             ),
         ]
     )
     assert config.models[0].api_key_env_var == TEST_API_KEY_NAME
-    assert config.models[1].api_key_env_var == "NVIDIA_API_KEY"
+    assert config.models[1].api_key_env_var == "DUMMY_NVIDIA_API_KEY"
 
 
 @mock.patch.dict(os.environ, {TEST_API_KEY_NAME: TEST_API_KEY_VALUE})
@@ -243,7 +246,7 @@ def test_model_api_key_value_multiple_strings_one_missing():
     """Check if we have multiple models and one references an invalid api_key_env_var we throw error"""
     with pytest.raises(
         ValueError,
-        match=f"Model API Key environment variable 'NVIDIA_API_KEY' not set.",
+        match=f"Model API Key environment variable 'DUMMY_NVIDIA_API_KEY' not set.",
     ):
         _ = RailsConfig(
             models=[
@@ -257,20 +260,20 @@ def test_model_api_key_value_multiple_strings_one_missing():
                     type="content_safety",
                     engine="nim",
                     model="nvidia/llama-3.1-nemoguard-8b-content-safety",
-                    api_key_env_var="NVIDIA_API_KEY",
+                    api_key_env_var="DUMMY_NVIDIA_API_KEY",
                 ),
             ]
         )
 
 
 @mock.patch.dict(
-    os.environ, {TEST_API_KEY_NAME: TEST_API_KEY_VALUE, "NVIDIA_API_KEY": ""}
+    os.environ, {TEST_API_KEY_NAME: TEST_API_KEY_VALUE, "DUMMY_NVIDIA_API_KEY": ""}
 )
 def test_model_api_key_value_multiple_strings_one_empty():
     """Check if we have multiple models and one references an invalid api_key_env_var we throw error"""
     with pytest.raises(
         ValueError,
-        match=f"Model API Key environment variable 'NVIDIA_API_KEY' not set.",
+        match=f"Model API Key environment variable 'DUMMY_NVIDIA_API_KEY' not set.",
     ):
         _ = RailsConfig(
             models=[
@@ -284,7 +287,7 @@ def test_model_api_key_value_multiple_strings_one_empty():
                     type="content_safety",
                     engine="nim",
                     model="nvidia/llama-3.1-nemoguard-8b-content-safety",
-                    api_key_env_var="NVIDIA_API_KEY",
+                    api_key_env_var="DUMMY_NVIDIA_API_KEY",
                 ),
             ]
         )
