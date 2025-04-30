@@ -289,3 +289,68 @@ class TestLangChainIntegration:
         response = model.invoke([HumanMessage(content="Hello, world!")])
         assert response is not None
         assert hasattr(response, "content")
+
+    @pytest.mark.skipif(
+        not _is_langchain_installed() or not _has_openai(),
+        reason="LangChain is not installed",
+    )
+    def test_init_with_api_key_env_var_chat_completion_model(self):
+        """Test initializing a chat model with api_key_env_var."""
+        if not os.environ.get("OPENAI_API_KEY"):
+            pytest.skip("OpenAI API key not set")
+
+        original_api_key = os.environ["OPENAI_API_KEY"]
+        custom_env_var = "NG_OPENAI_API_KEY"
+        os.environ[custom_env_var] = original_api_key
+        del os.environ["OPENAI_API_KEY"]
+
+        try:
+            model = init_langchain_model(
+                "gpt-4o",
+                "openai",
+                "chat",
+                {"api_key": os.environ.get(custom_env_var)},
+            )
+            assert model is not None
+            assert hasattr(model, "invoke")
+            assert isinstance(model, BaseChatModel)
+
+            from langchain_core.messages import HumanMessage
+
+            response = model.invoke([HumanMessage(content="Hello, world!")])
+            assert response is not None
+            assert hasattr(response, "content")
+        finally:
+            os.environ["OPENAI_API_KEY"] = original_api_key
+            del os.environ[custom_env_var]
+
+    @pytest.mark.skipif(
+        not _is_langchain_installed() or not _has_openai(),
+        reason="LangChain is not installed",
+    )
+    def test_init_with_api_key_env_var_text_completion_model(self):
+        """Test initializing a text model with api_key_env_var."""
+        if not os.environ.get("OPENAI_API_KEY"):
+            pytest.skip("OpenAI API key not set")
+
+        original_api_key = os.environ["OPENAI_API_KEY"]
+        custom_env_var = "NG_OPENAI_API_KEY"
+        os.environ[custom_env_var] = original_api_key
+        del os.environ["OPENAI_API_KEY"]
+
+        try:
+            model = init_langchain_model(
+                "gpt-3.5-turbo-instruct",
+                "openai",
+                "text",
+                {"api_key": os.environ.get(custom_env_var)},
+            )
+            assert model is not None
+            assert hasattr(model, "invoke")
+            assert isinstance(model, BaseLLM)
+
+            response = model.invoke("Hello, world!")
+            assert response is not None
+        finally:
+            os.environ["OPENAI_API_KEY"] = original_api_key
+            del os.environ[custom_env_var]
