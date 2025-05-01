@@ -289,7 +289,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: False
+                  remove_thinking_traces: false
             """,
             colang_content="""
             define flow
@@ -315,7 +315,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
 
 
 def test_reasoning_traces_with_implicit_dialog_rails_user_messages_only():
-    """Test that reasoning traces cannot be enabled when dialog rails are implicitly enabled thru user messages only."""
+    """Test that reasoning traces cannot be enabled when dialog rails are implicitly enabled through user messages (user canonical forms) only."""
 
     _ = RailsConfig.from_content(
         yaml_content="""
@@ -324,7 +324,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_user_messages_only():
           engine: openai
           model: gpt-3.5-turbo-instruct
           reasoning_config:
-              remove_thinking_traces: False
+              remove_thinking_traces: false
         """,
         colang_content="""
             define user express greeting
@@ -335,7 +335,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_user_messages_only():
 
 
 def test_reasoning_traces_with_bot_messages_only():
-    """Test that reasoning taces can exist with bot messages only."""
+    """Test that reasoning traces can exist with bot messages only."""
 
     _ = RailsConfig.from_content(
         yaml_content="""
