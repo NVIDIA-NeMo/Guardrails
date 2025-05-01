@@ -1383,7 +1383,7 @@ class LLMGenerationActions:
 
     def _include_reasoning_traces(self) -> bool:
         """Get the configuration value for whether to include reasoning traces in output."""
-        return _get_guardrail_reasoning_traces(self.config)
+        return _get_apply_to_reasoning_traces(self.config)
 
 
 def clean_utterance_content(utterance: str) -> str:
@@ -1423,6 +1423,6 @@ def _process_parsed_output(
     return _assemble_response(output.text, reasoning_trace, include_reasoning_trace)
 
 
-def _get_guardrail_reasoning_traces(config: RailsConfig) -> bool:
+def _get_apply_to_reasoning_traces(config: RailsConfig) -> bool:
     """Get the configuration value for whether to include reasoning traces in output."""
-    return config.rails.output.guardrail_reasoning_traces
+    return config.rails.output.apply_to_reasoning_traces

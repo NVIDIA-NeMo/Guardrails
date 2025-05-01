@@ -19,7 +19,7 @@ import pytest
 
 from nemoguardrails.actions.llm.generation import (
     LLMGenerationActions,
-    _get_guardrail_reasoning_traces,
+    _get_apply_to_reasoning_traces,
     _process_parsed_output,
 )
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
@@ -39,7 +39,7 @@ def create_mock_config():
     config = MagicMock(spec=RailsConfig)
     config.rails = MagicMock()
     config.rails.output = MagicMock()
-    config.rails.output.guardrail_reasoning_traces = False
+    config.rails.output.apply_to_reasoning_traces = False
     return config
 
 
@@ -402,14 +402,14 @@ class TestProcessParsedOutput:
 class TestGuardrailReasoningTraces:
     """Test the guardrail reasoning traces configuration."""
 
-    def test_get_guardrail_reasoning_traces_enabled(self):
+    def test_get_apply_to_reasoning_traces_enabled(self):
         """Test getting guardrail reasoning traces when enabled."""
         config = create_mock_config()
-        config.rails.output.guardrail_reasoning_traces = True
-        assert _get_guardrail_reasoning_traces(config) is True
+        config.rails.output.apply_to_reasoning_traces = True
+        assert _get_apply_to_reasoning_traces(config) is True
 
-    def test_get_guardrail_reasoning_traces_disabled(self):
+    def test_get_apply_to_reasoning_traces_disabled(self):
         """Test getting guardrail reasoning traces when disabled."""
         config = create_mock_config()
-        config.rails.output.guardrail_reasoning_traces = False
-        assert _get_guardrail_reasoning_traces(config) is False
+        config.rails.output.apply_to_reasoning_traces = False
+        assert _get_apply_to_reasoning_traces(config) is False
