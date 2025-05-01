@@ -172,15 +172,15 @@ def get_colang_history(
                 history += f'user "{event["text"]}"\n'
             elif event["type"] == "UserIntent":
                 if include_texts:
-                    history += f'  {event["intent"]}\n'
+                    history += f"  {event['intent']}\n"
                 else:
-                    history += f'user {event["intent"]}\n'
+                    history += f"user {event['intent']}\n"
             elif event["type"] == "BotIntent":
                 # If we have instructions, we add them before the bot message.
                 # But we only do that for the last bot message.
                 if "instructions" in event and idx == last_bot_intent_idx:
                     history += f"# {event['instructions']}\n"
-                history += f'bot {event["intent"]}\n'
+                history += f"bot {event['intent']}\n"
             elif event["type"] == "StartUtteranceBotAction" and include_texts:
                 history += f'  "{event["script"]}"\n'
             # We skip system actions from this log
@@ -192,7 +192,7 @@ def get_colang_history(
                     and event["action_name"] == "retrieve_relevant_chunks"
                 ):
                     continue
-                history += f'execute {event["action_name"]}\n'
+                history += f"execute {event['action_name']}\n"
             elif event["type"] == "InternalSystemActionFinished" and not event.get(
                 "is_system_action"
             ):
@@ -349,9 +349,9 @@ def flow_to_colang(flow: Union[dict, Flow]) -> str:
             if "_type" not in element:
                 raise Exception("bla")
             if element["_type"] == "UserIntent":
-                colang_flow += f'user {element["intent_name"]}\n'
+                colang_flow += f"user {element['intent_name']}\n"
             elif element["_type"] == "run_action" and element["action_name"] == "utter":
-                colang_flow += f'bot {element["action_params"]["value"]}\n'
+                colang_flow += f"bot {element['action_params']['value']}\n"
 
     return colang_flow
 
@@ -579,7 +579,7 @@ def escape_flow_name(name: str) -> str:
     return result
 
 
-def get_and_clear_reasoning_trace() -> Optional[str]:
+def get_and_clear_reasoning_trace_contextvar() -> Optional[str]:
     """Get the current reasoning trace and clear it from the context.
 
     Returns:
