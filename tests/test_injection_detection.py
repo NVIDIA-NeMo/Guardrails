@@ -43,8 +43,9 @@ from nemoguardrails.library.injection_detection.actions import (
     _load_rules,
     _omit_injection,
     _reject_injection,
-    _validate_unpack_config,
+    extract_injection_config,
     injection_detection,
+    validate_injection_config,
 )
 from tests.utils import TestChat
 
@@ -101,15 +102,17 @@ def test_load_custom_rules():
                   execute check_user_message(user_message=$user_message)
             """,
     )
-    _action_option, yara_path, rule_names = _validate_unpack_config(config)
-    rules = _load_rules(yara_path, rule_names)
+    validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    rules = _load_rules(yara_path, rule_names, yara_rules)
     assert isinstance(rules, yara.Rules)
 
 
 def test_load_all_rules():
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "injection_detection"))
-    _action_option, yara_path, rule_names = _validate_unpack_config(config)
-    rules = _load_rules(yara_path, rule_names)
+    validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    rules = _load_rules(yara_path, rule_names, yara_rules)
     assert isinstance(rules, yara.Rules)
 
 
@@ -160,7 +163,7 @@ def test_invalid_yara_path():
             """
     )
     with pytest.raises(FileNotFoundError):
-        _validate_unpack_config(config)
+        validate_injection_config(config)
 
 
 def test_invalid_action_option():
@@ -170,7 +173,7 @@ def test_invalid_action_option():
     config.rails.config.injection_detection.action = "invalid_action"
 
     with pytest.raises(ValueError):
-        _validate_unpack_config(config)
+        validate_injection_config(config)
 
 
 def test_invalid_injection_rule():
@@ -187,8 +190,9 @@ def test_invalid_injection_rule():
                         reject
             """
     )
+    validate_injection_config(config)
     with pytest.raises(ValueError):
-        _validate_unpack_config(config)
+        extract_injection_config(config)
 
 
 def test_empty_injection_rules():
@@ -204,9 +208,50 @@ def test_empty_injection_rules():
                         reject
             """
     )
-    _action_option, yara_path, rule_names = _validate_unpack_config(config)
-    rules = _load_rules(yara_path, rule_names)
+    validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    rules = _load_rules(yara_path, rule_names, yara_rules)
     assert rules is None
+
+
+def test_load_inline_yara_rules():
+    """Test loading YARA rules defined inline in the config."""
+    inline_rule_name = "inline_test_rule"
+    inline_rule_content = "rule test_inline { condition: true }"
+
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - {inline_rule_name}
+                      action:
+                        reject
+                      yara_rules:
+                        {inline_rule_name}: |-
+                          {inline_rule_content}
+            """,
+        colang_content="",
+    )
+
+    validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+
+    assert yara_rules is not None
+    assert inline_rule_name in yara_rules
+    assert yara_rules[inline_rule_name] == inline_rule_content
+    assert rule_names == (inline_rule_name,)
+
+    rules = load_rules(yara_path, rule_names, yara_rules)
+    assert isinstance(rules, yara.Rules)
+
+    # Test that the loaded rule actually matches
+    matches = rules.match(data="any data")
+    assert len(matches) == 1
+    assert matches[0].rule == "test_inline"
+    assert matches[0].namespace == inline_rule_name
 
 
 @pytest.mark.asyncio
@@ -511,3 +556,64 @@ def test_yara_import_error():
 
     with patch("nemoguardrails.library.injection_detection.actions.yara", yara):
         _check_yara_available()
+
+
+@pytest.mark.asyncio
+async def test_multiple_injection_types_reject_inline_rules():
+    """Test reject action for multiple injection types using inline YARA rules."""
+
+    # inline YARA rules
+    sqli_rule_content = (
+        "rule simple_sqli { strings: $sql = /SELECT.*FROM/ condition: $sql }"
+    )
+    xss_rule_content = "rule simple_xss { strings: $tag = /<script/ condition: $tag }"
+    template_rule_content = (
+        "rule simple_template { strings: $tpl = /{{.*}}/ condition: $tpl }"
+    )
+    code_rule_content = (
+        "rule simple_code { strings: $code = /__import__/ condition: $code }"
+    )
+
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - sqli_inline
+                        - xss_inline
+                        - template_inline
+                        - code_inline
+                      action:
+                        reject
+                      yara_rules:
+                        sqli_inline: |
+                          {sqli_rule_content}
+                        xss_inline: |
+                          {xss_rule_content}
+                        template_inline: |
+                          {template_rule_content}
+                        code_inline: |
+                          {code_rule_content}
+                  output:
+                    flows:
+                      - injection detection
+            """,
+        colang_content="",
+    )
+
+    multi_injection = "Hello <script>alert('xss')</script> {{ evil }} __import__('os') SELECT * FROM users; -- comment world"
+    chat = TestChat(config, llm_completions=[multi_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "trigger multiple injections"}]
+    )
+
+    assert result["content"].startswith(
+        "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
+    )
+    assert "simple_sqli" in result["content"]
+    assert "simple_xss" in result["content"]
+    assert "simple_template" in result["content"]
+    assert "simple_code" in result["content"]
