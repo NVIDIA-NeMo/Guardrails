@@ -32,7 +32,7 @@ import logging
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 yara = None
 try:
@@ -57,21 +57,23 @@ def _check_yara_available():
         )
 
 
-def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]:
+def _check_yara_available():
+    if yara is None:
+        raise ImportError(
+            "The yara module is required for injection detection. "
+            "Please install it using: pip install yara-python"
+        )
+
+def validate_injection_config(config: RailsConfig) -> None:
     """
-    Validates and unpacks the injection detection configuration.
+    Validates the injection detection configuration.
 
     Args:
         config (RailsConfig): The Rails configuration object containing injection detection settings.
 
-    Returns:
-        Tuple[str, Path, Tuple[str]]: A tuple containing the action option, the YARA path,
-        and the injection rules.
-
     Raises:
+        ValueError: If the configuration is missing or invalid.
         FileNotFoundError: If the provided `yara_path` is not a directory.
-        ValueError: If `yara_path` is not a string, the action option is invalid,
-        or the injection rules contain invalid elements.
     """
     command_injection_config = config.rails.config.injection_detection
 
@@ -81,25 +83,8 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
         )
         log.error(msg)
         raise ValueError(msg)
-    yara_path = command_injection_config.yara_path
-    if not yara_path:
-        yara_path = YARA_DIR
-    elif isinstance(yara_path, str):
-        yara_path = Path(yara_path)
-        if not yara_path.exists() or not yara_path.is_dir():
-            msg = (
-                "Provided `yara_path` value in injection config %s is not a directory."
-                % yara_path
-            )
-            log.error(msg)
-            raise FileNotFoundError(msg)
-    else:
-        msg = "Expected a string value for `yara_path` but got %r instead." % type(
-            yara_path
-        )
 
-        log.error(msg)
-        raise ValueError(msg)
+    # Validate action option
     action_option = command_injection_config.action
     if action_option not in ActionOptions:
         msg = (
@@ -108,9 +93,59 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
         )
         log.error(msg)
         raise ValueError(msg)
+
+    # Validate yara_path if no yara_rules provided
+    if not command_injection_config.yara_rules:
+        yara_path = command_injection_config.yara_path
+        if yara_path and isinstance(yara_path, str):
+            yara_path = Path(yara_path)
+            if not yara_path.exists() or not yara_path.is_dir():
+                msg = (
+                    "Provided `yara_path` value in injection config %s is not a directory."
+                    % yara_path
+                )
+                log.error(msg)
+                raise FileNotFoundError(msg)
+        elif yara_path and not isinstance(yara_path, str):
+            msg = "Expected a string value for `yara_path` but got %r instead." % type(
+                yara_path
+            )
+            log.error(msg)
+            raise ValueError(msg)
+
+
+def extract_injection_config(
+    config: RailsConfig,
+) -> Tuple[str, Path, Tuple[str], Optional[Dict[str, str]]]:
+    """
+    Extracts and processes the injection detection configuration values.
+
+    Args:
+        config (RailsConfig): The Rails configuration object containing injection detection settings.
+
+    Returns:
+        Tuple[str, Path, Tuple[str], Optional[Dict[str, str]]]: A tuple containing the action option,
+        the YARA path, the injection rules, and optional yara_rules dictionary.
+
+    Raises:
+        ValueError: If the injection rules contain invalid elements.
+    """
+    command_injection_config = config.rails.config.injection_detection
+    yara_rules = command_injection_config.yara_rules
+
+    # Set yara_path
+    if yara_rules:
+        # we'll use this for validation only
+        yara_path = YARA_DIR
+    else:
+        yara_path = command_injection_config.yara_path or YARA_DIR
+        if isinstance(yara_path, str):
+            yara_path = Path(yara_path)
+
     injection_rules = tuple(command_injection_config.injections)
-    if not set(injection_rules) <= Rules:
-        # Do the easy check above first. If they provide a custom dir or a custom rules file, check the filesystem
+
+    # only validate rule names against available rules if using yara_path
+    if not yara_rules and not set(injection_rules) <= Rules:
         if not all(
             [
                 yara_path.joinpath(f"{module_name}.yara").is_file()
@@ -125,17 +160,19 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
             log.error(msg)
             raise ValueError(msg)
 
-    return action_option, yara_path, injection_rules
+    return command_injection_config.action, yara_path, injection_rules, yara_rules
 
 
-@lru_cache()
-def _load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]:
+def _load_rules(
+    yara_path: Path, rule_names: Tuple, yara_rules: Optional[Dict[str, str]] = None
+) -> Union["yara.Rules", None]:
     """
-    Loads and compiles YARA rules from the specified path and rule names.
+    Loads and compiles YARA rules from either file paths or direct rule strings.
 
     Args:
         yara_path (Path): The path to the directory containing YARA rule files.
         rule_names (Tuple): A tuple of YARA rule names to load.
+        yara_rules (Optional[Dict[str, str]]): Dictionary mapping rule names to YARA rule strings.
 
     Returns:
         Union['yara.Rules', None]: The compiled YARA rules object if successful,
@@ -151,12 +188,21 @@ def _load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]
             "Injection config was provided but no modules were specified. Returning None."
         )
         return None
-    rules_to_load = {
-        rule_name: str(yara_path.joinpath(f"{rule_name}.yara"))
-        for rule_name in rule_names
-    }
+
     try:
-        rules = yara.compile(filepaths=rules_to_load)
+        if yara_rules:
+            rules_source = {
+                name: rule for name, rule in yara_rules.items() if name in rule_names
+            }
+            rules = yara.compile(
+                sources={rule_name: rules_source[rule_name] for rule_name in rule_names}
+            )
+        else:
+            rules_to_load = {
+                rule_name: str(yara_path.joinpath(f"{rule_name}.yara"))
+                for rule_name in rule_names
+            }
+            rules = yara.compile(filepaths=rules_to_load)
     except yara.SyntaxError as e:
         msg = f"Encountered SyntaxError: {e}"
         log.error(msg)
@@ -282,8 +328,11 @@ async def injection_detection(text: str, config: RailsConfig) -> str:
     """
     _check_yara_available()
 
-    action_option, yara_path, rule_names = _validate_unpack_config(config)
-    rules = _load_rules(yara_path, rule_names)
+    validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+
+    rules = _load_rules(yara_path, rule_names, yara_rules)
+
     if action_option == "reject":
         verdict, detections = _reject_injection(text, rules)
         if verdict:
