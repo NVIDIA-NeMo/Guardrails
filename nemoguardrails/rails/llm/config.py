@@ -177,10 +177,15 @@ class InjectionDetection(BaseModel):
         "'omit' to mask the offending content, and 'sanitize' to pass the content as-is in the safest way. "
         "These options are listed in descending order of relative safety. 'sanitize' is not implemented at this time.",
     )
-    yara_path: str = Field(
+    yara_path: Optional[str] = Field(
         default="",
         description="Location on disk where YARA rules are located. If this parameter is an empty string, "
         "the default location defined in injection_detection's actions.py file will be used.",
+    )
+    yara_rules: Optional[Dict[str, str]] = Field(
+        default_factory=dict,
+        description="Dictionary mapping rule names to YARA rule strings. If provided, these rules will be used "
+        "instead of loading rules from yara_path. Each rule should be a valid YARA rule string.",
     )
 
 
