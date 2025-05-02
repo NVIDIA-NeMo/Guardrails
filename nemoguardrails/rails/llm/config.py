@@ -455,8 +455,11 @@ class OutputRails(BaseModel):
 
     apply_to_reasoning_traces: bool = Field(
         default=False,
-        description="If True, output rails will apply guardrails to both reasoning traces and output response. "
-        "If False, output rails will only apply guardrails to the output response while keeping reasoning traces unaltered. ",
+        description=(
+            "If True, output rails will apply guardrails to both reasoning traces and output response. "
+            "If False, output rails will only apply guardrails to the output response excluding the reasoning traces, "
+            "thus keeping reasoning traces unaltered."
+        ),
     )
 
 
