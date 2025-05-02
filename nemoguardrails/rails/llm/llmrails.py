@@ -843,7 +843,12 @@ class LLMRails:
                 res = GenerationResponse(response=[new_message])
 
             if reasoning_trace := get_and_clear_reasoning_trace_contextvar():
-                res["content"] = reasoning_trace + res["content"]
+                if prompt:
+                    res.response = reasoning_trace + res.response
+                else:
+                    res.response[0]["content"] = (
+                        reasoning_trace + res.response[0]["content"]
+                    )
 
             if self.config.colang_version == "1.0":
                 # If output variables are specified, we extract their values
