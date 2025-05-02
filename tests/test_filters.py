@@ -19,6 +19,7 @@ from typing import List, Tuple, Union
 import pytest
 
 from nemoguardrails.llm.filters import (
+    ReasoningExtractionResult,
     extract_and_strip_trace,
     find_reasoning_tokens_position,
     first_turns,
@@ -219,80 +220,103 @@ def test_find_token_positions_for_removal(response, start_token, end_token, expe
 
 
 @pytest.mark.parametrize(
-    "response, start_token, end_token, expected",
+    "response, start_token, end_token, expected_text, expected_trace",
     [
         (
             "This is an example [START]hidden reasoning[END] of a response.",
             "[START]",
             "[END]",
             "This is an example  of a response.",
+            "[START]hidden reasoning[END]",
         ),
         (
             "Before [START]first[END] middle [START]second[END] after.",
             "[START]",
             "[END]",
             "Before  after.",
+            "[START]first[END] middle [START]second[END]",
         ),
         (
             "Text [START] first [START] nested [END] second [END] more text.",
             "[START]",
             "[END]",
             "Text  more text.",
+            "[START] first [START] nested [END] second [END]",
         ),
         (
             "No tokens here",
             "[START]",
             "[END]",
             "No tokens here",
+            None,
         ),
         (
             "Only [START] start token",
             "[START]",
             "[END]",
             "Only [START] start token",
+            None,
         ),
         (
             "Only end token [END]",
             "[START]",
             "[END]",
             "",
+            "Only end token [END]",
         ),
         (
             "",
             "[START]",
             "[END]",
             "",
+            None,
         ),
+        # End token before start token (tests the final return path)
+        (
+            "some [END] text [START]",
+            "[START]",
+            "[END]",
+            "some [END] text [START]",
+            None,
+        ),
+        # Original test cases adapted
         (
             "[END] Out of order [START] tokens [END] example.",
             "[START]",
             "[END]",
             "[END] Out of order  example.",
+            "[START] tokens [END]",
         ),
         (
             "[START] nested [START] tokens [END] out of [END] order.",
             "[START]",
             "[END]",
             " order.",
+            "[START] nested [START] tokens [END] out of [END]",
         ),
         (
             "[END] [START] [START] example [END] text.",
             "[START]",
             "[END]",
             "[END]  text.",
+            "[START] [START] example [END]",
         ),
         (
             "example text.",
             "[START]",
             "[END]",
             "example text.",
+            None,
         ),
     ],
 )
-def test_remove_reasoning_traces(response, start_token, end_token, expected):
-    """Test removal of text between start and end tokens."""
+def test_extract_and_strip_trace(
+    response, start_token, end_token, expected_text, expected_trace
+):
+    """Tests the extraction and stripping of reasoning traces."""
     result = extract_and_strip_trace(response, start_token, end_token)
-    assert result.text == expected
+    assert result.text == expected_text
+    assert result.reasoning_trace == expected_trace
 
 
 class TestToChatMessages:
