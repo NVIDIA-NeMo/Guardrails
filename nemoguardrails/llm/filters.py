@@ -455,6 +455,8 @@ def _find_token_positions_for_removal(
 ) -> Tuple[int, int]:
     """Helper function to find token positions specifically for text removal.
 
+    This is useful, for example, to remove reasoning traces from a reasoning LLM response.
+
     This is optimized for the removal use case:
     1. Uses find() for first start token
     2. Uses rfind() for last end token
@@ -466,7 +468,8 @@ def _find_token_positions_for_removal(
         end_token(str): The token marking the end of text to remove
 
     Returns:
-        A tuple of (start_index, end_index) where both are -1 if not found
+        A tuple of (start_index, end_index) marking the span to remove;
+            both indices are -1 if start_token and end_token are not provided.
     """
     if not start_token or not end_token:
         return -1, -1
