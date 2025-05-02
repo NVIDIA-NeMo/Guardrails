@@ -359,7 +359,18 @@ class LLMTaskManager:
     def parse_task_output(
         self, task: Task, output: str, forced_output_parser: Optional[str] = None
     ) -> ParsedTaskOutput:
-        """ """
+        """Parses the output of a task, optionally extracting reasoning traces.
+
+        Args:
+            task (Task): The task for which the output is being parsed.
+            output (str): The output string to be parsed.
+            forced_output_parser (Optional[str]): An optional parser name to force
+
+        Returns:
+            ParsedTaskOutput: An object containing the parsed text (which may
+            include or exclude reasoning traces based on configuration) and
+            any reasoning trace.
+        """
         reasoning_trace: Optional[str] = None
 
         # Get the tokens first to check for their presence
