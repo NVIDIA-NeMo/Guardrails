@@ -586,6 +586,6 @@ def get_and_clear_reasoning_trace_contextvar() -> Optional[str]:
         Optional[str]: The reasoning trace if one exists, None otherwise.
     """
     if reasoning_trace := reasoning_trace_var.get():
-        reasoning_trace_var.set("")
+        reasoning_trace_var.set(None)
         return reasoning_trace
     return None
