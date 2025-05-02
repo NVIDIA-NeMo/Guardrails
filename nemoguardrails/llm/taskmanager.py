@@ -75,12 +75,6 @@ class ParsedTaskOutput:
     reasoning_trace: Optional[str] = None
 
 
-def should_return_traces(task):
-    if task == Task.GENERATE_BOT_MESSAGE:
-        return True
-    return False
-
-
 def should_remove_reasoning_traces_from_output(config, task):
     model = get_task_model(config, task)
 
@@ -392,10 +386,6 @@ class LLMTaskManager:
             logging.info("No output parser found for %s", prompt.output_parser)
             parsed_text = output
 
-        # return_trace = should_return_traces(task)
-        #
-        # if not return_trace:
-        #     trace = None
         return ParsedTaskOutput(text=parsed_text, reasoning_trace=reasoning_trace)
 
     def has_output_parser(self, task: Task):
