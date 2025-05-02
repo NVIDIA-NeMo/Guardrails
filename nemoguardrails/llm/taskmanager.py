@@ -366,7 +366,11 @@ class LLMTaskManager:
         start_token, end_token = get_reasoning_token_tags(self.config, task)
 
         # 1. strip and capture reasoning traces if configured and present
-        if output_has_reasoning_traces(output, start_token, end_token):
+        if (
+            start_token
+            and end_token
+            and output_has_reasoning_traces(output, start_token, end_token)
+        ):
             reasoning_trace_result = extract_and_strip_trace(
                 output, start_token, end_token
             )

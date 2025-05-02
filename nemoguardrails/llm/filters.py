@@ -451,7 +451,7 @@ def conversation_to_events(conversation: List) -> List[dict]:
 
 
 def _find_token_positions_for_removal(
-    response: str, start_token: str, end_token: str
+    response: str, start_token: Optional[str], end_token: Optional[str]
 ) -> Tuple[int, int]:
     """Helper function to find token positions specifically for text removal.
 
@@ -486,7 +486,7 @@ def _find_token_positions_for_removal(
 
 
 def find_reasoning_tokens_position(
-    response: str, start_token: str, end_token: str
+    response: str, start_token: Optional[str], end_token: Optional[str]
 ) -> Tuple[int, int]:
     """Finds the positions of the first start token and the last end token.
 
@@ -495,8 +495,8 @@ def find_reasoning_tokens_position(
 
     Args:
         response(str): The text to search in.
-        start_token(str): The token marking the start of reasoning.
-        end_token(str): The token marking the end of reasoning.
+        start_token(Optional[str]): The token marking the start of reasoning.
+        end_token(Optional[str]): The token marking the end of reasoning.
 
     Returns:
         A tuple (start_index, end_index).
