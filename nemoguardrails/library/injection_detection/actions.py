@@ -129,7 +129,7 @@ def _validate_unpack_config(config: RailsConfig) -> Tuple[str, Path, Tuple[str]]
 
 
 @lru_cache()
-def load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]:
+def _load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]:
     """
     Loads and compiles YARA rules from the specified path and rule names.
 
@@ -145,7 +145,6 @@ def load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]:
         yara.SyntaxError: If there is a syntax error in the YARA rules.
         ImportError: If the yara module is not installed.
     """
-    _check_yara_available()
 
     if len(rule_names) == 0:
         log.warning(
@@ -165,7 +164,7 @@ def load_rules(yara_path: Path, rule_names: Tuple) -> Union["yara.Rules", None]:
     return rules
 
 
-def omit_injection(text: str, matches: list["yara.Match"]) -> str:
+def _omit_injection(text: str, matches: list["yara.Match"]) -> str:
     """
     Attempts to strip the offending injection attempts from the provided text.
 
@@ -183,7 +182,6 @@ def omit_injection(text: str, matches: list["yara.Match"]) -> str:
     Raises:
         ImportError: If the yara module is not installed.
     """
-    _check_yara_available()
 
     # Copy the text to a placeholder variable
     modified_text = text
@@ -200,7 +198,7 @@ def omit_injection(text: str, matches: list["yara.Match"]) -> str:
     return modified_text
 
 
-def sanitize_injection(text: str, matches: list["yara.Match"]) -> str:
+def _sanitize_injection(text: str, matches: list["yara.Match"]) -> str:
     """
     Attempts to sanitize the offending injection attempts in the provided text.
     This is done by 'de-fanging' the offending content, transforming it into a state that will not execute
@@ -222,14 +220,13 @@ def sanitize_injection(text: str, matches: list["yara.Match"]) -> str:
         NotImplementedError: If the sanitization logic is not implemented.
         ImportError: If the yara module is not installed.
     """
-    _check_yara_available()
 
     raise NotImplementedError(
         "Injection sanitization is not yet implemented. Please use 'reject' or 'omit'"
     )
 
 
-def reject_injection(text: str, rules: "yara.Rules") -> Tuple[bool, str]:
+def _reject_injection(text: str, rules: "yara.Rules") -> Tuple[bool, str]:
     """
     Detects whether the provided text contains potential injection attempts.
 
@@ -248,7 +245,6 @@ def reject_injection(text: str, rules: "yara.Rules") -> Tuple[bool, str]:
         ValueError: If the `action` parameter in the configuration is invalid.
         ImportError: If the yara module is not installed.
     """
-    _check_yara_available()
 
     if rules is None:
         log.warning(
@@ -284,10 +280,12 @@ async def injection_detection(text: str, config: RailsConfig) -> str:
         ValueError: If the `action` parameter in the configuration is invalid.
         NotImplementedError: If an unsupported action is encountered.
     """
+    _check_yara_available()
+
     action_option, yara_path, rule_names = _validate_unpack_config(config)
-    rules = load_rules(yara_path, rule_names)
+    rules = _load_rules(yara_path, rule_names)
     if action_option == "reject":
-        verdict, detections = reject_injection(text, rules)
+        verdict, detections = _reject_injection(text, rules)
         if verdict:
             return f"I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {detections}."
         else:
@@ -302,9 +300,9 @@ async def injection_detection(text: str, config: RailsConfig) -> str:
         matches_string = ", ".join([match_name.rule for match_name in matches])
         log.info(f"Input matched on rule {matches_string}.")
         if action_option == "omit":
-            return omit_injection(text, matches)
+            return _omit_injection(text, matches)
         elif action_option == "sanitize":
-            return sanitize_injection(text, matches)
+            return _sanitize_injection(text, matches)
         else:
             # We should never ever hit this since we inspect the action option above, but putting an error here anyway.
             raise NotImplementedError(
