@@ -263,6 +263,24 @@ def test_find_token_positions_for_removal(response, start_token, end_token, expe
             "[END]",
             "",
         ),
+        (
+            "[END] Out of order [START] tokens [END] example.",
+            "[START]",
+            "[END]",
+            "[END] Out of order  example.",
+        ),
+        (
+            "[START] nested [START] tokens [END] out of [END] order.",
+            "[START]",
+            "[END]",
+            " order.",
+        ),
+        (
+            "[END] [START] [START] example [END] text.",
+            "[START]",
+            "[END]",
+            "[END]  text.",
+        ),
     ],
 )
 def test_remove_reasoning_traces(response, start_token, end_token, expected):
