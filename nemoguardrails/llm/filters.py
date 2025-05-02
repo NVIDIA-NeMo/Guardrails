@@ -523,17 +523,18 @@ def extract_and_strip_trace(
         ReasoningExtractionResult: An object containing the cleaned text
         without reasoning traces and the extracted reasoning trace, if any.
     """
-    if not start_token or not end_token:
-        return ReasoningExtractionResult(text=response, reasoning_trace=None)
 
     start_index, end_index = find_reasoning_tokens_position(
         response, start_token, end_token
     )
-
+    # handles invalid/empty tokens returned as (-1, -1)
+    if start_index == -1 and end_index == -1:
+        return ReasoningExtractionResult(text=response, reasoning_trace=None)
+    # end token is missing
     if end_index == -1:
         return ReasoningExtractionResult(text=response, reasoning_trace=None)
-
-    if start_index != -1 and end_index != -1 and start_index < end_index:
+    # extrace if tokens are present and start < end
+    if start_index < end_index:
         reasoning_trace = response[start_index : end_index + len(end_token)]
         cleaned_text = response[:start_index] + response[end_index + len(end_token) :]
         return ReasoningExtractionResult(
