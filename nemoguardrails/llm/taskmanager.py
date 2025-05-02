@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 import re
 from ast import literal_eval
@@ -22,6 +23,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
 
+from nemoguardrails.actions.llm.utils import get_and_clear_reasoning_trace_contextvar
 from nemoguardrails.llm.filters import (
     co_v2,
     colang,
@@ -154,6 +156,70 @@ class LLMTaskManager:
 
         return text
 
+    def _preprocess_events_for_prompt(
+        self, events: Optional[List[dict]]
+    ) -> Optional[List[dict]]:
+        """Remove reasoning traces from bot messages before rendering them in prompts.
+
+        This prevents reasoning traces from being included in LLM prompt history when
+        rails.output.apply_to_reasoning_traces=true is enabled.
+
+        Args:
+            events: The list of events to preprocess
+
+        Returns:
+            A new list of preprocessed events, or None if events was None
+        """
+        if not events:
+            return None
+
+        processed_events = copy.deepcopy(events)
+
+        for event in processed_events:
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "BotMessage"
+                and "text" in event
+            ):
+                bot_utterance = event["text"]
+                for task in Task:
+                    start_token, end_token = get_reasoning_token_tags(self.config, task)
+                    if (
+                        start_token
+                        and end_token
+                        and output_has_reasoning_traces(
+                            bot_utterance, start_token, end_token
+                        )
+                    ):
+                        result = extract_and_strip_trace(
+                            bot_utterance, start_token, end_token
+                        )
+                        event["text"] = result.text
+                        break
+
+            elif (
+                isinstance(event, dict)
+                and event.get("type") == "StartUtteranceBotAction"
+                and "script" in event
+            ):
+                bot_utterance = event["script"]
+                for task in Task:
+                    start_token, end_token = get_reasoning_token_tags(self.config, task)
+                    if (
+                        start_token
+                        and end_token
+                        and output_has_reasoning_traces(
+                            bot_utterance, start_token, end_token
+                        )
+                    ):
+                        result = extract_and_strip_trace(
+                            bot_utterance, start_token, end_token
+                        )
+                        event["script"] = result.text
+                        break
+
+        return processed_events
+
     def _render_string(
         self,
         template_str: str,
@@ -168,6 +234,8 @@ class LLMTaskManager:
         :return: The rendered template.
         :rtype: str.
         """
+        # Preprocess events to remove reasoning traces from BotMessage events
+        processed_events = self._preprocess_events_for_prompt(events)
 
         template = self.env.from_string(template_str)
 
@@ -176,7 +244,7 @@ class LLMTaskManager:
 
         # This is the context that will be passed to the template when rendering.
         render_context = {
-            "history": events,
+            "history": processed_events,
             "general_instructions": self._get_general_instructions(),
             "sample_conversation": self.config.sample_conversation,
             "sample_conversation_two_turns": self.config.sample_conversation,
