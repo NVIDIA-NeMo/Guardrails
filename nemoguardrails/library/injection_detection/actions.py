@@ -57,14 +57,7 @@ def _check_yara_available():
         )
 
 
-def _check_yara_available():
-    if yara is None:
-        raise ImportError(
-            "The yara module is required for injection detection. "
-            "Please install it using: pip install yara-python"
-        )
-
-def validate_injection_config(config: RailsConfig) -> None:
+def _validate_injection_config(config: RailsConfig) -> None:
     """
     Validates the injection detection configuration.
 
@@ -114,7 +107,7 @@ def validate_injection_config(config: RailsConfig) -> None:
             raise ValueError(msg)
 
 
-def extract_injection_config(
+def _extract_injection_config(
     config: RailsConfig,
 ) -> Tuple[str, Path, Tuple[str], Optional[Dict[str, str]]]:
     """
@@ -328,8 +321,8 @@ async def injection_detection(text: str, config: RailsConfig) -> str:
     """
     _check_yara_available()
 
-    validate_injection_config(config)
-    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    _validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = _extract_injection_config(config)
 
     rules = _load_rules(yara_path, rule_names, yara_rules)
 

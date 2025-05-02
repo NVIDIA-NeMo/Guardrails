@@ -40,12 +40,11 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.library.injection_detection.actions import (
     _check_yara_available,
+    _extract_injection_config,
     _load_rules,
     _omit_injection,
     _reject_injection,
-    extract_injection_config,
-    injection_detection,
-    validate_injection_config,
+    _validate_injection_config,
 )
 from tests.utils import TestChat
 
@@ -102,16 +101,16 @@ def test_load_custom_rules():
                   execute check_user_message(user_message=$user_message)
             """,
     )
-    validate_injection_config(config)
-    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    _validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = _extract_injection_config(config)
     rules = _load_rules(yara_path, rule_names, yara_rules)
     assert isinstance(rules, yara.Rules)
 
 
 def test_load_all_rules():
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "injection_detection"))
-    validate_injection_config(config)
-    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    _validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = _extract_injection_config(config)
     rules = _load_rules(yara_path, rule_names, yara_rules)
     assert isinstance(rules, yara.Rules)
 
@@ -163,7 +162,7 @@ def test_invalid_yara_path():
             """
     )
     with pytest.raises(FileNotFoundError):
-        validate_injection_config(config)
+        _validate_injection_config(config)
 
 
 def test_invalid_action_option():
@@ -173,7 +172,7 @@ def test_invalid_action_option():
     config.rails.config.injection_detection.action = "invalid_action"
 
     with pytest.raises(ValueError):
-        validate_injection_config(config)
+        _validate_injection_config(config)
 
 
 def test_invalid_injection_rule():
@@ -190,9 +189,9 @@ def test_invalid_injection_rule():
                         reject
             """
     )
-    validate_injection_config(config)
+    _validate_injection_config(config)
     with pytest.raises(ValueError):
-        extract_injection_config(config)
+        _extract_injection_config(config)
 
 
 def test_empty_injection_rules():
@@ -208,8 +207,8 @@ def test_empty_injection_rules():
                         reject
             """
     )
-    validate_injection_config(config)
-    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    _validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = _extract_injection_config(config)
     rules = _load_rules(yara_path, rule_names, yara_rules)
     assert rules is None
 
@@ -236,15 +235,15 @@ def test_load_inline_yara_rules():
         colang_content="",
     )
 
-    validate_injection_config(config)
-    action_option, yara_path, rule_names, yara_rules = extract_injection_config(config)
+    _validate_injection_config(config)
+    action_option, yara_path, rule_names, yara_rules = _extract_injection_config(config)
 
     assert yara_rules is not None
     assert inline_rule_name in yara_rules
     assert yara_rules[inline_rule_name] == inline_rule_content
     assert rule_names == (inline_rule_name,)
 
-    rules = load_rules(yara_path, rule_names, yara_rules)
+    rules = _load_rules(yara_path, rule_names, yara_rules)
     assert isinstance(rules, yara.Rules)
 
     # Test that the loaded rule actually matches
