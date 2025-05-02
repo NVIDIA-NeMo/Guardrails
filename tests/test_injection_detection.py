@@ -39,6 +39,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.library.injection_detection.actions import (
+    _check_yara_available,
     _load_rules,
     _omit_injection,
     _reject_injection,
@@ -495,3 +496,18 @@ async def test_sanitize_action_not_implemented():
 
                     """
         )
+
+
+def test_yara_import_error():
+    """Test that appropriate error is raised when yara module is not available."""
+
+    with patch("nemoguardrails.library.injection_detection.actions.yara", None):
+        with pytest.raises(ImportError) as exc_info:
+            _check_yara_available()
+        assert str(exc_info.value) == (
+            "The yara module is required for injection detection. "
+            "Please install it using: pip install yara-python"
+        )
+
+    with patch("nemoguardrails.library.injection_detection.actions.yara", yara):
+        _check_yara_available()
