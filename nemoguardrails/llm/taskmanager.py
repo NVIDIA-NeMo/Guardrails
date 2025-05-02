@@ -97,8 +97,8 @@ def get_reasoning_token_tags(config, task):
         start_token = model.reasoning_config.start_token
         end_token = model.reasoning_config.end_token
     else:
-        start_token = ""
-        end_token = ""
+        start_token = None
+        end_token = None
 
     return start_token, end_token
 
