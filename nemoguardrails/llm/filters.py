@@ -27,7 +27,7 @@ from nemoguardrails.actions.llm.utils import (
 @dataclass
 class ReasoningExtractionResult:
     """
-    Holds cleaned text and optional chain-of-thought reasoning trace extracted from LLM output.
+    Holds cleaned response text and optional chain-of-thought reasoning trace extracted from LLM output.
     """
 
     text: str
