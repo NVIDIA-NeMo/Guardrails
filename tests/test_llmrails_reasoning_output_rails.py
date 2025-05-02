@@ -141,7 +141,7 @@ async def test_output_rails_reasoning_traces_configuration(
        - The output rail will check for and report think tags
        - Because we expect the think tag to be present as output rails explicitly requires it
 
-    3. When apply_to_traces=False:
+    3. When apply_to_reasoning_traces=False:
        - The output rails will check for think tags
        - No error message will be shown because it is not there to get blocked
 
@@ -209,7 +209,7 @@ async def test_output_rails_preserves_reasoning_traces() -> None:
           output:
             flows:
               - check sensitive info
-            apply_to_traces: True
+            apply_to_reasoning_traces: True
         """,
     )
 
@@ -272,7 +272,7 @@ async def test_output_rails_without_reasoning_traces() -> None:
             flows:
               - check sensitive info
               - check think tag
-            apply_to_traces: false
+            apply_to_reasoning_traces: false
         """,
     )
 
