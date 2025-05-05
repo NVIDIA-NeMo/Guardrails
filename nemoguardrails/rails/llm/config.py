@@ -1207,12 +1207,21 @@ class RailsConfig(BaseModel):
             Task.GENERATE_INTENT_STEPS_MESSAGE,
         ]
 
-        # dialog rails are activated (explicitly or implicitly)
-        has_dialog_rails = bool(dialog_rails) or (
-            bool(values.get("user_messages"))
-            and bool(values.get("bot_messages"))
-            # and bool(values.get("flows"))
+        embeddings_only = dialog_rails.get("user_messages", {}).get(
+            "embeddings_only", False
         )
+
+        has_dialog_rail_configs = (
+            bool(values.get("user_messages"))
+            or bool(values.get("bot_messages"))
+            or bool(values.get("flows"))
+        )
+
+        # dialog rails are activated (explicitly or implicitly) and require validation
+        # skip validation when embeddings_only is True
+        has_dialog_rails = (
+            bool(dialog_rails) or has_dialog_rail_configs
+        ) and not embeddings_only
 
         if has_dialog_rails:
             main_model = next(
