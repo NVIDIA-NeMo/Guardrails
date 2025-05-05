@@ -3,6 +3,6 @@ models:
     engine: deepseek
     model: deepseek-reasoner
     reasoning_config:
-      remove_thinking_traces: True
+      remove_reasoning_traces: True
       start_token: "<think>"
       end_token: "</think>"

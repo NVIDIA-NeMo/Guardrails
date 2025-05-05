@@ -83,7 +83,7 @@ def should_remove_reasoning_traces_from_output(config, task):
     model_config = (
         model
         and model.reasoning_config
-        and model.reasoning_config.remove_thinking_traces
+        and model.reasoning_config.remove_reasoning_traces
     )
 
     if config.rails.output.apply_to_reasoning_traces:

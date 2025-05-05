@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -99,7 +100,7 @@ class TestReasoningTraces:
         config = create_mock_config()
         # Create a ReasoningModelConfig
         reasoning_config = ReasoningModelConfig(
-            remove_thinking_traces=True,
+            remove_reasoning_traces=True,
             start_token="<thinking>",
             end_token="</thinking>",
         )
@@ -205,7 +206,7 @@ class TestReasoningTraces:
             engine="test",
             model="test-model",
             reasoning_config=ReasoningModelConfig(
-                remove_thinking_traces=True,
+                remove_reasoning_traces=True,
                 start_token="<thinking>",
                 end_token="</thinking>",
             ),
@@ -413,3 +414,38 @@ class TestGuardrailReasoningTraces:
         config = create_mock_config()
         config.rails.output.apply_to_reasoning_traces = False
         assert _get_apply_to_reasoning_traces(config) is False
+
+    def test_deprecated_remove_thinking_traces(self):
+        """Test that using remove_thinking_traces issues a deprecation warning."""
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            config = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: openai
+                    model: gpt-3.5-turbo-instruct
+                    reasoning_config:
+                      remove_thinking_traces: False
+                """
+            )
+
+            assert config.models[0].reasoning_config.remove_reasoning_traces is False
+
+            assert config.models[0].reasoning_config.remove_thinking_traces is False
+
+            found_expected_warning = False
+            for warning in w:
+                if (
+                    issubclass(warning.category, DeprecationWarning)
+                    and "remove_thinking_traces" in str(warning.message)
+                    and "remove_reasoning_traces" in str(warning.message)
+                ):
+                    found_expected_warning = True
+                    break
+
+            assert (
+                found_expected_warning
+            ), "Expected DeprecationWarning for remove_thinking_traces was not issued."

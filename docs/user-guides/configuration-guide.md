@@ -103,6 +103,7 @@ nemoguardrails find-providers [--list]
 ```
 
 The command supports two modes:
+
 - Interactive mode (default): Guides you through selecting a provider type (text completion or chat completion) and then shows available providers for that type
 - List mode (`--list`): Simply lists all available providers without interactive selection
 
@@ -126,7 +127,7 @@ models:
     engine: deepseek
     model: deepseek-reasoner
     reasoning_config:
-      remove_thinking_traces: True
+      remove_reasoning_traces: True
       start_token: "<think>"
       end_token: "</think>"
 ```
@@ -136,7 +137,7 @@ By removing the traces, the guardrails runtime processes only the actual respons
 
 You can specify the following parameters for a reasoning model:
 
-- `remove_thinking_traces`: if the reasoning traces should be ignored (default `True`).
+- `remove_reasoning_traces`: if the reasoning traces should be ignored (default `True`).
 - `start_token`: the start token for the reasoning process (default `<think>`).
 - `end_token`: the end token for the reasoning process (default `</think>`).
 

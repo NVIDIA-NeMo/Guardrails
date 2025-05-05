@@ -135,7 +135,7 @@ def test_reasoning_traces_with_explicit_dialog_rails():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
             rails:
               dialog:
                 single_call:
@@ -150,7 +150,7 @@ def test_reasoning_traces_with_explicit_dialog_rails():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -165,7 +165,7 @@ def test_reasoning_traces_without_dialog_rails():
             engine: openai
             model: gpt-3.5-turbo-instruct
             reasoning_config:
-              remove_thinking_traces: false
+              remove_reasoning_traces: false
         """,
     )
 
@@ -195,7 +195,7 @@ def test_input_rails_only_no_dialog_rails():
             engine: openai
             model: gpt-3.5-turbo-instruct
             reasoning_config:
-                remove_thinking_traces: false
+                remove_reasoning_traces: false
         rails:
           input:
             flows:
@@ -222,7 +222,7 @@ def test_no_dialog_tasks_with_only_output_rails():
             engine: openai
             model: gpt-3.5-turbo-instruct
             reasoning_config:
-                remove_thinking_traces: false
+                remove_reasoning_traces: false
         rails:
           output:
             flows:
@@ -250,7 +250,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_user_bot_messages():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
             """,
             colang_content="""
             define user express greeting
@@ -273,7 +273,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_user_bot_messages():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -289,7 +289,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: False
             """,
             colang_content="""
             define flow
@@ -309,7 +309,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_flows_only():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -325,7 +325,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_user_messages_only():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
             """,
             colang_content="""
             define user express greeting
@@ -350,7 +350,7 @@ def test_reasoning_traces_with_bot_messages_only():
               engine: openai
               model: gpt-3.5-turbo-instruct
               reasoning_config:
-                  remove_thinking_traces: False
+                  remove_reasoning_traces: False
             """,
             colang_content="""
             define bot express greeting
@@ -377,12 +377,12 @@ def test_reasoning_traces_with_dedicated_task_models():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
               - type: generate_user_intent
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
             rails:
               dialog:
                 single_call:
@@ -398,7 +398,7 @@ def test_reasoning_traces_with_dedicated_task_models():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -414,7 +414,7 @@ def test_reasoning_traces_with_mixed_task_models():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
               - type: generate_bot_message
                 engine: openai
                 model: gpt-3.5-turbo-instruct
@@ -422,7 +422,7 @@ def test_reasoning_traces_with_mixed_task_models():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
             rails:
               dialog:
                 single_call:
@@ -438,7 +438,7 @@ def test_reasoning_traces_with_mixed_task_models():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -457,7 +457,7 @@ def test_reasoning_traces_with_all_dialog_tasks():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
               - type: generate_user_intent
                 engine: openai
                 model: gpt-3.5-turbo-instruct
@@ -465,7 +465,7 @@ def test_reasoning_traces_with_all_dialog_tasks():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
               - type: generate_intent_steps_message
                 engine: openai
                 model: gpt-3.5-turbo-instruct
@@ -487,7 +487,7 @@ def test_reasoning_traces_with_all_dialog_tasks():
     )
     assert "Reasoning traces must be disabled for dialog rail tasks" in error_message
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in error_message
     )
 
@@ -505,12 +505,12 @@ def test_reasoning_traces_with_dedicated_models_no_dialog_rails():
             engine: openai
             model: gpt-3.5-turbo-instruct
             reasoning_config:
-              remove_thinking_traces: false
+              remove_reasoning_traces: false
           - type: generate_user_intent
             engine: openai
             model: gpt-3.5-turbo-instruct
             reasoning_config:
-              remove_thinking_traces: false
+              remove_reasoning_traces: false
         """,
     )
 
@@ -529,7 +529,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_and_dedicated_models():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
             """,
             colang_content="""
             define user express greeting
@@ -553,7 +553,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_and_dedicated_models():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -569,7 +569,7 @@ def test_reasoning_traces_with_partial_dedicated_models():
                 engine: openai
                 model: gpt-3.5-turbo-instruct
                 reasoning_config:
-                  remove_thinking_traces: false
+                  remove_reasoning_traces: false
               - type: generate_bot_message
                 engine: openai
                 model: gpt-3.5-turbo-instruct
@@ -587,7 +587,7 @@ def test_reasoning_traces_with_partial_dedicated_models():
         exc_info.value
     )
     assert (
-        "Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config"
+        "Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config"
         in str(exc_info.value)
     )
 
@@ -602,7 +602,7 @@ def test_reasoning_traces_with_implicit_dialog_rails_embeddings_only():
           engine: openai
           model: gpt-3.5-turbo-instruct
           reasoning_config:
-              remove_thinking_traces: False
+              remove_reasoning_traces: False
         rails:
           dialog:
             user_messages:
@@ -626,7 +626,7 @@ def test_reasoning_traces_with_bot_messages_embeddings_only():
           engine: openai
           model: gpt-3.5-turbo-instruct
           reasoning_config:
-              remove_thinking_traces: False
+              remove_reasoning_traces: False
         rails:
           dialog:
             user_messages:

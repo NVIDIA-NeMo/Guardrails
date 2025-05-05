@@ -33,14 +33,14 @@ class ReasoningTraceTestCase(NamedTuple):
 
     Attributes:
         description: description of the test case
-        remove_thinking_traces: Whether to remove thinking traces in the model config
+        remove_reasoning_traces: Whether to remove reasoning traces in the model config
         apply_to_reasoning_traces: Whether to apply output rails to reasoning traces
         expected_think_tag: Whether the think tag should be present in the response
         expected_error_message: Whether the error message should be present in the response
     """
 
     description: str
-    remove_thinking_traces: bool
+    remove_reasoning_traces: bool
     apply_to_reasoning_traces: bool
     expected_think_tag: bool
     expected_error_message: bool
@@ -95,29 +95,29 @@ def base_config() -> RailsConfig:
     "test_case",
     [
         ReasoningTraceTestCase(
-            description="Remove thinking traces and show error when guardrail is enabled",
-            remove_thinking_traces=True,
+            description="Remove reasoning traces and show error when guardrail is enabled",
+            remove_reasoning_traces=True,
             apply_to_reasoning_traces=True,
             expected_think_tag=True,
             expected_error_message=True,
         ),
         ReasoningTraceTestCase(
-            description="Preserve thinking traces and hide error when guardrail is disabled",
-            remove_thinking_traces=True,
+            description="Preserve reasoning traces and hide error when guardrail is disabled",
+            remove_reasoning_traces=True,
             apply_to_reasoning_traces=False,
             expected_think_tag=True,
             expected_error_message=False,
         ),
         ReasoningTraceTestCase(
-            description="Preserve thinking traces and show error when guardrail is enabled",
-            remove_thinking_traces=False,
+            description="Preserve reasoning traces and show error when guardrail is enabled",
+            remove_reasoning_traces=False,
             apply_to_reasoning_traces=True,
             expected_think_tag=True,
             expected_error_message=True,
         ),
         ReasoningTraceTestCase(
-            description="Remove thinking traces and show error when both flags are disabled",
-            remove_thinking_traces=False,
+            description="Remove reasoning traces and show error when both flags are disabled",
+            remove_reasoning_traces=False,
             apply_to_reasoning_traces=False,
             expected_think_tag=True,
             expected_error_message=True,
@@ -133,8 +133,8 @@ async def test_output_rails_reasoning_traces_configuration(
 
     The test verifies the following behaviors based on configuration:
 
-    1. When remove_thinking_traces=True:
-       - The model is configured to remove thinking traces
+    1. When remove_reasoning_traces=True:
+       - The model is configured to remove reasoning traces
        - However, the actual removal depends on apply_to_reasoning_traces
 
     2. When apply_to_reasoning_traces=True:
@@ -148,7 +148,7 @@ async def test_output_rails_reasoning_traces_configuration(
     """
     base_config.models[
         0
-    ].reasoning_config.remove_thinking_traces = test_case.remove_thinking_traces
+    ].reasoning_config.remove_reasoning_traces = test_case.remove_reasoning_traces
     base_config.rails.output.apply_to_reasoning_traces = (
         test_case.apply_to_reasoning_traces
     )
@@ -203,7 +203,7 @@ async def test_output_rails_preserves_reasoning_traces() -> None:
             engine: fake
             model: fake
             reasoning_config:
-              remove_thinking_traces: True
+              remove_reasoning_traces: True
         colang_version: "1.0"
         rails:
           output:
@@ -262,7 +262,7 @@ async def test_output_rails_without_reasoning_traces() -> None:
             engine: fake
             model: fake
             reasoning_config:
-              remove_thinking_traces: True
+              remove_reasoning_traces: True
         colang_version: "1.0"
         rails:
           input:

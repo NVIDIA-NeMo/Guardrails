@@ -71,9 +71,13 @@ colang_path_dirs.append(guardrails_stdlib_path)
 class ReasoningModelConfig(BaseModel):
     """Configuration for reasoning models/LLMs, including start and end tokens for reasoning traces."""
 
-    remove_thinking_traces: Optional[bool] = Field(
+    remove_reasoning_traces: Optional[bool] = Field(
         default=True,
-        description="For reasoning models (e.g. DeepSeek-r1), if the output parser should remove thinking traces.",
+        description="For reasoning models (e.g. DeepSeek-r1), if the output parser should remove reasoning traces.",
+    )
+    remove_thinking_traces: Optional[bool] = Field(
+        default=None,
+        description="[DEPRECATED] Use remove_reasoning_traces instead. For reasoning models (e.g. DeepSeek-r1), if the output parser should remove thinking traces.",
     )
     start_token: Optional[str] = Field(
         default="<think>",
@@ -83,6 +87,21 @@ class ReasoningModelConfig(BaseModel):
         default="</think>",
         description="The end token used for reasoning traces.",
     )
+
+    @model_validator(mode="after")
+    def handle_deprecated_field(self) -> "ReasoningModelConfig":
+        """Handle the deprecated remove_thinking_traces field."""
+        if self.remove_thinking_traces is not None:
+            import warnings
+
+            warnings.warn(
+                "The 'remove_thinking_traces' field is deprecated and will be removed in 0.15.0 version. "
+                "Please use 'remove_reasoning_traces' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.remove_reasoning_traces = self.remove_thinking_traces
+        return self
 
 
 class Model(BaseModel):
@@ -1250,11 +1269,11 @@ class RailsConfig(BaseModel):
                         if hasattr(task_model, "reasoning_config")
                         else task_model.get("reasoning_config", {})
                     )
-                    if not reasoning_config.get("remove_thinking_traces", True):
+                    if not reasoning_config.get("remove_reasoning_traces", True):
                         violations.append(
                             f"Model '{task_model.get('type')}' has reasoning traces enabled in config.yml. "
                             f"Reasoning traces must be disabled for dialog rail tasks. "
-                            f"Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config for this model."
+                            f"Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config for this model."
                         )
                 elif main_model:
                     reasoning_config = (
@@ -1262,11 +1281,11 @@ class RailsConfig(BaseModel):
                         if hasattr(main_model, "reasoning_config")
                         else main_model.get("reasoning_config", {})
                     )
-                    if not reasoning_config.get("remove_thinking_traces", True):
+                    if not reasoning_config.get("remove_reasoning_traces", True):
                         violations.append(
                             f"Main model has reasoning traces enabled in config.yml and is being used for dialog rail task '{task.value}'. "
                             f"Reasoning traces must be disabled when dialog rails are present. "
-                            f"Please update your config.yml to set 'remove_thinking_traces: true' under reasoning_config for the main model."
+                            f"Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config for the main model."
                         )
 
             if violations:
