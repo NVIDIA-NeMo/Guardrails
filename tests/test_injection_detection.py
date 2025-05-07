@@ -45,6 +45,7 @@ from nemoguardrails.library.injection_detection.actions import (
     _load_rules,
     _omit_injection,
     _reject_injection,
+    _sanitize_injection,
     _validate_injection_config,
 )
 from tests.utils import TestChat
@@ -766,3 +767,90 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
         and "syntax error" in record.message
         for record in caplog.records
     ), "Expected error log message about YARA compilation failure not found"
+
+
+@pytest.mark.asyncio
+async def test_omit_injection_attribute_error():
+    """Test error handling in _omit_injection for AttributeError."""
+
+    text = "test text"
+    mock_matches = [
+        create_mock_yara_match(
+            "invalid bytes", "test_rule"
+        )  # This will cause AttributeError
+    ]
+
+    is_injection, result = _omit_injection(text=text, matches=mock_matches)
+    assert not is_injection
+    assert result == text
+
+
+@pytest.mark.asyncio
+async def test_omit_injection_unicode_decode_error():
+    """Test error handling in _omit_injection for UnicodeDecodeError."""
+
+    text = "test text"
+
+    class MockStringMatchInstanceUnicode:
+        def __init__(self):
+            # invalid utf-8 bytes
+            self._text = b"\xff\xfe"
+
+        def plaintext(self):
+            return self._text
+
+    class MockStringMatchUnicode:
+        def __init__(self):
+            self.identifier = "test_string"
+            self.instances = [MockStringMatchInstanceUnicode()]
+
+    class MockMatchUnicode:
+        def __init__(self, rule):
+            self.rule = rule
+            self.strings = [MockStringMatchUnicode()]
+
+    mock_matches = [MockMatchUnicode("test_rule")]
+    is_injection, result = _omit_injection(text=text, matches=mock_matches)
+    assert not is_injection
+    assert result == text
+
+
+@pytest.mark.asyncio
+async def test_omit_injection_no_modifications():
+    """Test _omit_injection when no modifications are made to the text."""
+
+    text = "safe text"
+    mock_matches = [create_mock_yara_match("nonexistent pattern", "test_rule")]
+
+    is_injection, result = _omit_injection(text=text, matches=mock_matches)
+    assert not is_injection
+    assert result == text
+
+
+@pytest.mark.asyncio
+async def test_sanitize_injection_not_implemented():
+    """Test that _sanitize_injection raises NotImplementedError."""
+
+    text = "test text"
+    mock_matches = [create_mock_yara_match("test pattern", "test_rule")]
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        _sanitize_injection(text=text, matches=mock_matches)
+    assert "Injection sanitization is not yet implemented" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_reject_injection_no_rules(caplog):
+    """Test _reject_injection when no rules are specified."""
+
+    text = "test text"
+    caplog.set_level(logging.WARNING)
+
+    is_injection, detections = _reject_injection(text=text, rules=None)
+    assert not is_injection
+    assert detections == []
+    assert any(
+        "reject_injection guardrail was invoked but no rules were specified"
+        in record.message
+        for record in caplog.records
+    )
