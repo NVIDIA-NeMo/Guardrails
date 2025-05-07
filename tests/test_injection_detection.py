@@ -28,6 +28,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from unittest.mock import patch
 
@@ -265,7 +266,7 @@ async def test_omit_injection_action():
         create_mock_yara_match("-- comment", "sqli"),
     ]
 
-    result = _omit_injection(text=text, matches=mock_matches)
+    is_injection, result = _omit_injection(text=text, matches=mock_matches)
 
     # all sql injection should be removed
     # NOTE: following rule does not get removed using sqli.yara
@@ -407,9 +408,12 @@ async def test_xss_injection_with_reject_action():
         messages=[{"role": "user", "content": "do a fake query you funny agent"}]
     )
 
-    assert result["content"].startswith(
-        "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
-    )
+    assert "content" in result, f"Expected 'content' key in result, got {result}"
+    actual_content = result["content"]
+    expected_start = "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
+    assert actual_content.startswith(
+        expected_start
+    ), f"Expected content to start with '{expected_start}', but got '{actual_content}'"
 
 
 @pytest.mark.asyncio
@@ -616,3 +620,149 @@ async def test_multiple_injection_types_reject_inline_rules():
     assert "simple_xss" in result["content"]
     assert "simple_template" in result["content"]
     assert "simple_code" in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_xss_injection_with_exception_action():
+    """Test the exception action for XSS injection detection using real YARA rules from the library."""
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+                models: []
+                enable_rails_exceptions: True
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - xss
+                      action:
+                        reject
+                  output:
+                    flows:
+                      - injection detection
+
+                """
+    )
+
+    xss_injection = "Hello <script>alert('xss')</script> world"
+    chat = TestChat(config, llm_completions=[xss_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
+    )
+
+    assert (
+        result.get("role") == "exception"
+    ), f"Expected role 'exception', got {result.get('role')}"
+    assert "content" in result, "Expected 'content' key in result"
+    content = result["content"]
+    assert (
+        content.get("type") == "InjectionDetectionRailException"
+    ), f"Expected type 'InjectionDetectionRailException', got {content.get('type')}"
+    expected_message = (
+        "Output not allowed. The output was blocked by the 'injection detection' flow."
+    )
+    assert (
+        content.get("message") == expected_message
+    ), f"Expected message '{expected_message}', got '{content.get('message')}'"
+
+
+@pytest.mark.asyncio
+async def test_omit_action_with_exceptions_enabled():
+    """Test that omit action does not raise an exception when enable_rails_exceptions is True."""
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+                models: []
+                enable_rails_exceptions: True
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - xss
+                      action:
+                        omit
+                  output:
+                    flows:
+                      - injection detection
+
+                """
+    )
+
+    xss_injection = "Hello <script>alert('xss')</script> world"
+    chat = TestChat(config, llm_completions=[xss_injection])
+    rails = chat.app
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
+    )
+
+    # check that an exception is raised
+    assert result.get("role") == "exception", "Expected role to be 'exception'"
+
+    # verify exception details
+    content = result["content"]
+    assert (
+        content.get("type") == "InjectionDetectionRailException"
+    ), f"Expected type 'InjectionDetectionRailException', got {content.get('type')}"
+
+    expected_message = (
+        "Output not allowed. The output was blocked by the 'injection detection' flow."
+    )
+    assert (
+        content.get("message") == expected_message
+    ), f"Expected message '{expected_message}', got '{content.get('message')}'"
+
+
+@pytest.mark.asyncio
+async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
+    """Test that a malformed inline YARA rule leads to graceful failure (detection becomes no-op)."""
+
+    inline_rule_name = "malformed_rule"
+    # this rule is malformed: missing { after rule name
+    malformed_rule_content = "rule malformed_rule condition: true "
+
+    config = RailsConfig.from_content(
+        yaml_content=f"""
+                models: []
+                rails:
+                  config:
+                    injection_detection:
+                      injections:
+                        - {inline_rule_name}
+                      action:
+                        reject # can be anything
+                      yara_rules:
+                        {inline_rule_name}: |
+                          {malformed_rule_content}
+                  output:
+                    flows:
+                      - injection detection
+            """,
+        colang_content="",
+    )
+
+    some_text_that_would_be_injection = "This is a test string."
+
+    caplog.set_level(logging.ERROR, logger="actions.py")
+
+    chat = TestChat(config, llm_completions=[some_text_that_would_be_injection])
+    rails = chat.app
+
+    assert rails is not None
+
+    result = await rails.generate_async(
+        messages=[{"role": "user", "content": "trigger detection"}]
+    )
+
+    # check that no exception was raised
+    assert result.get("role") != "exception", f"Expected no exception, but got {result}"
+
+    # verify the error log was created with the expected content
+    assert any(
+        record.name == "actions.py" and record.levelno == logging.ERROR
+        # minor variations in the error message are expected
+        and "Failed to initialize injection detection" in record.message
+        and "YARA compilation failed" in record.message
+        and "syntax error" in record.message
+        for record in caplog.records
+    ), "Expected error log message about YARA compilation failure not found"
