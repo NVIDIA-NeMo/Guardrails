@@ -259,10 +259,20 @@ class StreamingHandler(AsyncCallbackHandler, AsyncIterator):
 
     async def push_chunk(
         self,
-        chunk: Union[str, GenerationChunk, AIMessageChunk, None],
+        chunk: Union[str, GenerationChunk, AIMessageChunk, ChatGenerationChunk, None],
         generation_info: Optional[Dict[str, Any]] = None,
     ):
         """Push a new chunk to the stream."""
+
+        # if generation_info is not explicitly passed,
+        # try to get it from the chunk itself if it's a GenerationChunk or ChatGenerationChunk
+        if generation_info is None:
+            if isinstance(chunk, (GenerationChunk, ChatGenerationChunk)) and hasattr(
+                chunk, "generation_info"
+            ):
+                if chunk.generation_info is not None:
+                    generation_info = chunk.generation_info.copy()
+
         if isinstance(chunk, GenerationChunk):
             chunk = chunk.text
         elif isinstance(chunk, AIMessageChunk):

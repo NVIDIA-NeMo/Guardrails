@@ -22,7 +22,7 @@ from uuid import UUID
 
 import pytest
 from langchain.schema.messages import AIMessageChunk
-from langchain.schema.output import GenerationChunk
+from langchain.schema.output import ChatGenerationChunk, GenerationChunk
 
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 
@@ -881,3 +881,88 @@ async def test_processing_metadata():
                 assert chunks[i]["generation_info"]["part"] == expected["part"]
     finally:
         await streaming_consumer.cancel()
+
+
+@pytest.mark.asyncio
+async def test_anext_with_dict_end_of_stream_sentinel():
+    """Test __anext__ with a dict-wrapped END_OF_STREAM sentinel."""
+
+    streaming_handler = StreamingHandler(include_generation_metadata=True)
+    await streaming_handler.queue.put({"text": END_OF_STREAM, "generation_info": {}})
+    with pytest.raises(StopAsyncIteration):
+        await streaming_handler.__anext__()
+
+
+@pytest.mark.asyncio
+async def test_push_chunk_with_chat_generation_chunk():
+    """Test push_chunk with a ChatGenerationChunk."""
+
+    streaming_handler = StreamingHandler()
+    consumer = StreamingConsumer(streaming_handler)
+    try:
+        chat_chunk = ChatGenerationChunk(message=AIMessageChunk(content="chat text"))
+        await streaming_handler.push_chunk(chat_chunk)
+        await streaming_handler.push_chunk(END_OF_STREAM)
+        chunks = await consumer.get_chunks()
+        assert chunks == ["chat text"]
+    finally:
+        await consumer.cancel()
+
+
+@pytest.mark.asyncio
+async def test_push_chunk_with_chat_generation_chunk_with_metadata():
+    """Test push_chunk with a ChatGenerationChunk when metadata is included."""
+
+    streaming_handler = StreamingHandler(include_generation_metadata=True)
+    consumer = StreamingConsumer(streaming_handler)
+    try:
+        message_chunk = AIMessageChunk(content="chat text")
+        chat_chunk = ChatGenerationChunk(
+            message=message_chunk, generation_info={"details": "some details"}
+        )
+        await streaming_handler.push_chunk(chat_chunk)
+        await streaming_handler.push_chunk(END_OF_STREAM)
+        chunks = await consumer.get_chunks()
+        assert len(chunks) == 2
+        assert chunks[0]["text"] == "chat text"
+        assert chunks[0]["generation_info"] == {"details": "some details"}
+        assert chunks[1]["text"] is END_OF_STREAM
+        assert chunks[1]["generation_info"] == {"details": "some details"}
+    finally:
+        await consumer.cancel()
+
+
+@pytest.mark.asyncio
+async def test_push_chunk_unsupported_type():
+    """Test push_chunk with an unsupported data type."""
+
+    streaming_handler = StreamingHandler()
+    with pytest.raises(Exception, match="Unsupported chunk type: int"):
+        await streaming_handler.push_chunk(123)
+    with pytest.raises(Exception, match="Unsupported chunk type: list"):
+        await streaming_handler.push_chunk([1, 2])
+
+
+@pytest.mark.asyncio
+async def test_on_llm_new_token_with_chunk_having_none_generation_info():
+    """Test on_llm_new_token when chunk.generation_info is None."""
+    streaming_handler = StreamingHandler(include_generation_metadata=True)
+    consumer = StreamingConsumer(streaming_handler)
+    try:
+        mock_chunk = GenerationChunk(text="test text", generation_info=None)
+        await streaming_handler.on_llm_new_token(
+            token="test text",
+            chunk=mock_chunk,
+            run_id=UUID("00000000-0000-0000-0000-000000000000"),
+        )
+        await streaming_handler.on_llm_end(
+            response=None, run_id=UUID("00000000-0000-0000-0000-000000000000")
+        )
+        chunks = await consumer.get_chunks()
+        assert len(chunks) == 2
+        assert chunks[0]["text"] == "test text"
+        assert chunks[0]["generation_info"] == {}
+        assert chunks[1]["text"] is END_OF_STREAM
+        assert chunks[1]["generation_info"] == {}
+    finally:
+        await consumer.cancel()
