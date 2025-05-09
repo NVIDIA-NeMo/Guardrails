@@ -24,7 +24,7 @@ import pytest
 from langchain.schema.messages import AIMessageChunk
 from langchain.schema.output import GenerationChunk
 
-from nemoguardrails.streaming import StreamingHandler
+from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 
 
 class StreamingConsumer:
@@ -124,7 +124,7 @@ async def _test_pattern_case(
                 await streaming_handler.push_chunk(chunk)
 
         # Push an empty chunk to signal the ending.
-        await streaming_handler.push_chunk("")
+        await streaming_handler.push_chunk(END_OF_STREAM)
 
         assert await streaming_consumer.get_chunks() == final_chunks
     finally:
@@ -288,7 +288,7 @@ async def test_set_pipe_to():
         # send chunks to main handler
         await main_handler.push_chunk("chunk1")
         await main_handler.push_chunk("chunk2")
-        await main_handler.push_chunk("")  # Signal end of streaming
+        await main_handler.push_chunk(END_OF_STREAM)  # Signal end of streaming
 
         # main handler received nothing (piped away)
         main_chunks = await main_consumer.get_chunks()
@@ -318,7 +318,7 @@ async def test_wait_method():
             await handler.push_chunk("chunk2")
             await asyncio.sleep(0.1)
             await handler.push_chunk(
-                ""
+                END_OF_STREAM
             )  # NOTE: signal end of streaming will get changed soon
 
         push_task = asyncio.create_task(push_chunks_with_delay())
@@ -419,7 +419,7 @@ async def test_multiple_stop_tokens():
         # Push text with a stop token in the middle
         await handler.push_chunk("This is some text STOP1 and this should be ignored")
         await handler.push_chunk(
-            ""
+            END_OF_STREAM
         )  # NOTE: Signal end of streaming we are going to change this
 
         # streaming stopped at the stop token
@@ -436,7 +436,7 @@ async def test_multiple_stop_tokens():
 
         await handler.push_chunk("Different text with HALT token")
         await handler.push_chunk(
-            ""
+            END_OF_STREAM
         )  # NOTE: Signal end of streaming we are going to change this
 
         chunks = await consumer.get_chunks()
@@ -500,7 +500,7 @@ async def test_first_token_handling():
         # first_token is now False
         assert handler.first_token is False
         # push_chunk was not called (empty first token is skipped)
-        assert push_chunk_called is False
+        assert push_chunk_called is True
 
         # reset the mock state
         push_chunk_called = False
@@ -536,7 +536,7 @@ async def test_first_token_handling():
                 except asyncio.QueueEmpty:
                     break
             # Signal end if push_chunk was mocked and might not have done it
-            await handler.queue.put(None)
+            await handler.queue.put(END_OF_STREAM)
 
 
 @pytest.mark.asyncio
@@ -557,7 +557,7 @@ async def test_suffix_removal_at_end():
         assert len(chunks) == 0
 
         await handler.push_chunk("D")
-        await handler.push_chunk("")  # NOTE: will get changed to SENTINEL
+        await handler.push_chunk(END_OF_STREAM)  # NOTE: will get changed to SENTINEL
 
         # Check that suffix was removed
         chunks = await consumer.get_chunks()
@@ -569,14 +569,27 @@ async def test_suffix_removal_at_end():
 
 @pytest.mark.asyncio
 async def test_anext_with_none_element():
-    """Test __anext__ method with None element."""
+    """Test __anext__ method with None element (now END_OF_STREAM sentinel)."""
 
     streaming_handler = StreamingHandler()
 
-    # put None into the queue (signal to stop streaming)
-    await streaming_handler.queue.put(None)
+    # put END_OF_STREAM into the queue (signal to stop streaming)
+    await streaming_handler.queue.put(END_OF_STREAM)
 
     # call __anext__ directly
+    with pytest.raises(StopAsyncIteration):
+        await streaming_handler.__anext__()
+
+
+@pytest.mark.asyncio
+async def test_anext_with_end_of_stream_sentinel():
+    """Test __anext__ method explicitly with END_OF_STREAM sentinel."""
+    streaming_handler = StreamingHandler()
+
+    # Put END_OF_STREAM into the queue
+    await streaming_handler.queue.put(END_OF_STREAM)
+
+    # Call __anext__ and expect StopAsyncIteration
     with pytest.raises(StopAsyncIteration):
         await streaming_handler.__anext__()
 
@@ -590,33 +603,35 @@ async def test_anext_with_empty_string():
     # put empty string into the queue
     await streaming_handler.queue.put("")
 
-    with pytest.raises(StopAsyncIteration):
-        await streaming_handler.__anext__()
+    result = await streaming_handler.__anext__()
+    assert result == ""
 
 
 @pytest.mark.asyncio
 async def test_anext_with_dict_empty_text():
     """Test __anext__ method with dict containing empty text."""
     streaming_handler = StreamingHandler()
+    test_val = {"text": "", "generation_info": {}}
 
     # put dict with empty text into the queue
-    await streaming_handler.queue.put({"text": "", "generation_info": {}})
+    await streaming_handler.queue.put(test_val)
 
-    with pytest.raises(StopAsyncIteration):
-        await streaming_handler.__anext__()
+    result = await streaming_handler.__anext__()
+    assert result == test_val
 
 
 @pytest.mark.asyncio
 async def test_anext_with_dict_none_text():
     """Test __anext__ method with dict containing None text."""
     streaming_handler = StreamingHandler()
+    test_val = {"text": None, "generation_info": {}}
 
     # NOTE: azure openai issue
     # put dict with None text into the queue
-    await streaming_handler.queue.put({"text": None, "generation_info": {}})
+    await streaming_handler.queue.put(test_val)
 
-    with pytest.raises(StopAsyncIteration):
-        await streaming_handler.__anext__()
+    result = await streaming_handler.__anext__()
+    assert result == test_val
 
 
 @pytest.mark.asyncio
@@ -641,8 +656,8 @@ async def test_anext_with_event_loop_closed():
     with mock.patch.object(
         streaming_handler.queue, "get", side_effect=RuntimeError("Event loop is closed")
     ):
-        with pytest.raises(StopAsyncIteration):
-            await streaming_handler.__anext__()
+        result = await streaming_handler.__anext__()
+        assert result is None
 
 
 @pytest.mark.asyncio
@@ -673,7 +688,7 @@ async def test_include_generation_metadata():
             test_text, generation_info=test_generation_info
         )
         await streaming_handler.push_chunk(
-            ""
+            END_OF_STREAM
         )  # NOTE: sjignal end of streaming using "" will get changed soon
 
         chunks = await streaming_consumer.get_chunks()
@@ -702,7 +717,7 @@ async def test_include_generation_metadata_with_different_chunk_types():
             generation_chunk, generation_info=test_generation_info
         )
         await streaming_handler.push_chunk(
-            ""
+            END_OF_STREAM
         )  # NOTE: sjignal end of streaming using "" will get changed soon
 
         chunks = await streaming_consumer.get_chunks()
@@ -722,7 +737,7 @@ async def test_include_generation_metadata_with_different_chunk_types():
             ai_message_chunk, generation_info=test_generation_info
         )
         await streaming_handler.push_chunk(
-            ""
+            END_OF_STREAM
         )  # NOTE: sjignal end of streaming using "" will get changed soon
 
         chunks = await streaming_consumer.get_chunks()
@@ -768,14 +783,15 @@ async def test_on_llm_new_token_empty_then_nonempty():
         await streaming_handler.push_chunk("second")
 
         # NOTE: will chnage to sentinel soon to explicitly end the streaming
-        await streaming_handler.push_chunk("")
+        await streaming_handler.push_chunk(END_OF_STREAM)
 
         # wait for the chunks to be processed
         await asyncio.sleep(0.1)
 
         chunks = await streaming_consumer.get_chunks()
-        assert len(chunks) == 1
-        assert chunks[0] == "second"
+        assert len(chunks) == 2
+        assert chunks[0] == ""
+        assert chunks[1] == "second"
     finally:
         await streaming_consumer.cancel()
 
@@ -803,14 +819,11 @@ async def test_on_llm_new_token_with_generation_info():
         )
 
         chunks = await streaming_consumer.get_chunks()
-        # print(chunks)
-        # sounds like a bug
-        # assert len(chunks) == 1
-        # assert chunks[1]["text"] == ""
         assert len(chunks) == 2
         assert chunks[0]["text"] == test_text
         assert chunks[0]["generation_info"] == test_generation_info
-        assert chunks[1]["text"] == ""
+        assert chunks[1]["text"] is END_OF_STREAM
+        assert chunks[1]["generation_info"] == test_generation_info
     finally:
         await streaming_consumer.cancel()
 
@@ -830,7 +843,7 @@ async def test_processing_metadata():
         await streaming_handler.push_chunk(
             test_text, generation_info=test_generation_info
         )
-        await streaming_handler.push_chunk("")  # Signal end of streaming
+        await streaming_handler.push_chunk(END_OF_STREAM)  # Signal end of streaming
 
         chunks = await streaming_consumer.get_chunks()
         assert len(chunks) >= 1
@@ -851,7 +864,7 @@ async def test_processing_metadata():
         await streaming_handler.push_chunk("message", generation_info={"part": 4})
         await streaming_handler.push_chunk(" SUFF", generation_info={"part": 5})
         await streaming_handler.push_chunk("IX", generation_info={"part": 6})
-        await streaming_handler.push_chunk("")  # End of streaming
+        await streaming_handler.push_chunk(END_OF_STREAM)  # End of streaming
 
         chunks = await streaming_consumer.get_chunks()
         # the prefix removal should happen first, then streaming happens
