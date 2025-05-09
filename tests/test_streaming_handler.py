@@ -32,16 +32,21 @@ class StreamingConsumer:
 
         self.chunks = []
         self.finished = False
+        self._task = None
         self._start()
 
     async def process_tokens(self):
-        async for chunk in self.streaming_handler:
-            self.chunks.append(chunk)
-
-        self.finished = True
+        try:
+            async for chunk in self.streaming_handler:
+                self.chunks.append(chunk)
+        except asyncio.CancelledError:
+            # task was cancelled. this is expected during cleanup
+            pass
+        finally:
+            self.finished = True
 
     def _start(self):
-        asyncio.create_task(self.process_tokens())
+        self._task = asyncio.create_task(self.process_tokens())
 
     async def get_chunks(self):
         """Helper to get the chunks."""
@@ -49,14 +54,27 @@ class StreamingConsumer:
         await asyncio.sleep(0.01)
         return self.chunks
 
+    async def cancel(self):
+        """Cancel the background task and wait for it to finish."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                # this is expected when cancelling the task
+                pass
+
 
 @pytest.mark.asyncio
 async def test_single_chunk():
     streaming_handler = StreamingHandler()
     streaming_consumer = StreamingConsumer(streaming_handler)
 
-    await streaming_handler.push_chunk("a")
-    assert await streaming_consumer.get_chunks() == ["a"]
+    try:
+        await streaming_handler.push_chunk("a")
+        assert await streaming_consumer.get_chunks() == ["a"]
+    finally:
+        await streaming_consumer.cancel()
 
 
 @pytest.mark.asyncio
@@ -64,10 +82,13 @@ async def test_sequence_of_chunks():
     streaming_handler = StreamingHandler()
     streaming_consumer = StreamingConsumer(streaming_handler)
 
-    for chunk in ["1", "2", "3", "4", "5"]:
-        await streaming_handler.push_chunk(chunk)
+    try:
+        for chunk in ["1", "2", "3", "4", "5"]:
+            await streaming_handler.push_chunk(chunk)
 
-    assert await streaming_consumer.get_chunks() == ["1", "2", "3", "4", "5"]
+        assert await streaming_consumer.get_chunks() == ["1", "2", "3", "4", "5"]
+    finally:
+        await streaming_consumer.cancel()
 
 
 async def _test_pattern_case(
@@ -93,16 +114,19 @@ async def _test_pattern_case(
     else:
         streaming_consumer = StreamingConsumer(streaming_handler)
 
-    for chunk in chunks:
-        if chunk is None:
-            assert await streaming_consumer.get_chunks() == []
-        else:
-            await streaming_handler.push_chunk(chunk)
+    try:
+        for chunk in chunks:
+            if chunk is None:
+                assert await streaming_consumer.get_chunks() == []
+            else:
+                await streaming_handler.push_chunk(chunk)
 
-    # Push an empty chunk to signal the ending.
-    await streaming_handler.push_chunk("")
+        # Push an empty chunk to signal the ending.
+        await streaming_handler.push_chunk("")
 
-    assert await streaming_consumer.get_chunks() == final_chunks
+        assert await streaming_consumer.get_chunks() == final_chunks
+    finally:
+        await streaming_consumer.cancel()
 
 
 @pytest.mark.asyncio
@@ -218,7 +242,7 @@ async def test_suffix_with_stop_and_pipe_3():
             " message: ",
             '"',
             "This is a message",
-            '."' "\nUser",
+            '."\nUser',
             " intent: ",
             " xxx",
         ],
@@ -238,7 +262,7 @@ async def test_suffix_with_stop_and_pipe_4():
             " message: ",
             '"',
             "This is a message",
-            '."' "\nUser",
+            '."\nUser',
             " intent: ",
             " xxx",
         ],
