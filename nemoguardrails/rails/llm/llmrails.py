@@ -74,7 +74,7 @@ from nemoguardrails.rails.llm.options import (
     GenerationResponse,
 )
 from nemoguardrails.rails.llm.utils import get_history_cache_key
-from nemoguardrails.streaming import StreamingHandler
+from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 from nemoguardrails.utils import (
     extract_error_json,
     get_or_create_event_loop,
@@ -712,7 +712,7 @@ class LLMRails:
                     error_payload = json.dumps(error_dict)
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
-                    await streaming_handler.push_chunk(None)
+                    await streaming_handler.push_chunk(END_OF_STREAM)
                 # Re-raise the exact exception
                 raise
         else:
@@ -827,7 +827,7 @@ class LLMRails:
         streaming_handler = streaming_handler_var.get()
         if streaming_handler:
             # print("Closing the stream handler explicitly")
-            await streaming_handler.push_chunk(None)
+            await streaming_handler.push_chunk(END_OF_STREAM)
 
         # IF tracing is enabled we need to set GenerationLog attrs
         if self.config.tracing.enabled:
