@@ -960,6 +960,13 @@ class LLMRails:
         include_generation_metadata: Optional[bool] = False,
     ) -> AsyncIterator[str]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
+        explain_info = explain_info_var.get()
+        if explain_info is None:
+            explain_info = ExplainInfo()
+            explain_info_var.set(explain_info)
+
+        self.explain_info = explain_info
+
         streaming_handler = StreamingHandler(
             include_generation_metadata=include_generation_metadata
         )
