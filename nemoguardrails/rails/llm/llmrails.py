@@ -576,6 +576,20 @@ class LLMRails:
 
         return events
 
+    @staticmethod
+    def _ensure_explain_info() -> ExplainInfo:
+        """Ensure that the ExplainInfo variable is present in the current context
+
+        Returns:
+            A ExplainInfo class containing the llm calls' statistics
+        """
+        explain_info = explain_info_var.get()
+        if explain_info is None:
+            explain_info = ExplainInfo()
+            explain_info_var.set(explain_info)
+
+        return explain_info
+
     async def generate_async(
         self,
         prompt: Optional[str] = None,
