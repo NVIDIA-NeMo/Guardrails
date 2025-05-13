@@ -648,14 +648,7 @@ class LLMRails:
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
         # requests are made.
-        explain_info = explain_info_var.get()
-        if explain_info is None:
-            explain_info = ExplainInfo()
-            explain_info_var.set(explain_info)
-
-            # We also keep a general reference to this object
-            self.explain_info = explain_info
-        self.explain_info = explain_info
+        self.explain_info = self._ensure_explain_info()
 
         if prompt is not None:
             # Currently, we transform the prompt request into a single turn conversation
@@ -819,9 +812,9 @@ class LLMRails:
 
         # If logging is enabled, we log the conversation
         # TODO: add support for logging flag
-        explain_info.colang_history = get_colang_history(events)
+        self.explain_info.colang_history = get_colang_history(events)
         if self.verbose:
-            log.info(f"Conversation history so far: \n{explain_info.colang_history}")
+            log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
 
         total_time = time.time() - t0
         log.info(
