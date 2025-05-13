@@ -51,7 +51,6 @@ from nemoguardrails.context import (
     generation_options_var,
     llm_stats_var,
     raw_llm_request,
-    reasoning_trace_var,
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex
