@@ -967,12 +967,7 @@ class LLMRails:
         include_generation_metadata: Optional[bool] = False,
     ) -> AsyncIterator[str]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
-        explain_info = explain_info_var.get()
-        if explain_info is None:
-            explain_info = ExplainInfo()
-            explain_info_var.set(explain_info)
-
-        self.explain_info = explain_info
+        self.explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(
             include_generation_metadata=include_generation_metadata
@@ -1292,13 +1287,6 @@ class LLMRails:
                 **action_params,
             }
 
-        def _update_explain_info():
-            explain_info = explain_info_var.get()
-            if explain_info is None:
-                explain_info = ExplainInfo()
-                explain_info_var.set(explain_info)
-                self.explain_info = explain_info
-
         output_rails_streaming_config = self.config.rails.output.streaming
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
         output_rails_flows_id = self.config.rails.output.flows
@@ -1343,7 +1331,7 @@ class LLMRails:
                     action_name, params
                 )
                 # Include explain info (whatever _update_explain_info does)
-                _update_explain_info()
+                self.explain_info = self._ensure_explain_info()
 
                 # Retrieve the action function from the dispatcher
                 action_func = self.runtime.action_dispatcher.get_action(action_name)
