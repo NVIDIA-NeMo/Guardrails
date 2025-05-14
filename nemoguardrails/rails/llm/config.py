@@ -25,7 +25,7 @@ import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
-    ValidationError,
+    Field,
     model_validator,
     root_validator,
     validator,
@@ -77,7 +77,7 @@ class ReasoningModelConfig(BaseModel):
     )
     remove_thinking_traces: Optional[bool] = Field(
         default=None,
-        description="[DEPRECATED] Use remove_reasoning_traces instead. For reasoning models (e.g. DeepSeek-r1), if the output parser should remove thinking traces.",
+        deprecated="The `remove_thinking_traces` field is deprecated use remove_reasoning_traces instead.",
     )
     start_token: Optional[str] = Field(
         default="<think>",
@@ -89,17 +89,9 @@ class ReasoningModelConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def handle_deprecated_field(self) -> "ReasoningModelConfig":
-        """Handle the deprecated remove_thinking_traces field."""
+    def _migrate_thinking_traces(self) -> "ReasoningModelConfig":
+        # If someone uses the old field, propagate it silently
         if self.remove_thinking_traces is not None:
-            import warnings
-
-            warnings.warn(
-                "The 'remove_thinking_traces' field is deprecated and will be removed in 0.15.0 version. "
-                "Please use 'remove_reasoning_traces' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
             self.remove_reasoning_traces = self.remove_thinking_traces
         return self
 
@@ -472,7 +464,7 @@ class OutputRails(BaseModel):
         description="Configuration for streaming output rails.",
     )
 
-    apply_to_reasoning_traces: bool = Field(
+    apply_to_reasoning_traces: Optional[bool] = Field(
         default=False,
         description=(
             "If True, output rails will apply guardrails to both reasoning traces and output response. "
