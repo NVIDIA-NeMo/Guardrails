@@ -813,7 +813,9 @@ class LLMRails:
         # TODO: add support for logging flag
         self.explain_info.colang_history = get_colang_history(events)
         if self.verbose:
-            log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
+            log.info(
+                f"Conversation history so far: \n{self.explain_info.colang_history}"
+            )
 
         total_time = time.time() - t0
         log.info(

@@ -50,10 +50,10 @@ async def test_1():
     }, "message content do not match"
 
     # note that 2 llm call are expected as we matched the bot intent
-    assert len(chat.app.explain().llm_calls) == 2, (
-        "number of llm call not as expected. Expected 2, found {}".format(
-            len(chat.app.explain().llm_calls)
-        )
+    assert (
+        len(chat.app.explain().llm_calls) == 2
+    ), "number of llm call not as expected. Expected 2, found {}".format(
+        len(chat.app.explain().llm_calls)
     )
 
 
@@ -108,10 +108,10 @@ async def test_2():
         chunks.append(chunk)
 
     # note that 6 llm call are expected as we matched the bot intent
-    assert len(chat.app.explain().llm_calls) == 5, (
-        "number of llm call not as expected. Expected 5, found {}".format(
-            len(chat.app.explain().llm_calls)
-        )
+    assert (
+        len(chat.app.explain().llm_calls) == 5
+    ), "number of llm call not as expected. Expected 5, found {}".format(
+        len(chat.app.explain().llm_calls)
     )
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
