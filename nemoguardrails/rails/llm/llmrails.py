@@ -51,7 +51,6 @@ from nemoguardrails.context import (
     generation_options_var,
     llm_stats_var,
     raw_llm_request,
-    reasoning_trace_var,
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex
@@ -576,6 +575,20 @@ class LLMRails:
 
         return events
 
+    @staticmethod
+    def _ensure_explain_info() -> ExplainInfo:
+        """Ensure that the ExplainInfo variable is present in the current context
+
+        Returns:
+            A ExplainInfo class containing the llm calls' statistics
+        """
+        explain_info = explain_info_var.get()
+        if explain_info is None:
+            explain_info = ExplainInfo()
+            explain_info_var.set(explain_info)
+
+        return explain_info
+
     async def generate_async(
         self,
         prompt: Optional[str] = None,
@@ -634,14 +647,7 @@ class LLMRails:
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
         # requests are made.
-        explain_info = explain_info_var.get()
-        if explain_info is None:
-            explain_info = ExplainInfo()
-            explain_info_var.set(explain_info)
-
-            # We also keep a general reference to this object
-            self.explain_info = explain_info
-        self.explain_info = explain_info
+        self.explain_info = self._ensure_explain_info()
 
         if prompt is not None:
             # Currently, we transform the prompt request into a single turn conversation
@@ -805,9 +811,9 @@ class LLMRails:
 
         # If logging is enabled, we log the conversation
         # TODO: add support for logging flag
-        explain_info.colang_history = get_colang_history(events)
+        self.explain_info.colang_history = get_colang_history(events)
         if self.verbose:
-            log.info(f"Conversation history so far: \n{explain_info.colang_history}")
+            log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
 
         total_time = time.time() - t0
         log.info(
@@ -960,6 +966,8 @@ class LLMRails:
         include_generation_metadata: Optional[bool] = False,
     ) -> AsyncIterator[str]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
+        self.explain_info = self._ensure_explain_info()
+
         streaming_handler = StreamingHandler(
             include_generation_metadata=include_generation_metadata
         )
@@ -1278,13 +1286,6 @@ class LLMRails:
                 **action_params,
             }
 
-        def _update_explain_info():
-            explain_info = explain_info_var.get()
-            if explain_info is None:
-                explain_info = ExplainInfo()
-                explain_info_var.set(explain_info)
-                self.explain_info = explain_info
-
         output_rails_streaming_config = self.config.rails.output.streaming
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
         output_rails_flows_id = self.config.rails.output.flows
@@ -1329,7 +1330,7 @@ class LLMRails:
                     action_name, params
                 )
                 # Include explain info (whatever _update_explain_info does)
-                _update_explain_info()
+                self.explain_info = self._ensure_explain_info()
 
                 # Retrieve the action function from the dispatcher
                 action_func = self.runtime.action_dispatcher.get_action(action_name)
