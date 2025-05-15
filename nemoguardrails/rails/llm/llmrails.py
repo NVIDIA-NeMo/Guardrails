@@ -1297,7 +1297,7 @@ class LLMRails:
         )
 
         async for chunk_list, chunk_str_rep in buffer_strategy(streaming_handler):
-            chunk_str = " ".join(chunk_list)
+            chunk_str = "".join(chunk_list)
 
             # Check if chunk_str_rep is a JSON string
             # we yield a json error payload in generate_async when
