@@ -538,6 +538,9 @@ class LLMRails:
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
                     events.append(msg["event"])
+                elif msg["role"] == "system":
+                    # Handle system messages - convert them to SystemMessage events
+                    events.append({"type": "SystemMessage", "content": msg["content"]})
         else:
             for idx in range(len(messages)):
                 msg = messages[idx]
@@ -557,6 +560,9 @@ class LLMRails:
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
                     events.append(msg["event"])
+                elif msg["role"] == "system":
+                    # Handle system messages - convert them to SystemMessage events
+                    events.append({"type": "SystemMessage", "content": msg["content"]})
                 elif msg["role"] == "tool":
                     action_uid = msg["tool_call_id"]
                     return_value = msg["content"]
@@ -1275,7 +1281,6 @@ class LLMRails:
             return {
                 # TODO:: are there other context variables that need to be passed?
                 # passing events to compute context was not successful
-                # self._events failed
                 # context var failed due to different context
                 "context": context,
                 "llm_task_manager": self.runtime.llm_task_manager,

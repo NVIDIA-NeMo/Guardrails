@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Prompts for the various steps in the interaction."""
+
 import os
 from typing import List, Union
 
@@ -77,24 +78,35 @@ def _get_prompt(
             _score = 0.2
         else:
             for _model in prompt.models:
-                # If we have an exact match, the score is 1.
+                # If we have an exact match for the full task_model string (e.g., "engine/provider/model-variant")
                 if _model == model:
                     _score = 1
                     break
 
-                # If we match just the provider, the score is 0.5.
+                # is a provider/base_model pattern matching the model path component of `model` (task_model string).
+                parts = model.split("/", 1)
+                config_model_path = parts[1] if len(parts) > 1 else parts[0]
+
+                if "/" in _model and config_model_path.startswith(_model):
+                    if _model == config_model_path:
+                        # _model exactly matches the model path component (e.g., "nvidia/llama-3.1-nemotron-ultra-253b-v1")
+                        _score = 0.8
+                    else:
+                        # _model is a proper prefix (e.g., "nvidia/llama-3.1-nemotron" for "...-ultra-253b-v1")
+                        _score = 0.9
+                    break
+
                 elif model.startswith(_model + "/"):
                     _score = 0.5
                     break
 
-                # If we match just the model, the score is 0.8.
                 elif model.endswith("/" + _model):
                     _score = 0.8
                     break
 
-                # If we match a substring, the score is 0.4
                 elif _model in model:
                     _score = 0.4
+                    break
 
         if prompt.mode != prompting_mode:
             # Penalize matching score for being in an incorrect mode.

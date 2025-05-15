@@ -1,0 +1,365 @@
+# Collection of all the prompts for Nemotron models
+# This file contains message-based prompts for Nemotron models
+prompts:
+  - task: general
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      # by default detailed thinking is off
+      # user can turn it on using the system message, not the other way
+      - type: system
+        content: |
+          {{ general_instructions }}{% if relevant_chunks != None and relevant_chunks != '' %}
+          This is some relevant context:
+          ```markdown
+          {{ relevant_chunks }}
+          ```{% endif %}
+      - "{{ history | to_chat_messages }}"
+
+  # Prompt for detecting the user message canonical form.
+  - task: generate_user_intent
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+          Your task is to generate the user intent in a conversation given the last user message similar to the examples below.
+          Do not provide any explanations, just output the user intent.
+
+          # Examples:
+          {{ examples | verbose_v1 }}
+
+      - "{{ sample_conversation | first_turns(2) | to_messages }}"
+      - "{{ history | colang | to_messages }}"
+      - type: assistant
+        content: |
+          Bot thinking: potential user intents are: {{ potential_user_intents }}
+
+    output_parser: "verbose_v1"
+
+  # Prompt for generating the next steps.
+  - task: generate_next_steps
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+          Your task is to generate the next steps in a conversation given the last user message similar to the examples below.
+          Do not provide any explanations, just output the user intent and the next steps.
+
+          # Examples:
+          {{ examples | remove_text_messages | verbose_v1 }}
+
+      - "{{ sample_conversation | first_turns(2) | to_intent_messages }}"
+      - "{{ history | colang | to_intent_messages }}"
+
+    output_parser: "verbose_v1"
+
+  # Prompt for generating the bot message from a canonical form.
+  - task: generate_bot_message
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}{% if relevant_chunks != None and relevant_chunks != '' %}
+          This is some relevant context:
+          ```markdown
+          {{ relevant_chunks }}
+          ```{% endif %}
+          Your task is to generate the bot message in a conversation given the last user message, user intent and bot intent.
+          Similar to the examples below.
+          Do not provide any explanations, just output the bot message.
+
+          # Examples:
+          {{ examples | verbose_v1 }}
+
+      - "{{ sample_conversation | first_turns(2) | to_intent_messages_2 }}"
+      - "{{ history | colang | to_intent_messages_2 }}"
+
+    output_parser: "verbose_v1"
+    max_length: 16000
+    mode: "standard"
+
+  # Prompt for generating the user intent, next steps and bot message in a single call.
+  - task: generate_intent_steps_message
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}{% if relevant_chunks != None and relevant_chunks != '' %}
+          This is some relevant context:
+          ```markdown
+          {{ relevant_chunks }}
+          ```{% endif %}
+
+          Your task is to generate the user intent and the next steps in a conversation given the last user message similar to the examples below.
+          Do not provide any explanations, just output the user intent and the next steps.
+
+          # Examples:
+          {{ examples | verbose_v1 }}
+
+      - "{{ sample_conversation | first_turns(2) | to_messages }}"
+      - "{{ history | colang | to_messages }}"
+      - type: assistant
+        content: |
+          Bot thinking: potential user intents are: {{ potential_user_intents }}
+
+    output_parser: "verbose_v1"
+
+  # Prompt for generating the value of a context variable.
+  - task: generate_value
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+          Your task is to generate value for the ${{ var_name }} variable..
+          Do not provide any explanations, just output value.
+
+          # Examples:
+          {{ examples | verbose_v1 }}
+
+      - "{{ sample_conversation | first_turns(2) | to_messages }}"
+      - "{{ history | colang | to_messages }}"
+      - type: assistant
+        content: |
+          Bot thinking: follow the following instructions: {{ instructions }}
+          ${{ var_name }} =
+
+    output_parser: "verbose_v1"
+
+  # Colang 2 prompts below.
+
+  # Prompt for detecting the user message canonical form.
+  - task: generate_user_intent_from_user_action
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+      - type: system
+        content: "This is how a conversation between a user and the bot can go:"
+      - "{{ sample_conversation | to_messages_v2 }}"
+
+      - type: system
+        content: |-
+          "These are the most likely user intents:"
+          {{ examples }}
+
+      - type: system
+        content: "This is the current conversation between the user and the bot:"
+      - "{{ history | colang | to_messages_v2}}"
+
+      - type: user
+        content: "user action: {{ user_action }}"
+
+      - type: system
+        content: "Derive `user intent:` from user action considering the intents from section 'These are the most likely user intents':"
+
+  - task: generate_user_intent_and_bot_action_from_user_action
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+      - type: system
+        content: "This is how a conversation between a user and the bot can go:"
+      - "{{ sample_conversation | to_messages_v2 }}"
+
+      - type: system
+        content: |
+          {% if context.relevant_chunks %}
+          # This is some additional context:
+          ```markdown
+          {{ context.relevant_chunks }}
+          ```
+          {% endif %}
+
+      - type: system
+        content: |-
+          "These are the most likely user intents:"
+          {{ examples }}
+
+      - type: system
+        content: "This is the current conversation between the user and the bot:"
+      - "{{ history | colang | to_messages_v2}}"
+
+      - type: user
+        content: "user action: {{ user_action }}"
+
+      - type: system
+        content: "Continuation of the interaction starting with a `user intent:` from the section 'These are the most likely user intents':"
+
+  # Prompt for generating the value of a context variable.
+  - task: generate_value_from_instruction
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+          Your task is to generate value for the ${{ var_name }} variable..
+          Do not provide any explanations, just output value.
+
+      - type: system
+        content: "This is how a conversation between a user and the bot can go:"
+      - "{{ sample_conversation | to_messages_v2 }}"
+
+      - type: system
+        content: "This is the current conversation between the user and the bot:"
+      - "{{ history | colang | to_messages_v2}}"
+
+      - type: assistant
+        content: |
+          Follow these instruction `{{ instructions }}` to generate a value that is assigned to:
+          ${{ var_name }} =
+
+  # Prompt for generating a flow from instructions.
+  - task: generate_flow_from_instructions
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+          Your task is to complete a flow based on its instructions.
+          Do not provide any explanations, just output the flow.
+
+      - type: system
+        content: |-
+          These are some example flows:
+          {{ examples }}
+
+      - type: system
+        content: |-
+          Complete the following flow based on its instruction:
+          flow {{ flow_name }}
+            """{{ instructions }}"""
+
+  # Prompt for generating a flow from name.
+  - task: generate_flow_from_name
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+          Your task is to generate a flow from the provided flow name ${{ flow_name }}.
+          Do not provide any explanations, just output value.
+
+      - type: system
+        content: "This is the current conversation between the user and the bot:"
+      - "{{ history | colang | to_messages_v2}}"
+
+      - type: system
+        content: |-
+          These are some example flows:
+          {{ examples }}
+
+      - type: system
+        content: |-
+          Complete the following flow based on its name:
+          flow {{ flow_name }}
+
+          Do not provide any explanations, just output value.
+    stop:
+      - "\nflow"
+
+    # Prompt for generating the continuation for the current conversation.
+  - task: generate_flow_continuation
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          {{ general_instructions }}
+
+      - type: system
+        content: "This is how a conversation between a user and the bot can go:"
+      - "{{ sample_conversation | to_messages_v2 }}"
+
+      - type: system
+        content: "This is the current conversation between the user and the bot:"
+      - "{{ history | colang | to_messages_v2 }}"
+
+      - type: system
+        content: |
+          {% if context.relevant_chunks %}
+          # This is some additional context:
+          ```markdown
+          {{ context.relevant_chunks }}
+          ```
+          {% endif %}
+
+      - type: system
+        content: "Continuation of interaction:"
+
+  - task: generate_flow_continuation_from_flow_nld
+    models:
+      - nvidia/nemotron
+      - nemotron
+    messages:
+      - type: system
+        content: |
+          detailed thinking on
+      - type: system
+        content: |
+          Directly response with expected answer. Don't provide any pre- or post-explanations.
+
+      - type: system
+        content: |-
+          {{ flow_nld }}
