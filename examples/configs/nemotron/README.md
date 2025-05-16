@@ -88,7 +88,7 @@ Response:
 
 To remove the reasoning traces from the internal tasks, you can use the `remove_thinking_traces` configuration option:
 
-# TODO: add reference to the docs
+For more information see [LLMs with Reasoning Traces](docs/user-guides/configuration-guide.md#using-llms-with-reasoning-traces)
 
 ```yaml
 remove_thinking_traces: true
