@@ -86,7 +86,7 @@ Response:
  'content': 'The weather! Unfortunately, I don\'t have real-time access to current weather conditions or your location. I\'m a large language model...'}
 ```
 
-To remove the thinking traces from the internal tasks, you can use the `remove_thinking_traces` configuration option:
+To remove the reasoning traces from the internal tasks, you can use the `remove_thinking_traces` configuration option:
 
 # TODO: add reference to the docs
 
