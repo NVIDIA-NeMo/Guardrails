@@ -4,7 +4,7 @@ This directory contains configurations for using Nemotron models with NeMo Guard
 
 ## Message-Based Prompts with Detailed Thinking
 
-NeMo Guardrails implements message-based prompts for Nemotron models with "detailed thinking" enabled for specific internal tasks:
+NeMo Guardrails implements message-based prompts for Nemotron models with _detailed thinking_ enabled for specific internal tasks:
 
 ### Tasks with Detailed Thinking Enabled
 
