@@ -49,7 +49,7 @@ When using a task that has "detailed thinking on" enabled, the model will show i
 
 ### Controlling Detailed Thinking in Final Responses
 
-As Nemotron is a hybrid reasoning model, users can toggle the "detailed thinking" feature for final responses similar to how it works on build.nvidia.com:
+As Nemotron is a hybrid reasoning model, users can toggle the "detailed thinking" feature for final responses similar to how it works on build.nvidia.com as long as you are not using dialog rails:
 
 #### Enabling Detailed Thinking via System Message
 
