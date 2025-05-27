@@ -82,12 +82,7 @@ async def content_safety_check_input(
     result = llm_task_manager.parse_task_output(task, output=result)
     result = result.text
 
-    try:
-        is_safe, violated_policies = result
-    # in case the result is single value
-    except TypeError:
-        is_safe = result
-        violated_policies = []
+    is_safe, *violated_policies = result
 
     return {"allowed": is_safe, "policy_violations": violated_policies}
 
@@ -164,11 +159,6 @@ async def content_safety_check_output(
     result = llm_task_manager.parse_task_output(task, output=result)
 
     result = result.text
-
-    try:
-        is_safe, violated_policies = result
-    except TypeError:
-        is_safe = result
-        violated_policies = []
+    is_safe, *violated_policies = result
 
     return {"allowed": is_safe, "policy_violations": violated_policies}
