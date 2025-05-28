@@ -39,7 +39,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Allow reasoning traces when embeddings_only is True ([#1170](https://github.com/NVIDIA/NeMo-Guardrails/issues/1170))
 - Prevent explain_info overwrite during stream_async ([#1194](https://github.com/NVIDIA/NeMo-Guardrails/issues/1194))
 - Colang 2 issues in community integrations ([#1140](https://github.com/NVIDIA/NeMo-Guardrails/issues/1140))
-- *(tests)* Ensure proper asyncio task cleanup in test_streaming_handler.py ([#1182](https://github.com/NVIDIA/NeMo-Guardrails/issues/1182))
+- Ensure proper asyncio task cleanup in test_streaming_handler.py ([#1182](https://github.com/NVIDIA/NeMo-Guardrails/issues/1182))
 
 ### 🚜 Refactor
 
@@ -59,11 +59,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add providers fuzzy search cli command ([#1089](https://github.com/NVIDIA/NeMo-Guardrails/issues/1089))
 - Clarify purpose of model parameters field in configuration guide ([#1181](https://github.com/NVIDIA/NeMo-Guardrails/issues/1181))
 - Output rails are supported with streaming ([#1007](https://github.com/NVIDIA/NeMo-Guardrails/issues/1007))
-- Updates for release ([#1071](https://github.com/NVIDIA/NeMo-Guardrails/issues/1071))
-
-### 🧪 Testing
-
-- *(streaming)* Add extensive tests for StreamingHandler to enhance coverage ([#1183](https://github.com/NVIDIA/NeMo-Guardrails/issues/1183))
+- Add mention of Nemotron ([#1200](https://github.com/NVIDIA/NeMo-Guardrails/issues/1200))
+- Fix output rail doc ([#1159](https://github.com/NVIDIA/NeMo-Guardrails/issues/1159))
+- Revise GS example in getting started doc ([#1146](https://github.com/NVIDIA/NeMo-Guardrails/issues/1146))
+- Possible update to injection detection ([#1144](https://github.com/NVIDIA/NeMo-Guardrails/issues/1144))
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -75,7 +74,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix and revert poetry lock to its stable state ([#1133](https://github.com/NVIDIA/NeMo-Guardrails/issues/1133))
 - Add Codecov integration to workflows ([#1143](https://github.com/NVIDIA/NeMo-Guardrails/issues/1143))
 - Add Python 3.12 and 3.13 test jobs to gitlab workflow ([#1171](https://github.com/NVIDIA/NeMo-Guardrails/issues/1171))
-- Add default configuration for git-cliff
+- Identify OS packages to install in contribution guide([#1136](https://github.com/NVIDIA/NeMo-Guardrails/issues/1136))
 
 ## [0.13.0] - 2025-03-25
 
