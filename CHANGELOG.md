@@ -9,6 +9,74 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.14.0] - 2025-05-28
+
+### 🚀 Features
+
+- Change topic following prompt to allow chitchat ([#1097](https://github.com/NVIDIA/NeMo-Guardrails/issues/1097))
+- Validate model name configuration ([#1084](https://github.com/NVIDIA/NeMo-Guardrails/issues/1084))
+- Add support for langchain partner and community chat models ([#1085](https://github.com/NVIDIA/NeMo-Guardrails/issues/1085))
+- Add fuzzy find provider capability to cli ([#1088](https://github.com/NVIDIA/NeMo-Guardrails/issues/1088))
+- Add code injection detection to guardrails library ([#1091](https://github.com/NVIDIA/NeMo-Guardrails/issues/1091))
+- Add clavata community integration ([#1027](https://github.com/NVIDIA/NeMo-Guardrails/issues/1027))
+- Implement validation to forbid dialog rails with reasoning traces ([#1137](https://github.com/NVIDIA/NeMo-Guardrails/issues/1137))
+- Load yara lazily to avoid action dispatcher error ([#1162](https://github.com/NVIDIA/NeMo-Guardrails/issues/1162))
+- Add support for system messages to RunnableRails ([#1106](https://github.com/NVIDIA/NeMo-Guardrails/issues/1106))
+- Add api_key_env_var to Model, pass in kwargs to langchain initializer ([#1142](https://github.com/NVIDIA/NeMo-Guardrails/issues/1142))
+- Add inline YARA rules support ([#1164](https://github.com/NVIDIA/NeMo-Guardrails/issues/1164))
+- [**breaking**] Add support for preserving and optionally applying guardrails to reasoning traces ([#1145](https://github.com/NVIDIA/NeMo-Guardrails/issues/1145))
+- Prevent reasoning traces from contaminating LLM prompt history ([#1169](https://github.com/NVIDIA/NeMo-Guardrails/issues/1169))
+- Add RailException support to injection detection and improve error handling ([#1178](https://github.com/NVIDIA/NeMo-Guardrails/issues/1178))
+- Add Nemotron model support with message-based prompts ([#1199](https://github.com/NVIDIA/NeMo-Guardrails/issues/1199))
+
+### 🐛 Bug Fixes
+
+- Correct task name for self_check_facts ([#1040](https://github.com/NVIDIA/NeMo-Guardrails/issues/1040))
+- Error in LLMRails with tracing enabled ([#1103](https://github.com/NVIDIA/NeMo-Guardrails/issues/1103))
+- Self check output colang 1 flow ([#1126](https://github.com/NVIDIA/NeMo-Guardrails/issues/1126))
+- Use ValueError in TaskPrompt to resolve TypeError raised by Pydantic ([#1132](https://github.com/NVIDIA/NeMo-Guardrails/issues/1132))
+- Correct dialog rails activation logic ([#1161](https://github.com/NVIDIA/NeMo-Guardrails/issues/1161))
+- Allow reasoning traces when embeddings_only is True ([#1170](https://github.com/NVIDIA/NeMo-Guardrails/issues/1170))
+- Prevent explain_info overwrite during stream_async ([#1194](https://github.com/NVIDIA/NeMo-Guardrails/issues/1194))
+- Colang 2 issues in community integrations ([#1140](https://github.com/NVIDIA/NeMo-Guardrails/issues/1140))
+- *(tests)* Ensure proper asyncio task cleanup in test_streaming_handler.py ([#1182](https://github.com/NVIDIA/NeMo-Guardrails/issues/1182))
+
+### 🚜 Refactor
+
+- Reorganize HuggingFace provider structure ([#1083](https://github.com/NVIDIA/NeMo-Guardrails/issues/1083))
+- Remove support for deprecated nemollm engine ([#1076](https://github.com/NVIDIA/NeMo-Guardrails/issues/1076))
+- [**breaking**] Remove deprecated return_context argument ([#1147](https://github.com/NVIDIA/NeMo-Guardrails/issues/1147))
+- Rename `remove_thinking_traces` field to `remove_reasoning_traces` ([#1176](https://github.com/NVIDIA/NeMo-Guardrails/issues/1176))
+- Update deprecated field handling  for remove_thinking_traces ([#1196](https://github.com/NVIDIA/NeMo-Guardrails/issues/1196))
+- Introduce END_OF_STREAM sentinel and update handling ([#1185](https://github.com/NVIDIA/NeMo-Guardrails/issues/1185))
+
+### 📚 Documentation
+
+- Remove markup from code block ([#1081](https://github.com/NVIDIA/NeMo-Guardrails/issues/1081))
+- Replace img tag with Markdown images ([#1087](https://github.com/NVIDIA/NeMo-Guardrails/issues/1087))
+- Remove NeMo Service (nemollm) documentation ([#1077](https://github.com/NVIDIA/NeMo-Guardrails/issues/1077))
+- Update cleanlab integration description ([#1080](https://github.com/NVIDIA/NeMo-Guardrails/issues/1080))
+- Add providers fuzzy search cli command ([#1089](https://github.com/NVIDIA/NeMo-Guardrails/issues/1089))
+- Clarify purpose of model parameters field in configuration guide ([#1181](https://github.com/NVIDIA/NeMo-Guardrails/issues/1181))
+- Output rails are supported with streaming ([#1007](https://github.com/NVIDIA/NeMo-Guardrails/issues/1007))
+- Updates for release ([#1071](https://github.com/NVIDIA/NeMo-Guardrails/issues/1071))
+
+### 🧪 Testing
+
+- *(streaming)* Add extensive tests for StreamingHandler to enhance coverage ([#1183](https://github.com/NVIDIA/NeMo-Guardrails/issues/1183))
+
+### ⚙️ Miscellaneous Tasks
+
+- Dynamically set version using importlib.metadata ([#1072](https://github.com/NVIDIA/NeMo-Guardrails/issues/1072))
+- Add link to topic control config and prompts ([#1098](https://github.com/NVIDIA/NeMo-Guardrails/issues/1098))
+- Reorganize GitHub workflows for better test coverage ([#1079](https://github.com/NVIDIA/NeMo-Guardrails/issues/1079))
+- Add summary jobs for workflow branch protection ([#1120](https://github.com/NVIDIA/NeMo-Guardrails/issues/1120))
+- Add Adobe Analytics configuration ([#1138](https://github.com/NVIDIA/NeMo-Guardrails/issues/1138))
+- Fix and revert poetry lock to its stable state ([#1133](https://github.com/NVIDIA/NeMo-Guardrails/issues/1133))
+- Add Codecov integration to workflows ([#1143](https://github.com/NVIDIA/NeMo-Guardrails/issues/1143))
+- Add Python 3.12 and 3.13 test jobs to gitlab workflow ([#1171](https://github.com/NVIDIA/NeMo-Guardrails/issues/1171))
+- Add default configuration for git-cliff
+
 ## [0.13.0] - 2025-03-25
 
 ### 🚀 Features
