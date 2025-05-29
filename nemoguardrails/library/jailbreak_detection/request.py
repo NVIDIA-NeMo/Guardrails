@@ -96,14 +96,18 @@ async def jailbreak_detection_model_request(
 
 
 async def jailbreak_nim_request(
-    prompt: str, nim_url: str, nim_port: int, nim_auth_token: str
+    prompt: str,
+    nim_url: str,
+    nim_port: int,
+    nim_auth_token: str,
+    nim_classification_path: str,
 ):
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     payload = {
         "input": prompt,
     }
 
-    endpoint = f"http://{nim_url}:{nim_port}/v1/classify"
+    endpoint = f"http://{nim_url}:{nim_port}{nim_classification_path}"
     try:
         async with aiohttp.ClientSession() as session:
             try:

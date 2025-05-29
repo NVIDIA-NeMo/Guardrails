@@ -576,6 +576,9 @@ class JailbreakDetectionConfig(BaseModel):
         default=None,
         description="API key for JailbreakDetect NIM",
     )
+    nim_classification_path: Optional[str] = Field(
+        default="/v1/classify", description="Classification path uri"
+    )
     embedding: Optional[str] = Field(
         default="nvidia/nv-embedqa-e5-v5",
         description="DEPRECATED: Model to use for embedding-based detections. Use NIM instead.",

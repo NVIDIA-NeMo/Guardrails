@@ -97,6 +97,7 @@ async def jailbreak_detection_model(
     nim_url = jailbreak_config.nim_url
     nim_port = jailbreak_config.nim_port
     nim_auth_token = jailbreak_config.nim_auth_token
+    nim_classification_path = jailbreak_config.nim_classification_path
 
     if context is not None:
         prompt = context.get("user_message", "")
@@ -121,6 +122,7 @@ async def jailbreak_detection_model(
             nim_url=nim_url,
             nim_port=nim_port,
             nim_auth_token=nim_auth_token,
+            nim_classification_path=nim_classification_path,
         )
     elif jailbreak_api_url:
         jailbreak = await jailbreak_detection_model_request(
