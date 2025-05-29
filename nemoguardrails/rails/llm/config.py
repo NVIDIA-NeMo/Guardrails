@@ -556,7 +556,7 @@ class JailbreakDetectionConfig(BaseModel):
 
     server_endpoint: Optional[str] = Field(
         default=None,
-        description="The endpoint for the jailbreak detection heuristics server.",
+        description="The endpoint for the jailbreak detection server.",
     )
     length_per_perplexity_threshold: float = Field(
         default=89.79, description="The length/perplexity threshold."
@@ -571,6 +571,10 @@ class JailbreakDetectionConfig(BaseModel):
     nim_port: int = Field(
         default=8000,
         description="Port the NemoGuard JailbreakDetect NIM is listening on.",
+    )
+    nim_auth_token: Optional[str] = Field(
+        default=None,
+        description="API key for JailbreakDetect NIM",
     )
     embedding: Optional[str] = Field(
         default="nvidia/nv-embedqa-e5-v5",
