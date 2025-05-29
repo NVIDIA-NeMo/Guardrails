@@ -18,7 +18,6 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
 
 3. Third-Party APIs
    - [ActiveFence Moderation](#activefence)
-   - [Got It AI RAG TruthChecker](#got-it-ai)
    - [AutoAlign](#autoalign)
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
