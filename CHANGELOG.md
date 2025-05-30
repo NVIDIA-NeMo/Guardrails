@@ -75,6 +75,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add Codecov integration to workflows ([#1143](https://github.com/NVIDIA/NeMo-Guardrails/issues/1143))
 - Add Python 3.12 and 3.13 test jobs to gitlab workflow ([#1171](https://github.com/NVIDIA/NeMo-Guardrails/issues/1171))
 - Identify OS packages to install in contribution guide([#1136](https://github.com/NVIDIA/NeMo-Guardrails/issues/1136))
+- Remove Got It AI from ToC in 3rd party docs([#1213](https://github.com/NVIDIA/NeMo-Guardrails/issues/1213))
 
 ## [0.13.0] - 2025-03-25
 
