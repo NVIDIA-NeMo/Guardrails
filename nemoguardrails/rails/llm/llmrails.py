@@ -362,11 +362,14 @@ class LLMRails:
         Raises:
             ModelInitializationError: If any model initialization fails
         """
-        # If we already have a pre-configured one,
-        # we just need to register the LLM as an action param.
+        # If the user supplied an already-constructed LLM via the constructor we
+        # treat it as the *main* model, but **still** iterate through the
+        # configuration to load any additional models (e.g. `content_safety`).
+
+        injected_main_llm = False
         if self.llm is not None:
             self.runtime.register_action_param("llm", self.llm)
-            return
+            injected_main_llm = True
 
         llms = dict()
 
@@ -405,12 +408,17 @@ class LLMRails:
                             provider_name,
                         )
 
-                if llm_config.type == "main" or len(self.config.models) == 1:
-                    self.llm = llm_model
-                    self.runtime.register_action_param("llm", self.llm)
+                if llm_config.type == "main":
+                    # If a main LLM was already injected, skip creating another
+                    # one. Otherwise, create and register it.
+                    if not injected_main_llm:
+                        self.llm = llm_model
+                        self.runtime.register_action_param("llm", self.llm)
+                        injected_main_llm = True
                 else:
                     model_name = f"{llm_config.type}_llm"
-                    setattr(self, model_name, llm_model)
+                    if not hasattr(self, model_name):
+                        setattr(self, model_name, llm_model)
                     self.runtime.register_action_param(
                         model_name, getattr(self, model_name)
                     )
