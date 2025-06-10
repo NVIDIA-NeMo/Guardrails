@@ -99,27 +99,46 @@ async def jailbreak_nim_request(
     prompt: str,
     nim_url: str,
     nim_port: int,
+    nim_full_url: Optional[str] = None,
+    nim_auth_token: Optional[str] = None,
 ):
     payload = {
         "input": prompt,
     }
 
-    endpoint = f"http://{nim_url}:{nim_port}/v1/classify"
+    # Use full URL if provided, else construct from host/port
+    if nim_full_url:
+        endpoint = nim_full_url
+    else:
+        endpoint = f"http://{nim_url}:{nim_port}/v1/classify"
+
+    headers = {}
+    if nim_auth_token:
+        headers["Authorization"] = f"Bearer {nim_auth_token}"
+
+    log.info(f"Making NIM request to: {endpoint}")
+    log.info(f"Headers: {headers}")
+    log.info(f"Payload: {payload}")
+
     try:
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.post(endpoint, json=payload, timeout=30) as resp:
+                async with session.post(endpoint, json=payload, headers=headers, timeout=30) as resp:
+                    log.info(f"Response status: {resp.status}")
                     if resp.status != 200:
+                        response_text = await resp.text()
                         log.error(
-                            f"NemoGuard JailbreakDetect NIM request failed with status {resp.status}"
+                            f"NemoGuard JailbreakDetect NIM request failed with status {resp.status}. Response: {response_text}"
                         )
                         return None
 
                     result = await resp.json()
+                    log.info(f"Raw NIM response: {result}")
 
                     log.info(f"Prompt jailbreak check: {result}.")
                     try:
                         result = result["jailbreak"]
+                        log.info(f"Extracted jailbreak value: {result}")
                     except KeyError:
                         log.exception("No jailbreak field in result.")
                         result = None

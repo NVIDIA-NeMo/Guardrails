@@ -572,6 +572,14 @@ class JailbreakDetectionConfig(BaseModel):
         default=8000,
         description="Port the NemoGuard JailbreakDetect NIM is listening on.",
     )
+    nim_full_url: Optional[str] = Field(
+        default=None,
+        description="Full URL to the NIM endpoint, e.g. https://host/path. If set, overrides nim_url/nim_port.",
+    )
+    nim_auth_token: Optional[str] = Field(
+        default=None,
+        description="Bearer token for authenticating to the NIM endpoint.",
+    )
     embedding: Optional[str] = Field(
         default="nvidia/nv-embedqa-e5-v5",
         description="DEPRECATED: Model to use for embedding-based detections. Use NIM instead.",
