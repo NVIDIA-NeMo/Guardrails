@@ -68,7 +68,10 @@ def check_jailbreak_nim_availability():
             llm_task_manager.config.rails.config.jailbreak_detection.api_key_env_var
         )
         if not os.getenv(api_key_env_var) == test_key:
-            return False, f"Invalid JailbreakDetect environment variable: {api_key_env_var}"
+            return (
+                False,
+                f"Invalid JailbreakDetect environment variable: {api_key_env_var}",
+            )
 
         # Basic availability check passed
         return True, ""
