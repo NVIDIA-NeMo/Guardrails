@@ -50,14 +50,25 @@ def check_jailbreak_nim_availability():
         llm_task_manager = LLMTaskManager(config=config)
 
         # Check if NIM URL is configured
-        nim_url = llm_task_manager.config.rails.config.jailbreak_detection.nim_url
+        nim_url = llm_task_manager.config.rails.config.jailbreak_detection.nim_base_url
         if nim_url is None:
             return False, "JailbreakDetect NIM URL is not configured in the test config"
 
-        # Check if NIM port is configured correctly
-        nim_port = llm_task_manager.config.rails.config.jailbreak_detection.nim_port
-        if nim_port is None or nim_port < 1 or nim_port > 65535:
-            return False, f"Invalid JailbreakDetect NIM port: {nim_port}"
+        # Check if NIM endpoint is configured correctly
+        nim_endpoint = (
+            llm_task_manager.config.rails.config.jailbreak_detection.nim_server_endpoint
+        )
+        if not isinstance(nim_endpoint, str):
+            return False, f"Invalid JailbreakDetect NIM server endpoint: {nim_endpoint}"
+
+        # Check that NIM api_key_env_var is set up correctly
+        test_key = "test_key"
+        os.environ["JB_NIM_TEST"] = test_key
+        api_key_env_var = (
+            llm_task_manager.config.rails.config.jailbreak_detection.api_key_env_var
+        )
+        if not os.getenv(api_key_env_var) == test_key:
+            return False, f"Invalid JailbreakDetect environment variable: {api_key_env_var}"
 
         # Basic availability check passed
         return True, ""

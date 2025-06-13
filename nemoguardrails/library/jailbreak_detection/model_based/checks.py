@@ -13,18 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Union
 
-import numpy as np
+from nemoguardrails.library.jailbreak_detection.model_based.models import (
+    JailbreakClassifier,
+)
 
-models_path = os.environ.get("EMBEDDING_CLASSIFIER_PATH")
-
+logger = logging.getLogger(__name__)
 
 @lru_cache()
-def initialize_model(classifier_path: str = models_path) -> "JailbreakClassifier":
+def initialize_model() -> Union[None, JailbreakClassifier]:
     """
     Initialize the global classifier model according to the configuration provided.
     Args
@@ -32,14 +34,15 @@ def initialize_model(classifier_path: str = models_path) -> "JailbreakClassifier
     Returns
         jailbreak_classifier: JailbreakClassifier object combining embedding model and NemoGuard JailbreakDetect RF
     """
-    if classifier_path is None:
-        raise EnvironmentError(
-            "Please set the EMBEDDING_CLASSIFIER_PATH environment variable to point to the Classifier model_based folder"
-        )
 
-    from nemoguardrails.library.jailbreak_detection.model_based.models import (
-        JailbreakClassifier,
-    )
+    classifier_path = os.environ.get("EMBEDDING_CLASSIFIER_PATH")
+
+    if classifier_path is None:
+        # Log a warning, but do not throw an exception
+        logger.warning(
+            "No embedding classifier path set. Server /model endpoint will not work."
+        )
+        return None
 
     jailbreak_classifier = JailbreakClassifier(
         str(Path(classifier_path).joinpath("snowflake.pkl"))

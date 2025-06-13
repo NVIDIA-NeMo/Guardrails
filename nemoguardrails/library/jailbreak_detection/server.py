@@ -112,6 +112,10 @@ def run_all_heuristics(request: JailbreakHeuristicRequest):
 @app.post("/model")
 def run_model_check(request: JailbreakModelRequest):
     classifier = mc.initialize_model()
+    if classifier is None:
+        raise TypeError(
+            "No model initialized because EMBEDDING_CLASSIFIER_PATH environment variable is not set."
+        )
     result = mc.check_jailbreak(request.prompt, classifier=classifier)
     jailbreak = result["jailbreak"]
     score = result["score"]
