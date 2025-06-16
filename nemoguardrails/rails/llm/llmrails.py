@@ -1311,8 +1311,8 @@ class LLMRails:
             if stream_first:
                 words = chunk_str_rep.split()
                 if words:
-                    yield words[0]
-                    for word in words[1:]:
+                    # yield words[0]
+                    for word in words:
                         yield f" {word}"
 
             for flow_id in output_rails_flows_id:
