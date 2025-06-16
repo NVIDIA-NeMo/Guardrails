@@ -367,20 +367,29 @@ class LLMRails:
         # treat it as the *main* model, but **still** iterate through the
         # configuration to load any additional models (e.g. `content_safety`).
 
-        injected_main_llm = False
-        if self.llm is not None:
-            self.runtime.register_action_param("llm", self.llm)
-            injected_main_llm = True
+        if self.llm:
+            # If an LLM was provided via constructor, use it as the main LLM
+            self.main_llm = self.llm
+            # Log a warning if a main LLM is also specified in the config
+            if any(model.type == "main" for model in self.config.models):
+                log.warning(
+                    "Both an LLM was provided via constructor and a main LLM is specified in the config. "
+                    "The LLM provided via constructor will be used and the main LLM from config will be ignored."
+                )
+        else:
+            # Otherwise, initialize the main LLM from the config
+            main_model = next((model for model in self.config.models if model.type == "main"), None)
+            if main_model:
+                self.main_llm = init_llm_model(
+                    model_name=main_model.model,
+                    provider_name=main_model.engine,
+                    mode="chat",
+                    kwargs=main_model.parameters or {},
+                )
+            else:
+                raise ValueError("No main LLM specified in the config and no LLM provided via constructor.")
 
         llms = dict()
-
-        # Check if there's a main LLM in the config
-        config_main_llm = any(model.type == "main" for model in self.config.models)
-        if injected_main_llm and config_main_llm:
-            log.warning(
-                "Both an LLM was provided via constructor and a main LLM is specified in the config. "
-                "The LLM provided via constructor will be used and the main LLM from config will be ignored."
-            )
 
         for llm_config in self.config.models:
             if llm_config.type == "embeddings":
@@ -420,10 +429,9 @@ class LLMRails:
                 if llm_config.type == "main":
                     # If a main LLM was already injected, skip creating another
                     # one. Otherwise, create and register it.
-                    if not injected_main_llm:
+                    if not self.llm:
                         self.llm = llm_model
                         self.runtime.register_action_param("llm", self.llm)
-                        injected_main_llm = True
                 else:
                     model_name = f"{llm_config.type}_llm"
                     if not hasattr(self, model_name):
