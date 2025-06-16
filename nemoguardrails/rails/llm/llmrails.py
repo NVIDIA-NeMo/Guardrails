@@ -104,7 +104,8 @@ class LLMRails:
 
         Args:
             config: A rails configuration.
-            llm: An optional LLM engine to use.
+            llm: An optional LLM engine to use. If provided, this will be used as the main LLM
+                and will take precedence over any main LLM specified in the config.
             verbose: Whether the logging should be verbose or not.
         """
         self.config = config
@@ -372,6 +373,14 @@ class LLMRails:
             injected_main_llm = True
 
         llms = dict()
+
+        # Check if there's a main LLM in the config
+        config_main_llm = any(model.type == "main" for model in self.config.models)
+        if injected_main_llm and config_main_llm:
+            log.warning(
+                "Both an LLM was provided via constructor and a main LLM is specified in the config. "
+                "The LLM provided via constructor will be used and the main LLM from config will be ignored."
+            )
 
         for llm_config in self.config.models:
             if llm_config.type == "embeddings":
