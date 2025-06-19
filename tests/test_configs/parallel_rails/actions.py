@@ -20,14 +20,18 @@ from nemoguardrails.actions import action
 
 
 @action(is_system_action=True)
-async def check_blocked_input_terms(context: Optional[dict] = None):
+async def check_blocked_input_terms(
+    duration: float = 0.0, context: Optional[dict] = None
+):
     user_message = context.get("user_message")
 
     # A quick hard-coded list of proprietary terms. You can also read this from a file.
     proprietary_terms = ["blocked term"]
 
-    # Wait for 1 seconds to simulate a delay in processing
-    await asyncio.sleep(1)
+    # Wait to simulate a delay in processing
+    if isinstance(duration, str):
+        duration = float(duration)
+    await asyncio.sleep(duration)
 
     for term in proprietary_terms:
         if term.lower() in user_message.lower():
@@ -37,14 +41,18 @@ async def check_blocked_input_terms(context: Optional[dict] = None):
 
 
 @action(is_system_action=True)
-async def check_blocked_output_terms(context: Optional[dict] = None):
+async def check_blocked_output_terms(
+    duration: float = 0.0, context: Optional[dict] = None
+):
     bot_response = context.get("bot_message")
 
     # A quick hard-coded list of proprietary terms. You can also read this from a file.
     proprietary_terms = ["blocked term"]
 
-    # Wait for 1 seconds to simulate a delay in processing
-    await asyncio.sleep(1)
+    # Wait to simulate a delay in processing
+    if isinstance(duration, str):
+        duration = float(duration)
+    await asyncio.sleep(duration)
 
     for term in proprietary_terms:
         if term.lower() in bot_response.lower():
