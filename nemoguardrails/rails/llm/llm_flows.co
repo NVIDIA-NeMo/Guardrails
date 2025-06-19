@@ -136,7 +136,7 @@ define subflow run output rails
   """Runs all the output rails in a sequential order. """
   $output_flows = $config.rails.output.flows
 
-  if $config.rails.input.parallel
+  if $config.rails.output.parallel
     execute run_output_rails_in_parallel(flows=$output_flows)
   else
     $i = 0
