@@ -28,8 +28,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import logging
+import os
 from typing import Optional
 
 from nemoguardrails.actions import action
