@@ -40,6 +40,7 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
         "create_event",
         "run_input_rails_in_parallel",
         "run_output_rails_in_parallel",
+        "run_flows_in_parallel",
     ]
     ignored_flows = [
         "process user input",
