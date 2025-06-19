@@ -24,6 +24,7 @@ import aiohttp
 from langchain.chains.base import Chain
 
 from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails.actions.core import create_event
 from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.runtime import Runtime
@@ -169,7 +170,7 @@ class RuntimeV1_0(Runtime):
                 next_events = await self._process_start_action(events)
 
             # If we need to start a flow, we parse the content and register it.
-            elif last_event["type"] == "start_flow":
+            elif last_event["type"] == "start_flow" and last_event.get("flow_body"):
                 next_events = await self._process_start_flow(
                     events, processing_log=processing_log
                 )
@@ -200,6 +201,17 @@ class RuntimeV1_0(Runtime):
             # As a safety measure, we stop the processing if we have too many events.
             if len(new_events) > 100:
                 raise Exception("Too many events.")
+
+        # Unpack and insert events in event history update event if available
+        temp_events = []
+        for event in new_events:
+            if event["type"] == "EventHistoryUpdate":
+                temp_events.extend(
+                    [e for e in event["data"]["events"] if e["type"] != "Listen"]
+                )
+            else:
+                temp_events.append(event)
+        new_events = temp_events
 
         return new_events
 
@@ -259,6 +271,193 @@ class RuntimeV1_0(Runtime):
                 # We also want to hide this from now from the history moving forward
                 {"type": "hide_prev_turn"},
             ]
+        )
+
+    async def _run_flows_in_parallel(
+        self,
+        flows: List[str],
+        events: List[dict],
+        pre_events: Optional[List[dict]] = None,
+        post_events: Optional[List[dict]] = None,
+    ) -> ActionResult:
+        """
+        Run flows in parallel.
+
+        Running flows in parallel is done by triggering a separate event loop with a `start_flow` event for each flow, in the context of the current event loop.
+
+        Args:
+            flows (List[str]): The list of flow names to run in parallel.
+            events (List[dict]): The current events.
+            pre_events (List[dict], optional): Events to be added before starting each flow.
+            post_events (List[dict], optional): Events to be added after finishing each flow.
+        """
+
+        assert pre_events is None or len(pre_events) == len(
+            flows
+        ), "Number of pre-events must match number of flows."
+        assert post_events is None or len(post_events) == len(
+            flows
+        ), "Number of post-events must match number of flows."
+
+        unique_flow_ids = {}  # Keep track of unique flow IDs order
+        task_results: Dict[str, List] = {}  # Store results keyed by flow_id
+        task_processing_logs: dict = {}  # Store resulting processing logs for each flow
+        finished_task_results: List[dict] = []  # Collect all results in order
+        new_events: Optional[List[dict]] = None
+
+        # Wrapper function to help reverse map the task result to the flow ID
+        async def task_call_helper(flow_uid, final_event, func, *args, **kwargs):
+            result = await func(*args, **kwargs)
+            if final_event:
+                result.append(final_event)
+            return flow_uid, result
+
+        # Create a task for each flow but don't await them yet
+        tasks = []
+        for index, flow_name in enumerate(flows):
+            # Copy the events to avoid modifying the original list
+            _events = events.copy()
+
+            flow_params = _get_flow_params(flow_name)
+            flow_id = _normalize_flow_id(flow_name)
+
+            if flow_params:
+                _events.append(
+                    {"type": "start_flow", "flow_id": flow_id, "params": flow_params}
+                )
+            else:
+                _events.append({"type": "start_flow", "flow_id": flow_id})
+
+            # Generate a unique flow ID
+            flow_uid = f"{flow_id}:{str(uuid.uuid4())}"
+
+            # Initialize task results
+            task_results[flow_uid] = []
+
+            # Add pre-event if provided
+            if pre_events:
+                task_results[flow_uid].append(pre_events[index])
+
+            task_processing_logs[flow_uid] = []
+            task = asyncio.create_task(
+                task_call_helper(
+                    flow_uid,
+                    post_events[index] if post_events else None,
+                    self.generate_events,
+                    _events,
+                    task_processing_logs[flow_uid],
+                )
+            )
+            tasks.append(task)
+            unique_flow_ids[flow_uid] = task
+
+        # Process tasks as they complete using as_completed
+        try:
+            for future in asyncio.as_completed(tasks):
+                try:
+                    (flow_id, result) = await future
+
+                    # Check if this rail requested to stop
+                    has_stop = any(
+                        event["type"] == "BotIntent" and event["intent"] == "stop"
+                        for event in result
+                    )
+
+                    # If this flow had a stop event
+                    if has_stop:
+                        # Add result of failed task that includes stop event
+                        new_events = result
+                        # Cancel all remaining tasks
+                        for pending_task in tasks:
+                            if (
+                                pending_task != unique_flow_ids[flow_id]
+                                and not pending_task.done()
+                            ):
+                                pending_task.cancel()
+                    else:
+                        # Store the result for this specific flow
+                        task_results[flow_id].extend(result)
+
+                except asyncio.exceptions.CancelledError:
+                    pass
+
+        except Exception as e:
+            log.error(f"Error in parallel rail execution: {str(e)}")
+            raise
+
+        context_updates: dict = {}
+        processing_log = processing_log_var.get()
+
+        # Compose results in original flow order
+        for flow_id in unique_flow_ids:
+            # Skip if this flow has not finished
+            if flow_id not in task_results:
+                continue
+
+            result = task_results[flow_id]
+
+            # Extract context updates
+            for event in result:
+                if event["type"] == "ContextUpdate":
+                    context_updates = {**context_updates, **event["data"]}
+
+            finished_task_results.extend(result)
+            if processing_log:
+                processing_log.extend(task_processing_logs[flow_id])
+
+        # We pack all events into a single event to add it to the event history.
+        history_events = new_event_dict(
+            "EventHistoryUpdate",
+            data={"events": finished_task_results},
+        )
+        if new_events:
+            new_events.insert(0, history_events)
+        else:
+            new_events = [history_events]
+
+        return ActionResult(
+            events=new_events,
+            context_updates=context_updates,
+        )
+
+    async def _run_input_rails_in_parallel(
+        self, flows: List[str], events: List[dict]
+    ) -> ActionResult:
+        """Run the input rails in parallel."""
+        pre_events = [
+            (await create_event({"_type": "StartInputRail", "flow_id": flow})).events[0]
+            for flow in flows
+        ]
+        post_events = [
+            (
+                await create_event({"_type": "InputRailFinished", "flow_id": flow})
+            ).events[0]
+            for flow in flows
+        ]
+
+        return await self._run_flows_in_parallel(
+            flows=flows, events=events, pre_events=pre_events, post_events=post_events
+        )
+
+    async def _run_output_rails_in_parallel(
+        self, flows: List[str], events: List[dict]
+    ) -> ActionResult:
+        """Run the output rails in parallel."""
+        pre_events = [
+            (await create_event({"_type": "StartOutputRail", "flow_id": flow})).events[
+                0
+            ]
+            for flow in flows
+        ]
+        post_events = [
+            (
+                await create_event({"_type": "OutputRailFinished", "flow_id": flow})
+            ).events[0]
+            for flow in flows
+        ]
+
+        return await self._run_flows_in_parallel(
+            flows=flows, events=events, pre_events=pre_events, post_events=post_events
         )
 
     async def _run_output_rails_in_parallel_streaming(

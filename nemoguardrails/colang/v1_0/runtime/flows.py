@@ -455,7 +455,10 @@ def compute_next_state(state: State, event: dict) -> State:
     # Next, we try to start new flows
     for flow_config in state.flow_configs.values():
         # We don't allow subflow to start on their own
-        if flow_config.is_subflow:
+        # Unless there's an explicit start_flow event
+        if flow_config.is_subflow and (
+            event["type"] != "start_flow" or flow_config.id != event["flow_id"]
+        ):
             continue
 
         # If the flow can't be started multiple times in parallel and
@@ -468,12 +471,22 @@ def compute_next_state(state: State, event: dict) -> State:
         # We try to slide first, just in case a flow starts with sliding logic
         start_head = slide(new_state, flow_config, 0)
 
-        # If the first element matches the current event, we start a new flow
-        if _is_match(flow_config.elements[start_head], event):
+        # If the first element matches the current event,
+        # or, if the flow is explicitly started by a `start_flow` event,
+        # we start a new flow
+        _is_start_match = _is_match(flow_config.elements[start_head], event)
+        if _is_start_match or (
+            event["type"] == "start_flow" and flow_config.id == event["flow_id"]
+        ):
             flow_uid = new_uuid()
             flow_state = FlowState(
-                uid=flow_uid, flow_id=flow_config.id, head=start_head + 1
+                uid=flow_uid,
+                flow_id=flow_config.id,
+                # When we have a match, we skip the element that was matched and move the head to the next one
+                head=start_head + (1 if _is_start_match else 0),
             )
+            if params := event.get("params"):
+                new_state.context_updates.update(params)
             new_state.flow_states.append(flow_state)
 
             _slide_with_subflows(new_state, flow_state)
