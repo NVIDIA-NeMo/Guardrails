@@ -14,9 +14,9 @@
 # limitations under the License.
 
 from typing import Any, Dict, List, Optional, Union
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.llmrails import _get_action_details_from_flow_id
@@ -480,6 +480,111 @@ async def test_1(rails_config):
             "type": "StartUtteranceBotAction",
         },
         {
+            "intent": "ask if user happy",
+            "source_uid": "NeMoGuardrails",
+            "type": "BotIntent",
+        },
+        {
+            "action_name": "retrieve_relevant_chunks",
+            "action_params": {},
+            "action_result_key": None,
+            "is_system_action": True,
+            "source_uid": "NeMoGuardrails",
+            "type": "StartInternalSystemAction",
+        },
+        {
+            "data": {"relevant_chunks": "\n\n\n"},
+            "source_uid": "NeMoGuardrails",
+            "type": "ContextUpdate",
+        },
+        {
+            "action_name": "retrieve_relevant_chunks",
+            "action_params": {},
+            "action_result_key": None,
+            "events": None,
+            "is_success": True,
+            "is_system_action": True,
+            "return_value": "\n\n\n",
+            "source_uid": "NeMoGuardrails",
+            "status": "success",
+            "type": "InternalSystemActionFinished",
+        },
+        {
+            "action_name": "generate_bot_message",
+            "action_params": {},
+            "action_result_key": None,
+            "is_system_action": True,
+            "source_uid": "NeMoGuardrails",
+            "type": "StartInternalSystemAction",
+        },
+        {
+            "action_name": "generate_bot_message",
+            "action_params": {},
+            "action_result_key": None,
+            "events": [
+                {
+                    "source_uid": "NeMoGuardrails",
+                    "text": "Are you happy with the result?",
+                    "type": "BotMessage",
+                }
+            ],
+            "is_success": True,
+            "is_system_action": True,
+            "return_value": None,
+            "source_uid": "NeMoGuardrails",
+            "status": "success",
+            "type": "InternalSystemActionFinished",
+        },
+        {
+            "source_uid": "NeMoGuardrails",
+            "text": "Are you happy with the result?",
+            "type": "BotMessage",
+        },
+        {
+            "data": {"bot_message": "Are you happy with the result?"},
+            "source_uid": "NeMoGuardrails",
+            "type": "ContextUpdate",
+        },
+        {
+            "action_name": "create_event",
+            "action_params": {
+                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
+            },
+            "action_result_key": None,
+            "is_system_action": True,
+            "source_uid": "NeMoGuardrails",
+            "type": "StartInternalSystemAction",
+        },
+        {
+            "action_name": "create_event",
+            "action_params": {
+                "event": {"_type": "StartUtteranceBotAction", "script": "$bot_message"}
+            },
+            "action_result_key": None,
+            "events": [
+                {
+                    "action_info_modality": "bot_speech",
+                    "action_info_modality_policy": "replace",
+                    "script": "Are you happy with the result?",
+                    "source_uid": "NeMoGuardrails",
+                    "type": "StartUtteranceBotAction",
+                }
+            ],
+            "is_success": True,
+            "is_system_action": True,
+            "return_value": None,
+            "source_uid": "NeMoGuardrails",
+            "status": "success",
+            "type": "InternalSystemActionFinished",
+        },
+        {
+            "action_info_modality": "bot_speech",
+            "action_info_modality_policy": "replace",
+            "script": "Are you happy with the result?",
+            "source_uid": "NeMoGuardrails",
+            "type": "StartUtteranceBotAction",
+        },
+        {
             "source_uid": "NeMoGuardrails",
             "type": "Listen",
         },
@@ -667,8 +772,12 @@ def llm_config_with_main():
         }
     )
 
+
 @pytest.mark.asyncio
-@patch('nemoguardrails.rails.llm.llmrails.init_llm_model', return_value=FakeLLM(responses=["this should not be used"]))
+@patch(
+    "nemoguardrails.rails.llm.llmrails.init_llm_model",
+    return_value=FakeLLM(responses=["this should not be used"]),
+)
 async def test_llm_config_precedence(mock_init, llm_config_with_main):
     """Test that LLM provided via constructor takes precedence over config's main LLM."""
     injected_llm = FakeLLM(responses=["express greeting"])
@@ -676,10 +785,16 @@ async def test_llm_config_precedence(mock_init, llm_config_with_main):
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
     assert any(event.get("intent") == "express greeting" for event in new_events)
-    assert not any(event.get("intent") == "this should not be used" for event in new_events)
+    assert not any(
+        event.get("intent") == "this should not be used" for event in new_events
+    )
+
 
 @pytest.mark.asyncio
-@patch('nemoguardrails.rails.llm.llmrails.init_llm_model', return_value=FakeLLM(responses=["this should not be used"]))
+@patch(
+    "nemoguardrails.rails.llm.llmrails.init_llm_model",
+    return_value=FakeLLM(responses=["this should not be used"]),
+)
 async def test_llm_config_warning(mock_init, llm_config_with_main, caplog):
     """Test that a warning is logged when both constructor LLM and config main LLM are provided."""
     injected_llm = FakeLLM(responses=["express greeting"])
@@ -687,6 +802,7 @@ async def test_llm_config_warning(mock_init, llm_config_with_main, caplog):
     llm_rails = LLMRails(config=llm_config_with_main, llm=injected_llm)
     warning_msg = "Both an LLM was provided via constructor and a main LLM is specified in the config"
     assert any(warning_msg in record.message for record in caplog.records)
+
 
 @pytest.fixture
 def llm_config_with_multiple_models():
@@ -703,7 +819,7 @@ def llm_config_with_multiple_models():
                     "type": "content_safety",
                     "engine": "fake",
                     "model": "fake",
-                }
+                },
             ],
             "user_messages": {
                 "express greeting": ["Hello!"],
@@ -722,8 +838,12 @@ def llm_config_with_multiple_models():
         }
     )
 
+
 @pytest.mark.asyncio
-@patch('nemoguardrails.rails.llm.llmrails.init_llm_model', return_value=FakeLLM(responses=["content safety response"]))
+@patch(
+    "nemoguardrails.rails.llm.llmrails.init_llm_model",
+    return_value=FakeLLM(responses=["content safety response"]),
+)
 async def test_other_models_honored(mock_init, llm_config_with_multiple_models):
     """Test that other model configurations are still honored when main LLM is provided via constructor."""
     injected_llm = FakeLLM(responses=["express greeting"])
