@@ -576,6 +576,29 @@ class JailbreakDetectionConfig(BaseModel):
         default=None,
         description="Environment variable containing API key for jailbreak detection model",
     )
+    # legacy fields, keep for backward comp with deprecation warnings
+    nim_url: Optional[str] = Field(
+        default=None,
+        deprecated="Use 'nim_base_url' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use nim_base_url instead",
+    )
+    nim_port: Optional[int] = Field(
+        default=None,
+        deprecated="Include port in 'nim_base_url' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Include port in nim_base_url instead",
+    )
+    embedding: Optional[str] = Field(
+        default=None,
+        deprecated="This field is no longer used.",
+    )
+
+    @model_validator(mode="after")
+    def migrate_deprecated_fields(self) -> "JailbreakDetectionConfig":
+        """Migrate deprecated nim_url/nim_port fields to nim_base_url format."""
+        if self.nim_url and not self.nim_base_url:
+            port = self.nim_port or 8000
+            self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
+        return self
 
 
 class AutoAlignOptions(BaseModel):

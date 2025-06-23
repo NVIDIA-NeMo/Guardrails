@@ -101,12 +101,14 @@ async def jailbreak_nim_request(
     nim_auth_token: str,
     nim_classification_path: str,
 ):
+    from urllib.parse import urljoin
+
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     payload = {
         "input": prompt,
     }
 
-    endpoint = f"{nim_url}/{nim_classification_path}"
+    endpoint = urljoin(nim_url, nim_classification_path)
     try:
         async with aiohttp.ClientSession() as session:
             try:
