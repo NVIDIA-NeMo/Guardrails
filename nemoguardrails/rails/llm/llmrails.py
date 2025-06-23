@@ -369,7 +369,6 @@ class LLMRails:
 
         if self.llm:
             # If an LLM was provided via constructor, use it as the main LLM
-            self.main_llm = self.llm
             # Log a warning if a main LLM is also specified in the config
             if any(model.type == "main" for model in self.config.models):
                 log.warning(
@@ -378,21 +377,29 @@ class LLMRails:
                 )
         else:
             # Otherwise, initialize the main LLM from the config
-            main_model = next((model for model in self.config.models if model.type == "main"), None)
+            main_model = next(
+                (model for model in self.config.models if model.type == "main"), None
+            )
             if main_model:
-                self.main_llm = init_llm_model(
+                self.llm = init_llm_model(
                     model_name=main_model.model,
                     provider_name=main_model.engine,
                     mode="chat",
                     kwargs=main_model.parameters or {},
                 )
             else:
-                raise ValueError("No main LLM specified in the config and no LLM provided via constructor.")
+                raise ValueError(
+                    "No main LLM specified in the config and no LLM provided via constructor."
+                )
 
         llms = dict()
 
         for llm_config in self.config.models:
             if llm_config.type == "embeddings":
+                continue
+
+            # If a constructor LLM is provided, skip initializing any 'main' model from config
+            if self.llm and llm_config.type == "main":
                 continue
 
             try:
