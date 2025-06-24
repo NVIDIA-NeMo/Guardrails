@@ -68,10 +68,13 @@ async def async_enumerate(aiterable, start=0):
         idx += 1
 
 
-async def test_generate_chunk_str():
+def test_generate_chunk_str():
     buffer_strategy = BufferStrategy(buffer_context_size=5, buffer_chunk_size=10)
     buffer = ["chunk0", "chunk1", "chunk2", "chunk3", "chunk4", "chunk5"]
     current_index = 6
+
+    # we've already processed chunks 0 to 4 by setting last_index to 5
+    buffer_strategy.last_index = 5
 
     result = buffer_strategy.generate_chunk_str(buffer, current_index)
     assert result == "chunk5"
