@@ -68,6 +68,7 @@ async def async_enumerate(aiterable, start=0):
         idx += 1
 
 
+@pytest.mark.asyncio
 async def test_generate_chunk_str():
     buffer_strategy = BufferStrategy(buffer_context_size=5, buffer_chunk_size=10)
     buffer = ["chunk0", "chunk1", "chunk2", "chunk3", "chunk4", "chunk5"]
