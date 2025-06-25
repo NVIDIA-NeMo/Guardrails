@@ -29,8 +29,6 @@ def test_lazy_import_does_not_require_heavy_deps():
     with mock.patch.dict(
         sys.modules, {"torch": None, "transformers": None, "sklearn": None}
     ):
-        import importlib
-
         import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
         # Just importing and calling unrelated functions should not raise ImportError
@@ -92,3 +90,116 @@ def test_model_based_classifier_missing_deps(monkeypatch):
     with tempfile.NamedTemporaryFile(suffix=".pkl") as tmp:
         with pytest.raises(ImportError):
             models.JailbreakClassifier(tmp.name)
+
+
+# Test 4: Error when classifier_path is None
+
+
+def test_initialize_model_with_none_classifier_path():
+    """
+    initialize_model should raise EnvironmentError when classifier_path is None.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    with pytest.raises(EnvironmentError) as exc_info:
+        checks.initialize_model(classifier_path=None)
+
+    assert "Please set the EMBEDDING_CLASSIFIER_PATH environment variable" in str(
+        exc_info.value
+    )
+
+
+# Test 5: SnowflakeEmbed initialization and call with torch imports
+
+
+def test_snowflake_embed_torch_imports(monkeypatch):
+    """
+    Test that SnowflakeEmbed properly imports torch and transformers when needed.
+    """
+    # Mock torch and transformers
+    mock_torch = mock.MagicMock()
+    mock_torch.cuda.is_available.return_value = False
+    mock_transformers = mock.MagicMock()
+
+    mock_tokenizer = mock.MagicMock()
+    mock_model = mock.MagicMock()
+    mock_transformers.AutoTokenizer.from_pretrained.return_value = mock_tokenizer
+    mock_transformers.AutoModel.from_pretrained.return_value = mock_model
+
+    monkeypatch.setitem(sys.modules, "torch", mock_torch)
+    monkeypatch.setitem(sys.modules, "transformers", mock_transformers)
+
+    import nemoguardrails.library.jailbreak_detection.model_based.models as models
+
+    embed = models.SnowflakeEmbed()
+    assert embed.device == "cpu"  # as we mocked cuda.is_available() = False
+
+    mock_tokens = mock.MagicMock()
+    mock_tokens.to.return_value = mock_tokens
+    mock_tokenizer.return_value = mock_tokens
+
+    import numpy as np
+
+    fake_embedding = np.array([1.0, 2.0, 3.0])
+
+    # the code does self.model(**tokens)[0][:, 0]
+    # so we need to mock this properly
+    mock_tensor_output = mock.MagicMock()
+    mock_tensor_output.detach.return_value.cpu.return_value.squeeze.return_value.numpy.return_value = (
+        fake_embedding
+    )
+
+    mock_first_index = mock.MagicMock()
+    mock_first_index.__getitem__.return_value = mock_tensor_output  # for [:, 0]
+
+    mock_model_output = mock.MagicMock()
+    mock_model_output.__getitem__.return_value = mock_first_index  # for [0]
+
+    mock_model.return_value = mock_model_output
+
+    result = embed("test text")
+    assert isinstance(result, np.ndarray)
+    assert np.array_equal(result, fake_embedding)
+
+
+# Test 6: Check jailbreak function with classifier parameter
+
+
+def test_check_jailbreak_with_classifier():
+    """
+    Test check_jailbreak function when classifier is provided.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    mock_classifier = mock.MagicMock()
+    # jailbreak detected with score 0.9
+    mock_classifier.return_value = (True, 0.9)
+
+    result = checks.check_jailbreak("test prompt", classifier=mock_classifier)
+
+    assert result == {"jailbreak": True, "score": 0.9}
+    mock_classifier.assert_called_once_with("test prompt")
+
+
+# Test 7: Check jailbreak function without classifier parameter (uses initialize_model)
+
+
+def test_check_jailbreak_without_classifier(monkeypatch):
+    """
+    Test check_jailbreak function when no classifier is provided, it should call initialize_model.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    # mock initialize_model to return a mock classifier
+    mock_classifier = mock.MagicMock()
+    # no jailbreak
+    mock_classifier.return_value = (False, -0.5)
+    mock_initialize_model = mock.MagicMock(return_value=mock_classifier)
+
+    monkeypatch.setattr(checks, "initialize_model", mock_initialize_model)
+
+    result = checks.check_jailbreak("safe prompt")
+
+    assert result == {"jailbreak": False, "score": -0.5}
+    mock_initialize_model.assert_called_once()
+    mock_classifier.assert_called_once_with("safe prompt")
