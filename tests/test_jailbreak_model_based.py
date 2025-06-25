@@ -62,13 +62,11 @@ def test_model_based_classifier_imports(monkeypatch):
 
     monkeypatch.setattr(models, "SnowflakeEmbed", fake_snowflake)
 
-    # Create a fake model file
-    import os
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(suffix=".pkl") as tmp:
+    # mocking file operations to avoid Windows permission issues
+    mock_open = mock.mock_open()
+    with mock.patch("builtins.open", mock_open):
         # Should not raise
-        classifier = models.JailbreakClassifier(tmp.name)
+        classifier = models.JailbreakClassifier("fake_model_path.pkl")
         assert classifier is not None
         # Should be callable
         result = classifier("test")
@@ -83,13 +81,14 @@ def test_model_based_classifier_missing_deps(monkeypatch):
     If sklearn is missing, instantiating JailbreakClassifier should raise ImportError.
     """
     monkeypatch.setitem(sys.modules, "sklearn.ensemble", None)
-    import tempfile
 
     import nemoguardrails.library.jailbreak_detection.model_based.models as models
 
-    with tempfile.NamedTemporaryFile(suffix=".pkl") as tmp:
+    # to avoid Windows permission issues
+    mock_open = mock.mock_open()
+    with mock.patch("builtins.open", mock_open):
         with pytest.raises(ImportError):
-            models.JailbreakClassifier(tmp.name)
+            models.JailbreakClassifier("fake_model_path.pkl")
 
 
 # Test 4: Error when classifier_path is None
