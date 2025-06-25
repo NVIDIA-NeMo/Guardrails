@@ -19,15 +19,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Union
 
-from nemoguardrails.library.jailbreak_detection.model_based.models import (
-    JailbreakClassifier,
-)
-
 logger = logging.getLogger(__name__)
 
 
 @lru_cache()
-def initialize_model() -> Union[None, JailbreakClassifier]:
+def initialize_model() -> Union[None, "JailbreakClassifier"]:
     """
     Initialize the global classifier model according to the configuration provided.
     Args
@@ -44,6 +40,10 @@ def initialize_model() -> Union[None, JailbreakClassifier]:
             "No embedding classifier path set. Server /model endpoint will not work."
         )
         return None
+
+    from nemoguardrails.library.jailbreak_detection.model_based.models import (
+        JailbreakClassifier,
+    )
 
     jailbreak_classifier = JailbreakClassifier(
         str(Path(classifier_path).joinpath("snowflake.pkl"))

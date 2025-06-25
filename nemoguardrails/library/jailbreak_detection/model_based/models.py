@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
 from typing import Tuple
 
 import numpy as np
