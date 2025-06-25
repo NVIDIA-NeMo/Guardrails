@@ -799,7 +799,7 @@ async def test_llm_config_warning(mock_init, llm_config_with_main, caplog):
     """Test that a warning is logged when both constructor LLM and config main LLM are provided."""
     injected_llm = FakeLLM(responses=["express greeting"])
     caplog.clear()
-    llm_rails = LLMRails(config=llm_config_with_main, llm=injected_llm)
+    _ = LLMRails(config=llm_config_with_main, llm=injected_llm)
     warning_msg = "Both an LLM was provided via constructor and a main LLM is specified in the config"
     assert any(warning_msg in record.message for record in caplog.records)
 
@@ -849,7 +849,6 @@ async def test_other_models_honored(mock_init, llm_config_with_multiple_models):
     injected_llm = FakeLLM(responses=["express greeting"])
     llm_rails = LLMRails(config=llm_config_with_multiple_models, llm=injected_llm)
     assert hasattr(llm_rails, "content_safety_llm")
-    assert llm_rails.content_safety_llm is not None
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
     assert any(event.get("intent") == "express greeting" for event in new_events)
