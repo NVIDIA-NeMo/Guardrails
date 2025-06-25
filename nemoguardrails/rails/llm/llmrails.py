@@ -375,6 +375,7 @@ class LLMRails:
                     "Both an LLM was provided via constructor and a main LLM is specified in the config. "
                     "The LLM provided via constructor will be used and the main LLM from config will be ignored."
                 )
+            self.runtime.register_action_param("llm", self.llm)
         else:
             # Otherwise, initialize the main LLM from the config
             main_model = next(
@@ -388,7 +389,7 @@ class LLMRails:
                     kwargs=main_model.parameters or {},
                 )
             else:
-                raise ValueError(
+                log.warning(
                     "No main LLM specified in the config and no LLM provided via constructor."
                 )
 
