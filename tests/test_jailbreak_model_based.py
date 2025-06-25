@@ -235,12 +235,15 @@ def test_initialize_model_with_valid_path(monkeypatch):
     """
     Test initialize_model with a valid classifier path.
     """
+    from pathlib import Path
+
     import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
     checks.initialize_model.cache_clear()
 
     # mock environment variable
-    monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", "/fake/path/to/model")
+    test_path = "/fake/path/to/model"
+    monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", test_path)
 
     # mock JailbreakClassifier
     mock_classifier = mock.MagicMock()
@@ -253,9 +256,9 @@ def test_initialize_model_with_valid_path(monkeypatch):
     result = checks.initialize_model()
 
     assert result == mock_classifier
-    mock_jailbreak_classifier_class.assert_called_once_with(
-        "/fake/path/to/model/snowflake.pkl"
-    )
+
+    expected_path = str(Path(test_path).joinpath("snowflake.pkl"))
+    mock_jailbreak_classifier_class.assert_called_once_with(expected_path)
 
 
 # Test 10: Test that NvEmbedE5 class no longer exists
