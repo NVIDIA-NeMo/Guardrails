@@ -25,6 +25,7 @@ from nemoguardrails.library.jailbreak_detection.model_based.models import (
 
 logger = logging.getLogger(__name__)
 
+
 @lru_cache()
 def initialize_model() -> Union[None, JailbreakClassifier]:
     """
@@ -60,9 +61,18 @@ def check_jailbreak(
     Args:
         prompt: User utterance to classify
         classifier: Instantiated JailbreakClassifier object
+
+    Raises:
+        RuntimeError: If no classifier is available and EMBEDDING_CLASSIFIER_PATH is not set
     """
     if classifier is None:
         classifier = initialize_model()
+
+    if classifier is None:
+        raise RuntimeError(
+            "No jailbreak classifier available. Please set the EMBEDDING_CLASSIFIER_PATH "
+            "environment variable to point to the classifier model directory."
+        )
 
     classification, score = classifier(prompt)
     # classification will be 1 or 0 -- cast to boolean.

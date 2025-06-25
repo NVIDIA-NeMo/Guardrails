@@ -91,21 +91,21 @@ def test_model_based_classifier_missing_deps(monkeypatch):
             models.JailbreakClassifier("fake_model_path.pkl")
 
 
-# Test 4: Error when classifier_path is None
+# Test 4: Return None when EMBEDDING_CLASSIFIER_PATH is not set
 
 
-def test_initialize_model_with_none_classifier_path():
+def test_initialize_model_with_none_classifier_path(monkeypatch):
     """
-    initialize_model should raise EnvironmentError when classifier_path is None.
+    initialize_model should return None when EMBEDDING_CLASSIFIER_PATH is not set.
     """
     import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
-    with pytest.raises(EnvironmentError) as exc_info:
-        checks.initialize_model(classifier_path=None)
+    # Mock environment variable to be None
+    monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", "")
+    monkeypatch.delenv("EMBEDDING_CLASSIFIER_PATH", raising=False)
 
-    assert "Please set the EMBEDDING_CLASSIFIER_PATH environment variable" in str(
-        exc_info.value
-    )
+    result = checks.initialize_model()
+    assert result is None
 
 
 # Test 5: SnowflakeEmbed initialization and call with torch imports
@@ -202,3 +202,24 @@ def test_check_jailbreak_without_classifier(monkeypatch):
     assert result == {"jailbreak": False, "score": -0.5}
     mock_initialize_model.assert_called_once()
     mock_classifier.assert_called_once_with("safe prompt")
+
+
+# Test 8: Check jailbreak raises RuntimeError when no classifier available
+
+
+def test_check_jailbreak_no_classifier_available(monkeypatch):
+    """
+    Test check_jailbreak function raises RuntimeError when initialize_model returns None.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    # Mock initialize_model to return None (no classifier available)
+    mock_initialize_model = mock.MagicMock(return_value=None)
+    monkeypatch.setattr(checks, "initialize_model", mock_initialize_model)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        checks.check_jailbreak("test prompt")
+
+    assert "No jailbreak classifier available" in str(exc_info.value)
+    assert "EMBEDDING_CLASSIFIER_PATH" in str(exc_info.value)
+    mock_initialize_model.assert_called_once()

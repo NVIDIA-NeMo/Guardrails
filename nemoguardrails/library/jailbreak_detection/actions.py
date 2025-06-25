@@ -120,15 +120,12 @@ async def jailbreak_detection_model(
             "No jailbreak detection endpoint set. Running in-process, NOT RECOMMENDED FOR PRODUCTION."
         )
         try:
-            classifier = initialize_model()
-            if classifier is None:
-                log.error(
-                    "No model initialized because EMBEDDING_CLASSIFIER_PATH is not set."
-                )
-                return False
-            jailbreak = check_jailbreak(prompt=prompt, classifier=classifier)
+            jailbreak = check_jailbreak(prompt=prompt)
             log.info(f"Local model jailbreak detection result: {jailbreak}")
             return jailbreak["jailbreak"]
+        except RuntimeError as e:
+            log.error(f"Jailbreak detection model not available: {e}")
+            return False
         except ImportError as e:
             log.error(
                 f"Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
