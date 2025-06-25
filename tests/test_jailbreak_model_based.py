@@ -100,6 +100,9 @@ def test_initialize_model_with_none_classifier_path(monkeypatch):
     """
     import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
+    # Clear the LRU cache to ensure fresh test
+    checks.initialize_model.cache_clear()
+
     # Mock environment variable to be None
     monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", "")
     monkeypatch.delenv("EMBEDDING_CLASSIFIER_PATH", raising=False)
@@ -223,3 +226,118 @@ def test_check_jailbreak_no_classifier_available(monkeypatch):
     assert "No jailbreak classifier available" in str(exc_info.value)
     assert "EMBEDDING_CLASSIFIER_PATH" in str(exc_info.value)
     mock_initialize_model.assert_called_once()
+
+
+# Test 9: Test initialize_model with valid path
+
+
+def test_initialize_model_with_valid_path(monkeypatch):
+    """
+    Test initialize_model with a valid classifier path.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    checks.initialize_model.cache_clear()
+
+    # mock environment variable
+    monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", "/fake/path/to/model")
+
+    # mock JailbreakClassifier
+    mock_classifier = mock.MagicMock()
+    mock_jailbreak_classifier_class = mock.MagicMock(return_value=mock_classifier)
+    monkeypatch.setattr(
+        "nemoguardrails.library.jailbreak_detection.model_based.models.JailbreakClassifier",
+        mock_jailbreak_classifier_class,
+    )
+
+    result = checks.initialize_model()
+
+    assert result == mock_classifier
+    mock_jailbreak_classifier_class.assert_called_once_with(
+        "/fake/path/to/model/snowflake.pkl"
+    )
+
+
+# Test 10: Test that NvEmbedE5 class no longer exists
+
+
+def test_nv_embed_e5_removed():
+    """
+    Test that NvEmbedE5 class has been removed from the models module.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.models as models
+
+    assert not hasattr(models, "NvEmbedE5")
+
+
+# Test 11: Test SnowflakeEmbed still exists and works
+
+
+def test_snowflake_embed_still_available():
+    """
+    Test that SnowflakeEmbed class is still available.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.models as models
+
+    # This class should still exist
+    assert hasattr(models, "SnowflakeEmbed")
+
+
+# Test 12: Test initialize_model with logging
+
+
+def test_initialize_model_logging(monkeypatch, caplog):
+    """
+    Test that initialize_model logs warning when path is not set.
+    """
+    import logging
+
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    # clear the LRU cache to ensure fresh test
+    checks.initialize_model.cache_clear()
+
+    # set log level to capture warnings
+    caplog.set_level(logging.WARNING)
+
+    # mock environment variable to be None
+    monkeypatch.delenv("EMBEDDING_CLASSIFIER_PATH", raising=False)
+
+    result = checks.initialize_model()
+
+    assert result is None
+    assert "No embedding classifier path set" in caplog.text
+    assert "Server /model endpoint will not work" in caplog.text
+
+
+# Test 13: Test check_jailbreak with explicit None classifier
+
+
+def test_check_jailbreak_explicit_none_classifier():
+    """
+    Test check_jailbreak when explicitly passed None as classifier.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    with pytest.raises(RuntimeError) as exc_info:
+        checks.check_jailbreak("test prompt", classifier=None)
+
+    assert "No jailbreak classifier available" in str(exc_info.value)
+
+
+# Test 14: Test check_jailbreak preserves original behavior with valid classifier
+
+
+def test_check_jailbreak_valid_classifier_preserved():
+    """
+    Test that check_jailbreak still works normally with a valid classifier.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    mock_classifier = mock.MagicMock()
+    mock_classifier.return_value = (True, 0.95)
+
+    result = checks.check_jailbreak("malicious prompt", classifier=mock_classifier)
+
+    assert result == {"jailbreak": True, "score": 0.95}
+    mock_classifier.assert_called_once_with("malicious prompt")
