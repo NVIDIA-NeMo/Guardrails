@@ -98,7 +98,7 @@ async def jailbreak_detection_model_request(
 async def jailbreak_nim_request(
     prompt: str,
     nim_url: str,
-    nim_auth_token: str,
+    nim_auth_token: Optional[str],
     nim_classification_path: str,
 ):
     from urllib.parse import urljoin
