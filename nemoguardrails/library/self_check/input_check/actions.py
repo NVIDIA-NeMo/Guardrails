@@ -84,7 +84,7 @@ async def self_check_input(
             )
 
         result = result.text
-        is_safe, _ = result
+        is_safe = result[0]
 
         if not is_safe:
             return ActionResult(

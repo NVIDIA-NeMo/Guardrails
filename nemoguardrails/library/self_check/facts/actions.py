@@ -83,7 +83,7 @@ async def self_check_facts(
         )
 
     result = result.text
-    is_not_safe, _ = result
+    is_not_safe = result[0]
 
     result = float(not is_not_safe)
     return result

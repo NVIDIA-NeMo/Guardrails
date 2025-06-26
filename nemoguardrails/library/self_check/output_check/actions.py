@@ -88,6 +88,6 @@ async def self_check_output(
             )
 
         result = result.text
-        is_safe, _ = result
+        is_safe = result[0]
 
         return is_safe
