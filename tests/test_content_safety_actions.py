@@ -382,6 +382,6 @@ def test_content_safety_check_output_mapping_blocked_policy_violations_only():
 
 
 def test_content_safety_check_output_mapping_default():
-    """Test content_safety_check_output_mapping defaults to allowed=True when key is missing."""
+    """Test content_safety_check_output_mapping defaults to allowed=False when key is missing."""
     result = {"policy_violations": []}
     assert content_safety_check_output_mapping(result) is False
