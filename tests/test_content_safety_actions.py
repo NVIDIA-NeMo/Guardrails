@@ -15,6 +15,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+# conftest.py
 import pytest
 
 from nemoguardrails.library.content_safety.actions import (
@@ -25,312 +26,80 @@ from nemoguardrails.library.content_safety.actions import (
 from tests.utils import FakeLLM
 
 
+@pytest.fixture
+def fake_llm():
+    def _factory(response):
+        llm = FakeLLM(responses=[response])
+        return {"test_model": llm}
+
+    return _factory
+
+
+@pytest.fixture
+def mock_task_manager():
+    tm = MagicMock()
+    tm.render_task_prompt.return_value = "test prompt"
+    tm.get_stop_tokens.return_value = []
+    tm.get_max_tokens.return_value = 3
+    return tm
+
+
 @pytest.mark.asyncio
-async def test_content_safety_check_input_with_tuple_result():
-    """Test content_safety_check_input when result is a tuple with both is_safe and violated_policies."""
-    mock_llm = FakeLLM(responses=["safe"])
-    llms = {"test_model": mock_llm}
+@pytest.mark.parametrize(
+    "check_fn, context, parsed_text, expected_allowed, expected_violations",
+    [
+        (
+            content_safety_check_input,
+            {"user_message": "foo"},
+            [True, "policy1", "policy2"],
+            True,
+            ["policy1", "policy2"],
+        ),
+        (
+            content_safety_check_input,
+            {"user_message": "foo"},
+            [False],
+            False,
+            [],
+        ),
+        (
+            content_safety_check_output,
+            {"user_message": "foo", "bot_message": "bar"},
+            [False, "hate", "violence"],
+            False,
+            ["hate", "violence"],
+        ),
+        (
+            content_safety_check_output,
+            {"user_message": "foo", "bot_message": "bar"},
+            [True],
+            True,
+            [],
+        ),
+    ],
+)
+async def test_content_safety_parsing(
+    fake_llm,
+    mock_task_manager,
+    check_fn,
+    context,
+    parsed_text,
+    expected_allowed,
+    expected_violations,
+):
+    llms = fake_llm("irrelevant")
+    mock_parsed = MagicMock()
+    mock_parsed.text = parsed_text
+    mock_task_manager.parse_task_output.return_value = mock_parsed
 
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [
-        True,
-        "policy1",
-        "policy2",
-    ]  # is_safe=True, violated_policies=["policy1", "policy2"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "test input"}
-
-    result = await content_safety_check_input(
+    result = await check_fn(
         llms=llms,
         llm_task_manager=mock_task_manager,
         model_name="test_model",
         context=context,
     )
-
-    assert result["allowed"] is True
-    assert result["policy_violations"] == ["policy1", "policy2"]
-
-
-@pytest.mark.asyncio
-async def test_content_safety_check_input_with_single_result():
-    """Test content_safety_check_input when result is a single value (just is_safe)."""
-    mock_llm = FakeLLM(responses=["unsafe"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [False]  # only is_safe=False, no violated_policies
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "test input"}
-
-    result = await content_safety_check_input(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is False
-    assert result["policy_violations"] == []
-
-
-@pytest.mark.asyncio
-async def test_content_safety_check_output_with_tuple_result():
-    """Test content_safety_check_output when result is a tuple with both is_safe and violated_policies."""
-    mock_llm = FakeLLM(responses=["unsafe"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [
-        False,
-        "violence",
-        "hate",
-    ]  # is_safe=False, violated_policies=["violence", "hate"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "test input", "bot_message": "test response"}
-
-    result = await content_safety_check_output(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is False
-    assert result["policy_violations"] == ["violence", "hate"]
-
-
-@pytest.mark.asyncio
-async def test_content_safety_check_output_with_single_result():
-    """Test content_safety_check_output when result is a single value (just is_safe)."""
-    mock_llm = FakeLLM(responses=["safe"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [True]  # Only is_safe=True, no violated_policies
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "test input", "bot_message": "test response"}
-
-    result = await content_safety_check_output(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is True
-    assert result["policy_violations"] == []
-
-
-# NEW: Tests specifically for the output parsing logic with starred unpacking
-@pytest.mark.asyncio
-async def test_content_safety_input_parsing_empty_violations():
-    """Test content_safety_check_input parsing logic with empty violations list."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    # Simulate parsing result with only is_safe, no violation policies
-    mock_parsed_result.text = [True]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "safe content"}
-
-    result = await content_safety_check_input(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is True
-    assert result["policy_violations"] == []
-
-
-@pytest.mark.asyncio
-async def test_content_safety_input_parsing_single_violation():
-    """Test content_safety_check_input parsing logic with single violation policy."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [False, "spam"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "spam content"}
-
-    result = await content_safety_check_input(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is False
-    assert result["policy_violations"] == ["spam"]
-
-
-@pytest.mark.asyncio
-async def test_content_safety_input_parsing_multiple_violations():
-    """Test content_safety_check_input parsing logic with multiple violation policies."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [False, "violence", "hate_speech", "harassment"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "unsafe content"}
-
-    result = await content_safety_check_input(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is False
-    assert result["policy_violations"] == ["violence", "hate_speech", "harassment"]
-
-
-@pytest.mark.asyncio
-async def test_content_safety_output_parsing_empty_violations():
-    """Test content_safety_check_output parsing logic with empty violations list."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [True]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "input", "bot_message": "safe response"}
-
-    result = await content_safety_check_output(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is True
-    assert result["policy_violations"] == []
-
-
-@pytest.mark.asyncio
-async def test_content_safety_output_parsing_single_violation():
-    """Test content_safety_check_output parsing logic with single violation policy."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [False, "inappropriate"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "input", "bot_message": "inappropriate response"}
-
-    result = await content_safety_check_output(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is False
-    assert result["policy_violations"] == ["inappropriate"]
-
-
-@pytest.mark.asyncio
-async def test_content_safety_output_parsing_multiple_violations():
-    """Test content_safety_check_output parsing logic with multiple violation policies."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = [False, "toxic", "offensive", "harmful"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "input", "bot_message": "unsafe response"}
-
-    result = await content_safety_check_output(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is False
-    assert result["policy_violations"] == ["toxic", "offensive", "harmful"]
-
-
-@pytest.mark.asyncio
-async def test_content_safety_input_parsing_edge_case_safe_with_violations():
-    """Test content_safety_check_input parsing logic when marked safe but has violation policies listed."""
-    mock_llm = FakeLLM(responses=["result"])
-    llms = {"test_model": mock_llm}
-
-    mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    # edge case: is_safe=True but still has violation policies listed
-    mock_parsed_result.text = [True, "minor_concern", "flagged"]
-    mock_task_manager.render_task_prompt.return_value = "test prompt"
-    mock_task_manager.get_stop_tokens.return_value = []
-    mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
-
-    context = {"user_message": "edge case content"}
-
-    result = await content_safety_check_input(
-        llms=llms,
-        llm_task_manager=mock_task_manager,
-        model_name="test_model",
-        context=context,
-    )
-
-    assert result["allowed"] is True
-    assert result["policy_violations"] == ["minor_concern", "flagged"]
+    assert result["allowed"] is expected_allowed
+    assert result["policy_violations"] == expected_violations
 
 
 @pytest.mark.asyncio
