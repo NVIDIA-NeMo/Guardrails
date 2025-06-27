@@ -1,10 +1,12 @@
 # Llama 3.1 NemoGuard 8B Topic Control Deployment
 
-The TopicControl model will be available to download as a LoRA adapter module through HuggingFace, and as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard) for low latency optimized inference with [NVIDIA TensorRT-LLM](https://docs.nvidia.com/tensorrt-llm/index.html).
+The TopicControl model is available to download as a LoRA adapter module through Hugging Face or as an [NVIDIA TopicControl NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/index.html) for low-latency optimized inference with [NVIDIA TensorRT-LLM](https://docs.nvidia.com/tensorrt-llm/index.html).
 
-This guide covers how to deploy the TopicControl model as a NIM, and how to then use the deployed NIM in a NeMo Guardrails configuration.
+This guide covers how to deploy the TopicControl model as a NIM microservice and use it in a NeMo Guardrails configuration.
 
 ## NIM Deployment
+
+Follow the instructions below to deploy the TopicControl NIM microservice and configure it in a NeMo Guardrails application.
 
 ### Access
 
@@ -37,11 +39,9 @@ docker run -it --name=$MODEL_NAME \
     $NIM_IMAGE
 ```
 
-#### Use the running NIM in your Guardrails App
+### Use TopicControl NIM Microservice in NeMo Guardrails App
 
-Any locally running NIM exposes the standard OpenAI interface on the `v1/completions` and `v1/chat/completions` endpoints. NeMo Guardrails provides out of the box support engines that support the standard LLM interfaces. For locally deployed NIMs, you need to use the engine `nim`.
-
-Thus, your Guardrails configuration file can look like:
+A locally running TopicControl NIM microservice exposes the standard OpenAI interface on the `v1/chat/completions` endpoint. NeMo Guardrails provides out-of-the-box support for engines that support the standard LLM interfaces. In Guardrails configuration, use the engine `nim` for the TopicControl NIM microservice as follows.
 
 ```yaml
 models:
@@ -67,7 +67,7 @@ A few things to note:
 - `parameters.model_name` in the Guardrails configuration needs to match the `$MODEL_NAME` used when running the NIM container.
 - The `rails` definitions should list `topic_control` as the model.
 
-#### Bonus: Caching the optimized TRTLLM inference engines
+### Bonus: Caching the optimized TRTLLM inference engines
 
 If you'd like to not build TRTLLM engines from scratch every time you run the NIM container, you can cache it in the first run by just adding a flag to mount a local directory inside the docker to store the model cache.
 
