@@ -48,7 +48,7 @@ NOTE: the provided Dockerfile downloads only the `base` AlignScore image. If you
 If you want to use the jailbreak detection heuristics server, you can also build a Docker image using the provided [Dockerfile](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/jailbreak_detection/Dockerfile).
 
 ```bash
-cd nemoguardrails/jailbreak_detection
+cd nemoguardrails/library/jailbreak_detection
 docker build -t jailbreak_detection_heuristics .
 ```
 
@@ -62,9 +62,9 @@ docker run -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY nemoguardrails
 
 This will start the NeMo Guardrails server with the example configurations. The Chat UI will be accessible at `http://localhost:8000`.
 
-NOTE: Since the example configurations use the OpenAI `test-davinci-003` models, you need to provide an `OPENAI_API_KEY`.
+NOTE: Since the example configurations use OpenAI models (such as `gpt-3.5-turbo-instruct` and `gpt-4`), you need to provide an `OPENAI_API_KEY`.
 
-To specify your own config folder for the server, you can have to mount your local configuration into the `/config` path into the container:
+To specify your own config folder for the server, you have to mount your local configuration into the `/config` path into the container:
 
 ```bash
 docker run \
