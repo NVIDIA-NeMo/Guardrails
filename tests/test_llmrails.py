@@ -852,3 +852,65 @@ async def test_other_models_honored(mock_init, llm_config_with_multiple_models):
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
     assert any(event.get("intent") == "express greeting" for event in new_events)
+
+
+@pytest.mark.asyncio
+@patch(
+    "nemoguardrails.rails.llm.llmrails.init_llm_model",
+    return_value=FakeLLM(responses=["safe"]),
+)
+async def test_main_llm_from_config_registered_as_action_param(
+    mock_init, llm_config_with_main
+):
+    """Test that main LLM initialized from config is properly registered as action parameter.
+
+    This test ensures that when no LLM is provided via constructor and the main LLM
+    is initialized from the config, it gets properly registered as an action parameter.
+    This prevents the regression where actions expecting an 'llm' parameter would receive None.
+    """
+    from langchain_core.language_models.llms import BaseLLM
+
+    from nemoguardrails.actions import action
+
+    @action(name="test_llm_action")
+    async def test_llm_action(llm: BaseLLM):
+        assert llm is not None
+        assert hasattr(llm, "agenerate_prompt")
+        return "llm_action_success"
+
+    llm_rails = LLMRails(config=llm_config_with_main)
+
+    llm_rails.runtime.register_action(test_llm_action)
+
+    assert llm_rails.llm is not None
+    assert "llm" in llm_rails.runtime.registered_action_params
+    assert llm_rails.runtime.registered_action_params["llm"] is llm_rails.llm
+
+    # create events that trigger the test action through the public generate_events_async method
+    events = [
+        {"type": "UtteranceUserActionFinished", "final_transcript": "test"},
+        {
+            "type": "StartInternalSystemAction",
+            "action_name": "test_llm_action",
+            "action_params": {},
+            "action_result_key": None,
+            "action_uid": "test_action_uid",
+            "is_system_action": False,
+            "source_uid": "test",
+        },
+    ]
+
+    result_events = await llm_rails.generate_events_async(events)
+
+    action_finished_event = None
+    for event in result_events:
+        if (
+            event["type"] == "InternalSystemActionFinished"
+            and event["action_name"] == "test_llm_action"
+        ):
+            action_finished_event = event
+            break
+
+    assert action_finished_event is not None
+    assert action_finished_event["status"] == "success"
+    assert action_finished_event["return_value"] == "llm_action_success"
