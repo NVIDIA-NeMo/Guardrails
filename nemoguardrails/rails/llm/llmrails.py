@@ -388,6 +388,7 @@ class LLMRails:
                     mode="chat",
                     kwargs=main_model.parameters or {},
                 )
+                self.runtime.register_action_param("llm", self.llm)
             else:
                 log.warning(
                     "No main LLM specified in the config and no LLM provided via constructor."
