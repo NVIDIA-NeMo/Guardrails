@@ -112,7 +112,7 @@ def is_content_safe(response: str) -> Sequence[Union[bool, str]]:
         response (str): The response string to analyze.
 
     Returns:
-        List[Union[bool, str]]: A list where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
     """
 
@@ -152,7 +152,7 @@ def nemoguard_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
         response (str): The response string to analyze.
 
     Returns:
-        List[Union[bool, str]]: A list where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
     """
     try:
@@ -194,7 +194,7 @@ def nemoguard_parse_response_safety(response: str) -> Sequence[Union[bool, str]]
         response (str): The response string to analyze.
 
     Returns:
-        List[Union[bool, str]]: A list where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean indicating the safety of the content (True if safe, False otherwise),
         and the remaining elements are strings representing violated policies, if any.
     """
     try:

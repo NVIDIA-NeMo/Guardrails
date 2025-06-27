@@ -106,7 +106,6 @@ class TestContentSafetyParserIntegration:
             context=context,
         )
 
-        # TODO: @trebedea @prasoonvarshney is this the expected behavior?
         assert result["allowed"] is True
         # following assertion fails
         # assert result["policy_violations"] == ["S1", "S8"]
