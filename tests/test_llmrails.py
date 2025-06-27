@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Any, Dict, List, Optional, Union
 from unittest.mock import patch
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.llmrails import _get_action_details_from_flow_id
 from tests.utils import FakeLLM, clean_events, event_sequence_conforms
 
@@ -914,3 +916,155 @@ async def test_main_llm_from_config_registered_as_action_param(
     assert action_finished_event is not None
     assert action_finished_event["status"] == "success"
     assert action_finished_event["return_value"] == "llm_action_success"
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+@patch.dict(os.environ, {"TEST_OPENAI_KEY": "secret-api-key-from-env"})
+def test_api_key_environment_variable_passed_to_init_llm_model(mock_init_llm_model):
+    """Test that API keys from environment variables are passed to init_llm_model."""
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="openai",
+                model="gpt-3.5-turbo",
+                api_key_env_var="TEST_OPENAI_KEY",
+                parameters={"temperature": 0.7},
+            )
+        ]
+    )
+
+    rails = LLMRails(config=config, verbose=False)
+
+    mock_init_llm_model.assert_called_once()
+    call_args = mock_init_llm_model.call_args
+
+    # critical assertion: the kwargs should contain the API key from the environment
+    # before the fix, this assertion would FAIL because api_key wouldnt be in kwargs
+    assert call_args.kwargs["kwargs"]["api_key"] == "secret-api-key-from-env"
+    assert call_args.kwargs["kwargs"]["temperature"] == 0.7
+
+    assert call_args.kwargs["model_name"] == "gpt-3.5-turbo"
+    assert call_args.kwargs["provider_name"] == "openai"
+    assert call_args.kwargs["mode"] == "chat"
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+@patch.dict(os.environ, {"CONTENT_SAFETY_KEY": "safety-key-from-env"})
+def test_api_key_environment_variable_for_non_main_models(mock_init_llm_model):
+    """Test that API keys from environment variables work for non-main models too.
+
+    This test ensures the fix works for all model types, not just the main model.
+    """
+    mock_main_llm = FakeLLM(responses=["main response"])
+    mock_content_safety_llm = FakeLLM(responses=["safety response"])
+
+    mock_init_llm_model.side_effect = [mock_main_llm, mock_content_safety_llm]
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="openai",
+                model="gpt-3.5-turbo",
+                parameters={"api_key": "hardcoded-key"},
+            ),
+            Model(
+                type="content_safety",
+                engine="openai",
+                model="text-moderation-latest",
+                api_key_env_var="CONTENT_SAFETY_KEY",
+                parameters={"temperature": 0.0},
+            ),
+        ]
+    )
+
+    _ = LLMRails(config=config, verbose=False)
+
+    assert mock_init_llm_model.call_count == 2
+
+    main_call_args = mock_init_llm_model.call_args_list[0]
+    assert main_call_args.kwargs["kwargs"]["api_key"] == "hardcoded-key"
+
+    safety_call_args = mock_init_llm_model.call_args_list[1]
+    assert safety_call_args.kwargs["kwargs"]["api_key"] == "safety-key-from-env"
+    assert safety_call_args.kwargs["kwargs"]["temperature"] == 0.0
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_missing_api_key_environment_variable_graceful_handling(mock_init_llm_model):
+    """Test that missing environment variables are handled gracefully during LLM initialization.
+
+    This test ensures that when an api_key_env_var is specified but the environment
+    variable doesn't exist during LLM initialization, the system doesn't crash and
+    doesn't pass a None/empty API key.
+    """
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    with patch.dict(os.environ, {"TEMP_API_KEY": "temporary-key"}):
+        config = RailsConfig(
+            models=[
+                Model(
+                    type="main",
+                    engine="openai",
+                    model="gpt-3.5-turbo",
+                    api_key_env_var="TEMP_API_KEY",
+                    parameters={"temperature": 0.5},
+                )
+            ]
+        )
+
+    with patch.dict(os.environ, {}, clear=True):
+        _ = LLMRails(config=config, verbose=False)
+
+        mock_init_llm_model.assert_called_once()
+        call_args = mock_init_llm_model.call_args
+
+        assert "api_key" not in call_args.kwargs["kwargs"]
+        assert call_args.kwargs["kwargs"]["temperature"] == 0.5
+
+
+def test_api_key_environment_variable_logic_without_rails_init():
+    """Test the _prepare_model_kwargs method directly to isolate the logic.
+
+    This test shows that the extracted helper method works correctly
+    """
+    config = RailsConfig(models=[Model(type="main", engine="fake", model="fake")])
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    # case 1: env var exists
+    class ModelWithEnvVar:
+        def __init__(self):
+            self.api_key_env_var = "MY_API_KEY"
+            self.parameters = {"temperature": 0.8}
+
+    with patch.dict(os.environ, {"MY_API_KEY": "my-secret-key"}):
+        model = ModelWithEnvVar()
+        kwargs = rails._prepare_model_kwargs(model)
+
+        assert kwargs["api_key"] == "my-secret-key"
+        assert kwargs["temperature"] == 0.8
+
+    # case 2: env var doesn't exist
+    with patch.dict(os.environ, {}, clear=True):
+        model = ModelWithEnvVar()
+        kwargs = rails._prepare_model_kwargs(model)
+
+        assert "api_key" not in kwargs
+        assert kwargs["temperature"] == 0.8
+
+    # case 3: no api_key_env_var specified
+    class ModelWithoutEnvVar:
+        def __init__(self):
+            self.api_key_env_var = None
+            self.parameters = {"api_key": "direct-key", "temperature": 0.3}
+
+    model = ModelWithoutEnvVar()
+    kwargs = rails._prepare_model_kwargs(model)
+
+    assert kwargs["api_key"] == "direct-key"
+    assert kwargs["temperature"] == 0.3

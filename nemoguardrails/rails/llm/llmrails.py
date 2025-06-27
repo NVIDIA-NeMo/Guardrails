@@ -23,7 +23,6 @@ import os
 import re
 import threading
 import time
-import warnings
 from functools import partial
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Type, Union, cast
 
@@ -350,6 +349,26 @@ class LLMRails:
         self.kb.init()
         await self.kb.build()
 
+    def _prepare_model_kwargs(self, model_config):
+        """
+        Prepare kwargs for model initialization, including API key from environment variable.
+
+        Args:
+            model_config: The model configuration object
+
+        Returns:
+            dict: The prepared kwargs for model initialization
+        """
+        kwargs = model_config.parameters or {}
+
+        # If the optional API Key Environment Variable is set, add it to kwargs
+        if model_config.api_key_env_var:
+            api_key = os.environ.get(model_config.api_key_env_var)
+            if api_key:
+                kwargs["api_key"] = api_key
+
+        return kwargs
+
     def _init_llms(self):
         """
         Initializes the right LLM engines based on the configuration.
@@ -381,12 +400,14 @@ class LLMRails:
             main_model = next(
                 (model for model in self.config.models if model.type == "main"), None
             )
+
             if main_model:
+                kwargs = self._prepare_model_kwargs(main_model)
                 self.llm = init_llm_model(
                     model_name=main_model.model,
                     provider_name=main_model.engine,
                     mode="chat",
-                    kwargs=main_model.parameters or {},
+                    kwargs=kwargs,
                 )
                 self.runtime.register_action_param("llm", self.llm)
             else:
@@ -407,15 +428,8 @@ class LLMRails:
             try:
                 model_name = llm_config.model
                 provider_name = llm_config.engine
-                kwargs = llm_config.parameters or {}
+                kwargs = self._prepare_model_kwargs(llm_config)
                 mode = llm_config.mode
-
-                # If the optional API Key Environment Variable is set, store
-                # this in the `kwargs` for the current model
-                if llm_config.api_key_env_var:
-                    api_key = os.environ.get(llm_config.api_key_env_var)
-                    if api_key:
-                        kwargs["api_key"] = api_key
 
                 llm_model = init_llm_model(
                     model_name=model_name,
