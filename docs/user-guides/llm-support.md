@@ -40,6 +40,7 @@ If you want to use an LLM and you cannot see a prompt in the [prompts folder](ht
 | Patronus Evaluate API _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                                 |
 | Fiddler Fast Faitfhulness Hallucination Detection _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔
 | Fiddler Fast Safety & Jailbreak Detection _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                     |
+| Pangea AI Guard integration _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                     |
 
 Table legend:
 

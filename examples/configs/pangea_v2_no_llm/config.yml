@@ -1,0 +1,12 @@
+colang_version: "2.x"
+
+# No models section - guardrails only mode
+# No LLM is required since we're only using Pangea APIs
+
+rails:
+  config:
+    pangea:
+      input:
+        recipe: pangea_prompt_guard
+      output:
+        recipe: pangea_llm_response_guard

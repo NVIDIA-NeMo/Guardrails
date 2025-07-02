@@ -1,0 +1,24 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+instructions:
+  - type: general
+    content: |
+      You are a helpful assistant.
+
+rails:
+  config:
+    pangea:
+      input:
+        recipe: pangea_prompt_guard
+      output:
+        recipe: pangea_llm_response_guard
+
+  input:
+    flows:
+      - pangea ai guard input
+  output:
+    flows:
+      - pangea ai guard output

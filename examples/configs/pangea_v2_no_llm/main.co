@@ -1,0 +1,12 @@
+import core
+
+flow main
+    activate message handler
+
+# Allow continuation after blocked messages in guardrails only mode
+flow message handler
+    when user said something
+        global $user_message
+        # At this point, $user_message contains the processed value from input rails
+        bot say "Processed message: {$user_message}"
+        activate message handler  # Reactivate for next message

@@ -25,6 +25,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Private AI PII detection](#private-ai-pii-detection)
    - [Fiddler Guardrails for Safety and Hallucination Detection](#fiddler-guardrails-for-safety-and-hallucination-detection)
    - [Prompt Security Protection](#prompt-security-protection)
+   - [Pangea AI Guard](#pangea-ai-guard)
    - OpenAI Moderation API - *[COMING SOON]*
 
 4. Other
@@ -865,6 +866,26 @@ rails:
 ```
 
 For more details, check out the [Prompt Security Integration](./community/prompt-security.md) page.
+
+### Pangea AI Guard
+
+NeMo Guardrails supports using [Pangea AI Guard](https://pangea.cloud/services/ai-guard/) for protecting data and
+interactions with LLMs within AI-powered applications.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - pangea ai guard input
+
+  output:
+    flows:
+      - pangea ai guard output
+```
+
+For more details, check out the [Pangea AI Guard Integration](./community/pangea.md) page.
 
 ## Other
 
