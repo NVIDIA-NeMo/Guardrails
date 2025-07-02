@@ -293,12 +293,10 @@ class RuntimeV1_0(Runtime):
             post_events (List[dict], optional): Events to be added after finishing each flow.
         """
 
-        assert pre_events is None or len(pre_events) == len(
-            flows
-        ), "Number of pre-events must match number of flows."
-        assert post_events is None or len(post_events) == len(
-            flows
-        ), "Number of post-events must match number of flows."
+        if pre_events is not None and len(pre_events) != len(flows):
+            raise ValueError("Number of pre-events must match number of flows.")
+        if post_events is not None and len(post_events) != len(flows):
+            raise ValueError("Number of post-events must match number of flows.")
 
         unique_flow_ids = {}  # Keep track of unique flow IDs order
         task_results: Dict[str, List] = {}  # Store results keyed by flow_id
