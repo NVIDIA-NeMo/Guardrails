@@ -64,7 +64,6 @@ async def test_parallel_rails_success():
     assert (
         result.log.activated_rails[2].name == "check blocked input terms $duration=1.0"
     )
-    # assert len(result.log.activated_rails[1].executed_actions) == 2
     assert result.log.activated_rails[3].name == "generate user intent"
     assert result.log.activated_rails[4].name == "self check output"
     assert (
@@ -73,7 +72,6 @@ async def test_parallel_rails_success():
     assert (
         result.log.activated_rails[6].name == "check blocked output terms $duration=1.0"
     )
-    # assert len(result.log.activated_rails[4].executed_actions) == 2
 
     # Time should be close to 2 seconds due to parallel processing:
     # check blocked input terms: 1s
