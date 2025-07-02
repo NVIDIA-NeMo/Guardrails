@@ -190,9 +190,10 @@ class RuntimeV1_0(Runtime):
             new_events.extend(next_events)
 
             for event in next_events:
-                processing_log.append(
-                    {"type": "event", "timestamp": time(), "data": event}
-                )
+                if event["type"] != "EventHistoryUpdate":
+                    processing_log.append(
+                        {"type": "event", "timestamp": time(), "data": event}
+                    )
 
             # If the next event is a listen, we stop the processing.
             if next_events[-1]["type"] == "Listen":
@@ -302,14 +303,15 @@ class RuntimeV1_0(Runtime):
         unique_flow_ids = {}  # Keep track of unique flow IDs order
         task_results: Dict[str, List] = {}  # Store results keyed by flow_id
         task_processing_logs: dict = {}  # Store resulting processing logs for each flow
-        finished_task_results: List[dict] = []  # Collect all results in order
-        new_events: Optional[List[dict]] = None
 
         # Wrapper function to help reverse map the task result to the flow ID
-        async def task_call_helper(flow_uid, final_event, func, *args, **kwargs):
+        async def task_call_helper(flow_uid, post_event, func, *args, **kwargs):
             result = await func(*args, **kwargs)
-            if final_event:
-                result.append(final_event)
+            if post_event:
+                result.append(post_event)
+                args[1].append(
+                    {"type": "event", "timestamp": time(), "data": post_event}
+                )
             return flow_uid, result
 
         # Create a task for each flow but don't await them yet
@@ -331,14 +333,17 @@ class RuntimeV1_0(Runtime):
             # Generate a unique flow ID
             flow_uid = f"{flow_id}:{str(uuid.uuid4())}"
 
-            # Initialize task results
+            # Initialize task results and processing logs for this flow
             task_results[flow_uid] = []
+            task_processing_logs[flow_uid] = []
 
             # Add pre-event if provided
             if pre_events:
                 task_results[flow_uid].append(pre_events[index])
+                task_processing_logs[flow_uid].append(
+                    {"type": "event", "timestamp": time(), "data": pre_events[index]}
+                )
 
-            task_processing_logs[flow_uid] = []
             task = asyncio.create_task(
                 task_call_helper(
                     flow_uid,
@@ -350,6 +355,8 @@ class RuntimeV1_0(Runtime):
             )
             tasks.append(task)
             unique_flow_ids[flow_uid] = task
+
+        stopped_task_results: List[dict] = []
 
         # Process tasks as they complete using as_completed
         try:
@@ -365,15 +372,21 @@ class RuntimeV1_0(Runtime):
 
                     # If this flow had a stop event
                     if has_stop:
-                        # Add result of failed task that includes stop event
-                        new_events = result
+                        stopped_task_results = task_results[flow_id] + result
+
+                        del unique_flow_ids[flow_id]
                         # Cancel all remaining tasks
                         for pending_task in tasks:
+                            # Don't include results and processing logs for cancelled or stopped tasks
                             if (
-                                pending_task != unique_flow_ids[flow_id]
+                                flow_id in unique_flow_ids
+                                and pending_task != unique_flow_ids[flow_id]
                                 and not pending_task.done()
                             ):
+                                # Cancel the task if it is not done
                                 pending_task.cancel()
+                                del unique_flow_ids[flow_id]
+                        break
                     else:
                         # Store the result for this specific flow
                         task_results[flow_id].extend(result)
@@ -388,12 +401,11 @@ class RuntimeV1_0(Runtime):
         context_updates: dict = {}
         processing_log = processing_log_var.get()
 
-        # Compose results in original flow order
-        for flow_id in unique_flow_ids:
-            # Skip if this flow has not finished
-            if flow_id not in task_results:
-                continue
+        finished_task_processing_logs: List[dict] = []  # Collect all results in order
+        finished_task_results: List[dict] = []  # Collect all results in order
 
+        # Compose results in original flow order of all completed tasks
+        for flow_id in unique_flow_ids:
             result = task_results[flow_id]
 
             # Extract context updates
@@ -402,21 +414,26 @@ class RuntimeV1_0(Runtime):
                     context_updates = {**context_updates, **event["data"]}
 
             finished_task_results.extend(result)
-            if processing_log:
-                processing_log.extend(task_processing_logs[flow_id])
+            finished_task_processing_logs.extend(task_processing_logs[flow_id])
+
+        if processing_log:
+            for plog in finished_task_processing_logs:
+                # Filter out "Listen" and "start_flow" events from task processing log
+                if plog["type"] == "event" and (
+                    plog["data"]["type"] == "Listen"
+                    or plog["data"]["type"] == "start_flow"
+                ):
+                    continue
+                processing_log.append(plog)
 
         # We pack all events into a single event to add it to the event history.
         history_events = new_event_dict(
             "EventHistoryUpdate",
             data={"events": finished_task_results},
         )
-        if new_events:
-            new_events.insert(0, history_events)
-        else:
-            new_events = [history_events]
 
         return ActionResult(
-            events=new_events,
+            events=[history_events] + stopped_task_results,
             context_updates=context_updates,
         )
 
