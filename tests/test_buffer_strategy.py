@@ -305,6 +305,53 @@ async def test_boundary_conditions():
     assert len(results[1].user_output_chunks) == 0
 
 
+@pytest.mark.asyncio
+async def test_subword_token_preservation():
+    """Test that subword tokens are preserved without extra spaces (issue #1197)."""
+
+    async def subword_token_stream():
+        # simulate subword tokens like BPE tokenization
+        # example: "assisting" becomes ["ass", "isting"]
+        yield "ass"
+        yield "isting"
+        yield " with "
+        yield "help"
+        yield "ing"
+        yield " you"
+
+    buffer_strategy = BufferStrategy(buffer_context_size=2, buffer_chunk_size=3)
+
+    # Collect all data in a single pass to avoid creating duplicate streams
+    processing_contexts = []
+    user_output_parts = []
+
+    async for chunk_batch in buffer_strategy(subword_token_stream()):
+        formatted_text = buffer_strategy.format_chunks(chunk_batch.processing_context)
+        processing_contexts.append(formatted_text)
+
+        user_chunk_text = buffer_strategy.format_chunks(chunk_batch.user_output_chunks)
+        user_output_parts.append(user_chunk_text)
+
+    # reconstruct the full text from user output chunks
+    full_text = "".join(user_output_parts)
+
+    # subword tokens should be properly joined
+    assert "assisting" in full_text, f"Expected 'assisting' but got: {full_text}"
+    assert "helping" in full_text, f"Expected 'helping' but got: {full_text}"
+
+    # verify no extra spaces were introduced between subword tokens
+    assert (
+        "ass isting" not in full_text
+    ), f"Found extra space in subword tokens: {full_text}"
+    assert (
+        "help ing" not in full_text
+    ), f"Found extra space in subword tokens: {full_text}"
+
+    # expected result should be: "assisting with helping you"
+    expected = "assisting with helping you"
+    assert full_text == expected, f"Expected '{expected}' but got '{full_text}'"
+
+
 async def async_enumerate(aiterable, start=0):
     idx = start
     async for item in aiterable:
