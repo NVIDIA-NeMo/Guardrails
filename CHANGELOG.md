@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.14.1] - 2025-07-02
+
+### 🚀 Features
+
+- *(jailbreak)* Add direct API key configuration support ([#1260](https://github.com/NVIDIA/NeMo-Guardrails/issues/1260))
+
+### 🐛 Bug Fixes
+
+- *(jailbreak)* Lazy load jailbreak detection dependencies ([#1223](https://github.com/NVIDIA/NeMo-Guardrails/issues/1223),)
+- *(llmrails)* Constructor LLM should not skip loading other config models ([#1221](https://github.com/NVIDIA/NeMo-Guardrails/issues/1221), [#1247](https://github.com/NVIDIA/NeMo-Guardrails/issues/1247), [#1250](https://github.com/NVIDIA/NeMo-Guardrails/issues/1250), [#1258](https://github.com/NVIDIA/NeMo-Guardrails/issues/1258))
+- *(content_safety)* Replace try-except with iterable unpacking for policy violations ([#1207](https://github.com/NVIDIA/NeMo-Guardrails/issues/1207))
+- *(jailbreak)* Pin numpy==1.23.5 for scikit-learn compatibility ([#1249](https://github.com/NVIDIA/NeMo-Guardrails/issues/1249))
+- *(output_parsers)* Iterable unpacking compatibility in content safety parsers ([#1242](https://github.com/NVIDIA/NeMo-Guardrails/issues/1242))
+
+### 📚 Documentation
+
+- More heading levels so RNs resolve links ([#1228](https://github.com/NVIDIA/NeMo-Guardrails/issues/1228))
+- Update docs version ([#1219](https://github.com/NVIDIA/NeMo-Guardrails/issues/1219))
+- Fix jailbreak detection build instructions ([#1248](https://github.com/NVIDIA/NeMo-Guardrails/issues/1248))
+- Change ABC bot link at docs ([#1261]([#1248](https://github.com/NVIDIA/NeMo-Guardrails/issues/1261)))
+
+### 🧪 Testing
+
+- Fix async test failures in cache embeddings and buffer strategy tests ([#1237](https://github.com/NVIDIA/NeMo-Guardrails/issues/1237))
+- *(content_safety)* Add tests for content safety actions ([#1240](https://github.com/NVIDIA/NeMo-Guardrails/issues/1240))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update pre-commit-hooks to v5.0.0 ([#1238](https://github.com/NVIDIA/NeMo-Guardrails/issues/1238))
+
 ## [0.14.0] - 2025-05-28
 
 ### 🚀 Features
