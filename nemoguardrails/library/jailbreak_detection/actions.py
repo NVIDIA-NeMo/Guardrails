@@ -32,8 +32,6 @@ import logging
 import os
 from typing import Optional
 
-from pydantic import SecretStr
-
 from nemoguardrails.actions import action
 from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_detection_heuristics_request,
@@ -41,7 +39,6 @@ from nemoguardrails.library.jailbreak_detection.request import (
     jailbreak_nim_request,
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
 
 log = logging.getLogger(__name__)
 

@@ -133,7 +133,7 @@ class TestJailbreakDetectionConfig:
         assert config.embedding is None
 
     def test_get_auth_token_no_key(self):
-        """The `api_key` should be used as a first priority"""
+        """Check when neither `api_key` nor `api_key_env_var` are provided, auth token is None"""
 
         config = JailbreakDetectionConfig(
             nim_base_url="http://localhost:8000/v1",
@@ -144,7 +144,7 @@ class TestJailbreakDetectionConfig:
         assert auth_token is None
 
     def test_get_auth_token_api_key(self):
-        """The `api_key` should be used as a first priority"""
+        """Check when both `api_key` and `api_key_env_var` are provided, `api_key` takes precedence"""
         api_key_value = "nvapi-abcdef12345"
         api_key_env_var_name = "CUSTOM_API_KEY"
         api_key_env_var_value = "env-var-nvapi-abcdef12345"
@@ -161,7 +161,7 @@ class TestJailbreakDetectionConfig:
             assert auth_token == api_key_value
 
     def test_get_auth_token_api_key_env_var(self):
-        """The `api_key` should be used as a first priority"""
+        """Check when only `api_key_env_var` is provided, the env-var value is correctly returned"""
         api_key_env_var_name = "CUSTOM_API_KEY"
         api_key_env_var_value = "env-var-nvapi-abcdef12345"
 
@@ -176,7 +176,7 @@ class TestJailbreakDetectionConfig:
             assert auth_token == api_key_env_var_value
 
     def test_get_auth_token_api_key_env_var_not_set(self):
-        """The `api_key` should be used as a first priority"""
+        """Check configuring an `api_key_env_var` that isn't set in the shell returns None"""
         api_key_env_var_name = "CUSTOM_API_KEY"
 
         with patch.dict(os.environ, {}):
