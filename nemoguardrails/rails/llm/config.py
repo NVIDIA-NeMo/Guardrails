@@ -26,6 +26,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SecretStr,
     model_validator,
     root_validator,
     validator,
@@ -572,6 +573,10 @@ class JailbreakDetectionConfig(BaseModel):
         default="classify",
         description="Classification path uri. Defaults to 'classify' for NemoGuard JailbreakDetect.",
     )
+    api_key: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret String with API key for use in Jailbreak requests. Takes precedence over api_key_env_var",
+    )
     api_key_env_var: Optional[str] = Field(
         default=None,
         description="Environment variable containing API key for jailbreak detection model",
@@ -599,6 +604,31 @@ class JailbreakDetectionConfig(BaseModel):
             port = self.nim_port or 8000
             self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
         return self
+
+    def get_auth_token(self) -> Optional[str]:
+        """Helper to return an Auth token (if it exists) from a Jailbreak configuration.
+          This can come from (in descending order of priority):
+
+        1. The `api_key` field, a Pydantic SecretStr from which we extract the full string.
+        2. The `api_key_env_var` field, a string stored in this environment variable.
+
+        If neither is found, None is returned.
+        """
+
+        if self.api_key:
+            return self.api_key.get_secret_value()
+
+        if self.api_key_env_var:
+            nim_auth_token = os.getenv(self.api_key_env_var)
+            if nim_auth_token:
+                return nim_auth_token
+
+            log.warning(
+                "Specified a value for jailbreak config api_key_env var at %s but the environment variable was not set!"
+                % config.api_key_env_var
+            )
+
+        return None
 
 
 class AutoAlignOptions(BaseModel):

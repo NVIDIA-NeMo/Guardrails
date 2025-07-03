@@ -12,7 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+from unittest.mock import patch
 
+from pydantic import SecretStr
 
 from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
 
@@ -128,3 +131,46 @@ class TestJailbreakDetectionConfig:
         assert config.nim_url is None
         assert config.nim_port is None
         assert config.embedding is None
+
+    def test_get_auth_token_no_key(self):
+        """The `api_key` should be used as a first priority"""
+
+        config = JailbreakDetectionConfig(
+            nim_base_url="http://localhost:8000/v1",
+            nim_server_endpoint="classify",
+        )
+
+        auth_token = config.get_auth_token()
+        assert auth_token is None
+
+    def test_get_auth_token_api_key(self):
+        """The `api_key` should be used as a first priority"""
+        api_key_value = "nvapi-abcdef12345"
+        api_key_env_var_name = "CUSTOM_API_KEY"
+        api_key_env_var_value = "env-var-nvapi-abcdef12345"
+
+        with patch.dict(os.environ, {api_key_env_var_name: api_key_env_var_value}):
+            config = JailbreakDetectionConfig(
+                nim_base_url="http://localhost:8000/v1",
+                nim_server_endpoint="classify",
+                api_key=api_key_value,
+                api_key_env_var=api_key_env_var_name,
+            )
+
+            auth_token = config.get_auth_token()
+            assert auth_token == api_key_value
+
+    def test_get_auth_token_api_key_env_var(self):
+        """The `api_key` should be used as a first priority"""
+        api_key_env_var_name = "CUSTOM_API_KEY"
+        api_key_env_var_value = "env-var-nvapi-abcdef12345"
+
+        with patch.dict(os.environ, {api_key_env_var_name: api_key_env_var_value}):
+            config = JailbreakDetectionConfig(
+                nim_base_url="http://localhost:8000/v1",
+                nim_server_endpoint="classify",
+                api_key_env_var=api_key_env_var_name,
+            )
+
+            auth_token = config.get_auth_token()
+            assert auth_token == api_key_env_var_value
