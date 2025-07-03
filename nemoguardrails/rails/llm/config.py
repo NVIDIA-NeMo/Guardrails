@@ -605,8 +605,8 @@ class JailbreakDetectionConfig(BaseModel):
             self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
         return self
 
-    def get_auth_token(self) -> Optional[str]:
-        """Helper to return an Auth token (if it exists) from a Jailbreak configuration.
+    def get_api_key(self) -> Optional[str]:
+        """Helper to return an API key (if it exists) from a Jailbreak configuration.
           This can come from (in descending order of priority):
 
         1. The `api_key` field, a Pydantic SecretStr from which we extract the full string.

@@ -132,7 +132,7 @@ class TestJailbreakDetectionConfig:
         assert config.nim_port is None
         assert config.embedding is None
 
-    def test_get_auth_token_no_key(self):
+    def test_get_api_key_no_key(self):
         """Check when neither `api_key` nor `api_key_env_var` are provided, auth token is None"""
 
         config = JailbreakDetectionConfig(
@@ -140,10 +140,10 @@ class TestJailbreakDetectionConfig:
             nim_server_endpoint="classify",
         )
 
-        auth_token = config.get_auth_token()
+        auth_token = config.get_api_key()
         assert auth_token is None
 
-    def test_get_auth_token_api_key(self):
+    def test_get_api_key_api_key(self):
         """Check when both `api_key` and `api_key_env_var` are provided, `api_key` takes precedence"""
         api_key_value = "nvapi-abcdef12345"
         api_key_env_var_name = "CUSTOM_API_KEY"
@@ -157,10 +157,10 @@ class TestJailbreakDetectionConfig:
                 api_key_env_var=api_key_env_var_name,
             )
 
-            auth_token = config.get_auth_token()
+            auth_token = config.get_api_key()
             assert auth_token == api_key_value
 
-    def test_get_auth_token_api_key_env_var(self):
+    def test_get_api_key_api_key_env_var(self):
         """Check when only `api_key_env_var` is provided, the env-var value is correctly returned"""
         api_key_env_var_name = "CUSTOM_API_KEY"
         api_key_env_var_value = "env-var-nvapi-abcdef12345"
@@ -172,10 +172,10 @@ class TestJailbreakDetectionConfig:
                 api_key_env_var=api_key_env_var_name,
             )
 
-            auth_token = config.get_auth_token()
+            auth_token = config.get_api_key()
             assert auth_token == api_key_env_var_value
 
-    def test_get_auth_token_api_key_env_var_not_set(self):
+    def test_get_api_key_api_key_env_var_not_set(self):
         """Check configuring an `api_key_env_var` that isn't set in the shell returns None"""
         api_key_env_var_name = "CUSTOM_API_KEY"
 
@@ -186,5 +186,5 @@ class TestJailbreakDetectionConfig:
                 api_key_env_var=api_key_env_var_name,
             )
 
-            auth_token = config.get_auth_token()
+            auth_token = config.get_api_key()
             assert auth_token is None
