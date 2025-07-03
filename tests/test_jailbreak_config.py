@@ -174,3 +174,17 @@ class TestJailbreakDetectionConfig:
 
             auth_token = config.get_auth_token()
             assert auth_token == api_key_env_var_value
+
+    def test_get_auth_token_api_key_env_var_not_set(self):
+        """The `api_key` should be used as a first priority"""
+        api_key_env_var_name = "CUSTOM_API_KEY"
+
+        with patch.dict(os.environ, {}):
+            config = JailbreakDetectionConfig(
+                nim_base_url="http://localhost:8000/v1",
+                nim_server_endpoint="classify",
+                api_key_env_var=api_key_env_var_name,
+            )
+
+            auth_token = config.get_auth_token()
+            assert auth_token is None

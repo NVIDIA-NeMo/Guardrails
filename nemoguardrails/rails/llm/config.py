@@ -625,7 +625,7 @@ class JailbreakDetectionConfig(BaseModel):
 
             log.warning(
                 "Specified a value for jailbreak config api_key_env var at %s but the environment variable was not set!"
-                % config.api_key_env_var
+                % self.api_key_env_var
             )
 
         return None
