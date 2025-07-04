@@ -66,7 +66,7 @@ from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
-from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, Model, RailsConfig
+from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
 from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationOptions,
@@ -1351,6 +1351,32 @@ class LLMRails:
                     return message
             return {}
 
+        def _prepare_context_for_parallel_rails(
+            chunk_str: str,
+            prompt: Optional[str] = None,
+            messages: Optional[List[dict]] = None,
+        ) -> dict:
+            """Prepare context for parallel rails execution."""
+            context_message = _get_last_context_message(messages)
+            user_message = prompt or _get_latest_user_message(messages)
+
+            context = {
+                "user_message": user_message,
+                "bot_message": chunk_str,
+            }
+
+            if context_message:
+                context.update(context_message["content"])
+
+            return context
+
+        def _create_events_for_chunk(chunk_str: str, context: dict) -> List[dict]:
+            """Create events for running output rails on a chunk."""
+            return [
+                {"type": "ContextUpdate", "data": context},
+                {"type": "BotMessage", "text": chunk_str},
+            ]
+
         def _prepare_params(
             flow_id: str,
             action_name: str,
@@ -1404,6 +1430,8 @@ class LLMRails:
             _get_action_details_from_flow_id, flows=self.config.flows
         )
 
+        parallel_mode = getattr(self.config.rails.output, "parallel", False)
+
         async for chunk_batch in buffer_strategy(streaming_handler):
             user_output_chunks = chunk_batch.user_output_chunks
             # format processing_context for output rails processing (needs full context)
@@ -1427,48 +1455,118 @@ class LLMRails:
                 for chunk in user_output_chunks:
                     yield chunk
 
-            for flow_id in output_rails_flows_id:
-                action_name, action_params = get_action_details(flow_id)
+            if parallel_mode:
+                try:
+                    context = _prepare_context_for_parallel_rails(
+                        bot_response_chunk, prompt, messages
+                    )
+                    events = _create_events_for_chunk(bot_response_chunk, context)
 
-                params = _prepare_params(
-                    flow_id=flow_id,
-                    action_name=action_name,
-                    bot_response_chunk=bot_response_chunk,
-                    prompt=prompt,
-                    messages=messages,
-                    action_params=action_params,
-                )
+                    flows_with_params = {}
+                    for flow_id in output_rails_flows_id:
+                        action_name, action_params = get_action_details(flow_id)
+                        params = _prepare_params(
+                            flow_id=flow_id,
+                            action_name=action_name,
+                            bot_response_chunk=bot_response_chunk,
+                            prompt=prompt,
+                            messages=messages,
+                            action_params=action_params,
+                        )
+                        flows_with_params[flow_id] = {
+                            "action_name": action_name,
+                            "params": params,
+                        }
 
-                result = await self.runtime.action_dispatcher.execute_action(
-                    action_name, params
-                )
+                    result_tuple = await self.runtime.action_dispatcher.execute_action(
+                        "run_output_rails_in_parallel_streaming",
+                        {
+                            "flows_with_params": flows_with_params,
+                            "events": events,
+                        },
+                    )
+
+                    # ActionDispatcher.execute_action always returns (result, status)
+                    result, status = result_tuple
+
+                    if status != "success":
+                        log.error(
+                            f"Parallel rails execution failed with status: {status}"
+                        )
+                        # continue processing the chunk even if rails fail
+                        pass
+                    else:
+                        # if there are any stop events, content was blocked
+                        if result.events:
+                            # extract the blocked flow from the first stop event
+                            blocked_flow = result.events[0].get(
+                                "flow_id", "output rails"
+                            )
+
+                            reason = f"Blocked by {blocked_flow} rails."
+                            error_data = {
+                                "error": {
+                                    "message": reason,
+                                    "type": "guardrails_violation",
+                                    "param": blocked_flow,
+                                    "code": "content_blocked",
+                                }
+                            }
+                            yield json.dumps(error_data)
+                            return
+
+                except Exception as e:
+                    log.error(f"Error in parallel rail execution: {e}")
+                    # don't block the stream for rail execution errors
+                    # continue processing the chunk
+                    pass
+
+                # update explain info for parallel mode
                 self.explain_info = self._ensure_explain_info()
 
-                action_func = self.runtime.action_dispatcher.get_action(action_name)
+            else:
+                for flow_id in output_rails_flows_id:
+                    action_name, action_params = get_action_details(flow_id)
 
-                # Use the mapping to decide if the result indicates blocked content.
-                if is_output_blocked(result, action_func):
-                    reason = f"Blocked by {flow_id} rails."
+                    params = _prepare_params(
+                        flow_id=flow_id,
+                        action_name=action_name,
+                        bot_response_chunk=bot_response_chunk,
+                        prompt=prompt,
+                        messages=messages,
+                        action_params=action_params,
+                    )
 
-                    # return the error as a plain JSON string (not in SSE format)
-                    # NOTE: When integrating with the OpenAI Python client, the server code should:
-                    # 1. detect this JSON error object in the stream
-                    # 2. terminate the stream
-                    # 3. format the error following OpenAI's SSE format
-                    # the OpenAI client will then properly raise an APIError with this error message
+                    result = await self.runtime.action_dispatcher.execute_action(
+                        action_name, params
+                    )
+                    self.explain_info = self._ensure_explain_info()
 
-                    error_data = {
-                        "error": {
-                            "message": reason,
-                            "type": "guardrails_violation",
-                            "param": flow_id,
-                            "code": "content_blocked",
+                    action_func = self.runtime.action_dispatcher.get_action(action_name)
+
+                    # Use the mapping to decide if the result indicates blocked content.
+                    if is_output_blocked(result, action_func):
+                        reason = f"Blocked by {flow_id} rails."
+
+                        # return the error as a plain JSON string (not in SSE format)
+                        # NOTE: When integrating with the OpenAI Python client, the server code should:
+                        # 1. detect this JSON error object in the stream
+                        # 2. terminate the stream
+                        # 3. format the error following OpenAI's SSE format
+                        # the OpenAI client will then properly raise an APIError with this error message
+
+                        error_data = {
+                            "error": {
+                                "message": reason,
+                                "type": "guardrails_violation",
+                                "param": flow_id,
+                                "code": "content_blocked",
+                            }
                         }
-                    }
 
-                    # return as plain JSON: the server should detect this JSON and convert it to an HTTP error
-                    yield json.dumps(error_data)
-                    return
+                        # return as plain JSON: the server should detect this JSON and convert it to an HTTP error
+                        yield json.dumps(error_data)
+                        return
 
             if not stream_first:
                 # yield the individual chunks directly from the buffer strategy

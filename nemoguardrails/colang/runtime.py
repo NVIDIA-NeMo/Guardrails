@@ -37,6 +37,12 @@ class Runtime:
             import_paths=list(config.imported_paths.values()),
         )
 
+        if hasattr(self, "_run_output_rails_in_parallel_streaming"):
+            self.action_dispatcher.register_action(
+                self._run_output_rails_in_parallel_streaming,
+                name="run_output_rails_in_parallel_streaming",
+            )
+
         # The list of additional parameters that can be passed to the actions.
         self.registered_action_params: dict = {}
 
