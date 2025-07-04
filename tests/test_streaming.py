@@ -370,7 +370,7 @@ async def test_streaming_output_rails_allowed(output_rails_streaming_config):
 async def test_sequential_streaming_output_rails_allowed(
     output_rails_streaming_config,
 ):
-    """Tests that parallel output rails allow content when no blocking keywords are present"""
+    """Tests that sequential output rails allow content when no blocking keywords are present"""
 
     llm_completions = [
         " bot express insult",
