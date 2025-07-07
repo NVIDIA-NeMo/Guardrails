@@ -15,8 +15,11 @@
 
 import pytest
 
-from nemoguardrails.rails.llm.buffer import RollingBuffer as BufferStrategy
-from nemoguardrails.rails.llm.buffer import get_buffer_strategy
+from nemoguardrails.rails.llm.buffer import (
+    BufferStrategy,
+    RollingBuffer,
+    get_buffer_strategy,
+)
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
 
 
@@ -56,7 +59,7 @@ async def empty_streaming_handler():
 
 @pytest.mark.asyncio
 async def test_buffer_strategy():
-    buffer_strategy = BufferStrategy(buffer_context_size=5, buffer_chunk_size=10)
+    buffer_strategy = RollingBuffer(buffer_context_size=5, buffer_chunk_size=10)
     streaming_handler = fake_streaming_handler()
 
     expected_processing_contexts = [
@@ -121,7 +124,7 @@ async def test_buffer_strategy():
 @pytest.mark.asyncio
 async def test_buffer_strategy_realistic_data():
     """Test with realistic token data including spaces."""
-    buffer_strategy = BufferStrategy(buffer_context_size=2, buffer_chunk_size=4)
+    buffer_strategy = RollingBuffer(buffer_context_size=2, buffer_chunk_size=4)
     streaming_handler = realistic_streaming_handler()
 
     expected_results = [
@@ -162,7 +165,7 @@ async def test_buffer_strategy_realistic_data():
 @pytest.mark.asyncio
 async def test_both_interfaces_identical():
     """Test both process_stream() and __call__() interfaces work identically."""
-    buffer_strategy = BufferStrategy(buffer_context_size=1, buffer_chunk_size=3)
+    buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=3)
 
     # process_stream interface
     results_process_stream = []
@@ -194,7 +197,7 @@ async def test_edge_cases():
     """Test various edge cases."""
 
     # empty stream
-    buffer_strategy = BufferStrategy(buffer_context_size=2, buffer_chunk_size=4)
+    buffer_strategy = RollingBuffer(buffer_context_size=2, buffer_chunk_size=4)
     results = []
     async for chunk_batch in buffer_strategy(empty_streaming_handler()):
         results.append(chunk_batch)
@@ -213,12 +216,12 @@ async def test_edge_cases():
 def test_validation():
     """Test input validation."""
     with pytest.raises(ValueError, match="buffer_context_size must be non-negative"):
-        BufferStrategy(buffer_context_size=-1)
+        RollingBuffer(buffer_context_size=-1)
 
     with pytest.raises(ValueError, match="buffer_chunk_size must be non-negative"):
-        BufferStrategy(buffer_chunk_size=-1)
+        RollingBuffer(buffer_chunk_size=-1)
 
-    buffer = BufferStrategy(buffer_context_size=0, buffer_chunk_size=1)
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=1)
     assert buffer.buffer_context_size == 0
     assert buffer.buffer_chunk_size == 1
 
@@ -226,7 +229,7 @@ def test_validation():
 def test_from_config():
     """Test configuration-based instantiation."""
     config = OutputRailsStreamingConfig(context_size=3, chunk_size=6)
-    buffer = BufferStrategy.from_config(config)
+    buffer = RollingBuffer.from_config(config)
 
     assert buffer.buffer_context_size == 3
     assert buffer.buffer_chunk_size == 6
@@ -237,13 +240,13 @@ def test_get_buffer_strategy():
     config = OutputRailsStreamingConfig(context_size=2, chunk_size=5)
     strategy = get_buffer_strategy(config)
 
-    assert isinstance(strategy, BufferStrategy)
+    assert isinstance(strategy, RollingBuffer)
     assert strategy.buffer_context_size == 2
     assert strategy.buffer_chunk_size == 5
 
 
 def test_format_chunks():
-    buffer_strategy = BufferStrategy(buffer_context_size=5, buffer_chunk_size=10)
+    buffer_strategy = RollingBuffer(buffer_context_size=5, buffer_chunk_size=10)
     chunks = ["chunk0", "chunk1", "chunk2", "chunk3", "chunk4", "chunk5"]
 
     result = buffer_strategy.format_chunks(chunks)
@@ -252,7 +255,7 @@ def test_format_chunks():
 
 def test_format_chunks_realistic():
     """Test format_chunks with realistic token data."""
-    buffer_strategy = BufferStrategy()
+    buffer_strategy = RollingBuffer()
 
     chunks = ["Hello", " ", "world", "!"]
     result = buffer_strategy.format_chunks(chunks)
@@ -268,7 +271,7 @@ def test_format_chunks_realistic():
 @pytest.mark.asyncio
 async def test_total_yielded_tracking():
     """Test that total_yielded is correctly tracked and reset."""
-    buffer_strategy = BufferStrategy(buffer_context_size=1, buffer_chunk_size=2)
+    buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=2)
 
     # first stream
     user_chunks_1 = []
@@ -293,7 +296,7 @@ async def test_boundary_conditions():
         for i in range(4):
             yield f"token{i} "
 
-    buffer_strategy = BufferStrategy(buffer_context_size=1, buffer_chunk_size=4)
+    buffer_strategy = RollingBuffer(buffer_context_size=1, buffer_chunk_size=4)
     results = []
     async for chunk_batch in buffer_strategy(exact_size_handler()):
         results.append(chunk_batch)
@@ -319,7 +322,7 @@ async def test_subword_token_preservation():
         yield "ing"
         yield " you"
 
-    buffer_strategy = BufferStrategy(buffer_context_size=2, buffer_chunk_size=3)
+    buffer_strategy = RollingBuffer(buffer_context_size=2, buffer_chunk_size=3)
 
     # Collect all data in a single pass to avoid creating duplicate streams
     processing_contexts = []
@@ -357,3 +360,141 @@ async def async_enumerate(aiterable, start=0):
     async for item in aiterable:
         yield idx, item
         idx += 1
+
+
+def test_abstract_base_class_cannot_be_instantiated():
+    """Test that the abstract BufferStrategy cannot be instantiated directly."""
+
+    with pytest.raises(TypeError):
+        BufferStrategy()
+
+
+def test_incomplete_implementation_raises_error():
+    """Test that incomplete implementations of BufferStrategy raise TypeError."""
+
+    class IncompleteBufferStrategy(BufferStrategy):
+        pass
+
+    with pytest.raises(TypeError):
+        IncompleteBufferStrategy()
+
+    class MissingProcessStreamStrategy(BufferStrategy):
+        @classmethod
+        def from_config(cls, config):
+            return cls()
+
+        def format_chunks(self, chunks):
+            return "".join(chunks)
+
+    with pytest.raises(TypeError):
+        MissingProcessStreamStrategy()
+
+    class MissingFormatChunksStrategy(BufferStrategy):
+        @classmethod
+        def from_config(cls, config):
+            return cls()
+
+        async def process_stream(self, streaming_handler):
+            async for chunk in streaming_handler:
+                yield chunk
+
+    with pytest.raises(TypeError):
+        MissingFormatChunksStrategy()
+
+    class MissingFromConfigStrategy(BufferStrategy):
+        def format_chunks(self, chunks):
+            return "".join(chunks)
+
+        async def process_stream(self, streaming_handler):
+            async for chunk in streaming_handler:
+                yield chunk
+
+    with pytest.raises(TypeError):
+        MissingFromConfigStrategy()
+
+
+def test_additional_validation_errors():
+    """Test additional validation errors beyond the existing ones."""
+
+    with pytest.raises(ValueError, match="buffer_context_size must be non-negative"):
+        RollingBuffer(buffer_context_size=-100)
+
+    with pytest.raises(ValueError, match="buffer_chunk_size must be non-negative"):
+        RollingBuffer(buffer_chunk_size=-1000)
+
+    with pytest.raises(ValueError, match="buffer_context_size must be non-negative"):
+        RollingBuffer(buffer_context_size=-1, buffer_chunk_size=-1)
+
+
+def test_validation_with_zero_values():
+    """Test that zero values are accepted for buffer parameters."""
+
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=5)
+    assert buffer.buffer_context_size == 0
+    assert buffer.buffer_chunk_size == 5
+
+    buffer = RollingBuffer(buffer_context_size=5, buffer_chunk_size=0)
+    assert buffer.buffer_context_size == 5
+    assert buffer.buffer_chunk_size == 0
+
+    buffer = RollingBuffer(buffer_context_size=0, buffer_chunk_size=0)
+    assert buffer.buffer_context_size == 0
+    assert buffer.buffer_chunk_size == 0
+
+
+@pytest.mark.asyncio
+async def test_complete_implementation_works():
+    """Test that a complete implementation of BufferStrategy works correctly."""
+
+    class CompleteBufferStrategy(BufferStrategy):
+        def __init__(self, test_param=None):
+            self.test_param = test_param
+
+        @classmethod
+        def from_config(cls, config):
+            return cls(test_param="from_config")
+
+        def format_chunks(self, chunks):
+            return "|".join(chunks)
+
+        async def process_stream(self, streaming_handler):
+            buffer = []
+            async for chunk in streaming_handler:
+                buffer.append(chunk)
+                if len(buffer) >= 2:
+                    from nemoguardrails.rails.llm.buffer import ChunkBatch
+
+                    yield ChunkBatch(
+                        processing_context=buffer, user_output_chunks=buffer
+                    )
+                    buffer = []
+
+            if buffer:
+                from nemoguardrails.rails.llm.buffer import ChunkBatch
+
+                yield ChunkBatch(processing_context=buffer, user_output_chunks=buffer)
+
+    strategy = CompleteBufferStrategy()
+    assert strategy.test_param is None
+
+    config = OutputRailsStreamingConfig(context_size=1, chunk_size=1)
+    strategy = CompleteBufferStrategy.from_config(config)
+    assert strategy.test_param == "from_config"
+
+    chunks = ["hello", "world"]
+    result = strategy.format_chunks(chunks)
+    assert result == "hello|world"
+
+    async def test_handler():
+        for chunk in ["a", "b", "c"]:
+            yield chunk
+
+    results = []
+    async for chunk_batch in strategy.process_stream(test_handler()):
+        results.append(chunk_batch)
+
+    assert len(results) == 2
+    assert results[0].processing_context == ["a", "b"]
+    assert results[0].user_output_chunks == ["a", "b"]
+    assert results[1].processing_context == ["c"]
+    assert results[1].user_output_chunks == ["c"]
