@@ -93,6 +93,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
         self.adapter.transform(interaction_log)
 
+        # Verify that start_as_current_span was called
         self.mock_tracer.start_as_current_span.assert_called_once_with(
             "test_span",
             context=None,
@@ -103,6 +104,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             self.mock_tracer.start_as_current_span.return_value.__enter__.return_value
         )
 
+        # Verify span attributes were set
         span_instance.set_attribute.assert_any_call("key", 123)
         span_instance.set_attribute.assert_any_call("span_id", "span_1")
         span_instance.set_attribute.assert_any_call("trace_id", "test_id")
