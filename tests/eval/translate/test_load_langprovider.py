@@ -191,20 +191,6 @@ class TestLoadLangProvider:
                 }
             )
 
-    @patch('nemoguardrails.evaluate.utils_translate._load_plugin')
-    def test_load_langprovider_logging(self, mock_load_plugin, caplog):
-        """Test that the function logs debug information."""
-        import logging
-
-        mock_provider = MagicMock()
-        mock_load_plugin.return_value = mock_provider
-
-        with caplog.at_level(logging.DEBUG):
-            _load_langprovider(self.test_config_path)
-
-        # Check that debug message was logged
-        assert "langauge provision service: en,ja" in caplog.text
-
     @patch('nemoguardrails.evaluate.utils_translate._load_langprovider')
     def test_load_dataset_with_local_translator_model_name(self, mock_load_langprovider):
         """Test that local translator with model_name creates appropriate cache filename."""

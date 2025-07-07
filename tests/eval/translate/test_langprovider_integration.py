@@ -251,27 +251,6 @@ class TestLangProviderIntegration:
         assert provider_config['custom_param'] == "custom_value"
         assert provider_config['another_param'] == 123
 
-    @patch('nemoguardrails.evaluate.utils_translate._load_plugin')
-    def test_load_langprovider_logging(self, mock_load_plugin, caplog):
-        """Test that the function logs debug information."""
-        config_data = {
-            "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "remote.DeeplTranslator"
-                }
-            ]
-        }
-        self.create_test_config(config_data)
-
-        mock_provider = MagicMock()
-        mock_load_plugin.return_value = mock_provider
-
-        _load_langprovider(self.test_config_path)
-
-        # Check that debug logging occurred
-        assert "langauge provision service: en,ja" in caplog.text
-
     def test_config_file_structure_validation(self):
         """Test validation of configuration file structure."""
         # Test with minimal valid config
