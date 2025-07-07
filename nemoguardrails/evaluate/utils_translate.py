@@ -34,7 +34,7 @@ class TranslationCache:
         # Generate cache file name based on service name
         safe_service_name = service_name.replace("/", "_").replace("\\", "_").replace(":", "_")
         self.cache_file = self.cache_dir / f"translations_{safe_service_name}.json"
-        print("cache_file: ", self.cache_file)
+        logging.debug(f"cache_file: {self.cache_file}")
         self.cache = self._load_cache()
 
     def _load_cache(self):
@@ -86,10 +86,10 @@ class TranslationCache:
         }
 
 
-
+# Global dictionary to store translation cache instances
+_translation_caches = {}
 def get_translation_cache(service_name: str = "default") -> TranslationCache:
     """Get or create translation cache instance for the specified service."""
-    _translation_caches = {}
     if service_name not in _translation_caches:
         _translation_caches[service_name] = TranslationCache(service_name=service_name)
     return _translation_caches[service_name]
@@ -217,7 +217,7 @@ def _load_langprovider(config_yaml: str = None) -> LangProvider:
     langprovider_config = {
         "langproviders": {language_service["model_type"]: language_service}
     }
-    logging.debug(f"langauge provision service: {language_service['language']}")
+    logging.debug(f"language provision service: {language_service['language']}")
     source_lang, target_lang = language_service["language"].split(",")
     model_type = language_service["model_type"]
     try:
