@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -7,8 +22,9 @@
 
 from typing import List
 
-from nemoguardrails.evaluate.langproviders.base import LangProvider
 import torch
+
+from nemoguardrails.evaluate.langproviders.base import LangProvider
 
 
 class LocalHFTranslator(LangProvider):
@@ -48,7 +64,9 @@ class LocalHFTranslator(LangProvider):
             langproviders_config = config_root.get("langproviders", {})
             # Get the first (and typically only) language provider config
             for model_type, config in langproviders_config.items():
-                self.model_name = config.get("model_name", self.DEFAULT_PARAMS["model_name"])
+                self.model_name = config.get(
+                    "model_name", self.DEFAULT_PARAMS["model_name"]
+                )
                 self.hf_args = config.get("hf_args", self.DEFAULT_PARAMS["hf_args"])
                 break
         else:
@@ -112,7 +130,9 @@ class LocalHFTranslator(LangProvider):
             # is replace with the language path defined in the configuration as self.source_lang-self.target_lang
             # validation of all supported pairs is deferred in favor of allowing the download to raise exception
             # when no published model exists with the pair requested in the name.
-            self.target_lang = self.lang_overrides.get(self.target_lang, self.target_lang)
+            self.target_lang = self.lang_overrides.get(
+                self.target_lang, self.target_lang
+            )
             model_suffix = f"{self.source_lang}-{self.target_lang}"
             model_name = self.model_name.format(model_suffix)
             # Save the processed model_name

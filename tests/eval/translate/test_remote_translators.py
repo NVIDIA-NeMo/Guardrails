@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,10 +23,12 @@ import types
 riva_mod = types.ModuleType("riva")
 riva_client_mod = types.ModuleType("riva.client")
 
+
 # riva.client に必要なクラスを追加
 class MockAuth:
     def __init__(self, *args, **kwargs):
         pass
+
 
 class MockNeuralMachineTranslationClient:
     def __init__(self, auth):
@@ -20,14 +37,20 @@ class MockNeuralMachineTranslationClient:
     def translate(self, *args, **kwargs):
         pass
 
+
 setattr(riva_client_mod, "Auth", MockAuth)
-setattr(riva_client_mod, "NeuralMachineTranslationClient", MockNeuralMachineTranslationClient)
+setattr(
+    riva_client_mod,
+    "NeuralMachineTranslationClient",
+    MockNeuralMachineTranslationClient,
+)
 setattr(riva_mod, "client", riva_client_mod)
 sys.modules["riva"] = riva_mod
 sys.modules["riva.client"] = riva_client_mod
 
 # deepl に必要なクラスを追加
 deepl_mod = types.ModuleType("deepl")
+
 
 class MockTranslator:
     def __init__(self, api_key):
@@ -36,14 +59,23 @@ class MockTranslator:
     def translate_text(self, *args, **kwargs):
         pass
 
+
 setattr(deepl_mod, "Translator", MockTranslator)
 sys.modules["deepl"] = deepl_mod
 
 # --- 以降は元のテストコード ---
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from nemoguardrails.evaluate.langproviders.remote import RivaTranslator as BaseRivaTranslator, DeeplTranslator as BaseDeeplTranslator
+
+from nemoguardrails.evaluate.langproviders.remote import (
+    DeeplTranslator as BaseDeeplTranslator,
+)
+from nemoguardrails.evaluate.langproviders.remote import (
+    RivaTranslator as BaseRivaTranslator,
+)
+
 
 # テスト用サブクラス
 class RivaTranslator(BaseRivaTranslator):
@@ -58,15 +90,19 @@ class RivaTranslator(BaseRivaTranslator):
         # local_modeがconfigで指定されている場合は反映
         if config_root:
             try:
-                self.local_mode = config_root["langproviders"]["remote.RivaTranslator"].get("local_mode", False)
+                self.local_mode = config_root["langproviders"][
+                    "remote.RivaTranslator"
+                ].get("local_mode", False)
             except Exception:
                 self.local_mode = False
 
     def test_init_with_valid_config(self):
         """Test initialization with valid configuration."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_auth_class.return_value = mock_auth
@@ -83,7 +119,9 @@ class RivaTranslator(BaseRivaTranslator):
                     assert translator._target_lang == "ja"
                     assert translator.client == mock_client
                     assert translator.uri == "grpc.nvcf.nvidia.com:443"
-                    assert translator.function_id == "647147c1-9c23-496c-8304-2e29e7574510"
+                    assert (
+                        translator.function_id == "647147c1-9c23-496c-8304-2e29e7574510"
+                    )
                     assert translator.use_ssl is True
 
     def test_init_with_unsupported_language_pair(self):
@@ -92,7 +130,7 @@ class RivaTranslator(BaseRivaTranslator):
             "langproviders": {
                 "remote.RivaTranslator": {
                     "language": "xx,yy",  # Unsupported languages
-                    "model_type": "remote.RivaTranslator"
+                    "model_type": "remote.RivaTranslator",
                 }
             }
         }
@@ -112,7 +150,9 @@ class RivaTranslator(BaseRivaTranslator):
         with pytest.raises(Exception) as exc_info:
             RivaTranslator(self.config)
 
-        assert "Put the API key in the RIVA_API_KEY environment variable" in str(exc_info.value)
+        assert "Put the API key in the RIVA_API_KEY environment variable" in str(
+            exc_info.value
+        )
 
     def test_language_overrides(self):
         """Test that language overrides are applied correctly."""
@@ -120,14 +160,16 @@ class RivaTranslator(BaseRivaTranslator):
             "langproviders": {
                 "remote.RivaTranslator": {
                     "language": "es,zh",  # Languages with overrides
-                    "model_type": "remote.RivaTranslator"
+                    "model_type": "remote.RivaTranslator",
                 }
             }
         }
 
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_auth_class.return_value = mock_auth
@@ -143,8 +185,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_translate_success(self):
         """Test successful translation."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -160,15 +204,15 @@ class RivaTranslator(BaseRivaTranslator):
                     result = translator._translate("Hello")
 
                     assert result == "こんにちは"
-                    mock_client.translate.assert_called_with(
-                        ["Hello"], "", "en", "ja"
-                    )
+                    mock_client.translate.assert_called_with(["Hello"], "", "en", "ja")
 
     def test_translate_exception_handling(self):
         """Test translation exception handling."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_client.translate.side_effect = Exception("API Error")
@@ -185,8 +229,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_get_response(self):
         """Test _get_response method."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -206,8 +252,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_supported_languages(self):
         """Test that supported languages are correctly defined."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_auth_class.return_value = mock_auth
@@ -230,8 +278,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_language_overrides_mapping(self):
         """Test that language overrides mapping is correct."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_auth_class.return_value = mock_auth
@@ -250,8 +300,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_validation_test_on_init(self):
         """Test that validation test is performed on initialization."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -265,17 +317,17 @@ class RivaTranslator(BaseRivaTranslator):
                     translator = RivaTranslator(self.config)
 
                     # Should have called translate for validation
-                    mock_client.translate.assert_called_with(
-                        ["A"], "", "en", "ja"
-                    )
+                    mock_client.translate.assert_called_with(["A"], "", "en", "ja")
                     assert hasattr(translator, "_tested")
                     assert translator._tested is True
 
     def test_validation_test_exception(self):
         """Test that validation test exception is not caught."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_client.translate.side_effect = Exception("Validation failed")
@@ -300,14 +352,16 @@ class RivaTranslator(BaseRivaTranslator):
                 "langproviders": {
                     "remote.RivaTranslator": {
                         "language": language_pair,
-                        "model_type": "remote.RivaTranslator"
+                        "model_type": "remote.RivaTranslator",
                     }
                 }
             }
 
             with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-                with patch('riva.client.Auth') as mock_auth_class:
-                    with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+                with patch("riva.client.Auth") as mock_auth_class:
+                    with patch(
+                        "riva.client.NeuralMachineTranslationClient"
+                    ) as mock_client_class:
                         mock_auth = MagicMock()
                         mock_client = MagicMock()
                         mock_response = MagicMock()
@@ -339,8 +393,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_translate_with_empty_text(self):
         """Test translation with empty text."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -356,15 +412,15 @@ class RivaTranslator(BaseRivaTranslator):
                     result = translator._translate("")
 
                     assert result == ""
-                    mock_client.translate.assert_called_with(
-                        [""], "", "en", "ja"
-                    )
+                    mock_client.translate.assert_called_with([""], "", "en", "ja")
 
     def test_translate_with_special_characters(self):
         """Test translation with special characters."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -380,15 +436,15 @@ class RivaTranslator(BaseRivaTranslator):
                     result = translator._translate("Hello!")
 
                     assert result == "こんにちは！"
-                    mock_client.translate.assert_called_with(
-                        ["Hello!"], "", "en", "ja"
-                    )
+                    mock_client.translate.assert_called_with(["Hello!"], "", "en", "ja")
 
     def test_pickle_serialization(self):
         """Test pickle serialization and deserialization."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -416,14 +472,16 @@ class RivaTranslator(BaseRivaTranslator):
                 "remote.RivaTranslator": {
                     "language": "en,ja",
                     "model_type": "remote.RivaTranslator",
-                    "local_mode": True
+                    "local_mode": True,
                 }
             }
         }
 
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -443,8 +501,10 @@ class RivaTranslator(BaseRivaTranslator):
     def test_client_reload_on_none(self):
         """Test that client is reloaded when it's None."""
         with patch.dict(os.environ, {"RIVA_API_KEY": "test_key"}):
-            with patch('riva.client.Auth') as mock_auth_class:
-                with patch('riva.client.NeuralMachineTranslationClient') as mock_client_class:
+            with patch("riva.client.Auth") as mock_auth_class:
+                with patch(
+                    "riva.client.NeuralMachineTranslationClient"
+                ) as mock_client_class:
                     mock_auth = MagicMock()
                     mock_client = MagicMock()
                     mock_response = MagicMock()
@@ -486,7 +546,7 @@ class TestDeeplTranslator:
             "langproviders": {
                 "remote.DeeplTranslator": {
                     "language": "en,ja",
-                    "model_type": "remote.DeeplTranslator"
+                    "model_type": "remote.DeeplTranslator",
                 }
             }
         }
@@ -494,7 +554,7 @@ class TestDeeplTranslator:
     def test_init_with_valid_config(self):
         """Test initialization with valid configuration."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_translator.return_value = mock_client
 
@@ -515,7 +575,7 @@ class TestDeeplTranslator:
             "langproviders": {
                 "remote.DeeplTranslator": {
                     "language": "xx,yy",  # Unsupported languages
-                    "model_type": "remote.DeeplTranslator"
+                    "model_type": "remote.DeeplTranslator",
                 }
             }
         }
@@ -528,7 +588,10 @@ class TestDeeplTranslator:
 
     def test_init_with_missing_api_key(self):
         """Test initialization with missing API key."""
-        from nemoguardrails.evaluate.langproviders.remote import DeeplTranslator as BaseDeeplTranslator
+        from nemoguardrails.evaluate.langproviders.remote import (
+            DeeplTranslator as BaseDeeplTranslator,
+        )
+
         if "DEEPL_API_KEY" in os.environ:
             del os.environ["DEEPL_API_KEY"]
 
@@ -543,22 +606,24 @@ class TestDeeplTranslator:
             "langproviders": {
                 "remote.DeeplTranslator": {
                     "language": "en,en",
-                    "model_type": "remote.DeeplTranslator"
+                    "model_type": "remote.DeeplTranslator",
                 }
             }
         }
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_translator.return_value = mock_client
                 with pytest.raises(Exception) as exc_info:
                     DeeplTranslator(config)
-                assert "Source and target languages cannot be the same" in str(exc_info.value)
+                assert "Source and target languages cannot be the same" in str(
+                    exc_info.value
+                )
 
     def test_translate_success(self):
         """Test successful translation."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
                 mock_response.text = "こんにちは"
@@ -577,7 +642,7 @@ class TestDeeplTranslator:
     def test_translate_exception_handling(self):
         """Test translation exception handling."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_client.translate_text.side_effect = Exception("API Error")
                 mock_translator.return_value = mock_client
@@ -589,7 +654,7 @@ class TestDeeplTranslator:
     def test_get_response(self):
         """Test _get_response method."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
                 mock_response.text = "こんにちは"
@@ -605,7 +670,7 @@ class TestDeeplTranslator:
     def test_supported_languages(self):
         """Test that supported languages are correctly defined."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator'):
+            with patch("deepl.Translator"):
                 translator = DeeplTranslator(self.config)
 
                 # Test some supported languages
@@ -621,7 +686,7 @@ class TestDeeplTranslator:
     def test_language_overrides_mapping(self):
         """Test that language overrides mapping is correct."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator'):
+            with patch("deepl.Translator"):
                 translator = DeeplTranslator(self.config)
 
                 # Test known overrides
@@ -633,7 +698,7 @@ class TestDeeplTranslator:
     def test_validation_test_on_init(self):
         """Test that validation test is performed on initialization."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_translator.return_value = mock_client
 
@@ -649,7 +714,7 @@ class TestDeeplTranslator:
     def test_validation_test_exception(self):
         """Test that validation test exception is not caught."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_client.translate_text.side_effect = Exception("Validation failed")
                 mock_translator.return_value = mock_client
@@ -672,13 +737,13 @@ class TestDeeplTranslator:
                 "langproviders": {
                     "remote.DeeplTranslator": {
                         "language": language_pair,
-                        "model_type": "remote.DeeplTranslator"
+                        "model_type": "remote.DeeplTranslator",
                     }
                 }
             }
 
             with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-                with patch('deepl.Translator') as mock_translator:
+                with patch("deepl.Translator") as mock_translator:
                     mock_client = MagicMock()
                     mock_translator.return_value = mock_client
 
@@ -698,7 +763,7 @@ class TestDeeplTranslator:
     def test_translate_with_empty_text(self):
         """Test translation with empty text."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
                 mock_response.text = ""
@@ -717,7 +782,7 @@ class TestDeeplTranslator:
     def test_translate_with_special_characters(self):
         """Test translation with special characters."""
         with patch.dict(os.environ, {"DEEPL_API_KEY": "test_key"}):
-            with patch('deepl.Translator') as mock_translator:
+            with patch("deepl.Translator") as mock_translator:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
                 mock_response.text = "こんにちは！"
@@ -740,4 +805,5 @@ class TestValidationString:
     def test_validation_string_constant(self):
         """Test that VALIDATION_STRING constant is correctly defined."""
         from nemoguardrails.evaluate.langproviders.remote import VALIDATION_STRING
+
         assert VALIDATION_STRING == "A"

@@ -14,13 +14,18 @@
 # limitations under the License.
 
 import os
-import tempfile
-import yaml
-import pytest
-from unittest.mock import patch, MagicMock
 import shutil
+import tempfile
+from unittest.mock import MagicMock, patch
 
-from nemoguardrails.evaluate.utils_translate import _load_langprovider, PluginConfigurationError, load_dataset
+import pytest
+import yaml
+
+from nemoguardrails.evaluate.utils_translate import (
+    PluginConfigurationError,
+    _load_langprovider,
+    load_dataset,
+)
 
 
 class TestLoadLangProvider:
@@ -35,10 +40,7 @@ class TestLoadLangProvider:
         # Create test configuration
         test_config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "remote.DeeplTranslator"
-                }
+                {"language": "en,ja", "model_type": "remote.DeeplTranslator"}
             ]
         }
 
@@ -52,7 +54,7 @@ class TestLoadLangProvider:
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
-    @patch('nemoguardrails.evaluate.utils_translate._load_plugin')
+    @patch("nemoguardrails.evaluate.utils_translate._load_plugin")
     def test_load_langprovider_success(self, mock_load_plugin):
         """Test successful loading of language provider."""
         # Mock the plugin loader to return a mock LangProvider instance
@@ -72,10 +74,10 @@ class TestLoadLangProvider:
                 "langproviders": {
                     "remote.DeeplTranslator": {
                         "language": "en,ja",
-                        "model_type": "remote.DeeplTranslator"
+                        "model_type": "remote.DeeplTranslator",
                     }
                 }
-            }
+            },
         )
 
     def test_load_langprovider_default_config(self):
@@ -127,7 +129,7 @@ class TestLoadLangProvider:
         with pytest.raises(IndexError):
             _load_langprovider(empty_config_path)
 
-    @patch('nemoguardrails.evaluate.utils_translate._load_plugin')
+    @patch("nemoguardrails.evaluate.utils_translate._load_plugin")
     def test_load_langprovider_plugin_load_error(self, mock_load_plugin):
         """Test handling of plugin loading errors."""
         # Mock _load_plugin to raise an exception
@@ -136,11 +138,16 @@ class TestLoadLangProvider:
         with pytest.raises(PluginConfigurationError) as exc_info:
             _load_langprovider(self.test_config_path)
 
-        assert "Failed to load 'en,ja' langprovider of type 'remote.DeeplTranslator'" in str(exc_info.value)
+        assert (
+            "Failed to load 'en,ja' langprovider of type 'remote.DeeplTranslator'"
+            in str(exc_info.value)
+        )
 
     def test_load_langprovider_config_structure(self):
         """Test that the function correctly processes the configuration structure."""
-        with patch('nemoguardrails.evaluate.utils_translate._load_plugin') as mock_load_plugin:
+        with patch(
+            "nemoguardrails.evaluate.utils_translate._load_plugin"
+        ) as mock_load_plugin:
             mock_provider = MagicMock()
             mock_load_plugin.return_value = mock_provider
 
@@ -149,22 +156,25 @@ class TestLoadLangProvider:
 
             # Verify the config structure passed to _load_plugin
             call_args = mock_load_plugin.call_args
-            config_root = call_args[1]['config_root']
+            config_root = call_args[1]["config_root"]
 
-            assert 'langproviders' in config_root
-            assert 'remote.DeeplTranslator' in config_root['langproviders']
-            assert config_root['langproviders']['remote.DeeplTranslator']['language'] == 'en,ja'
-            assert config_root['langproviders']['remote.DeeplTranslator']['model_type'] == 'remote.DeeplTranslator'
+            assert "langproviders" in config_root
+            assert "remote.DeeplTranslator" in config_root["langproviders"]
+            assert (
+                config_root["langproviders"]["remote.DeeplTranslator"]["language"]
+                == "en,ja"
+            )
+            assert (
+                config_root["langproviders"]["remote.DeeplTranslator"]["model_type"]
+                == "remote.DeeplTranslator"
+            )
 
     def test_load_langprovider_different_model_type(self):
         """Test loading with different model type."""
         # Create config with different model type
         different_config = {
             "langproviders": [
-                {
-                    "language": "ja,en",
-                    "model_type": "local.LocalTranslator"
-                }
+                {"language": "ja,en", "model_type": "local.LocalTranslator"}
             ]
         }
         different_config_path = os.path.join(self.temp_dir, "different_config.yaml")
@@ -172,7 +182,9 @@ class TestLoadLangProvider:
         with open(different_config_path, "w") as f:
             yaml.dump(different_config, f)
 
-        with patch('nemoguardrails.evaluate.utils_translate._load_plugin') as mock_load_plugin:
+        with patch(
+            "nemoguardrails.evaluate.utils_translate._load_plugin"
+        ) as mock_load_plugin:
             mock_provider = MagicMock()
             mock_load_plugin.return_value = mock_provider
 
@@ -185,14 +197,16 @@ class TestLoadLangProvider:
                     "langproviders": {
                         "local.LocalTranslator": {
                             "language": "ja,en",
-                            "model_type": "local.LocalTranslator"
+                            "model_type": "local.LocalTranslator",
                         }
                     }
-                }
+                },
             )
 
-    @patch('nemoguardrails.evaluate.utils_translate._load_langprovider')
-    def test_load_dataset_with_local_translator_model_name(self, mock_load_langprovider):
+    @patch("nemoguardrails.evaluate.utils_translate._load_langprovider")
+    def test_load_dataset_with_local_translator_model_name(
+        self, mock_load_langprovider
+    ):
         """Test that local translator with model_name creates appropriate cache filename."""
         # Create a mock translator with model_name attribute
         mock_translator = MagicMock()
@@ -208,13 +222,15 @@ class TestLoadLangProvider:
             f.write("Hello world\n")
 
         # Create test translation config
-        test_translation_config = os.path.join(self.temp_dir, "test_translation_config.yaml")
+        test_translation_config = os.path.join(
+            self.temp_dir, "test_translation_config.yaml"
+        )
         test_config = {
             "langproviders": [
                 {
                     "language": "en,ja",
                     "model_type": "local.LocalHFTranslator",
-                    "model_name": "facebook/m2m100_1.2B"
+                    "model_name": "facebook/m2m100_1.2B",
                 }
             ]
         }
@@ -222,15 +238,17 @@ class TestLoadLangProvider:
             yaml.dump(test_config, f)
 
         # Call load_dataset
-        with patch('nemoguardrails.evaluate.utils_translate.get_translation_cache') as mock_get_cache:
+        with patch(
+            "nemoguardrails.evaluate.utils_translate.get_translation_cache"
+        ) as mock_get_cache:
             mock_cache = MagicMock()
             mock_get_cache.return_value = mock_cache
             mock_cache.get.return_value = None  # No cached translation
             mock_cache.get_cache_stats.return_value = {
-                'total_entries': 0,
-                'cache_size_bytes': 0,
-                'cache_size_mb': 0.0,
-                'cache_file': 'test_cache.json'
+                "total_entries": 0,
+                "cache_size_bytes": 0,
+                "cache_size_mb": 0.0,
+                "cache_file": "test_cache.json",
             }
 
             result = load_dataset(test_dataset_path, test_translation_config)
@@ -239,8 +257,10 @@ class TestLoadLangProvider:
             expected_service_name = "LocalHFTranslator_facebook_m2m100_1.2B"
             mock_get_cache.assert_called_once_with(expected_service_name)
 
-    @patch('nemoguardrails.evaluate.utils_translate._load_langprovider')
-    def test_load_dataset_with_remote_translator_no_model_name(self, mock_load_langprovider):
+    @patch("nemoguardrails.evaluate.utils_translate._load_langprovider")
+    def test_load_dataset_with_remote_translator_no_model_name(
+        self, mock_load_langprovider
+    ):
         """Test that remote translator without model_name uses class name only."""
         # Create a mock translator without model_name attribute
         mock_translator = MagicMock()
@@ -258,28 +278,29 @@ class TestLoadLangProvider:
             f.write("Hello world\n")
 
         # Create test translation config
-        test_translation_config = os.path.join(self.temp_dir, "test_translation_config.yaml")
+        test_translation_config = os.path.join(
+            self.temp_dir, "test_translation_config.yaml"
+        )
         test_config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "remote.DeeplTranslator"
-                }
+                {"language": "en,ja", "model_type": "remote.DeeplTranslator"}
             ]
         }
         with open(test_translation_config, "w") as f:
             yaml.dump(test_config, f)
 
         # Call load_dataset
-        with patch('nemoguardrails.evaluate.utils_translate.get_translation_cache') as mock_get_cache:
+        with patch(
+            "nemoguardrails.evaluate.utils_translate.get_translation_cache"
+        ) as mock_get_cache:
             mock_cache = MagicMock()
             mock_get_cache.return_value = mock_cache
             mock_cache.get.return_value = None  # No cached translation
             mock_cache.get_cache_stats.return_value = {
-                'total_entries': 0,
-                'cache_size_bytes': 0,
-                'cache_size_mb': 0.0,
-                'cache_file': 'test_cache.json'
+                "total_entries": 0,
+                "cache_size_bytes": 0,
+                "cache_size_mb": 0.0,
+                "cache_file": "test_cache.json",
             }
 
             result = load_dataset(test_dataset_path, test_translation_config)

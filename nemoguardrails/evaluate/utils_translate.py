@@ -13,26 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import yaml
-import importlib
-import os
 import hashlib
+import importlib
+import json
+import logging
+import os
 from pathlib import Path
+
+import yaml
 from tqdm import tqdm
 
 from nemoguardrails.evaluate.langproviders.base import LangProvider
-import logging
 
 
 class TranslationCache:
     """Cache for translation results to avoid repeated API calls."""
 
-    def __init__(self, cache_dir: str = "translation_cache", service_name: str = "default"):
+    def __init__(
+        self, cache_dir: str = "translation_cache", service_name: str = "default"
+    ):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
         # Generate cache file name based on service name
-        safe_service_name = service_name.replace("/", "_").replace("\\", "_").replace(":", "_")
+        safe_service_name = (
+            service_name.replace("/", "_").replace("\\", "_").replace(":", "_")
+        )
         self.cache_file = self.cache_dir / f"translations_{safe_service_name}.json"
         logging.debug(f"cache_file: {self.cache_file}")
         self.cache = self._load_cache()
@@ -41,7 +46,7 @@ class TranslationCache:
         """Load existing cache from file."""
         if self.cache_file.exists():
             try:
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                with open(self.cache_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, IOError) as e:
                 logging.warning(f"Failed to load translation cache: {e}")
@@ -51,7 +56,7 @@ class TranslationCache:
     def _save_cache(self):
         """Save cache to file."""
         try:
-            with open(self.cache_file, 'w', encoding='utf-8') as f:
+            with open(self.cache_file, "w", encoding="utf-8") as f:
                 json.dump(self.cache, f, ensure_ascii=False, indent=2)
         except IOError as e:
             logging.error(f"Failed to save translation cache: {e}")
@@ -75,19 +80,23 @@ class TranslationCache:
 
     def get_cache_stats(self):
         """Get statistics about the cache."""
-        cache_size_bytes = os.path.getsize(self.cache_file) if self.cache_file.exists() else 0
+        cache_size_bytes = (
+            os.path.getsize(self.cache_file) if self.cache_file.exists() else 0
+        )
         cache_size_mb = cache_size_bytes / (1024 * 1024)
 
         return {
-            'total_entries': len(self.cache),
-            'cache_size_bytes': cache_size_bytes,
-            'cache_size_mb': cache_size_mb,
-            'cache_file': str(self.cache_file)
+            "total_entries": len(self.cache),
+            "cache_size_bytes": cache_size_bytes,
+            "cache_size_mb": cache_size_mb,
+            "cache_file": str(self.cache_file),
         }
 
 
 # Global dictionary to store translation cache instances
 _translation_caches = {}
+
+
 def get_translation_cache(service_name: str = "default") -> TranslationCache:
     """Get or create translation cache instance for the specified service."""
     if service_name not in _translation_caches:
@@ -100,11 +109,14 @@ def get_translation_cache_name(translator: LangProvider) -> str:
     service_name = translator.__class__.__name__
 
     # For local services, include model name as well
-    if hasattr(translator, 'model_name'):
+    if hasattr(translator, "model_name"):
         # Generate safe filename from model name
-        safe_model_name = translator.model_name.replace("/", "_").replace("\\", "_").replace(":", "_")
+        safe_model_name = (
+            translator.model_name.replace("/", "_").replace("\\", "_").replace(":", "_")
+        )
         service_name = f"{service_name}_{safe_model_name}"
     return service_name
+
 
 def load_dataset(dataset_path: str, translation_config: str = None):
     """Loads a dataset from a file with optional translation."""
@@ -132,18 +144,22 @@ def load_dataset(dataset_path: str, translation_config: str = None):
             if isinstance(item, dict):
                 # For JSON format, translate specific fields
                 translated_item = item.copy()
-                for field in ['answer', 'question', 'evidence']:
+                for field in ["answer", "question", "evidence"]:
                     if field in translated_item:
                         original_text = translated_item[field]
                         # Check cache first
-                        cached_translation = cache.get(original_text, translator.target_lang)
+                        cached_translation = cache.get(
+                            original_text, translator.target_lang
+                        )
                         if cached_translation:
                             translated_item[field] = cached_translation
                         else:
                             # Translate and cache
                             translated_text = translator._translate(original_text)
                             translated_item[field] = translated_text
-                            cache.set(original_text, translator.target_lang, translated_text)
+                            cache.set(
+                                original_text, translator.target_lang, translated_text
+                            )
                 translated_dataset.append(translated_item)
             else:
                 # For text format
@@ -161,7 +177,9 @@ def load_dataset(dataset_path: str, translation_config: str = None):
         # Print cache statistics
         stats = cache.get_cache_stats()
         print(f"✅ Translation completed!")
-        print(f"📈 Translation cache stats: {stats['total_entries']} entries, {stats['cache_size_mb']:.2f} MB")
+        print(
+            f"📈 Translation cache stats: {stats['total_entries']} entries, {stats['cache_size_mb']:.2f} MB"
+        )
         print(f"💾 Cache file: {stats['cache_file']}")
 
         return translated_dataset
@@ -171,6 +189,7 @@ def load_dataset(dataset_path: str, translation_config: str = None):
 
 class PluginConfigurationError(Exception):
     """Exception raised when a plugin configuration is invalid."""
+
     pass
 
 
@@ -178,7 +197,7 @@ def _load_plugin(path: str, config_root: dict):
     """Load a plugin class from the given path."""
     try:
         # Split the path to get module and class name
-        module_path, class_name = path.rsplit('.', 1)
+        module_path, class_name = path.rsplit(".", 1)
 
         # Import the module
         module = importlib.import_module(module_path)
@@ -191,7 +210,9 @@ def _load_plugin(path: str, config_root: dict):
         return instance
 
     except (ImportError, AttributeError, ValueError) as e:
-        raise PluginConfigurationError(f"Failed to load plugin '{path}': {str(e)}") from e
+        raise PluginConfigurationError(
+            f"Failed to load plugin '{path}': {str(e)}"
+        ) from e
 
 
 def _extract_target_language(config_yaml: str) -> str:
@@ -209,7 +230,9 @@ def _load_langprovider(config_yaml: str = None) -> LangProvider:
 
     # If no config file is provided, raise an error
     if config_yaml is None:
-        raise PluginConfigurationError("No configuration file provided. Please specify a translation configuration file.")
+        raise PluginConfigurationError(
+            "No configuration file provided. Please specify a translation configuration file."
+        )
 
     with open(config_yaml, "r") as f:
         config = yaml.safe_load(f)

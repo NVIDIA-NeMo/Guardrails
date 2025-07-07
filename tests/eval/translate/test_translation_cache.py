@@ -1,56 +1,77 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Test script for translation caching functionality.
 """
 
-import os
 import json
-import tempfile
+import os
 import shutil
+import tempfile
 from pathlib import Path
+
 import pytest
-from nemoguardrails.evaluate.utils_translate import load_dataset
-from nemoguardrails.evaluate.utils_translate import get_translation_cache, TranslationCache
+
+from nemoguardrails.evaluate.utils_translate import (
+    TranslationCache,
+    get_translation_cache,
+    load_dataset,
+)
+
 
 def test_translation_cache():
     """Test the translation caching functionality."""
 
     # Set a dummy API key for testing
-    os.environ['DEEPL_API_KEY'] = 'test_key'
+    os.environ["DEEPL_API_KEY"] = "test_key"
 
     # Create a simple test dataset
     test_data = [
         "Hello, how are you?",
         "This is a test message.",
         "Hello, how are you?",  # Duplicate to test cache
-        "Another test message."
+        "Another test message.",
     ]
 
     # Save test data to a temporary file
-    with open('test_data.txt', 'w') as f:
+    with open("test_data.txt", "w") as f:
         for line in test_data:
-            f.write(line + '\n')
+            f.write(line + "\n")
 
     print("Testing translation caching...")
     print("=" * 50)
 
     # Create a temporary translation config file
-    with open('translation_config.yaml', 'w') as f:
+    with open("translation_config.yaml", "w") as f:
         translation_config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "remote.DeeplTranslator"
-                }
+                {"language": "en,ja", "model_type": "remote.DeeplTranslator"}
             ]
         }
         import yaml
+
         yaml.dump(translation_config, f)
 
     # First run - should create cache entries
     print("First run (creating cache):")
     try:
-        translated_data = load_dataset('test_data.txt', translation_config='translation_config.yaml')
+        translated_data = load_dataset(
+            "test_data.txt", translation_config="translation_config.yaml"
+        )
         print(f"Translated {len(translated_data)} items")
         for i, item in enumerate(translated_data):
             print(f"  {i+1}: {item}")
@@ -66,7 +87,9 @@ def test_translation_cache():
     # Second run - should use cache
     print("\nSecond run (using cache):")
     try:
-        translated_data2 = load_dataset('test_data.txt', translation_config='translation_config.yaml')
+        translated_data2 = load_dataset(
+            "test_data.txt", translation_config="translation_config.yaml"
+        )
         print(f"Translated {len(translated_data2)} items")
         for i, item in enumerate(translated_data2):
             print(f"  {i+1}: {item}")
@@ -79,10 +102,10 @@ def test_translation_cache():
     print(f"Cache file: {stats2.get('cache_file', 'N/A')}")
 
     # Show cache file contents - use new file name format
-    expected_cache_file = 'translation_cache/translations_DeeplTranslator.json'
+    expected_cache_file = "translation_cache/translations_DeeplTranslator.json"
     if os.path.exists(expected_cache_file):
         print(f"\nCache file contents ({expected_cache_file}):")
-        with open(expected_cache_file, 'r') as f:
+        with open(expected_cache_file, "r") as f:
             cache_data = json.load(f)
             print(f"Cache entries: {len(cache_data)}")
             for key, value in list(cache_data.items())[:3]:  # Show first 3 entries
@@ -99,10 +122,10 @@ def test_translation_cache():
         print(f"  {service_name}: {stats.get('cache_file', 'N/A')}")
 
     # Cleanup
-    if os.path.exists('test_data.txt'):
-        os.remove('test_data.txt')
-    if os.path.exists('translation_config.yaml'):
-        os.remove('translation_config.yaml')
+    if os.path.exists("test_data.txt"):
+        os.remove("test_data.txt")
+    if os.path.exists("translation_config.yaml"):
+        os.remove("translation_config.yaml")
 
 
 class TestTranslationCache:
@@ -125,12 +148,22 @@ class TestTranslationCache:
         assert cache1.cache_file == Path(self.cache_dir) / "translations_default.json"
 
         # Test with custom service name
-        cache2 = TranslationCache(cache_dir=self.cache_dir, service_name="DeeplTranslator")
-        assert cache2.cache_file == Path(self.cache_dir) / "translations_DeeplTranslator.json"
+        cache2 = TranslationCache(
+            cache_dir=self.cache_dir, service_name="DeeplTranslator"
+        )
+        assert (
+            cache2.cache_file
+            == Path(self.cache_dir) / "translations_DeeplTranslator.json"
+        )
 
         # Test with service name containing special characters
-        cache3 = TranslationCache(cache_dir=self.cache_dir, service_name="remote/DeeplTranslator")
-        assert cache3.cache_file == Path(self.cache_dir) / "translations_remote_DeeplTranslator.json"
+        cache3 = TranslationCache(
+            cache_dir=self.cache_dir, service_name="remote/DeeplTranslator"
+        )
+        assert (
+            cache3.cache_file
+            == Path(self.cache_dir) / "translations_remote_DeeplTranslator.json"
+        )
 
     def test_cache_operations(self):
         """Test basic cache operations (get, set)."""
@@ -180,17 +213,22 @@ class TestTranslationCache:
 
         stats = cache.get_cache_stats()
 
-        assert 'total_entries' in stats
-        assert 'cache_size_bytes' in stats
-        assert 'cache_size_mb' in stats
-        assert 'cache_file' in stats
-        assert stats['total_entries'] == 2
-        assert stats['cache_file'] == str(cache.cache_file)
+        assert "total_entries" in stats
+        assert "cache_size_bytes" in stats
+        assert "cache_size_mb" in stats
+        assert "cache_file" in stats
+        assert stats["total_entries"] == 2
+        assert stats["cache_file"] == str(cache.cache_file)
 
     def test_get_translation_cache_function(self):
         """Test get_translation_cache function with different service names."""
         # Test with different service names
-        service_names = ["DeeplTranslator", "RivaTranslator", "LocalTranslator", "default"]
+        service_names = [
+            "DeeplTranslator",
+            "RivaTranslator",
+            "LocalTranslator",
+            "default",
+        ]
         cache_instances = {}
 
         for service_name in service_names:
@@ -202,8 +240,12 @@ class TestTranslationCache:
             assert cache.cache_file.name == expected_file
 
         # Verify that different service names create different cache instances
-        assert cache_instances["DeeplTranslator"] is not cache_instances["RivaTranslator"]
-        assert cache_instances["RivaTranslator"] is not cache_instances["LocalTranslator"]
+        assert (
+            cache_instances["DeeplTranslator"] is not cache_instances["RivaTranslator"]
+        )
+        assert (
+            cache_instances["RivaTranslator"] is not cache_instances["LocalTranslator"]
+        )
 
     def test_cache_key_generation(self):
         """Test cache key generation."""

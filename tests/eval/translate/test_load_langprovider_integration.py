@@ -15,12 +15,16 @@
 
 import os
 import tempfile
-import yaml
-import pytest
 from unittest.mock import patch
 
-from nemoguardrails.evaluate.utils_translate import _load_langprovider, PluginConfigurationError
+import pytest
+import yaml
+
 from nemoguardrails.evaluate.langproviders.base import LangProvider
+from nemoguardrails.evaluate.utils_translate import (
+    PluginConfigurationError,
+    _load_langprovider,
+)
 
 
 class TestLoadLangProviderIntegration:
@@ -41,24 +45,27 @@ class TestLoadLangProviderIntegration:
         """Test loading LocalHFTranslator with actual class."""
         config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "local.LocalHFTranslator"
-                }
+                {"language": "en,ja", "model_type": "local.LocalHFTranslator"}
             ]
         }
         config_path = os.path.join(self.temp_dir, "local_hf_config.yaml")
         with open(config_path, "w") as f:
             yaml.dump(config, f)
-        with patch('transformers.M2M100ForConditionalGeneration') as mock_model, \
-             patch('transformers.M2M100Tokenizer') as mock_tokenizer, \
-             patch('transformers.MarianMTModel') as mock_marian_model, \
-             patch('transformers.MarianTokenizer') as mock_marian_tokenizer, \
-             patch('torch.multiprocessing.set_start_method'):
+        with patch("transformers.M2M100ForConditionalGeneration") as mock_model, patch(
+            "transformers.M2M100Tokenizer"
+        ) as mock_tokenizer, patch(
+            "transformers.MarianMTModel"
+        ) as mock_marian_model, patch(
+            "transformers.MarianTokenizer"
+        ) as mock_marian_tokenizer, patch(
+            "torch.multiprocessing.set_start_method"
+        ):
             mock_model_instance = mock_model.from_pretrained.return_value
             mock_tokenizer_instance = mock_tokenizer.from_pretrained.return_value
             mock_marian_model_instance = mock_marian_model.from_pretrained.return_value
-            mock_marian_tokenizer_instance = mock_marian_tokenizer.from_pretrained.return_value
+            mock_marian_tokenizer_instance = (
+                mock_marian_tokenizer.from_pretrained.return_value
+            )
             result = _load_langprovider(config_path)
             assert isinstance(result, LangProvider)
             assert result.language == "en,ja"
@@ -69,10 +76,7 @@ class TestLoadLangProviderIntegration:
         """Test loading with missing API key for remote services."""
         config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "remote.DeeplTranslator"
-                }
+                {"language": "en,ja", "model_type": "remote.DeeplTranslator"}
             ]
         }
         config_path = os.path.join(self.temp_dir, "missing_key_config.yaml")
@@ -87,43 +91,45 @@ class TestLoadLangProviderIntegration:
         """Test loading with invalid language pair."""
         config = {
             "langproviders": [
-                {
-                    "language": "en,en",
-                    "model_type": "local.LocalHFTranslator"
-                }
+                {"language": "en,en", "model_type": "local.LocalHFTranslator"}
             ]
         }
         config_path = os.path.join(self.temp_dir, "invalid_lang_config.yaml")
         with open(config_path, "w") as f:
             yaml.dump(config, f)
-        with patch('transformers.M2M100ForConditionalGeneration'), \
-             patch('transformers.M2M100Tokenizer'), \
-             patch('transformers.MarianMTModel'), \
-             patch('transformers.MarianTokenizer'), \
-             patch('torch.multiprocessing.set_start_method'):
+        with patch("transformers.M2M100ForConditionalGeneration"), patch(
+            "transformers.M2M100Tokenizer"
+        ), patch("transformers.MarianMTModel"), patch(
+            "transformers.MarianTokenizer"
+        ), patch(
+            "torch.multiprocessing.set_start_method"
+        ):
             with pytest.raises(Exception) as exc_info:
                 _load_langprovider(config_path)
-            assert "Source and target languages cannot be the same" in str(exc_info.value) or "Failed to load" in str(exc_info.value)
+            assert "Source and target languages cannot be the same" in str(
+                exc_info.value
+            ) or "Failed to load" in str(exc_info.value)
 
     def test_load_langprovider_unsupported_language(self):
         """Test loading with unsupported language pair."""
         config = {
             "langproviders": [
-                {
-                    "language": "xx,yy",
-                    "model_type": "local.LocalHFTranslator"
-                }
+                {"language": "xx,yy", "model_type": "local.LocalHFTranslator"}
             ]
         }
         config_path = os.path.join(self.temp_dir, "unsupported_lang_config.yaml")
         with open(config_path, "w") as f:
             yaml.dump(config, f)
-        with patch('transformers.M2M100ForConditionalGeneration') as mock_model, \
-             patch('transformers.M2M100Tokenizer'), \
-             patch('transformers.MarianMTModel') as mock_marian_model, \
-             patch('transformers.MarianTokenizer'), \
-             patch('torch.multiprocessing.set_start_method'):
-            mock_marian_model.from_pretrained.side_effect = Exception("is not supported")
+        with patch("transformers.M2M100ForConditionalGeneration") as mock_model, patch(
+            "transformers.M2M100Tokenizer"
+        ), patch("transformers.MarianMTModel") as mock_marian_model, patch(
+            "transformers.MarianTokenizer"
+        ), patch(
+            "torch.multiprocessing.set_start_method"
+        ):
+            mock_marian_model.from_pretrained.side_effect = Exception(
+                "is not supported"
+            )
             with pytest.raises(Exception) as exc_info:
                 _load_langprovider(config_path)
             assert "Failed to load" in str(exc_info.value)
@@ -132,10 +138,7 @@ class TestLoadLangProviderIntegration:
         """Test loading with non-existent module path."""
         config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "nonexistent.NonexistentTranslator"
-                }
+                {"language": "en,ja", "model_type": "nonexistent.NonexistentTranslator"}
             ]
         }
         config_path = os.path.join(self.temp_dir, "nonexistent_config.yaml")
@@ -149,24 +152,27 @@ class TestLoadLangProviderIntegration:
         """Test that the loaded provider can perform translation."""
         config = {
             "langproviders": [
-                {
-                    "language": "en,ja",
-                    "model_type": "local.LocalHFTranslator"
-                }
+                {"language": "en,ja", "model_type": "local.LocalHFTranslator"}
             ]
         }
         config_path = os.path.join(self.temp_dir, "translation_test_config.yaml")
         with open(config_path, "w") as f:
             yaml.dump(config, f)
-        with patch('transformers.M2M100ForConditionalGeneration') as mock_model, \
-             patch('transformers.M2M100Tokenizer') as mock_tokenizer, \
-             patch('transformers.MarianMTModel') as mock_marian_model, \
-             patch('transformers.MarianTokenizer') as mock_marian_tokenizer, \
-             patch('torch.multiprocessing.set_start_method'):
+        with patch("transformers.M2M100ForConditionalGeneration") as mock_model, patch(
+            "transformers.M2M100Tokenizer"
+        ) as mock_tokenizer, patch(
+            "transformers.MarianMTModel"
+        ) as mock_marian_model, patch(
+            "transformers.MarianTokenizer"
+        ) as mock_marian_tokenizer, patch(
+            "torch.multiprocessing.set_start_method"
+        ):
             mock_model_instance = mock_model.from_pretrained.return_value
             mock_tokenizer_instance = mock_tokenizer.from_pretrained.return_value
             mock_marian_model_instance = mock_marian_model.from_pretrained.return_value
-            mock_marian_tokenizer_instance = mock_marian_tokenizer.from_pretrained.return_value
+            mock_marian_tokenizer_instance = (
+                mock_marian_tokenizer.from_pretrained.return_value
+            )
             # Mock the translation process
             mock_tokenizer_instance.src_lang = "en"
             mock_tokenizer_instance.get_lang_id.return_value = 123
@@ -174,20 +180,16 @@ class TestLoadLangProviderIntegration:
             mock_model_instance.generate.return_value = "mocked_output"
             # batch_decodeがリストを返すようにする
             mock_tokenizer_instance.batch_decode = lambda *args, **kwargs: ["こんにちは"]
-            mock_marian_tokenizer_instance.batch_decode = lambda *args, **kwargs: ["こんにちは"]
+            mock_marian_tokenizer_instance.batch_decode = lambda *args, **kwargs: [
+                "こんにちは"
+            ]
             provider = _load_langprovider(config_path)
             result = provider._get_response("Hello")
             assert result == "こんにちは"
 
     def test_load_langprovider_config_validation(self):
         """Test that the function validates configuration properly."""
-        config = {
-            "langproviders": [
-                {
-                    "model_type": "local.LocalHFTranslator"
-                }
-            ]
-        }
+        config = {"langproviders": [{"model_type": "local.LocalHFTranslator"}]}
         config_path = os.path.join(self.temp_dir, "invalid_config.yaml")
         with open(config_path, "w") as f:
             yaml.dump(config, f)

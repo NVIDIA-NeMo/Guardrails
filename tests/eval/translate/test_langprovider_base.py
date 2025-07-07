@@ -1,9 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from nemoguardrails.evaluate.langproviders.base import LangProvider
 
 
@@ -30,7 +47,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -60,7 +77,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,en",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -68,7 +85,9 @@ class TestLangProvider:
         with pytest.raises(Exception) as exc_info:
             MockLangProvider(config)
 
-        assert "Source and target languages cannot be the same: en" in str(exc_info.value)
+        assert "Source and target languages cannot be the same: en" in str(
+            exc_info.value
+        )
 
     def test_init_missing_env_var(self):
         """Test initialization with missing environment variable raises exception."""
@@ -76,7 +95,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -88,7 +107,9 @@ class TestLangProvider:
         with pytest.raises(Exception) as exc_info:
             MockLangProvider(config)
 
-        assert "Put the API key in the MOCK_API_KEY environment variable" in str(exc_info.value)
+        assert "Put the API key in the MOCK_API_KEY environment variable" in str(
+            exc_info.value
+        )
 
     def test_init_with_existing_api_key(self):
         """Test initialization when api_key is already set."""
@@ -96,7 +117,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -105,7 +126,7 @@ class TestLangProvider:
         provider = MockLangProvider.__new__(MockLangProvider)
         provider.api_key = "existing_key"
 
-        with patch.object(provider, '_load_langprovider'):
+        with patch.object(provider, "_load_langprovider"):
             provider.__init__(config)
 
             assert provider.api_key == "existing_key"
@@ -116,7 +137,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -129,6 +150,7 @@ class TestLangProvider:
 
     def test_validate_env_var_without_env_var_attr(self):
         """Test _validate_env_var when class doesn't have ENV_VAR attribute."""
+
         class NoEnvVarProvider(LangProvider):
             def _load_langprovider(self):
                 pass
@@ -140,7 +162,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.NoEnvVarProvider": {
                     "language": "en,ja",
-                    "model_type": "mock.NoEnvVarProvider"
+                    "model_type": "mock.NoEnvVarProvider",
                 }
             }
         }
@@ -155,7 +177,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -164,7 +186,9 @@ class TestLangProvider:
             with pytest.raises(Exception) as exc_info:
                 MockLangProvider(config)
 
-            assert "Put the API key in the MOCK_API_KEY environment variable" in str(exc_info.value)
+            assert "Put the API key in the MOCK_API_KEY environment variable" in str(
+                exc_info.value
+            )
 
     def test_config_with_multiple_langproviders(self):
         """Test initialization with multiple language providers (should use first one)."""
@@ -172,12 +196,12 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator1": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator1"
+                    "model_type": "mock.MockTranslator1",
                 },
                 "mock.MockTranslator2": {
                     "language": "ja,en",
-                    "model_type": "mock.MockTranslator2"
-                }
+                    "model_type": "mock.MockTranslator2",
+                },
             }
         }
 
@@ -203,7 +227,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -232,7 +256,7 @@ class TestLangProvider:
                 "langproviders": {
                     "mock.MockTranslator": {
                         "language": language_pair,
-                        "model_type": "mock.MockTranslator"
+                        "model_type": "mock.MockTranslator",
                     }
                 }
             }
@@ -249,7 +273,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,en",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
@@ -266,7 +290,7 @@ class TestLangProvider:
             "langproviders": {
                 "mock.MockTranslator": {
                     "language": "en,ja",
-                    "model_type": "mock.MockTranslator"
+                    "model_type": "mock.MockTranslator",
                 }
             }
         }
