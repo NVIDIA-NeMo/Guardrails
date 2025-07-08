@@ -33,7 +33,7 @@ Within your guardrails configuration file, you can specify that you want to use 
 To do this, ensure that you specify the endpoint of the NIM in the `nim_base_url` parameter.
 If you need an API key, you can export it as an environment variable and specify the name of that environment variable in `api_key_env_var`.
 If you must hard-code the API key in the config, which is generally not recommended for security reasons, you can also use the `api_key` parameter.
-The NemoGuard JailbreakDetect container uses `"classify"` as its endpoint for jailbreak detection, but if you are using an endpoint other than `"classify"`, you can specify this via the `nim_server_endpoint` parameter. 
+The NemoGuard JailbreakDetect container uses `"classify"` as its endpoint for jailbreak detection, but if you are using an endpoint other than `"classify"`, you can specify this via the `nim_server_endpoint` parameter.
 An example configuration is shown below.
 
 ```yaml
