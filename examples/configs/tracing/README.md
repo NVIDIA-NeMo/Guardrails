@@ -18,6 +18,7 @@ Tracing helps you understand what happens inside your guardrails:
 The fastest way to see tracing in action:
 
 ```bash
+# Install tracing support with SDK (needed for examples)
 pip install nemoguardrails[tracing] opentelemetry-sdk
 
 cd examples/configs/tracing/
@@ -109,11 +110,35 @@ This means you must configure OpenTelemetry in your application code.
 
 ### Installation
 
+#### For Tracing Support (API only)
+
 ```bash
+# minimum requirement for NeMo Guardrails tracing features
+pip install nemoguardrails[tracing]
+```
+
+This installs only the OpenTelemetry API, which is sufficient if your application already configures OpenTelemetry.
+
+#### For Running Examples and Development
+
+```bash
+# includes OpenTelemetry SDK for configuring exporters
+pip install nemoguardrails[tracing] opentelemetry-sdk
+```
+
+#### For Production Deployments
+
+```bash
+# install tracing support
 pip install nemoguardrails[tracing]
 
-# install OpenTelemetry SDK and exporters (required for your application)
-pip install opentelemetry-sdk
+# install SDK and your preferred exporter
+# for TLP
+pip install opentelemetry-sdk opentelemetry-exporter-otlp
+# OR for Jaeger
+pip install opentelemetry-sdk opentelemetry-exporter-jaeger
+# OR for Zipkin
+pip install opentelemetry-sdk opentelemetry-exporter-zipkin
 ```
 
 ### Configuration Examples

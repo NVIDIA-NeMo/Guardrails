@@ -15,14 +15,15 @@
 
 import asyncio
 import unittest
+import warnings
 from importlib.metadata import version
 from unittest.mock import MagicMock, patch
 
 # TODO: check to see if we can add it as a dependency
 # but now we try to import opentelemetry and set a flag if it's not available
 try:
-    from opentelemetry import trace
     from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.trace import NoOpTracerProvider
 
     from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
 
@@ -288,3 +289,55 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         # Should still create the adapter successfully
         self.assertIsInstance(adapter, OpenTelemetryAdapter)
         self.assertEqual(adapter.tracer, self.mock_tracer)
+
+    def test_deprecation_warning_for_old_parameters(self):
+        """Test that deprecation warnings are raised for old configuration parameters."""
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            # adapter with deprecated parameters
+            _adapter = OpenTelemetryAdapter(
+                service_name="test_service",
+                exporter="console",
+                resource_attributes={"test": "value"},
+                span_processor=MagicMock(),
+            )
+
+            # deprecation warning is issued
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("deprecated", str(w[0].message))
+            self.assertIn("exporter", str(w[0].message))
+            self.assertIn("resource_attributes", str(w[0].message))
+            self.assertIn("span_processor", str(w[0].message))
+
+    def test_no_op_tracer_provider_warning(self):
+        """Test that a warning is issued when NoOpTracerProvider is detected."""
+
+        with patch("opentelemetry.trace.get_tracer_provider") as mock_get_provider:
+            mock_get_provider.return_value = NoOpTracerProvider()
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+
+                _adapter = OpenTelemetryAdapter()
+
+                self.assertEqual(len(w), 1)
+                self.assertTrue(issubclass(w[0].category, UserWarning))
+                self.assertIn(
+                    "No OpenTelemetry TracerProvider configured", str(w[0].message)
+                )
+                self.assertIn("Traces will not be exported", str(w[0].message))
+
+    def test_no_warnings_with_proper_configuration(self):
+        """Test that no warnings are issued when properly configured."""
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            # adapter without deprecated parameters
+            _adapter = OpenTelemetryAdapter(service_name="test_service")
+
+            # no warnings is issued
+            self.assertEqual(len(w), 0)

@@ -88,6 +88,18 @@ def create_guardrails_config():
                 }
             ],
             "tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]},
+            # Note: The following old-style configuration is deprecated and will be ignored:
+            # "tracing": {
+            #     "enabled": True,
+            #     "adapters": [{
+            #         "name": "OpenTelemetry",
+            #         "service_name": "my-service",      # DEPRECATED - configure in Resource
+            #         "exporter": "console",             # DEPRECATED - configure SDK
+            #         "resource_attributes": {           # DEPRECATED - configure in Resource
+            #             "env": "production"
+            #         }
+            #     }]
+            # }
         },
     )
 

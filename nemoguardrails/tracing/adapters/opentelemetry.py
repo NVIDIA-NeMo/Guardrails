@@ -53,13 +53,15 @@ Usage:
 
 from __future__ import annotations
 
+import warnings
 from importlib.metadata import version
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 try:
     from opentelemetry import trace
+    from opentelemetry.trace import NoOpTracerProvider
 
 except ImportError:
     raise ImportError(
@@ -97,6 +99,37 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
             Applications must configure the OpenTelemetry SDK before using this adapter.
             The adapter will use the globally configured tracer provider.
         """
+        # check for deprecated parameters and warn users
+        deprecated_params = [
+            "exporter",
+            "exporter_cls",
+            "resource_attributes",
+            "span_processor",
+        ]
+        used_deprecated = [param for param in deprecated_params if param in kwargs]
+
+        if used_deprecated:
+            warnings.warn(
+                f"OpenTelemetry configuration parameters {used_deprecated} in YAML/config are deprecated "
+                "and will be ignored. Please configure OpenTelemetry in your application code. "
+                "See the migration guide at: "
+                "https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#migration-guide",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        # validate that OpenTelemetry is properly configured
+        provider = trace.get_tracer_provider()
+        if provider is None or isinstance(provider, NoOpTracerProvider):
+            warnings.warn(
+                "No OpenTelemetry TracerProvider configured. Traces will not be exported. "
+                "Please configure OpenTelemetry in your application code before using NeMo Guardrails. "
+                "See setup guide at: "
+                "https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#opentelemetry-setup",
+                UserWarning,
+                stacklevel=2,
+            )
+
         self.tracer = trace.get_tracer(
             service_name,
             instrumenting_library_version=version("nemoguardrails"),
