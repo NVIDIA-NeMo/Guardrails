@@ -62,7 +62,7 @@ user-guides/advanced/nested-async-loop
 user-guides/advanced/vertexai-setup
 user-guides/advanced/nemoguard-contentsafety-deployment
 user-guides/advanced/nemoguard-topiccontrol-deployment
-user-guides/advanced/jailbreak-detection-heuristics-deployment
+user-guides/advanced/nemoguard-jailbreakdetect-deployment
 user-guides/advanced/safeguarding-ai-virtual-assistant-blueprint
 ```
 

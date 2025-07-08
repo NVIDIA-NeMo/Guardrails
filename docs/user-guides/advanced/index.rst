@@ -20,6 +20,5 @@ Advanced
    using-docker
    vertexai-setup
    nemoguard-contentsafety-deployment
-   nemoguard-jailbreakdetect-deployment
    nemoguard-topiccontrol-deployment
    safeguarding-ai-virtual-assistant-blueprint
