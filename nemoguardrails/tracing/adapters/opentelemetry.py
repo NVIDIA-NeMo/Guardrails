@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import warnings
 from importlib.metadata import version
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Type
 
 if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
@@ -70,6 +70,34 @@ except ImportError:
     )
 
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
+
+# DEPRECATED: global dictionary to store registered exporters
+# will be removed in  v0.16.0
+_exporter_name_cls_map: dict[str, Type] = {}
+
+
+def register_otel_exporter(name: str, exporter_cls: Type):
+    """Register a new exporter.
+
+    Args:
+        name: The name to register the exporter under.
+        exporter_cls: The exporter class to register.
+
+    Deprecated:
+        This function is deprecated and will be removed in version 0.16.0.
+        Please configure OpenTelemetry exporters directly in your application code.
+        See the migration guide at:
+        https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#migration-guide
+    """
+    warnings.warn(
+        "register_otel_exporter is deprecated and will be removed in version 0.16.0. "
+        "Please configure OpenTelemetry exporters directly in your application code. "
+        "See the migration guide at: "
+        "https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/examples/configs/tracing/README.md#migration-guide",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    _exporter_name_cls_map[name] = exporter_cls
 
 
 class OpenTelemetryAdapter(InteractionLogAdapter):

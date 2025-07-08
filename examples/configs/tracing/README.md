@@ -337,6 +337,36 @@ config = RailsConfig.from_content(
 )
 ```
 
+### Deprecated Features
+
+#### register_otel_exporter Function
+
+The `register_otel_exporter` function is deprecated and will be removed in version 0.16.0:
+
+```python
+#  DEPRECATED - will be removed in 0.16.0
+from nemoguardrails.tracing.adapters.opentelemetry import register_otel_exporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+register_otel_exporter("my-otlp", OTLPSpanExporter)
+```
+
+Instead, configure exporters directly in your application:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+tracer_provider = TracerProvider()
+trace.set_tracer_provider(tracer_provider)
+
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318")
+span_processor = BatchSpanProcessor(otlp_exporter)
+tracer_provider.add_span_processor(span_processor)
+```
+
 ### Why the Change?
 
 This change follows OpenTelemetry best practices:

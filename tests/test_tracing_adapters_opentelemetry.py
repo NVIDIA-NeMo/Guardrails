@@ -332,7 +332,6 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
     def test_no_warnings_with_proper_configuration(self):
         """Test that no warnings are issued when properly configured."""
-
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
@@ -341,3 +340,25 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
             # no warnings is issued
             self.assertEqual(len(w), 0)
+
+    def test_register_otel_exporter_deprecation(self):
+        """Test that register_otel_exporter shows deprecation warning."""
+        from nemoguardrails.tracing.adapters.opentelemetry import register_otel_exporter
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            mock_exporter_cls = MagicMock()
+
+            register_otel_exporter("test-exporter", mock_exporter_cls)
+
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("register_otel_exporter is deprecated", str(w[0].message))
+            self.assertIn("0.16.0", str(w[0].message))
+
+            from nemoguardrails.tracing.adapters.opentelemetry import (
+                _exporter_name_cls_map,
+            )
+
+            self.assertEqual(_exporter_name_cls_map["test-exporter"], mock_exporter_cls)
