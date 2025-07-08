@@ -20,19 +20,17 @@ For a complete record of changes in a release, refer to the
 
 ### Features
 
--
+- Added direct API key configuration support for jailbreak detection. This change adds a new optional field `api_key` to the `JailbreakDetectionConfig` Pydantic model. This allows to provide an API Key in a `RailsConfig` object or YAML file, for use in Jailbreak NIM calls. Prior to this change, the `api_key_env_var` field used an environment variable (for example `NVIDIA_API_KEY`) to get the API Key for the Jailbreak NIM.
 
 (v0-14-1-fixed-issues)=
 
 ### Fixed Issues
 
--
-
-(v0-14-1-known-issues)=
-
-### Known Issues
-
--
+- Fixed lazy loading of jailbreak detection dependencies. Before, jailbreak detection imported unnecessary dependencies when using NIM, which led to installation of those dependencies even when not using the local model-based jailbreak detection.
+- Fixed constructor LLM configuration to properly load other config models.
+- Fixed content safety policy violations handling by replacing try-except with iterable unpacking.
+- Fixed numpy version compatibility by pinning to version 1.23.5 for scikit-learn compatibility.
+- Fixed iterable unpacking compatibility in content safety output parsers.
 
 (v0-14-0)=
 
