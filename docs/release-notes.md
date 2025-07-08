@@ -12,6 +12,28 @@ The following sections summarize and highlight the changes for each release.
 For a complete record of changes in a release, refer to the
 [CHANGELOG.md](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
 
+(v0-14-1)=
+
+## 0.14.1
+
+(v0-14-1-features)=
+
+### Features
+
+-
+
+(v0-14-1-fixed-issues)=
+
+### Fixed Issues
+
+-
+
+(v0-14-1-known-issues)=
+
+### Known Issues
+
+-
+
 (v0-14-0)=
 
 ## 0.14.0
