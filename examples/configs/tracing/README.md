@@ -133,7 +133,7 @@ pip install nemoguardrails[tracing] opentelemetry-sdk
 pip install nemoguardrails[tracing]
 
 # install SDK and your preferred exporter
-# for TLP
+# for OTLP
 pip install opentelemetry-sdk opentelemetry-exporter-otlp
 # OR for Jaeger
 pip install opentelemetry-sdk opentelemetry-exporter-jaeger
