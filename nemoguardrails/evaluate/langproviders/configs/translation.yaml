@@ -1,0 +1,3 @@
+langproviders:
+  - language: en,ja
+    model_type: remote.DeeplTranslator

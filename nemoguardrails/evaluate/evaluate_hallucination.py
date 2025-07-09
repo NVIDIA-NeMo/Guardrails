@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ import tqdm
 import typer
 
 from nemoguardrails import LLMRails
+from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.evaluate.utils import load_dataset
 from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.prompts import Task
@@ -40,6 +42,8 @@ class HallucinationRailsEvaluation:
         num_samples: int = 50,
         output_dir: str = "outputs/hallucination",
         write_outputs: bool = True,
+        enable_translation: bool = False,
+        translation_config: str = None,
     ):
         """
         A hallucination rails evaluation has the following parameters:
@@ -50,6 +54,8 @@ class HallucinationRailsEvaluation:
         - num_samples: number of samples to evaluate
         - output_dir: directory to write the hallucination predictions
         - write_outputs: whether to write the predictions to file
+        - enable_translation: whether to enable translation functionality
+        - translation_config: path to translation configuration file
         """
 
         self.config_path = config
@@ -60,7 +66,34 @@ class HallucinationRailsEvaluation:
         self.llm_task_manager = LLMTaskManager(self.rails_config)
 
         self.num_samples = num_samples
-        self.dataset = load_dataset(self.dataset_path)[: self.num_samples]
+        self.enable_translation = enable_translation
+        self.translation_config = translation_config
+
+        # Initialize translation provider if enabled
+        self.translator = None
+        self.translate_to = None
+        if self.enable_translation:
+            try:
+                from nemoguardrails.evaluate.utils import (
+                    _extract_target_language,
+                    _load_langprovider,
+                )
+
+                self.translator = _load_langprovider(self.translation_config)
+                self.translate_to = _extract_target_language(self.translation_config)
+                print(f"✓ Translation provider initialized for {self.translate_to}")
+            except Exception as e:
+                print(f"⚠ Translation provider not available: {e}")
+                self.enable_translation = False
+
+        # Load dataset with optional translation
+        if self.enable_translation and self.translator:
+            self.dataset = load_dataset(
+                self.dataset_path, translation_config=self.translation_config
+            )[: self.num_samples]
+        else:
+            self.dataset = load_dataset(self.dataset_path)[: self.num_samples]
+
         self.write_outputs = write_outputs
         self.output_dir = output_dir
 
@@ -71,7 +104,7 @@ class HallucinationRailsEvaluation:
         num_tries = 0
         while num_tries < max_tries:
             try:
-                response = self.llm(prompt)
+                response = asyncio.run(llm_call(prompt=prompt, llm=self.llm))
                 return response
             except:
                 num_tries += 1
@@ -153,7 +186,9 @@ class HallucinationRailsEvaluation:
                     Task.SELF_CHECK_HALLUCINATION,
                     {"paragraph": paragraph, "statement": bot_response},
                 )
-                hallucination = self.llm(hallucination_check_prompt)
+                hallucination = asyncio.run(
+                    llm_call(prompt=hallucination_check_prompt, llm=self.llm)
+                )
                 hallucination = hallucination.lower().strip()
 
                 prediction = {
@@ -194,7 +229,9 @@ class HallucinationRailsEvaluation:
                 f"{self.output_dir}/{dataset_name}_hallucination_predictions.json"
             )
             with open(output_path, "w") as f:
-                json.dump(hallucination_check_predictions, f, indent=4)
+                json.dump(
+                    hallucination_check_predictions, f, indent=4, ensure_ascii=False
+                )
             print(f"Predictions written to file {output_path}.json")
 
 
@@ -204,6 +241,12 @@ def main(
     num_samples: int = typer.Option(50, help="Number of samples to evaluate"),
     output_dir: str = typer.Option("outputs/hallucination", help="Output directory"),
     write_outputs: bool = typer.Option(True, help="Write outputs to file"),
+    enable_translation: bool = typer.Option(
+        False, help="Enable translation functionality"
+    ),
+    translation_config: str = typer.Option(
+        None, help="Path to translation configuration file"
+    ),
 ):
     """
     Main function to run the hallucination rails evaluation.
@@ -214,6 +257,8 @@ def main(
         num_samples (int): Number of samples to evaluate.
         output_dir (str): Output directory for predictions.
         write_outputs (bool): Whether to write the predictions to a file.
+        enable_translation (bool): Whether to enable translation functionality.
+        translation_config (str): Path to translation configuration file.
     """
     hallucination_check = HallucinationRailsEvaluation(
         config,
@@ -221,6 +266,8 @@ def main(
         num_samples,
         output_dir,
         write_outputs,
+        enable_translation,
+        translation_config,
     )
     hallucination_check.run()
 

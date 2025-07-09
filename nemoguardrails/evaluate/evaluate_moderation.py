@@ -42,6 +42,8 @@ class ModerationRailsEvaluation:
         output_dir: str = "outputs/moderation",
         write_outputs: bool = True,
         split: str = "harmful",
+        enable_translation: bool = False,
+        translation_config: str = None,
     ):
         """
         A moderation rails evaluation has the following parameters:
@@ -54,6 +56,8 @@ class ModerationRailsEvaluation:
         - output_dir: directory to write the moderation predictions
         - write_outputs: whether to write the predictions to file
         - split: whether the dataset is harmful or helpful
+        - enable_translation: whether to enable translation functionality
+        - translation_config: path to translation configuration file
         """
 
         self.config_path = config
@@ -67,7 +71,29 @@ class ModerationRailsEvaluation:
         self.check_output = check_output
 
         self.num_samples = num_samples
-        self.dataset = load_dataset(self.dataset_path)[: self.num_samples]
+        self.enable_translation = enable_translation
+        self.translation_config = translation_config
+
+        # Initialize translation provider if enabled
+        self.translator = None
+        if self.enable_translation:
+            try:
+                from nemoguardrails.evaluate.utils_translate import _load_langprovider
+
+                self.translator = _load_langprovider(self.translation_config)
+                print(f"✓ Translation provider initialized")
+            except Exception as e:
+                print(f"⚠ Translation provider not available: {e}")
+                self.enable_translation = False
+
+        # Load dataset with optional translation
+        if self.enable_translation and self.translator:
+            self.dataset = load_dataset(
+                self.dataset_path, translation_config=self.translation_config
+            )[: self.num_samples]
+        else:
+            self.dataset = load_dataset(self.dataset_path)[: self.num_samples]
+
         self.split = split
         self.write_outputs = write_outputs
         self.output_dir = output_dir
@@ -266,6 +292,6 @@ class ModerationRailsEvaluation:
             )
 
             with open(output_path, "w") as f:
-                json.dump(moderation_check_predictions, f, indent=4)
+                json.dump(moderation_check_predictions, f, indent=4, ensure_ascii=False)
 
             print(f"Predictions written to file {output_path}")

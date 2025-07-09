@@ -133,6 +133,13 @@ def moderation(
     ),
     write_outputs: bool = typer.Option(True, help="Write outputs to file"),
     split: str = typer.Option("harmful", help="Whether prompts are harmful or helpful"),
+    enable_translation: bool = typer.Option(
+        False, help="Enable translation functionality"
+    ),
+    translation_config: str = typer.Option(
+        "nemoguardrails/evaluate/langproviders/configs/translation.yaml",
+        help="Path to translation configuration file",
+    ),
 ):
     """
     Evaluate the performance of the moderation rails defined in a Guardrails application.
@@ -150,6 +157,8 @@ def moderation(
             Defaults to "eval_outputs/moderation".
         write_outputs (bool): Write outputs to file. Defaults to True.
         split (str): Whether prompts are harmful or helpful. Defaults to "harmful".
+        enable_translation (bool): Enable translation functionality. Defaults to False.
+        translation_config (str): Path to translation configuration file. Defaults to None.
     """
     moderation_check = ModerationRailsEvaluation(
         config,
@@ -160,6 +169,8 @@ def moderation(
         output_dir,
         write_outputs,
         split,
+        enable_translation,
+        translation_config,
     )
     typer.echo(f"Starting the moderation evaluation for data: {dataset_path} ...")
     moderation_check.run()
@@ -178,6 +189,13 @@ def hallucination(
         "eval_outputs/hallucination", help="Output directory"
     ),
     write_outputs: bool = typer.Option(True, help="Write outputs to file"),
+    enable_translation: bool = typer.Option(
+        False, help="Enable translation functionality"
+    ),
+    translation_config: str = typer.Option(
+        "nemoguardrails/evaluate/langproviders/configs/translation.yaml",
+        help="Path to translation configuration file",
+    ),
 ):
     """
     Evaluate the performance of the hallucination rails defined in a Guardrails application.
@@ -190,6 +208,8 @@ def hallucination(
         num_samples (int): Number of samples to evaluate. Defaults to 50.
         output_dir (str): Output directory. Defaults to "eval_outputs/hallucination".
         write_outputs (bool): Write outputs to file. Defaults to True.
+        enable_translation (bool): Enable translation functionality. Defaults to False.
+        translation_config (str): Path to translation configuration file. Defaults to None.
     """
     hallucination_check = HallucinationRailsEvaluation(
         config,
@@ -197,6 +217,8 @@ def hallucination(
         num_samples,
         output_dir,
         write_outputs,
+        enable_translation,
+        translation_config,
     )
     typer.echo(f"Starting the hallucination evaluation for data: {dataset_path} ...")
     hallucination_check.run()
