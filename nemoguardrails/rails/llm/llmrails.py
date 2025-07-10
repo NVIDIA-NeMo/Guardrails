@@ -367,6 +367,11 @@ class LLMRails:
             if api_key:
                 kwargs["api_key"] = api_key
 
+        # enable streaming token usage when streaming is enabled
+        # providers that don't support this parameter will simply ignore it
+        if self.config.streaming:
+            kwargs["stream_usage"] = True
+
         return kwargs
 
     def _configure_main_llm_streaming(

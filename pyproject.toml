@@ -74,7 +74,7 @@ opentelemetry-sdk = { version = ">=1.27.0,<2.0.0", optional = true }
 aiofiles = { version = ">=24.1.0", optional = true }
 
 # openai
-langchain-openai = { version = ">=0.0.5", optional = true }
+langchain-openai = { version = ">=0.1.0", optional = true }
 
 # eval
 tqdm = { version = ">=4.65,<5.0", optional = true }
