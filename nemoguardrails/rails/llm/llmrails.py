@@ -1067,7 +1067,7 @@ class LLMRails:
                     state=state,
                 )
             except Exception as e:
-                # If an exception occurs during generation, push it to the streaming handler
+                # If an exception occurs during generation, push it to the streaming handler as a json string
                 # This ensures the streaming pipeline is properly terminated
                 log.error(f"Error in generation task: {e}", exc_info=True)
                 error_message = str(e)
@@ -1407,7 +1407,7 @@ class LLMRails:
             )
 
             # check if user_output_chunks is a list of individual chunks
-            # or if it's a JSON error string
+            # or if it's a JSON string, by convention this means an error occurred and the error dict is stored as a JSON
             if not isinstance(user_output_chunks, list):
                 try:
                     json.loads(user_output_chunks)

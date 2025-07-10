@@ -312,12 +312,9 @@ class RollingBuffer(BufferStrategy):
                 ]
 
                 # get the new chunks to yield to user (preserve original token format)
-                if new_chunks_to_yield > 0:
-                    # the new chunks are at the end of the buffer
-                    chunks_to_yield = buffer[-new_chunks_to_yield:]
-                    self.total_yielded += new_chunks_to_yield
-                else:
-                    chunks_to_yield = []
+                # the new chunks are at the end of the buffer
+                chunks_to_yield = buffer[-new_chunks_to_yield:]
+                self.total_yielded += new_chunks_to_yield
 
                 yield ChunkBatch(
                     processing_context=processing_buffer,
@@ -327,17 +324,13 @@ class RollingBuffer(BufferStrategy):
 
         # yield any remaining buffer if it's not empty
         if buffer:
-            new_chunks_to_yield = len(buffer) - max(
-                0, self.total_yielded - (total_chunks - len(buffer))
+            # calculate how many chunks from the remaining buffer haven't been yielded yet
+            remaining_chunks_to_yield = total_chunks - self.total_yielded
+            chunks_to_yield = (
+                buffer[-remaining_chunks_to_yield:]
+                if remaining_chunks_to_yield > 0
+                else []
             )
-            if new_chunks_to_yield > 0:
-                chunks_to_yield = (
-                    buffer[-new_chunks_to_yield:]
-                    if new_chunks_to_yield <= len(buffer)
-                    else buffer
-                )
-            else:
-                chunks_to_yield = []
 
             yield ChunkBatch(
                 processing_context=buffer,
