@@ -1056,17 +1056,39 @@ class LLMRails:
             include_generation_metadata=include_generation_metadata
         )
 
-        # todo use a context var for buffer strategy and return it here?
-        # then iterating over buffer strategy is nested loop?
-        asyncio.create_task(
-            self.generate_async(
-                prompt=prompt,
-                messages=messages,
-                streaming_handler=streaming_handler,
-                options=options,
-                state=state,
-            )
-        )
+        # Create a properly managed task with exception handling
+        async def _generation_task():
+            try:
+                await self.generate_async(
+                    prompt=prompt,
+                    messages=messages,
+                    streaming_handler=streaming_handler,
+                    options=options,
+                    state=state,
+                )
+            except Exception as e:
+                # If an exception occurs during generation, push it to the streaming handler as a json string
+                # This ensures the streaming pipeline is properly terminated
+                log.error(f"Error in generation task: {e}", exc_info=True)
+                error_message = str(e)
+                error_dict = extract_error_json(error_message)
+                error_payload = json.dumps(error_dict)
+                await streaming_handler.push_chunk(error_payload)
+                await streaming_handler.push_chunk(END_OF_STREAM)
+
+        task = asyncio.create_task(_generation_task())
+
+        # Store task reference to prevent garbage collection and ensure proper cleanup
+        if not hasattr(self, "_active_tasks"):
+            self._active_tasks = set()
+        self._active_tasks.add(task)
+
+        # Clean up task when it's done
+        def task_done_callback(task):
+            self._active_tasks.discard(task)
+
+        task.add_done_callback(task_done_callback)
+
         # when we have output rails we wrap the streaming handler
         # if len(self.config.rails.output.flows) > 0:
         #
@@ -1327,7 +1349,7 @@ class LLMRails:
         def _prepare_params(
             flow_id: str,
             action_name: str,
-            chunk_str: str,
+            bot_response_chunk: str,
             prompt: Optional[str] = None,
             messages: Optional[List[dict]] = None,
             action_params: Dict[str, Any] = {},
@@ -1337,7 +1359,7 @@ class LLMRails:
 
             context = {
                 "user_message": user_message,
-                "bot_message": chunk_str,
+                "bot_message": bot_response_chunk,
             }
 
             if context_message:
@@ -1350,7 +1372,7 @@ class LLMRails:
             # to resolve replace placeholders in action_params
             for key, value in action_params.items():
                 if value == "$bot_message":
-                    action_params[key] = chunk_str
+                    action_params[key] = bot_response_chunk
                 elif value == "$user_message":
                     action_params[key] = user_message
 
@@ -1377,24 +1399,28 @@ class LLMRails:
             _get_action_details_from_flow_id, flows=self.config.flows
         )
 
-        async for chunk_list, chunk_str_rep in buffer_strategy(streaming_handler):
-            chunk_str = " ".join(chunk_list)
+        async for chunk_batch in buffer_strategy(streaming_handler):
+            user_output_chunks = chunk_batch.user_output_chunks
+            # format processing_context for output rails processing (needs full context)
+            bot_response_chunk = buffer_strategy.format_chunks(
+                chunk_batch.processing_context
+            )
 
-            # Check if chunk_str_rep is a JSON string
-            # we yield a json error payload in generate_async when
-            # streaming has errors
-            try:
-                json.loads(chunk_str_rep)
-                yield chunk_str_rep
-                return
-            except json.JSONDecodeError:
-                pass
+            # check if user_output_chunks is a list of individual chunks
+            # or if it's a JSON string, by convention this means an error occurred and the error dict is stored as a JSON
+            if not isinstance(user_output_chunks, list):
+                try:
+                    json.loads(user_output_chunks)
+                    yield user_output_chunks
+                    return
+                except (json.JSONDecodeError, TypeError):
+                    # if it's not JSON, treat it as empty list
+                    user_output_chunks = []
+
             if stream_first:
-                words = chunk_str_rep.split()
-                if words:
-                    yield words[0]
-                    for word in words[1:]:
-                        yield f" {word}"
+                # yield the individual chunks directly from the buffer strategy
+                for chunk in user_output_chunks:
+                    yield chunk
 
             for flow_id in output_rails_flows_id:
                 action_name, action_params = get_action_details(flow_id)
@@ -1402,20 +1428,17 @@ class LLMRails:
                 params = _prepare_params(
                     flow_id=flow_id,
                     action_name=action_name,
-                    chunk_str=chunk_str,
+                    bot_response_chunk=bot_response_chunk,
                     prompt=prompt,
                     messages=messages,
                     action_params=action_params,
                 )
 
-                # Execute the action. (Your execute_action returns only the result.)
                 result = await self.runtime.action_dispatcher.execute_action(
                     action_name, params
                 )
-                # Include explain info (whatever _update_explain_info does)
                 self.explain_info = self._ensure_explain_info()
 
-                # Retrieve the action function from the dispatcher
                 action_func = self.runtime.action_dispatcher.get_action(action_name)
 
                 # Use the mapping to decide if the result indicates blocked content.
@@ -1443,11 +1466,9 @@ class LLMRails:
                     return
 
             if not stream_first:
-                words = chunk_str_rep.split()
-                if words:
-                    yield words[0]
-                    for word in words[1:]:
-                        yield f" {word}"
+                # yield the individual chunks directly from the buffer strategy
+                for chunk in user_output_chunks:
+                    yield chunk
 
 
 def _get_action_details_from_flow_id(

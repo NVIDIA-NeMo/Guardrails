@@ -336,22 +336,22 @@ async def test_streaming_output_rails_allowed(output_rails_streaming_config):
     ]
 
     expected_tokens = [
-        "This",
-        " is",
-        " a",
-        " funny",
-        "joke",
-        " but",
-        "you",
-        " should",
-        "not",
-        " laught",
-        "at",
-        " it",
-        "because",
-        " you",
-        "will",
-        " be",
+        "This ",
+        "is ",
+        "a ",
+        "funny ",
+        "joke ",
+        "but ",
+        "you ",
+        "should ",
+        "not ",
+        "laught ",
+        "at ",
+        "it ",
+        "because ",
+        "you ",
+        "will ",
+        "be ",
         "cursed!.",
     ]
     tokens = await run_self_check_test(output_rails_streaming_config, llm_completions)
@@ -363,6 +363,32 @@ async def test_streaming_output_rails_allowed(output_rails_streaming_config):
         len(llm_completions[1].lstrip().split(" ")), 4, 2
     )
     # Wait for proper cleanup, otherwise we get a Runtime Error
+    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+@pytest.mark.asyncio
+async def test_sequential_streaming_output_rails_allowed(
+    output_rails_streaming_config,
+):
+    """Tests that sequential output rails allow content when no blocking keywords are present"""
+
+    llm_completions = [
+        " bot express insult",
+        '  "Hi, how are you doing?"',
+        '  "This is a safe and compliant high quality joke that should pass all checks."',
+    ]
+
+    chunks = await run_self_check_test(output_rails_streaming_config, llm_completions)
+
+    response = "".join(chunks)
+    assert len(response) > 0
+    assert len(chunks) > 1
+    assert "This is a safe" in response
+    assert "compliant high quality" in response
+
+    error_chunks = [chunk for chunk in chunks if chunk.startswith('{"error":')]
+    assert len(error_chunks) == 0
+
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
 
