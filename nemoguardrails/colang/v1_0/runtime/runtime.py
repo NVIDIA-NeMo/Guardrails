@@ -200,7 +200,7 @@ class RuntimeV1_0(Runtime):
                 break
 
             # As a safety measure, we stop the processing if we have too many events.
-            if len(new_events) > 100:
+            if len(new_events) > 300:
                 raise Exception("Too many events.")
 
         # Unpack and insert events in event history update event if available
@@ -686,15 +686,7 @@ class RuntimeV1_0(Runtime):
         next_steps = []
 
         if context_updates:
-            # We check if at least one key changed
-            changes = False
-            for k, v in context_updates.items():
-                if context.get(k) != v:
-                    changes = True
-                    break
-
-            if changes:
-                next_steps.append(new_event_dict("ContextUpdate", data=context_updates))
+            next_steps.append(new_event_dict("ContextUpdate", data=context_updates))
 
         next_steps.append(
             new_event_dict(
