@@ -313,10 +313,10 @@ class RuntimeV1_0(Runtime):
         try:
             for future in asyncio.as_completed(tasks):
                 try:
-                    flow_id, result = await future
+                    flow_id, is_blocked = await future
 
                     # check if this rail blocked the content
-                    if result:  # True means blocked
+                    if is_blocked:
                         # create stop events
                         stopped_events = [
                             {
