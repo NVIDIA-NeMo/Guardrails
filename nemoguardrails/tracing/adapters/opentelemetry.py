@@ -13,78 +13,156 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+OpenTelemetry Adapter for NeMo Guardrails
+
+This adapter follows OpenTelemetry best practices for libraries:
+- Uses only the OpenTelemetry API (not SDK)
+- Does not modify global state
+- Relies on the application to configure the SDK
+
+Usage:
+    Applications using NeMo Guardrails with OpenTelemetry should configure
+    the OpenTelemetry SDK before using this adapter:
+
+    ```python
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+    # application configures the SDK
+    trace.set_tracer_provider(TracerProvider())
+    tracer_provider = trace.get_tracer_provider()
+
+    exporter = OTLPSpanExporter(endpoint="http://localhost:4317")
+    span_processor = BatchSpanProcessor(exporter)
+    tracer_provider.add_span_processor(span_processor)
+
+    # now NeMo Guardrails can use the configured tracer
+    config = RailsConfig.from_content(
+        config={
+            "tracing": {
+                "enabled": True,
+                "adapters": [{"name": "OpenTelemetry"}]
+            }
+        }
+    )
+    ```
+"""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional, Type
-
-from opentelemetry.sdk.trace.export import SpanExporter
+import warnings
+from importlib.metadata import version
+from typing import TYPE_CHECKING, Optional, Type
 
 if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 try:
     from opentelemetry import trace
-    from opentelemetry.sdk.resources import Attributes, Resource
-    from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.trace import NoOpTracerProvider
 
 except ImportError:
     raise ImportError(
-        "opentelemetry is not installed. Please install it using `pip install opentelemetry-api opentelemetry-sdk`."
+        "OpenTelemetry API is not installed. Please install NeMo Guardrails with tracing support: "
+        "`pip install nemoguardrails[tracing]` or install the API directly: `pip install opentelemetry-api`."
     )
 
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 
-# Global dictionary to store registered exporters
-_exporter_name_cls_map: Dict[str, Type[SpanExporter]] = {
-    "console": ConsoleSpanExporter,
-}
+# DEPRECATED: global dictionary to store registered exporters
+# will be removed in  v0.16.0
+_exporter_name_cls_map: dict[str, Type] = {}
 
 
-def register_otel_exporter(name: str, exporter_cls: Type[SpanExporter]):
-    """Register a new exporter."""
+def register_otel_exporter(name: str, exporter_cls: Type):
+    """Register a new exporter.
+
+    Args:
+        name: The name to register the exporter under.
+        exporter_cls: The exporter class to register.
+
+    Deprecated:
+        This function is deprecated and will be removed in version 0.16.0.
+        Please configure OpenTelemetry exporters directly in your application code.
+        See the migration guide at:
+        https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#migration-guide
+    """
+    warnings.warn(
+        "register_otel_exporter is deprecated and will be removed in version 0.16.0. "
+        "Please configure OpenTelemetry exporters directly in your application code. "
+        "See the migration guide at: "
+        "https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/examples/configs/tracing/README.md#migration-guide",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     _exporter_name_cls_map[name] = exporter_cls
 
 
 class OpenTelemetryAdapter(InteractionLogAdapter):
+    """
+    OpenTelemetry adapter that follows library best practices.
+
+    This adapter uses only the OpenTelemetry API and relies on the application
+    to configure the SDK. It does not modify global state or create its own
+    tracer provider.
+    """
+
     name = "OpenTelemetry"
 
     def __init__(
         self,
-        service_name="nemo_guardrails_service",
-        span_processor: Optional[SpanProcessor] = None,
-        exporter: Optional[str] = None,
-        exporter_cls: Optional[SpanExporter] = None,
-        resource_attributes: Optional[Attributes] = None,
+        service_name: str = "nemo_guardrails",
         **kwargs,
     ):
-        resource_attributes = resource_attributes or {}
-        resource = Resource.create(
-            {"service.name": service_name, **resource_attributes}
-        )
+        """
+        Initialize the OpenTelemetry adapter.
 
-        if exporter_cls and exporter:
-            raise ValueError(
-                "Only one of 'exporter' or 'exporter_name' should be provided"
+        Args:
+            service_name: Service name for instrumentation scope (not used for resource)
+            **kwargs: Additional arguments (for backward compatibility)
+
+        Note:
+            Applications must configure the OpenTelemetry SDK before using this adapter.
+            The adapter will use the globally configured tracer provider.
+        """
+        # check for deprecated parameters and warn users
+        deprecated_params = [
+            "exporter",
+            "exporter_cls",
+            "resource_attributes",
+            "span_processor",
+        ]
+        used_deprecated = [param for param in deprecated_params if param in kwargs]
+
+        if used_deprecated:
+            warnings.warn(
+                f"OpenTelemetry configuration parameters {used_deprecated} in YAML/config are deprecated "
+                "and will be ignored. Please configure OpenTelemetry in your application code. "
+                "See the migration guide at: "
+                "https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#migration-guide",
+                DeprecationWarning,
+                stacklevel=2,
             )
-        # Set up the tracer provider
-        provider = TracerProvider(resource=resource)
 
-        # Init the span processor and exporter
-        exporter_cls = None
-        if exporter:
-            exporter_cls = self.get_exporter(exporter, **kwargs)
+        # validate that OpenTelemetry is properly configured
+        provider = trace.get_tracer_provider()
+        if provider is None or isinstance(provider, NoOpTracerProvider):
+            warnings.warn(
+                "No OpenTelemetry TracerProvider configured. Traces will not be exported. "
+                "Please configure OpenTelemetry in your application code before using NeMo Guardrails. "
+                "See setup guide at: "
+                "https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#opentelemetry-setup",
+                UserWarning,
+                stacklevel=2,
+            )
 
-        if exporter_cls is None:
-            exporter_cls = ConsoleSpanExporter()
-
-        if span_processor is None:
-            span_processor = BatchSpanProcessor(exporter_cls)
-
-        provider.add_span_processor(span_processor)
-        trace.set_tracer_provider(provider)
-
-        self.tracer_provider = provider
-        self.tracer = trace.get_tracer(__name__)
+        self.tracer = trace.get_tracer(
+            service_name,
+            instrumenting_library_version=version("nemoguardrails"),
+            schema_url="https://opentelemetry.io/schemas/1.26.0",
+        )
 
     def transform(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into OpenTelemetry spans."""
@@ -139,20 +217,3 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
             span.set_attribute("duration", span_data.duration)
 
             spans[span_data.span_id] = span
-
-    @staticmethod
-    def get_exporter(exporter: str, **kwargs) -> SpanExporter:
-        if exporter == "zipkin":
-            try:
-                from opentelemetry.exporter.zipkin.json import ZipkinExporter
-
-                _exporter_name_cls_map["zipkin"] = ZipkinExporter
-            except ImportError:
-                raise ImportError(
-                    "The opentelemetry-exporter-zipkin package is not installed. Please install it using 'pip install opentelemetry-exporter-zipkin'."
-                )
-
-        exporter_cls = _exporter_name_cls_map.get(exporter)
-        if not exporter_cls:
-            raise ValueError(f"Unknown exporter: {exporter}")
-        return exporter_cls(**kwargs)

@@ -15,12 +15,15 @@
 
 import asyncio
 import unittest
+import warnings
+from importlib.metadata import version
 from unittest.mock import MagicMock, patch
 
 # TODO: check to see if we can add it as a dependency
 # but now we try to import opentelemetry and set a flag if it's not available
 try:
-    from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.trace import NoOpTracerProvider
 
     from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
 
@@ -35,44 +38,42 @@ from nemoguardrails.tracing import InteractionLog
 @unittest.skipIf(not OPENTELEMETRY_AVAILABLE, "opentelemetry is not available")
 class TestOpenTelemetryAdapter(unittest.TestCase):
     def setUp(self):
+        # Set up a mock tracer provider for testing
+        self.mock_tracer_provider = MagicMock(spec=TracerProvider)
+        self.mock_tracer = MagicMock()
+        self.mock_tracer_provider.get_tracer.return_value = self.mock_tracer
+
+        # Patch the global tracer provider
+        patcher_get_tracer_provider = patch("opentelemetry.trace.get_tracer_provider")
+        self.mock_get_tracer_provider = patcher_get_tracer_provider.start()
+        self.mock_get_tracer_provider.return_value = self.mock_tracer_provider
+        self.addCleanup(patcher_get_tracer_provider.stop)
+
+        # Patch get_tracer to return our mock
         patcher_get_tracer = patch("opentelemetry.trace.get_tracer")
         self.mock_get_tracer = patcher_get_tracer.start()
+        self.mock_get_tracer.return_value = self.mock_tracer
         self.addCleanup(patcher_get_tracer.stop)
 
-        # Create a mock tracer
-        self.mock_tracer = MagicMock()
-        self.mock_get_tracer.return_value = self.mock_tracer
+        # Get the actual version for testing
+        self.actual_version = version("nemoguardrails")
 
-        patcher_console_exporter = patch(
-            "opentelemetry.sdk.trace.export.ConsoleSpanExporter"
-        )
-        self.mock_console_exporter_cls = patcher_console_exporter.start()
-        self.addCleanup(patcher_console_exporter.stop)
-
-        patcher_batch_span_processor = patch(
-            "opentelemetry.sdk.trace.export.BatchSpanProcessor"
-        )
-        self.mock_batch_span_processor_cls = patcher_batch_span_processor.start()
-        self.addCleanup(patcher_batch_span_processor.stop)
-
-        patcher_add_span_processor = patch(
-            "opentelemetry.sdk.trace.TracerProvider.add_span_processor"
-        )
-        self.mock_add_span_processor = patcher_add_span_processor.start()
-        self.addCleanup(patcher_add_span_processor.stop)
-
-        self.adapter = OpenTelemetryAdapter(
-            span_processor=self.mock_batch_span_processor_cls,
-            exporter_cls=self.mock_console_exporter_cls,
-        )
+        # Create the adapter - it should now use the global tracer
+        self.adapter = OpenTelemetryAdapter()
 
     def test_initialization(self):
-        self.assertIsInstance(self.adapter.tracer_provider, SDKTracerProvider)
-        self.mock_add_span_processor.assert_called_once_with(
-            self.mock_batch_span_processor_cls
+        """Test that the adapter initializes correctly using the global tracer."""
+
+        self.mock_get_tracer.assert_called_once_with(
+            "nemo_guardrails",
+            instrumenting_library_version=self.actual_version,
+            schema_url="https://opentelemetry.io/schemas/1.26.0",
         )
+        # Verify that the adapter has the mock tracer
+        self.assertEqual(self.adapter.tracer, self.mock_tracer)
 
     def test_transform(self):
+        """Test that transform creates spans correctly."""
         interaction_log = InteractionLog(
             id="test_id",
             activated_rails=[],
@@ -110,6 +111,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         span_instance.set_attribute.assert_any_call("duration", 1.0)
 
     def test_transform_span_attributes_various_types(self):
+        """Test that different attribute types are handled correctly."""
         interaction_log = InteractionLog(
             id="test_id",
             activated_rails=[],
@@ -149,6 +151,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         span_instance.set_attribute.assert_any_call("duration", 1.0)
 
     def test_transform_with_empty_trace(self):
+        """Test transform with empty trace."""
         interaction_log = InteractionLog(
             id="test_id",
             activated_rails=[],
@@ -160,10 +163,9 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
         self.mock_tracer.start_as_current_span.assert_not_called()
 
-    def test_transform_with_exporter_failure(self):
-        self.mock_tracer.start_as_current_span.side_effect = Exception(
-            "Exporter failure"
-        )
+    def test_transform_with_tracer_failure(self):
+        """Test transform when tracer fails."""
+        self.mock_tracer.start_as_current_span.side_effect = Exception("Tracer failure")
 
         interaction_log = InteractionLog(
             id="test_id",
@@ -185,9 +187,11 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             self.adapter.transform(interaction_log)
 
-        self.assertIn("Exporter failure", str(context.exception))
+        self.assertIn("Tracer failure", str(context.exception))
 
     def test_transform_async(self):
+        """Test async transform functionality."""
+
         async def run_test():
             interaction_log = InteractionLog(
                 id="test_id",
@@ -228,6 +232,8 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         asyncio.run(run_test())
 
     def test_transform_async_with_empty_trace(self):
+        """Test async transform with empty trace."""
+
         async def run_test():
             interaction_log = InteractionLog(
                 id="test_id",
@@ -242,10 +248,9 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_transform_async_with_exporter_failure(self):
-        self.mock_tracer.start_as_current_span.side_effect = Exception(
-            "Exporter failure"
-        )
+    def test_transform_async_with_tracer_failure(self):
+        """Test async transform when tracer fails."""
+        self.mock_tracer.start_as_current_span.side_effect = Exception("Tracer failure")
 
         async def run_test():
             interaction_log = InteractionLog(
@@ -268,6 +273,92 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             with self.assertRaises(Exception) as context:
                 await self.adapter.transform_async(interaction_log)
 
-            self.assertIn("Exporter failure", str(context.exception))
+            self.assertIn("Tracer failure", str(context.exception))
 
         asyncio.run(run_test())
+
+    def test_backward_compatibility_with_old_config(self):
+        """Test that old configuration parameters are still accepted."""
+        # This should not fail even if old parameters are passed
+        adapter = OpenTelemetryAdapter(
+            service_name="test_service",
+            exporter="console",  # this should be ignored gracefully
+            resource_attributes={"test": "value"},  # this should be ignored gracefully
+        )
+
+        # Should still create the adapter successfully
+        self.assertIsInstance(adapter, OpenTelemetryAdapter)
+        self.assertEqual(adapter.tracer, self.mock_tracer)
+
+    def test_deprecation_warning_for_old_parameters(self):
+        """Test that deprecation warnings are raised for old configuration parameters."""
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            # adapter with deprecated parameters
+            _adapter = OpenTelemetryAdapter(
+                service_name="test_service",
+                exporter="console",
+                resource_attributes={"test": "value"},
+                span_processor=MagicMock(),
+            )
+
+            # deprecation warning is issued
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("deprecated", str(w[0].message))
+            self.assertIn("exporter", str(w[0].message))
+            self.assertIn("resource_attributes", str(w[0].message))
+            self.assertIn("span_processor", str(w[0].message))
+
+    def test_no_op_tracer_provider_warning(self):
+        """Test that a warning is issued when NoOpTracerProvider is detected."""
+
+        with patch("opentelemetry.trace.get_tracer_provider") as mock_get_provider:
+            mock_get_provider.return_value = NoOpTracerProvider()
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+
+                _adapter = OpenTelemetryAdapter()
+
+                self.assertEqual(len(w), 1)
+                self.assertTrue(issubclass(w[0].category, UserWarning))
+                self.assertIn(
+                    "No OpenTelemetry TracerProvider configured", str(w[0].message)
+                )
+                self.assertIn("Traces will not be exported", str(w[0].message))
+
+    def test_no_warnings_with_proper_configuration(self):
+        """Test that no warnings are issued when properly configured."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            # adapter without deprecated parameters
+            _adapter = OpenTelemetryAdapter(service_name="test_service")
+
+            # no warnings is issued
+            self.assertEqual(len(w), 0)
+
+    def test_register_otel_exporter_deprecation(self):
+        """Test that register_otel_exporter shows deprecation warning."""
+        from nemoguardrails.tracing.adapters.opentelemetry import register_otel_exporter
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            mock_exporter_cls = MagicMock()
+
+            register_otel_exporter("test-exporter", mock_exporter_cls)
+
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("register_otel_exporter is deprecated", str(w[0].message))
+            self.assertIn("0.16.0", str(w[0].message))
+
+            from nemoguardrails.tracing.adapters.opentelemetry import (
+                _exporter_name_cls_map,
+            )
+
+            self.assertEqual(_exporter_name_cls_map["test-exporter"], mock_exporter_cls)
