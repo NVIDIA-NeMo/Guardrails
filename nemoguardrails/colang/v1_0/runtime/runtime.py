@@ -372,18 +372,21 @@ class RuntimeV1_0(Runtime):
                     if has_stop:
                         stopped_task_results = task_results[flow_id] + result
 
-                        del unique_flow_ids[flow_id]
                         # Cancel all remaining tasks
                         for pending_task in tasks:
                             # Don't include results and processing logs for cancelled or stopped tasks
                             if (
-                                flow_id in unique_flow_ids
-                                and pending_task != unique_flow_ids[flow_id]
+                                pending_task != unique_flow_ids[flow_id]
                                 and not pending_task.done()
                             ):
                                 # Cancel the task if it is not done
                                 pending_task.cancel()
-                                del unique_flow_ids[flow_id]
+                                # Find the flow_uid for this task and remove it from the dict
+                                for k, v in list(unique_flow_ids.items()):
+                                    if v == pending_task:
+                                        del unique_flow_ids[k]
+                                        break
+                        del unique_flow_ids[flow_id]
                         break
                     else:
                         # Store the result for this specific flow
