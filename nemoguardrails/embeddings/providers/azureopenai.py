@@ -25,6 +25,7 @@ def get_executor():
 
     return embeddings_executor
 
+
 class AzureEmbeddingModel(EmbeddingModel):
     """Embedding model using Azure OpenAI.
 
