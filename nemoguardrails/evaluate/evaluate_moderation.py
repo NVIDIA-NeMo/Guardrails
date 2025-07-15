@@ -15,6 +15,7 @@
 
 import asyncio
 import json
+import logging
 import os
 
 import tqdm
@@ -84,13 +85,13 @@ class ModerationRailsEvaluation:
                 print(f"✓ Translation provider initialized")
             except Exception as e:
                 print(f"⚠ Translation provider not available: {e}")
-                self.enable_translation = False
 
-        # Load dataset with optional translation
-        if self.enable_translation and self.translator:
-            self.dataset = load_dataset(
-                self.dataset_path, translation_config=self.translation_config
-            )[: self.num_samples]
+            # Load dataset with optional translation
+            if self.translator:
+                self.dataset = load_dataset(
+                    self.dataset_path, translation_config=self.translation_config
+                )[: self.num_samples]
+                logging.warning(f"Loaded {len(self.dataset)} samples with translation")
         else:
             self.dataset = load_dataset(self.dataset_path)[: self.num_samples]
 
