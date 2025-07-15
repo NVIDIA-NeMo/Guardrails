@@ -21,11 +21,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemoguardrails.evaluate.langproviders.base import LangProvider
+from nemoguardrails.evaluate.langproviders.base import TranslationProvider
 
 
-class MockLangProvider(LangProvider):
-    """Mock implementation of LangProvider for testing."""
+class MockTranslationProvider(TranslationProvider):
+    """Mock implementation of TranslationProvider for testing."""
 
     ENV_VAR = "MOCK_API_KEY"
 
@@ -38,8 +38,8 @@ class MockLangProvider(LangProvider):
         return f"translated_{text}"
 
 
-class TestLangProvider:
-    """Test cases for LangProvider base class."""
+class TestTranslationProvider:
+    """Test cases for TranslationProvider base class."""
 
     def test_init_with_config(self):
         """Test initialization with valid configuration."""
@@ -53,7 +53,7 @@ class TestLangProvider:
         }
 
         with patch.dict(os.environ, {"MOCK_API_KEY": "test_key"}):
-            provider = MockLangProvider(config)
+            provider = MockTranslationProvider(config)
 
             assert provider.language == "en,ja"
             assert provider.source_lang == "en"
@@ -65,11 +65,8 @@ class TestLangProvider:
 
     def test_init_without_config(self):
         """Test initialization without configuration."""
-        provider = MockLangProvider()
-
-        assert provider.language == ""
-        assert not hasattr(provider, "source_lang")
-        assert not hasattr(provider, "target_lang")
+        with pytest.raises(Exception):
+            provider = MockTranslationProvider()
 
     def test_init_same_source_target_language(self):
         """Test initialization with same source and target language raises exception."""
@@ -83,7 +80,7 @@ class TestLangProvider:
         }
 
         with pytest.raises(Exception) as exc_info:
-            MockLangProvider(config)
+            MockTranslationProvider(config)
 
         assert "Source and target languages cannot be the same: en" in str(
             exc_info.value
@@ -105,7 +102,7 @@ class TestLangProvider:
             del os.environ["MOCK_API_KEY"]
 
         with pytest.raises(Exception) as exc_info:
-            MockLangProvider(config)
+            MockTranslationProvider(config)
 
         assert "Put the API key in the MOCK_API_KEY environment variable" in str(
             exc_info.value
@@ -123,7 +120,7 @@ class TestLangProvider:
         }
 
         # Create provider with existing api_key
-        provider = MockLangProvider.__new__(MockLangProvider)
+        provider = MockTranslationProvider.__new__(MockTranslationProvider)
         provider.api_key = "existing_key"
 
         with patch.object(provider, "_load_langprovider"):
@@ -143,7 +140,7 @@ class TestLangProvider:
         }
 
         with patch.dict(os.environ, {"MOCK_API_KEY": "test_key"}):
-            provider = MockLangProvider(config)
+            provider = MockTranslationProvider(config)
 
             result = provider._get_response("hello")
             assert result == "translated_hello"
@@ -151,7 +148,7 @@ class TestLangProvider:
     def test_validate_env_var_without_env_var_attr(self):
         """Test _validate_env_var when class doesn't have ENV_VAR attribute."""
 
-        class NoEnvVarProvider(LangProvider):
+        class NoEnvVarProvider(TranslationProvider):
             def _load_langprovider(self):
                 pass
 
@@ -184,7 +181,7 @@ class TestLangProvider:
 
         with patch.dict(os.environ, {"MOCK_API_KEY": ""}):
             with pytest.raises(Exception) as exc_info:
-                MockLangProvider(config)
+                MockTranslationProvider(config)
 
             assert "Put the API key in the MOCK_API_KEY environment variable" in str(
                 exc_info.value
@@ -206,7 +203,7 @@ class TestLangProvider:
         }
 
         with patch.dict(os.environ, {"MOCK_API_KEY": "test_key"}):
-            provider = MockLangProvider(config)
+            provider = MockTranslationProvider(config)
 
             # Should use the first language provider
             assert provider.language == "en,ja"
@@ -216,10 +213,8 @@ class TestLangProvider:
     def test_config_with_empty_langproviders(self):
         """Test initialization with empty langproviders configuration."""
         config = {"langproviders": {}}
-
-        provider = MockLangProvider(config)
-
-        assert provider.language == ""
+        with pytest.raises(Exception):
+            provider = MockTranslationProvider(config)
 
     def test_translate_method_implementation(self):
         """Test that _translate method is properly called."""
@@ -233,7 +228,7 @@ class TestLangProvider:
         }
 
         with patch.dict(os.environ, {"MOCK_API_KEY": "test_key"}):
-            provider = MockLangProvider(config)
+            provider = MockTranslationProvider(config)
 
             # Test direct _translate call
             result = provider._translate("test message")
@@ -262,7 +257,7 @@ class TestLangProvider:
             }
 
             with patch.dict(os.environ, {"MOCK_API_KEY": "test_key"}):
-                provider = MockLangProvider(config)
+                provider = MockTranslationProvider(config)
 
                 assert provider.source_lang == expected[0]
                 assert provider.target_lang == expected[1]
@@ -279,7 +274,7 @@ class TestLangProvider:
         }
 
         with pytest.raises(Exception) as exc_info:
-            MockLangProvider(config)
+            MockTranslationProvider(config)
 
         error_message = str(exc_info.value)
         assert "Source and target languages cannot be the same: en" in error_message
@@ -300,7 +295,7 @@ class TestLangProvider:
             del os.environ["MOCK_API_KEY"]
 
         with pytest.raises(Exception) as exc_info:
-            MockLangProvider(config)
+            MockTranslationProvider(config)
 
         error_message = str(exc_info.value)
         assert "MOCK_API_KEY" in error_message

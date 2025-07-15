@@ -530,6 +530,89 @@ class RivaTranslator(BaseRivaTranslator):
             _load_langprovider()
         assert "No configuration file provided" in str(exc_info.value)
 
+    def test_riva_translator_with_custom_local_endpoint(self):
+        """Test RivaTranslator with custom local endpoint configuration (only uri is respected)."""
+        from nemoguardrails.evaluate.langproviders.remote import RivaTranslator
+
+        config = {
+            "langproviders": [
+                {
+                    "language": "en,ja",
+                    "model_type": "remote.RivaTranslator",
+                    "local_mode": True,
+                    "uri": "localhost:8080",
+                    "use_ssl": True,  # Should be ignored
+                    "function_id": "should-be-ignored",  # Should be ignored
+                }
+            ]
+        }
+        config_dict = {
+            "langproviders": {"remote.RivaTranslator": config["langproviders"][0]}
+        }
+
+        with patch.dict("os.environ", {"RIVA_API_KEY": "test-key"}):
+            with patch("riva.client.Auth") as mock_auth:
+                with patch("riva.client.NeuralMachineTranslationClient") as mock_client:
+                    mock_client_instance = MagicMock()
+                    mock_client.return_value = mock_client_instance
+                    mock_client_instance.translate.return_value = MagicMock()
+                    mock_client_instance.translate.return_value.translations = [
+                        MagicMock()
+                    ]
+                    mock_client_instance.translate.return_value.translations[
+                        0
+                    ].text = "テスト"
+
+                    translator = RivaTranslator(config_dict)
+
+                    # Only uri should be overridden, others should be default
+                    assert translator.uri == "localhost:8080"
+                    assert translator.use_ssl is False  # default for local
+                    assert (
+                        translator.function_id == "647147c1-9c23-496c-8304-2e29e7574510"
+                    )  # default
+                    assert translator.local_mode is True
+
+    def test_riva_translator_fallback_to_defaults(self):
+        """Test RivaTranslator falls back to defaults when config is missing."""
+        from nemoguardrails.evaluate.langproviders.remote import RivaTranslator
+
+        config = {
+            "langproviders": [
+                {
+                    "language": "en,ja",
+                    "model_type": "remote.RivaTranslator",
+                    "local_mode": True
+                    # Missing uri, use_ssl, function_id - should use defaults
+                }
+            ]
+        }
+        config_dict = {
+            "langproviders": {"remote.RivaTranslator": config["langproviders"][0]}
+        }
+
+        with patch.dict("os.environ", {"RIVA_API_KEY": "test-key"}):
+            with patch("riva.client.Auth") as mock_auth:
+                with patch("riva.client.NeuralMachineTranslationClient") as mock_client:
+                    mock_client_instance = MagicMock()
+                    mock_client.return_value = mock_client_instance
+                    mock_client_instance.translate.return_value = MagicMock()
+                    mock_client_instance.translate.return_value.translations = [
+                        MagicMock()
+                    ]
+                    mock_client_instance.translate.return_value.translations[
+                        0
+                    ].text = "テスト"
+
+                    translator = RivaTranslator(config_dict)
+
+                    assert translator.uri == "0.0.0.0:50051"
+                    assert translator.use_ssl is False
+                    assert (
+                        translator.function_id == "647147c1-9c23-496c-8304-2e29e7574510"
+                    )
+                    assert translator.local_mode is True
+
 
 class DeeplTranslator(BaseDeeplTranslator):
     def __init__(self, config_root=None):
