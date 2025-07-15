@@ -70,7 +70,10 @@ class TranslationCache:
     def get(self, text: str, target_lang: str) -> str:
         """Get translated text from cache if available."""
         cache_key = self._get_cache_key(text, target_lang)
-        return self.cache.get(cache_key)["translation"]
+        cache_value = self.cache.get(cache_key)
+        if cache_value is None:
+            return None
+        return cache_value["translation"]
 
     def set(self, text: str, target_lang: str, translated_text: str):
         """Store translated text in cache."""
