@@ -24,11 +24,11 @@ from typing import List
 
 import torch
 
-from nemoguardrails.evaluate.langproviders.base import LangProvider
+from nemoguardrails.evaluate.langproviders.base import TranslationProvider
 
 
-class LocalHFTranslator(LangProvider):
-    """Local translation using Huggingface m2m100 or Helsinki-NLP/opus-mt-* models
+class LocalHFTranslator(TranslationProvider):
+    """Local translation using Huggingface transformer models: Many-2-Many m2m100 or MarianMT Helsinki-NLP/opus-mt-* models
 
     Reference:
       - https://huggingface.co/facebook/m2m100_1.2B
@@ -37,17 +37,14 @@ class LocalHFTranslator(LangProvider):
     """
 
     DEFAULT_PARAMS = {
-        "model_name": "Helsinki-NLP/opus-mt-{}",  # This is inconsistent with generators and may change to `name`.
-        "hf_args": {
-            "device": "cpu",
-        },
+        "model_name": "Helsinki-NLP/opus-mt-{}",
     }
     lang_overrides = {
         "ja": "jap",
     }
 
-    def __init__(self, config_root: dict = {}) -> None:
-        self._load_config(config_root=config_root)
+    def __init__(self, config: dict = {}) -> None:
+        self._load_config(config=config)
 
         import torch.multiprocessing as mp
 
@@ -55,23 +52,21 @@ class LocalHFTranslator(LangProvider):
         mp.set_start_method("spawn", force=True)
 
         self.device = self._select_hf_device()
-        super().__init__(config_root=config_root)
+        super().__init__(config=config)
 
-    def _load_config(self, config_root: dict = {}):
-        """Load configuration from config_root."""
-        if config_root:
-            # Extract configuration from the config_root
-            langproviders_config = config_root.get("langproviders", {})
+    def _load_config(self, config: dict = {}):
+        """Load configuration from config."""
+        if config:
+            # Extract configuration from the config
+            langproviders_config = config.get("langproviders", {})
             # Get the first (and typically only) language provider config
-            for model_type, config in langproviders_config.items():
-                self.model_name = config.get(
+            for _, each_config in langproviders_config.items():
+                self.model_name = each_config.get(
                     "model_name", self.DEFAULT_PARAMS["model_name"]
                 )
-                self.hf_args = config.get("hf_args", self.DEFAULT_PARAMS["hf_args"])
                 break
         else:
             self.model_name = self.DEFAULT_PARAMS["model_name"]
-            self.hf_args = self.DEFAULT_PARAMS["hf_args"]
 
     def _select_hf_device(self):
         """Select the appropriate device for HuggingFace models."""
@@ -80,7 +75,7 @@ class LocalHFTranslator(LangProvider):
                 return "cuda"
             else:
                 return "cpu"
-        except ImportError:
+        except Exception as e:
             return "cpu"
 
     def _load_langprovider(self):

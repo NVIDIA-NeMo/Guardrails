@@ -22,12 +22,12 @@
 
 import logging
 
-from nemoguardrails.evaluate.langproviders.base import LangProvider
+from nemoguardrails.evaluate.langproviders.base import TranslationProvider
 
 VALIDATION_STRING = "A"  # just send a single ASCII character for a sanity check
 
 
-class RivaTranslator(LangProvider):
+class RivaTranslator(TranslationProvider):
     """Remote translation using NVIDIA Riva translation API
 
     https://developer.nvidia.com/riva
@@ -41,7 +41,7 @@ class RivaTranslator(LangProvider):
     }
 
     # fmt: off
-    # Reference: https://docs.nvidia.com/nim/riva/nmt/latest/support-matrix.html#models
+    # Reference: https://docs.nvidia.com/nim/riva/nmt/latest/support-matrix.html#supported-languages
     lang_support = [
         "zh", "ru", "de", "es", "fr",
         "da", "el", "fi", "hu", "it",
@@ -73,8 +73,16 @@ class RivaTranslator(LangProvider):
         self.client = None
 
     def _set_local_server(self):
+        # Only override uri from YAML if available, keep other params as default
         self.uri = "0.0.0.0:50051"
+        if hasattr(self, "config") and self.config:
+            langproviders_config = self.config.get("langproviders", {})
+            for _, each_config in langproviders_config.items():
+                if each_config.get("model_type") == "remote.RivaTranslator":
+                    self.uri = each_config.get("uri", self.uri)
+                    break
         self.use_ssl = False
+        # function_id remains default
 
     def _load_langprovider(self):
         if not (
@@ -92,7 +100,12 @@ class RivaTranslator(LangProvider):
         self.use_ssl = self.DEFAULT_PARAMS["use_ssl"]
         self.function_id = self.DEFAULT_PARAMS["function_id"]
 
-        import riva.client
+        try:
+            import riva.client
+        except ImportError as e:
+            raise ImportError(
+                "The 'riva.client' module was not found. Please install 'riva.client' to use Riva translation. See: https://developer.nvidia.com/riva"
+            ) from e
 
         if self.local_mode:
             self._set_local_server()
@@ -127,7 +140,7 @@ class RivaTranslator(LangProvider):
             return text
 
 
-class DeeplTranslator(LangProvider):
+class DeeplTranslator(TranslationProvider):
     """Remote translation using DeepL translation API
 
     https://www.deepl.com/en/translator
@@ -154,7 +167,12 @@ class DeeplTranslator(LangProvider):
     }
 
     def _load_langprovider(self):
-        from deepl import Translator
+        try:
+            from deepl import Translator
+        except ImportError as e:
+            raise ImportError(
+                "The 'deepl' module was not found. Please install 'deepl' to use DeepL translation. See: https://www.deepl.com/en/translator"
+            ) from e
 
         if not (
             self.source_lang in self.lang_support

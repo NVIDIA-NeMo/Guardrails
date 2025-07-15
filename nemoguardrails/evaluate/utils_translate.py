@@ -23,7 +23,7 @@ from pathlib import Path
 import yaml
 from tqdm import tqdm
 
-from nemoguardrails.evaluate.langproviders.base import LangProvider
+from nemoguardrails.evaluate.langproviders.base import TranslationProvider
 
 
 class TranslationCache:
@@ -35,10 +35,10 @@ class TranslationCache:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
         # Generate cache file name based on service name
-        safe_service_name = (
+        self.safe_service_name = (
             service_name.replace("/", "_").replace("\\", "_").replace(":", "_")
         )
-        self.cache_file = self.cache_dir / f"translations_{safe_service_name}.json"
+        self.cache_file = self.cache_dir / f"translations_{self.safe_service_name}.json"
         logging.debug(f"cache_file: {self.cache_file}")
         self.cache = self._load_cache()
 
@@ -65,17 +65,21 @@ class TranslationCache:
         """Generate cache key from text and target language."""
         # Create a hash of the text and target language
         content = f"{text}:{target_lang}"
-        return content
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def get(self, text: str, target_lang: str) -> str:
         """Get translated text from cache if available."""
         cache_key = self._get_cache_key(text, target_lang)
-        return self.cache.get(cache_key)
+        return self.cache.get(cache_key)["translation"]
 
     def set(self, text: str, target_lang: str, translated_text: str):
         """Store translated text in cache."""
         cache_key = self._get_cache_key(text, target_lang)
-        self.cache[cache_key] = translated_text
+        self.cache[cache_key] = {
+            "original": text,
+            "translation": translated_text,
+            "target_lang": target_lang,
+        }
         self._save_cache()
 
     def get_cache_stats(self):
@@ -104,7 +108,7 @@ def get_translation_cache(service_name: str = "default") -> TranslationCache:
     return _translation_caches[service_name]
 
 
-def get_translation_cache_name(translator: LangProvider) -> str:
+def get_translation_cache_name(translator: TranslationProvider) -> str:
     # Get translation service information to create cache instance
     service_name = translator.__class__.__name__
 
@@ -116,6 +120,21 @@ def get_translation_cache_name(translator: LangProvider) -> str:
         )
         service_name = f"{service_name}_{safe_model_name}"
     return service_name
+
+
+def _translate_with_cache(
+    text: str, translator: TranslationProvider, cache: TranslationCache
+) -> str:
+    """Translate text with caching support."""
+    # Check cache first
+    cached_translation = cache.get(text, translator.target_lang)
+    if cached_translation:
+        return cached_translation
+
+    # Translate and cache
+    translated_text = translator._translate(text)
+    cache.set(text, translator.target_lang, translated_text)
+    return translated_text
 
 
 def load_dataset(dataset_path: str, translation_config: str = None):
@@ -147,32 +166,17 @@ def load_dataset(dataset_path: str, translation_config: str = None):
                 for field in ["answer", "question", "evidence"]:
                     if field in translated_item:
                         original_text = translated_item[field]
-                        # Check cache first
-                        cached_translation = cache.get(
-                            original_text, translator.target_lang
+                        translated_item[field] = _translate_with_cache(
+                            original_text, translator, cache
                         )
-                        if cached_translation:
-                            translated_item[field] = cached_translation
-                        else:
-                            # Translate and cache
-                            translated_text = translator._translate(original_text)
-                            translated_item[field] = translated_text
-                            cache.set(
-                                original_text, translator.target_lang, translated_text
-                            )
                 translated_dataset.append(translated_item)
             else:
                 # For text format
                 original_text = item.strip()
-                # Check cache first
-                cached_translation = cache.get(original_text, translator.target_lang)
-                if cached_translation:
-                    translated_dataset.append(cached_translation)
-                else:
-                    # Translate and cache
-                    translated_text = translator._translate(original_text)
-                    translated_dataset.append(translated_text)
-                    cache.set(original_text, translator.target_lang, translated_text)
+                translated_text = _translate_with_cache(
+                    original_text, translator, cache
+                )
+                translated_dataset.append(translated_text)
 
         # Print cache statistics
         stats = cache.get_cache_stats()
@@ -224,7 +228,7 @@ def _extract_target_language(config_yaml: str) -> str:
     return target_lang
 
 
-def _load_langprovider(config_yaml: str = None) -> LangProvider:
+def _load_langprovider(config_yaml: str = None) -> TranslationProvider:
     """Load a single language provider based on the configuration provided."""
     langprovider_instance = None
 

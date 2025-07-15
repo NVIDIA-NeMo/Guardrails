@@ -17,9 +17,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-"""Translator that translates a prompt."""
-
-
 import logging
 import os
 import re
@@ -28,37 +25,63 @@ import unicodedata
 from typing import List
 
 
-class LangProvider:
-    """Base class for objects that provision language"""
+class TranslationProvider:
+    """Base class for objects that provision language translation services."""
 
-    def __init__(self, config_root: dict = None) -> None:
+    def __init__(self, config: dict = None) -> None:
+        """
+        Initialize the translation provider with optional configuration.
+
+        Args:
+            config (dict, optional): Configuration dictionary containing translation provider settings.
+                Expected to have a 'langproviders' key with provider-specific configuration.
+
+        Attributes:
+            ENV_VAR (str): Name of the environment variable that should contain the API key for the translation provider.
+                If the subclass defines this attribute, the API key will be loaded from the specified environment variable.
+
+        Raises:
+            Exception: If config, langproviders_config, or language is missing or invalid.
+        """
         self.language = ""
         self.local_mode = False
-        if config_root:
-            # Extract configuration from the config_root
-            langproviders_config = config_root.get("langproviders", {})
-            # Get the first (and typically only) language provider config
-            for model_type, config in langproviders_config.items():
-                self.language = config.get("language", "")
-                model_type = config.get("model_type", "")
-                local_mode = config.get("local_mode", False)
-                if model_type == "remote.RivaTranslator":
-                    self.local_mode = local_mode
-                break
-
-        if self.language:
-            self.source_lang, self.target_lang = self.language.split(",")
-            if self.source_lang == self.target_lang:
-                raise Exception(
-                    f"Source and target languages cannot be the same: {self.source_lang}"
-                )
-
-            # Validate environment variable and set API key before loading the provider
-            if hasattr(self, "ENV_VAR"):
-                self.key_env_var = self.ENV_VAR
-                self._validate_env_var()
-
-            self._load_langprovider()
+        self.config = config  # Store config for subclasses to access
+        if not config:
+            raise Exception(
+                "config must be provided for TranslationProvider initialization."
+            )
+        # Extract configuration from the config
+        langproviders_config = config.get("langproviders", {})
+        if not langproviders_config:
+            raise Exception("'langproviders' configuration is missing in config.")
+        # Get the first (and typically only) language provider config
+        found_config = False
+        for _, each_config in langproviders_config.items():
+            self.language = each_config.get("language", "")
+            model_type = each_config.get("model_type", "")
+            local_mode = each_config.get("local_mode", False)
+            if model_type == "remote.RivaTranslator":
+                self.local_mode = local_mode
+            found_config = True
+            break
+        if not found_config:
+            raise Exception(
+                "No valid language provider configuration found in 'langproviders'."
+            )
+        if not self.language:
+            raise Exception(
+                "'language' must be specified in the language provider configuration."
+            )
+        self.source_lang, self.target_lang = self.language.split(",")
+        if self.source_lang == self.target_lang:
+            raise Exception(
+                f"Source and target languages cannot be the same: {self.source_lang}"
+            )
+        # Validate environment variable and set API key before loading the provider
+        if hasattr(self, "ENV_VAR"):
+            self.key_env_var = self.ENV_VAR
+            self._validate_env_var()
+        self._load_langprovider()
 
     def _load_langprovider(self):
         raise NotImplementedError
