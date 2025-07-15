@@ -1,0 +1,138 @@
+name: Build and Test Distribution
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - "v*"
+  schedule:
+    - cron: "0 23 * * *" # 11:00 PM UTC, daily
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    env:
+      POETRY_VERSION: "1.8.2"
+      PYTHON_VERSION: "3.11"
+    outputs:
+      artifact_name: ${{ steps.set-artifact-name.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Get full Python version
+        id: full-python-version
+        run: |
+          echo "version=$(python -c 'import sys; print(\"-\".join(str(v) for v in sys.version_info[:3]))')" >> $GITHUB_OUTPUT
+
+      - name: Bootstrap poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
+
+      - name: Update PATH (Linux and macOS)
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Set up cache
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Ensure cache is healthy
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: timeout 10s poetry run pip --version || rm -rf .venv
+
+      - name: Make build script executable
+        run: chmod +x ./.github/scripts/build.sh
+
+      - name: Build Distributions
+        id: build
+        run: |
+          ./.github/scripts/build.sh
+
+      - name: Determine Tag Name
+        id: get-tag-name
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Set Artifact Name
+        id: set-artifact-name
+        run: |
+          if [ -n "${{ steps.get-tag-name.outputs.tag_name }}" ]; then
+            echo "artifact_name=${{ steps.get-tag-name.outputs.tag_name }}-build" >> $GITHUB_OUTPUT
+          else
+            echo "artifact_name=pr-build" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-artifact-name.outputs.artifact_name }}
+          path: dist/*
+
+  test-wheel:
+    needs: build-wheel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-wheel.outputs.artifact_name }}
+
+      - name: List Files
+        run: ls -l
+
+      - name: Install Wheel
+        run: |
+          pip install --upgrade pip
+          pip install poetry==1.8.2
+          pip install ./*.whl
+
+      - name: Start server in the background
+        run: |
+          nemoguardrails server &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for server to be up
+        run: |
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl --output /dev/null --silent --head --fail http://localhost:8000; then
+              echo "Server is up!"
+              break
+            else
+              echo "Waiting..."
+              sleep 1
+            fi
+          done
+
+      - name: Check server status
+        run: |
+          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Server responded with code $RESPONSE_CODE."
+            exit 1
+          fi
+
+      - name: Stop server
+        if: ${{ success() }}
+        run: |
+          kill $SERVER_PID

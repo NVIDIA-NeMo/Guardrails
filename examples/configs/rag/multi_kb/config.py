@@ -32,10 +32,8 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.llm.helpers import get_llm_instance_wrapper
-from nemoguardrails.llm.providers import (
-    HuggingFacePipelineCompatible,
-    register_llm_provider,
-)
+from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers.huggingface import HuggingFacePipelineCompatible
 
 from .tabular_llm import TabularLLM
 

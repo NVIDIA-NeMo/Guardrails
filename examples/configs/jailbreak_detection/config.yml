@@ -9,7 +9,9 @@ rails:
       server_endpoint: "http://localhost:1337/heuristics"
       lp_threshold: 89.79
       ps_ppl_threshold: 1845.65
+      embedding: "snowflake/snowflake-arctic-embed-m-long"
 
   input:
     flows:
       - jailbreak detection heuristics
+      - jailbreak detection model

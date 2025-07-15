@@ -13,9 +13,9 @@ Adult Content	General
 Privacy Violation	PII
 """
 
-flow activefence moderation
+flow activefence moderation on input
   """Guardrail based on the maximum risk score."""
-  $result = await  CallActivefenceApiAction()
+  $result = await  CallActivefenceApiAction(text=$user_message)
 
   if $result.max_risk_score > 0.7
     if $system.config.enable_rails_exceptions
@@ -24,9 +24,20 @@ flow activefence moderation
       bot refuse to respond
     abort
 
-flow activefence moderation detailed
+flow activefence moderation on output
+  """Guardrail based on the maximum risk score."""
+  $result = await  CallActivefenceApiAction(text=$bot_message)
+
+  if $result.max_risk_score > 0.7
+    if $system.config.enable_rails_exceptions
+      send ActiveFenceModerationRailException(message="ActiveFence moderation triggered. The maximum risk score exceeded the threshold.")
+    else
+      bot refuse to respond
+    abort
+
+flow activefence moderation on input detailed
   """Guardrail based on individual risk scores."""
-  $result = await  CallActivefenceApiAction()
+  $result = await  CallActivefenceApiAction(text=$user_message)
 
   if $result.violations.get("abusive_or_harmful.harassment_or_bullying", 0) > 0.8
     if $system.config.enable_rails_exceptions

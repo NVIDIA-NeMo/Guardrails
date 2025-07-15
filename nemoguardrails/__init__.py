@@ -16,6 +16,7 @@
 """NeMo Guardrails Toolkit."""
 
 import os
+from importlib.metadata import version
 
 # If no explicit value is set for TOKENIZERS_PARALLELISM, we disable it
 # to get rid of the annoying warning.
@@ -35,4 +36,5 @@ warnings.filterwarnings(
     "ignore", category=UserWarning, message="TypedStorage is deprecated"
 )
 
-__version__ = "0.10.1"
+__version__ = version("nemoguardrails")
+__all__ = ["LLMRails", "RailsConfig"]

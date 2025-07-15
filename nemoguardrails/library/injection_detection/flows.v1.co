@@ -1,0 +1,19 @@
+
+define flow injection detection
+  """
+  Reject, omit, or sanitize injection attempts from the bot.
+  """
+  $response = execute injection_detection(text=$bot_message)
+  $join_separator = ", "
+  $injection_detection_action = $config.rails.config.injection_detection.action
+  if $response["is_injection"]
+    if $config.enable_rails_exceptions
+      create event InjectionDetectionRailException(message="Output not allowed. The output was blocked by the 'injection detection' flow.")
+      stop
+    else if $config.rails.config.injection_detection.action == "reject"
+      bot say "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {{ response.detections | join(join_separator) }}."
+      stop
+    else if $injection_detection_action == "omit" or $injection_detection_action == "sanitize"
+      $bot_message = $response["text"]
+  else
+    $bot_message = $response["text"]

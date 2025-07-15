@@ -13,4 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .pipeline import HuggingFacePipelineCompatible
 from .streamers import AsyncTextIteratorStreamer
+
+__all__ = [
+    "HuggingFacePipelineCompatible",
+    "AsyncTextIteratorStreamer",
+]

@@ -119,7 +119,7 @@ Results on _banking_ dataset, metric used is accuracy.
 
 ### Fact-checking Rails
 
-In the [Guardrails library](./../../docs/user_guides/guardrails-library.md), we provide two approaches out of the box for the fact-checking rail: the Self-Check fact-checking and AlignScore. For more details, read the [library guide](./../../docs/user_guides/guardrails-library.md).
+In the [Guardrails library](./../../docs/user-guides/guardrails-library.md), we provide two approaches out of the box for the fact-checking rail: the Self-Check fact-checking and AlignScore. For more details, read the [library guide](./../../docs/user-guides/guardrails-library.md).
 
 #### Self-Check
 
@@ -133,7 +133,7 @@ This approach is based on the AlignScore model [Zha et al. 2023](https://aclanth
 2. None of the information in the predicted answer contradicts the evidence passage.
 The response is a value between 0.0 and 1.0. In our testing, the best average accuracies were observed with a threshold of 0.7.
 
-Please see the [user guide documentation](./../../docs/user_guides/guardrails-library.md#alignscore) for detailed steps on how to configure your deployment to use AlignScore.
+Please see the [user guide documentation](./../../docs/user-guides/guardrails-library.md#alignscore) for detailed steps on how to configure your deployment to use AlignScore.
 
 #### Evaluation
 
@@ -196,7 +196,7 @@ The moderation involves two components: input and output moderation.
 
 This rail will prompt the LLM using a custom prompt for input (jailbreak) and output moderation.
 Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.
-For more details, consult the [Guardrails library]([Guardrails library](./../../docs/user_guides/guardrails-library.md)) guide.
+For more details, consult the [Guardrails library]([Guardrails library](./../../docs/user-guides/guardrails-library.md)) guide.
 
 #### Evaluation
 
@@ -241,14 +241,13 @@ We want the models to block as many harmful prompts as possible and allow as man
 
 #### Moderation Rails Performance
 
-These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [Guardrails library](./../../docs/user_guides/guardrails-library.md).
+These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [Guardrails library](./../../docs/user-guides/guardrails-library.md).
 
 | Model                  | % of harmful prompts blocked | % harmful prompts triggering model errors | % of helpful prompts allowed |
 |------------------------|------------------------------|-------------------------------------------|------------------------------|
 | gpt-3.5-turbo-instruct | 78                           | 0                                         | 97                           |
 | gpt-3.5-turbo          | 70                           | 0                                         | 100                          |
 | text-davinci-003       | 80                           | 0                                         | 97                           |
-| nemollm-43b            | 88                           | 0                                         | 84                           |
 | gemini-1.0-pro         | 63                           | 36<sup>*</sup>                            | 97                           |
 
 <sup>*</sup> Note that as of Mar 13, 2024 `gemini-1.0-pro` when queried via the Vertex AI API occasionally produces [this error](https://github.com/GoogleCloudPlatform/generative-ai/issues/344). Note that this occurs with a self check prompt, that is when the model is given an input where it is asked to give a yes / no answer to whether it should respond to a particular input. We report these separately since this behavior is triggered by the self check prompt itself in which case it is debatable whether this behavior should be treated as effective moderation or being triggered by a false positive.
@@ -291,7 +290,7 @@ For general questions that the model uses parametric knowledge to answer, we can
 #### Self-Check
 
 This rail will use the LLM for self-checking with a custom prompt if the answers are inconsistent. The custom prompt can be similar to an NLI task.
-For more details, consult the [Guardrails library]([Guardrails library](./../../docs/user_guides/guardrails-library.md)) guide.
+For more details, consult the [Guardrails library]([Guardrails library](./../../docs/user-guides/guardrails-library.md)) guide.
 
 #### Evaluation
 

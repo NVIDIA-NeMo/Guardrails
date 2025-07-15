@@ -6,7 +6,7 @@ We present only the most relevant papers, including surveys, together with their
 While the number of recent works on various guardrails topics is quite high, we aim to only present a curated selection.
 We also want that this selection to inform our feature roadmap, deciding on what new methods published as a research paper to add to the NeMo Guardrails repository.
 
-The guardrails categories used below follow the ones present in the [Guardrails library](./user_guides/guardrails-library.md).
+The guardrails categories used below follow the ones present in the [Guardrails library](./user-guides/guardrails-library.md).
 For each category we present a list of relevant surveys, existing research papers already supported in NeMo Guardrails, and the curated list of selected papers that might influence our roadmap.
 
 ## Hallucination rails

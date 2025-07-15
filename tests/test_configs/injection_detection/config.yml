@@ -1,0 +1,14 @@
+rails:
+  config:
+    injection_detection:
+      injections:
+        - sqli
+        - template
+        - code
+        - xss
+      action:
+        reject
+
+  output:
+    flows:
+      - injection detection

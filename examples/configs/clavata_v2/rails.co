@@ -1,0 +1,14 @@
+import guardrails
+
+import nemoguardrails.library.clavata
+
+# Check the input against the "Toxicity" policy, but only match for the "Hate Speech" label
+flow input rails $input_text
+  # In order, the arguments below map to $text, $policy, $labels
+  clavata check for ($input_text, "Toxicity", ["Hate Speech"])
+
+
+# Check the output against the "Threats" policy. If any label in the policy matches, the rail will trigger.
+flow output rails $output_text
+  # In order, the arguments below map to $text, $policy (labels may be omitted if you don't care which labels trigger)
+  clavata check for ($output_text, "Threats")

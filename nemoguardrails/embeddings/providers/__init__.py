@@ -70,12 +70,15 @@ register_embedding_provider(nim.NIMEmbeddingModel)
 register_embedding_provider(nim.NVIDIAAIEndpointsEmbeddingModel)
 
 
-def init_embedding_model(embedding_model: str, embedding_engine: str) -> EmbeddingModel:
+def init_embedding_model(
+    embedding_model: str, embedding_engine: str, embedding_params: dict = {}
+) -> EmbeddingModel:
     """Initialize the embedding model.
 
     Args:
         embedding_model (str): The path or name of the embedding model.
         embedding_engine (str): The name of the embedding engine.
+        embedding_params (dict): Additional parameters for the embedding model.
 
     Returns:
         EmbeddingModel: An instance of the initialized embedding model.
@@ -84,10 +87,16 @@ def init_embedding_model(embedding_model: str, embedding_engine: str) -> Embeddi
         ValueError: If the embedding engine is invalid.
     """
 
-    model_key = f"{embedding_engine}-{embedding_model}"
+    embedding_params_str = (
+        "_".join([f"{key}={value}" for key, value in embedding_params.items()])
+        or "default"
+    )
+
+    model_key = f"{embedding_engine}-{embedding_model}-{embedding_params_str}"
 
     if model_key not in _embedding_model_cache:
-        model = EmbeddingProviderRegistry().get(embedding_engine)(embedding_model)
+        provider_class = EmbeddingProviderRegistry().get(embedding_engine)
+        model = provider_class(embedding_model=embedding_model, **embedding_params)
         _embedding_model_cache[model_key] = model
 
     return _embedding_model_cache[model_key]

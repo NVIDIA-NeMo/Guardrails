@@ -1,0 +1,41 @@
+name: Full Tests
+
+on:
+  pull_request:
+    types: [review_requested, ready_for_review]
+    paths-ignore:
+      - "**/*.md"
+      - ".github/**"
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  full-tests-matrix:
+    strategy:
+      matrix:
+        os: [Windows, macOS] # exclude Ubuntu as it is available in pr-tests
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: Windows
+            image: windows-2022
+          - os: macOS
+            image: macos-14
+      fail-fast: false
+
+    uses: ./.github/workflows/_test.yml
+    with:
+      os: ${{ matrix.os }}
+      image: ${{ matrix.image }}
+      python-version: ${{ matrix.python-version }}
+  full-tests-summary:
+    name: Full Tests Summary
+    needs: full-tests-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Full Tests Completion
+        run: echo "Full tests completed. All matrix jobs passed."

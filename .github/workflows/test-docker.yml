@@ -1,0 +1,70 @@
+name: Test Docker Image
+
+# TODO: set docker auth
+on:
+  workflow_dispatch:
+# on:
+#   push:
+#     tags:
+#       - "v*"
+
+env:
+  IMAGE: nemoguardrails
+  TEST_TAG: ${{ env.IMAGE }}:test
+  LATEST_TAG: ${{ env.IMAGE }}:latest
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      #
+      # Checkout the code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Extract the tag version and set Docker tags
+      - name: Get git tag and set Docker tags
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION_TAG=${{ env.IMAGE }}:$VERSION" >> $GITHUB_ENV
+
+      # Build the Docker image
+      - name: Build the Docker image
+        run: docker build . --file Dockerfile --tag ${{ env.TEST_TAG }} --tag ${{ env.VERSION_TAG }}
+
+      # Start the container in detached mode
+      - name: Start container
+        run: docker run -d --name test_container -p 8000:8000 ${{ env.TEST_TAG }}
+
+      # Wait for the container to be ready
+      - name: Wait for container to be ready
+        run: |
+          echo "Waiting for container to be ready..."
+          until curl --output /dev/null --silent --head --fail http://localhost:8000; do
+            printf '.'
+            sleep 1
+          done
+          echo "Container is ready!"
+
+      # Perform a health check on the server
+      - name: Check server status
+        run: |
+          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Server responded with code $RESPONSE_CODE."
+            exit 1
+          fi
+
+      # Run additional tests on the running container
+      - name: Run tests
+        run: |
+          # Example test command
+          curl -f http://localhost:8000/v1/rails/configs
+          # Add more tests here if needed
+
+      # Stop and remove the container
+      - name: Stop and remove container
+        run: |
+          docker stop test_container
+          docker rm test_container

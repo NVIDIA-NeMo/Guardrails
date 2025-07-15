@@ -33,12 +33,12 @@ class NIMEmbeddingModel(EmbeddingModel):
 
     engine_name = "nim"
 
-    def __init__(self, embedding_model: str):
+    def __init__(self, embedding_model: str, **kwargs):
         try:
             from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
 
             self.model = embedding_model
-            self.document_embedder = NVIDIAEmbeddings(model=embedding_model)
+            self.document_embedder = NVIDIAEmbeddings(model=embedding_model, **kwargs)
 
         except ImportError:
             raise ImportError(

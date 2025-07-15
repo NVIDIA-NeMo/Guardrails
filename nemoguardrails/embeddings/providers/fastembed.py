@@ -41,7 +41,7 @@ class FastEmbedEmbeddingModel(EmbeddingModel):
 
     engine_name = "FastEmbed"
 
-    def __init__(self, embedding_model: str):
+    def __init__(self, embedding_model: str, **kwargs):
         from fastembed import TextEmbedding as Embedding
 
         # Enabling a short form model name for all-MiniLM-L6-v2.
@@ -50,13 +50,13 @@ class FastEmbedEmbeddingModel(EmbeddingModel):
         self.embedding_model = embedding_model
 
         try:
-            self.model = Embedding(embedding_model)
+            self.model = Embedding(embedding_model, **kwargs)
         except ValueError as ex:
             # Sometimes the cached model in the temporary folder gets removed,
             # but the folder still exists, which causes an error. In this case,
             # we fall back to an explicit cache directory.
             if "Could not find model.onnx in" in str(ex):
-                self.model = Embedding(embedding_model, cache_dir=".cache")
+                self.model = Embedding(embedding_model, cache_dir=".cache", **kwargs)
             else:
                 raise ex
 

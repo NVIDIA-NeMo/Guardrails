@@ -5,17 +5,22 @@ models:
       engine: openai
       # model: gpt-3.5-turbo-instruct
       # model: gpt-3.5-turbo
-      model: gpt-4o
+      model: gpt-4-turbo
+      # model: gpt-4o
       # model: gpt-4o-mini
 
-      # engine: nim
+      # model: meta/llama3-8b-instruct
       # model: meta/llama3-70b-instruct
       # model: meta/llama-3.1-8b-instruct
       # model: meta/llama-3.1-70b-instruct
 
+      # Models that work but not recommended:
+      # model: meta/llama-3.1-405b-instruct # very slow
+
       # Models that currently don't work:
-      # engine: nim
-      # model: meta/llama3-70b-instruct
+      # model: nvidia/llama-3.1-nemotron-70b-instruct
+      # model: nvidia/llama3-chatqa-1.5-70b
+      # model: meta/llama-3.2-3b-instruct
 
 instructions:
     - type: "general"

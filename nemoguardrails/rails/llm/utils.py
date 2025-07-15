@@ -23,7 +23,7 @@ def get_history_cache_key(messages: List[dict]) -> str:
         messages: The list of messages.
 
     Returns:
-        A unique string that can be used as a key for the provides sequence of messages.
+        A unique string that can be used as a key for the provided sequence of messages.
     """
     if len(messages) == 0:
         return ""
@@ -32,13 +32,26 @@ def get_history_cache_key(messages: List[dict]) -> str:
 
     for msg in messages:
         if msg["role"] == "user":
-            key_items.append(msg["content"])
+            # Check if content is a string or a list (multimodal content)
+            if isinstance(msg["content"], list):
+                # For multimodal content, join all text parts
+                text_parts = []
+                for item in msg["content"]:
+                    if item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                key_items.append(" ".join(text_parts))
+            else:
+                # Use the content directly without json.dumps
+                key_items.append(msg["content"])
         elif msg["role"] == "assistant":
             key_items.append(msg["content"])
         elif msg["role"] == "context":
             key_items.append(json.dumps(msg["content"]))
         elif msg["role"] == "event":
             key_items.append(json.dumps(msg["event"]))
+
+    # Ensure all items in key_items are strings
+    key_items = [str(item) if not isinstance(item, str) else item for item in key_items]
 
     history_cache_key = ":".join(key_items)
 

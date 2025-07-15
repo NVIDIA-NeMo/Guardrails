@@ -9,10 +9,11 @@ rails:
         autoalign:
             parameters:
                 endpoint: "https://<AUTOALIGN_ENDPOINT>/guardrail"
+                multi_language: False
             input:
                 guardrails_config:
                     {
-                      "pii_fast": {
+                      "pii": {
                           "enabled_types": [
                               "[BANK ACCOUNT NUMBER]",
                               "[CREDIT CARD NUMBER]",
@@ -32,15 +33,16 @@ rails:
                         },
                         "gender_bias_detection": {},
                         "harm_detection": {},
-                        "text_toxicity_extraction": {},
+                        "toxicity_detection": {},
                         "racial_bias_detection": {},
                         "jailbreak_detection": {},
-                        "intellectual_property": {}
+                        "intellectual_property": {},
+                        "confidential_info_detection": {}
                     }
             output:
                 guardrails_config:
                   {
-                      "pii_fast": {
+                      "pii": {
                           "enabled_types": [
                               "[BANK ACCOUNT NUMBER]",
                               "[CREDIT CARD NUMBER]",
@@ -60,9 +62,8 @@ rails:
                       },
                       "gender_bias_detection": {},
                       "harm_detection": {},
-                      "text_toxicity_extraction": {},
+                      "toxicity_detection": {},
                       "racial_bias_detection": {},
-                      "jailbreak_detection": {},
                       "intellectual_property": {}
                   }
     input:

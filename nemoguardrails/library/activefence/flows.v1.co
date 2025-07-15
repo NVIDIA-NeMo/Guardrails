@@ -13,9 +13,9 @@ Adult Content	General
 Privacy Violation	PII
 """
 
-define subflow activefence moderation
+define subflow activefence moderation on input
   """Guardrail based on the maximum risk score."""
-  $result = execute call activefence api
+  $result = execute call_activefence_api(text=$user_message)
 
   if $result.max_risk_score > 0.7
     if $config.enable_rails_exceptions
@@ -24,9 +24,21 @@ define subflow activefence moderation
       bot refuse to respond
     stop
 
-define subflow activefence moderation detailed
+ define subflow activefence moderation on output
+  """Guardrail based on the maximum risk score."""
+  $result = execute call_activefence_api(text=$bot_message)
+
+  if $result.max_risk_score > 0.7
+    if $config.enable_rails_exceptions
+      create event ActiveFenceModerationRailException(message="ActiveFence moderation triggered. The maximum risk score exceeded the threshold.")
+    else
+      bot refuse to respond
+    stop
+
+
+define subflow activefence moderation on input detailed
   """Guardrail based on individual risk scores."""
-  $result = execute call activefence api
+  $result = execute call_activefence_api(text=$user_message)
 
   if $result.violations.get("abusive_or_harmful.harassment_or_bullying", 0) > 0.8
     if $config.enable_rails_exceptions

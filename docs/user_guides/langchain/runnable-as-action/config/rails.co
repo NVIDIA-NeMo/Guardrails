@@ -1,8 +1,0 @@
-
-define flow check proprietary keywords
-  $keywords = "proprietary"
-  $has_keywords = execute check_keywords(text=$user_message, keywords=$keywords)
-
-  if $has_keywords
-    bot refuse to respond
-    stop

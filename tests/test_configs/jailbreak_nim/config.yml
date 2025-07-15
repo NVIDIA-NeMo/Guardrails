@@ -1,0 +1,11 @@
+rails:
+  config:
+    jailbreak_detection:
+      server_endpoint: ""
+      nim_base_url: "http://0.0.0.0:8000/v1"
+      nim_server_endpoint: "classify"
+      api_key_env_var: "JB_NIM_TEST"
+
+  input:
+    flows:
+      - jailbreak detection model

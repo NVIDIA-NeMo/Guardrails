@@ -1,0 +1,9 @@
+import guardrails
+import nemoguardrails.library.self_check.output_check
+import nemoguardrails.library.self_check.input_check
+
+flow input rails $input_text
+    self check input
+
+flow output rails $output_text
+    self check output

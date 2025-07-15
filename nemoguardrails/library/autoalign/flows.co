@@ -8,9 +8,9 @@ flow autoalign check input
     else
       bot refuse to respond
     abort
-  else if $input_result["pii_fast"] and $input_result["pii_fast"]["guarded"]:
+  else if $input_result["pii"] and $input_result["pii"]["guarded"]:
     global $user_message
-    $user_message = $input_result["pii_fast"]["response"]
+    $user_message = $input_result["pii"]["response"]
 
 flow autoalign check output
   $output_result = await AutoalignOutputApiAction(show_autoalign_message=True)
@@ -22,12 +22,12 @@ flow autoalign check output
     abort
   else
     global $pii_message_output
-    $pii_message_output = $output_result["pii_fast"]["response"]
-    if $output_result["pii_fast"]["guarded"]
+    $pii_message_output = $output_result["pii"]["response"]
+    if $output_result["pii"]["guarded"]
       global $bot_message
       $bot_message = $pii_message_output
 
-flow autoalign factcheck output
+flow autoalign groundedness output
   if $check_facts == True
     global $check_facts
     $check_facts = False
@@ -35,3 +35,7 @@ flow autoalign factcheck output
     $threshold = 0.5
     $output_result = await AutoalignFactcheckOutputApiAction(factcheck_threshold=$threshold, show_autoalign_message=True)
     bot provide response
+
+flow autoalign factcheck output
+  $threshold = 0.5
+  $output_result = await autoalign_factcheck_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)

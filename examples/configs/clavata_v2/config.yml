@@ -1,0 +1,15 @@
+colang_version: 2.x
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+# Rail flows are configured inline in the flows file. See ./rails.co for an example.
+rails:
+  config:
+    clavata:
+      policies:
+        Threats: 00000000-0000-0000-0000-000000000000
+        Toxicity: 00000000-0000-0000-0000-000000000000
+      # Optional [ALL, ANY], defaults to ANY. When set to ALL, all labels must match for rail to trigger.
+      label_match_logic: ANY

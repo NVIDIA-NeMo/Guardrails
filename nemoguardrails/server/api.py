@@ -21,6 +21,7 @@ import os.path
 import re
 import time
 import warnings
+from contextlib import asynccontextmanager
 from typing import Any, List, Optional
 
 from fastapi import FastAPI, Request
@@ -57,11 +58,78 @@ api_request_headers = contextvars.ContextVar("headers")
 datastore: Optional[DataStore] = None
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic here
+    """Register any additional challenges, if available at startup."""
+    challenges_files = os.path.join(app.rails_config_path, "challenges.json")
+
+    if os.path.exists(challenges_files):
+        with open(challenges_files) as f:
+            register_challenges(json.load(f))
+
+    # If there is a `config.yml` in the root `app.rails_config_path`, then
+    # that means we are in single config mode.
+    if os.path.exists(
+        os.path.join(app.rails_config_path, "config.yml")
+    ) or os.path.exists(os.path.join(app.rails_config_path, "config.yaml")):
+        app.single_config_mode = True
+        app.single_config_id = os.path.basename(app.rails_config_path)
+    else:
+        # If we're not in single-config mode, we check if we have a config.py for the
+        # server configuration.
+        filepath = os.path.join(app.rails_config_path, "config.py")
+        if os.path.exists(filepath):
+            filename = os.path.basename(filepath)
+            spec = importlib.util.spec_from_file_location(filename, filepath)
+            config_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(config_module)
+
+            # If there is an `init` function, we call it with the reference to the app.
+            if config_module is not None and hasattr(config_module, "init"):
+                config_module.init(app)
+
+    # Finally, we register the static frontend UI serving
+
+    if not app.disable_chat_ui:
+        FRONTEND_DIR = utils.get_chat_ui_data_path("frontend")
+
+        app.mount(
+            "/",
+            StaticFiles(
+                directory=FRONTEND_DIR,
+                html=True,
+            ),
+            name="chat",
+        )
+    else:
+
+        @app.get("/")
+        async def root_handler():
+            return {"status": "ok"}
+
+    if app.auto_reload:
+        app.loop = asyncio.get_running_loop()
+        app.task = app.loop.run_in_executor(None, start_auto_reload_monitoring)
+
+    yield
+
+    # Shutdown logic here
+    if app.auto_reload:
+        app.stop_signal = True
+        if hasattr(app, "task"):
+            app.task.cancel()
+        log.info("Shutting down file observer")
+    else:
+        pass
+
+
 app = FastAPI(
     title="Guardrails Server API",
     description=api_description,
     version="0.1.0",
     license_info={"name": "Apache License, Version 2.0"},
+    lifespan=lifespan,
 )
 
 ENABLE_CORS = os.getenv("NEMO_GUARDRAILS_SERVER_ENABLE_CORS", "false").lower() == "true"
@@ -430,74 +498,9 @@ def register_datastore(datastore_instance: DataStore):
     datastore = datastore_instance
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Register any additional challenges, if available at startup."""
-    challenges_files = os.path.join(app.rails_config_path, "challenges.json")
-
-    if os.path.exists(challenges_files):
-        with open(challenges_files) as f:
-            register_challenges(json.load(f))
-
-    # If there is a `config.yml` in the root `app.rails_config_path`, then
-    # that means we are in single config mode.
-    if os.path.exists(
-        os.path.join(app.rails_config_path, "config.yml")
-    ) or os.path.exists(os.path.join(app.rails_config_path, "config.yaml")):
-        app.single_config_mode = True
-        app.single_config_id = os.path.basename(app.rails_config_path)
-    else:
-        # If we're not in single-config mode, we check if we have a config.py for the
-        # server configuration.
-        filepath = os.path.join(app.rails_config_path, "config.py")
-        if os.path.exists(filepath):
-            filename = os.path.basename(filepath)
-            spec = importlib.util.spec_from_file_location(filename, filepath)
-            config_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(config_module)
-
-            # If there is an `init` function, we call it with the reference to the app.
-            if config_module is not None and hasattr(config_module, "init"):
-                config_module.init(app)
-
-    # Finally, we register the static frontend UI serving
-
-    if not app.disable_chat_ui:
-        FRONTEND_DIR = utils.get_chat_ui_data_path("frontend")
-
-        app.mount(
-            "/",
-            StaticFiles(
-                directory=FRONTEND_DIR,
-                html=True,
-            ),
-            name="chat",
-        )
-    else:
-
-        @app.get("/")
-        async def root_handler():
-            return {"status": "ok"}
-
-    if app.auto_reload:
-        app.loop = asyncio.get_running_loop()
-        app.task = app.loop.run_in_executor(None, start_auto_reload_monitoring)
-
-
 def register_logger(logger: callable):
     """Register an additional logger"""
     registered_loggers.append(logger)
-
-
-@app.on_event("shutdown")
-def shutdown_observer():
-    if app.auto_reload:
-        app.stop_signal = True
-        if hasattr(app, "task"):
-            app.task.cancel()
-        log.info("Shutting down file observer")
-    else:
-        pass
 
 
 def start_auto_reload_monitoring():

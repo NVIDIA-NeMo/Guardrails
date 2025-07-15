@@ -1,0 +1,16 @@
+#### POLICY DETECTION RAILS ####
+
+# INPUT and OUTPUT RAILS
+@active
+flow clavata check for $text $policy $labels=""
+  """Check if the input text is benign."""
+  $is_match = await ClavataCheckAction(text=$text, policy=$policy, labels=$labels)
+
+  if $is_match
+    if $system.config.enable_rails_exceptions
+      global $msg
+      $msg = "Interaction blocked by clavata check with policy={$policy} and text={$text}"
+      send ClavataPolicyMatchException(message=$msg)
+    else
+      bot refuse to respond
+    abort

@@ -175,7 +175,7 @@ def rename_md_to_readme(start_dir):
             continue
 
         # Skip processing the root directory
-        if path.parent.name == "getting_started":
+        if path.parent.name == "getting-started":
             continue
 
         # Generate the new file name, assuming the path as a directory with README.md

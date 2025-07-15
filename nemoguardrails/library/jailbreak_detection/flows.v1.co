@@ -13,3 +13,16 @@ define subflow jailbreak detection heuristics
     else
       bot refuse to respond
     stop
+
+define subflow jailbreak detection model
+  """
+  Heuristic checks to assess whether the user's prompt is an attempted jailbreak.
+  """
+  $is_jailbreak = execute jailbreak_detection_model
+
+  if $is_jailbreak
+    if $config.enable_rails_exceptions
+      create event JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
+    else
+      bot refuse to respond
+    stop

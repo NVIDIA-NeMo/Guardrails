@@ -1,0 +1,12 @@
+flow topic safety check input $model
+  $response = await TopicSafetyCheckInputAction(model_name=$model)
+
+  global $on_topic
+  $on_topic = $response["on_topic"]
+
+  if not $on_topic
+    if $system.config.enable_rails_exceptions
+      send TopicSafetyCheckInputException(message="Input not allowed. The input was blocked by the 'topic safety check input $model='{$model}'' flow.")
+    else
+      bot refuse to respond
+    abort

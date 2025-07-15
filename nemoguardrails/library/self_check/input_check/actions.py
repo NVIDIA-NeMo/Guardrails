@@ -37,6 +37,7 @@ async def self_check_input(
     context: Optional[dict] = None,
     llm: Optional[BaseLLM] = None,
     config: Optional[RailsConfig] = None,
+    **kwargs,
 ):
     """Checks the input from the user.
 
@@ -78,9 +79,12 @@ async def self_check_input(
             result = llm_task_manager.parse_task_output(task, output=response)
 
         else:
-            result = llm_task_manager.output_parsers["is_content_safe"](response)
+            result = llm_task_manager.parse_task_output(
+                task, output=response, forced_output_parser="is_content_safe"
+            )
 
-        is_safe, _ = result
+        result = result.text
+        is_safe = result[0]
 
         if not is_safe:
             return ActionResult(

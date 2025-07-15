@@ -24,7 +24,7 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEvents
-from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.context import llm_call_info_var, reasoning_trace_var
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -117,6 +117,7 @@ async def llm_call(
             result = await llm.agenerate_prompt(
                 [ChatPromptValue(messages=messages)], callbacks=all_callbacks, stop=stop
             )
+
         except Exception as e:
             raise LLMCallException(e)
 
@@ -191,7 +192,7 @@ def get_colang_history(
                     and event["action_name"] == "retrieve_relevant_chunks"
                 ):
                     continue
-                history += f'execute {event["action_name"]}\n'
+                history += f"execute {event['action_name']}\n"
             elif event["type"] == "InternalSystemActionFinished" and not event.get(
                 "is_system_action"
             ):
@@ -295,6 +296,8 @@ def events_to_dialog_history(events: List[InternalEvent]) -> str:
         param_value = event.arguments["parameter"]
         if param_value is not None:
             if isinstance(param_value, str):
+                # convert new lines to \n token, so that few-shot learning won't mislead LLM
+                param_value = param_value.replace("\n", "\\n")
                 intent = f'{intent} "{param_value}"'
             else:
                 intent = f"{intent} {param_value}"
@@ -568,10 +571,21 @@ def escape_flow_name(name: str) -> str:
         name.replace(" and ", "_and_")
         .replace(" or ", "_or_")
         .replace(" as ", "_as_")
-        .replace("(", "")
-        .replace(")", "")
-        .replace("'", "")
-        .replace('"', "")
         .replace("-", "_")
     )
-    return re.sub(r"\b\d+\b", lambda match: f"_{match.group()}_", result)
+    result = re.sub(r"\b\d+\b", lambda match: f"_{match.group()}_", result)
+    # removes non-word chars and leading digits in a word
+    result = re.sub(r"\b\d+|[^\w\s]", "", result)
+    return result
+
+
+def get_and_clear_reasoning_trace_contextvar() -> Optional[str]:
+    """Get the current reasoning trace and clear it from the context.
+
+    Returns:
+        Optional[str]: The reasoning trace if one exists, None otherwise.
+    """
+    if reasoning_trace := reasoning_trace_var.get():
+        reasoning_trace_var.set(None)
+        return reasoning_trace
+    return None

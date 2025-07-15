@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from langchain_core.language_models import BaseLanguageModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompt_values import ChatPromptValue, StringPromptValue
 from langchain_core.runnables import Runnable
 from langchain_core.runnables.config import RunnableConfig
@@ -139,6 +139,8 @@ class RunnableRails(Runnable[Input, Output]):
                         messages.append({"role": "assistant", "content": msg.content})
                     elif isinstance(msg, HumanMessage):
                         messages.append({"role": "user", "content": msg.content})
+                    elif isinstance(msg, SystemMessage):
+                        messages.append({"role": "system", "content": msg.content})
             elif isinstance(_input, StringPromptValue):
                 messages.append({"role": "user", "content": _input.text})
             elif isinstance(_input, dict):

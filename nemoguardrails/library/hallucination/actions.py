@@ -39,13 +39,14 @@ log = logging.getLogger(__name__)
 HALLUCINATION_NUM_EXTRA_RESPONSES = 2
 
 
-@action()
+@action(output_mapping=lambda value: value)
 async def self_check_hallucination(
     llm: BaseLLM,
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     use_llm_checking: bool = True,
     config: Optional[RailsConfig] = None,
+    **kwargs,
 ):
     """Checks if the last bot response is a hallucination by checking multiple completions for self-consistency.
 

@@ -18,16 +18,26 @@
 import logging
 import os
 import warnings
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 import yaml
-from pydantic import BaseModel, ValidationError, root_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    model_validator,
+    root_validator,
+    validator,
+)
 from pydantic.fields import Field
 
+from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
-from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
+from nemoguardrails.llm.types import Task
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +60,41 @@ colang_path_dirs = [
 standard_library_path = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "colang", "v2_x", "library")
 )
+
+# nemoguardrails/library
+guardrails_stdlib_path = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 colang_path_dirs.append(standard_library_path)
+colang_path_dirs.append(guardrails_stdlib_path)
+
+
+class ReasoningModelConfig(BaseModel):
+    """Configuration for reasoning models/LLMs, including start and end tokens for reasoning traces."""
+
+    remove_reasoning_traces: Optional[bool] = Field(
+        default=True,
+        description="For reasoning models (e.g. DeepSeek-r1), if the output parser should remove reasoning traces.",
+    )
+    remove_thinking_traces: Optional[bool] = Field(
+        default=None,
+        deprecated="The `remove_thinking_traces` field is deprecated use remove_reasoning_traces instead.",
+    )
+    start_token: Optional[str] = Field(
+        default="<think>",
+        description="The start token used for reasoning traces.",
+    )
+    end_token: Optional[str] = Field(
+        default="</think>",
+        description="The end token used for reasoning traces.",
+    )
+
+    @model_validator(mode="after")
+    def _migrate_thinking_traces(self) -> "ReasoningModelConfig":
+        # If someone uses the old field, propagate it silently
+        if self.remove_thinking_traces is not None:
+            self.remove_reasoning_traces = self.remove_thinking_traces
+        return self
 
 
 class Model(BaseModel):
@@ -70,7 +114,54 @@ class Model(BaseModel):
         default=None,
         description="The name of the model. If not specified, it should be specified through the parameters attribute.",
     )
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        description='Optional environment variable with model\'s API Key. Do not include "$".',
+    )
+    reasoning_config: Optional[ReasoningModelConfig] = Field(
+        default_factory=ReasoningModelConfig,
+        description="Configuration parameters for reasoning LLMs.",
+    )
     parameters: Dict[str, Any] = Field(default_factory=dict)
+
+    mode: Literal["chat", "text"] = Field(
+        default="chat",
+        description="Whether the mode is 'text' completion or 'chat' completion. Allowed values are 'chat' or 'text'.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_and_validate_model(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            parameters = data.get("parameters")
+            if parameters is None:
+                return data
+            model_field = data.get("model")
+            model_from_params = parameters.get("model_name") or parameters.get("model")
+
+            if model_field and model_from_params:
+                raise ValueError(
+                    "Model name must be specified in exactly one place: either in the 'model' field or in parameters, not both."
+                )
+            if not model_field and model_from_params:
+                data["model"] = model_from_params
+                if (
+                    "model_name" in parameters
+                    and parameters["model_name"] == model_from_params
+                ):
+                    parameters.pop("model_name")
+                elif "model" in parameters and parameters["model"] == model_from_params:
+                    parameters.pop("model")
+            return data
+
+    @model_validator(mode="after")
+    def model_must_be_none_empty(self) -> "Model":
+        """Validate that a model name is present either directly or in parameters."""
+        if not self.model or not self.model.strip():
+            raise ValueError(
+                "Model name must be specified either directly in the 'model' field or through 'model_name'/'model' in parameters"
+            )
+        return self
 
 
 class Instruction(BaseModel):
@@ -87,6 +178,33 @@ class Document(BaseModel):
     content: str
 
 
+class InjectionDetection(BaseModel):
+    injections: List[str] = Field(
+        default_factory=list,
+        description="The list of injection types to detect. Options are 'sqli', 'template', 'code', 'xss'."
+        "Currently, only SQL injection, template injection, code injection, "
+        "and markdown cross-site scripting are supported. "
+        "Custom rules can be added, provided they are in the `yara_path` and have a `.yara` file extension.",
+    )
+    action: str = Field(
+        default="reject",
+        pattern=r"^(reject|omit)$",
+        description="Action to take. Options are 'reject' to offer a rejection message, "
+        "'omit' to mask the offending content, and 'sanitize' to pass the content as-is in the safest way. "
+        "These options are listed in descending order of relative safety. 'sanitize' is not implemented at this time.",
+    )
+    yara_path: Optional[str] = Field(
+        default="",
+        description="Location on disk where YARA rules are located. If this parameter is an empty string, "
+        "the default location defined in injection_detection's actions.py file will be used.",
+    )
+    yara_rules: Optional[Dict[str, str]] = Field(
+        default_factory=dict,
+        description="Dictionary mapping rule names to YARA rule strings. If provided, these rules will be used "
+        "instead of loading rules from yara_path. Each rule should be a valid YARA rule string.",
+    )
+
+
 class SensitiveDataDetectionOptions(BaseModel):
     entities: List[str] = Field(
         default_factory=list,
@@ -98,6 +216,11 @@ class SensitiveDataDetectionOptions(BaseModel):
     mask_token: str = Field(
         default="*",
         description="The token that should be used to mask the sensitive data.",
+    )
+
+    score_threshold: float = Field(
+        default=0.2,
+        description="The score threshold that should be used to detect the sensitive data.",
     )
 
 
@@ -120,6 +243,53 @@ class SensitiveDataDetection(BaseModel):
     retrieval: SensitiveDataDetectionOptions = Field(
         default_factory=SensitiveDataDetectionOptions,
         description="Configuration of the entities to be detected on retrieved relevant chunks.",
+    )
+
+
+class PrivateAIDetectionOptions(BaseModel):
+    """Configuration options for Private AI."""
+
+    entities: List[str] = Field(
+        default_factory=list,
+        description="The list of entities that should be detected.",
+    )
+
+
+class PrivateAIDetection(BaseModel):
+    """Configuration for Private AI."""
+
+    server_endpoint: str = Field(
+        default="http://localhost:8080/process/text",
+        description="The endpoint for the private AI detection server.",
+    )
+    input: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on the user input.",
+    )
+    output: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on the bot output.",
+    )
+    retrieval: PrivateAIDetectionOptions = Field(
+        default_factory=PrivateAIDetectionOptions,
+        description="Configuration of the entities to be detected on retrieved relevant chunks.",
+    )
+
+
+class FiddlerGuardrails(BaseModel):
+    """Configuration for Fiddler Guardrails."""
+
+    fiddler_endpoint: str = Field(
+        default="http://localhost:8080/process/text",
+        description="The global endpoint for Fiddler Guardrails requests.",
+    )
+    safety_threshold: float = Field(
+        default=0.1,
+        description="Fiddler Guardrails safety detection threshold.",
+    )
+    faithfulness_threshold: float = Field(
+        default=0.05,
+        description="Fiddler Guardrails faithfulness detection threshold.",
     )
 
 
@@ -155,6 +325,7 @@ class TaskPrompt(BaseModel):
     max_length: Optional[int] = Field(
         default=16000,
         description="The maximum length of the prompt in number of characters.",
+        ge=1,
     )
     mode: Optional[str] = Field(
         default=_default_config["prompting_mode"],
@@ -168,19 +339,31 @@ class TaskPrompt(BaseModel):
     max_tokens: Optional[int] = Field(
         default=None,
         description="The maximum number of tokens that can be generated in the chat completion.",
+        ge=1,
     )
 
     @root_validator(pre=True, allow_reuse=True)
     def check_fields(cls, values):
         if not values.get("content") and not values.get("messages"):
-            raise ValidationError("One of `content` or `messages` must be provided.")
+            raise ValueError("One of `content` or `messages` must be provided.")
 
         if values.get("content") and values.get("messages"):
-            raise ValidationError(
-                "Only one of `content` or `messages` must be provided."
-            )
+            raise ValueError("Only one of `content` or `messages` must be provided.")
 
         return values
+
+
+class LogAdapterConfig(BaseModel):
+    name: str = Field(default="FileSystem", description="The name of the adapter.")
+    model_config = ConfigDict(extra="allow")
+
+
+class TracingConfig(BaseModel):
+    enabled: bool = False
+    adapters: List[LogAdapterConfig] = Field(
+        default_factory=lambda: [LogAdapterConfig()],
+        description="The list of tracing adapters to use. If not specified, the default adapters are used.",
+    )
 
 
 class EmbeddingsCacheConfig(BaseModel):
@@ -191,7 +374,7 @@ class EmbeddingsCacheConfig(BaseModel):
         description="Whether caching of the embeddings should be enabled or not.",
     )
     key_generator: str = Field(
-        default="md5",
+        default="sha256",
         description="The method to use for generating the cache keys.",
     )
     store: str = Field(
@@ -248,12 +431,47 @@ class InputRails(BaseModel):
     )
 
 
+class OutputRailsStreamingConfig(BaseModel):
+    """Configuration for managing streaming output of LLM tokens."""
+
+    enabled: bool = Field(
+        default=False, description="Enables streaming mode when True."
+    )
+    chunk_size: int = Field(
+        default=200,
+        description="The number of tokens in each processing chunk. This is the size of the token block on which output rails are applied.",
+    )
+    context_size: int = Field(
+        default=50,
+        description="The number of tokens carried over from the previous chunk to provide context for continuity in processing.",
+    )
+    stream_first: bool = Field(
+        default=True,
+        description="If True, token chunks are streamed immediately before output rails are applied.",
+    )
+    model_config = ConfigDict(extra="allow")
+
+
 class OutputRails(BaseModel):
     """Configuration of output rails."""
 
     flows: List[str] = Field(
         default_factory=list,
         description="The names of all the flows that implement output rails.",
+    )
+
+    streaming: Optional[OutputRailsStreamingConfig] = Field(
+        default_factory=OutputRailsStreamingConfig,
+        description="Configuration for streaming output rails.",
+    )
+
+    apply_to_reasoning_traces: Optional[bool] = Field(
+        default=False,
+        description=(
+            "If True, output rails will apply guardrails to both reasoning traces and output response. "
+            "If False, output rails will only apply guardrails to the output response excluding the reasoning traces, "
+            "thus keeping reasoning traces unaltered."
+        ),
     )
 
 
@@ -339,7 +557,7 @@ class JailbreakDetectionConfig(BaseModel):
 
     server_endpoint: Optional[str] = Field(
         default=None,
-        description="The endpoint for the jailbreak detection heuristics server.",
+        description="The endpoint for the jailbreak detection heuristics/model container.",
     )
     length_per_perplexity_threshold: float = Field(
         default=89.79, description="The length/perplexity threshold."
@@ -347,6 +565,70 @@ class JailbreakDetectionConfig(BaseModel):
     prefix_suffix_perplexity_threshold: float = Field(
         default=1845.65, description="The prefix/suffix perplexity threshold."
     )
+    nim_base_url: Optional[str] = Field(
+        default=None,
+        description="Base URL for jailbreak detection model. Example: http://localhost:8000/v1",
+    )
+    nim_server_endpoint: Optional[str] = Field(
+        default="classify",
+        description="Classification path uri. Defaults to 'classify' for NemoGuard JailbreakDetect.",
+    )
+    api_key: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret String with API key for use in Jailbreak requests. Takes precedence over api_key_env_var",
+    )
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        description="Environment variable containing API key for jailbreak detection model",
+    )
+    # legacy fields, keep for backward comp with deprecation warnings
+    nim_url: Optional[str] = Field(
+        default=None,
+        deprecated="Use 'nim_base_url' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use nim_base_url instead",
+    )
+    nim_port: Optional[int] = Field(
+        default=None,
+        deprecated="Include port in 'nim_base_url' instead. This field will be removed in a future version.",
+        description="DEPRECATED: Include port in nim_base_url instead",
+    )
+    embedding: Optional[str] = Field(
+        default=None,
+        deprecated="This field is no longer used.",
+    )
+
+    @model_validator(mode="after")
+    def migrate_deprecated_fields(self) -> "JailbreakDetectionConfig":
+        """Migrate deprecated nim_url/nim_port fields to nim_base_url format."""
+        if self.nim_url and not self.nim_base_url:
+            port = self.nim_port or 8000
+            self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
+        return self
+
+    def get_api_key(self) -> Optional[str]:
+        """Helper to return an API key (if it exists) from a Jailbreak configuration.
+          This can come from (in descending order of priority):
+
+        1. The `api_key` field, a Pydantic SecretStr from which we extract the full string.
+        2. The `api_key_env_var` field, a string stored in this environment variable.
+
+        If neither is found, None is returned.
+        """
+
+        if self.api_key:
+            return self.api_key.get_secret_value()
+
+        if self.api_key_env_var:
+            nim_auth_token = os.getenv(self.api_key_env_var)
+            if nim_auth_token:
+                return nim_auth_token
+
+            log.warning(
+                "Specified a value for jailbreak config api_key_env var at %s but the environment variable was not set!"
+                % self.api_key_env_var
+            )
+
+        return None
 
 
 class AutoAlignOptions(BaseModel):
@@ -372,6 +654,99 @@ class AutoAlignRailConfig(BaseModel):
     )
 
 
+class PatronusEvaluationSuccessStrategy(str, Enum):
+    """
+    Strategy for determining whether a Patronus Evaluation API
+    request should pass, especially when multiple evaluators
+    are called in a single request.
+    ALL_PASS requires all evaluators to pass for success.
+    ANY_PASS requires only one evaluator to pass for success.
+    """
+
+    ALL_PASS = "all_pass"
+    ANY_PASS = "any_pass"
+
+
+class PatronusEvaluateApiParams(BaseModel):
+    """Config to parameterize the Patronus Evaluate API call"""
+
+    success_strategy: Optional[PatronusEvaluationSuccessStrategy] = Field(
+        default=PatronusEvaluationSuccessStrategy.ALL_PASS,
+        description="Strategy to determine whether the Patronus Evaluate API Guardrail passes or not.",
+    )
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters to the Patronus Evaluate API",
+    )
+
+
+class PatronusEvaluateConfig(BaseModel):
+    """Config for the Patronus Evaluate API call"""
+
+    evaluate_config: PatronusEvaluateApiParams = Field(
+        default_factory=PatronusEvaluateApiParams,
+        description="Configuration passed to the Patronus Evaluate API",
+    )
+
+
+class PatronusRailConfig(BaseModel):
+    """Configuration data for the Patronus Evaluate API"""
+
+    input: Optional[PatronusEvaluateConfig] = Field(
+        default_factory=PatronusEvaluateConfig,
+        description="Patronus Evaluate API configuration for an Input Guardrail",
+    )
+    output: Optional[PatronusEvaluateConfig] = Field(
+        default_factory=PatronusEvaluateConfig,
+        description="Patronus Evaluate API configuration for an Output Guardrail",
+    )
+
+
+class ClavataRailOptions(BaseModel):
+    """Configuration data for the Clavata API"""
+
+    policy: str = Field(
+        description="The policy alias to use when evaluating inputs or outputs.",
+    )
+
+    labels: List[str] = Field(
+        default_factory=list,
+        description="""A list of labels to match against the policy.
+        If no labels are provided, the overall policy result will be returned.
+        If labels are provided, only hits on the provided labels will be considered a hit.""",
+    )
+
+
+class ClavataRailConfig(BaseModel):
+    """Configuration data for the Clavata API"""
+
+    server_endpoint: str = Field(
+        default="https://gateway.app.clavata.ai:8443",
+        description="The endpoint for the Clavata API",
+    )
+
+    policies: Dict[str, str] = Field(
+        default_factory=dict,
+        description="A dictionary of policy aliases and their corresponding IDs.",
+    )
+
+    label_match_logic: Literal["ANY", "ALL"] = Field(
+        default="ANY",
+        description="""The logic to use when deciding whether the evaluation matched.
+        If ANY, only one of the configured labels needs to be found in the input or output.
+        If ALL, all configured labels must be found in the input or output.""",
+    )
+
+    input: Optional[ClavataRailOptions] = Field(
+        default=None,
+        description="Clavata configuration for an Input Guardrail",
+    )
+    output: Optional[ClavataRailOptions] = Field(
+        default=None,
+        description="Clavata configuration for an Output Guardrail",
+    )
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -385,6 +760,11 @@ class RailsConfigData(BaseModel):
         description="Configuration data for the AutoAlign guardrails API.",
     )
 
+    patronus: Optional[PatronusRailConfig] = Field(
+        default_factory=PatronusRailConfig,
+        description="Configuration data for the Patronus Evaluate API.",
+    )
+
     sensitive_data_detection: Optional[SensitiveDataDetection] = Field(
         default_factory=SensitiveDataDetection,
         description="Configuration for detecting sensitive data.",
@@ -393,6 +773,26 @@ class RailsConfigData(BaseModel):
     jailbreak_detection: Optional[JailbreakDetectionConfig] = Field(
         default_factory=JailbreakDetectionConfig,
         description="Configuration for jailbreak detection.",
+    )
+
+    injection_detection: Optional[InjectionDetection] = Field(
+        default_factory=InjectionDetection,
+        description="Configuration for injection detection.",
+    )
+
+    privateai: Optional[PrivateAIDetection] = Field(
+        default_factory=PrivateAIDetection,
+        description="Configuration for Private AI.",
+    )
+
+    fiddler: Optional[FiddlerGuardrails] = Field(
+        default_factory=FiddlerGuardrails,
+        description="Configuration for Fiddler Guardrails.",
+    )
+
+    clavata: Optional[ClavataRailConfig] = Field(
+        default_factory=ClavataRailConfig,
+        description="Configuration for Clavata.",
     )
 
 
@@ -494,6 +894,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "lowest_temperature",
         "enable_multi_step_generation",
         "colang_version",
+        "event_source_uid",
         "custom_data",
         "prompting_mode",
         "knowledge_base",
@@ -503,6 +904,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "passthrough",
         "raw_llm_call_action",
         "enable_rails_exceptions",
+        "tracing",
     ]
 
     for field in additional_fields:
@@ -551,11 +953,23 @@ def _load_path(
     if not os.path.exists(config_path):
         raise ValueError(f"Could not find config path: {config_path}")
 
+    # the first .railsignore file found from cwd down to its subdirectories
+    railsignore_path = utils.get_railsignore_path(config_path)
+    ignore_patterns = utils.get_railsignore_patterns(railsignore_path)
+
     if os.path.isdir(config_path):
         for root, _, files in os.walk(config_path, followlinks=True):
             # Followlinks to traverse symlinks instead of ignoring them.
 
             for file in files:
+                # Verify railsignore to skip loading
+                ignored_by_railsignore = utils.is_ignored_by_railsignore(
+                    file, ignore_patterns
+                )
+
+                if ignored_by_railsignore:
+                    continue
+
                 # This is the raw configuration that will be loaded from the file.
                 _raw_config = {}
 
@@ -625,7 +1039,10 @@ def _load_imported_paths(raw_config: dict, colang_files: List[Tuple[str, str]]):
                 actual_path = import_path
 
             if actual_path is None:
-                raise ValueError(f"Import path `{import_path}` could not be resolved.")
+                formated_import_path = import_path.replace("/", ".")
+                raise ValueError(
+                    f"Import path '{formated_import_path}' could not be resolved.",
+                )
 
             _raw_config, _colang_files = _load_path(actual_path)
 
@@ -694,7 +1111,7 @@ def _parse_colang_files_recursively(
             current_file, content=flow_definitions, version=colang_version
         )
 
-        _DOCUMENTATION_LINK = "https://docs.nvidia.com/nemo/guardrails/colang_2/getting_started/dialog-rails.html"  # Replace with the actual documentation link
+        _DOCUMENTATION_LINK = "https://docs.nvidia.com/nemo/guardrails/colang-2/getting-started/dialog-rails.html"  # Replace with the actual documentation link
 
         warnings.warn(
             "Configuring input/output rails in config.yml is deprecated. "
@@ -836,6 +1253,90 @@ class RailsConfig(BaseModel):
         "This means it will not be altered in any way. ",
     )
 
+    event_source_uid: str = Field(
+        default="NeMoGuardrails-Colang-2.x",
+        description="The source ID of events sent by the Colang Runtime. Useful to identify the component that has sent an event.",
+    )
+
+    tracing: TracingConfig = Field(
+        default_factory=TracingConfig,
+        description="Configuration for tracing.",
+    )
+
+    @root_validator(pre=True, allow_reuse=True)
+    def check_reasoning_traces_with_dialog_rails(cls, values):
+        """Check that reasoning traces are not enabled when dialog rails are present."""
+
+        models = values.get("models", [])
+        rails = values.get("rails", {})
+        dialog_rails = rails.get("dialog", {})
+
+        # dialog rail tasks that should not have reasoning traces
+        dialog_rail_tasks = [
+            # Task.GENERATE_BOT_MESSAGE,
+            Task.GENERATE_USER_INTENT,
+            Task.GENERATE_NEXT_STEPS,
+            Task.GENERATE_INTENT_STEPS_MESSAGE,
+        ]
+
+        embeddings_only = dialog_rails.get("user_messages", {}).get(
+            "embeddings_only", False
+        )
+
+        has_dialog_rail_configs = (
+            bool(values.get("user_messages"))
+            or bool(values.get("bot_messages"))
+            or bool(values.get("flows"))
+        )
+
+        # dialog rails are activated (explicitly or implicitly) and require validation
+        # skip validation when embeddings_only is True
+        has_dialog_rails = (
+            bool(dialog_rails) or has_dialog_rail_configs
+        ) and not embeddings_only
+
+        if has_dialog_rails:
+            main_model = next(
+                (model for model in models if model.get("type") == "main"), None
+            )
+
+            violations = []
+
+            for task in dialog_rail_tasks:
+                task_model = next(
+                    (model for model in models if model.get("type") == task.value), None
+                )
+
+                if task_model:
+                    reasoning_config = (
+                        task_model.reasoning_config
+                        if hasattr(task_model, "reasoning_config")
+                        else task_model.get("reasoning_config", {})
+                    )
+                    if not reasoning_config.get("remove_reasoning_traces", True):
+                        violations.append(
+                            f"Model '{task_model.get('type')}' has reasoning traces enabled in config.yml. "
+                            f"Reasoning traces must be disabled for dialog rail tasks. "
+                            f"Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config for this model."
+                        )
+                elif main_model:
+                    reasoning_config = (
+                        main_model.reasoning_config
+                        if hasattr(main_model, "reasoning_config")
+                        else main_model.get("reasoning_config", {})
+                    )
+                    if not reasoning_config.get("remove_reasoning_traces", True):
+                        violations.append(
+                            f"Main model has reasoning traces enabled in config.yml and is being used for dialog rail task '{task.value}'. "
+                            f"Reasoning traces must be disabled when dialog rails are present. "
+                            f"Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config for the main model."
+                        )
+
+            if violations:
+                raise ValueError("\n".join(violations))
+
+        return values
+
     @root_validator(pre=True, allow_reuse=True)
     def check_prompt_exist_for_self_check_rails(cls, values):
         rails = values.get("rails", {})
@@ -939,6 +1440,17 @@ class RailsConfig(BaseModel):
                 ]
 
         return values
+
+    @validator("models")
+    def validate_models_api_key_env_var(cls, models):
+        """Model API Key Env var must be set to make LLM calls"""
+        api_keys = [m.api_key_env_var for m in models]
+        for api_key in api_keys:
+            if api_key and not os.environ.get(api_key):
+                raise ValueError(
+                    f"Model API Key environment variable '{api_key}' not set."
+                )
+        return models
 
     raw_llm_call_action: Optional[str] = Field(
         default="raw llm call",
@@ -1056,11 +1568,14 @@ class RailsConfig(BaseModel):
 
     @property
     def streaming_supported(self):
-        """Whether the current config supports streaming or not.
+        """Whether the current config supports streaming or not."""
 
-        Currently, we don't support streaming if there are output rails.
-        """
         if len(self.rails.output.flows) > 0:
+            # if we have output rails streaming enabled
+            # we keep it in case it was needed when we have
+            # support per rails
+            if self.rails.output.streaming.enabled:
+                return True
             return False
 
         return True

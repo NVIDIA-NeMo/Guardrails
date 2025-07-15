@@ -24,4 +24,4 @@ The capital of france is Paris.
 According to the latest estimates, the population of Paris is around 2.2 million people.
 ```
 
-To understand in more detail how this was built, check out the [Hello World Guide](../../../docs/getting_started/1_hello_world).
+To understand in more detail how this was built, check out the [Hello World Guide](../../../docs/getting-started/1-hello-world).

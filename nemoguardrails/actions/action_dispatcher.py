@@ -320,7 +320,10 @@ class ActionDispatcher:
                             f"Failed to register {obj.action_meta['name']} in action dispatcher due to exception {e}"
                         )
         except Exception as e:
-            relative_filepath = Path(module.__file__).relative_to(Path.cwd())
+            try:
+                relative_filepath = Path(module.__file__).relative_to(Path.cwd())
+            except ValueError:
+                relative_filepath = Path(module.__file__).resolve()
             log.error(
                 f"Failed to register {filename} from {relative_filepath} in action dispatcher due to exception: {e}"
             )

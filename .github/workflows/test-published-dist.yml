@@ -1,0 +1,53 @@
+on:
+  schedule:
+    - cron: "0 0 * * *" # 12:00 midnight UTC, daily
+
+  workflow_dispatch:
+
+jobs:
+  test-pypi-wheel:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Wheel from PyPI
+        run: |
+          pip install --upgrade pip
+          pip install "nemoguardrails[all]" --no-cache-dir
+
+      - name: Start server in the background
+        run: |
+          nemoguardrails server &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for server to be up
+        run: |
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl --output /dev/null --silent --head --fail http://localhost:8000; then
+              echo "Server is up!"
+              break
+            else
+              echo "Waiting..."
+              sleep 1
+            fi
+          done
+
+      - name: Check server status
+        run: |
+          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Server responded with code $RESPONSE_CODE."
+            exit 1
+          fi
+
+      - name: Stop server
+        if: ${{ success() }}
+        run: |
+          kill $SERVER_PID

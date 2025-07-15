@@ -7,7 +7,7 @@ rails:
     flows:
       - self check input
       - check sensitive data
-      - activefence moderation
+      - activefence moderation on input
       - check toxicity
       - some other moderation thing
 
@@ -35,9 +35,8 @@ rails:
     flows:
       - self check facts
       - self check hallucination
-      - activefence moderation
+      - activefence moderation on output
       - check sensitive data
-      - gotitai rag truthcheck
 
   # Execution rails are triggered before and after an action is invoked
   # TODO

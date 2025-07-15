@@ -31,7 +31,7 @@ The knowledge base is designed for question answering on non-sensitive informati
 
 ### What LLMs are supported by NeMo Guardrails?
 
-Technically, you can connect a guardrails configuration to any LLM provider that is supported by LangChain (e.g., `ai21`, `aleph_alpha`, `anthropic`, `anyscale`, `azure`, `cohere`, `huggingface_endpoint`, `huggingface_hub`, `openai`, `self_hosted`, `self_hosted_hugging_face` - check out the LangChain official documentation for the full list) or to any [custom LLM](user_guides/configuration-guide.md#custom-llm-models). Depending on the capabilities of the LLM, some will work better than others. We are performing evaluations, and we will share more details soon.
+Technically, you can connect a guardrails configuration to any LLM provider that is supported by LangChain (e.g., `ai21`, `aleph_alpha`, `anthropic`, `anyscale`, `azure`, `cohere`, `huggingface_endpoint`, `huggingface_hub`, `openai`, `self_hosted`, `self_hosted_hugging_face` - check out the LangChain official documentation for the full list) or to any [custom LLM](user-guides/configuration-guide.md#custom-llm-models). Depending on the capabilities of the LLM, some will work better than others. We are performing evaluations, and we will share more details soon.
 
 Changes to some configuration elements can help improve compatibility with a given LLM provider or custom LLM, including the general instructions or prompt templates. This is essentially prompt engineering, and it is an imperfect process. As the capabilities of various LLMs evolve in the future, we expect this process to get easier.
 

@@ -1,8 +1,13 @@
 # Use python:3.10 as the base image
 FROM python:3.10-slim
 
-# Install git
-RUN apt-get update && apt-get install -y git gcc g++ python3-dev && apt-get clean
+# Install git and wget
+RUN apt-get update && apt-get install -y git gcc g++ python3-dev wget && apt-get clean
+
+# Predownload embedding-based jailbreak detection models, set environment variable for path
+WORKDIR /models
+RUN wget https://huggingface.co/nvidia/NemoGuard-JailbreakDetect/resolve/main/snowflake.pkl
+ENV EMBEDDING_CLASSIFIER_PATH=/models
 
 # Set working directory
 WORKDIR /app
@@ -25,5 +30,5 @@ RUN python -c "from transformers import GPT2LMHeadModel, GPT2TokenizerFast; GPT2
 EXPOSE 1337
 
 # Start the server as the default command
-ENTRYPOINT ["/usr/local/bin/python", "server.py"]
+ENTRYPOINT ["/usr/local/bin/python", "/app/server.py"]
 CMD ["--port=1337"]

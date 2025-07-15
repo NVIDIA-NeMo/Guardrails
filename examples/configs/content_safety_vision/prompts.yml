@@ -1,0 +1,45 @@
+prompts:
+  - task: content_safety_check_input $model=vision_rails
+    messages:
+      - type: system
+        content: |
+          You are an AI assistant that evaluates if a user's message contains unsafe content.
+          Carefully examine any text and images in the user's message.
+
+          {%- if categories is not defined -%}
+              {%- set categories = {
+                  "S1": "Violent Crimes.",
+                  "S2": "Non-Violent Crimes.",
+                  "S3": "Sex Crimes.",
+                  "S4": "Child Exploitation.",
+                  "S5": "Defamation.",
+                  "S6": "Specialized Advice.",
+                  "S7": "Privacy.",
+                  "S8": "Intellectual Property.",
+                  "S10": "Hate.",
+                  "S11": "Self-Harm.",
+                  "S12": "Sexual Content.",
+                  "S13": "Elections."
+              } -%}
+          {%- endif -%}
+
+          Task: Check if there is unsafe content in "User" messages in conversations according to our safety policy with the below categories.
+
+          <BEGIN UNSAFE CONTENT CATEGORIES>
+          {%- for key, desc in categories.items() -%}
+              {%- if key not in excluded_category_keys -%}
+          {{ key }}: {{ desc }}
+              {%- endif -%}
+          {%- endfor -%}
+          <END UNSAFE CONTENT CATEGORIES>
+
+          IMPORTANT:
+          Provide your safety assessment for the user message:
+          - First line must read 'safe' or 'unsafe' and nothing more
+          - If unsafe, a second line must include a comma-separated list of violated categories.
+      - type: user
+        content: "{{ user_input  }}"
+
+    stop: ["<|eot_id|>", "<|eom_id|>"]
+    output_parser: is_content_safe
+    max_tokens: 200

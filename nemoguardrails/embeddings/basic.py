@@ -47,6 +47,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
     embedding_model: str
     embedding_engine: str
+    embedding_params: Dict[str, Any]
     index: AnnoyIndex
     embedding_size: int
     cache_config: EmbeddingsCacheConfig
@@ -60,6 +61,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self,
         embedding_model=None,
         embedding_engine=None,
+        embedding_params=None,
         index=None,
         cache_config: Union[EmbeddingsCacheConfig, Dict[str, Any]] = None,
         search_threshold: float = None,
@@ -83,6 +85,7 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._embeddings = []
         self.embedding_model = embedding_model
         self.embedding_engine = embedding_engine
+        self.embedding_params = embedding_params or {}
         self._embedding_size = 0
         self.search_threshold = search_threshold or float("inf")
         if isinstance(cache_config, Dict):
@@ -132,7 +135,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
     def _init_model(self):
         """Initialize the model used for computing the embeddings."""
         self._model = init_embedding_model(
-            embedding_model=self.embedding_model, embedding_engine=self.embedding_engine
+            embedding_model=self.embedding_model,
+            embedding_engine=self.embedding_engine,
+            embedding_params=self.embedding_params,
         )
 
     @cache_embeddings

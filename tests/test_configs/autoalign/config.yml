@@ -1,7 +1,7 @@
 models:
   - type: main
-    engine: nemollm
-    model: gpt-43b-002
+    engine: openai
+    model: gpt-3.5-turbo-instruct
 
 rails:
   config:
@@ -11,7 +11,7 @@ rails:
       input:
         guardrails_config:
           {
-            "pii_fast":
+            "pii":
               {
                 "enabled_types":
                   [
@@ -74,7 +74,7 @@ rails:
                     "[RELIGION]": 0.5,
                   },
               },
-            "confidential_detection":
+            "confidential_info_detection":
               {
                 "matching_scores":
                   {
@@ -87,7 +87,7 @@ rails:
               },
             "gender_bias_detection": { "matching_scores": { "score": 0.5 } },
             "harm_detection": { "matching_scores": { "score": 0.5 } },
-            "text_toxicity_extraction": { "matching_scores": { "score": 0.5 } },
+            "toxicity_detection": { "matching_scores": { "score": 0.5 } },
             "racial_bias_detection":
               {
                 "matching_scores":
@@ -115,7 +115,7 @@ rails:
       output:
         guardrails_config:
           {
-            "pii_fast":
+            "pii":
               {
                 "enabled_types":
                   [
@@ -179,7 +179,7 @@ rails:
                     "[RELIGION]": 0.5,
                   },
               },
-            "confidential_detection":
+            "confidential_info_detection":
               {
                 "matching_scores":
                   {
@@ -192,7 +192,7 @@ rails:
               },
             "gender_bias_detection": { "matching_scores": { "score": 0.5 } },
             "harm_detection": { "matching_scores": { "score": 0.5 } },
-            "text_toxicity_extraction": { "matching_scores": { "score": 0.5 } },
+            "toxicity_detection": { "matching_scores": { "score": 0.5 } },
             "racial_bias_detection":
               {
                 "matching_scores":

@@ -21,14 +21,13 @@ import random
 import re
 import sys
 import threading
-import uuid
-from ast import literal_eval
 from functools import lru_cache
 from time import time
-from typing import Callable, List, Optional, cast
+from typing import Callable, List, Optional, Union, cast
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
+from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import ActionResult, action
@@ -51,20 +50,26 @@ from nemoguardrails.context import (
     generation_options_var,
     llm_call_info_var,
     raw_llm_request,
+    reasoning_trace_var,
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.prompts import get_prompt
-from nemoguardrails.llm.taskmanager import LLMTaskManager
+from nemoguardrails.llm.taskmanager import LLMTaskManager, ParsedTaskOutput
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import StreamingHandler
-from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
+from nemoguardrails.utils import (
+    get_or_create_event_loop,
+    new_event_dict,
+    new_uuid,
+    safe_eval,
+)
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +83,7 @@ class LLMGenerationActions:
     def __init__(
         self,
         config: RailsConfig,
-        llm: BaseLLM,
+        llm: Union[BaseLLM, BaseChatModel],
         llm_task_manager: LLMTaskManager,
         get_embedding_search_provider_instance: Callable[
             [Optional[EmbeddingSearchProvider]], EmbeddingsIndex
@@ -369,6 +374,12 @@ class LLMGenerationActions:
             # We search for the most relevant similar user utterance
             examples = ""
             potential_user_intents = []
+            if isinstance(event["text"], list):
+                text = " ".join(
+                    [item["text"] for item in event["text"] if item["type"] == "text"]
+                )
+            else:
+                text = event["text"]
 
             if self.user_message_index is not None:
                 threshold = None
@@ -379,7 +390,7 @@ class LLMGenerationActions:
                     )
 
                 results = await self.user_message_index.search(
-                    text=event["text"], max_results=5, threshold=threshold
+                    text=text, max_results=5, threshold=threshold
                 )
 
                 # If the option to use only the embeddings is activated, we take the first
@@ -404,11 +415,11 @@ class LLMGenerationActions:
                     )
                 else:
                     results = await self.user_message_index.search(
-                        text=event["text"], max_results=5
+                        text=text, max_results=5
                     )
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
-                    examples += f"user \"{result.text}\"\n  {result.meta['intent']}\n\n"
+                    examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
                     if result.meta["intent"] not in potential_user_intents:
                         potential_user_intents.append(result.meta["intent"])
 
@@ -432,6 +443,7 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERATE_USER_INTENT, output=result
             )
+            result = result.text
 
             user_intent = get_first_nonempty_line(result)
             if user_intent is None:
@@ -517,6 +529,14 @@ class LLMGenerationActions:
                             prompt,
                             custom_callback_handlers=[streaming_handler_var.get()],
                         )
+                    text = self.llm_task_manager.parse_task_output(
+                        Task.GENERAL, output=text
+                    )
+
+                    text = _process_parsed_output(
+                        text, self._include_reasoning_traces()
+                    )
+
             else:
                 # Initialize the LLMCallInfo object
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
@@ -549,7 +569,12 @@ class LLMGenerationActions:
                         stop=["User:"],
                     )
 
-                text = result.strip()
+                text = self.llm_task_manager.parse_task_output(
+                    Task.GENERAL, output=result
+                )
+
+                text = _process_parsed_output(text, self._include_reasoning_traces())
+                text = text.strip()
                 if text.startswith('"'):
                     text = text[1:-1]
 
@@ -630,6 +655,7 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERATE_NEXT_STEPS, output=result
             )
+            result = result.text
 
             # If we don't have multi-step generation enabled, we only look at the first line.
             if not self.config.enable_multi_step_generation:
@@ -757,6 +783,16 @@ class LLMGenerationActions:
 
         streaming_handler = streaming_handler_var.get()
 
+        # when we have 'output rails streaming' enabled
+        # we must disable (skip) the output rails which gets executed on $bot_message
+        # as it is executed separately in llmrails.py
+        # of course, it does not work when passed as context in `run_output_rails_in_streaming`
+        # streaming_handler is set when stream_async method is used
+
+        # if streaming_handler and len(self.config.rails.output.flows) > 0:
+        if streaming_handler and self.config.rails.output.streaming.enabled:
+            context_updates["skip_output_rails"] = True
+
         if bot_intent in self.config.bot_messages:
             # Choose a message randomly from self.config.bot_messages[bot_message]
             # However, in test mode, we always choose the first one, to keep it predictable.
@@ -774,7 +810,7 @@ class LLMGenerationActions:
             context_updates["skip_output_rails"] = True
 
         # Check if the output is supposed to be the content of a context variable
-        elif bot_intent[0] == "$" and bot_intent[1:] in context:
+        elif bot_intent and bot_intent[0] == "$" and bot_intent[1:] in context:
             bot_utterance = context[bot_intent[1:]]
 
         else:
@@ -870,6 +906,14 @@ class LLMGenerationActions:
                             llm, prompt, custom_callback_handlers=[streaming_handler]
                         )
 
+                        result = self.llm_task_manager.parse_task_output(
+                            Task.GENERAL, output=result
+                        )
+
+                        result = _process_parsed_output(
+                            result, self._include_reasoning_traces()
+                        )
+
                     log.info(
                         "--- :: LLM Bot Message Generation passthrough call took %.2f seconds",
                         time() - t0,
@@ -888,9 +932,7 @@ class LLMGenerationActions:
 
                     # We add these in reverse order so the most relevant is towards the end.
                     for result in reversed(results):
-                        examples += (
-                            f"bot {result.text}\n  \"{result.meta['text']}\"\n\n"
-                        )
+                        examples += f'bot {result.text}\n  "{result.meta["text"]}"\n\n'
 
                 # We compute the relevant chunks to be used as context
                 relevant_chunks = get_retrieved_relevant_chunks(events)
@@ -906,7 +948,7 @@ class LLMGenerationActions:
 
                 if streaming_handler:
                     # TODO: Figure out a more generic way to deal with this
-                    if prompt_config.output_parser == "verbose_v1":
+                    if prompt_config.output_parser in ["verbose_v1", "bot_message"]:
                         streaming_handler.set_pattern(
                             prefix='Bot message: "', suffix='"'
                         )
@@ -933,6 +975,10 @@ class LLMGenerationActions:
                 # Parse the output using the associated parser
                 result = self.llm_task_manager.parse_task_output(
                     Task.GENERATE_BOT_MESSAGE, output=result
+                )
+
+                result = _process_parsed_output(
+                    result, self._include_reasoning_traces()
                 )
 
                 # TODO: catch openai.error.InvalidRequestError from exceeding max token length
@@ -1027,6 +1073,7 @@ class LLMGenerationActions:
         result = self.llm_task_manager.parse_task_output(
             Task.GENERATE_VALUE, output=result
         )
+        result = result.text
 
         # We only use the first line for now
         # TODO: support multi-line values?
@@ -1039,7 +1086,11 @@ class LLMGenerationActions:
 
         log.info(f"Generated value for ${var_name}: {value}")
 
-        return literal_eval(value)
+        try:
+            return safe_eval(value)
+        except Exception as e:
+            log.error(f"Error evaluating value: {value}. Error: {str(e)}")
+            raise ValueError(f"Invalid LLM response: `{value}`")
 
     @action(is_system_action=True)
     async def generate_intent_steps_message(
@@ -1140,7 +1191,7 @@ class LLMGenerationActions:
                                     if bot_message_result.text == bot_canonical_form:
                                         found_bot_message = True
                                         example += (
-                                            f"  \"{bot_message_result.meta['text']}\"\n"
+                                            f'  "{bot_message_result.meta["text"]}"\n'
                                         )
                                         # Only use the first bot message for now
                                         break
@@ -1234,6 +1285,7 @@ class LLMGenerationActions:
             result = self.llm_task_manager.parse_task_output(
                 Task.GENERATE_INTENT_STEPS_MESSAGE, output=result
             )
+            result = result.text
 
             # TODO: Implement logic for generating more complex Colang next steps (multi-step),
             #  not just a single bot intent.
@@ -1313,6 +1365,10 @@ class LLMGenerationActions:
             ):
                 result = await llm_call(llm, prompt)
 
+            result = self.llm_task_manager.parse_task_output(
+                Task.GENERAL, output=result
+            )
+            result = _process_parsed_output(result, self._include_reasoning_traces())
             text = result.strip()
             if text.startswith('"'):
                 text = text[1:-1]
@@ -1324,6 +1380,10 @@ class LLMGenerationActions:
             return ActionResult(
                 events=[new_event_dict("BotMessage", text=text)],
             )
+
+    def _include_reasoning_traces(self) -> bool:
+        """Get the configuration value for whether to include reasoning traces in output."""
+        return _get_apply_to_reasoning_traces(self.config)
 
 
 def clean_utterance_content(utterance: str) -> str:
@@ -1342,3 +1402,27 @@ def clean_utterance_content(utterance: str) -> str:
         # It should be translated to an actual \n character.
         utterance = utterance.replace("\\n", "\n")
     return utterance
+
+
+def _record_reasoning_trace(trace: str) -> None:
+    """Store the reasoning trace in context for later retrieval."""
+    reasoning_trace_var.set(trace)
+
+
+def _assemble_response(text: str, trace: Optional[str], include_reasoning: bool) -> str:
+    """Combine trace and text if requested, otherwise just return text."""
+    return (trace + text) if (trace and include_reasoning) else text
+
+
+def _process_parsed_output(
+    output: ParsedTaskOutput, include_reasoning_trace: bool
+) -> str:
+    """Record trace, then assemble the final LLM response."""
+    if reasoning_trace := output.reasoning_trace:
+        _record_reasoning_trace(reasoning_trace)
+    return _assemble_response(output.text, reasoning_trace, include_reasoning_trace)
+
+
+def _get_apply_to_reasoning_traces(config: RailsConfig) -> bool:
+    """Get the configuration value for whether to include reasoning traces in output."""
+    return config.rails.output.apply_to_reasoning_traces

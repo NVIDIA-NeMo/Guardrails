@@ -20,7 +20,7 @@ import pytest
 from nemoguardrails.registry import Registry
 
 
-class TestRegistry(Registry):
+class StubRegistry(Registry):
     def validate(self, name: str, item: Any) -> None:
         pass
 
@@ -28,7 +28,7 @@ class TestRegistry(Registry):
 @pytest.fixture()
 def registry():
     # Create a new registry before each test
-    registry = TestRegistry(enable_validation=False)
+    registry = StubRegistry(enable_validation=False)
     # Yield the registry to the test
     yield registry
     # Reset the registry after each test as it is a singleton

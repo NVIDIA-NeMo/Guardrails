@@ -1,5 +1,19 @@
 # Prompts for OpenAI ChatGPT.
 prompts:
+  - task: general
+    models:
+      - openai/gpt-3.5-turbo
+      - openai/gpt-4
+    messages:
+      - type: system
+        content: |
+          {{ general_instructions }}{% if relevant_chunks != None and relevant_chunks != '' %}
+          This is some relevant context:
+          ```markdown
+          {{ relevant_chunks }}
+          ```{% endif %}
+      - "{{ history | to_chat_messages }}"
+
   - task: generate_user_intent
     models:
       - openai/gpt-3.5-turbo
@@ -305,4 +319,4 @@ prompts:
     messages:
       - type: system
         content: |-
-            {{ flow_nld }}
+          {{ flow_nld }}

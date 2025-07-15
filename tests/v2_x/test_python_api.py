@@ -16,6 +16,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
+from tests.utils import TestChat
 
 config = RailsConfig.from_content(
     """
@@ -127,3 +128,34 @@ def test_actions_1():
             "role": "assistant",
         }
     ]
+
+
+@pytest.fixture
+def config_2():
+    return RailsConfig.from_content(
+        colang_content="""
+        import core
+
+        flow main
+            user said "hi"
+            $datetime = await GetCurrentDateTimeAction()
+            user said "there"
+            bot say "hello"
+
+
+        """,
+        yaml_content="""
+        colang_version: "2.x"
+        """,
+    )
+
+
+def test_pattern_matching_with_python_actions(config_2):
+    chat = TestChat(
+        config_2,
+        llm_completions=[],
+    )
+
+    chat >> "hi"
+    chat >> "there"
+    chat << "hello"

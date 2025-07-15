@@ -1,0 +1,291 @@
+# Current version of prompts for Deepseek models (including V3 and R1),
+# use a single user turn for all tasks. Performance is better than using a
+# complex multi-turn prompt similar to the one used for Llama models.
+
+# Collection of all the prompts
+prompts:
+    # GENERAL PROMPTS
+
+    - task: general
+      models:
+          - deepseek
+      content: |-
+          {{ general_instructions }}
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+
+          {% if relevant_chunks != None and relevant_chunks != '' %}
+            This is some relevant context:
+            ```markdown
+            {{ relevant_chunks }}
+            ```
+          {% endif %}
+
+          {{ history | user_assistant_sequence }}
+          Assistant:
+      max_tokens: 3000
+
+    # Prompt for detecting the user message canonical form.
+    - task: generate_user_intent
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          Your task is to generate the user intent in a conversation given the last user message similar to the examples below.
+          Do not provide any explanations, just output the user intent.
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # These are examples how to generate an intent from an user message:
+          {{ examples }}
+
+          # This is the current conversation between the user and the bot:
+          # Choose intent from this list if applicable: {{ potential_user_intents }}
+          {{ history | colang }}
+      max_tokens: 3000
+
+    # Prompt for generating the next steps.
+    - task: generate_next_steps
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          Your task is to generate the next steps in a conversation given the last user message similar to the examples below.
+          Do not provide any explanations, just output the bot intent and any other next steps if needed.
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # These are examples how to generate the next step(s) in the conversation:
+          {{ examples | remove_text_messages}}
+
+          # This is the current conversation between the user and the bot:
+          {{ sample_conversation | first_turns(2) | remove_text_messages}}
+          {{ history | colang | remove_text_messages}}
+      max_tokens: 3000
+
+    # Prompt for generating the bot message from a canonical form.
+    - task: generate_bot_message
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          Your task is to generate the bot message in a conversation given the last user message, user intent and bot intent.
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          {% if relevant_chunks %}
+          # This is some additional context:
+          ```markdown
+          {{ relevant_chunks }}
+          ```
+          {% endif %}
+
+          # These are examples how to generate the bot message from the bot intent:
+          {{ examples }}
+
+          # This is the current conversation between the user and the bot:
+          {{ sample_conversation | first_turns(2) }}
+          {{ history | colang }}
+      max_tokens: 3000
+
+    # Prompt for generating the user intent, next steps and bot message in a single call.
+    - task: generate_intent_steps_message
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          Your task is to generate the user intent and the next steps in a conversation given the last user message similar to the examples below.
+          Do not provide any explanations, just output the user intent and the next steps.
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # For each user message, generate the next steps and finish with the bot message.
+          # These are some examples for the task at hand:
+          {{ examples }}
+
+          # This is the current conversation between the user and the bot:
+          {{ sample_conversation | first_turns(2) }}
+          {{ history | colang }}
+      max_tokens: 3000
+
+    # Prompt for generating the value of a context variable.
+    - task: generate_value
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          Your task is to extract a slot with the name mentioned above from the conversation.
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # These are some examples for the task at hand:
+          {{ examples }}
+
+          # This is the current conversation between the user and the bot:
+          {{ sample_conversation | first_turns(2) }}
+          {{ history | colang }}
+          # {{ instructions }}
+          ${{ var_name }} =
+      max_tokens: 3000
+
+    # Colang 2.x prompts below.
+
+    # Prompt for detecting the user message canonical form.
+    - task: generate_user_intent_from_user_action
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          {{ sample_conversation }}
+
+          # These are the most likely user intents:
+          {{ examples }}
+
+          # This is the current conversation between the user and the bot:
+          {{ history | colang }}
+
+          # Continuation of interaction using only specified user intents from the section 'These are the most likely user intents:':
+          user action: {{ user_action }}
+          user intent:
+      stop:
+          - "\n"
+
+    - task: generate_user_intent_and_bot_action_from_user_action
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          {{ sample_conversation }}
+
+          # These are the most likely user intents:
+          {{ examples }}
+
+
+          {% if context.relevant_chunks %}
+          # This is some additional context:
+          ```markdown
+          {{ context.relevant_chunks }}
+          ```
+          {% endif %}
+
+          # This is the current conversation between the user and the bot:
+          {{ history | colang }}
+
+          # Continuation of interaction using only specified user intents from the section 'These are the most likely user intents:':
+          user action: {{ user_action }}
+          user intent:
+      stop:
+          - "\nuser intent:"
+
+    # Prompt for generating the value of a context variable.
+    - task: generate_value_from_instruction
+      models:
+          - deepseek
+      content: |-
+          """
+          {{ general_instructions }}
+
+          IMPORTANT: Use a short thinking process to determine the final answer.
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          {{ sample_conversation }}
+
+          # This is the current conversation between the user and the bot:
+          {{ history | colang }}
+
+          # {{ instructions }}
+          ${{ var_name }} =
+      stop:
+          - "\n"
+
+    # Prompt for generating a flow from instructions.
+    - task: generate_flow_from_instructions
+      models:
+          - deepseek
+      content: |-
+          IMPORTANT: Use a short thinking process to determine the final answer.
+
+          # Example flows:
+          {{ examples }}
+
+          # Complete the following flow based on its instruction:
+          flow {{ flow_name }}
+            """{{ instructions }}"""
+
+    # Prompt for generating a flow from name.
+    - task: generate_flow_from_name
+      models:
+          - deepseek
+      content: |-
+          IMPORTANT: Use a short thinking process to determine the final answer.
+
+          # Example flows:
+          {{ examples }}
+
+          # Complete the following flow based on its name:
+          flow {{ flow_name }}
+      stop:
+          - "\nflow"
+
+      # Prompt for generating the continuation for the current conversation.
+    - task: generate_flow_continuation
+      models:
+          - deepseek
+      content: |-
+          IMPORTANT: Use a short thinking process to determine the final answer.
+
+          """
+          {{ general_instructions }}
+          """
+
+          # This is how a conversation between a user and the bot can go:
+          {{ sample_conversation }}
+
+          {% if context.relevant_chunks %}
+          # This is some additional context:
+          ```markdown
+          {{ context.relevant_chunks }}
+          ```
+          {% endif %}
+
+          # This is the current conversation between the user and the bot:
+          {{ history | colang }}
+
+
+          bot intent:
+
+    - task: generate_flow_continuation_from_flow_nld
+      models:
+          - deepseek
+      content: |-
+          IMPORTANT: Use a short thinking process to determine the final answer.
+
+          {{ flow_nld }}

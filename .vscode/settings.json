@@ -6,6 +6,9 @@
     "files.trimFinalNewlines": true,
     "prettier.tabWidth": 4,
     "isort.args": ["--profile", "black"],
+    "markdownlint.config": {
+        "commands-show-output": false
+    },
 
     // MARKDOWN
     "[markdown]": {
@@ -26,7 +29,8 @@
 
     // YAML
     "[yaml]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "prettier.tabWidth": 2
     },
 
     // YAML
@@ -44,9 +48,13 @@
     "python.envFile": "${workspaceFolder}/.venv",
     "python.languageServer": "Pylance",
     "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": ["${workspaceFolder}/tests"],
+    "python.testing.pytestArgs": [
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/docs/colang-2/examples"
+    ],
     "python.testing.unittestEnabled": false,
     //"python.envFile": "${workspaceFolder}/python_release.env",
+
 
     // MYPY
     "mypy-type-checker.args": [
@@ -60,6 +68,7 @@
     // CSPELL
     "cSpell.words": [
         "appendleft",
+        "clavata",
         "colang",
         "elif",
         "interruptible",

@@ -1,0 +1,19 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+rails:
+    config:
+        autoalign:
+            parameters:
+                groundedness_check_endpoint: "https://<AUTOALIGN_ENDPOINT>/groundedness_check"
+            output:
+                guardrails_config:
+                  {
+                      "groundedness_checker": {
+                          "verify_response": false
+                      },
+                  }
+    output:
+        flows:
+            - autoalign groundedness output

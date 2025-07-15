@@ -30,6 +30,7 @@ from nemoguardrails.embeddings.cache import (
     KeyGenerator,
     MD5KeyGenerator,
     RedisCacheStore,
+    SHA256KeyGenerator,
     cache_embeddings,
 )
 from nemoguardrails.rails.llm.config import EmbeddingsCacheConfig
@@ -56,6 +57,29 @@ def test_md5_key_generator():
     key = key_gen.generate_key("test")
     assert isinstance(key, str)
     assert len(key) == 32  # MD5 hash is 32 characters long
+
+
+def test_sha256_key_generator():
+    key_gen = SHA256KeyGenerator()
+    key = key_gen.generate_key("test")
+    assert isinstance(key, str)
+    assert len(key) == 64  # SHA256 hash is 64 characters long
+
+
+@pytest.mark.parametrize(
+    "name, expected_class",
+    [
+        ("hash", HashKeyGenerator),
+        ("md5", MD5KeyGenerator),
+        ("sha256", SHA256KeyGenerator),
+    ],
+)
+def test_key_generator_class(name, expected_class):
+    assert KeyGenerator.from_name(name) == expected_class
+
+
+def test_embedding_cache_config_default():
+    assert EmbeddingsCacheConfig().key_generator == "sha256"
 
 
 def test_in_memory_cache_store():
@@ -118,69 +142,100 @@ class MyClass:
         return EmbeddingsCacheConfig()
 
     @cache_embeddings
-    def get_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def get_embeddings(self, texts: List[str]) -> List[List[float]]:
         return [[float(ord(c)) for c in text] for text in texts]
 
 
+@pytest.mark.asyncio
 async def test_cache_embeddings():
     with patch(
-        "nemoguardrails.rails.llm.config.EmbeddingsCacheConfig"
-    ) as MockConfig, patch(
-        "nemoguardrails.embeddings.cache.EmbeddingsCache"
-    ) as MockCache:
-        mock_config = MockConfig.return_value
-        mock_cache = MockCache.return_value
-        my_class = MyClass()
+        "nemoguardrails.embeddings.cache.EmbeddingsCache.from_config"
+    ) as mock_from_config:
+        mock_cache = Mock()
+        mock_from_config.return_value = mock_cache
 
         # Test when cache is not enabled
+        mock_config = Mock()
         mock_config.enabled = False
-        texts = ["hello", "world"]
-        assert await my_class.get_embeddings(texts) == [
-            [104.0, 101.0, 108.0, 108.0, 111.0],
-            [119.0, 111.0, 114.0, 108.0, 100.0],
-        ]
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
+        with patch.object(MyClass, "cache_config", new_callable=lambda: mock_config):
+            my_class = MyClass()
+            texts = ["hello", "world"]
+            assert await my_class.get_embeddings(texts) == [
+                [104.0, 101.0, 108.0, 108.0, 111.0],
+                [119.0, 111.0, 114.0, 108.0, 100.0],
+            ]
+            mock_cache.get.assert_not_called()
+            mock_cache.set.assert_not_called()
 
         # Test when cache is enabled and all texts are cached
+        mock_cache.reset_mock()
+        mock_config = Mock()
         mock_config.enabled = True
-        mock_cache.get.return_value = {
-            "hello": [104.0, 101.0, 108.0, 108.0, 111.0],
-            "world": [119.0, 111.0, 114.0, 108.0, 100.0],
-        }
-        assert await my_class.get_embeddings(texts) == [
-            [104.0, 101.0, 108.0, 108.0, 111.0],
-            [119.0, 111.0, 114.0, 108.0, 100.0],
+        mock_cache.get.side_effect = [
+            {
+                "hello": [104.0, 101.0, 108.0, 108.0, 111.0],
+                "world": [119.0, 111.0, 114.0, 108.0, 100.0],
+            },
+            {},  # Second call for uncached texts (should be empty list)
         ]
-        mock_cache.get.assert_called_once_with(texts)
-        mock_cache.set.assert_not_called()
+        with patch.object(MyClass, "cache_config", new_callable=lambda: mock_config):
+            my_class = MyClass()
+            assert await my_class.get_embeddings(texts) == [
+                [104.0, 101.0, 108.0, 108.0, 111.0],
+                [119.0, 111.0, 114.0, 108.0, 100.0],
+            ]
+            assert mock_cache.get.call_count == 2
+            mock_cache.set.assert_not_called()
 
         # Test when cache is enabled and some texts are not cached
         mock_cache.reset_mock()
-        mock_cache.get.return_value = {"hello": [104.0, 101.0, 108.0, 108.0, 111.0]}
-        assert await my_class.get_embeddings(texts) == [
-            [104.0, 101.0, 108.0, 108.0, 111.0],
-            [119.0, 111.0, 114.0, 108.0, 100.0],
+        mock_config = Mock()
+        mock_config.enabled = True
+        # First call returns partial cache, second call returns the newly cached item
+        mock_cache.get.side_effect = [
+            {"hello": [104.0, 101.0, 108.0, 108.0, 111.0]},
+            {"world": [119.0, 111.0, 114.0, 108.0, 100.0]},
         ]
-        mock_cache.get.assert_called_once_with(texts)
-        mock_cache.set.assert_called_once_with(
-            ["world"], [[119.0, 111.0, 114.0, 108.0, 100.0]]
-        )
+        with patch.object(MyClass, "cache_config", new_callable=lambda: mock_config):
+            my_class = MyClass()
+            assert await my_class.get_embeddings(texts) == [
+                [104.0, 101.0, 108.0, 108.0, 111.0],
+                [119.0, 111.0, 114.0, 108.0, 100.0],
+            ]
+            assert mock_cache.get.call_count == 2
+            mock_cache.set.assert_called_once_with(
+                ["world"], [[119.0, 111.0, 114.0, 108.0, 100.0]]
+            )
 
         # Test when cache is enabled and no texts are cached
         mock_cache.reset_mock()
-        mock_cache.get.return_value = {}
-        assert my_class.get_embeddings(texts) == [
-            [104.0, 101.0, 108.0, 108.0, 111.0],
-            [119.0, 111.0, 114.0, 108.0, 100.0],
+        mock_config = Mock()
+        mock_config.enabled = True
+        # First call returns empty cache, second call returns the newly cached items
+        mock_cache.get.side_effect = [
+            {},
+            {
+                "hello": [104.0, 101.0, 108.0, 108.0, 111.0],
+                "world": [119.0, 111.0, 114.0, 108.0, 100.0],
+            },
         ]
-        mock_cache.set.assert_called_once_with(
-            texts,
-            [[104.0, 101.0, 108.0, 108.0, 111.0], [119.0, 111.0, 114.0, 108.0, 100.0]],
-        )
+        with patch.object(MyClass, "cache_config", new_callable=lambda: mock_config):
+            my_class = MyClass()
+            assert await my_class.get_embeddings(texts) == [
+                [104.0, 101.0, 108.0, 108.0, 111.0],
+                [119.0, 111.0, 114.0, 108.0, 100.0],
+            ]
+            assert mock_cache.get.call_count == 2
+            mock_cache.set.assert_called_once_with(
+                texts,
+                [
+                    [104.0, 101.0, 108.0, 108.0, 111.0],
+                    [119.0, 111.0, 114.0, 108.0, 100.0],
+                ],
+            )
 
 
-class TestClass:
+class StubCacheEmbedding:
     def __init__(self, cache_config):
         self._cache_config = cache_config
 
@@ -203,7 +258,7 @@ async def test_cache_dir_created():
             store_config={"cache_dir": os.path.join(temp_dir, "exist")},
         )
 
-        test_class = TestClass(cache_config)
+        test_class = StubCacheEmbedding(cache_config)
 
         await test_class.get_embeddings(["test"])
 
@@ -221,7 +276,7 @@ async def test_cache_dir_not_created():
             store_config={"cache_dir": os.path.join(temp_dir, "exist")},
         )
 
-        test_class = TestClass(cache_config)
+        test_class = StubCacheEmbedding(cache_config)
 
         test_class.cache_config.store_config["cache_dir"] = os.path.join(
             temp_dir, "nonexistent"

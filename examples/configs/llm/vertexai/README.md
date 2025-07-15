@@ -2,7 +2,7 @@
 
 This guardrails configuration is a basic example using the Vertex AI API, and it can be adapted as needed.
 
-Note that to call Vertex AI APIs, you need to perform [some initial setup](../../../../docs/user_guides/advanced/vertexai-setup.md), and to use Vertex AI with NeMo Guardrails, you additionally need to install the following:
+Note that to call Vertex AI APIs, you need to perform [some initial setup](../../../../docs/user-guides/advanced/vertexai-setup.md), and to use Vertex AI with NeMo Guardrails, you additionally need to install the following:
 
 ```
 pip install "google-cloud-aiplatform>=1.38.0"

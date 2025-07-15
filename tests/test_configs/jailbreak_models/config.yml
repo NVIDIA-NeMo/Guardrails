@@ -1,0 +1,8 @@
+rails:
+  config:
+    jailbreak_detection:
+      server_endpoint: ""
+
+  input:
+    flows:
+      - jailbreak detection model

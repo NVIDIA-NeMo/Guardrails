@@ -15,27 +15,18 @@
 
 import json
 
-from nemoguardrails.llm.providers import get_llm_provider, get_llm_provider_names
+from nemoguardrails.llm.models.initializer import init_llm_model
 from nemoguardrails.rails.llm.config import Model
 
 
 def initialize_llm(model_config: Model):
     """Initializes the model from LLM provider."""
-    if model_config.engine not in get_llm_provider_names():
-        raise Exception(f"Unknown LLM engine: {model_config.engine}")
-    provider_cls = get_llm_provider(model_config)
-    kwargs = {"temperature": 0, "max_tokens": 10}
-    if model_config.engine in [
-        "azure",
-        "openai",
-        "gooseai",
-        "nlpcloud",
-        "petals",
-    ]:
-        kwargs["model_name"] = model_config.model
-    else:
-        kwargs["model"] = model_config.model
-    return provider_cls(**kwargs)
+
+    return init_llm_model(
+        model_name=model_config.model,
+        provider_name=model_config.engine,
+        kwargs=model_config.parameters,
+    )
 
 
 def load_dataset(dataset_path: str):

@@ -1,0 +1,8 @@
+# start-generate-response
+I'm sorry, I can't respond to that.
+# end-generate-response
+
+
+# start-safe-response
+Cape Hatteras National Seashore: 72 miles of pristine Outer Banks coastline in North Carolina, featuring natural beaches, lighthouses, and wildlife refuges.
+# end-safe-response

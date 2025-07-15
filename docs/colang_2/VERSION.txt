@@ -1,2 +1,0 @@
-.. |VERSION| replace:: 2.0.0-beta
-.. |NEMO_GUARDRAILS_VERSION| replace:: 0.8.1

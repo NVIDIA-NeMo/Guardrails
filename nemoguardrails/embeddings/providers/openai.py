@@ -43,6 +43,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
     def __init__(
         self,
         embedding_model: str,
+        **kwargs,
     ):
         try:
             import openai
@@ -59,7 +60,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             )
 
         self.model = embedding_model
-        self.client = OpenAI()
+        self.client = OpenAI(**kwargs)
 
         self.embedding_size_dict = {
             "text-embedding-ada-002": 1536,

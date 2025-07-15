@@ -1,0 +1,17 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+  # Sample for running the model as a locally downloaded NIM
+  # If you want to use NVIDIA AI Endpoints, change the model config accordingly
+  - type: topic_control
+    engine: nim
+    parameters:
+      base_url: "http://localhost:8000/v1/"
+      model_name: "llama-3.1-nemoguard-8b-topic-control"
+
+rails:
+  input:
+    flows:
+      - topic safety check input $model=topic_control

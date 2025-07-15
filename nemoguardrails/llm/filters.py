@@ -15,12 +15,23 @@
 
 import re
 import textwrap
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 from nemoguardrails.actions.llm.utils import (
     get_colang_history,
     remove_action_intent_identifiers,
 )
+
+
+@dataclass
+class ReasoningExtractionResult:
+    """
+    Holds cleaned response text and optional chain-of-thought reasoning trace extracted from LLM output.
+    """
+
+    text: str
+    reasoning_trace: Optional[str] = None
 
 
 def colang(events: List[dict]) -> str:
@@ -100,7 +111,7 @@ def co_v2(
                     history += f'  bot say "{event["script"]}"\n'
 
                 elif event["type"] == "StartTool":
-                    s = f'  await {event["flow_name"]}'
+                    s = f"  await {event['flow_name']}"
                     for k, v in event.items():
                         if k in [
                             "type",
@@ -275,13 +286,22 @@ def verbose_v1(colang_history: str) -> str:
 
 
 def to_chat_messages(events: List[dict]) -> str:
-    """Filter that turns an array of events into a sequence of user/assistant messages."""
+    """Filter that turns an array of events into a sequence of user/assistant messages.
+
+    Properly handles multimodal content by preserving the structure when the content
+    is in the format of a Message object with potential image_url content.
+    """
     messages = []
     for event in events:
         if event["type"] == "UserMessage":
-            messages.append({"type": "user", "content": event["text"]})
+            # Preserve the original structure when possible to support multimodal content
+            content = event["text"]
+            messages.append({"role": "user", "content": content})
         elif event["type"] == "StartUtteranceBotAction":
-            messages.append({"type": "assistant", "content": event["script"]})
+            messages.append({"role": "assistant", "content": event["script"]})
+        elif event["type"] == "SystemMessage" and "content" in event:
+            # Handle system messages that might contain multimodal content
+            messages.append({"role": "system", "content": event["content"]})
 
     return messages
 
@@ -296,11 +316,30 @@ def user_assistant_sequence(events: List[dict]) -> str:
        User: What can you do?
        Assistant: I can help with many things.
        ```
+
+    For multimodal content, it extracts text content and indicates if there were images.
     """
     history_items = []
     for event in events:
         if event["type"] == "UserMessage":
-            history_items.append("User: " + event["text"])
+            content = event["text"]
+            # Handle multimodal content by extracting text
+            if isinstance(content, list):
+                text_parts = []
+                has_images = False
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            text_parts.append(item.get("text", ""))
+                        elif item.get("type") == "image_url":
+                            has_images = True
+                text_content = " ".join(text_parts)
+                if has_images:
+                    text_content += " [+ image]"
+                history_items.append("User: " + text_content)
+            else:
+                # Regular text content
+                history_items.append("User: " + str(content))
         elif event["type"] == "StartUtteranceBotAction":
             history_items.append("Assistant: " + event["script"])
 
@@ -357,86 +396,13 @@ def indent(text: str, n_spaces: int) -> str:
     return textwrap.indent(text, " " * n_spaces)
 
 
-def user_assistant_sequence_nemollm(events: List[dict]) -> str:
-    """Filter that turns an array of events into a sequence of user/assistant messages.
-
-    The output will look like:
-       ```
-       <extra_id_1>User
-       hi
-       <extra_id_1>Assistant
-       Hello there!
-       <extra_id_1>User
-       What can you do?
-       <extra_id_1>Assistant
-       I can help with many things.
-       ```
-    """
-    history_items = []
-    for event in events:
-        if event["type"] == "UserMessage":
-            history_items.append("<extra_id_1>User\n" + event["text"])
-        elif event["type"] == "StartUtteranceBotAction":
-            history_items.append("<extra_id_1>Assistant\n" + event["script"])
-
-    return "\n".join(history_items)
-
-
 def _previous_line(lines: List[str], i: int):
     """Returns the previous lines, skipping comments."""
+
     i = i - 1
     while i > 0 and lines[i].strip().startswith("#"):
         i -= 1
     return lines[i]
-
-
-def to_messages_nemollm(colang_history: str) -> str:
-    """Filter that given a history in colang format, returns a messages string
-    in the chat format used by NeMo LLM models."""
-    messages = []
-
-    # For now, we use a simple heuristic. The line `user "xxx"` gets translated to
-    # a message from the user, and the rest gets translated to messages from the assistant.
-    lines = colang_history.split("\n")
-
-    bot_lines = []
-    for i, line in enumerate(lines):
-        if line.startswith('user "'):
-            # If we have bot lines in the buffer, we first add a bot message.
-            if bot_lines:
-                messages.append({"type": "assistant", "content": "\n".join(bot_lines)})
-                bot_lines = []
-
-            messages.append({"type": "user", "content": line[6:-1]})
-
-        elif line.strip() == "":
-            # On empty lines, we also reset the bot buffer.
-            if bot_lines:
-                messages.append({"type": "assistant", "content": "\n".join(bot_lines)})
-                bot_lines = []
-        else:
-            if i > 0 and _previous_line(lines, i).startswith('user "'):
-                if not line.strip().startswith("#"):
-                    line = "User intent: " + line.strip()
-            elif line.startswith("user "):
-                line = "User intent: " + line[5:].strip()
-            elif line.startswith("bot "):
-                line = "Bot intent: " + line[4:].strip()
-            elif line.startswith('  "'):
-                line = "Bot message: " + line[2:].strip()
-            bot_lines.append(line)
-
-    # Check if there is a last message from the bot.
-    if bot_lines:
-        messages.append({"type": "bot", "content": "\n".join(bot_lines)})
-
-    messages_string = ""
-    for m in messages:
-        if m["type"] == "assistant" or m["type"] == "bot":
-            messages_string += "<extra_id_1>Assistant\n" + m["content"] + "\n"
-        elif m["type"] == "user":
-            messages_string += "<extra_id_1>User\n" + m["content"] + "\n"
-    return messages_string
 
 
 def remove_trailing_new_line(s: str):
@@ -482,3 +448,100 @@ def conversation_to_events(conversation: List) -> List[dict]:
             )
 
     return events
+
+
+def _find_token_positions_for_removal(
+    response: str, start_token: Optional[str], end_token: Optional[str]
+) -> Tuple[int, int]:
+    """Helper function to find token positions specifically for text removal.
+
+    This is useful, for example, to remove reasoning traces from a reasoning LLM response.
+
+    This is optimized for the removal use case:
+    1. Uses find() for first start token
+    2. Uses rfind() for last end token
+    3. Sets start_index to 0 if start token is missing
+
+    Args:
+        response(str): The text to search in
+        start_token(str): The token marking the start of text to remove
+        end_token(str): The token marking the end of text to remove
+
+    Returns:
+        A tuple of (start_index, end_index) marking the span to remove;
+            both indices are -1 if start_token and end_token are not provided.
+    """
+    if not start_token or not end_token:
+        return -1, -1
+
+    start_index = response.find(start_token)
+    # if the start index is missing, this is probably a continuation of a bot message
+    # started in the prompt.
+    if start_index == -1:
+        start_index = 0
+
+    end_index = response.rfind(end_token)
+
+    return start_index, end_index
+
+
+def find_reasoning_tokens_position(
+    response: str, start_token: Optional[str], end_token: Optional[str]
+) -> Tuple[int, int]:
+    """Finds the positions of the first start token and the last end token.
+
+    This is intended to find the outermost boundaries of potential
+    reasoning sections, typically for removal.
+
+    Args:
+        response(str): The text to search in.
+        start_token(Optional[str]): The token marking the start of reasoning.
+        end_token(Optional[str]): The token marking the end of reasoning.
+
+    Returns:
+        A tuple (start_index, end_index).
+        - start_index: Position of the first `start_token`, or 0 if not found.
+        - end_index: Position of the last `end_token`, or -1 if not found.
+    """
+
+    return _find_token_positions_for_removal(response, start_token, end_token)
+
+
+def extract_and_strip_trace(
+    response: str, start_token: str, end_token: str
+) -> ReasoningExtractionResult:
+    """Extracts and removes reasoning traces from the given text.
+
+    This function identifies reasoning traces in the text that are marked
+    by specific start and end tokens. It extracts these traces, removes
+    them from the original text, and returns both the cleaned text and
+    the extracted reasoning trace.
+
+    Args:
+        response (str): The text to process.
+        start_token (str): The token marking the start of a reasoning trace.
+        end_token (str): The token marking the end of a reasoning trace.
+
+    Returns:
+        ReasoningExtractionResult: An object containing the cleaned text
+        without reasoning traces and the extracted reasoning trace, if any.
+    """
+
+    start_index, end_index = find_reasoning_tokens_position(
+        response, start_token, end_token
+    )
+    # handles invalid/empty tokens returned as (-1, -1)
+    if start_index == -1 and end_index == -1:
+        return ReasoningExtractionResult(text=response, reasoning_trace=None)
+    # end token is missing
+    if end_index == -1:
+        return ReasoningExtractionResult(text=response, reasoning_trace=None)
+    # extrace if tokens are present and start < end
+    if start_index < end_index:
+        reasoning_trace = response[start_index : end_index + len(end_token)]
+        cleaned_text = response[:start_index] + response[end_index + len(end_token) :]
+        return ReasoningExtractionResult(
+            text=cleaned_text, reasoning_trace=reasoning_trace
+        )
+
+    return ReasoningExtractionResult(text=response, reasoning_trace=None)

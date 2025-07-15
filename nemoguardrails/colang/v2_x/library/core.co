@@ -134,13 +134,13 @@ flow bot suggest $text
 # ----------------------------------
 
 flow bot started saying $text
-  match FlowStarted(flow_id="_bot_say", script=$text)
+  match FlowStarted(flow_id="_bot_say", text=$text)
 
 flow bot started saying something
   match FlowStarted(flow_id="_bot_say")
 
 flow bot said $text
-  match FlowFinished(flow_id="_bot_say", script=$text) as $event
+  match FlowFinished(flow_id="_bot_say", text=$text) as $event
 
 flow bot said something -> $text
   match FlowFinished(flow_id="_bot_say") as $event
@@ -290,3 +290,32 @@ flow await_flow_by_name $flow_name $new_flow_instance_uid = None
   send StartFlow(flow_id=$flow_name, flow_instance_uid=$new_flow_instance_uid)
   match FlowStarted(flow_id=$flow_name, flow_instance_uid=$new_flow_instance_uid) as $event_ref
   match $event_ref.flow.Finished()
+
+flow it finished $ref -> $finished_event_ref
+  """Wait until a flow or action has finished."""
+
+  $type = type($ref)
+  if $type != "Action" and $type != "FlowState":
+    log "flow `it finished` expects a flow or action reference as parameter."
+    abort
+
+  if $type == "FlowState" and $ref.status.value == "stopped":
+    # We abort this flow since it will never finish
+    abort
+
+  if $ref.status.value != "finished":
+    match $ref.Finished() as $finished_event_ref
+
+flow flow_failed $flow_ref -> $failed_event_ref
+  """Wait until a flow has failed."""
+
+  if type($flow_ref) != "FlowState":
+    log "flow `flow_failed` expects a flow reference as parameter."
+    abort
+
+  if $flow_ref.status.value == "finished":
+    # We abort this flow since it will never fail
+    abort
+
+  if $flow_ref.status.value != "stopped":
+    match $flow_ref.Failed() as $failed_event_ref

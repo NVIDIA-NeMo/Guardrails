@@ -6,14 +6,40 @@ rails:
     config:
         autoalign:
             parameters:
-                fact_check_endpoint: "https://<AUTOALIGN_ENDPOINT>/factcheck"
+                fact_check_endpoint: "https://<AUTOALIGN_ENDPOINT>/content_moderation"
+                multi_language: False
             output:
                 guardrails_config:
-                  {
-                      "factcheck": {
-                          "verify_response": false
-                      },
-                  }
+                    {
+                        "fact_checker": {
+                            "mode": "DETECT",
+                            "knowledge_base": [
+                                {
+                                    "add_block_domains": [],
+                                    "documents": [],
+                                    "knowledgeType": "web",
+                                    "num_urls": 3,
+                                    "search_engine": "Google",
+                                    "static_knowledge_source_type": ""
+                                }
+                            ],
+                            "content_processor": {
+                                "max_tokens_per_chunk": 100,
+                                "max_chunks_per_source": 3,
+                                "use_all_chunks": false,
+                                "name": "Semantic Similarity",
+                                "filter_method": {
+                                    "name": "Match Threshold",
+                                    "threshold": 0.5
+                                },
+                                "content_filtering": true,
+                                "content_filtering_threshold": 0.6,
+                                "factcheck_max_text": false,
+                                "max_input_text": 150
+                            },
+                            "mitigation_with_evidence": false
+                        },
+                    }
     output:
         flows:
             - autoalign factcheck output

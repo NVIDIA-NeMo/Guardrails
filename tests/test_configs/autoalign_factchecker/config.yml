@@ -1,0 +1,38 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+rails:
+    config:
+        autoalign:
+            parameters:
+                fact_check_endpoint: "https://nvidia.autoalign.ai/guardrail"
+            output:
+                guardrails_config:
+                  {
+                      "fact_checker": {
+                        "mode": "DETECT",
+                        "knowledge_base": {
+                            "num_urls": 5,
+                            "web_content": true,
+                            "max_tokens_per_chunk": 500,
+                            "add_block_domains": [
+                                "facebook.com"
+                            ],
+                            "search_engine": "Google",
+                            "static_knowledge": false
+                        },
+                        "content_processor": {
+                            "max_chunks_per_source": 15,
+                            "use_all_chunks": false,
+                            "filter_method": {
+                                "name": "Match Threshold",
+                                "threshold": 0.5
+                            }
+                        },
+                        "mitigation_with_evidence": false
+                      },
+                  }
+    output:
+        flows:
+            - autoalign factcheck output

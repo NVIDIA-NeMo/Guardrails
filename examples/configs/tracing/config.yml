@@ -1,0 +1,10 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+tracing:
+  enabled: true
+  adapters:
+    - name: FileSystem
+      filepath: "./traces/traces.jsonl"

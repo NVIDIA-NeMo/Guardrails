@@ -122,7 +122,7 @@ def moderation(
         help="The path to the guardrails config.", default="config"
     ),
     dataset_path: str = typer.Option(
-        "nemoguardrails/eval/data/moderation/harmful.txt",
+        "nemoguardrails/evaluate/data/moderation/harmful.txt",
         help="Path to dataset containing prompts",
     ),
     num_samples: int = typer.Option(50, help="Number of samples to evaluate"),
@@ -142,7 +142,7 @@ def moderation(
     Args:
         config (str): The path to the guardrails config. Defaults to "config".
         dataset_path (str): Path to the dataset containing prompts.
-            Defaults to "nemoguardrails/eval/data/moderation/harmful.txt".
+            Defaults to "nemoguardrails/evaluate/data/moderation/harmful.txt".
         num_samples (int): Number of samples to evaluate. Defaults to 50.
         check_input (bool): Evaluate the input self-check rail. Defaults to True.
         check_output (bool): Evaluate the output self-check rail. Defaults to True.
@@ -171,7 +171,7 @@ def hallucination(
         help="The path to the guardrails config.", default="config"
     ),
     dataset_path: str = typer.Option(
-        "nemoguardrails/eval/data/hallucination/sample.txt", help="Dataset path"
+        "nemoguardrails/evaluate/data/hallucination/sample.txt", help="Dataset path"
     ),
     num_samples: int = typer.Option(50, help="Number of samples to evaluate"),
     output_dir: str = typer.Option(
@@ -186,7 +186,7 @@ def hallucination(
 
     Args:
         config (str): The path to the guardrails config. Defaults to "config".
-        dataset_path (str): Dataset path. Defaults to "nemoguardrails/eval/data/hallucination/sample.txt".
+        dataset_path (str): Dataset path. Defaults to "nemoguardrails/evaluate/data/hallucination/sample.txt".
         num_samples (int): Number of samples to evaluate. Defaults to 50.
         output_dir (str): Output directory. Defaults to "eval_outputs/hallucination".
         write_outputs (bool): Write outputs to file. Defaults to True.
@@ -208,7 +208,7 @@ def fact_checking(
         help="The path to the guardrails config.", default="config"
     ),
     dataset_path: str = typer.Option(
-        "nemoguardrails/eval/data/factchecking/sample.json",
+        "nemoguardrails/evaluate/data/factchecking/sample.json",
         help="Path to the folder containing the dataset",
     ),
     num_samples: int = typer.Option(50, help="Number of samples to be evaluated"),
@@ -231,7 +231,7 @@ def fact_checking(
 
     Args:
         config (str): The path to the guardrails config. Defaults to "config".
-        dataset_path (str): Path to the folder containing the dataset. Defaults to "nemoguardrails/eval/data/factchecking/sample.json".
+        dataset_path (str): Path to the folder containing the dataset. Defaults to "nemoguardrails/evaluate/data/factchecking/sample.json".
         num_samples (int): Number of samples to be evaluated. Defaults to 50.
         create_negatives (bool): Create synthetic negative samples. Defaults to True.
         output_dir (str): Path to the folder where the outputs will be written. Defaults to "eval_outputs/factchecking".

@@ -30,12 +30,24 @@ from nemoguardrails.logging.explain import LLMCallInfo
 log = logging.getLogger(__name__)
 
 
-@action()
+def mapping_self_check_facts(result: float) -> bool:
+    """
+    Mapping for self_check_facts.
+
+    Expects result to be a numeric score (float) representing the factual accuracy.
+    Returns True (i.e. block the output) if the score is below 0.5.
+    """
+    THRESHOLD = 0.5
+    return result < THRESHOLD
+
+
+@action(output_mapping=mapping_self_check_facts)
 async def self_check_facts(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     llm: Optional[BaseLLM] = None,
     config: Optional[RailsConfig] = None,
+    **kwargs,
 ):
     """Checks the facts for the bot response by appropriately prompting the base llm."""
     _MAX_TOKENS = 3
@@ -66,9 +78,12 @@ async def self_check_facts(
     if llm_task_manager.has_output_parser(task):
         result = llm_task_manager.parse_task_output(task, output=response)
     else:
-        result = llm_task_manager.output_parsers["is_content_safe"](response)
+        result = llm_task_manager.parse_task_output(
+            task, output=response, forced_output_parser="is_content_safe"
+        )
 
-    is_not_safe, _ = result
+    result = result.text
+    is_not_safe = result[0]
 
     result = float(not is_not_safe)
     return result

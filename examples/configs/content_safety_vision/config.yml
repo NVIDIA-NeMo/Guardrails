@@ -1,0 +1,15 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+  - type: vision_rails
+    engine: openai
+    model: gpt-4o-mini
+rails:
+  input:
+    flows:
+      - content safety check input $model=vision_rails
+  dialog:
+    single_call:
+      enabled: False

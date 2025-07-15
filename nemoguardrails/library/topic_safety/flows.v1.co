@@ -1,0 +1,16 @@
+# TODO: add support for enable_rails_exceptions
+
+define bot refuse to respond
+  "I'm sorry, I can't respond to that."
+
+define flow topic safety check input
+  $response = execute topic_safety_check_input
+
+  $on_topic = $response["on_topic"]
+
+  if not $on_topic
+    if $config.enable_rails_exceptions
+      create event TopicSafetyCheckInputException(message="Input not allowed. The input was blocked by the 'topic safety check input $model='{$model}'' flow.")
+    else
+      bot refuse to respond
+    stop

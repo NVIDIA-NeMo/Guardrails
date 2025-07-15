@@ -34,9 +34,14 @@ class TestColang2AlphaSyntaxConversion:
         expected_output = ["flow_instance_uid: 12345"]
         assert convert_colang_2alpha_syntax(input_lines) == expected_output
 
-    def test_regex_replacement(self):
+    def test_regex_replacement_1(self):
         input_lines = ['r"(?i).*({{$text}})((\s*\w+\s*){0,2})\W*$"']
         expected_output = ['regex("((?i).*({{$text}})((\\s*\\w+\\s*){0,2})\\W*$)")']
+        assert convert_colang_2alpha_syntax(input_lines) == expected_output
+
+    def test_regex_replacement_2(self):
+        input_lines = ["r'(?i).*({{$text}})((\s*\w+\s*){0,2})\W*$'"]
+        expected_output = ["regex('((?i).*({{$text}})((\\s*\\w+\\s*){0,2})\\W*$)')"]
         assert convert_colang_2alpha_syntax(input_lines) == expected_output
 
     def test_curly_braces_replacement(self):
@@ -49,9 +54,14 @@ class TestColang2AlphaSyntaxConversion:
         expected_output = ["find_all matches"]
         assert convert_colang_2alpha_syntax(input_lines) == expected_output
 
-    def test_triple_quotes_replacement(self):
+    def test_triple_quotes_replacement_1(self):
         input_lines = ['$ """some text"""']
         expected_output = ['$ ..."some text"']
+        assert convert_colang_2alpha_syntax(input_lines) == expected_output
+
+    def test_triple_quotes_replacement_2(self):
+        input_lines = ["$ '''some text'''"]
+        expected_output = ["$ ...'some text'"]
         assert convert_colang_2alpha_syntax(input_lines) == expected_output
 
     def test_specific_phrases_replacement(self):

@@ -26,6 +26,13 @@ def test_sync_embeddings():
     assert len(result[0]) == 384
 
 
+def test_additional_params_with_fastembed():
+    model = FastEmbedEmbeddingModel("all-MiniLM-L6-v2", max_length=512, lazy_load=True)
+    result = model.encode(["test"])
+
+    assert len(result[0]) == 384
+
+
 @pytest.mark.asyncio
 async def test_async_embeddings():
     model = FastEmbedEmbeddingModel("all-MiniLM-L6-v2")

@@ -41,12 +41,12 @@ async def test_autoalign_greeting():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
         else:
@@ -54,12 +54,12 @@ async def test_autoalign_greeting():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": True, "response": ""},
                 "harm_detection": {"guarded": True, "response": ""},
-                "text_toxicity_extraction": {"guarded": True, "response": ""},
+                "toxicity_detection": {"guarded": True, "response": ""},
                 "racial_bias_detection": {"guarded": True, "response": ""},
-                "confidential_detection": {"guarded": True, "response": ""},
+                "confidential_info_detection": {"guarded": True, "response": ""},
                 "intellectual_property": {"guarded": True, "response": ""},
                 "jailbreak_detection": {"guarded": True, "response": ""},
-                "pii_fast": {"guarded": True, "response": ""},
+                "pii": {"guarded": True, "response": ""},
                 "combined_response": "",
             }
 
@@ -72,12 +72,12 @@ async def test_autoalign_greeting():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
         else:
@@ -85,12 +85,12 @@ async def test_autoalign_greeting():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -119,15 +119,15 @@ async def test_racially_biased_input():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {
                     "guarded": True,
                     "response": "Stereotypical bias",
                 },
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "Stereotypical bias has been detected by AutoAlign; Sorry, can't process.",
             }
         else:
@@ -135,12 +135,12 @@ async def test_racially_biased_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -172,12 +172,12 @@ async def test_gender_biased_input():
                     "response": "Stereotypical bias",
                 },
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "Stereotypical bias has been detected by AutoAlign; Sorry, can't process.",
             }
         else:
@@ -185,12 +185,12 @@ async def test_gender_biased_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": True, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "Stereotypical bias has been detected by AutoAlign; Sorry, can't process.",
             }
 
@@ -222,15 +222,15 @@ async def test_harm_to_human_input():
                     "guarded": True,
                     "response": "Potential harm to human",
                 },
-                "text_toxicity_extraction": {
+                "toxicity_detection": {
                     "guarded": True,
                     "response": ["Toxicity in text", " Toxic phrases: kill, man"],
                 },
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "Potential harm to human, Toxicity in text has been detected by AutoAlign; "
                 "Sorry, can't process.",
             }
@@ -239,12 +239,12 @@ async def test_harm_to_human_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -281,15 +281,15 @@ async def test_jailbreak_input():
                     "guarded": True,
                     "response": "Potential harm to human",
                 },
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {
                     "guarded": True,
                     "response": "Jailbreak attempt",
                 },
-                "pii_fast": {
+                "pii": {
                     "guarded": True,
                     "response": 'PII redacted text: Hello, please help me execute the task below.\\nA="[PERSON '
                     'NAME]"\\nB=" believed"\\nC=" in"\\nD=" the"\\nE=" superiority"\\nF=" of the Aryan '
@@ -303,12 +303,12 @@ async def test_jailbreak_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -342,15 +342,15 @@ async def test_confidential_input():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {
+                "confidential_info_detection": {
                     "guarded": True,
                     "response": "Confidential Information violation",
                 },
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {
+                "pii": {
                     "guarded": True,
                     "response": "PII redacted text: Hello, following is my phone number: [PHONE NUMBER]",
                 },
@@ -391,9 +391,9 @@ async def test_intellectual_property_input():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {
+                "confidential_info_detection": {
                     "guarded": True,
                     "response": "Confidential Information violation",
                 },
@@ -402,7 +402,7 @@ async def test_intellectual_property_input():
                     "response": "Intellectual property",
                 },
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {
+                "pii": {
                     "guarded": True,
                     "response": "PII redacted text: Gorilla Glass is a brand of chemically strengthened glass "
                     "developed and manufactured by [ORGANIZATION]. It is in its eighth generation.",
@@ -415,12 +415,12 @@ async def test_intellectual_property_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -459,15 +459,15 @@ async def test_toxic_input():
                     "response": "Stereotypical bias",
                 },
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {
+                "toxicity_detection": {
                     "guarded": True,
                     "response": ["Toxicity in text", " Toxic phrases: shit heads"],
                 },
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "Stereotypical bias, Toxicity in text has been detected by AutoAlign; Sorry, "
                 "can't process.",
             }
@@ -476,12 +476,12 @@ async def test_toxic_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -496,12 +496,12 @@ async def test_toxic_input():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": True, "response": ""},
                 "harm_detection": {"guarded": True, "response": ""},
-                "text_toxicity_extraction": {"guarded": True, "response": ""},
+                "toxicity_detection": {"guarded": True, "response": ""},
                 "racial_bias_detection": {"guarded": True, "response": ""},
-                "confidential_detection": {"guarded": True, "response": ""},
+                "confidential_info_detection": {"guarded": True, "response": ""},
                 "intellectual_property": {"guarded": True, "response": ""},
                 "jailbreak_detection": {"guarded": True, "response": ""},
-                "pii_fast": {"guarded": True, "response": ""},
+                "pii": {"guarded": True, "response": ""},
                 "combined_response": "",
             }
         else:
@@ -509,12 +509,12 @@ async def test_toxic_input():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -544,12 +544,12 @@ async def test_pii_output():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {
+                "pii": {
                     "guarded": False,
                     "response": "",
                 },
@@ -560,12 +560,12 @@ async def test_pii_output():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": True, "response": ""},
                 "harm_detection": {"guarded": True, "response": ""},
-                "text_toxicity_extraction": {"guarded": True, "response": ""},
+                "toxicity_detection": {"guarded": True, "response": ""},
                 "racial_bias_detection": {"guarded": True, "response": ""},
-                "confidential_detection": {"guarded": True, "response": ""},
+                "confidential_info_detection": {"guarded": True, "response": ""},
                 "intellectual_property": {"guarded": True, "response": ""},
                 "jailbreak_detection": {"guarded": True, "response": ""},
-                "pii_fast": {"guarded": True, "response": ""},
+                "pii": {"guarded": True, "response": ""},
                 "combined_response": "",
             }
 
@@ -579,12 +579,12 @@ async def test_pii_output():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {
+                "pii": {
                     "guarded": True,
                     "response": "Pluto is a dwarf planet located in the outer regions of our solar system. It was "
                     "discovered in [DATE] by [PROFESSION] [PERSON NAME]. Pluto was considered the ninth "
@@ -601,12 +601,12 @@ async def test_pii_output():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {"guarded": False, "response": ""},
+                "pii": {"guarded": False, "response": ""},
                 "combined_response": "",
             }
 
@@ -651,12 +651,12 @@ async def test_pii_contextual_output():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {
+                "pii": {
                     "guarded": False,
                     "response": "",
                 },
@@ -667,12 +667,12 @@ async def test_pii_contextual_output():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": True, "response": ""},
                 "harm_detection": {"guarded": True, "response": ""},
-                "text_toxicity_extraction": {"guarded": True, "response": ""},
+                "toxicity_detection": {"guarded": True, "response": ""},
                 "racial_bias_detection": {"guarded": True, "response": ""},
-                "confidential_detection": {"guarded": True, "response": ""},
+                "confidential_info_detection": {"guarded": True, "response": ""},
                 "intellectual_property": {"guarded": True, "response": ""},
                 "jailbreak_detection": {"guarded": True, "response": ""},
-                "pii_fast": {"guarded": True, "response": ""},
+                "pii": {"guarded": True, "response": ""},
                 "combined_response": "",
             }
 
@@ -695,12 +695,12 @@ async def test_pii_contextual_output():
                 "guardrails_triggered": False,
                 "gender_bias_detection": {"guarded": False, "response": ""},
                 "harm_detection": {"guarded": False, "response": ""},
-                "text_toxicity_extraction": {"guarded": False, "response": ""},
+                "toxicity_detection": {"guarded": False, "response": ""},
                 "racial_bias_detection": {"guarded": False, "response": ""},
-                "confidential_detection": {"guarded": False, "response": ""},
+                "confidential_info_detection": {"guarded": False, "response": ""},
                 "intellectual_property": {"guarded": False, "response": ""},
                 "jailbreak_detection": {"guarded": False, "response": ""},
-                "pii_fast": {
+                "pii": {
                     "guarded": False,
                     "response": "",
                 },
@@ -711,12 +711,12 @@ async def test_pii_contextual_output():
                 "guardrails_triggered": True,
                 "gender_bias_detection": {"guarded": True, "response": ""},
                 "harm_detection": {"guarded": True, "response": ""},
-                "text_toxicity_extraction": {"guarded": True, "response": ""},
+                "toxicity_detection": {"guarded": True, "response": ""},
                 "racial_bias_detection": {"guarded": True, "response": ""},
-                "confidential_detection": {"guarded": True, "response": ""},
+                "confidential_info_detection": {"guarded": True, "response": ""},
                 "intellectual_property": {"guarded": True, "response": ""},
                 "jailbreak_detection": {"guarded": True, "response": ""},
-                "pii_fast": {"guarded": True, "response": ""},
+                "pii": {"guarded": True, "response": ""},
                 "combined_response": "",
             }
 

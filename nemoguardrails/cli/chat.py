@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, cast
@@ -30,7 +31,7 @@ from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.streaming import StreamingHandler
-from nemoguardrails.utils import new_event_dict, new_uuid
+from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -82,17 +83,29 @@ async def _run_chat_v1_0(
         if not server_url:
             # If we have streaming from a locally loaded config, we initialize the handler.
             if streaming and not server_url and rails_app.main_llm_supports_streaming:
-                streaming_handler = StreamingHandler(enable_print=True)
+                bot_message_list = []
+                async for chunk in rails_app.stream_async(messages=history):
+                    if '{"event": "ABORT"' in chunk:
+                        dict_chunk = json.loads(chunk)
+                        console.print(
+                            "\n\n[red]"
+                            + f"ABORT streaming. {dict_chunk['data']}"
+                            + "[/]"
+                        )
+                        break
+
+                    console.print("[green]" + f"{chunk}" + "[/]", end="")
+                    bot_message_list.append(chunk)
+
+                bot_message_text = "".join(bot_message_list)
+                bot_message = {"role": "assistant", "content": bot_message_text}
+
             else:
-                streaming_handler = None
+                bot_message = await rails_app.generate_async(messages=history)
 
-            bot_message = await rails_app.generate_async(
-                messages=history, streaming_handler=streaming_handler
-            )
-
-            if not streaming or not rails_app.main_llm_supports_streaming:
-                # We print bot messages in green.
-                console.print("[green]" + f"{bot_message['content']}" + "[/]")
+                if not streaming or not rails_app.main_llm_supports_streaming:
+                    # We print bot messages in green.
+                    console.print("[green]" + f"{bot_message['content']}" + "[/]")
         else:
             data = {
                 "config_id": config_id,
@@ -535,13 +548,18 @@ async def _run_chat_v2_x(rails_app: LLMRails):
                     else:
                         chat_state.input_events = [event]
                 else:
+                    action_uid = new_uuid()
                     chat_state.input_events = [
+                        new_event_dict(
+                            "UtteranceUserActionStarted",
+                            action_uid=action_uid,
+                        ),
                         new_event_dict(
                             "UtteranceUserActionFinished",
                             final_transcript=user_message,
                             action_uid=new_uuid(),
                             is_success=True,
-                        )
+                        ),
                     ]
 
             await _process_input_events()
@@ -657,6 +675,7 @@ def run_chat(
         )
     elif rails_config.colang_version == "2.x":
         rails_app = LLMRails(rails_config, verbose=verbose)
-        asyncio.run(_run_chat_v2_x(rails_app))
+        loop = get_or_create_event_loop()
+        loop.run_until_complete(_run_chat_v2_x(rails_app))
     else:
         raise Exception(f"Invalid colang version: {rails_config.colang_version}")

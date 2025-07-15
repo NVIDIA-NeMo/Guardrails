@@ -34,6 +34,7 @@ async def content_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    **kwargs,
 ) -> dict:
     _MAX_TOKENS = 3
     user_input: str = ""
@@ -79,23 +80,36 @@ async def content_safety_check_input(
         result = await llm_call(llm, check_input_prompt, stop=stop)
 
     result = llm_task_manager.parse_task_output(task, output=result)
+    result = result.text
 
-    try:
-        is_safe, violated_policies = result
-    # in case the result is single value
-    except TypeError:
-        is_safe = result
-        violated_policies = []
+    is_safe, *violated_policies = result
 
     return {"allowed": is_safe, "policy_violations": violated_policies}
 
 
-@action()
+def content_safety_check_output_mapping(result: dict) -> bool:
+    """
+    Mapping function for content_safety_check_output.
+
+    Assumes result is a dictionary with:
+      - "allowed": a boolean where True means the content is safe.
+      - "policy_violations": a list of policies that were violated (optional in the mapping logic).
+
+    Returns:
+        True if the content should be blocked (i.e. allowed is False),
+        False if the content is safe.
+    """
+    allowed = result.get("allowed", True)
+    return not allowed
+
+
+@action(output_mapping=content_safety_check_output_mapping)
 async def content_safety_check_output(
     llms: Dict[str, BaseLLM],
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    **kwargs,
 ) -> dict:
     _MAX_TOKENS = 3
     user_input: str = ""
@@ -144,10 +158,7 @@ async def content_safety_check_output(
 
     result = llm_task_manager.parse_task_output(task, output=result)
 
-    try:
-        is_safe, violated_policies = result
-    except TypeError:
-        is_safe = result
-        violated_policies = []
+    result = result.text
+    is_safe, *violated_policies = result
 
     return {"allowed": is_safe, "policy_violations": violated_policies}

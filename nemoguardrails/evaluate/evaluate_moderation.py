@@ -35,7 +35,7 @@ class ModerationRailsEvaluation:
     def __init__(
         self,
         config: str,
-        dataset_path: str = "nemoguardrails/nemoguardrails/eval/data/moderation/harmful.txt",
+        dataset_path: str = "nemoguardrails/nemoguardrails/evaluate/data/moderation/harmful.txt",
         num_samples: int = 50,
         check_input: bool = True,
         check_output: bool = True,

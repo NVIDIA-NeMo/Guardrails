@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import hashlib
 import logging
 import os
 from time import time
@@ -22,6 +21,7 @@ from typing import Callable, List, Optional, cast
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 from nemoguardrails.kb.utils import split_markdown_in_topic_chunks
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, KnowledgeBaseConfig
+from nemoguardrails.utils import compute_hash
 
 log = logging.getLogger(__name__)
 
@@ -114,18 +114,16 @@ class KnowledgeBase:
         if not index_items:
             return
 
-        # We compute the md5
+        # We compute the hash using default hash algorithm
         # As part of the hash, we also include the embedding engine and the model
         # to prevent the cache being used incorrectly when the embedding model changes.
         hash_prefix = self.config.embedding_search_provider.parameters.get(
             "embedding_engine", ""
         ) + self.config.embedding_search_provider.parameters.get("embedding_model", "")
 
-        md5_hash = hashlib.md5(
-            (hash_prefix + "".join(all_text_items)).encode("utf-8")
-        ).hexdigest()
-        cache_file = os.path.join(CACHE_FOLDER, f"{md5_hash}.ann")
-        embedding_size_file = os.path.join(CACHE_FOLDER, f"{md5_hash}.esize")
+        hash_value = compute_hash(hash_prefix + "".join(all_text_items))
+        cache_file = os.path.join(CACHE_FOLDER, f"{hash_value}.ann")
+        embedding_size_file = os.path.join(CACHE_FOLDER, f"{hash_value}.esize")
 
         # If we have already computed this before, we use it
         if (

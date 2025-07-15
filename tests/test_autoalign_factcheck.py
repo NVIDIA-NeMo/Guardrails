@@ -27,7 +27,7 @@ CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 def build_kb():
     with open(
-        os.path.join(CONFIGS_FOLDER, "autoalign_factcheck", "kb", "kb.md"), "r"
+        os.path.join(CONFIGS_FOLDER, "autoalign_groundness", "kb", "kb.md"), "r"
     ) as f:
         content = f.readlines()
 
@@ -49,8 +49,8 @@ async def retrieve_relevant_chunks():
 
 
 @pytest.mark.asyncio
-async def test_fact_checking_correct(httpx_mock):
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "autoalign_factcheck"))
+async def test_groundness_correct(httpx_mock):
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "autoalign_groundness"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -65,7 +65,7 @@ async def test_fact_checking_correct(httpx_mock):
         ],
     )
 
-    async def mock_autoalign_factcheck_output_api(
+    async def mock_autoalign_groundedness_output_api(
         context: Optional[dict] = None, **kwargs
     ):
         query = context.get("bot_message")
@@ -86,7 +86,7 @@ async def test_fact_checking_correct(httpx_mock):
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     chat.app.register_action(
-        mock_autoalign_factcheck_output_api, "autoalign_factcheck_output_api"
+        mock_autoalign_groundedness_output_api, "autoalign_groundedness_output_api"
     )
 
     (
@@ -106,9 +106,9 @@ async def test_fact_checking_correct(httpx_mock):
 
 
 @pytest.mark.asyncio
-async def test_fact_checking_wrong(httpx_mock):
+async def test_groundness_check_wrong(httpx_mock):
     # Test  - Very low score - Not factual
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "autoalign_factcheck"))
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "autoalign_groundness"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -122,7 +122,7 @@ async def test_fact_checking_wrong(httpx_mock):
         ],
     )
 
-    async def mock_autoalign_factcheck_output_api(
+    async def mock_autoalign_groundedness_output_api(
         context: Optional[dict] = None, **kwargs
     ):
         query = context.get("bot_message")
@@ -141,7 +141,7 @@ async def test_fact_checking_wrong(httpx_mock):
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     chat.app.register_action(
-        mock_autoalign_factcheck_output_api, "autoalign_factcheck_output_api"
+        mock_autoalign_groundedness_output_api, "autoalign_groundedness_output_api"
     )
     (
         chat
@@ -155,3 +155,30 @@ async def test_fact_checking_wrong(httpx_mock):
         "and 2012, respectively. These moons are much smaller than Charon and Pluto, but they are still "
         "significant in understanding the dynamics of the Pluto system. Isn't that fascinating?"
     )
+
+
+@pytest.mark.asyncio
+async def test_factcheck():
+    config = RailsConfig.from_path(
+        os.path.join(CONFIGS_FOLDER, "autoalign_factchecker")
+    )
+
+    chat = TestChat(config, llm_completions=["factually correct response"])
+
+    async def mock_autoalign_factcheck_output_api(
+        context: Optional[dict] = None, **kwargs
+    ):
+        user_prompt = context.get("user_message")
+        bot_response = context.get("bot_message")
+
+        assert user_prompt == "mock user prompt"
+        assert bot_response == "factually correct response"
+
+        return 1.0
+
+    chat.app.register_action(
+        mock_autoalign_factcheck_output_api, "autoalign_factcheck_output_api"
+    )
+
+    chat >> "mock user prompt"
+    await chat.bot_async("factually correct response")

@@ -1,0 +1,26 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  config:
+    privateai:
+      server_endpoint: https://api.private-ai.com/cloud/v3/process/text
+      input:
+        entities:
+          - NAME_FAMILY
+          - LOCATION_ADDRESS_STREET
+          - EMAIL_ADDRESS
+      output:
+        entities:   # If no entity is specified here, all supported entities will be detected by default.
+          - NAME_FAMILY
+          - LOCATION_ADDRESS_STREET
+          - EMAIL_ADDRESS
+  input:
+    flows:
+      - detect pii on input
+
+  output:
+    flows:
+      - detect pii on output

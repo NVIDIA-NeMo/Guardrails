@@ -6,25 +6,101 @@
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
 stages:
-    - test
+    - tests
+    - build
+    - docker-test
+    - deploy
 sast:
-    stage: test
+    stage: tests
 include:
     - template: Security/SAST.gitlab-ci.yml
+    - project: "sw-gpu-doctools/docs-ci"
+      ref: main
+      file: "nemo-guardrails-toolkit/docs-ci.yaml"
 
-# Runs the tests suite
-test:
-    stage: test
-    image: python:3.10
-    cache:
-        key: "feature--speed-up-ci-with-cache-non_protected"
-        paths:
-            - .cache/pip
+variables:
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    POETRY_VERSION: "1.8.2"
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    LATEST_TAG: $CI_REGISTRY_IMAGE:latest
+
+cache:
+    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+        - .venv/
+        - .cache/pip
+        - poetry.lock
+        - pyproject.toml
+
+# Jobs templates
+
+.install-deps-template: &install-deps
     before_script:
-        - pip install --upgrade pip
-        - pip --version
-        - pip install --cache-dir .cache/pip .[dev]
-        - pip install -e .[sdd]
-    script:
-        - python -m pytest --cov=./nemoguardrails --cov=./examples --no-cov-on-fail --cov-fail-under=55
+        - pip install poetry==$POETRY_VERSION
+        - poetry --version
+        - poetry config virtualenvs.in-project true
+        - poetry install --extras all --with dev
+
+.test-template: &test
+    <<: *install-deps
+    stage: tests
     coverage: /(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/
+    script: make test
+
+# Tests jobs
+
+python3.9:
+    <<: *test
+    image: python:3.9
+
+python3.10:
+    <<: *test
+    image: python:3.10
+
+python3.11:
+    <<: *test
+    image: python:3.11
+
+python3.12:
+    <<: *test
+    image: python:3.12
+
+python3.13:
+    <<: *test
+    image: python:3.13
+
+# Build job
+build:
+    stage: build
+    image: docker:19.03.12
+    services:
+        - docker:19.03.12-dind
+    variables:
+        DOCKER_DRIVER: overlay2
+        DOCKER_TLS_CERTDIR: "/certs"
+    before_script:
+        - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    script:
+        - docker build -t $IMAGE_TAG -f ./qa/Dockerfile.qa .
+        - docker push $IMAGE_TAG
+    only:
+        - tags
+    tags:
+        - gitlab-runner-bignlp-api
+
+# Docker test job
+docker-test:
+    stage: docker-test
+    image: docker:19.03.12
+    services:
+        - docker:19.03.12-dind
+    before_script:
+        - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    script:
+        - docker pull $IMAGE_TAG
+        - docker run --rm $IMAGE_TAG pytest || (docker rmi $IMAGE_TAG && exit 1)
+    only:
+        - tags
+
+    tags:
+        - gitlab-runner-bignlp-api

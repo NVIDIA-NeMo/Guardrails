@@ -11,3 +11,16 @@ flow jailbreak detection heuristics
     else
       bot refuse to respond
     abort
+
+flow jailbreak detection model
+  """
+  Assess whether the user's prompt is an attempted jailbreak using embedding-based jailbreak detection models.
+  """
+  $is_jailbreak = await JailbreakDetectionModelAction
+
+  if $is_jailbreak
+    if $system.config.enable_rails_exceptions
+      send JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
+    else
+      bot refuse to respond
+    abort

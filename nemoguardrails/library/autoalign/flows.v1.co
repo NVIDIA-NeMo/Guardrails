@@ -7,8 +7,8 @@ define subflow autoalign check input
     else
       bot refuse to respond
     stop
-  else if $input_result["pii_fast"] and $input_result["pii_fast"]["guarded"]:
-    $user_message = $input_result["pii_fast"]["response"]
+  else if $input_result["pii"] and $input_result["pii"]["guarded"]:
+    $user_message = $input_result["pii"]["response"]
 
 define subflow autoalign check output
   $output_result = execute autoalign_output_api(show_autoalign_message=True)
@@ -19,16 +19,20 @@ define subflow autoalign check output
       bot refuse to respond
     stop
   else
-    $pii_message_output = $output_result["pii_fast"]["response"]
-    if $output_result["pii_fast"]["guarded"]
+    $pii_message_output = $output_result["pii"]["response"]
+    if $output_result["pii"]["guarded"]
       $bot_message = $pii_message_output
 
-define subflow autoalign factcheck output
+define subflow autoalign groundedness output
   if $check_facts == True
     $check_facts = False
     $threshold = 0.5
-    $output_result = execute autoalign_factcheck_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)
+    $output_result = execute autoalign_groundedness_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)
     bot provide response
+
+define subflow autoalign factcheck output
+  $threshold = 0.5
+  $output_result = execute autoalign_factcheck_output_api(factcheck_threshold=$threshold, show_autoalign_message=True)
 
 define bot refuse to respond
   "I'm sorry, I can't respond to that."

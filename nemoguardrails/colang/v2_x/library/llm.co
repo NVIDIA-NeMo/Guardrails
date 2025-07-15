@@ -100,7 +100,7 @@ flow continuation on unhandled user utterance
 
   # retrieve relevant chunks from KB if user_message is not empty
 
-  await RetrieveRelevantChunksAction()
+  await RetrieveRelevantChunksAction(is_colang_2=True)
 
 
   #await GenerateUserIntentAction(user_action=$action, max_example_flows=20) as $action_ref
@@ -178,7 +178,6 @@ flow continuation on unhandled user intent
 @loop("NEW")
 flow continuation on undefined flow
   """Generate and start a new flow to continue the interaction for the start of an undefined flow."""
-  activate polling llm request response
   match UnhandledEvent(event="StartFlow") as $event
   log 'unhandled start of flow: `{$event.flow_id}` ({$event.flow_instance_uid})'
 
@@ -191,11 +190,15 @@ flow continuation on undefined flow
 
     send FlowStarted(flow_id=$event.flow_id, flow_instance_uid=$event.flow_instance_uid)
     # Once this fallback flow receives the user intent it will finish and therefore also trigger the original matcher
-    match FlowFinished(flow_id=$event.flow_id)
+    # We need to wait for both events, since one enables to add an expected intent and the other will trigger for
+    # the generated user intent:
+    match FlowFinished(flow_id=$event.flow_id) or FinishFlow(flow_id=$event.flow_id)
 
   else
     # We have an undefined bot intent, let's generate a new flow for it
     log 'unhandled bot intent flow: `{$event.flow_id}`'
+
+    activate polling llm request response
 
     # Generate a flow and add it to the runtime
     $flow_source = await GenerateFlowFromNameAction(name=$event.flow_id)
@@ -218,7 +221,7 @@ flow llm generate interaction continuation flow -> $flow_name
 
 
   # retrieve relevant chunks from KB if user_message is not empty
-  await RetrieveRelevantChunksAction()
+  await RetrieveRelevantChunksAction(is_colang_2=True)
 
 
   log 'start generating flow continuation...'

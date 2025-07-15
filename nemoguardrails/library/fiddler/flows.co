@@ -1,0 +1,40 @@
+
+flow fiddler user safety
+  """
+  Use Fiddler's SLMs to detect jailbreaks
+  """
+  $is_jailbreak = await CallFiddlerSafetyUserAction()
+
+  if $is_jailbreak
+    if $config.enable_rails_exceptions
+      send JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
+    else
+      bot refuse to respond
+    abort
+
+
+flow fiddler bot safety
+  """
+  Use Fiddler's SLMs to detect jailbreaks
+  """
+  $is_jailbreak = await CallFiddlerSafetyBotAction()
+
+  if $is_jailbreak
+    if $config.enable_rails_exceptions
+      send JailbreakDetectionRailException(message="Jailbreak attempt detected. The user's prompt was identified as an attempted jailbreak. Please ensure your prompt adheres to the guidelines.")
+    else
+      bot refuse to respond
+    abort
+
+flow fiddler bot faithfulness
+  """
+  Use Fiddler's SLMs to detect hallucinations
+  """
+  $is_faithful = await CallFiddlerFaithfulnessAction()
+
+  if $is_faithful
+    if $config.enable_rails_exceptions
+      send FaithfulnessRailException(message="Hallucination Detected. The output was a hallucination.")
+    else
+      bot refuse to respond
+    abort

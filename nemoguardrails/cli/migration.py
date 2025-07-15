@@ -91,12 +91,17 @@ def convert_colang_2alpha_syntax(lines: List[str]) -> List[str]:
         line = re.sub(r"flow_start_uid", "flow_instance_uid", line)
         # line = re.sub(r'r"(.*)"', r'regex("\1")', line)
         line = re.sub(r'r"(.*)"', r'regex("(\1)")', line)
+        line = re.sub(r"r'(.*)'", r"regex('(\1)')", line)
         line = re.sub(r'"\{\{(.*)\}\}"', r'"{\1}"', line)
+        line = re.sub(r"'\{\{(.*)\}\}'", r"'{\1}'", line)
         line = re.sub(r"findall", "find_all", line)
 
         # Convert triple quotes to ellipsis followed by double quotes for inline NLDs
-        if line.strip().startswith("$") and '"""' in line:
-            line = re.sub(r'"""(.*)"""', r'..."\1"', line)
+        if line.strip().startswith("$"):
+            if '"""' in line:
+                line = re.sub(r'"""(.*)"""', r'..."\1"', line)
+            elif "'''" in line:
+                line = re.sub(r"'''(.*)'''", r"...'\1'", line)
 
         # Replace specific phrases based on the file
         # if "core.co" in file_path:
@@ -111,6 +116,7 @@ def convert_colang_2alpha_syntax(lines: List[str]) -> List[str]:
         line = line.replace("track bot talking state", "tracking bot talking state")
         line = line.replace("track user talking state", "tracking user talking state")
         line = line.replace("track user utterance state", "tracking user talking state")
+        line = line.replace("track bot utterance state", "tracking bot talking state")
 
         # we must import core library
         _confirm_and_tag_replace(line, original_line, "core")
@@ -143,6 +149,20 @@ def convert_colang_2alpha_syntax(lines: List[str]) -> List[str]:
         line = line.replace("manage talking posture", "managing talking posture")
         line = line.replace("manage thinking posture", "managing thinking posture")
         line = line.replace("manage bot postures", "managing bot postures")
+
+        # Flows that were deprecated and have no replacement
+        line = line.replace(
+            "manage attentive posture",
+            "!!!! DEPRECATED FLOW (please remove): manage attentive posture",
+        )
+        line = line.replace(
+            "track user presence state",
+            "!!!! DEPRECATED FLOW (please remove): track user presence state",
+        )
+        line = line.replace(
+            "user became no longer present",
+            "!!!! DEPRECATED FLOW (please remove): user became no longer present",
+        )
 
         # we must import avatar library
         _confirm_and_tag_replace(line, original_line, "avatars")

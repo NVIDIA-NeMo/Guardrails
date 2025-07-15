@@ -1,0 +1,14 @@
+models:
+    - type: main
+      engine: openai
+      model: gpt-3.5-turbo-instruct
+rails:
+    config:
+        fiddler:
+            fiddler_endpoint: https://testfiddler.ai
+    input:
+        flows:
+            - fiddler user safety
+    output:
+        flows:
+            - fiddler bot safety

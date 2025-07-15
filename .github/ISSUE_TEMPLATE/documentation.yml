@@ -1,0 +1,49 @@
+name: "Documentation Issue"
+labels: ["documentation", "status: needs triage"]
+title: "doc: "
+description: "Did you find any errors, omissions, or unclear sections in the documentation?"
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to file a complete bug report.
+
+        Before submitting your issue, please review the [relevant section](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/CONTRIBUTING.md#suggesting-enhancements-and-new-features) of our documentation.
+
+  - type: checkboxes
+    attributes:
+      label: Please also confirm the following
+      options:
+        - label: I have searched the [main issue tracker](https://github.com/NVIDIA/NeMo-Guardrails/issues) of NeMo Guardrails repository and believe that this is not a duplicate
+          required: true
+  - type: dropdown
+    attributes:
+      label: Issue Kind
+      description: |
+        What best describes the issue?
+      options:
+        - "Improving documentation"
+        - "Error in existing documentation"
+        - "Missing documentation"
+        - "Unclear documentation"
+        - "Other concerns with documentation"
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Existing Link
+      description: |
+        If the documentation in question exists, please provide a link to it.
+      placeholder: "https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Description
+      description: |
+        Please provide a detailed description of the feature, including any relevant information. You can use markdown syntax.
+    validations:
+      required: true

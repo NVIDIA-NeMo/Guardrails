@@ -1,0 +1,15 @@
+models:
+  - type: main
+    engine: nim
+    model: meta/llama3_8b_instruct
+rails:
+  config:
+    autoalign:
+      parameters:
+        groundedness_check_endpoint: "https://nvidia.autoalign.ai/groundedness_check"
+      output:
+        guardrails_config:
+          { "groundedness_checker": { "verify_response": false } }
+  output:
+    flows:
+      - autoalign groundedness output

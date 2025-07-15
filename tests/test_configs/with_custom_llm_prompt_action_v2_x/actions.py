@@ -50,6 +50,7 @@ async def custom_llm_request(
         result = await llm_call(llm, prompt, stop=stop)
 
     result = llm_task_manager.parse_task_output(prompt_template_name, output=result)
+    result = result.text
 
     # Any additional parsing of the output
     value = result.strip().split("\n")[0]

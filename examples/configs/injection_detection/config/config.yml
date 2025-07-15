@@ -1,0 +1,14 @@
+models:
+  - type: main
+    engine: nvidia_ai_endpoints
+    model: meta/llama-3.3-70b-instruct
+
+rails:
+  config:
+    injection_detection:
+      injections:
+        - code
+        - sqli
+        - template
+        - xss
+      action: reject

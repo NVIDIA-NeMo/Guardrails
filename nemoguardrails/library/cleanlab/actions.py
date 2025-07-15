@@ -22,9 +22,21 @@ from nemoguardrails.actions import action
 log = logging.getLogger(__name__)
 
 
-@action(name="call cleanlab api", is_system_action=True)
+def cleanlab_output_mapping(result: dict) -> bool:
+    """Block if the trustworthiness score is below 0.6."""
+
+    score = result.get("trustworthiness_score", 1)
+    return score < 0.6
+
+
+@action(
+    name="call cleanlab api",
+    is_system_action=True,
+    output_mapping=cleanlab_output_mapping,
+)
 async def call_cleanlab_api(
     context: Optional[dict] = None,
+    **kwargs,
 ) -> Union[ValueError, ImportError, Dict]:
     api_key = os.environ.get("CLEANLAB_API_KEY")
 
@@ -45,9 +57,10 @@ async def call_cleanlab_api(
     cleanlab_tlm = studio.TLM()
 
     if bot_response:
-        trustworthiness_score = await cleanlab_tlm.get_trustworthiness_score_async(
+        trustworthiness_result = await cleanlab_tlm.get_trustworthiness_score_async(
             user_input, response=bot_response
         )
+        trustworthiness_score = trustworthiness_result["trustworthiness_score"]
     else:
         raise ValueError(
             "Cannot compute trustworthiness score without a valid response from the LLM"

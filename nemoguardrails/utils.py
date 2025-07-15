@@ -14,16 +14,20 @@
 # limitations under the License.
 import asyncio
 import dataclasses
+import fnmatch
+import hashlib
 import importlib.resources as pkg_resources
 import json
 import os
 import random
 import re
 import uuid
+from ast import literal_eval
 from collections import namedtuple
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Tuple
+from pathlib import Path
+from typing import Any, Dict, Optional, Set, Tuple
 
 import yaml
 from rich.console import Console
@@ -138,9 +142,8 @@ _action_to_modality_info: Dict[str, Tuple[str, str]] = {
     "UtteranceBotAction": ("bot_speech", "replace"),
     "UtteranceUserAction": ("user_speech", "replace"),
     "TimerBotAction": ("time", "parallel"),
-    "FacialGestureBotAction": ("bot_gesture", "override"),
-    "GestureBotAction": ("bot_gesture", "override"),
     "FacialGestureBotAction": ("bot_face", "replace"),
+    "GestureBotAction": ("bot_gesture", "override"),
     "PostureBotAction": ("bot_posture", "override"),
     "VisualChoiceSceneAction": ("information", "override"),
     "VisualInformationSceneAction": ("information", "override"),
@@ -162,16 +165,15 @@ def _add_modality_info(event_dict: Dict[str, Any]) -> None:
 
 def _update_action_properties(event_dict: Dict[str, Any]) -> None:
     """Update action related even properties and ensure UMIM compliance (very basic)"""
-
+    now = datetime.now(timezone.utc).isoformat()
     if "Started" in event_dict["type"]:
-        event_dict["action_started_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_started_at", now)
     elif "Start" in event_dict["type"]:
-        if "action_uid" not in event_dict:
-            event_dict["action_uid"] = new_uuid()
+        event_dict.setdefault("action_uid", new_uuid())
     elif "Updated" in event_dict["type"]:
-        event_dict["action_updated_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_updated_at", now)
     elif "Finished" in event_dict["type"]:
-        event_dict["action_finished_at"] = datetime.now(timezone.utc).isoformat()
+        event_dict.setdefault("action_finished_at", now)
         if (
             "is_success" in event_dict
             and event_dict["is_success"]
@@ -312,3 +314,206 @@ def snake_to_camelcase(name: str) -> str:
         str: The converted CamelCase string.
     """
     return "".join(n.capitalize() for n in name.split("_"))
+
+
+def get_railsignore_path(path: Optional[str] = None) -> Optional[Path]:
+    """Get railsignore path.
+
+    Args:
+        path (Optional[str]): The starting path to search for the .railsignore file.
+
+    Returns:
+        Path: The .railsignore file path, if found.
+
+    Raises:
+        FileNotFoundError: If the .railsignore file is not found.
+    """
+    current_path = Path(path) if path else Path.cwd()
+
+    while True:
+        railsignore_file = current_path / ".railsignore"
+        if railsignore_file.exists() and railsignore_file.is_file():
+            return railsignore_file
+        if current_path == current_path.parent:
+            break
+        current_path = current_path.parent
+
+    return None
+
+
+def get_railsignore_patterns(railsignore_path: Path) -> Set[str]:
+    """Retrieve all specified patterns in railsignore.
+
+    Returns:
+        Set[str]: The set of filenames or glob patterns in railsignore
+    """
+    ignored_patterns = set()
+
+    if railsignore_path is None:
+        return ignored_patterns
+
+    # File doesn't exist or is empty
+    if not railsignore_path.exists() or not os.path.getsize(railsignore_path):
+        return ignored_patterns
+
+    try:
+        with open(railsignore_path, "r") as f:
+            railsignore_entries = f.readlines()
+
+        # Remove comments and empty lines, and strip out any extra spaces/newlines
+        railsignore_entries = [
+            line.strip()
+            for line in railsignore_entries
+            if line.strip() and not line.startswith("#")
+        ]
+
+        ignored_patterns.update(railsignore_entries)
+        return ignored_patterns
+
+    except FileNotFoundError:
+        print(f"No {railsignore_path} found in the current directory.")
+        return ignored_patterns
+
+
+def is_ignored_by_railsignore(filename: str, ignore_patterns: str) -> bool:
+    """Verify if a filename should be ignored by a railsignore pattern"""
+
+    ignore = False
+
+    for pattern in ignore_patterns:
+        if fnmatch.fnmatch(filename, pattern):
+            ignore = True
+            break
+
+    return ignore
+
+
+def safe_eval(input_value: str) -> str:
+    """
+    Safely evaluate a string to handle unescaped quotes or invalid syntax from the async generate_value action.
+
+    Args:
+        input_value (str): The input string to evaluate.
+
+    Returns:
+        str: The evaluated and properly formatted string.
+
+    Raises:
+        ValueError: If the input cannot be safely evaluated.
+    """
+    if input_value.startswith(("'", '"')) and input_value.endswith(("'", '"')):
+        try:
+            return literal_eval(input_value)
+        except (ValueError, SyntaxError):
+            pass
+    escaped_value = input_value.replace("'", "\\'").replace('"', '\\"')
+    input_value = f"'{escaped_value}'"
+    return literal_eval(input_value)
+
+
+def compute_hash(text: str) -> str:
+    """
+    Return the hash of the given text using MD5 if available,
+    otherwise use SHA256.
+
+    Args:
+        text (str): The input text to hash.
+
+    Returns:
+        str: The hexadecimal digest of the hash.
+    """
+    try:
+        # Attempt to use MD5 by doing a dummy call.
+        hashlib.md5(b"")
+        hash_func = hashlib.md5
+    except (AttributeError, ValueError):
+        # MD5 is not available use sha256 instead
+        hash_func = hashlib.sha256
+
+    return hash_func(text.encode("utf-8")).hexdigest()
+
+
+MAX_ERROR_MESSAGE_SIZE = 400
+MAX_JSON_SIZE = 500
+MAX_PARSING_DEPTH = 2
+
+
+def check_object_depth(obj: Any, current_depth: int = 0) -> None:
+    """Check if an object's nesting depth exceeds the maximum allowed depths
+
+    Args:
+        obj: the object to check
+        current_depth: current nesting depth
+
+    Raises:
+        ValueError: if the object is too deeply nested
+    """
+
+    if current_depth > MAX_PARSING_DEPTH:
+        raise ValueError("Object too deeply nested")
+    if isinstance(obj, dict):
+        for v in obj.values():
+            check_object_depth(v, current_depth + 1)
+    elif isinstance(obj, (list, tuple)):
+        for item in obj:
+            check_object_depth(item, current_depth + 1)
+
+
+def extract_error_json(error_message: str) -> dict:
+    """Safely extracts the JSON part from the exception message
+
+    Args:
+        error_message (str): The exception message.
+
+    Returns:
+        dict: The extracted JSON part as a dictionary, or an error dictionary if extraction fails.
+    """
+
+    if len(error_message) > MAX_ERROR_MESSAGE_SIZE:
+        error_message = error_message[:MAX_ERROR_MESSAGE_SIZE] + "... (truncated)"
+
+    # OpenAI error format typically has "Error code: XXX - {...}" format
+    if " - " in error_message:
+        json_part = error_message.split(" - ", 1)[1].strip()
+
+        if not (json_part.startswith("{") and json_part.endswith("}")):
+            return {"error": {"message": error_message}}
+
+        try:
+            try:
+                return json.loads(json_part, parse_constant=lambda x: x)
+            except json.JSONDecodeError:
+                # validate before using ast.literal_eval
+                if len(json_part) < MAX_JSON_SIZE:
+                    try:
+                        import ast
+                        import re
+
+                        # looking for suspicious patterns
+                        # is it ok?
+                        if re.search(r"__[\w]+__", json_part):
+                            raise ValueError("Potentially unsafe content")
+
+                        # parse & validate depth
+                        parsed = ast.literal_eval(json_part)
+                        check_object_depth(parsed)
+                        return parsed
+                    except (SyntaxError, ValueError) as e:
+                        return {"error": {"message": f"Invalid error format: {str(e)}"}}
+
+            if len(json_part) < MAX_JSON_SIZE:
+                json_part = json_part.replace("'", '"')
+                return json.loads(json_part, parse_constant=lambda x: x)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        error_dict = {"error": {"message": error_message}}
+        if "Error code:" in error_message:
+            try:
+                code = error_message.split("Error code:", 1)[1].strip().split(" ", 1)[0]
+                error_dict["error"]["code"] = code
+            except (IndexError, ValueError):
+                pass
+        return error_dict
+    else:
+        return {"error": {"message": error_message}}

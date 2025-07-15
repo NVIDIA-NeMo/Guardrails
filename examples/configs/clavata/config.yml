@@ -1,0 +1,28 @@
+# Example for colang 1.0
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  config:
+    clavata:
+      policies:
+        Threats: 00000000-0000-0000-0000-000000000000
+        Toxicity: 00000000-0000-0000-0000-000000000000
+      # With colang 1.0, we can't pass parameters to flows, so we need to specify the policy to use
+      # in the input and output rails.
+      input:
+        policy: Threats
+      output:
+        policy: Toxicity
+        # You can specify labels to match against as part of the input/output rail configuration
+        labels:
+          - Hate Speech
+          - Self-Harm
+  input:
+    flows:
+      - clavata check input
+  output:
+    flows:
+      - clavata check output

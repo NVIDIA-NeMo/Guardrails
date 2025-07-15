@@ -18,10 +18,8 @@ from torch import bfloat16
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from nemoguardrails.llm.helpers import get_llm_instance_wrapper
-from nemoguardrails.llm.providers import (
-    HuggingFacePipelineCompatible,
-    register_llm_provider,
-)
+from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers.huggingface import HuggingFacePipelineCompatible
 
 
 @lru_cache

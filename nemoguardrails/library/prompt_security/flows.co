@@ -1,0 +1,28 @@
+# INPUT RAILS
+
+flow protect prompt
+  """Check if the prompt is valid according to Prompt Security."""
+  $result = await ProtectTextAction(user_prompt=$user_message)
+  if $result["is_blocked"]
+    if $system.config.enable_rails_exceptions
+      send PromptSecurityRailException(message="Prompt not allowed. The prompt was blocked by the 'protect prompt' flow.")
+    else
+      bot inform answer unknown
+    abort
+  else if $result["is_modified"]
+    $user_message = $result["modified_text"]
+
+
+# OUTPUT RAILS
+
+flow protect response
+  """Check if the response is valid according to Prompt Security."""
+  $result = await ProtectTextAction(bot_response=$bot_message)
+  if $result["is_blocked"]
+    if $system.config.enable_rails_exceptions
+      send PromptSecurityRailException(message="Response not allowed. The response was blocked by the 'protect response' flow.")
+    else
+      bot inform answer unknown
+    abort
+  else if $result["is_modified"]
+    $bot_message = $result["modified_text"]

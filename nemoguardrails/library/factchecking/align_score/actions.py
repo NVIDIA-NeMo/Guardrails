@@ -27,12 +27,24 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 log = logging.getLogger(__name__)
 
 
-@action()
+def alignscore_check_facts_mapping(result: float) -> bool:
+    """
+    Mapping for alignscore_check_facts.
+
+    Expects result to be a numeric score (float) representing the factual accuracy.
+    Returns True (i.e. block the output) if the score is below 0.5.
+    """
+    THRESHOLD = 0.5
+    return result < THRESHOLD
+
+
+@action(output_mapping=alignscore_check_facts_mapping)
 async def alignscore_check_facts(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     llm: Optional[BaseLLM] = None,
     config: Optional[RailsConfig] = None,
+    **kwargs,
 ):
     """Checks the facts for the bot response using an information alignment score."""
     fact_checking_config = llm_task_manager.config.rails.config.fact_checking

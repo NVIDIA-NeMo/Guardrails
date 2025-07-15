@@ -1,27 +1,27 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-[project]
+[tool.poetry]
 name = "nemoguardrails"
 description = "NeMo Guardrails is an open-source toolkit for easily adding programmable guardrails to LLM-based conversational systems."
-authors = [
-  { name = "NVIDIA", email = "nemoguardrails@nvidia.com"}
-]
-license = { file = "LICENSE.md" }
+authors = ["NVIDIA <nemoguardrails@nvidia.com>"]
+license = "LICENSE.md"
 readme = "README.md"
-dynamic = ["version"]
+version = "0.14.1"
+packages = [{ include = "nemoguardrails" }]
+
+
+include = [
+  "LICENSE.md",
+  "LICENSE-Apache-2.0.txt",
+  "LICENCES-3rd-party.txt",
+  "chat-ui/**/*",
+  "examples/**/*",
+  "eval/data/**/*",
+  "**/*.yml",
+  "**/*.co",
+  "**/*.txt",
+  "**/*.json",
+  "**/*.lark",
+]
+
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -30,100 +30,135 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-]
-requires-python = ">=3.9"
-
-dependencies = [
-  "aiohttp>=3.9.2",
-  "annoy>=1.17.3",
-  "fastapi>=0.103.0",
-  "fastembed>=0.2.2",
-  "httpx>=0.24.1",
-  "jinja2>=3.1.4",
-  # The 0.1.9 has a bug related to SparkLLM which breaks everything.
-  "langchain>=0.2.14,<0.4.0,!=0.1.9",
-  "langchain-core>=0.2.14,<0.4.0,!=0.1.26",
-  "langchain-community>=0.0.16,<0.4.0",
-  "lark~=1.1.7",
-  "nest-asyncio>=1.5.6",
-  "prompt-toolkit>=3.0",
-  "pydantic>=1.10",
-  "pyyaml>=6.0",
-  "rich>=13.5.2",
-  "simpleeval>=0.9.13",
-  "starlette>=0.27.0",
-  "typer>=0.7.0",
-  "uvicorn>=0.23",
-  "watchdog>=3.0.0",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 
-[project.optional-dependencies]
-eval = [
-  "tqdm~=4.65",
-  "numpy~=1.24",
-  "streamlit>=1.37.0"
-]
-openai = [
-  "langchain-openai>=0.0.5"
-]
-sdd = [
-  "presidio-analyzer>=2.2",
-  "presidio-anonymizer>=2.2",
-  "spacy>=3.7.2",
-]
-gcp = ["google-cloud-language>=2.14.0"]
-all = [
-  "nemoguardrails[eval,sdd,openai,gcp]",
-]
-dev = [
-  "black==23.3.0",
-  "aioresponses>=0.7.6",
-  "mypy>=1.1.1",
-  "pre-commit>=3.1.1",
-  "pylint>=2.17.0",
-  "pytest>=7.2.2",
-  "pytest-asyncio>=0.21.0",
-  "pytest-cov>=4.1.0",
-  "pytest-httpx>=0.22.0",
-  "streamlit>=1.37.0"
-]
-
-[project.urls]
+[tool.poetry.urls]
 homepage = "https://github.com/NVIDIA/nemo-guardrails"
-documentation = "https://github.com/NVIDIA/nemo-guardrails/tree/develop/docs"
-repository = "https://github.com/NVIDIA/nemo-guardrails"
 issues = "https://github.com/NVIDIA/nemo-guardrails/issues"
 changelog = "https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/CHANGELOG.md"
+documentation = "https://docs.nvidia.com/nemo/guardrails/"
+repository = "https://github.com/NVIDIA/NeMo-Guardrails"
 
-[project.scripts]
+
+[tool.poetry.scripts]
 nemoguardrails = "nemoguardrails.__main__:app"
 
-[tool.setuptools]
-license-files = [
-  "LICENSE.md",
-  "LICENSE-Apache-2.0.txt",
-  "LICENCES-3rd-party.txt"
+[tool.poetry.dependencies]
+python = ">=3.9,!=3.9.7,<3.14"
+aiohttp = ">=3.10.11"
+annoy = ">=1.17.3"
+fastapi = ">=0.103.0,"
+fastembed = [{ version = ">=0.2.2, <=0.6.0", python = ">=3.9,<3.14" }]
+httpx = ">=0.24.1"
+jinja2 = ">=3.1.6"
+langchain = ">=0.2.14,<0.4.0"
+langchain-core = ">=0.2.14,<0.4.0"
+langchain-community = ">=0.2.5,<0.4.0"
+lark = ">=1.1.7"
+nest-asyncio = ">=1.5.6,"
+prompt-toolkit = ">=3.0"
+pydantic = ">=1.10"
+pyyaml = ">=6.0"
+rich = ">=13.5.2"
+simpleeval = ">=0.9.13,"
+starlette = ">=0.27.0"
+typer = ">=0.8"
+uvicorn = ">=0.23"
+watchdog = ">=3.0.0,"
+
+# tracing
+opentelemetry-api = { version = ">=1.27.0,<2.0.0", optional = true }
+aiofiles = { version = ">=24.1.0", optional = true }
+
+# openai
+langchain-openai = { version = ">=0.1.0", optional = true }
+
+# eval
+tqdm = { version = ">=4.65,<5.0", optional = true }
+streamlit = { version = "^1.37.0", optional = true, python = ">=3.9,!=3.9.7,<3.14" }
+tornado = { version = ">=6.5.0", optional = true, python = ">=3.9,!=3.9.7,<3.14" }
+pandas = { version = ">=1.4.0,<3", optional = true }
+numpy = [
+  { version = ">=1.21", python = ">=3.10,<3.12" },
+  { version = ">=1.26", python = ">=3.12,<3.13" },
+  { version = ">=2.1.0", python = ">=3.13" },
+  { version = ">=1.21,<2.1.0", python = "<3.10" },
+]
+# sdd
+# we don't need it and we comment it for sake of documentation
+# spacy = { version = ">=3.4.4,<4.0.0,!=3.7.0", python = "<3.13", optional = true }
+presidio-analyzer = { version = ">=2.2", optional = true, python = "<3.13" }
+presidio-anonymizer = { version = ">=2.2", optional = true, python = "<3.13" }
+
+# nim
+langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
+
+# gpc
+google-cloud-language = { version = ">=2.14.0", optional = true }
+
+# jailbreak injection
+yara-python = { version = "^4.5.1", optional = true }
+
+[tool.poetry.extras]
+sdd = ["presidio-analyzer", "presidio-anonymizer"]
+eval = ["tqdm", "numpy", "streamlit", "tornado"]
+openai = ["langchain-openai"]
+gcp = ["google-cloud-language"]
+tracing = ["opentelemetry-api", "aiofiles"]
+nvidia = ["langchain-nvidia-ai-endpoints"]
+jailbreak = ["yara-python"]
+# Poetry does not support recursive dependencies, so we need to add all the dependencies here.
+# I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
+# It is here for backward compatibility.
+all = [
+  "presidio-analyzer",
+  "presidio-anonymizer",
+  "tqdm",
+  "numpy",
+  "streamlit",
+  "langchain-openai",
+  "google-cloud-language",
+  "opentelemetry-api",
+  "aiofiles",
+  "langchain-nvidia-ai-endpoints",
+  "yara-python",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["nemoguardrails*"]
-exclude = ["chat-ui*", "examples*"]
+[tool.poetry.group.dev]
+optional = true
 
-[tool.setuptools.package-data]
-nemoguardrails = [
-  "chat-ui/**/*",
-  "examples/**/*",
-  "**/*.yml",
-  "**/*.co",
-  "**/*.txt",
-  "**/*.json",
-  "**/*.lark",
-  "eval/data/**/*",
-]
 
-[tool.setuptools.dynamic]
-version = { attr = "nemoguardrails.__version__" }
+[tool.poetry.group.dev.dependencies]
+black = ">=24.3.0"
+aioresponses = ">=0.7.6"
+mypy = ">=1.1.1"
+pre-commit = ">=3.1.1"
+pylint = ">=2.17.0"
+pytest = ">=7.2.2"
+pytest-asyncio = ">=0.21.0, <1.0.0"
+pytest-cov = ">=4.1.0"
+pytest-httpx = ">=0.22.0"
+streamlit = ">=1.37.0"
+tox = "^4.23.2"
+pytest-profiling = "^1.7.0"
+yara-python = "^4.5.1"
+opentelemetry-api = "^1.34.1"
+opentelemetry-sdk = "^1.34.1"
+
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+toml = "^0.10.2"
+sphinx-reredirects = "<0.2"
+sphinx = "<=7.5"
+myst-parser = "<=5"
+sphinx-copybutton = "<=0.6"
+nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
+
 
 [tool.pytest.ini_options]
 addopts = "-p no:warnings"
@@ -136,5 +171,5 @@ log-level = "DEBUG"
 log_cli = "False"
 
 [build-system]
-requires = ["setuptools>=64"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0,<2.0.0"]
+build-backend = "poetry.core.masonry.api"

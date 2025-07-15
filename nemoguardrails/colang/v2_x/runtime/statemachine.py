@@ -71,6 +71,7 @@ from nemoguardrails.colang.v2_x.runtime.flows import (
     InternalEvents,
     State,
 )
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.utils import console, new_event_dict, new_readable_uuid, new_uuid
 
 log = logging.getLogger(__name__)
@@ -542,38 +543,43 @@ def _process_internal_events_without_default_matchers(
                 )
 
     elif event.name == InternalEvents.FINISH_FLOW:
+        # Extract flow parameters
+        arguments = dict(event.arguments)
+
         if "flow_instance_uid" in event.arguments:
             flow_instance_uid = event.arguments["flow_instance_uid"]
             if flow_instance_uid in state.flow_states:
                 flow_state = state.flow_states[event.arguments["flow_instance_uid"]]
                 if not is_inactive_flow(flow_state):
                     _finish_flow(
-                        state,
-                        flow_state,
-                        event.matching_scores,
+                        state=state,
+                        flow_state=flow_state,
+                        matching_scores=event.matching_scores,
+                        context_update=arguments.get("context_update", None),
                     )
                     assert flow_state.loop_id
                     handled_event_loops.add(flow_state.loop_id)
         elif "flow_id" in event.arguments:
-            # Extract flow parameters
-            arguments = dict(event.arguments)
-
             flow_id = arguments.pop("flow_id", None)
             deactivate = arguments.pop("deactivate", False)
+            context_update = arguments.pop("context_update", None)
             arguments.pop("source_flow_instance_uid", None)
             arguments.pop("source_head_uid", None)
             if flow_id in state.flow_id_states:
                 for flow_state in state.flow_id_states[flow_id]:
                     if arguments.items() <= flow_state.arguments.items():
                         _finish_flow(
-                            state,
-                            flow_state,
-                            event.matching_scores,
-                            deactivate,
+                            state=state,
+                            flow_state=flow_state,
+                            matching_scores=event.matching_scores,
+                            deactivate_flow=deactivate,
+                            context_update=context_update,
                         )
                         assert flow_state.loop_id
                         handled_event_loops.add(flow_state.loop_id)
     elif event.name == InternalEvents.STOP_FLOW:
+        arguments = dict(event.arguments)
+
         if "flow_instance_uid" in event.arguments:
             flow_instance_uid = event.arguments["flow_instance_uid"]
             if flow_instance_uid in state.flow_states:
@@ -584,16 +590,18 @@ def _process_internal_events_without_default_matchers(
                         flow_state=flow_state,
                         matching_scores=event.matching_scores,
                         deactivate_flow=flow_state.activated > 0,
+                        context_update=arguments.get("context_update", None),
                     )
                     assert flow_state.loop_id
                     handled_event_loops.add(flow_state.loop_id)
         elif "flow_id" in event.arguments:
             # Extract flow parameters
-            arguments = dict(event.arguments)
+
             flow_id = arguments.pop("flow_id", None)
             deactivate = arguments.pop("deactivate", False)
             arguments.pop("source_flow_instance_uid", None)
             arguments.pop("source_head_uid", None)
+            context_update = arguments.pop("context_update", None)
             if flow_id in state.flow_id_states:
                 for flow_state in state.flow_id_states[flow_id]:
                     if arguments.items() <= flow_state.arguments.items():
@@ -602,6 +610,7 @@ def _process_internal_events_without_default_matchers(
                             flow_state=flow_state,
                             matching_scores=event.matching_scores,
                             deactivate_flow=deactivate,
+                            context_update=context_update,
                         )
                         assert flow_state.loop_id
                         handled_event_loops.add(flow_state.loop_id)
@@ -1417,6 +1426,7 @@ def _abort_flow(
     flow_state: FlowState,
     matching_scores: List[float],
     deactivate_flow: bool = False,
+    context_update: Optional[dict] = None,
 ) -> None:
     """Abort a flow instance and all its active child flows and decrement number of references of activated flow."""
 
@@ -1480,6 +1490,10 @@ def _abort_flow(
 
     flow_state.status = FlowStatus.STOPPED
 
+    # Update context if needed
+    if context_update:
+        flow_state.context.update(context_update)
+
     # Generate FlowFailed event
     event = flow_state.failed_event(matching_scores)
     _push_internal_event(state, event)
@@ -1512,6 +1526,7 @@ def _finish_flow(
     flow_state: FlowState,
     matching_scores: List[float],
     deactivate_flow: bool = False,
+    context_update: Optional[dict] = None,
 ) -> None:
     """Finish a flow instance and all its active child flows and decrement number of references of activated flow."""
 
@@ -1595,6 +1610,10 @@ def _finish_flow(
         and flow_state.parent_uid in state.flow_states
     ):
         state.flow_states[flow_state.parent_uid].child_flow_uids.remove(flow_state.uid)
+
+    # Update context if needed
+    if context_update:
+        flow_state.context.update(context_update)
 
     # Generate FlowFinished event
     event = flow_state.finished_event(matching_scores)
@@ -1829,7 +1848,7 @@ def _is_done_flow(flow_state: FlowState) -> bool:
 
 
 def _generate_umim_event(state: State, event: Event) -> Dict[str, Any]:
-    umim_event = create_umim_event(event, event.arguments)
+    umim_event = create_umim_event(event, event.arguments, state.rails_config)
     state.outgoing_events.append(umim_event)
     log.info("[bold violet]<- Action[/]: %s", event)
 
@@ -2385,10 +2404,14 @@ def create_internal_event(
     return event
 
 
-def create_umim_event(event: Event, event_args: Dict[str, Any]) -> Dict[str, Any]:
+def create_umim_event(
+    event: Event, event_args: Dict[str, Any], config: Optional[RailsConfig]
+) -> Dict[str, Any]:
     """Returns an outgoing UMIM event for the provided action data"""
     new_event_args = dict(event_args)
-    new_event_args["source_uid"] = "NeMoGuardrails-Colang-2.x"
+    new_event_args.setdefault(
+        "source_uid", config.event_source_uid if config else "NeMoGuardrails-Colang-2.x"
+    )
     if isinstance(event, ActionEvent) and event.action_uid is not None:
         if "action_uid" in new_event_args:
             event.action_uid = new_event_args["action_uid"]
@@ -2422,5 +2445,7 @@ def _is_child_activated_flow(state: State, flow_state: FlowState) -> bool:
     return (
         flow_state.activated > 0
         and flow_state.parent_uid is not None
+        and flow_state.parent_uid
+        in state.flow_states  # TODO: Figure out why this can fail sometimes
         and flow_state.flow_id == state.flow_states[flow_state.parent_uid].flow_id
     )

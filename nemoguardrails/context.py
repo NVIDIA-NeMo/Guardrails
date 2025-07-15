@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextvars
+from typing import Optional
 
 streaming_handler_var = contextvars.ContextVar("streaming_handler", default=None)
 
@@ -32,3 +33,7 @@ llm_stats_var = contextvars.ContextVar("llm_stats", default=None)
 # The raw LLM request that comes from the user.
 # This is used in passthrough mode.
 raw_llm_request = contextvars.ContextVar("raw_llm_request", default=None)
+
+reasoning_trace_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "reasoning_trace", default=None
+)

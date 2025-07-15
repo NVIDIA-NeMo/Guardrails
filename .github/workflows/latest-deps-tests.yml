@@ -1,0 +1,34 @@
+name: Test with Latest Dependencies
+
+on:
+  schedule:
+    - cron: "0 22 * * *" # 10:00 PM UTC, daily
+
+  workflow_dispatch:
+jobs:
+  latest-deps-tests-matrix:
+    strategy:
+      matrix:
+        os: [Ubuntu]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: Ubuntu
+            image: ubuntu-latest
+          - os: macOS
+            image: macos-15
+          - os: Windows
+            image: windows-latest
+      fail-fast: false
+    uses: ./.github/workflows/_test.yml
+    with:
+      os: ${{ matrix.os }}
+      image: ${{ matrix.image }}
+      python-version: ${{ matrix.python-version }}
+      upgrade-deps: true
+  latest-deps-tests-summary:
+    name: Latest Deps Tests Summary
+    needs: latest-deps-tests-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Latest Dependencies Tests Completion
+        run: echo "Latest Dependencies Tests completed. All matrix jobs passed."

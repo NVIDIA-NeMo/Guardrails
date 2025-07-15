@@ -41,7 +41,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
 
     engine_name = "SentenceTransformers"
 
-    def __init__(self, embedding_model: str):
+    def __init__(self, embedding_model: str, **kwargs):
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
@@ -58,7 +58,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
             )
 
         device = "cuda" if cuda.is_available() else "cpu"
-        self.model = SentenceTransformer(embedding_model, device=device)
+        self.model = SentenceTransformer(embedding_model, device=device, **kwargs)
         # Get the embedding dimension of the model
         self.embedding_size = self.model.get_sentence_embedding_dimension()
 
