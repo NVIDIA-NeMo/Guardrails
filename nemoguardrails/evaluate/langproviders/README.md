@@ -4,13 +4,13 @@ This directory contains translation providers used in the evaluation features of
 
 ## Overview
 
-Language Providers offer an abstraction layer to handle different translation services (local or remote) in a unified way. All providers inherit from the `LangProvider` base class and provide a consistent interface.
+Language Providers offer an abstraction layer to handle different translation services (local or remote) in a unified way. All providers inherit from the `TranslationProvider` base class and provide a consistent interface.
 
 ## Directory Structure
 
 ```
 langproviders/
-├── base.py              # Base class LangProvider
+├── base.py              # Base class TranslationProvider
 ├── local.py             # Local translation providers
 ├── remote.py            # Remote translation providers
 ├── configs/             # Configuration files
@@ -26,7 +26,7 @@ langproviders/
 A local translation provider using Hugging Face models.
 
 **Supported Models:**
-- **M2M100**: Multilingual translation model (supports 100 languages)
+- **M2M100**: Multilingual Many-to-Many translation models (supports 100 languages)
   - https://huggingface.co/facebook/m2m100_1.2B
   - https://huggingface.co/facebook/m2m100_418M
 - **MarianMT**: Helsinki-NLP/opus-mt-* models
@@ -51,7 +51,7 @@ langproviders:
 ### Remote Providers
 
 #### DeeplTranslator
-High-quality translation service using the DeepL API.
+High-quality translation service using the DeepL API. Requires DeepL API key for using it.
 - https://www.deepl.com/en/translator
 
 **Example Configuration:**
@@ -68,19 +68,29 @@ export DEEPL_API_KEY="your-api-key-here"
 
 **Features:**
 - High-quality translations
-- Supports 29 languages
 - Commercial use available
 
 #### RivaTranslator
-Translation service using NVIDIA Riva.
+Translation service using NVIDIA Riva. Requires an API key for using it.
 - https://developer.nvidia.com/riva
 
 **Example Configuration:**
+
+**For Remote Riva Server:**
 ```yaml
 langproviders:
   - language: en,ja
     model_type: remote.RivaTranslator
-    local_mode: false  # Set to true to use a local server
+    local_mode: false
+```
+
+**For Local Riva Server:**
+```yaml
+langproviders:
+  - language: en,ja
+    model_type: remote.RivaTranslator
+    local_mode: true
+    uri: "localhost:50051"
 ```
 
 **Environment Variable:**
@@ -92,6 +102,7 @@ export RIVA_API_KEY="your-api-key-here"
 - Optimized for NVIDIA GPUs
 - Supports both local and cloud deployment
 - Low latency
+- Configurable endpoints via YAML
 
 ## Usage
 
@@ -302,14 +313,27 @@ Translated evaluations produce the same output format as regular evaluations, bu
 
 ### Common Parameters
 
-- `language`: Language pair for translation (e.g., `"en,ja"`)
-- `model_type`: Provider type (e.g., `"remote.DeeplTranslator"`)
+The following parameters pass by the yaml file.
+
+- **`language`**: Language pair for translation (e.g., `"en,ja"`)
+- **`model_type`**: Provider type (e.g., `"remote.DeeplTranslator"`)
 
 ### LocalHFTranslator-specific Parameters
 
 - `model_name`: Model name (default: `"Helsinki-NLP/opus-mt-{}"`)
 - `hf_args`: Hugging Face arguments
   - `device`: Device (`"cpu"` or `"cuda"`)
+
+#### Language Code Overrides (`lang_overrides`)
+
+Some language codes used in translation models differ from standard ISO codes. `LocalHFTranslator` uses an internal dictionary called `lang_overrides` to automatically convert certain language codes to the format expected by the model. For example, the code for Japanese is sometimes expected as `jap` instead of `ja` in some MarianMT models.
+
+- Example: If you specify `ja` (Japanese) as the target language, `LocalHFTranslator` will internally convert it to `jap` when constructing the model name for MarianMT.
+- This conversion is handled automatically; you do not need to change your configuration.
+- The current overrides are:
+  - `ja` → `jap`
+
+This mechanism ensures compatibility with Hugging Face model naming conventions and prevents errors when loading models for certain languages.
 
 ### RivaTranslator-specific Parameters
 
@@ -321,12 +345,10 @@ Translated evaluations produce the same output format as regular evaluations, bu
 Supports 100 languages (see the [official documentation](https://huggingface.co/facebook/m2m100_418M#languages-covered) for details)
 
 ### DeeplTranslator
-Supports 29 languages:
-- European and Asian languages: de, en, fr, es, it, nl, pl, pt, ru, ja, zh, ko, ar, tr, uk, bg, cs, da, el, et, fi, hu, id, lt, lv, nb, ro, sk, sl, sv
+Supports languages (see the [official documentation](https://developers.deepl.com/docs/getting-started/supported-languages) for details) :
 
 ### RivaTranslator
-Supports 33 languages:
-- zh, ru, de, es, fr, da, el, fi, hu, it, lt, lv, nl, no, pl, pt, ro, sk, sv, ja, hi, ko, et, sl, bg, uk, hr, ar, vi, tr, id, cs, en
+Supports 77 languages (see the [official documentation](https://docs.nvidia.com/deeplearning/riva/user-guide/docs/translation/translation-overview.html#language-pairs-supported) for details) :
 
 ## Error Handling
 
@@ -362,11 +384,28 @@ Supports 33 languages:
 
 3. **Check network connection** (for remote providers)
 
+## Environment Variable (ENV_VAR) Usage
+
+Some translation providers (such as RivaTranslator and DeeplTranslator) require an API key for authentication. Each provider expects the API key to be set in a specific environment variable. This environment variable is referenced in the provider implementation as `ENV_VAR`.
+
+- For **DeepL**, set the API key in `DEEPL_API_KEY`:
+  ```bash
+  export DEEPL_API_KEY="your-api-key-here"
+  ```
+- For **Riva**, set the API key in `RIVA_API_KEY`:
+  ```bash
+  export RIVA_API_KEY="your-api-key-here"
+  ```
+
+The provider will automatically load the API key from the corresponding environment variable at runtime. If the environment variable is not set or is empty, an error will be raised.
+
+This mechanism allows you to securely manage API keys for different translation services without hardcoding them in configuration files.
+
 ## For Developers
 
 ### Adding a New Provider
 
-1. Inherit from the `LangProvider` base class
+1. Inherit from the `TranslationProvider` base class
 2. Implement the required methods:
    - `_load_langprovider()`: Provider initialization
    - `_translate(text: str) -> str`: Translation logic
@@ -380,13 +419,9 @@ Supports 33 languages:
 python -m pytest tests/eval/translate/ -v
 ```
 
-## License
-
-This project is licensed under the Apache 2.0 License.
-
 ## Related Links
 
-- [NeMo-Guardrails Documentation](https://docs.anyscale.com/projects/nemoguardrails/)
+- [NeMo-Guardrails Documentation](https://docs.nvidia.com/nemo/guardrails/latest/index.html)
 - [DeepL API Documentation](https://developers.deepl.com/)
 - [NVIDIA Riva Documentation](https://developer.nvidia.com/riva)
 - [Hugging Face Transformers](https://huggingface.co/docs/transformers/)
