@@ -60,13 +60,19 @@ flow _bot_say $text
   global $output_rails_in_progress
 
   $bot_message = $text
-  $last_bot_message = $text
 
   # We need to avoid running output rails on messages coming from the output rails themselves.
   if not $output_rails_in_progress
     await run output rails $text
 
-  await UtteranceBotAction(script=$text) as $action
+  # Use the processed bot message if available;
+  # otherwise, fall back to the original text
+  if $bot_message is not None
+    $last_bot_message = $bot_message
+  else
+    $last_bot_message = $text
+
+  await UtteranceBotAction(script=$last_bot_message) as $action
 
 
 flow run input rails $input_text
