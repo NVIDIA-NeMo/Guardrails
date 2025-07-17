@@ -8,7 +8,6 @@ User Guides
 
    cli
    colang-language-syntax-guide
-   configuration-guide
    guardrails-library
    guardrails-process
    llm-support
