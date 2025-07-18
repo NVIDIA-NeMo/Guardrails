@@ -38,8 +38,6 @@ langproviders:
   - language: en,ja
     model_type: local.LocalHFTranslator
     model_name: "Helsinki-NLP/opus-mt-{}"
-    hf_args:
-      device: "cpu"
 ```
 
 **Features:**
@@ -200,8 +198,6 @@ langproviders:
   - language: en,ja
     model_type: local.LocalHFTranslator
     model_name: facebook/m2m100_1.2B
-    hf_args:
-      device: "cpu"
 ```
 
 **For Chinese Translation:**
@@ -321,8 +317,6 @@ The following parameters pass by the yaml file.
 ### LocalHFTranslator-specific Parameters
 
 - `model_name`: Model name (default: `"Helsinki-NLP/opus-mt-{}"`)
-- `hf_args`: Hugging Face arguments
-  - `device`: Device (`"cpu"` or `"cuda"`)
 
 #### Language Code Overrides (`lang_overrides`)
 

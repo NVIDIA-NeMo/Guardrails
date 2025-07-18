@@ -102,13 +102,6 @@ google-cloud-language = { version = ">=2.14.0", optional = true }
 # jailbreak injection
 yara-python = { version = "^4.5.1", optional = true }
 
-# translation
-deepl = "^1.22.0"
-nvidia-riva-client = "^2.21.0"
-torch = "^2.7.1"
-transformers = "^4.53.0"
-sentencepiece = "^0.2.0"
-
 [tool.poetry.extras]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
 eval = ["tqdm", "numpy", "streamlit", "tornado"]
@@ -117,6 +110,7 @@ gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "opentelemetry-sdk", "aiofiles"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
+translation = ["deepl", "nvidia-riva-client", "torch", "transformers" "sentencepiece"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
@@ -133,6 +127,11 @@ all = [
   "aiofiles",
   "langchain-nvidia-ai-endpoints",
   "yara-python",
+  "deepl",
+  "nvidia-riva-client",
+  "torch",
+  "transformers"
+  "sentencepiece"
 ]
 
 [tool.poetry.group.dev]
