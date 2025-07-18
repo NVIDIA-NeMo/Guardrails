@@ -19,6 +19,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
 3. Third-Party APIs
    - [ActiveFence Moderation](#activefence)
    - [AutoAlign](#autoalign)
+   - [Clavata.ai](#clavata)
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
    - [Private AI PII detection](#private-ai-pii-detection)
@@ -720,6 +721,25 @@ rails:
 ```
 
 For more details, check out the [AutoAlign Integration](./community/auto-align.md) page.
+
+### Clavata
+
+NeMo Guardrails supports using [Clavata AI](https://www.clavata.ai/blogs/partner-nvidia) as an input and output rail out-of-the-box (you need to have the CLAVATA_API_KEY environment variable set).
+
+#### Example usage
+
+```yaml
+rails:
+  config:
+    clavata:
+      policies:
+        Fraud: 00000000-0000-0000-0000-000000000000
+        Bot_Behavior: 00000000-0000-0000-0000-000000000000
+      label_match_logic: ANY
+
+```
+
+For more details, check out the [Clavata Integration](https://docs.nvidia.com/nemo/guardrails/latest/user-guides/community/clavata.html) page.
 
 ### Cleanlab
 
