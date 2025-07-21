@@ -11,6 +11,7 @@ flow detect sensitive data on input
 
 flow mask sensitive data on input
   """Mask any sensitive data found in the user input."""
+  global $user_message
   $user_message = await MaskSensitiveDataAction(source="input", text=$user_message)
 
 
@@ -28,10 +29,11 @@ flow detect sensitive data on output
 
 flow mask sensitive data on output
   """Mask any sensitive data found in the bot output."""
+  global $bot_message
   $bot_message = await MaskSensitiveDataAction(source="output", text=$bot_message)
 
 
-# RETRIVAL RAILS
+# RETRIEVAL RAILS
 
 
 flow detect sensitive data on retrieval
@@ -45,4 +47,5 @@ flow detect sensitive data on retrieval
 
 flow mask sensitive data on retrieval
   """Mask any sensitive data found in the relevant chunks from the knowledge base."""
+  global $relevant_chunks
   $relevant_chunks = await MaskSensitiveDataAction(source="retrieval", text=$relevant_chunks)
