@@ -1,0 +1,10 @@
+import guardrails
+import nemoguardrails.library.sensitive_data_detection
+
+flow input rails $input_text
+  """Check user utterances before they get further processed."""
+  await mask sensitive data on input
+
+flow output rails $output_text
+  """Check response before sending it to user."""
+  await mask sensitive data on output
