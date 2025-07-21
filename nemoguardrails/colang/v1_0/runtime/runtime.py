@@ -12,10 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import inspect
 import logging
-import uuid
 from textwrap import indent
 from time import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,10 +24,13 @@ import aiohttp
 from langchain.chains.base import Chain
 
 from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v1_0.runtime.flows import (
     FlowConfig,
+    _get_flow_params,
+    _normalize_flow_id,
     compute_context,
     compute_next_steps,
 )
@@ -259,6 +261,89 @@ class RuntimeV1_0(Runtime):
             ]
         )
 
+    async def _run_output_rails_in_parallel_streaming(
+        self, flows_with_params: Dict[str, dict], events: List[dict]
+    ) -> ActionResult:
+        """Run the output rails in parallel for streaming chunks.
+
+        This is a streamlined version that avoids the full flow state management
+        which can cause issues with hide_prev_turn logic during streaming.
+
+        Args:
+            flows_with_params: Dictionary mapping flow_id to {"action_name": str, "params": dict}
+            events: The events list for context
+        """
+        tasks = []
+
+        async def run_single_rail(flow_id: str, action_info: dict) -> tuple:
+            """Run a single rail flow and return (flow_id, result)"""
+
+            try:
+                action_name = action_info["action_name"]
+                params = action_info["params"]
+
+                result_tuple = await self.action_dispatcher.execute_action(
+                    action_name, params
+                )
+                result, status = result_tuple
+
+                if status != "success":
+                    log.error(f"Action {action_name} failed with status: {status}")
+                    return flow_id, False  # Allow on failure
+
+                action_func = self.action_dispatcher.get_action(action_name)
+
+                # use the mapping to decide if the result indicates blocked content.
+                # True means blocked, False means allowed
+                result = is_output_blocked(result, action_func)
+
+                return flow_id, result
+
+            except Exception as e:
+                log.error(f"Error executing rail {flow_id}: {e}")
+                return flow_id, False  # Allow on error
+
+        # create tasks for all flows
+        for flow_id, action_info in flows_with_params.items():
+            task = asyncio.create_task(run_single_rail(flow_id, action_info))
+            tasks.append(task)
+
+        stopped_events = []
+
+        try:
+            for future in asyncio.as_completed(tasks):
+                try:
+                    flow_id, is_blocked = await future
+
+                    # check if this rail blocked the content
+                    if is_blocked:
+                        # create stop events
+                        stopped_events = [
+                            {
+                                "type": "BotIntent",
+                                "intent": "stop",
+                                "flow_id": flow_id,
+                            }
+                        ]
+
+                        # cancel remaining tasks
+                        for pending_task in tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                        break
+
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    log.error(f"Error in parallel rail task: {e}")
+                    continue
+
+        except Exception as e:
+            log.error(f"Error in parallel rail execution: {e}")
+            return ActionResult(events=[])
+
+        return ActionResult(events=stopped_events)
+
     async def _process_start_action(self, events: List[dict]) -> List[dict]:
         """
         Start the specified action, wait for it to finish, and post back the result.
@@ -458,8 +543,9 @@ class RuntimeV1_0(Runtime):
                                 )
 
                             resp = await resp.json()
-                            result, status = resp.get("result", result), resp.get(
-                                "status", status
+                            result, status = (
+                                resp.get("result", result),
+                                resp.get("status", status),
                             )
                     except Exception as e:
                         log.info(f"Exception {e} while making request to {action_name}")
