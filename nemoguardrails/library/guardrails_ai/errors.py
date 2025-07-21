@@ -13,9 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from guardrails.errors import ValidationError
+try:
+    from guardrails.errors import ValidationError
 
-GuardrailsAIValidationError = ValidationError
+    GuardrailsAIValidationError = ValidationError
+except ImportError:
+    # create a fallback error class when guardrails is not installed
+    class GuardrailsAIValidationError(Exception):
+        """Fallback validation error when guardrails package is not available."""
+
+        pass
 
 
 class GuardrailsAIError(Exception):
