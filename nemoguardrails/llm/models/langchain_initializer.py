@@ -253,6 +253,9 @@ def _init_text_completion_model(
     if provider_cls is None:
         raise ValueError()
     kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
+    # remove stream_usage parameter as it's not supported by text completion APIs
+    # (e.g., OpenAI's AsyncCompletions.create() doesn't accept this parameter)
+    kwargs.pop("stream_usage", None)
     return provider_cls(**kwargs)
 
 
