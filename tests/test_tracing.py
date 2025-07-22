@@ -424,13 +424,89 @@ async def test_tracing_aggressive_override_when_all_disabled():
         assert user_options.log.colang_history == original_colang_history
 
         assert response.log is not None
-        assert response.log.activated_rails is not None
+        assert (
+            response.log.activated_rails is not None
+            and len(response.log.activated_rails) > 0
+        )
         assert response.log.llm_calls is not None
         assert response.log.internal_events is not None
 
         assert user_options.log.activated_rails == original_activated_rails
         assert user_options.log.llm_calls == original_llm_calls
         assert user_options.log.internal_events == original_internal_events
+        assert user_options.log.activated_rails == False
+        assert user_options.log.llm_calls == False
+        assert user_options.log.internal_events == False
+
+
+@pytest.mark.asyncio
+async def test_tracing_aggressive_override_with_dict_options():
+    """Test that tracing works correctly when options are passed as a dict.
+
+    This tests that the fix handles both GenerationOptions objects and dicts,
+    since the method signature allows both types.
+    """
+
+    config = RailsConfig.from_content(
+        colang_content="""
+        define user express greeting
+            "hello"
+
+        define flow
+            user express greeting
+            bot express greeting
+
+        define bot express greeting
+            "Hello! How can I assist you today?"
+        """,
+        config={
+            "models": [],
+            "tracing": {"enabled": True, "adapters": [{"name": "FileSystem"}]},
+        },
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "user express greeting",
+            "bot express greeting",
+            "Hello! How can I assist you today?",
+        ],
+    )
+
+    # user passes options as a dict with all tracing options disabled
+    user_options_dict = {
+        "log": {
+            "activated_rails": False,
+            "llm_calls": False,
+            "internal_events": False,
+            "colang_history": True,
+        }
+    }
+
+    original_dict = {
+        "log": {
+            "activated_rails": False,
+            "llm_calls": False,
+            "internal_events": False,
+            "colang_history": True,
+        }
+    }
+
+    with patch.object(Tracer, "export_async", return_value=None):
+        response = await chat.app.generate_async(
+            messages=[{"role": "user", "content": "hello"}], options=user_options_dict
+        )
+
+        assert user_options_dict == original_dict
+
+        assert response.log is not None
+        assert (
+            response.log.activated_rails is not None
+            and len(response.log.activated_rails) > 0
+        )
+        assert response.log.llm_calls is not None
+        assert response.log.internal_events is not None
 
 
 if __name__ == "__main__":

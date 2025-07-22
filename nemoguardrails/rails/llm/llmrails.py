@@ -922,7 +922,11 @@ class LLMRails:
                 options = GenerationOptions()
             else:
                 # create a copy of the options to avoid modifying the original
-                options = GenerationOptions(**options.model_dump())
+                if isinstance(options, GenerationOptions):
+                    options = options.model_copy(deep=True)
+                else:
+                    # If options is a dict, convert it to GenerationOptions
+                    options = GenerationOptions(**options)
 
             # enable log options
             # it is aggressive, but these are required for tracing
