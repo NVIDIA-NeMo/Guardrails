@@ -163,7 +163,7 @@ You can configure input and output rails to run in parallel. This can improve la
 
 **When to Use Parallel Rails Execution**
 
-- Use parallel execution for rails that perform external API calls, database queries, or network-based content safety checks with high I/O latency.
+- Use parallel execution for rails that perform external API calls or content safety checks with high I/O latency.
 - Enable parallel execution if you have three or more independent rails without shared state dependencies.
 - Use parallel execution in production environments where response latency affects user experience and business metrics.
 
@@ -172,14 +172,80 @@ You can configure input and output rails to run in parallel. This can improve la
 - Avoid parallel execution for CPU-bound rails, as it might not improve performance and can introduce overhead.
 - Use sequential mode during development and testing for easier debugging and simpler workflows.
 
-To enable parallel execution, set `parallel: True` in the `config.yml` file as follows:
+**Configuration Templates**
+
+To enable parallel execution, set `parallel: True` in the `config.yml` file. The following configurations are tested by NVIDIA and show how to enable parallel execution for input and output rails.
+
+```{note}
+Full support for parallel rail execution across all configurations requires Colang 2, which is not yet integrated or tested with NeMo Guardrails. As an interim solution, this feature is enabled in Colang 1.
+
+This point-fix is temporary until the adoption of Colang 2. As a result, support is currently limited to two specific templates.
+```
+
+**Template 1**
 
 ```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+  - type: content_safety
+    engine: nim
+    parameters:
+      base_url: "http://localhost:8123/v1"
+      model_name: "llama-3.1-nemoguard-8b-content-safety"
+  - type: topic_control
+    engine: nim
+    parameters:
+      base_url: "http://localhost:8124/v1/"
+      model_name: "llama-3.1-nemoguard-8b-topic-control"
+
+rails:
+  config:
+    jailbreak_detection:
+      server_endpoint: ""
+      embedding: "snowflake/snowflake-arctic-embed-m-long"
+  input:
+    parallel: True
+    flows:
+      - content safety check input $model=content_safety
+      - topic safety check input $model=topic_control
+      - jailbreak detection model
+  output:
+    parallel: True
+    flows:
+      - content safety check output $model=content_safety
+```
+
+**Template 2**
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+
+  - type: llama_guard
+    engine: vllm_openai
+    parameters:
+      openai_api_base: "http://localhost:5123/v1"
+      model_name: "meta-llama/LlamaGuard-7b"
+
 rails:
   input:
     parallel: True
+    flows:
+    - llama guard check input
+  config:
+    fact_checking:
+      provider: align_score
+      parameters:
+        endpoint: "http://localhost:5000/alignscore_base"
   output:
     parallel: True
+    flows:
+    - alignscore check facts
+    - llama guard check output
 ```
 
 ## Retrieval Rails

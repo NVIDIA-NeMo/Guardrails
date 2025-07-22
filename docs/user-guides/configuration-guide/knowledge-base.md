@@ -11,7 +11,7 @@ By default, an `LLMRails` instance supports using a set of documents as context 
 │       └── ...
 ```
 
-Currently, only the Markdown format is supported. Support for other formats will be added in the near future.
+Currently, only the Markdown format is supported.
 
 ## Document Structure
 
