@@ -1063,8 +1063,21 @@ class LLMRails:
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
         include_generation_metadata: Optional[bool] = False,
+        generator: Optional[AsyncIterator[str]] = None,
     ) -> AsyncIterator[str]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
+
+        # if an external generator is provided, use it directly
+        if generator:
+            if self.config.rails.output.streaming.enabled:
+                return self._run_output_rails_in_streaming(
+                    streaming_handler=generator,
+                    messages=messages,
+                    prompt=prompt,
+                )
+            else:
+                return generator
+
         self.explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(

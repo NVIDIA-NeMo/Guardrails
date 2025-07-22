@@ -17,8 +17,8 @@
 
 import asyncio
 import json
-import math
 from json.decoder import JSONDecodeError
+from typing import AsyncIterator
 
 import pytest
 
@@ -250,3 +250,256 @@ async def test_streaming_output_rails_default_config_not_blocked_at_start(
         json.loads(chunks[0])
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+
+
+async def simple_token_generator() -> AsyncIterator[str]:
+    """Simple generator that yields tokens."""
+    tokens = ["Hello", " ", "world", "!"]
+    for token in tokens:
+        yield token
+
+
+async def offensive_token_generator() -> AsyncIterator[str]:
+    """Generator that yields potentially offensive content."""
+
+    tokens = ["This", " ", "is", " ", "offensive", " ", "content", " ", "idiot", "!"]
+    for token in tokens:
+        yield token
+
+
+@pytest.mark.asyncio
+async def test_external_generator_without_output_rails():
+    """Test that external generator works without output rails."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {},
+            "streaming": True,
+        }
+    )
+
+    rails = LLMRails(config)
+
+    tokens = []
+    async for token in rails.stream_async(generator=simple_token_generator()):
+        tokens.append(token)
+
+    assert tokens == ["Hello", " ", "world", "!"]
+    assert "".join(tokens) == "Hello world!"
+
+
+@pytest.mark.asyncio
+async def test_external_generator_with_output_rails_allowed():
+    """Test that external generator works with output rails that allow content."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["self check output"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 4,
+                        "context_size": 2,
+                        "stream_first": False,
+                    },
+                }
+            },
+            "streaming": True,
+            "prompts": [
+                {"task": "self_check_output", "content": "Check: {{ bot_response }}"}
+            ],
+        },
+        colang_content="""
+        define flow self check output
+          execute self_check_output
+        """,
+    )
+
+    rails = LLMRails(config)
+
+    @action(name="self_check_output")
+    async def self_check_output(**kwargs):
+        return True
+
+    rails.register_action(self_check_output, "self_check_output")
+
+    tokens = []
+    async for token in rails.stream_async(
+        generator=simple_token_generator(),
+        messages=[{"role": "user", "content": "Hello"}],
+    ):
+        tokens.append(token)
+
+    assert tokens == ["Hello", " ", "world", "!"]
+
+
+@pytest.mark.asyncio
+async def test_external_generator_with_output_rails_blocked():
+    """Test that external generator content can be blocked by output rails."""
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["self check output"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 6,
+                        "context_size": 2,
+                        "stream_first": False,
+                    },
+                }
+            },
+            "streaming": True,
+            "prompts": [
+                {"task": "self_check_output", "content": "Check: {{ bot_response }}"}
+            ],
+        },
+        colang_content="""
+        define flow self check output
+          execute self_check_output
+        """,
+    )
+
+    rails = LLMRails(config)
+
+    @action(name="self_check_output")
+    async def self_check_output(**kwargs):
+        bot_message = kwargs.get(
+            "bot_message", kwargs.get("context", {}).get("bot_message", "")
+        )
+        # block if message contains "offensive" or "idiot"
+        if "offensive" in bot_message.lower() or "idiot" in bot_message.lower():
+            return False
+        return True
+
+    rails.register_action(self_check_output, "self_check_output")
+
+    tokens = []
+    error_received = False
+
+    async for token in rails.stream_async(
+        generator=offensive_token_generator(),
+        messages=[{"role": "user", "content": "Generate something"}],
+    ):
+        if isinstance(token, str) and token.startswith('{"error"'):
+            error_received = True
+            break
+        tokens.append(token)
+
+    assert error_received, "Expected to receive an error JSON when content is blocked"
+    assert len(tokens) == 0
+
+
+@pytest.mark.asyncio
+async def test_external_generator_with_custom_llm():
+    """Test using external generator as a custom LLM replacement."""
+
+    async def custom_llm_generator(messages):
+        """Simulate a custom LLM that generates based on input."""
+
+        user_message = messages[-1]["content"] if messages else ""
+
+        if "weather" in user_message.lower():
+            response = "The weather is sunny today!"
+        elif "name" in user_message.lower():
+            response = "I am an AI assistant."
+        else:
+            response = "I can help you with that."
+
+        for token in response.split(" "):
+            yield token + " "
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {},
+            "streaming": True,
+        }
+    )
+
+    rails = LLMRails(config)
+
+    messages = [{"role": "user", "content": "What's the weather?"}]
+    tokens = []
+
+    async for token in rails.stream_async(
+        generator=custom_llm_generator(messages), messages=messages
+    ):
+        tokens.append(token)
+
+    result = "".join(tokens).strip()
+    assert result == "The weather is sunny today!"
+
+
+@pytest.mark.asyncio
+async def test_external_generator_empty_stream():
+    """Test that empty generator streams work correctly."""
+
+    async def empty_generator():
+        if False:
+            yield
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {},
+            "streaming": True,
+        }
+    )
+
+    rails = LLMRails(config)
+
+    tokens = []
+    async for token in rails.stream_async(generator=empty_generator()):
+        tokens.append(token)
+
+    assert tokens == []
+
+
+@pytest.mark.asyncio
+async def test_external_generator_single_chunk():
+    """Test generator that yields a single large chunk."""
+
+    async def single_chunk_generator():
+        yield "This is a complete response in a single chunk."
+
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": ["self check output"],
+                    "streaming": {
+                        "enabled": True,
+                        "chunk_size": 10,
+                        "context_size": 5,
+                        "stream_first": True,
+                    },
+                }
+            },
+            "streaming": True,
+            "prompts": [
+                {"task": "self_check_output", "content": "Check: {{ bot_response }}"}
+            ],
+        },
+        colang_content="""
+        define flow self check output
+          execute self_check_output
+        """,
+    )
+
+    rails = LLMRails(config)
+
+    @action(name="self_check_output")
+    async def self_check_output(**kwargs):
+        return True
+
+    rails.register_action(self_check_output, "self_check_output")
+
+    tokens = []
+    async for token in rails.stream_async(generator=single_chunk_generator()):
+        tokens.append(token)
+
+    assert "".join(tokens) == "This is a complete response in a single chunk."

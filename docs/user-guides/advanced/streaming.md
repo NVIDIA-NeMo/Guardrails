@@ -71,7 +71,75 @@ result = await app.generate_async(
 print(result)
 ```
 
-For the complete working example, check out this [demo script](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/scripts/demo_streaming.py).
+### Using External Token Generators
+
+You can also provide your own async generator that yields tokens, which is useful when:
+
+- You want to use a different LLM provider that has its own streaming API
+- You have pre-generated responses that you want to stream through guardrails
+- You want to implement custom token generation logic
+- You want to test your output rails or its config in streaming mode on predefined responses without actually relying on an actual LLM generation.
+
+To use an external generator, pass it to the `generator` parameter of `stream_async`:
+
+```python
+from nemoguardrails import LLMRails
+from typing import AsyncIterator
+
+app = LLMRails(config)
+
+async def my_token_generator() -> AsyncIterator[str]:
+    # This could be from OpenAI API, Anthropic API, or any other LLM API that already has a streaming token generator. Mocking the stream here, for a simple example.
+    tokens = ["Hello", " ", "world", "!"]
+    for token in tokens:
+        yield token
+
+messages = [{"role": "user", "content": "The most famous program ever written is"}]"}]
+
+# use the external generator with guardrails
+async for chunk in app.stream_async(
+    messages=messages,
+    generator=my_token_generator()
+):
+    print(f"CHUNK: {chunk}")
+```
+
+When using an external generator:
+
+- The internal LLM generation is completely bypassed
+- Output rails are still applied to the LLM responses returned by the external generator, if configured
+- The generator should yield string tokens
+
+Example with a real LLM API:
+
+```python
+async def openai_streaming_generator(messages) -> AsyncIterator[str]:
+    """Example using OpenAI's streaming API."""
+    import openai
+
+    stream = await openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=messages,
+        stream=True
+    )
+
+    # Yield tokens as they arrive
+    async for chunk in stream:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+
+config = RailsConfig.from_path("config/with_output_rails")
+app = LLMRails(config)
+
+async for chunk in app.stream_async(
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    generator=openai_streaming_generator(messages)
+):
+    # output rails will be applied to these chunks
+    print(chunk, end="", flush=True)
+```
+
+This feature enables seamless integration of NeMo Guardrails with any streaming LLM or token source while maintaining all the safety features of output rails.
 
 ### Server API
 
