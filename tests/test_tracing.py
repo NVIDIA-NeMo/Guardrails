@@ -14,23 +14,25 @@
 # limitations under the License.
 
 import asyncio
-import os
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nemoguardrails import LLMRails
+from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.rails.llm.config import RailsConfig, TracingConfig
 from nemoguardrails.rails.llm.options import (
     ActivatedRail,
     ExecutedAction,
     GenerationLog,
+    GenerationLogOptions,
+    GenerationOptions,
+    GenerationRailsOptions,
     GenerationResponse,
 )
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 from nemoguardrails.tracing.tracer import Tracer, new_uuid
+from tests.utils import TestChat
 
 
 class TestTracer(unittest.TestCase):
@@ -237,6 +239,274 @@ async def test_tracing_enable_no_crash_issue_1093(mockTracer):
     )
     assert mockTracer.called == True
     assert res.response != None
+
+
+@pytest.mark.asyncio
+async def test_tracing_does_not_mutate_user_options():
+    """Test that tracing doesn't modify the user's original GenerationOptions object.
+
+    This test verifies the core fix: when tracing is enabled, the user's options
+    should not be modified. Before the fix, this test would have failed
+    because the original options object was being mutated.
+    """
+
+    config = RailsConfig.from_content(
+        colang_content="""
+        define user express greeting
+            "hello"
+
+        define flow
+            user express greeting
+            bot express greeting
+
+        define bot express greeting
+            "Hello! How can I assist you today?"
+        """,
+        config={
+            "models": [],
+            "tracing": {"enabled": True, "adapters": [{"name": "FileSystem"}]},
+        },
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "user express greeting",
+            "bot express greeting",
+            "Hello! How can I assist you today?",
+        ],
+    )
+
+    user_options = GenerationOptions(
+        log=GenerationLogOptions(
+            activated_rails=False,
+            llm_calls=False,
+            internal_events=False,
+            colang_history=False,
+        )
+    )
+
+    original_activated_rails = user_options.log.activated_rails
+    original_llm_calls = user_options.log.llm_calls
+    original_internal_events = user_options.log.internal_events
+    original_colang_history = user_options.log.colang_history
+
+    # mock file operations to focus on the mutation issue
+    with patch.object(Tracer, "export_async", return_value=None):
+        response = await chat.app.generate_async(
+            messages=[{"role": "user", "content": "hello"}], options=user_options
+        )
+
+        # main fix: no mutation
+        assert (
+            user_options.log.activated_rails == original_activated_rails
+        ), "User's original options were modified! This causes instability."
+        assert (
+            user_options.log.llm_calls == original_llm_calls
+        ), "User's original options were modified! This causes instability."
+        assert (
+            user_options.log.internal_events == original_internal_events
+        ), "User's original options were modified! This causes instability."
+        assert (
+            user_options.log.colang_history == original_colang_history
+        ), "User's original options were modified! This causes instability."
+
+        # verify that tracing still works
+        assert response.log is not None, "Tracing should still work correctly"
+        assert (
+            response.log.activated_rails is not None
+        ), "Should have activated rails data"
+
+
+@pytest.mark.asyncio
+async def test_tracing_with_none_options():
+    """Test that tracing works correctly when no options are provided.
+
+    This verifies that the fix doesn't break the case where users don't
+    provide any options at all.
+    """
+
+    config = RailsConfig.from_content(
+        colang_content="""
+        define user express greeting
+            "hello"
+
+        define flow
+            user express greeting
+            bot express greeting
+
+        define bot express greeting
+            "Hello! How can I assist you today?"
+        """,
+        config={
+            "models": [],
+            "tracing": {"enabled": True, "adapters": [{"name": "FileSystem"}]},
+        },
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "user express greeting",
+            "bot express greeting",
+            "Hello! How can I assist you today?",
+        ],
+    )
+
+    with patch.object(Tracer, "export_async", return_value=None):
+        response = await chat.app.generate_async(
+            messages=[{"role": "user", "content": "hello"}], options=None
+        )
+
+        assert response.log is not None
+        assert response.log.activated_rails is not None
+        assert response.log.stats is not None
+
+
+@pytest.mark.asyncio
+async def test_tracing_aggressive_override_when_all_disabled():
+    """Test that tracing aggressively enables all logging when user disables all options.
+
+    When user disables all three tracing related options, tracing still enables
+    ALL of them to ensure comprehensive logging data.
+    """
+
+    config = RailsConfig.from_content(
+        colang_content="""
+        define user express greeting
+            "hello"
+
+        define flow
+            user express greeting
+            bot express greeting
+
+        define bot express greeting
+            "Hello! How can I assist you today?"
+        """,
+        config={
+            "models": [],
+            "tracing": {"enabled": True, "adapters": [{"name": "FileSystem"}]},
+        },
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "user express greeting",
+            "bot express greeting",
+            "Hello! How can I assist you today?",
+        ],
+    )
+
+    # user explicitly disables ALL tracing related options
+    user_options = GenerationOptions(
+        log=GenerationLogOptions(
+            activated_rails=False,
+            llm_calls=False,
+            internal_events=False,
+            colang_history=True,
+        )
+    )
+
+    original_activated_rails = user_options.log.activated_rails
+    original_llm_calls = user_options.log.llm_calls
+    original_internal_events = user_options.log.internal_events
+    original_colang_history = user_options.log.colang_history
+
+    with patch.object(Tracer, "export_async", return_value=None):
+        response = await chat.app.generate_async(
+            messages=[{"role": "user", "content": "hello"}], options=user_options
+        )
+
+        assert user_options.log.activated_rails == original_activated_rails
+        assert user_options.log.llm_calls == original_llm_calls
+        assert user_options.log.internal_events == original_internal_events
+        assert user_options.log.colang_history == original_colang_history
+
+        assert response.log is not None
+        assert (
+            response.log.activated_rails is not None
+            and len(response.log.activated_rails) > 0
+        )
+        assert response.log.llm_calls is not None
+        assert response.log.internal_events is not None
+
+        assert user_options.log.activated_rails == original_activated_rails
+        assert user_options.log.llm_calls == original_llm_calls
+        assert user_options.log.internal_events == original_internal_events
+        assert user_options.log.activated_rails == False
+        assert user_options.log.llm_calls == False
+        assert user_options.log.internal_events == False
+
+
+@pytest.mark.asyncio
+async def test_tracing_aggressive_override_with_dict_options():
+    """Test that tracing works correctly when options are passed as a dict.
+
+    This tests that the fix handles both GenerationOptions objects and dicts,
+    since the method signature allows both types.
+    """
+
+    config = RailsConfig.from_content(
+        colang_content="""
+        define user express greeting
+            "hello"
+
+        define flow
+            user express greeting
+            bot express greeting
+
+        define bot express greeting
+            "Hello! How can I assist you today?"
+        """,
+        config={
+            "models": [],
+            "tracing": {"enabled": True, "adapters": [{"name": "FileSystem"}]},
+        },
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "user express greeting",
+            "bot express greeting",
+            "Hello! How can I assist you today?",
+        ],
+    )
+
+    # user passes options as a dict with all tracing options disabled
+    user_options_dict = {
+        "log": {
+            "activated_rails": False,
+            "llm_calls": False,
+            "internal_events": False,
+            "colang_history": True,
+        }
+    }
+
+    original_dict = {
+        "log": {
+            "activated_rails": False,
+            "llm_calls": False,
+            "internal_events": False,
+            "colang_history": True,
+        }
+    }
+
+    with patch.object(Tracer, "export_async", return_value=None):
+        response = await chat.app.generate_async(
+            messages=[{"role": "user", "content": "hello"}], options=user_options_dict
+        )
+
+        assert user_options_dict == original_dict
+
+        assert response.log is not None
+        assert (
+            response.log.activated_rails is not None
+            and len(response.log.activated_rails) > 0
+        )
+        assert response.log.llm_calls is not None
+        assert response.log.internal_events is not None
 
 
 if __name__ == "__main__":

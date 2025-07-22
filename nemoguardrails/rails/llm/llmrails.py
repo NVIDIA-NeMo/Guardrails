@@ -920,6 +920,16 @@ class LLMRails:
         if self.config.tracing.enabled:
             if options is None:
                 options = GenerationOptions()
+            else:
+                # create a copy of the options to avoid modifying the original
+                if isinstance(options, GenerationOptions):
+                    options = options.model_copy(deep=True)
+                else:
+                    # If options is a dict, convert it to GenerationOptions
+                    options = GenerationOptions(**options)
+
+            # enable log options
+            # it is aggressive, but these are required for tracing
             if (
                 not options.log.activated_rails
                 or not options.log.llm_calls

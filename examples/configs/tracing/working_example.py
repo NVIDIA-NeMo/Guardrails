@@ -127,7 +127,7 @@ def main():
         messages=[{"role": "user", "content": "What can you do?"}]
     )
 
-    print(f"User: What can you do?")
+    print("User: What can you do?")
     print(f"Bot: {response.response}")
     print("-" * 50)
 
