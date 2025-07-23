@@ -178,11 +178,15 @@ You can configure input and output rails to run in parallel. This can improve la
 
 To enable parallel execution, set `parallel: True` in the `rails.input` and `rails.output` sections in the `config.yml` file. The following configuration examples are tested by NVIDIA and show how to enable parallel execution for input and output rails.
 
+In the current release, if you don't use one of the two template configs or a subset of them, parallel execution might not work.
+
 ```{note}
 Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior may cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
 ```
 
 **Example 1**
+
+Configuration for parallel rails using models from NVIDIA Cloud Functions (NVCF). Make sure that you export `NVIDIA_API_KEY` to access NVCF models.
 
 ```yaml
 models:
@@ -191,14 +195,10 @@ models:
     model: meta/llama-3.1-70b-instruct
   - type: content_safety
     engine: nim
-    parameters:
-      base_url: "http://localhost:8123/v1"
-      model_name: "llama-3.1-nemoguard-8b-content-safety"
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
   - type: topic_control
     engine: nim
-    parameters:
-      base_url: "http://localhost:8124/v1/"
-      model_name: "llama-3.1-nemoguard-8b-topic-control"
+    model: nvidia/llama-3.1-nemoguard-8b-topic-control
 
 rails:
   input:
@@ -206,11 +206,11 @@ rails:
     flows:
       - content safety check input $model=content_safety
       - topic safety check input $model=topic_control
-      - jailbreak detection model
   output:
     parallel: True
     flows:
       - content safety check output $model=content_safety
+      - topic safety check output $model=topic_control
 ```
 
 **Example 2**
