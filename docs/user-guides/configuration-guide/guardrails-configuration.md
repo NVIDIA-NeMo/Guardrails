@@ -174,13 +174,13 @@ You can configure input and output rails to run in parallel. This can improve la
 
 ### Configuration Examples
 
-To enable parallel execution, set `parallel: True` in the `config.yml` file. The following configuration examples are tested by NVIDIA and show how to enable parallel execution for input and output rails.
+To enable parallel execution, set `parallel: True` in the `rails.input` and `rails.output` sections in the `config.yml` file. The following configuration examples are tested by NVIDIA and show how to enable parallel execution for input and output rails.
 
 ```{note}
 Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior may cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
 ```
 
-**Template 1**
+**Example 1**
 
 ```yaml
 models:
@@ -199,10 +199,6 @@ models:
       model_name: "llama-3.1-nemoguard-8b-topic-control"
 
 rails:
-  config:
-    jailbreak_detection:
-      server_endpoint: ""
-      embedding: "snowflake/snowflake-arctic-embed-m-long"
   input:
     parallel: True
     flows:
@@ -215,7 +211,7 @@ rails:
       - content safety check output $model=content_safety
 ```
 
-**Template 2**
+**Example 2**
 
 ```yaml
 models:
@@ -234,11 +230,6 @@ rails:
     parallel: True
     flows:
     - llama guard check input
-  config:
-    fact_checking:
-      provider: align_score
-      parameters:
-        endpoint: "http://localhost:5000/alignscore_base"
   output:
     parallel: True
     flows:
