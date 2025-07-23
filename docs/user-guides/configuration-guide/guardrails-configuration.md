@@ -166,7 +166,7 @@ You can configure input and output rails to run in parallel. This can improve la
 ### When to Use Parallel Rails Execution
 
 - Use parallel execution for rails that perform external API calls or content safety checks with high I/O latency.
-- Enable parallel execution if you have three or more independent rails without shared state dependencies.
+- Enable parallel execution if you have two or more independent input or output rails without shared state dependencies.
 - Use parallel execution in production environments where response latency affects user experience and business metrics.
 
 ### When Not to Use Parallel Rails Execution
