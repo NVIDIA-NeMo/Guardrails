@@ -161,25 +161,23 @@ Refer to [](../getting-started/5-output-rails/README.md#streaming-output) for a 
 
 You can configure input and output rails to run in parallel. This can improve latency and throughput.
 
-**When to Use Parallel Rails Execution**
+### When to Use Parallel Rails Execution
 
 - Use parallel execution for rails that perform external API calls or content safety checks with high I/O latency.
 - Enable parallel execution if you have three or more independent rails without shared state dependencies.
 - Use parallel execution in production environments where response latency affects user experience and business metrics.
 
-**When Not to Use Parallel Rails Execution**
+### When Not to Use Parallel Rails Execution
 
 - Avoid parallel execution for CPU-bound rails, as it might not improve performance and can introduce overhead.
 - Use sequential mode during development and testing for easier debugging and simpler workflows.
 
-**Configuration Templates**
+### Configuration Examples
 
-To enable parallel execution, set `parallel: True` in the `config.yml` file. The following configurations are tested by NVIDIA and show how to enable parallel execution for input and output rails.
+To enable parallel execution, set `parallel: True` in the `config.yml` file. The following configuration examples are tested by NVIDIA and show how to enable parallel execution for input and output rails.
 
 ```{note}
-Full support for parallel rail execution across all configurations requires Colang 2, which is not yet integrated or tested with NeMo Guardrails. As an interim solution, this feature is enabled in Colang 1.
-
-This point-fix is temporary until the adoption of Colang 2. As a result, support is currently limited to two specific templates.
+Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior may cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
 ```
 
 **Template 1**
