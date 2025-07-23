@@ -157,6 +157,8 @@ The following table shows how token count, chunk size, and context size interact
 
 Refer to [](../getting-started/5-output-rails/README.md#streaming-output) for a code sample.
 
+(parallel-rails)=
+
 ## Parallel Execution of Input and Output Rails
 
 You can configure input and output rails to run in parallel. This can improve latency and throughput.
