@@ -1,0 +1,21 @@
+#### XGB DETECTION RAILS ####
+
+# INPUT RAILS
+
+flow xgb detect on input
+"""Check if the user content has harmful content"
+  $detection = await XGBDetectAction(source="input", text=$user_message)
+
+  if $detection
+    bot inform answer unknown
+    abort
+
+# OUTPUT RAILS
+
+flow xgb detect on output
+"""Check if the bot output has harmful content"
+  $detection = await XGBDetectAction(source="output", text=$bot_message)
+
+  if $detection
+    bot inform answer unknown
+    abort

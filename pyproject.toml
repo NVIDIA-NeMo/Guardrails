@@ -46,7 +46,7 @@ repository = "https://github.com/NVIDIA/NeMo-Guardrails"
 nemoguardrails = "nemoguardrails.__main__:app"
 
 [tool.poetry.dependencies]
-python = ">=3.9,!=3.9.7,<3.14"
+python = ">=3.10,!=3.9.7,<3.14"
 aiohttp = ">=3.10.11"
 annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
@@ -100,6 +100,11 @@ google-cloud-language = { version = ">=2.14.0", optional = true }
 
 # jailbreak injection
 yara-python = { version = "^4.5.1", optional = true }
+
+# xgb
+xgboost = "^3.0.2"
+scikit-learn = "^1.7.1"
+huggingface-hub = "^0.34.3"
 
 [tool.poetry.extras]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]

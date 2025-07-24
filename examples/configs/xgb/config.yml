@@ -1,0 +1,19 @@
+models:
+  - type: main
+    engine: hf_pipeline_gpt2
+    model: "openai-community/gpt2"
+rails:
+  config:
+    xgb:
+      input:
+        detectors:
+          - SPAM
+      output:
+        detectors:
+          - SPAM
+  input:
+    flows:
+      - xgb detect on input
+  output:
+    flows:
+      - xgb detect on output

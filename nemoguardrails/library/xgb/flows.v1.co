@@ -1,0 +1,18 @@
+#### XGB DETECTION RAILS ####
+
+# INPUT RAILS
+
+define subflow xgb detect on input
+    $detection = execute xgb_detect(source="input", text=$user_message)
+
+    if $detection
+        bot inform answer unknown
+        stop
+
+# OUTPUT RAILS
+define subflow xgb detect on output
+    $detection = execute xgb_detect(source="output", text=$user_message)
+
+    if $detection
+        bot inform answer unknown
+        stop

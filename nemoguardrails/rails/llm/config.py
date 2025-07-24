@@ -293,6 +293,28 @@ class FiddlerGuardrails(BaseModel):
     )
 
 
+class XGBDetectors(BaseModel):
+    """Configuration for XGBoost detectors."""
+
+    detectors: List[str] = Field(
+        default_factory=list,
+        description="The list of detectors to use.",
+    )
+
+
+class XGBDetection(BaseModel):
+    """Configuration for XGBoost detectors."""
+
+    input: Optional[XGBDetectors] = Field(
+        default_factory=XGBDetectors,
+        description="XGBoost configuration for an Input Guardrail",
+    )
+    output: Optional[XGBDetectors] = Field(
+        default_factory=XGBDetectors,
+        description="XGBoost configuration for an Output Guardrail",
+    )
+
+
 class MessageTemplate(BaseModel):
     """Template for a message structure."""
 
@@ -803,6 +825,11 @@ class RailsConfigData(BaseModel):
     clavata: Optional[ClavataRailConfig] = Field(
         default_factory=ClavataRailConfig,
         description="Configuration for Clavata.",
+    )
+
+    xgb: Optional[XGBDetection] = Field(
+        default_factory=XGBDetection,
+        description="Configuration for XGBoost Guardrails.",
     )
 
 
