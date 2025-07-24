@@ -25,7 +25,12 @@ async_client_var: ContextVar = ContextVar("async_client", default=None)
 
 
 class CohereEmbeddingModel(EmbeddingModel):
-    """Embedding model using Cohere API.
+    """
+    Embedding model using Cohere API.
+
+    To use, you must have either:
+        1. The ``COHERE_API_KEY`` environment variable set with your API key, or
+        2. Pass your API key using the api_key kwarg to the Cohere constructor.
 
     Args:
         embedding_model (str): The name of the embedding model.
