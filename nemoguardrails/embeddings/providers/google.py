@@ -33,7 +33,8 @@ class GoogleEmbeddingModel(EmbeddingModel):
         embedding_model (str): The name of the embedding model to be used.
 
     Attributes:
-        model: The name of the model to be called for creating embeddings.
+        model: The name of the embedding model.
+        embedding_size (int): The size of the embeddings.
     """
 
     engine_name = "google"
@@ -42,16 +43,28 @@ class GoogleEmbeddingModel(EmbeddingModel):
         try:
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-            self.model = embedding_model
-            self.document_embedder = GoogleGenerativeAIEmbeddings(
-                model=embedding_model, **kwargs
-            )
-
         except ImportError:
             raise ImportError(
                 "Could not import langchain_google_genai, please install it with "
                 "`pip install langchain-google-genai`."
             )
+
+        self.model = embedding_model
+        self.document_embedder = GoogleGenerativeAIEmbeddings(
+            model=embedding_model, **kwargs
+        )
+
+        self.embedding_size_dict = {
+            "gemini-embedding-001": 3072,
+            "text-embedding-005": 768,
+            "text-multilingual-embedding-002": 768,
+        }
+
+        if self.model in self.embedding_size_dict:
+            self.embedding_size = self.embedding_size_dict[self.model]
+        else:
+            # Perform a first encoding to get the embedding size
+            self.embedding_size = len(self.encode(["test"])[0])
 
     async def encode_async(self, documents: List[str]) -> List[List[float]]:
         """Encode a list of documents into their corresponding sentence embeddings.
