@@ -507,6 +507,113 @@ class LLMRails:
 
         self.runtime.register_action_param("llms", llms)
 
+        # detect actions that need isolated LLM instances and create them
+        self._create_isolated_llms_for_actions()
+
+    def _create_isolated_llms_for_actions(self):
+        """Create isolated LLM copies for all actions that accept 'llm' parameter."""
+        if not self.llm:
+            log.debug("No main LLM available for creating isolated copies")
+            return
+
+        try:
+            actions_needing_llms = self._detect_llm_requiring_actions()
+            log.info(
+                f"{len(actions_needing_llms)} actions requiring isolated LLMs: {list(actions_needing_llms)}"
+            )
+
+            created_count = 0
+            for action_name in actions_needing_llms:
+                if f"{action_name}_llm" not in self.runtime.registered_action_params:
+                    isolated_llm = self._create_action_llm_copy(self.llm, action_name)
+                    if isolated_llm:
+                        self.runtime.register_action_param(
+                            f"{action_name}_llm", isolated_llm
+                        )
+                        created_count += 1
+                        log.debug(f"Created isolated LLM for action: {action_name}")
+                else:
+                    log.debug(
+                        f"Action {action_name} already has dedicated LLM, skipping isolation"
+                    )
+
+            log.info(f"Created {created_count} isolated LLM instances for actions")
+
+        except Exception as e:
+            log.warning(f"Failed to create isolated LLMs for actions: {e}")
+
+    def _detect_llm_requiring_actions(self):
+        """Auto-detect actions that have 'llm' parameter."""
+        import inspect
+
+        actions_needing_llms = set()
+
+        if (
+            not hasattr(self.runtime, "action_dispatcher")
+            or not self.runtime.action_dispatcher
+        ):
+            log.debug("Action dispatcher not available")
+            return actions_needing_llms
+
+        for (
+            action_name,
+            action_info,
+        ) in self.runtime.action_dispatcher.registered_actions.items():
+            action_func = self._get_action_function(action_info)
+            if not action_func:
+                continue
+
+            try:
+                sig = inspect.signature(action_func)
+                if "llm" in sig.parameters:
+                    actions_needing_llms.add(action_name)
+                    log.debug(f"Action {action_name} has 'llm' parameter")
+
+            except Exception as e:
+                log.debug(f"Could not inspect action {action_name}: {e}")
+
+        return actions_needing_llms
+
+    def _get_action_function(self, action_info):
+        """Extract the actual function from action info."""
+        if hasattr(action_info, "function"):
+            return action_info.function
+        elif hasattr(action_info, "callable"):
+            return action_info.callable
+        elif callable(action_info):
+            return action_info
+        elif isinstance(action_info, dict):
+            return action_info.get("function") or action_info.get("callable")
+        return None
+
+    def _create_action_llm_copy(self, main_llm, action_name):
+        """Create an isolated copy of main LLM for a specific action."""
+        import copy
+
+        try:
+            # shallow copy to preserve HTTP clients, credentials, etc.
+            # but create new instance to avoid shared state
+            isolated_llm = copy.copy(main_llm)
+
+            # isolate model_kwargs to prevent shared mutable state
+            if (
+                hasattr(isolated_llm, "model_kwargs")
+                and isolated_llm.model_kwargs is not None
+            ):
+                isolated_llm.model_kwargs = isolated_llm.model_kwargs.copy()
+            else:
+                isolated_llm.model_kwargs = {}
+
+            log.debug(
+                f"Successfully created isolated LLM copy for action: {action_name}"
+            )
+            return isolated_llm
+
+        except Exception as e:
+            log.warning(f"Failed to create isolated LLM copy for {action_name}: {e}")
+            # return original LLM as fallback (less safe but prevents complete failure)
+            return main_llm
+
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
     ) -> EmbeddingsIndex:
