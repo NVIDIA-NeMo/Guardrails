@@ -19,10 +19,15 @@ from .base import EmbeddingModel
 
 
 class GoogleEmbeddingModel(EmbeddingModel):
-    """Embedding model using langchain-google-ai.
+    """Embedding model using langchain_google_genai.
 
     This class is a wrapper for using embedding models powered by Google AI (hosted in the Google Cloud).
-    To use this model, set `GOOGLE_API_KEY` in the environment variable.
+
+    To use, you must have either:
+
+        1. The ``GOOGLE_API_KEY`` environment variable set with your API key, or
+        2. Pass your API key using the google_api_key kwarg to the
+        GoogleGenerativeAIEmbeddings constructor.
 
     Args:
         embedding_model (str): The name of the embedding model to be used.
