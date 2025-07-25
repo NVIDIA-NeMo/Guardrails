@@ -79,7 +79,7 @@ When streaming is enabled, NeMo Guardrails automatically enables token usage tra
 
 - Provides token usage statistics even when streaming responses
 - Is primarily supported by OpenAI, AzureOpenAI, and others. The NIM provider always supports it.
-- Can be safely passed to all LLM providers since those that don't support it will simply ignore the parameter
+- Allows to safely pass token usage statistics to LLM providers. If the LLM provider you use don't support it, the parameter is ignored.
 
 ### Version Requirements
 
