@@ -1,4 +1,4 @@
-name: docs-preview-pr
+name: 👀 Documentation Preview
 
 on:
     workflow_run:

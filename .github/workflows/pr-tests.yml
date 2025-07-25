@@ -1,4 +1,4 @@
-name: PR Tests
+name: 🧪 Pull Request Tests
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       image: ${{ matrix.image }}
       python-version: ${{ matrix.python-version }}
   pr-tests-summary:
-    name: PR Tests Summary
+    name: 🧪 Pull Request Tests Summary
     needs: pr-tests-matrix
     runs-on: ubuntu-latest
     steps:

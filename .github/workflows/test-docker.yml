@@ -1,4 +1,4 @@
-name: Test Docker Image
+name: 🐳 Docker Image Tests
 
 # TODO: set docker auth
 on:

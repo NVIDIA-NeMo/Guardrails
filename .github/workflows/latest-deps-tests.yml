@@ -1,4 +1,4 @@
-name: Test with Latest Dependencies
+name: 🔄 Latest Dependencies Tests
 
 on:
   schedule:

@@ -1,4 +1,4 @@
-name: docs-remove-stale-reviews
+name: 🧹 Clean Stale Doc Reviews
 
 on:
     schedule:

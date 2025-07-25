@@ -1,4 +1,4 @@
-name: Full Tests
+name: 🔍 Full Test Suite
 
 on:
   pull_request:

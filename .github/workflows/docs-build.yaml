@@ -1,4 +1,4 @@
-name: docs-build
+name: 📚 Documentation Build
 
 on:
     pull_request:

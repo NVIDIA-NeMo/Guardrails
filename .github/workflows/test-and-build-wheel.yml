@@ -1,4 +1,4 @@
-name: Build and Test Distribution
+name: 📦 Build & Test Distribution
 
 on:
   push:
