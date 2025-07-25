@@ -78,7 +78,7 @@ For the complete working example, check out this [demo script](https://github.co
 When streaming is enabled, NeMo Guardrails automatically enables token usage tracking by setting the `stream_usage` parameter to `True` for the underlying LLM model. This feature:
 
 - Provides token usage statistics even when streaming responses.
-- Is primarily supported by OpenAI, AzureOpenAI, and others. The NIM provider always supports it.
+- Is primarily supported by OpenAI, AzureOpenAI, and other providers. The NVIDIA NIM provider always supports it.
 - Allows to safely pass token usage statistics to LLM providers. If the LLM provider you use don't support it, the parameter is ignored.
 
 ### Version Requirements
