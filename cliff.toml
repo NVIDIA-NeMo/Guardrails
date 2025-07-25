@@ -93,4 +93,4 @@ sort_commits = "oldest"
 [bump]
 features_always_bump_minor = true
 breaking_always_bump_major = true
-initial_tag = "0.11.1"
+initial_tag = "0.14.1"

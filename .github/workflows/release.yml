@@ -1,0 +1,127 @@
+name: 📦 Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version (e.g. 0.14.2)'
+        required: true
+        type: string
+      bump_type:
+        description: 'Version bump type (only used if version is not provided)'
+        required: false
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: false
+          virtualenvs-in-project: false
+
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v2
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Use git-cliff to determine the next version based on commits
+            VERSION=$(git cliff --bumped-version)
+          fi
+
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          # Generate changelog for the new version
+          git cliff --tag v${{ steps.version.outputs.version }} --unreleased --strip header -o CHANGELOG_NEW.md
+
+          # Extract the current changelog header and NOTE section
+          sed -n '1,/^## \[/p' CHANGELOG.md | sed '$d' > CHANGELOG_HEADER.md
+
+          # Extract the rest of the changelog (existing versions)
+          sed -n '/^## \[/,$p' CHANGELOG.md > CHANGELOG_BODY.md
+
+          # Combine: header + new entry + existing entries
+          cat CHANGELOG_HEADER.md > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          cat CHANGELOG_NEW.md >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          cat CHANGELOG_BODY.md >> CHANGELOG.md
+
+          # Clean up temporary files
+          rm CHANGELOG_NEW.md CHANGELOG_HEADER.md CHANGELOG_BODY.md
+
+          # Store changelog content for release notes
+          git cliff --tag v${{ steps.version.outputs.version }} --unreleased --strip all -o RELEASE_NOTES.md
+
+      - name: Update version with Poetry
+        run: |
+          # Use Poetry to update the version
+          poetry version ${{ steps.version.outputs.version }}
+
+          # Update the lock file without updating dependencies
+          poetry lock --no-update
+
+      - name: Update version in README.md
+        run: |
+          # Update the version reference in README.md
+          sed -i "s/\[0\.[0-9]*\.[0-9]*\](https:\/\/github\.com\/NVIDIA\/NeMo-Guardrails\/tree\/v0\.[0-9]*\.[0-9]*)/[${{ steps.version.outputs.version }}](https:\/\/github.com\/NVIDIA\/NeMo-Guardrails\/tree\/v${{ steps.version.outputs.version }})/g" README.md
+          sed -i "s/version: \[0\.[0-9]*\.[0-9]*\]/version: [${{ steps.version.outputs.version }}]/g" README.md
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add CHANGELOG.md pyproject.toml poetry.lock README.md
+          git commit -m "chore(release): prepare for v${{ steps.version.outputs.version }}"
+
+      - name: Create and push tag
+        run: |
+          git tag -a v${{ steps.version.outputs.version }} -m "Release v${{ steps.version.outputs.version }}"
+          git push origin main --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up
+        run: rm -f RELEASE_NOTES.md

@@ -1,0 +1,89 @@
+name: 📝 Update Changelog
+
+on:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "CHANGELOG-Colang.md"
+      - ".github/workflows/update-changelog.yml"
+  workflow_dispatch:
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v2
+
+      - name: Check if there are unreleased changes
+        id: check
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No tags found, will generate full changelog"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            # Check if there are commits since the last tag
+            COMMITS_SINCE_TAG=$(git rev-list $LATEST_TAG..HEAD --count)
+            if [ "$COMMITS_SINCE_TAG" -gt 0 ]; then
+              echo "Found $COMMITS_SINCE_TAG commits since $LATEST_TAG"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            else
+              echo "No new commits since $LATEST_TAG"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Generate updated changelog
+        if: steps.check.outputs.has_changes == 'true'
+        run: |
+          # Generate the full changelog
+          git cliff -o CHANGELOG_TEMP.md
+
+          # Extract header and NOTE section from the template
+          sed -n '1,/^## \[/p' CHANGELOG_TEMP.md | sed '$d' > CHANGELOG_HEADER.md
+
+          # Extract the changelog entries
+          sed -n '/^## \[/,$p' CHANGELOG_TEMP.md > CHANGELOG_BODY.md
+
+          # Combine them
+          cat CHANGELOG_HEADER.md > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          cat CHANGELOG_BODY.md >> CHANGELOG.md
+
+          # Clean up
+          rm CHANGELOG_TEMP.md CHANGELOG_HEADER.md CHANGELOG_BODY.md
+
+      - name: Check for changes
+        id: verify
+        run: |
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changes to CHANGELOG.md"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGELOG.md has been updated"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.verify.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md [skip ci]"
+          git push origin main
