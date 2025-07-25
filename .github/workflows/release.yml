@@ -103,6 +103,12 @@ jobs:
           sed -i "s/\[0\.[0-9]*\.[0-9]*\](https:\/\/github\.com\/NVIDIA\/NeMo-Guardrails\/tree\/v0\.[0-9]*\.[0-9]*)/[${{ steps.version.outputs.version }}](https:\/\/github.com\/NVIDIA\/NeMo-Guardrails\/tree\/v${{ steps.version.outputs.version }})/g" README.md
           sed -i "s/version: \[0\.[0-9]*\.[0-9]*\]/version: [${{ steps.version.outputs.version }}]/g" README.md
 
+      - name: Create release branch
+        run: |
+          BRANCH_NAME="release/v${{ steps.version.outputs.version }}"
+          git checkout -b $BRANCH_NAME
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
@@ -111,20 +117,38 @@ jobs:
           git add CHANGELOG.md pyproject.toml poetry.lock README.md
           git commit -m "chore(release): prepare for v${{ steps.version.outputs.version }}"
 
-      # - name: Create and push tag
-      #   run: |
-      #     git tag -a v${{ steps.version.outputs.version }} -m "Release v${{ steps.version.outputs.version }}"
-      #     git push origin main --tags
-      #
-      # - name: Create GitHub Release
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: v${{ steps.version.outputs.version }}
-      #     name: v${{ steps.version.outputs.version }}
-      #     body_path: RELEASE_NOTES.md
-      #     draft: false
-      #     prerelease: false
-      #     token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push release branch
+        run: |
+          git push origin ${{ env.branch_name }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.branch_name }}
+          base: main
+          title: "Release v${{ steps.version.outputs.version }}"
+          body: |
+            ## 🚀 Release v${{ steps.version.outputs.version }}
+
+            This PR was automatically created by the release workflow.
+
+            ### Changes included:
+            - ✅ Updated version to v${{ steps.version.outputs.version }}
+            - ✅ Updated CHANGELOG.md with latest changes
+            - ✅ Updated poetry.lock file
+            - ✅ Updated version references in README.md
+
+            ### Release Notes:
+
+            ${{ steps.changelog.outputs.body }}
+
+            ---
+
+            After merging this PR, a tag will be created and a GitHub release will be published.
+          labels: |
+            release
+            automated
 
       - name: Clean up
         run: rm -f RELEASE_NOTES.md
