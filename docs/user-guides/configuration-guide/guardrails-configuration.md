@@ -165,14 +165,14 @@ You can configure input and output rails to run in parallel. This can improve la
 
 ### When to Use Parallel Rails Execution
 
-- Use parallel execution for rails that perform external API calls or content safety checks with high I/O latency.
+- Use parallel execution for I/O-bound rails such as external API calls to LLMs or third-party integrations.
 - Enable parallel execution if you have two or more independent input or output rails without shared state dependencies.
 - Use parallel execution in production environments where response latency affects user experience and business metrics.
 
 ### When Not to Use Parallel Rails Execution
 
-- Avoid parallel execution for CPU-bound rails, as it might not improve performance and can introduce overhead.
-- Use sequential mode during development and testing for easier debugging and simpler workflows.
+- Avoid parallel execution for CPU-bound rails; it might not improve performance and can introduce overhead.
+- Use sequential mode during development and testing for debugging and simpler workflows.
 
 ### Configuration Examples
 
@@ -184,9 +184,9 @@ In the current release, if you don't use one of the two template configs or a su
 Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior may cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
 ```
 
-**Example 1**
+**Example Configuration**
 
-Configuration for parallel rails using models from NVIDIA Cloud Functions (NVCF). Make sure that you export `NVIDIA_API_KEY` to access NVCF models.
+The following is an example configuration for parallel rails using models from NVIDIA Cloud Functions (NVCF). When you use NVCF models, make sure that you export `NVIDIA_API_KEY` to access those models.
 
 ```yaml
 models:
@@ -211,32 +211,6 @@ rails:
     flows:
       - content safety check output $model=content_safety
       - topic safety check output $model=topic_control
-```
-
-**Example 2**
-
-```yaml
-models:
-  - type: main
-    engine: nim
-    model: meta/llama-3.1-70b-instruct
-
-  - type: llama_guard
-    engine: vllm_openai
-    parameters:
-      openai_api_base: "http://localhost:5123/v1"
-      model_name: "meta-llama/LlamaGuard-7b"
-
-rails:
-  input:
-    parallel: True
-    flows:
-    - llama guard check input
-  output:
-    parallel: True
-    flows:
-    - alignscore check facts
-    - llama guard check output
 ```
 
 ## Retrieval Rails
