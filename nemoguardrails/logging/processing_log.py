@@ -36,7 +36,12 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
     generation_log = GenerationLog()
 
     # The list of actions to ignore during the processing.
-    ignored_actions = ["create_event"]
+    ignored_actions = [
+        "create_event",
+        "run_input_rails_in_parallel",
+        "run_output_rails_in_parallel",
+        "run_flows_in_parallel",
+    ]
     ignored_flows = [
         "process user input",
         "run input rails",

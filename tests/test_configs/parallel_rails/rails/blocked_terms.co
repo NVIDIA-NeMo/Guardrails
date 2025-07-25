@@ -1,0 +1,19 @@
+define bot inform about blocked user term
+  "I cannot process a term in the user message."
+
+define bot inform about blocked bot term
+  "I cannot express a term in the bot answer."
+
+define subflow check blocked input terms
+  $is_blocked = execute check_blocked_input_terms(duration=$duration)
+
+  if $is_blocked
+    bot inform about blocked user term
+    stop
+
+define subflow check blocked output terms
+  $is_blocked = execute check_blocked_output_terms(duration=$duration)
+
+  if $is_blocked
+    bot inform about blocked bot term
+    stop

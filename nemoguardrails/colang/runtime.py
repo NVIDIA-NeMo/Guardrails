@@ -43,6 +43,21 @@ class Runtime:
                 name="run_output_rails_in_parallel_streaming",
             )
 
+        if hasattr(self, "_run_flows_in_parallel"):
+            self.action_dispatcher.register_action(
+                self._run_flows_in_parallel, name="run_flows_in_parallel"
+            )
+
+        if hasattr(self, "_run_input_rails_in_parallel"):
+            self.action_dispatcher.register_action(
+                self._run_input_rails_in_parallel, name="run_input_rails_in_parallel"
+            )
+
+        if hasattr(self, "_run_output_rails_in_parallel"):
+            self.action_dispatcher.register_action(
+                self._run_output_rails_in_parallel, name="run_output_rails_in_parallel"
+            )
+
         # The list of additional parameters that can be passed to the actions.
         self.registered_action_params: dict = {}
 

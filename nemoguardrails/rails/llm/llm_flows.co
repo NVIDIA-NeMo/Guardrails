@@ -46,23 +46,27 @@ define subflow generate user intent
 
 define subflow run input rails
   """Runs all the input rails in a sequential order. """
-  $i = 0
   $input_flows = $config.rails.input.flows
-  while $i < len($input_flows)
-    # We set the current rail as being triggered.
-    $triggered_input_rail = $input_flows[$i]
 
-    create event StartInputRail(flow_id=$triggered_input_rail)
-    event StartInputRail
+  if $config.rails.input.parallel
+    execute run_input_rails_in_parallel(flows=$input_flows)
+  else
+    $i = 0
+    while $i < len($input_flows)
+      # We set the current rail as being triggered.
+      $triggered_input_rail = $input_flows[$i]
 
-    do $input_flows[$i]
-    $i = $i + 1
+      create event StartInputRail(flow_id=$triggered_input_rail)
+      event StartInputRail
 
-    create event InputRailFinished(flow_id=$triggered_input_rail)
-    event InputRailFinished
+      do $input_flows[$i]
+      $i = $i + 1
 
-    # If all went smooth, we remove it.
-    $triggered_input_rail = None
+      create event InputRailFinished(flow_id=$triggered_input_rail)
+      event InputRailFinished
+
+      # If all went smooth, we remove it.
+      $triggered_input_rail = None
 
 
 
@@ -130,23 +134,27 @@ define parallel extension flow process bot message
 
 define subflow run output rails
   """Runs all the output rails in a sequential order. """
-  $i = 0
   $output_flows = $config.rails.output.flows
-  while $i < len($output_flows)
-    # We set the current rail as being triggered.
-    $triggered_output_rail = $output_flows[$i]
 
-    create event StartOutputRail(flow_id=$triggered_output_rail)
-    event StartOutputRail
+  if $config.rails.output.parallel
+    execute run_output_rails_in_parallel(flows=$output_flows)
+  else
+    $i = 0
+    while $i < len($output_flows)
+      # We set the current rail as being triggered.
+      $triggered_output_rail = $output_flows[$i]
 
-    do $output_flows[$i]
-    $i = $i + 1
+      create event StartOutputRail(flow_id=$triggered_output_rail)
+      event StartOutputRail
 
-    create event OutputRailFinished(flow_id=$triggered_output_rail)
-    event OutputRailFinished
+      do $output_flows[$i]
+      $i = $i + 1
 
-    # If all went smooth, we remove it.
-    $triggered_output_rail = None
+      create event OutputRailFinished(flow_id=$triggered_output_rail)
+      event OutputRailFinished
+
+      # If all went smooth, we remove it.
+      $triggered_output_rail = None
 
 
 define subflow run retrieval rails

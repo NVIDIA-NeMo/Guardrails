@@ -1,0 +1,25 @@
+prompts:
+  - task: self_check_input
+    content: |
+      Your task is to check if the user message below complies with the company policy for talking with the company bot.
+
+      Company policy for the user messages:
+      - should not contain the expression "unicorn"
+      - Anything else is allowed
+
+      User message: "{{ user_input }}"
+
+      Question: Should the user message be blocked (Yes or No)?
+      Answer:
+  - task: self_check_output
+    content: |
+      Your task is to check if the bot message below complies with the company policy.
+
+      Company policy for the user messages:
+      - should not contain the expression "unicorn"
+      - Anything else is allowed
+
+      Bot message: "{{ bot_response }}"
+
+      Question: Should the message be blocked (Yes or No)?
+      Answer:
