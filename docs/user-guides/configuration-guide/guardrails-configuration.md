@@ -174,15 +174,13 @@ You can configure input and output rails to run in parallel. This can improve la
 - Avoid parallel execution for CPU-bound rails; it might not improve performance and can introduce overhead.
 - Use sequential mode during development and testing for debugging and simpler workflows.
 
-### Configuration Examples
+### Configuration Example
 
 To enable parallel execution, set `parallel: True` in the `rails.input` and `rails.output` sections in the `config.yml` file. The following configuration example is tested by NVIDIA and shows how to enable parallel execution for input and output rails.
 
 ```{note}
-Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior can cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
+Input rail mutations can lead to erroneous results during parallel execution because of race conditions arising from the execution order and timing of parallel operations. This can result in output divergence compared to sequential execution. For such cases, use sequential mode.
 ```
-
-**Example Configuration**
 
 The following is an example configuration for parallel rails using models from NVIDIA Cloud Functions (NVCF). When you use NVCF models, make sure that you export `NVIDIA_API_KEY` to access those models.
 
