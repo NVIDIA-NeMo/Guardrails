@@ -122,33 +122,33 @@ jobs:
           git push origin ${{ env.branch_name }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ env.branch_name }}
-          base: main
-          title: "Release v${{ steps.version.outputs.version }}"
-          body: |
-            ## 🚀 Release v${{ steps.version.outputs.version }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create pull request using GitHub CLI
+          gh pr create \
+            --title "Release v${{ steps.version.outputs.version }}" \
+            --body "## 🚀 Release v${{ steps.version.outputs.version }}
 
-            This PR was automatically created by the release workflow.
+          This PR was automatically created by the release workflow.
 
-            ### Changes included:
-            - ✅ Updated version to v${{ steps.version.outputs.version }}
-            - ✅ Updated CHANGELOG.md with latest changes
-            - ✅ Updated poetry.lock file
-            - ✅ Updated version references in README.md
+          ### Changes included:
+          - ✅ Updated version to v${{ steps.version.outputs.version }}
+          - ✅ Updated CHANGELOG.md with latest changes
+          - ✅ Updated poetry.lock file
+          - ✅ Updated version references in README.md
 
-            ### Release Notes:
+          ### Release Notes:
 
-            ${{ steps.changelog.outputs.body }}
+          $(cat RELEASE_NOTES.md)
 
-            ---
+          ---
 
-            After merging this PR, a tag will be created and a GitHub release will be published.
-          labels: |
-            release
-            automated
+          After merging this PR, a tag will be created and a GitHub release will be published." \
+            --base main \
+            --head ${{ env.branch_name }} \
+            --label "release" \
+            --label "automated"
 
       - name: Clean up
         run: rm -f RELEASE_NOTES.md
