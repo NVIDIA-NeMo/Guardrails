@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New version (e.g. 0.14.2)'
+        description: "New version (e.g. 0.14.2)"
         required: true
         type: string
       bump_type:
-        description: 'Version bump type (only used if version is not provided)'
+        description: "Version bump type (only used if version is not provided)"
         required: false
         type: choice
         options:
@@ -34,14 +34,17 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: false
-          virtualenvs-in-project: false
+      - name: Bootstrap poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 python -
+
+      - name: Update PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
 
       - name: Install git-cliff
         uses: kenji-miyake/setup-git-cliff@v2
@@ -108,20 +111,20 @@ jobs:
           git add CHANGELOG.md pyproject.toml poetry.lock README.md
           git commit -m "chore(release): prepare for v${{ steps.version.outputs.version }}"
 
-      - name: Create and push tag
-        run: |
-          git tag -a v${{ steps.version.outputs.version }} -m "Release v${{ steps.version.outputs.version }}"
-          git push origin main --tags
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          body_path: RELEASE_NOTES.md
-          draft: false
-          prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Create and push tag
+      #   run: |
+      #     git tag -a v${{ steps.version.outputs.version }} -m "Release v${{ steps.version.outputs.version }}"
+      #     git push origin main --tags
+      #
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: v${{ steps.version.outputs.version }}
+      #     name: v${{ steps.version.outputs.version }}
+      #     body_path: RELEASE_NOTES.md
+      #     draft: false
+      #     prerelease: false
+      #     token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean up
         run: rm -f RELEASE_NOTES.md
