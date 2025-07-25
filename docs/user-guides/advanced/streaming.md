@@ -94,7 +94,7 @@ The NeMo Guardrails toolkit requires `langchain-openai >= 0.1.0` as an optional 
 
 ### Accessing Token Usage Information
 
-You can access token usage statistics through the detailed logging capabilities of NeMo Guardrails. Use the `log` generation option to capture comprehensive information about LLM calls, including token usage:
+You can access token usage statistics through the detailed logging capabilities of the NeMo Guardrails toolkit. Use the `log` generation option to capture comprehensive information about LLM calls, including token usage:
 
 ```python
 response = rails.generate(messages=messages, options={
