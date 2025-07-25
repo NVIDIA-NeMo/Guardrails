@@ -89,7 +89,8 @@ For optimal token usage tracking with streaming, ensure you're using recent vers
 - `langchain-openai >= 0.2.0` for enhanced features and stability
 - `langchain >= 0.2.14` and `langchain-core >= 0.2.14` for universal token counting support
 
-**Note**: NeMo Guardrails requires `langchain-openai >= 0.1.0` as an optional dependency, which provides basic streaming token usage support. For enhanced features and stability, consider upgrading to `langchain-openai >= 0.2.0` in your environment.
+```{note}
+The NeMo Guardrails toolkit requires `langchain-openai >= 0.1.0` as an optional dependency, which provides basic streaming token usage support. For enhanced features and stability, consider upgrading to `langchain-openai >= 0.2.0` in your environment.
 
 ### Accessing Token Usage Information
 
