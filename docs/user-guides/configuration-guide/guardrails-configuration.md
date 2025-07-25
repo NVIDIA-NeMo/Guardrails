@@ -176,12 +176,10 @@ You can configure input and output rails to run in parallel. This can improve la
 
 ### Configuration Examples
 
-To enable parallel execution, set `parallel: True` in the `rails.input` and `rails.output` sections in the `config.yml` file. The following configuration examples are tested by NVIDIA and show how to enable parallel execution for input and output rails.
-
-In the current release, if you don't use one of the two template configs or a subset of them, parallel execution might not work.
+To enable parallel execution, set `parallel: True` in the `rails.input` and `rails.output` sections in the `config.yml` file. The following configuration example is tested by NVIDIA and shows how to enable parallel execution for input and output rails.
 
 ```{note}
-Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior may cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
+Input rail mutations can produce non-deterministic results during parallel execution due to race conditions in the execution order and completion timing of parallel calls. This behavior can cause output divergence compared to sequential execution. The following examples demonstrate configurations that maintain deterministic behavior in parallel mode.
 ```
 
 **Example Configuration**
