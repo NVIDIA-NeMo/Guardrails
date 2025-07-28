@@ -89,6 +89,11 @@ jobs:
           # Store changelog content for release notes
           git cliff --tag v${{ steps.version.outputs.version }} --unreleased --strip all -o RELEASE_NOTES.md
 
+          # Store release notes in output for PR body
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          cat RELEASE_NOTES.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Update version with Poetry
         run: |
           # Use Poetry to update the version
@@ -130,58 +135,33 @@ jobs:
           git push origin ${{ env.branch_name }}
 
       - name: Create Pull Request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Check if PR already exists
-          EXISTING_PR=$(gh pr list --head ${{ env.branch_name }} --json number --jq '.[0].number' || echo "")
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.branch_name }}
+          base: develop
+          title: "Release v${{ steps.version.outputs.version }}"
+          body: |
+            ## 🚀 Release v${{ steps.version.outputs.version }}
 
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #$EXISTING_PR already exists for branch ${{ env.branch_name }}"
-            echo "Updating PR body..."
-            gh pr edit $EXISTING_PR --body "## 🚀 Release v${{ steps.version.outputs.version }}
+            This PR was automatically created by the release workflow.
 
-          This PR was automatically created by the release workflow.
+            ### Changes included:
+            - ✅ Updated version to v${{ steps.version.outputs.version }}
+            - ✅ Updated CHANGELOG.md with latest changes
+            - ✅ Updated poetry.lock file
+            - ✅ Updated version references in README.md
 
-          ### Changes included:
-          - ✅ Updated version to v${{ steps.version.outputs.version }}
-          - ✅ Updated CHANGELOG.md with latest changes
-          - ✅ Updated poetry.lock file
-          - ✅ Updated version references in README.md
+            ### Release Notes:
 
-          ### Release Notes:
+            ${{ steps.changelog.outputs.release_notes }}
 
-          $(cat RELEASE_NOTES.md)
+            ---
 
-          ---
-
-          After merging this PR, a tag will be created and a GitHub release will be published."
-          else
-            # Create new pull request
-            gh pr create \
-              --title "Release v${{ steps.version.outputs.version }}" \
-              --body "## 🚀 Release v${{ steps.version.outputs.version }}
-
-          This PR was automatically created by the release workflow.
-
-          ### Changes included:
-          - ✅ Updated version to v${{ steps.version.outputs.version }}
-          - ✅ Updated CHANGELOG.md with latest changes
-          - ✅ Updated poetry.lock file
-          - ✅ Updated version references in README.md
-
-          ### Release Notes:
-
-          $(cat RELEASE_NOTES.md)
-
-          ---
-
-          After merging this PR, a tag will be created and a GitHub release will be published." \
-              --base develop \
-              --head ${{ env.branch_name }} \
-              --label "release" \
-              --label "automated"
-          fi
+            After merging this PR, a tag will be created and a GitHub release will be published.
+          labels: |
+            release
+            automated
 
       - name: Clean up
         run: rm -f RELEASE_NOTES.md
