@@ -13,12 +13,53 @@ Tracing provides observability into your guardrails execution, helping you:
 
 ## Quick Start
 
-Try the working example to see tracing in action:
+Here's a minimal working example to see tracing in action:
 
 ```bash
 pip install nemoguardrails[tracing] opentelemetry-sdk
-cd examples/configs/tracing/
-python working_example.py
+```
+
+Create a simple tracing example:
+
+```python
+# trace_example.py
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.resources import Resource
+from nemoguardrails import LLMRails, RailsConfig
+
+# Configure OpenTelemetry
+resource = Resource.create({"service.name": "guardrails-quickstart"})
+tracer_provider = TracerProvider(resource=resource)
+trace.set_tracer_provider(tracer_provider)
+tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+
+# Configure guardrails with tracing
+config_yaml = """
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+rails:
+  config:
+    streaming: true
+
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+"""
+
+config = RailsConfig.from_content(yaml_content=config_yaml)
+rails = LLMRails(config)
+response = rails.generate(messages=[{"role": "user", "content": "Hello!"}])
+print(f"Response: {response}")
+```
+
+```bash
+python trace_example.py
 ```
 
 ## Configuration
@@ -96,10 +137,19 @@ tracer_provider.add_span_processor(BatchSpanProcessor(console_exporter))
 # Configure NeMo Guardrails
 from nemoguardrails import LLMRails, RailsConfig
 
-config = RailsConfig.from_content({
-    "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}],
-    "tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}
-})
+config_yaml = """
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+"""
+
+config = RailsConfig.from_content(yaml_content=config_yaml)
 
 rails = LLMRails(config)
 ```
@@ -235,7 +285,13 @@ trace.set_tracer_provider(tracer_provider)
 tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
 # Simple config in config.yml
-config = {"tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}}
+config_yaml = """
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+"""
+config = RailsConfig.from_content(yaml_content=config_yaml)
 ```
 
 ### Deprecated Functions
