@@ -206,7 +206,7 @@ rails:
     parallel: True
     flows:
       - content safety check output $model=content_safety
-      - topic safety check output $model=topic_control
+      - self check output
 ```
 
 ## Retrieval Rails
