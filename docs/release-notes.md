@@ -20,7 +20,7 @@ For a complete record of changes in a release, refer to the
 
 ### Features
 
-- Added support for parallel execution of input and output rails. To learn more, refer to [](parallel-rails).
+- Added parallel execution for input and output rails. To learn more, refer to [](parallel-rails).
 
 (v0-14-1)=
 

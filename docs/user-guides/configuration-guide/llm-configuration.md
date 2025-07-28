@@ -1,3 +1,5 @@
+(llm-configuration)=
+
 # LLM Configuration
 
 ## The LLM Model

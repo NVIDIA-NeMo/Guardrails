@@ -15,29 +15,23 @@ Currently, only the Markdown format is supported.
 
 ## Document Structure
 
-Documents in the knowledge base are automatically processed and indexed for retrieval. The system uses the configured embedding model to create vector representations of the document chunks, which are then stored for efficient similarity search.
+Documents in the knowledge base `kb` folder are automatically processed and indexed for retrieval. The system uses the configured embedding model to create vector representations of the document chunks, which are then stored for efficient similarity search.
 
 ## Retrieval Process
 
 When a user query is received, the system:
 
-1. Computes embeddings for the user query using the configured embedding model
-2. Performs similarity search against the indexed document chunks
-3. Retrieves the most relevant chunks based on similarity scores
-4. Makes the retrieved chunks available as `$relevant_chunks` in the context
-5. Uses these chunks as additional context when generating the bot response
+1. Computes embeddings for the user query using the configured embedding model.
+2. Performs similarity search against the indexed document chunks.
+3. Retrieves the most relevant chunks based on similarity scores.
+4. Makes the retrieved chunks available as `$relevant_chunks` in the context.
+5. Uses these chunks as additional context when generating the bot response.
 
 ## Configuration
 
-The knowledge base functionality is automatically enabled when documents are present in the `kb` folder. The system uses the same embedding model configuration specified in your `config.yml` under the `models` section:
+The knowledge base functionality is automatically enabled when documents are present in the `kb` folder. The system uses the same embedding model configuration specified in your `config.yml` under the `models` section. For embedding model configuration examples, refer to [](llm-configuration).
 
-```yaml
-models:
-  - type: embeddings
-    engine: FastEmbed
-    model: all-MiniLM-L6-v2
-```
-
+<!--
 ## Retrieval Rails
 
 You can configure retrieval rails to process the retrieved chunks before they are used for response generation. Retrieval rails are triggered after the `retrieve_relevant_chunks` action has finished and the `$relevant_chunks` variable is populated.
@@ -79,7 +73,7 @@ def custom_retrieval_filter(context):
 
 ## Integration with Dialog Flows
 
-The knowledge base integrates seamlessly with dialog flows. You can reference the retrieved chunks in your Colang flows:
+The knowledge base integrates with dialog flows. You can reference the retrieved chunks in your Colang flows as follows:
 
 ```colang
 define flow answer question
@@ -106,3 +100,4 @@ For advanced use cases, you can:
 - Configure chunk overlap and size parameters
 
 For more details on advanced embedding search configurations, see the [Embedding Search Providers](../advanced/embedding-search-providers.md) guide.
+-->
