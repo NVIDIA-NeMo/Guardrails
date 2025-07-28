@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "New version (e.g. 0.14.2)"
+        description: "New version (e.g. 0.15.1)"
         required: true
         type: string
       bump_type:
@@ -105,7 +105,15 @@ jobs:
 
       - name: Create release branch
         run: |
-          BRANCH_NAME="release/v${{ steps.version.outputs.version }}"
+          BRANCH_NAME="chore/release-${{ steps.version.outputs.version }}"
+
+          # Check if branch already exists on remote
+          if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
+            echo "Branch $BRANCH_NAME already exists on remote. Deleting it first..."
+            git push origin --delete $BRANCH_NAME || true
+          fi
+
+          # Create new branch
           git checkout -b $BRANCH_NAME
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
@@ -125,10 +133,34 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create pull request using GitHub CLI
-          gh pr create \
-            --title "Release v${{ steps.version.outputs.version }}" \
-            --body "## 🚀 Release v${{ steps.version.outputs.version }}
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head ${{ env.branch_name }} --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for branch ${{ env.branch_name }}"
+            echo "Updating PR body..."
+            gh pr edit $EXISTING_PR --body "## 🚀 Release v${{ steps.version.outputs.version }}
+
+          This PR was automatically created by the release workflow.
+
+          ### Changes included:
+          - ✅ Updated version to v${{ steps.version.outputs.version }}
+          - ✅ Updated CHANGELOG.md with latest changes
+          - ✅ Updated poetry.lock file
+          - ✅ Updated version references in README.md
+
+          ### Release Notes:
+
+          $(cat RELEASE_NOTES.md)
+
+          ---
+
+          After merging this PR, a tag will be created and a GitHub release will be published."
+          else
+            # Create new pull request
+            gh pr create \
+              --title "Release v${{ steps.version.outputs.version }}" \
+              --body "## 🚀 Release v${{ steps.version.outputs.version }}
 
           This PR was automatically created by the release workflow.
 
@@ -145,10 +177,11 @@ jobs:
           ---
 
           After merging this PR, a tag will be created and a GitHub release will be published." \
-            --base main \
-            --head ${{ env.branch_name }} \
-            --label "release" \
-            --label "automated"
+              --base develop \
+              --head ${{ env.branch_name }} \
+              --label "release" \
+              --label "automated"
+          fi
 
       - name: Clean up
         run: rm -f RELEASE_NOTES.md
