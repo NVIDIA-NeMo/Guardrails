@@ -152,10 +152,6 @@ jobs:
             - ✅ Updated poetry.lock file
             - ✅ Updated version references in README.md
 
-            ### Release Notes:
-
-            ${{ steps.changelog.outputs.release_notes }}
-
             ---
 
             After merging this PR, a tag will be created and a GitHub release will be published.
