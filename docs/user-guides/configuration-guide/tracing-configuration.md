@@ -1,3 +1,5 @@
+(tracing-configuration)=
+
 # Tracing Configuration
 
 NeMo Guardrails includes tracing capabilities to monitor and debug your guardrails interactions. Tracing helps you understand:

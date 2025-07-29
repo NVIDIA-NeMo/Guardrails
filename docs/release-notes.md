@@ -21,6 +21,39 @@ For a complete record of changes in a release, refer to the
 ### Features
 
 - Added parallel execution for input and output rails. To learn more, refer to [](parallel-rails).
+- Implemented a new way of configuring tracing. You can now use the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter while configuring the NeMo Guardrails clients in your application code directly. To learn more, refer to the [high-level tracing guide](tracing-configuration) and the [advanced tracing guide](tracing).
+
+### Breaking Changes
+
+With the new tracing configuration, the following old configuration for tracing in `config.yml` is no longer supported.
+
+```yaml
+#  No longer supported
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+      service_name: "my-service"
+      exporter: "console"
+```
+
+The following code shows the new approach to configure OpenTelemetry in your application.
+
+```python
+#  Configure in application code
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+tracer_provider = TracerProvider()
+trace.set_tracer_provider(tracer_provider)
+tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+# Simple config in config.yml
+config = {"tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}}
+```
+
+### Deprecated Functions
+
+- `register_otel_exporter()` is deprecated and will be removed in v0.16.0. Configure exporters directly in your application instead.
 
 (v0-14-1)=
 
