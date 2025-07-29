@@ -12,6 +12,16 @@ The following sections summarize and highlight the changes for each release.
 For a complete record of changes in a release, refer to the
 [CHANGELOG.md](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
 
+(v0-15-0)=
+
+## 0.15.0
+
+(v0-15-0-features)=
+
+### Features
+
+- Added parallel execution for input and output rails. To learn more, refer to [](parallel-rails).
+
 (v0-14-1)=
 
 ## 0.14.1

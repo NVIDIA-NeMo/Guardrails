@@ -26,7 +26,7 @@ release-notes.md
 :name: Common Tasks
 :hidden:
 
-user-guides/configuration-guide
+user-guides/configuration-guide/index
 user-guides/guardrails-library
 user-guides/guardrails-process
 user-guides/colang-language-syntax-guide
