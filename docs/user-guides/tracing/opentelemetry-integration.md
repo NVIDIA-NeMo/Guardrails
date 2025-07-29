@@ -4,9 +4,9 @@ NeMo Guardrails follows OpenTelemetry best practices; libraries use only the API
 
 ## Installation
 
-You have the following options for installing the OpenTelemetry SDK.
+Choose one of the following options for installing the NeMo Guardrails toolkit with tracing support, the OpenTelemetry SDK, and the OpenTelemetry Protocol (OTLP) exporter.
 
-- For basic tracing support in the NeMo Guardrails toolkit.
+- For basic tracing support in the NeMo Guardrails toolkit:
 
   ```bash
   pip install nemoguardrails[tracing]
