@@ -21,7 +21,7 @@ For a complete record of changes in a release, refer to the
 ### Features
 
 - Added parallel execution for input and output rails. To learn more, refer to [](parallel-rails).
-- Implemented a new way of configuring tracing. You can now use the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter while configuring the NeMo Guardrails clients in your application code directly. To learn more, refer to the [high-level tracing guide](tracing-configuration) and the [advanced tracing guide](tracing).
+- Implemented a new way of configuring tracing. You can now use the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter while configuring the NeMo Guardrails clients in your application code directly. To learn more, refer to the [basic tracing configuration guide](tracing-configuration) and the [advanced tracing configuration guide](tracing).
 
 ### Breaking Changes
 
