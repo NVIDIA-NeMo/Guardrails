@@ -1,4 +1,4 @@
-# Tracing Events
+# Tracing
 
 Tracing enhances the observability of guardrails execution. This section explains the configuration process for implementing tracing with NeMo Guardrails.
 
