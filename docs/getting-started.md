@@ -36,7 +36,8 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
    $ export NVIDIA_API_KEY=<nvapi-...>
    ```
 
-1. Create a _configuration store_ directory, such as `config` and add a `config/config.yml` file with the following contents:
+1. Create a _configuration store_ directory, such as `config`.
+2. Copy the following configuration code and save as `config.yml` in the `config` directory.
 
    ```{literalinclude} ../examples/configs/gs_content_safety/config/config.yml
    :language: yaml
@@ -45,14 +46,13 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
    The `models` key in the `config.yml` file configures the LLM model.
    For more information about the key, refer to [](./user-guides/configuration-guide.md#the-llm-model).
 
-1. Create a prompts file, such as `config/prompts.yml`, ([download](path:../examples/configs/gs_content_safety/config/prompts.yml)), with contents like the following partial example:
+3. Copy the following prompts code and save as `prompts.yml` in the `config` directory.
 
    ```{literalinclude} ../examples/configs/gs_content_safety/config/prompts.yml
    :language: yaml
-   :lines: 1-15
    ```
 
-1. Load the guardrails configuration:
+4. Load the guardrails configuration:
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
    :language: python
@@ -60,7 +60,7 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
    :end-before: "# end-load-config"
    ```
 
-1. Generate a response:
+5. Generate a response:
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
    :language: python
@@ -76,7 +76,7 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
    :end-before: "# end-generate-response"
    ```
 
-1. Send a safe request and generate a response:
+6. Send a safe request and generate a response:
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
    :language: python
