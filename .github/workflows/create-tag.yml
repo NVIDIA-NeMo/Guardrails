@@ -1,4 +1,4 @@
-name: 🏷️ Create Release Tag
+name: Create Release Tag
 
 on:
   pull_request:
