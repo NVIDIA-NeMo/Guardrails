@@ -141,6 +141,54 @@ async for chunk in app.stream_async(
 
 This feature enables seamless integration of NeMo Guardrails with any streaming LLM or token source while maintaining all the safety features of output rails.
 
+## Token Usage Tracking
+
+When streaming is enabled, NeMo Guardrails automatically enables token usage tracking by setting the `stream_usage` parameter to `True` for the underlying LLM model. This feature:
+
+- Provides token usage statistics even when streaming responses.
+- Is primarily supported by OpenAI, AzureOpenAI, and other providers. The NVIDIA NIM provider supports it by default.
+- Allows to safely pass token usage statistics to LLM providers. If the LLM provider you use don't support it, the parameter is ignored.
+
+### Version Requirements
+
+For optimal token usage tracking with streaming, ensure you're using recent versions of LangChain packages:
+
+- `langchain-openai >= 0.1.0` for basic streaming token support (minimum requirement)
+- `langchain-openai >= 0.2.0` for enhanced features and stability
+- `langchain >= 0.2.14` and `langchain-core >= 0.2.14` for universal token counting support
+
+```{note}
+The NeMo Guardrails toolkit requires `langchain-openai >= 0.1.0` as an optional dependency, which provides basic streaming token usage support. For enhanced features and stability, consider upgrading to `langchain-openai >= 0.2.0` in your environment.
+```
+
+### Accessing Token Usage Information
+
+You can access token usage statistics through the detailed logging capabilities of the NeMo Guardrails toolkit. Use the `log` generation option to capture comprehensive information about LLM calls, including token usage:
+
+```python
+response = rails.generate(messages=messages, options={
+    "log": {
+        "llm_calls": True,
+        "activated_rails": True
+    }
+})
+
+for llm_call in response.log.llm_calls:
+    print(f"Task: {llm_call.task}")
+    print(f"Total tokens: {llm_call.total_tokens}")
+    print(f"Prompt tokens: {llm_call.prompt_tokens}")
+    print(f"Completion tokens: {llm_call.completion_tokens}")
+```
+
+Alternatively, you can use the `explain()` method to get a summary of token usage:
+
+```python
+info = rails.explain()
+info.print_llm_calls_summary()
+```
+
+For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see the [Generation Options](generation-options.md#detailed-logging-information) and [Detailed Logging](../detailed-logging/README.md) documentation.
+
 ### Server API
 
 To make a call to the NeMo Guardrails Server in streaming mode, you have to set the `stream` parameter to `True` inside the JSON body. For example, to get the completion for a chat session using the `/v1/chat/completions` endpoint:
