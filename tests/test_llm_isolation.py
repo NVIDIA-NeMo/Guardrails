@@ -186,17 +186,28 @@ class TestLLMIsolation:
         assert isinstance(isolated_llm.model_kwargs, dict)
 
     def test_create_action_llm_copy_handles_copy_failure(self, rails_with_mock_llm):
-        """Test graceful handling of copy failures."""
+        """Test that copy failures raise detailed error message."""
         rails = rails_with_mock_llm
 
         # create a mock LLM that fails to copy
         original_llm = Mock()
 
         with patch("copy.copy", side_effect=Exception("Copy failed")):
-            isolated_llm = rails._create_action_llm_copy(original_llm, "test_action")
+            with pytest.raises(RuntimeError) as exc_info:
+                rails._create_action_llm_copy(original_llm, "test_action")
 
-            # should return original LLM as fallback
-            assert isolated_llm == original_llm
+            error_msg = str(exc_info.value)
+            # verify error message contains key information
+            assert (
+                "Failed to create isolated LLM instance for action 'test_action'"
+                in error_msg
+            )
+            assert "parameter contamination" in error_msg
+            assert "Possible solutions:" in error_msg
+            assert "custom LLM class" in error_msg
+            assert "dedicated LLM configuration" in error_msg
+            assert "Copy failed" in error_msg  # original error
+            assert "models:" in error_msg  # config example
 
     def test_create_isolated_llms_for_actions_integration(self, rails_with_mock_llm):
         """Test the full isolated LLM creation process."""

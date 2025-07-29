@@ -610,9 +610,22 @@ class LLMRails:
             return isolated_llm
 
         except Exception as e:
-            log.warning(f"Failed to create isolated LLM copy for {action_name}: {e}")
-            # return original LLM as fallback (less safe but prevents complete failure)
-            return main_llm
+            error_msg = (
+                f"Failed to create isolated LLM instance for action '{action_name}'. "
+                f"This is required to prevent parameter contamination between different actions. "
+                f"\n\nPossible solutions:"
+                f"\n1. If using a custom LLM class, ensure it supports copy.copy() operation"
+                f"\n2. Check that your LLM configuration doesn't contain non-copyable objects"
+                f"\n3. Consider using a dedicated LLM configuration for action '{action_name}'"
+                f"\n\nOriginal error: {e}"
+                f"\n\nTo use a dedicated LLM for this action, add to your config:"
+                f"\nmodels:"
+                f"\n  - type: {action_name}"
+                f"\n    engine: <your_engine>"
+                f"\n    model: <your_model>"
+            )
+            log.error(error_msg)
+            raise RuntimeError(error_msg)
 
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
