@@ -8,26 +8,25 @@ You have the following options for installing the OpenTelemetry SDK.
 
 - For basic tracing support in the NeMo Guardrails toolkit.
 
-```bash
-# Basic tracing support
-pip install nemoguardrails[tracing]
-```
+  ```bash
+  pip install nemoguardrails[tracing]
+  ```
 
 - For development with the OpenTelemetry SDK:
 
-```bash
-pip install nemoguardrails[tracing] opentelemetry-sdk
-```
+  ```bash
+  pip install nemoguardrails[tracing] opentelemetry-sdk
+  ```
 
 - For production with the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter:
 
-```bash
-pip install nemoguardrails[tracing] opentelemetry-sdk opentelemetry-exporter-otlp
-```
+  ```bash
+  pip install nemoguardrails[tracing] opentelemetry-sdk opentelemetry-exporter-otlp
+  ```
 
-## Setup Examples
+## Configuration Examples
 
-The following examples show how to configure the NeMo Guardrails client with the OpenTelemetry SDK for various use cases.
+The following examples show how to configure the NeMo Guardrails client with the OpenTelemetry SDK for development and production use cases.
 
 ### Console Output (Development)
 
@@ -84,7 +83,7 @@ tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 # Use with NeMo Guardrails as above
 ```
 
-## Ecosystem Compatibility
+## OpenTelemetry Ecosystem Compatibility
 
 NeMo Guardrails works with the entire OpenTelemetry ecosystem including:
 
