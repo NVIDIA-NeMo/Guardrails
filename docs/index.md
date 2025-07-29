@@ -37,6 +37,7 @@ user-guides/cli
 user-guides/server-guide
 user-guides/langchain/index
 user-guides/detailed-logging/index
+user-guides/tracing/index
 user-guides/jailbreak-detection-heuristics/index
 user-guides/llm/index
 user-guides/multi-config-api/index
