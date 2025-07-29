@@ -576,15 +576,7 @@ class LLMRails:
 
     def _get_action_function(self, action_info):
         """Extract the actual function from action info."""
-        if hasattr(action_info, "function"):
-            return action_info.function
-        elif hasattr(action_info, "callable"):
-            return action_info.callable
-        elif callable(action_info):
-            return action_info
-        elif isinstance(action_info, dict):
-            return action_info.get("function") or action_info.get("callable")
-        return None
+        return action_info if callable(action_info) else None
 
     def _create_action_llm_copy(self, main_llm, action_name):
         """Create an isolated copy of main LLM for a specific action."""

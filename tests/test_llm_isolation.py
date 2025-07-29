@@ -116,32 +116,68 @@ class TestLLMIsolation:
         assert "action_without_llm" not in actions_needing_llms
 
     def test_get_action_function(self, rails_with_mock_llm):
-        """Test extraction of action function from various action info formats."""
+        """Test extraction of action function with realistic scenarios."""
         rails = rails_with_mock_llm
 
-        def test_func():
+        # case 1: plain function (as registered by ActionDispatcher)
+        def plain_function():
             pass
 
-        result = rails._get_action_function(test_func)
-        assert result == test_func
+        assert rails._get_action_function(plain_function) == plain_function
 
-        action_info = Mock()
-        action_info.function = test_func
-        result = rails._get_action_function(action_info)
-        assert result == test_func
+        # case 2: @action decorated function (still callable)
+        from nemoguardrails.actions import action
 
-        action_info = Mock()
-        del action_info.function
-        action_info.callable = test_func
-        result = rails._get_action_function(action_info)
-        assert result == test_func
+        @action()
+        def decorated_function():
+            pass
 
-        action_info = {"function": test_func}
-        result = rails._get_action_function(action_info)
-        assert result == test_func
+        assert rails._get_action_function(decorated_function) == decorated_function
 
-        result = rails._get_action_function(None)
-        assert result is None
+        # case 3: class instance (after lazy init)
+        class ActionClass:
+            def __call__(self):
+                pass
+
+        instance = ActionClass()
+        assert rails._get_action_function(instance) == instance
+
+        # case 4: non-callable
+        assert rails._get_action_function("not_callable") is None
+        assert rails._get_action_function(None) is None
+
+    def test_get_action_function_with_real_action_dispatcher(self, rails_with_mock_llm):
+        """Test extraction with actual ActionDispatcher registered actions."""
+        from nemoguardrails.actions import action
+        from nemoguardrails.actions.action_dispatcher import ActionDispatcher
+
+        rails = rails_with_mock_llm
+
+        # create a ActionDispatcher
+        action_dispatcher = ActionDispatcher(load_all_actions=False)
+
+        # register some test actions directly
+        def plain_action():
+            return "plain"
+
+        @action()
+        def decorated_action():
+            return "decorated"
+
+        class ActionClass:
+            def __call__(self):
+                return "class"
+
+        action_dispatcher.register_action(plain_action, "plain_action")
+        action_dispatcher.register_action(decorated_action, "decorated_action")
+        action_dispatcher.register_action(ActionClass(), "class_action")
+
+        for action_name, action_info in action_dispatcher.registered_actions.items():
+            result = rails._get_action_function(action_info)
+            assert callable(result), f"Action {action_name} should return callable"
+            assert (
+                result is action_info
+            ), f"Should return the action_info directly for {action_name}"
 
     def test_create_action_llm_copy(self, rails_with_mock_llm):
         """Test creation of isolated LLM copies."""
