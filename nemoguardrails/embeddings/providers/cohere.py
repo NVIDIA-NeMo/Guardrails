@@ -120,4 +120,6 @@ class CohereEmbeddingModel(EmbeddingModel):
         """
 
         # Make embedding request to Cohere API
-        return self.client.embed(texts=documents, model=self.model, input_type=self.input_type).embeddings
+        return self.client.embed(
+            texts=documents, model=self.model, input_type=self.input_type
+        ).embeddings
