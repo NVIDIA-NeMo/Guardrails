@@ -64,15 +64,6 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
 
-      # - name: Generate changelog entry
-      #   id: changelog
-      #   run: |
-      #     # Generate changelog for the new version
-      #     git cliff \
-      #       --latest \
-      #       --tag v${{ steps.version.outputs.version }} \
-      #       --strip all \
-      #       --prepend CHANGELOG.md
       - name: Generate changelog block
         run: |
           git cliff \
