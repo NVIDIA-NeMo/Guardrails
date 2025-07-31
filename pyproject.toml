@@ -58,6 +58,11 @@ langchain-core = ">=0.2.14,<0.4.0"
 langchain-community = ">=0.2.5,<0.4.0"
 lark = ">=1.1.7"
 nest-asyncio = ">=1.5.6,"
+# NOTE:
+# security: ensure protobuf version is patched against CVE-2024-7254
+# must move this to google-cloud-language only once onnxruntime is dropped
+# and streamlit is using the vulnerable protobuf versions
+protobuf = ">=5.29.5"
 prompt-toolkit = ">=3.0"
 pydantic = ">=1.10"
 pyyaml = ">=6.0"
