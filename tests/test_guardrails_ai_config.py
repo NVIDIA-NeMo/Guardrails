@@ -168,28 +168,3 @@ def test_guardrails_ai_config_empty():
 
     assert config.rails.config.guardrails_ai is not None
     assert config.rails.config.guardrails_ai.validators == []
-
-
-def test_guardrails_ai_config_with_hub_endpoint():
-    """Test guardrails_ai configuration with custom hub endpoint."""
-
-    config_content = """
-    models:
-      - type: main
-        engine: openai
-        model: gpt-4
-
-    rails:
-      config:
-        guardrails_ai:
-          hub_endpoint: "https://custom.guardrails.hub"
-          validators:
-            - name: custom_validator
-    """
-
-    config = RailsConfig.from_content(yaml_content=config_content)
-
-    assert (
-        config.rails.config.guardrails_ai.hub_endpoint
-        == "https://custom.guardrails.hub"
-    )

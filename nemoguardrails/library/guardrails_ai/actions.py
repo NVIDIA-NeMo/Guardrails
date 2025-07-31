@@ -61,13 +61,7 @@ _validator_class_cache: Dict[str, Type] = {}
 _guard_cache: Dict[tuple, Guard] = {}
 
 
-ValidationResult = Dict[str, Any]
-
-
-log = logging.getLogger(__name__)
-
-
-def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> Dict[str, Any]:
+def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> bool:
     """Map Guardrails AI validation result to NeMo Guardrails format."""
     # The Guardrails AI `validate` method returns a ValidationResult object.
     # On failure (PII found, Jailbreak detected, etc.), it's often a FailResult.
@@ -83,7 +77,7 @@ def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> Dict[str, Any]:
     else:
         valid = validation_result.get("validation_passed", False)
 
-    return {"valid": valid, "validation_result": validation_result}
+    return valid  # {"valid": valid, "validation_result": validation_result}
 
 
 # TODO: we need to do this
@@ -108,13 +102,14 @@ def guardrails_ai_validation_mapping(result: Dict[str, Any]) -> Dict[str, Any]:
 
 @action(
     name="validate_guardrails_ai_input",
+    output_mapping=guardrails_ai_validation_mapping,
     is_system_action=False,
 )
 def validate_guardrails_ai_input(
     validator: str,
+    config: RailsConfig,
     context: Optional[dict] = None,
     text: Optional[str] = None,
-    config: Optional[RailsConfig] = None,
     **kwargs,
 ) -> Dict[str, Any]:
     """Unified action for all Guardrails AI validators.
@@ -141,12 +136,12 @@ def validate_guardrails_ai_input(
     validation_result = validate_guardrails_ai(validator, text, **joined_parameters)
 
     # Transform to the expected format for Colang flows
-    result = guardrails_ai_validation_mapping(validation_result)
-    return result
+    return validation_result
 
 
 @action(
     name="validate_guardrails_ai_output",
+    output_mapping=guardrails_ai_validation_mapping,
     is_system_action=False,
 )
 def validate_guardrails_ai_output(
@@ -180,9 +175,7 @@ def validate_guardrails_ai_output(
 
     validation_result = validate_guardrails_ai(validator, text, **joined_parameters)
 
-    # Transform to the expected format for Colang flows
-    result = guardrails_ai_validation_mapping(validation_result)
-    return result
+    return validation_result
 
 
 def validate_guardrails_ai(validator_name: str, text: str, **kwargs) -> Dict[str, Any]:
@@ -261,7 +254,7 @@ def _load_validator_class(validator_name: str) -> Type:
         raise ImportError(f"Failed to load validator {validator_name}: {str(e)}")
 
 
-def _get_guard(validator: str, **validator_params) -> Guard:
+def _get_guard(validator_name: str, **validator_params) -> Guard:
     """Get or create a Guard instance for a validator."""
 
     # create a hashable cache key
@@ -273,10 +266,10 @@ def _get_guard(validator: str, **validator_params) -> Guard:
         return obj
 
     cache_items = [(k, make_hashable(v)) for k, v in validator_params.items()]
-    cache_key = (validator, tuple(sorted(cache_items)))
+    cache_key = (validator_name, tuple(sorted(cache_items)))
 
     if cache_key not in _guard_cache:
-        validator_class = _load_validator_class(validator)
+        validator_class = _load_validator_class(validator_name)
 
         # TODO(@zayd): is this needed?
         # default handling for all validators
@@ -287,7 +280,7 @@ def _get_guard(validator: str, **validator_params) -> Guard:
             validator_instance = validator_class(**validator_params)
         except TypeError as e:
             log.error(
-                f"Failed to instantiate {validator} with params {validator_params}: {str(e)}"
+                f"Failed to instantiate {validator_name} with params {validator_params}: {str(e)}"
             )
             raise
 

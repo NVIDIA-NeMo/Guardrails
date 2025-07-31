@@ -45,7 +45,7 @@ VALIDATOR_REGISTRY = {
         "hub_path": "hub://guardrails/competitor_check",
         "default_params": {"on_fail": "noop"},
     },
-    "restrict_to_topic": {
+    "restricttotopic": {
         "module": "guardrails.hub",
         "class": "RestrictToTopic",
         "hub_path": "hub://tryolabs/restricttotopic",

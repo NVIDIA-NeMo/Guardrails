@@ -26,7 +26,6 @@ except ImportError:
 
 
 class GuardrailsAIError(Exception):
-
     """Base exception for Guardrails AI integration."""
 
     pass

@@ -50,7 +50,7 @@ class TestGuardrailsAIIntegration:
             "detect_jailbreak",
             "guardrails_pii",
             "competitor_check",
-            "restrict_to_topic",
+            "restricttotopic",
             "provenance_llm",
         ]
 
@@ -73,18 +73,17 @@ class TestGuardrailsAIIntegration:
         mock_result.validation_passed = True
         result1 = {"validation_result": mock_result}
         mapped1 = guardrails_ai_validation_mapping(result1)
-        assert mapped1["valid"] is True
-        assert mapped1["validation_result"] == mock_result
+        assert mapped1 is True
 
         mock_result2 = Mock()
         mock_result2.validation_passed = False
         result2 = {"validation_result": mock_result2}
         mapped2 = guardrails_ai_validation_mapping(result2)
-        assert mapped2["valid"] is False
+        assert mapped2 is False
 
         result3 = {"validation_result": {"validation_passed": True}}
         mapped3 = guardrails_ai_validation_mapping(result3)
-        assert mapped3["valid"] is True
+        assert mapped3 is True
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
     def test_validate_guardrails_ai_success(self, mock_get_guard):
@@ -219,13 +218,6 @@ class TestGuardrailsAIIntegration:
         assert "validator_name" in params
         assert "text" in params
         assert any(param.kind == param.VAR_KEYWORD for param in sig.parameters.values())
-
-    def test_ValidationResult_type(self):
-        """Test that ValidationResult type is properly defined."""
-        from nemoguardrails.library.guardrails_ai.actions import ValidationResult
-
-        # ValidationResult should be a type alias for Dict[str, Any]
-        assert ValidationResult == Dict[str, Any]
 
     @patch("nemoguardrails.library.guardrails_ai.actions._load_validator_class")
     @patch("nemoguardrails.library.guardrails_ai.actions.Guard")

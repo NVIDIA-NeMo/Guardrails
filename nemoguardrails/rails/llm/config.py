@@ -800,12 +800,7 @@ class GuardrailsAIValidatorConfig(BaseModel):
     """Configuration for a single Guardrails AI validator."""
 
     name: str = Field(
-        description="The name of the Guardrails AI validator to use (e.g., 'toxic_language', 'pii', 'regex_match')."
-    )
-
-    namespace: Optional[str] = Field(
-        default="guardrails",
-        description="Namespace of the validator, used to differentiate between validators with the same name from different sources.",
+        description="Unique identifier or import path for the Guardrails AI validator (e.g., 'toxic_language', 'pii', 'regex_match', or 'guardrails/competitor_check')."
     )
 
     parameters: Dict[str, Any] = Field(
@@ -825,11 +820,6 @@ class GuardrailsAIRailConfig(BaseModel):
     validators: List[GuardrailsAIValidatorConfig] = Field(
         default_factory=list,
         description="List of Guardrails AI validators to apply. Each validator can have its own parameters and metadata.",
-    )
-
-    hub_endpoint: Optional[str] = Field(
-        default=None,
-        description="Optional custom Guardrails Hub endpoint for downloading validators.",
     )
 
     def get_validator_config(self, name: str) -> Optional[GuardrailsAIValidatorConfig]:
