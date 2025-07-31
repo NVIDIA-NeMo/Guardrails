@@ -501,6 +501,123 @@ class LLMRails:
 
         self.runtime.register_action_param("llms", llms)
 
+        # detect actions that need isolated LLM instances and create them
+        self._create_isolated_llms_for_actions()
+
+    def _create_isolated_llms_for_actions(self):
+        """Create isolated LLM copies for all actions that accept 'llm' parameter."""
+        if not self.llm:
+            log.debug("No main LLM available for creating isolated copies")
+            return
+
+        try:
+            actions_needing_llms = self._detect_llm_requiring_actions()
+            log.info(
+                "%d actions requiring isolated LLMs: %s",
+                len(actions_needing_llms),
+                list(actions_needing_llms),
+            )
+
+            created_count = 0
+            for action_name in actions_needing_llms:
+                if f"{action_name}_llm" not in self.runtime.registered_action_params:
+                    isolated_llm = self._create_action_llm_copy(self.llm, action_name)
+                    if isolated_llm:
+                        self.runtime.register_action_param(
+                            f"{action_name}_llm", isolated_llm
+                        )
+                        created_count += 1
+                        log.debug("Created isolated LLM for action: %s", action_name)
+                else:
+                    log.debug(
+                        "Action %s already has dedicated LLM, skipping isolation",
+                        action_name,
+                    )
+
+            log.info("Created %d isolated LLM instances for actions", created_count)
+
+        except Exception as e:
+            log.warning("Failed to create isolated LLMs for actions: %s", e)
+
+    def _detect_llm_requiring_actions(self):
+        """Auto-detect actions that have 'llm' parameter."""
+        import inspect
+
+        actions_needing_llms = set()
+
+        if (
+            not hasattr(self.runtime, "action_dispatcher")
+            or not self.runtime.action_dispatcher
+        ):
+            log.debug("Action dispatcher not available")
+            return actions_needing_llms
+
+        for (
+            action_name,
+            action_info,
+        ) in self.runtime.action_dispatcher.registered_actions.items():
+            action_func = self._get_action_function(action_info)
+            if not action_func:
+                continue
+
+            try:
+                sig = inspect.signature(action_func)
+                if "llm" in sig.parameters:
+                    actions_needing_llms.add(action_name)
+                    log.debug("Action %s has 'llm' parameter", action_name)
+
+            except Exception as e:
+                log.debug("Could not inspect action %s: %s", action_name, e)
+
+        return actions_needing_llms
+
+    def _get_action_function(self, action_info):
+        """Extract the actual function from action info."""
+        return action_info if callable(action_info) else None
+
+    def _create_action_llm_copy(
+        self, main_llm: Union[BaseLLM, BaseChatModel], action_name: str
+    ) -> Optional[Union[BaseLLM, BaseChatModel]]:
+        """Create an isolated copy of main LLM for a specific action."""
+        import copy
+
+        try:
+            # shallow copy to preserve HTTP clients, credentials, etc.
+            # but create new instance to avoid shared state
+            isolated_llm = copy.copy(main_llm)
+
+            # isolate model_kwargs to prevent shared mutable state
+            if (
+                hasattr(isolated_llm, "model_kwargs")
+                and isolated_llm.model_kwargs is not None
+            ):
+                isolated_llm.model_kwargs = isolated_llm.model_kwargs.copy()
+            else:
+                isolated_llm.model_kwargs = {}
+
+            log.debug(
+                "Successfully created isolated LLM copy for action: %s", action_name
+            )
+            return isolated_llm
+
+        except Exception as e:
+            error_msg = (
+                "Failed to create isolated LLM instance for action '%s'. "
+                "This is required to prevent parameter contamination between different actions. "
+                "\n\nPossible solutions:"
+                "\n1. If using a custom LLM class, ensure it supports copy.copy() operation"
+                "\n2. Check that your LLM configuration doesn't contain non-copyable objects"
+                "\n3. Consider using a dedicated LLM configuration for action '%s'"
+                "\n\nOriginal error: %s"
+                "\n\nTo use a dedicated LLM for this action, add to your config:"
+                "\nmodels:"
+                "\n  - type: %s"
+                "\n    engine: <your_engine>"
+                "\n    model: <your_model>"
+            ) % (action_name, action_name, e, action_name)
+            log.error(error_msg)
+            raise RuntimeError(error_msg)
+
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
     ) -> EmbeddingsIndex:
