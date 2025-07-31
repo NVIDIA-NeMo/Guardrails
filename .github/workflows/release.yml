@@ -1,0 +1,132 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version (e.g. 0.15.1)"
+        required: true
+        type: string
+      bump_type:
+        description: "Version bump type (only used if version is not provided)"
+        required: false
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Bootstrap poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 python -
+
+      - name: Update PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Install git-cliff
+        uses: kenji-miyake/setup-git-cliff@v2
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Use git-cliff to determine the next version based on commits
+            VERSION=$(git cliff --bumped-version)
+          fi
+
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog block
+        run: |
+          git cliff \
+            --unreleased \
+            --tag     v${{ steps.version.outputs.version }} \
+            --strip all \
+            > CHANGELOG.new.md
+
+      - name: Inject release block just above the previous entry
+        run: |
+          awk '
+            BEGIN { done = 0 }
+            # On the *first* version header, insert the new block
+            /^## \[/ && done == 0 {
+              system("cat CHANGELOG.new.md")
+              print ""      # blank line between blocks
+              done = 1
+            }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp \
+            && mv CHANGELOG.tmp CHANGELOG.md \
+            && rm CHANGELOG.new.md
+
+      - name: Update version with Poetry
+        run: |
+          # Use Poetry to update the version
+          poetry version ${{ steps.version.outputs.version }}
+
+      - name: Update version in README.md
+        run: |
+          # Update the version reference in README.md
+          sed -i "s/\[0\.[0-9]*\.[0-9]*\](https:\/\/github\.com\/NVIDIA\/NeMo-Guardrails\/tree\/v0\.[0-9]*\.[0-9]*)/[${{ steps.version.outputs.version }}](https:\/\/github.com\/NVIDIA\/NeMo-Guardrails\/tree\/v${{ steps.version.outputs.version }})/g" README.md
+          sed -i "s/version: \[0\.[0-9]*\.[0-9]*\]/version: [${{ steps.version.outputs.version }}]/g" README.md
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/release-${{ steps.version.outputs.version }}
+          base: develop
+          title: "chore: prepare for release v${{ steps.version.outputs.version }}"
+          body: |
+            ## 🚀 Release v${{ steps.version.outputs.version }}
+
+            This PR was automatically created by the release workflow.
+
+            ### Changes included:
+            - ✅ Updated version to v${{ steps.version.outputs.version }}
+            - ✅ Updated CHANGELOG.md with latest changes
+            - ✅ Updated version references in README.md
+
+            ---
+
+            After merging this PR, a tag will be created and a GitHub release will be published.
+          labels: |
+            release
+            automated
+          add-paths: |
+            CHANGELOG.md
+            pyproject.toml
+            poetry.lock
+            README.md
+          commit-message: "chore(release): prepare for v${{ steps.version.outputs.version }}"
+
+      - name: Clean up
+        run: rm -f RELEASE_NOTES.md
