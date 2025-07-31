@@ -21,7 +21,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### 🐛 Bug Fixes
 
 - *(streaming)* Resolve word concatenation in streaming output rails ([#1259](https://github.com/NVIDIA/NeMo-Guardrails/issues/1259)) 
-- Enable token usage tracking for streaming LLM calls ([#1264](https://github.com/NVIDIA/NeMo-Guardrails/issues/1264)) 
+- *(streaming) Enable token usage tracking for streaming LLM calls ([#1264](https://github.com/NVIDIA/NeMo-Guardrails/issues/1264), [#1285](https://github.com/NVIDIA/NeMo-Guardrails/issues/1285)) 
 - *(tracing)* Prevent mutation of user options when tracing is enabled ([#1273](https://github.com/NVIDIA/NeMo-Guardrails/issues/1273)) 
 - *(rails)* Prevent LLM parameter contamination in rails ([#1306](https://github.com/NVIDIA/NeMo-Guardrails/issues/1306)) 
 
