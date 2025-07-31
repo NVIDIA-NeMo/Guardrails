@@ -38,7 +38,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - *(dependabot)* Remove dependabot configuration ([#1281](https://github.com/NVIDIA/NeMo-Guardrails/issues/1281)) 
 - *(CI)* Add release workflow ([#1309](https://github.com/NVIDIA/NeMo-Guardrails/issues/1309), [#1318](https://github.com/NVIDIA/NeMo-Guardrails/issues/1318)) 
-- *(release)* Install git-cliff manually for workflow ([#1318](https://github.com/NVIDIA/NeMo-Guardrails/issues/1318)) 
 
 
 ## [0.14.1] - 2025-07-02
