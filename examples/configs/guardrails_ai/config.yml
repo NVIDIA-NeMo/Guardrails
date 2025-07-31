@@ -6,7 +6,6 @@ models:
 rails:
   config:
     guardrails_ai:
-      on_fail: "noop"
       validators:
         - name: toxic_language
           parameters:
@@ -21,18 +20,14 @@ rails:
           parameters:
             competitors: ["Apple", "Google", "Microsoft"]
           metadata: {}
-        - name: regex_match
-          parameters:
-            regex: "^[A-Z].*"
-          metadata: {}
-        - name: restrict_to_topic
+        - name: restricttotopic
           parameters:
             valid_topics: ["technology", "science", "education"]
           metadata: {}
   input:
     flows:
-      - "guardrailsai check input $validator=\"guardrails_pii\""
-      - "guardrailsai check input $validator=\"competitor_check\""
+      - guardrailsai check input $validator="guardrails_pii"
+      - guardrailsai check input $validator="competitor_check"
   output:
     flows:
-      - "guardrailsai check output $validator=\"restrict_to_topic\""
+      - guardrailsai check output $validator="restricttotopic"
