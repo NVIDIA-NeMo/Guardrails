@@ -519,7 +519,9 @@ class LLMRails:
         try:
             actions_needing_llms = self._detect_llm_requiring_actions()
             log.info(
-                f"{len(actions_needing_llms)} actions requiring isolated LLMs: {list(actions_needing_llms)}"
+                "%d actions requiring isolated LLMs: %s",
+                len(actions_needing_llms),
+                list(actions_needing_llms),
             )
 
             created_count = 0
@@ -531,16 +533,17 @@ class LLMRails:
                             f"{action_name}_llm", isolated_llm
                         )
                         created_count += 1
-                        log.debug(f"Created isolated LLM for action: {action_name}")
+                        log.debug("Created isolated LLM for action: %s", action_name)
                 else:
                     log.debug(
-                        f"Action {action_name} already has dedicated LLM, skipping isolation"
+                        "Action %s already has dedicated LLM, skipping isolation",
+                        action_name,
                     )
 
-            log.info(f"Created {created_count} isolated LLM instances for actions")
+            log.info("Created %d isolated LLM instances for actions", created_count)
 
         except Exception as e:
-            log.warning(f"Failed to create isolated LLMs for actions: {e}")
+            log.warning("Failed to create isolated LLMs for actions: %s", e)
 
     def _detect_llm_requiring_actions(self):
         """Auto-detect actions that have 'llm' parameter."""
@@ -567,10 +570,10 @@ class LLMRails:
                 sig = inspect.signature(action_func)
                 if "llm" in sig.parameters:
                     actions_needing_llms.add(action_name)
-                    log.debug(f"Action {action_name} has 'llm' parameter")
+                    log.debug("Action %s has 'llm' parameter", action_name)
 
             except Exception as e:
-                log.debug(f"Could not inspect action {action_name}: {e}")
+                log.debug("Could not inspect action %s: %s", action_name, e)
 
         return actions_needing_llms
 
@@ -578,7 +581,9 @@ class LLMRails:
         """Extract the actual function from action info."""
         return action_info if callable(action_info) else None
 
-    def _create_action_llm_copy(self, main_llm, action_name):
+    def _create_action_llm_copy(
+        self, main_llm: Union[BaseLLM, BaseChatModel], action_name: str
+    ) -> Optional[Union[BaseLLM, BaseChatModel]]:
         """Create an isolated copy of main LLM for a specific action."""
         import copy
 
@@ -597,25 +602,25 @@ class LLMRails:
                 isolated_llm.model_kwargs = {}
 
             log.debug(
-                f"Successfully created isolated LLM copy for action: {action_name}"
+                "Successfully created isolated LLM copy for action: %s", action_name
             )
             return isolated_llm
 
         except Exception as e:
             error_msg = (
-                f"Failed to create isolated LLM instance for action '{action_name}'. "
-                f"This is required to prevent parameter contamination between different actions. "
-                f"\n\nPossible solutions:"
-                f"\n1. If using a custom LLM class, ensure it supports copy.copy() operation"
-                f"\n2. Check that your LLM configuration doesn't contain non-copyable objects"
-                f"\n3. Consider using a dedicated LLM configuration for action '{action_name}'"
-                f"\n\nOriginal error: {e}"
-                f"\n\nTo use a dedicated LLM for this action, add to your config:"
-                f"\nmodels:"
-                f"\n  - type: {action_name}"
-                f"\n    engine: <your_engine>"
-                f"\n    model: <your_model>"
-            )
+                "Failed to create isolated LLM instance for action '%s'. "
+                "This is required to prevent parameter contamination between different actions. "
+                "\n\nPossible solutions:"
+                "\n1. If using a custom LLM class, ensure it supports copy.copy() operation"
+                "\n2. Check that your LLM configuration doesn't contain non-copyable objects"
+                "\n3. Consider using a dedicated LLM configuration for action '%s'"
+                "\n\nOriginal error: %s"
+                "\n\nTo use a dedicated LLM for this action, add to your config:"
+                "\nmodels:"
+                "\n  - type: %s"
+                "\n    engine: <your_engine>"
+                "\n    model: <your_model>"
+            ) % (action_name, action_name, e, action_name)
             log.error(error_msg)
             raise RuntimeError(error_msg)
 

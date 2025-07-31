@@ -115,17 +115,18 @@ class TestLLMIsolation:
 
         assert "action_without_llm" not in actions_needing_llms
 
-    def test_get_action_function(self, rails_with_mock_llm):
-        """Test extraction of action function with realistic scenarios."""
+    def test_get_action_function_plain_function(self, rails_with_mock_llm):
+        """Test extraction of plain function."""
         rails = rails_with_mock_llm
 
-        # case 1: plain function (as registered by ActionDispatcher)
         def plain_function():
             pass
 
         assert rails._get_action_function(plain_function) == plain_function
 
-        # case 2: @action decorated function (still callable)
+    def test_get_action_function_decorated_function(self, rails_with_mock_llm):
+        """Test extraction of @action decorated function."""
+        rails = rails_with_mock_llm
         from nemoguardrails.actions import action
 
         @action()
@@ -134,7 +135,10 @@ class TestLLMIsolation:
 
         assert rails._get_action_function(decorated_function) == decorated_function
 
-        # case 3: class instance (after lazy init)
+    def test_get_action_function_callable_class(self, rails_with_mock_llm):
+        """Test extraction of callable class instance."""
+        rails = rails_with_mock_llm
+
         class ActionClass:
             def __call__(self):
                 pass
@@ -142,7 +146,10 @@ class TestLLMIsolation:
         instance = ActionClass()
         assert rails._get_action_function(instance) == instance
 
-        # case 4: non-callable
+    def test_get_action_function_non_callable(self, rails_with_mock_llm):
+        """Test extraction returns None for non-callable objects."""
+        rails = rails_with_mock_llm
+
         assert rails._get_action_function("not_callable") is None
         assert rails._get_action_function(None) is None
 
@@ -320,52 +327,6 @@ class TestLLMIsolation:
 
         # should not crash
         rails._create_isolated_llms_for_actions()
-
-
-class TestLLMIsolationInspection:
-    """Test signature inspection functionality."""
-
-    def test_signature_inspection_various_patterns(self):
-        """Test that signature inspection works with various function patterns."""
-
-        def action_with_llm_param(llm, context: dict):
-            """Action with llm parameter."""
-            pass
-
-        def action_with_optional_llm(llm: Optional[MockLLM], context: dict):
-            """Action with typed llm parameter."""
-            pass
-
-        def action_without_llm(context: dict, config):
-            """Action without llm parameter."""
-            pass
-
-        async def async_action_with_llm(llm, messages: list):
-            """Async action with llm."""
-            pass
-
-        def action_with_custom_llm_name(custom_llm, context: dict):
-            """Action with differently named LLM parameter."""
-            pass
-
-        # test functions that should be detected
-        sig = inspect.signature(action_with_llm_param)
-        assert "llm" in sig.parameters
-
-        sig = inspect.signature(action_with_optional_llm)
-        assert "llm" in sig.parameters
-
-        sig = inspect.signature(async_action_with_llm)
-        assert "llm" in sig.parameters
-
-        # test function that should NOT be detected
-        sig = inspect.signature(action_without_llm)
-        assert "llm" not in sig.parameters
-
-        # test function with custom LLM name (should NOT be detected with current logic)
-        sig = inspect.signature(action_with_custom_llm_name)
-        assert "llm" not in sig.parameters
-        assert "custom_llm" in sig.parameters
 
 
 class TestLLMIsolationEdgeCases:
