@@ -207,6 +207,12 @@ rails:
     flows:
       - content safety check output $model=content_safety
       - self check output
+    streaming:
+      enabled: True
+      chunk_size: 200
+      context_size: 50
+      stream_first: True
+streaming: True
 ```
 
 ## Retrieval Rails

@@ -18,10 +18,12 @@ For a complete record of changes in a release, refer to the
 
 (v0-15-0-features)=
 
-### Features
+### Key Features
 
 - Added parallel execution for input and output rails. To learn more, refer to [](parallel-rails).
 - Implemented a new way of configuring tracing. You can now use the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter while configuring the NeMo Guardrails clients in your application code directly. To learn more, refer to the [basic tracing configuration guide](tracing-configuration) and the [advanced tracing configuration guide](tracing).
+- Updated the streaming capability of output rails to support parallel execution.
+- Added support for external async token generators. To learn more, refer to the [](external-async-token-generators) section.
 
 ### Breaking Changes
 
@@ -37,19 +39,7 @@ tracing:
       exporter: "console"
 ```
 
-The following code shows the new approach to configure OpenTelemetry in your application.
-
-```python
-#  Configure in application code
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-tracer_provider = TracerProvider()
-trace.set_tracer_provider(tracer_provider)
-tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-# Simple config in config.yml
-config = {"tracing": {"enabled": True, "adapters": [{"name": "OpenTelemetry"}]}}
-```
+To find the new way of configuring tracing, refer to [](tracing-configuration).
 
 ### Deprecated Functions
 
