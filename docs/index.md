@@ -73,7 +73,6 @@ user-guides/advanced/safeguarding-ai-virtual-assistant-blueprint
 :hidden:
 
 security/guidelines
-security/red-teaming
 ```
 
 ```{toctree}
