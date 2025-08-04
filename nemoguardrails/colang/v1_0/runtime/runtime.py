@@ -404,6 +404,15 @@ class RuntimeV1_0(Runtime):
         except Exception as e:
             log.error(f"Error in parallel rail execution: {str(e)}")
             raise
+        finally:
+            # clean up any remaining cancelled tasks to avoid "Task was destroyed but it is pending" warnings
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
 
         context_updates: dict = {}
         processing_log = processing_log_var.get()
