@@ -272,6 +272,11 @@ class RuntimeV1_0(Runtime):
                 },
                 # We also want to hide this from now from the history moving forward
                 {"type": "hide_prev_turn"},
+                # Stop execution to prevent further LLM generation after internal error
+                {
+                    "type": "BotIntent",
+                    "intent": "stop",
+                },
             ]
         )
 
