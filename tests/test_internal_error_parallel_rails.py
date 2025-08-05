@@ -72,6 +72,7 @@ async def test_internal_error_stops_execution():
         ), "Expected BotIntent stop event after internal error"
 
 
+@pytest.mark.skipif(not _has_langchain_openai, reason="langchain-openai not available")
 @pytest.mark.asyncio
 async def test_content_safety_missing_prompt():
     config_data = {
