@@ -22,6 +22,13 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.utils import TestChat
 
+try:
+    import langchain_openai
+
+    _has_langchain_openai = True
+except ImportError:
+    _has_langchain_openai = False
+
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 OPTIONS = GenerationOptions(
@@ -65,9 +72,7 @@ async def test_internal_error_stops_execution():
         ), "Expected BotIntent stop event after internal error"
 
 
-@pytest.mark.asyncio
 async def test_content_safety_missing_prompt():
-    """Test specific case of missing prompt for content_safety_check_input task."""
     config_data = {
         "instructions": [
             {"type": "general", "content": "You are a helpful assistant."}
@@ -84,10 +89,9 @@ async def test_content_safety_missing_prompt():
         },
     }
 
-    # create config without the required prompt
     config = RailsConfig.from_content(
         config=config_data,
-        yaml_content="prompts: []",  # Empty prompts - missing content_safety_check_input
+        yaml_content="prompts: []",
     )
 
     chat = TestChat(config, llm_completions=["Safe response"])
@@ -95,11 +99,9 @@ async def test_content_safety_missing_prompt():
 
     result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
 
-    # should get an internal error due to missing prompt
     assert result is not None
     assert "internal error" in result.response[0]["content"].lower()
 
-    # verify stop event was generated
     stop_events = [
         event
         for event in result.log.internal_events
