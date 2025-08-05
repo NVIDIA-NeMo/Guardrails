@@ -1630,20 +1630,31 @@ class LLMRails:
                         # continue processing the chunk even if rails fail
                         pass
                     else:
-                        # if there are any stop events, content was blocked
+                        # if there are any stop events, content was blocked or internal error occurred
                         if result.events:
-                            # extract the blocked flow from the first stop event
-                            blocked_flow = result.events[0].get(
-                                "flow_id", "output rails"
-                            )
+                            # extract the flow info from the first stop event
+                            stop_event = result.events[0]
+                            blocked_flow = stop_event.get("flow_id", "output rails")
+                            error_type = stop_event.get("error_type")
 
-                            reason = f"Blocked by {blocked_flow} rails."
+                            if error_type == "internal_error":
+                                error_message = stop_event.get(
+                                    "error_message", "Unknown error"
+                                )
+                                reason = f"Internal error in {blocked_flow} rail: {error_message}"
+                                error_code = "rail_execution_failure"
+                                error_type = "internal_error"
+                            else:
+                                reason = f"Blocked by {blocked_flow} rails."
+                                error_code = "content_blocked"
+                                error_type = "guardrails_violation"
+
                             error_data = {
                                 "error": {
                                     "message": reason,
-                                    "type": "guardrails_violation",
+                                    "type": error_type,
                                     "param": blocked_flow,
-                                    "code": "content_blocked",
+                                    "code": error_code,
                                 }
                             }
                             yield json.dumps(error_data)

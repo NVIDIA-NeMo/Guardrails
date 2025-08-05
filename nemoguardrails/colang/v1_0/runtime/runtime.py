@@ -520,8 +520,9 @@ class RuntimeV1_0(Runtime):
                 result, status = result_tuple
 
                 if status != "success":
-                    log.error(f"Action {action_name} failed with status: {status}")
-                    return flow_id, False  # Allow on failure
+                    error_msg = f"Action {action_name} failed with status: {status}"
+                    log.error(error_msg)
+                    return flow_id, "internal_error", error_msg
 
                 action_func = self.action_dispatcher.get_action(action_name)
 
@@ -529,11 +530,12 @@ class RuntimeV1_0(Runtime):
                 # True means blocked, False means allowed
                 result = is_output_blocked(result, action_func)
 
-                return flow_id, result
+                return flow_id, result, None
 
             except Exception as e:
-                log.error(f"Error executing rail {flow_id}: {e}")
-                return flow_id, False  # Allow on error
+                error_msg = f"Error executing rail {flow_id}: {e}"
+                log.error(error_msg)
+                return flow_id, "internal_error", str(e)
 
         # create tasks for all flows
         for flow_id, action_info in flows_with_params.items():
@@ -545,10 +547,29 @@ class RuntimeV1_0(Runtime):
         try:
             for future in asyncio.as_completed(tasks):
                 try:
-                    flow_id, is_blocked = await future
+                    flow_id, result, error_msg = await future
 
-                    # check if this rail blocked the content
-                    if is_blocked:
+                    # check if this rail had an internal error
+                    if result == "internal_error":
+                        # create stop events with internal error marker and actual error message
+                        stopped_events = [
+                            {
+                                "type": "BotIntent",
+                                "intent": "stop",
+                                "flow_id": flow_id,
+                                "error_type": "internal_error",
+                                "error_message": error_msg,
+                            }
+                        ]
+
+                        # cancel remaining tasks
+                        for pending_task in tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                        break
+
+                    # check if this rail blocked the content normally
+                    elif result:  # True means blocked
                         # create stop events
                         stopped_events = [
                             {
