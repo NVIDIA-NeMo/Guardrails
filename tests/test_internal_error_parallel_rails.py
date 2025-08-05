@@ -193,7 +193,6 @@ async def test_no_stop_event_without_error():
     result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
 
     assert result is not None
-    print(result.response)
     assert "Hi there! How can I help?" in result.response[0]["content"]
 
     # should not contain "internal error" in normal execution
