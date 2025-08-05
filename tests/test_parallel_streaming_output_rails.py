@@ -682,10 +682,27 @@ async def test_parallel_streaming_output_rails_error_handling():
     ):
         chunks.append(chunk)
 
-    # should continue processing despite one rail failing
+    # stops processing since one rail is failing
     response = "".join(chunks)
     assert len(response) > 0
-    assert "should still be processed" in response
+    assert "should still be processed" not in response
+
+    # should contain internal error data
+    error_chunks = []
+    for chunk in chunks:
+        try:
+            parsed = json.loads(chunk)
+            if "error" in parsed and parsed["error"].get("type") == "internal_error":
+                error_chunks.append(parsed)
+        except JSONDecodeError:
+            continue
+
+    assert (
+        len(error_chunks) == 1
+    ), f"Expected exactly one internal error chunk, got {len(error_chunks)}"
+    error = error_chunks[0]
+    assert error["error"]["code"] == "rail_execution_failure"
+    assert "Internal error in failing rail rail:" in error["error"]["message"]
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
