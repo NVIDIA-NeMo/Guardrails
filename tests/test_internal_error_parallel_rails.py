@@ -72,6 +72,7 @@ async def test_internal_error_stops_execution():
         ), "Expected BotIntent stop event after internal error"
 
 
+@pytest.mark.asyncio
 async def test_content_safety_missing_prompt():
     config_data = {
         "instructions": [
@@ -83,7 +84,10 @@ async def test_content_safety_missing_prompt():
         ],
         "rails": {
             "input": {
-                "flows": ["content safety check input $model=content_safety"],
+                "flows": [
+                    "content safety check input $model=content_safety",
+                    "self check input",
+                ],
                 "parallel": True,
             }
         },
@@ -91,7 +95,7 @@ async def test_content_safety_missing_prompt():
 
     config = RailsConfig.from_content(
         config=config_data,
-        yaml_content="prompts: []",
+        yaml_content="prompts:\n  - task: self_check_input\n    content: 'Is the user input safe? Answer Yes or No.'",
     )
 
     chat = TestChat(config, llm_completions=["Safe response"])
@@ -108,6 +112,50 @@ async def test_content_safety_missing_prompt():
         if event.get("type") == "BotIntent" and event.get("intent") == "stop"
     ]
     assert len(stop_events) > 0
+
+
+@pytest.mark.asyncio
+async def test_no_app_llm_request_on_internal_error():
+    """Test that App LLM request is not sent when internal error occurs."""
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails"))
+
+    # mock the render_task_prompt method to raise an exception
+    with patch(
+        "nemoguardrails.llm.taskmanager.LLMTaskManager.render_task_prompt"
+    ) as mock_render:
+        mock_render.side_effect = Exception("Missing prompt for task: self_check_input")
+
+        with patch(
+            "nemoguardrails.actions.llm.utils.llm_call", new_callable=AsyncMock
+        ) as mock_llm_call:
+            mock_llm_call.return_value = "Mocked response"
+
+            chat = TestChat(config, llm_completions=["Test response"])
+            chat >> "test"
+
+            result = await chat.app.generate_async(
+                messages=chat.history, options=OPTIONS
+            )
+
+            # should get internal error response
+            assert result is not None
+            assert "internal error" in result.response[0]["content"].lower()
+
+            # verify that the main LLM was NOT called (no App LLM request sent)
+            # The LLM call should be 0 because execution stopped after internal error
+            assert (
+                mock_llm_call.call_count == 0
+            ), f"Expected 0 LLM calls, but got {mock_llm_call.call_count}"
+
+            # verify BotIntent stop event was generated
+            stop_events = [
+                event
+                for event in result.log.internal_events
+                if event.get("type") == "BotIntent" and event.get("intent") == "stop"
+            ]
+            assert (
+                len(stop_events) > 0
+            ), "Expected BotIntent stop event after internal error"
 
 
 @pytest.mark.asyncio
