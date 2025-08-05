@@ -29,6 +29,8 @@ try:
 except ImportError:
     _has_langchain_openai = False
 
+_has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
+
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 OPTIONS = GenerationOptions(
@@ -72,7 +74,10 @@ async def test_internal_error_stops_execution():
         ), "Expected BotIntent stop event after internal error"
 
 
-@pytest.mark.skipif(not _has_langchain_openai, reason="langchain-openai not available")
+@pytest.mark.skipif(
+    not _has_langchain_openai or not _has_openai_key,
+    reason="langchain-openai not available",
+)
 @pytest.mark.asyncio
 async def test_content_safety_missing_prompt():
     config_data = {

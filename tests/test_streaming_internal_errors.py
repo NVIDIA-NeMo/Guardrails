@@ -16,6 +16,7 @@
 """Tests for streaming internal error handling in parallel output rails."""
 
 import json
+import os
 from json.decoder import JSONDecodeError
 
 import pytest
@@ -30,6 +31,8 @@ try:
     _has_langchain_openai = True
 except ImportError:
     _has_langchain_openai = False
+
+_has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
 
 
 async def collect_streaming_chunks(stream):
@@ -56,7 +59,10 @@ def find_internal_error_chunks(chunks):
     return error_chunks
 
 
-@pytest.mark.skipif(not _has_langchain_openai, reason="langchain-openai not available")
+@pytest.mark.skipif(
+    not _has_langchain_openai or not _has_openai_key,
+    reason="langchain-openai not available",
+)
 @pytest.mark.asyncio
 async def test_streaming_missing_prompt_internal_error():
     """Test streaming internal error when content safety prompt is missing."""
