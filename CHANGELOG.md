@@ -16,7 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(tracing)* [**breaking**] Update tracing to use otel api ([#1269](https://github.com/NVIDIA/NeMo-Guardrails/issues/1269))
 - *(streaming)* Implement parallel streaming output rails execution ([#1263](https://github.com/NVIDIA/NeMo-Guardrails/issues/1263), [#1324](https://github.com/NVIDIA/NeMo-Guardrails/pull/1324))
 - *(streaming)* Support external async token generators ([#1286](https://github.com/NVIDIA/NeMo-Guardrails/issues/1286))
-- Support parallel rails execution ([#1234](https://github.com/NVIDIA/NeMo-Guardrails/issues/1234))
+- Support parallel rails execution ([#1234](https://github.com/NVIDIA/NeMo-Guardrails/issues/1234), [#1323](https://github.com/NVIDIA/NeMo-Guardrails/pull/1323))
 
 ### 🐛 Bug Fixes
 
