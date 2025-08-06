@@ -18,9 +18,32 @@ For a complete record of changes in a release, refer to the
 
 (v0-15-0-features)=
 
-### Features
+### Key Features
 
 - Added parallel execution for input and output rails. To learn more, refer to [](parallel-rails).
+- Implemented a new way of configuring tracing. You can now use the OpenTelemetry SDK and the OpenTelemetry Protocol (OTLP) exporter while configuring the NeMo Guardrails clients in your application code directly. To learn more, refer to the [basic tracing configuration guide](tracing-configuration) and the [advanced tracing configuration guide](tracing).
+- Updated the streaming capability of output rails to support parallel execution.
+- Added support for external async token generators. To learn more, refer to the [](external-async-token-generators) section.
+
+### Breaking Changes
+
+With the new tracing configuration, the following old configuration for tracing in `config.yml` is no longer supported.
+
+```yaml
+#  No longer supported
+tracing:
+  enabled: true
+  adapters:
+    - name: OpenTelemetry
+      service_name: "my-service"
+      exporter: "console"
+```
+
+To find the new way of configuring tracing, refer to [](tracing-configuration).
+
+### Deprecated Functions
+
+- `register_otel_exporter()` is deprecated and will be removed in v0.16.0. Configure exporters directly in your application instead.
 
 (v0-14-1)=
 

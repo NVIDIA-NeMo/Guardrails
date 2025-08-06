@@ -71,7 +71,9 @@ result = await app.generate_async(
 print(result)
 ```
 
-### Using External Token Generators
+(external-async-token-generators)=
+
+### Using External Async Token Generators
 
 You can also provide your own async generator that yields tokens, which is useful when:
 
