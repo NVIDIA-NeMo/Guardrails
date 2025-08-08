@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.15.0] - 2025-08-08
+
+### 🚀 Features
+
+- *(tracing)* [**breaking**] Update tracing to use otel api ([#1269](https://github.com/NVIDIA/NeMo-Guardrails/issues/1269))
+- *(streaming)* Implement parallel streaming output rails execution ([#1263](https://github.com/NVIDIA/NeMo-Guardrails/issues/1263), [#1324](https://github.com/NVIDIA/NeMo-Guardrails/pull/1324))
+- *(streaming)* Support external async token generators ([#1286](https://github.com/NVIDIA/NeMo-Guardrails/issues/1286))
+- Support parallel rails execution ([#1234](https://github.com/NVIDIA/NeMo-Guardrails/issues/1234), [#1323](https://github.com/NVIDIA/NeMo-Guardrails/pull/1323))
+
+### 🐛 Bug Fixes
+
+- *(streaming)* Resolve word concatenation in streaming output rails ([#1259](https://github.com/NVIDIA/NeMo-Guardrails/issues/1259))
+- *(streaming)* Enable token usage tracking for streaming LLM calls ([#1264](https://github.com/NVIDIA/NeMo-Guardrails/issues/1264), [#1285](https://github.com/NVIDIA/NeMo-Guardrails/issues/1285))
+- *(tracing)* Prevent mutation of user options when tracing is enabled ([#1273](https://github.com/NVIDIA/NeMo-Guardrails/issues/1273))
+- *(rails)* Prevent LLM parameter contamination in rails ([#1306](https://github.com/NVIDIA/NeMo-Guardrails/issues/1306))
+
+### 📚 Documentation
+
+- Release notes 0.14.1 ([#1272](https://github.com/NVIDIA/NeMo-Guardrails/issues/1272))
+- Update guardrails-library.md to include Clavata as a third party API ([#1294](https://github.com/NVIDIA/NeMo-Guardrails/issues/1294))
+- *(streaming)* Add section on token usage tracking ([#1282](https://github.com/NVIDIA/NeMo-Guardrails/issues/1282))
+- Add parallel rail section and split config page ([#1295](https://github.com/NVIDIA/NeMo-Guardrails/issues/1295))
+- Show complete prompts.yml content in getting started tutorial ([#1311](https://github.com/NVIDIA/NeMo-Guardrails/issues/1311))
+- *(tracing)* Update and streamline tracing guide ([#1307](https://github.com/NVIDIA/NeMo-Guardrails/issues/1307))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(dependabot)* Remove dependabot configuration ([#1281](https://github.com/NVIDIA/NeMo-Guardrails/issues/1281))
+- *(CI)* Add release workflow ([#1309](https://github.com/NVIDIA/NeMo-Guardrails/issues/1309), [#1318](https://github.com/NVIDIA/NeMo-Guardrails/issues/1318))
+
 ## [0.14.1] - 2025-07-02
 
 ### 🚀 Features
