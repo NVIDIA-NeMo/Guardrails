@@ -21,8 +21,8 @@ To enable KV cache reuse for the Content Safety NIM, set the `NIM_ENABLE_KV_CACH
 To run the Content Safety NIM server with KV cache reuse, use the following commands:
 
 ```bash
-export MODEL_NAME="llama-3.1-nemoguard-8b-content-safety"
-export NIM_IMAGE=<llama-3.1-nemoguard-8b-content-safety-image-uri>
+export MODEL_NAME="nemoguard-nim-name"
+export NIM_IMAGE=<nemoguard-nim-image-uri>
 export LOCAL_NIM_CACHE=<local-nim-cache-directory>
 
 docker run -it \
@@ -43,3 +43,9 @@ docker run -it \
 ```
 
 To disable KV cache reuse, you can either remove the `-e NIM_ENABLE_KV_CACHE_REUSE=1` line or set the variable to `0`.
+
+If you have an existing Docker container running the NIM, you can update the environment variable by running the following command:
+
+```bash
+docker exec -it $MODEL_NAME bash -c "export NIM_ENABLE_KV_CACHE_REUSE=1"
+```
