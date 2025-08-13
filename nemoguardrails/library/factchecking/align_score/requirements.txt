@@ -1,6 +1,0 @@
-# The minimal set of requirements for the AlignScore server to run.
-pydantic>=1.10
-fastapi>=0.109.1
-starlette>=0.36.2
-typer>=0.7.0
-uvicorn>=0.23.2
