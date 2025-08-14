@@ -262,3 +262,48 @@ def test_rails_config_nested_dictionary_merging():
     assert result.custom_data["setting2"] == "value2"
     assert result.custom_data["nested"]["key1"] == "val1"
     assert result.custom_data["nested"]["key2"] == "val2"
+
+
+def test_rails_config_none_prompts():
+    """Test that configs with None prompts can be added without errors."""
+    config1 = RailsConfig(
+        models=[Model(type="main", engine="openai", model="gpt-3.5-turbo")],
+        prompts=None,
+        rails={"input": {"flows": ["self_check_input"]}},
+    )
+    config2 = RailsConfig(
+        models=[Model(type="secondary", engine="anthropic", model="claude-3")],
+        prompts=[],
+    )
+
+    result = config1 + config2
+    assert result is not None
+    assert result.prompts is not None
+
+
+def test_rails_config_none_config_path():
+    """Test that configs with None config_path can be added."""
+    config1 = RailsConfig(
+        models=[Model(type="main", engine="openai", model="gpt-3.5-turbo")],
+        config_path=None,
+    )
+    config2 = RailsConfig(
+        models=[Model(type="secondary", engine="anthropic", model="claude-3")],
+        config_path="config2.yml",
+    )
+
+    result = config1 + config2
+    # should not have leading comma after fix
+    assert result.config_path == "config2.yml"
+
+    config3 = RailsConfig(
+        models=[Model(type="main", engine="openai", model="gpt-3.5-turbo")],
+        config_path=None,
+    )
+    config4 = RailsConfig(
+        models=[Model(type="secondary", engine="anthropic", model="claude-3")],
+        config_path=None,
+    )
+
+    result2 = config3 + config4
+    assert result2.config_path == ""

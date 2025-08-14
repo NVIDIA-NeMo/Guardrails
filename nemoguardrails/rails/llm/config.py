@@ -1411,7 +1411,7 @@ class RailsConfig(BaseModel):
             # "content_safety_check input $model",
             # "content_safety_check output $model",
         ]
-        prompts = values.get("prompts", []) or []
+        prompts = values.get("prompts") or []
         for prompt in prompts:
             task = prompt.task if hasattr(prompt, "task") else prompt.get("task")
             output_parser = (
@@ -1658,12 +1658,12 @@ def _join_rails_configs(
     combined_rails_config_dict = _join_dict(
         base_rails_config.dict(), updated_rails_config.dict()
     )
-    combined_rails_config_dict["config_path"] = ",".join(
-        [
-            base_rails_config.dict()["config_path"] or "",
-            updated_rails_config.dict()["config_path"] or "",
-        ]
-    )
+    # filter out empty strings to avoid leading/trailing commas
+    config_paths = [
+        base_rails_config.dict()["config_path"] or "",
+        updated_rails_config.dict()["config_path"] or "",
+    ]
+    combined_rails_config_dict["config_path"] = ",".join(filter(None, config_paths))
     combined_rails_config = RailsConfig(**combined_rails_config_dict)
     return combined_rails_config
 
