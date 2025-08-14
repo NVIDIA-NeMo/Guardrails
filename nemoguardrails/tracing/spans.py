@@ -351,4 +351,5 @@ def is_typed_span(span: Any) -> bool:
     Returns:
         True if the object is a typed span, False otherwise
     """
-    return isinstance(span, TypedSpan)
+    # Python 3.9 compatibility: cannot use isinstance with Union types
+    return isinstance(span, (InteractionSpan, RailSpan, ActionSpan, LLMSpan))

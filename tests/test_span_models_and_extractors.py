@@ -88,7 +88,9 @@ class TestSpanModels:
         assert attributes["gen_ai.request.model"] == "gpt-4"
 
         assert not isinstance(span, SpanFlat)
-        assert isinstance(span, SpanOpentelemetry)
+        # Python 3.9 compatibility: cannot use isinstance with Union types
+        # SpanOpentelemetry is TypedSpan which is a Union, so check the actual type
+        assert isinstance(span, LLMSpan)
 
     # Note: V1 and V2 spans are now fundamentally different types
     # V1 is a simple span model, V2 is typed spans with explicit fields
