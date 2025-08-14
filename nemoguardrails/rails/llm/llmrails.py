@@ -1028,6 +1028,7 @@ class LLMRails:
             await streaming_handler.push_chunk(END_OF_STREAM)
 
         # IF tracing is enabled we need to set GenerationLog attrs
+        original_log_options = None
         if self.config.tracing.enabled:
             if options is None:
                 options = GenerationOptions()
@@ -1038,6 +1039,7 @@ class LLMRails:
                 else:
                     # If options is a dict, convert it to GenerationOptions
                     options = GenerationOptions(**options)
+            original_log_options = options.log.model_copy(deep=True)
 
             # enable log options
             # it is aggressive, but these are required for tracing
@@ -1154,6 +1156,25 @@ class LLMRails:
                     input=messages, response=res, adapters=self._log_adapters
                 )
                 await tracer.export_async()
+
+                # respect original log specification, if tracing added information to the output
+                if original_log_options:
+                    if not any(
+                        (
+                            original_log_options.internal_events,
+                            original_log_options.activated_rails,
+                            original_log_options.llm_calls,
+                            original_log_options.colang_history,
+                        )
+                    ):
+                        res.log = None
+                    else:
+                        if not original_log_options.internal_events:
+                            res.log.internal_events = []
+                        if not original_log_options.activated_rails:
+                            res.log.activated_rails = []
+                        if not original_log_options.llm_calls:
+                            res.log.llm_calls = []
 
             return res
         else:
