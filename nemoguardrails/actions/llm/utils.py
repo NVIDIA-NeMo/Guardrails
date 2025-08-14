@@ -66,6 +66,8 @@ def _infer_model_name(llm: BaseLanguageModel):
 async def llm_call(
     llm: BaseLanguageModel,
     prompt: Union[str, List[dict]],
+    model_name: Optional[str] = None,
+    model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
     custom_callback_handlers: Optional[List[AsyncCallbackHandler]] = None,
 ) -> str:
@@ -76,7 +78,8 @@ async def llm_call(
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
-    llm_call_info.llm_model_name = _infer_model_name(llm)
+    llm_call_info.llm_model_name = model_name or _infer_model_name(llm)
+    llm_call_info.llm_provider_name = model_provider
 
     if custom_callback_handlers and custom_callback_handlers != [None]:
         all_callbacks = BaseCallbackManager(
@@ -172,15 +175,15 @@ def get_colang_history(
                 history += f'user "{event["text"]}"\n'
             elif event["type"] == "UserIntent":
                 if include_texts:
-                    history += f'  {event["intent"]}\n'
+                    history += f"  {event['intent']}\n"
                 else:
-                    history += f'user {event["intent"]}\n'
+                    history += f"user {event['intent']}\n"
             elif event["type"] == "BotIntent":
                 # If we have instructions, we add them before the bot message.
                 # But we only do that for the last bot message.
                 if "instructions" in event and idx == last_bot_intent_idx:
                     history += f"# {event['instructions']}\n"
-                history += f'bot {event["intent"]}\n'
+                history += f"bot {event['intent']}\n"
             elif event["type"] == "StartUtteranceBotAction" and include_texts:
                 history += f'  "{event["script"]}"\n'
             # We skip system actions from this log
@@ -349,9 +352,9 @@ def flow_to_colang(flow: Union[dict, Flow]) -> str:
             if "_type" not in element:
                 raise Exception("bla")
             if element["_type"] == "UserIntent":
-                colang_flow += f'user {element["intent_name"]}\n'
+                colang_flow += f"user {element['intent_name']}\n"
             elif element["_type"] == "run_action" and element["action_name"] == "utter":
-                colang_flow += f'bot {element["action_params"]["value"]}\n'
+                colang_flow += f"bot {element['action_params']['value']}\n"
 
     return colang_flow
 

@@ -59,6 +59,10 @@ class LLMCallInfo(LLMCallSummary):
         default="unknown",
         description="The name of the model use for the LLM call.",
     )
+    llm_provider_name: Optional[str] = Field(
+        default="unknown",
+        description="The provider of the model used for the LLM call, e.g. 'openai', 'nvidia'.",
+    )
 
 
 class ExplainInfo(BaseModel):
@@ -100,7 +104,7 @@ class ExplainInfo(BaseModel):
             for i in range(len(self.llm_calls)):
                 llm_call = self.llm_calls[i]
                 msg = (
-                    f"{i+1}. Task `{llm_call.task}` took {llm_call.duration:.2f} seconds "
+                    f"{i + 1}. Task `{llm_call.task}` took {llm_call.duration:.2f} seconds "
                     + (
                         f"and used {llm_call.total_tokens} tokens."
                         if total_tokens

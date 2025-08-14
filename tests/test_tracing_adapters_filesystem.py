@@ -19,10 +19,8 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 
-from nemoguardrails.eval.models import Span
-from nemoguardrails.tracing import InteractionLog
+from nemoguardrails.tracing import InteractionLog, SpanFlat
 from nemoguardrails.tracing.adapters.filesystem import FileSystemAdapter
 
 
@@ -53,7 +51,7 @@ class TestFileSystemAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                Span(
+                SpanFlat(
                     name="test_span",
                     span_id="span_1",
                     parent_id=None,
@@ -87,7 +85,7 @@ class TestFileSystemAdapter(unittest.TestCase):
                 activated_rails=[],
                 events=[],
                 trace=[
-                    Span(
+                    SpanFlat(
                         name="test_span",
                         span_id="span_1",
                         parent_id=None,
