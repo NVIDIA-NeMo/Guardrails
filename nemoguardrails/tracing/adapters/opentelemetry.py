@@ -70,7 +70,7 @@ except ImportError:
     )
 
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
-from nemoguardrails.tracing.spans import is_typed_span
+from nemoguardrails.tracing.span_formatting import extract_span_attributes
 
 
 class OpenTelemetryAdapter(InteractionLogAdapter):
@@ -169,10 +169,10 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         spans,
         base_time_ns,
     ):
-        """Create OTel span from a fully-formed SpanOpentelemetry or typed span object.
+        """Create OTel span from a span.
 
-        This is a pure API bridge - all semantic attributes are already
-        set by the extractor. We only handle:
+        This is a pure API bridge - all semantic attributes are extracted
+        by the formatting function. We only handle:
         1. Timestamp conversion (relative to absolute)
         2. Span kind mapping (string to enum)
         3. API calls to create spans and events
@@ -187,10 +187,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         start_time_ns = base_time_ns + relative_start_ns
         end_time_ns = base_time_ns + relative_end_ns
 
-        if is_typed_span(span_data):
-            attributes = span_data.to_otel_attributes()
-        else:
-            attributes = {}
+        attributes = extract_span_attributes(span_data)
 
         from opentelemetry.trace import SpanKind as OTelSpanKind
 
@@ -214,11 +211,6 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
             for key, value in attributes.items():
                 if key == "span.kind":
                     continue
-                span.set_attribute(key, value)
-
-        # for V1 compatibility, also set metrics as attributes
-        if hasattr(span_data, "metrics") and span_data.metrics:
-            for key, value in span_data.metrics.items():
                 span.set_attribute(key, value)
 
         if hasattr(span_data, "events") and span_data.events:

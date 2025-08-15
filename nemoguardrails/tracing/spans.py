@@ -13,26 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Final, Literal
-
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Span models for NeMo Guardrails tracing system."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional, Union
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -41,6 +26,12 @@ from nemoguardrails.tracing.constants import (
     GenAIAttributes,
     GuardrailsAttributes,
 )
+
+
+class SpanKind(str, Enum):
+    SERVER = "server"
+    CLIENT = "client"
+    INTERNAL = "internal"
 
 
 class SpanEvent(BaseModel):
@@ -88,9 +79,7 @@ class BaseSpan(BaseModel, ABC):
     end_time: float = Field(description="End time relative to trace start (seconds)")
     duration: float = Field(description="Duration of the span in seconds")
 
-    span_kind: Literal["server", "client", "internal"] = Field(
-        description="OpenTelemetry span kind"
-    )
+    span_kind: SpanKind = Field(description="OpenTelemetry span kind")
 
     events: List[SpanEvent] = Field(
         default_factory=list,
@@ -141,7 +130,7 @@ class BaseSpan(BaseModel, ABC):
 class InteractionSpan(BaseSpan):
     """Top-level span for a guardrails interaction (server span)."""
 
-    span_kind: Literal["server"] = "server"
+    span_kind: SpanKind = SpanKind.SERVER
 
     operation_name: str = Field(
         default="guardrails", description="Operation name for this interaction"
@@ -172,8 +161,7 @@ class InteractionSpan(BaseSpan):
 class RailSpan(BaseSpan):
     """Span for a guardrail execution (internal span)."""
 
-    span_kind: Literal["internal"] = "internal"
-
+    span_kind: SpanKind = SpanKind.INTERNAL
     # rail-specific attributes
     rail_type: str = Field(description="Type of rail (e.g., input, output, dialog)")
     rail_name: str = Field(description="Name of the rail (e.g., check_jailbreak)")
@@ -202,8 +190,7 @@ class RailSpan(BaseSpan):
 class ActionSpan(BaseSpan):
     """Span for an action execution (internal span)."""
 
-    span_kind: Literal["internal"] = "internal"
-
+    span_kind: SpanKind = SpanKind.INTERNAL
     # action-specific attributes
     action_name: str = Field(description="Name of the action being executed")
     action_params: Dict[str, Any] = Field(
@@ -237,8 +224,7 @@ class ActionSpan(BaseSpan):
 class LLMSpan(BaseSpan):
     """Span for an LLM API call (client span)."""
 
-    span_kind: Final[Literal["client"]] = "client"
-
+    span_kind: SpanKind = SpanKind.CLIENT
     provider_name: str = Field(
         description="LLM provider name (e.g., openai, anthropic)"
     )
@@ -342,7 +328,7 @@ TypedSpan = Union[InteractionSpan, RailSpan, ActionSpan, LLMSpan]
 SpanOpentelemetry = TypedSpan
 
 
-def is_typed_span(span: Any) -> bool:
+def is_opentelemetry_span(span: Any) -> bool:
     """Check if an object is a typed span (V2).
 
     Args:
