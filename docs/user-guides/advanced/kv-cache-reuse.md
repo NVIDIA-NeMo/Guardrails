@@ -1,8 +1,8 @@
 # KV Cache Reuse for NemoGuard NIM
 
-The NeMo Guardrails client calls Content Safety and Topic Control NemoGuard NIMs, which are specialized LLMs for specific guardrail types.
+Upon your Guardrails client setup with the Content Safety and Topic Control NemoGuard NIM microservices, the client calls the NIMs to check the user input and application LLM response.
 
-Every NemoGuard NIM call interjecting the application LLM adds to the inference latency. The application LLM can only begin generating a response after all input checks, which may [run in parallel](parallel-rails), are complete. It also introduces response latency if you run the guardrail checks on the application LLM's response; response latency depends on the response size.
+Every NemoGuard NIM call interjecting the input and response adds to the inference latency. The application LLM can only begin generating a response after all input checks, which may [run in parallel](parallel-rails), are complete. It also introduces response latency if you run the guardrail checks on the application LLM's response; the larger the response, the longer the response latency.
 
 [KV Cache Reuse](https://docs.nvidia.com/nim/large-language-models/latest/kv-cache-reuse.html) (also known as prefix-caching) is a feature of the NVIDIA NIM for LLMs that provides a performance improvement by reusing the decoder layers for the prompt.
 
