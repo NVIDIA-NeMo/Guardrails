@@ -15,6 +15,8 @@
 
 import logging
 import os
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -115,6 +117,33 @@ def test_rails_config_from_path():
     assert config is not None
     assert len(config.instructions) > 0
     assert config.sample_conversation is not None
+
+
+def test_rails_config_from_path_yml_extension():
+    """Test loading RailsConfig when the config directory ends with a .yml suffix.
+
+    Ensures a directory mistakenly named with a YAML extension is treated as a directory,
+    not a file, and its internal YAML config is loaded properly.
+    """
+
+    with tempfile.TemporaryDirectory(suffix=".yml") as temp_dir:
+        temp_path = Path(temp_dir)
+
+        minimal_yaml = (
+            "models: []\n"
+            "instructions:\n"
+            "  - type: general\n"
+            "    content: Test instruction\n"
+            "sample_conversation: Test conversation\n"
+        )
+
+        # place a config file inside the directory-with-.yml suffix
+        (temp_path / "config.yml").write_text(minimal_yaml)
+
+        config = RailsConfig.from_path(str(temp_path))
+        assert config is not None
+        assert len(config.instructions) > 0
+        assert config.sample_conversation is not None
 
 
 def test_rails_config_parse_obj():

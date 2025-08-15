@@ -1479,7 +1479,7 @@ class RailsConfig(BaseModel):
         """
         # If the config path is a file, we load the YAML content.
         # Otherwise, if it's a folder, we iterate through all files.
-        if config_path.endswith(".yaml") or config_path.endswith(".yml"):
+        if os.path.isfile(config_path) and config_path.endswith((".yaml", ".yml")):
             with open(config_path) as f:
                 raw_config = yaml.safe_load(f.read())
 
