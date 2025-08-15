@@ -54,6 +54,7 @@ myst_enable_extensions = [
     "fieldlist",
     "substitution",
 ]
+myst_links_external_new_tab = True
 
 myst_substitutions = {
     "version": release,
