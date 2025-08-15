@@ -17,7 +17,7 @@
 import pytest
 
 from nemoguardrails.tracing import SpanEvent, SpanFlat
-from nemoguardrails.tracing.spans import LLMSpan, is_typed_span
+from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 
 
 class TestSpanModels:

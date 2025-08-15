@@ -18,7 +18,7 @@ import pytest
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.tracing import SpanOpentelemetry, create_span_extractor
-from nemoguardrails.tracing.spans import LLMSpan, is_typed_span
+from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 from tests.utils import FakeLLM
 
 
@@ -113,7 +113,7 @@ async def test_v2_spans_generated_with_events(v2_config):
     assert len(interaction_log.trace) > 0
 
     for span in interaction_log.trace:
-        assert is_typed_span(span)
+        assert is_opentelemetry_span(span)
 
     interaction_span = next(
         (s for s in interaction_log.trace if s.name == "guardrails.request"), None
