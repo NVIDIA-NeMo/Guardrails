@@ -857,6 +857,42 @@ async def test_other_models_honored(mock_init, llm_config_with_multiple_models):
 
 
 @pytest.mark.asyncio
+async def test_llm_constructor_with_empty_models_config():
+    """Test that LLMRails can be initialized with constructor LLM when config has empty models list.
+
+    This tests the fix for the IndexError that occurred when providing an LLM via constructor
+    but having an empty models list in the config.
+    """
+    config = RailsConfig.parse_object(
+        {
+            "models": [],
+            "user_messages": {
+                "express greeting": ["Hello!"],
+            },
+            "flows": [
+                {
+                    "elements": [
+                        {"user": "express greeting"},
+                        {"bot": "express greeting"},
+                    ]
+                },
+            ],
+            "bot_messages": {
+                "express greeting": ["Hello! How are you?"],
+            },
+        }
+    )
+
+    injected_llm = FakeLLM(responses=["express greeting"])
+    llm_rails = LLMRails(config=config, llm=injected_llm)
+    assert llm_rails.llm == injected_llm
+
+    events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
+    new_events = await llm_rails.runtime.generate_events(events)
+    assert any(event.get("intent") == "express greeting" for event in new_events)
+
+
+@pytest.mark.asyncio
 @patch(
     "nemoguardrails.rails.llm.llmrails.init_llm_model",
     return_value=FakeLLM(responses=["safe"]),

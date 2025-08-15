@@ -139,7 +139,8 @@ def get_task_model(config: RailsConfig, task: Union[str, Task]) -> Model:
         if not _models:
             _models = [model for model in config.models if model.type == "main"]
 
-        return _models[0]
+        if _models:
+            return _models[0]
 
     return None
 
