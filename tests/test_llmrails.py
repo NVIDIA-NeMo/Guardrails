@@ -1155,3 +1155,100 @@ async def test_stream_usage_enabled_for_all_providers_when_streaming(
 
     # stream_usage should be set for all providers when streaming is enabled
     assert kwargs.get("stream_usage") is True
+
+
+# Add this test after the existing tests, around line 1100+
+
+
+def test_register_methods_return_self():
+    """Test that all register_* methods return self for method chaining."""
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    # Test register_action returns self
+    def dummy_action():
+        pass
+
+    result = rails.register_action(dummy_action, "test_action")
+    assert result is rails, "register_action should return self"
+
+    # Test register_action_param returns self
+    result = rails.register_action_param("test_param", "test_value")
+    assert result is rails, "register_action_param should return self"
+
+    # Test register_filter returns self
+    def dummy_filter(text):
+        return text
+
+    result = rails.register_filter(dummy_filter, "test_filter")
+    assert result is rails, "register_filter should return self"
+
+    # Test register_output_parser returns self
+    def dummy_parser(text):
+        return text
+
+    result = rails.register_output_parser(dummy_parser, "test_parser")
+    assert result is rails, "register_output_parser should return self"
+
+    # Test register_prompt_context returns self
+    result = rails.register_prompt_context("test_context", "test_value")
+    assert result is rails, "register_prompt_context should return self"
+
+    # Test register_embedding_search_provider returns self
+    from nemoguardrails.embeddings.index import EmbeddingsIndex
+
+    class DummyEmbeddingProvider(EmbeddingsIndex):
+        def __init__(self, **kwargs):
+            pass
+
+        def build(self):
+            pass
+
+        def search(self, text, max_results=5):
+            return []
+
+    result = rails.register_embedding_search_provider(
+        "dummy_provider", DummyEmbeddingProvider
+    )
+    assert result is rails, "register_embedding_search_provider should return self"
+
+    # Test register_embedding_provider returns self
+    from nemoguardrails.embeddings.providers.base import EmbeddingModel
+
+    class DummyEmbeddingModel(EmbeddingModel):
+        def encode(self, texts):
+            return []
+
+    result = rails.register_embedding_provider(DummyEmbeddingModel, "dummy_embedding")
+    assert result is rails, "register_embedding_provider should return self"
+
+
+def test_method_chaining():
+    """Test that method chaining works correctly with register_* methods."""
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    def dummy_action():
+        return "action_result"
+
+    def dummy_filter(text):
+        return text.upper()
+
+    def dummy_parser(text):
+        return {"parsed": text}
+
+    # Test chaining multiple register methods
+    result = (
+        rails.register_action(dummy_action, "chained_action")
+        .register_action_param("chained_param", "param_value")
+        .register_filter(dummy_filter, "chained_filter")
+        .register_output_parser(dummy_parser, "chained_parser")
+        .register_prompt_context("chained_context", "context_value")
+    )
+
+    assert result is rails, "Method chaining should return the same rails instance"
+
+    # Verify that all registrations actually worked
+    assert "chained_action" in rails.runtime.action_dispatcher.registered_actions
+    assert "chained_param" in rails.runtime.registered_action_params
+    assert rails.runtime.registered_action_params["chained_param"] == "param_value"

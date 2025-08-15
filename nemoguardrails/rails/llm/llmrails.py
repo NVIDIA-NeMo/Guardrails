@@ -28,6 +28,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Type, Union,
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
+from typing_extensions import Self
 
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
@@ -1407,33 +1408,38 @@ class LLMRails:
             self.process_events_async(events, state, blocking)
         )
 
-    def register_action(self, action: callable, name: Optional[str] = None):
+    def register_action(self, action: callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""
         self.runtime.register_action(action, name)
+        return self
 
-    def register_action_param(self, name: str, value: Any):
+    def register_action_param(self, name: str, value: Any) -> Self:
         """Registers a custom action parameter."""
         self.runtime.register_action_param(name, value)
+        return self
 
-    def register_filter(self, filter_fn: callable, name: Optional[str] = None):
+    def register_filter(self, filter_fn: callable, name: Optional[str] = None) -> Self:
         """Register a custom filter for the rails configuration."""
         self.runtime.llm_task_manager.register_filter(filter_fn, name)
+        return self
 
-    def register_output_parser(self, output_parser: callable, name: str):
+    def register_output_parser(self, output_parser: callable, name: str) -> Self:
         """Register a custom output parser for the rails configuration."""
         self.runtime.llm_task_manager.register_output_parser(output_parser, name)
+        return self
 
-    def register_prompt_context(self, name: str, value_or_fn: Any):
+    def register_prompt_context(self, name: str, value_or_fn: Any) -> Self:
         """Register a value to be included in the prompt context.
 
         :name: The name of the variable or function that will be used.
         :value_or_fn: The value or function that will be used to generate the value.
         """
         self.runtime.llm_task_manager.register_prompt_context(name, value_or_fn)
+        return self
 
     def register_embedding_search_provider(
         self, name: str, cls: Type[EmbeddingsIndex]
-    ) -> None:
+    ) -> Self:
         """Register a new embedding search provider.
 
         Args:
@@ -1442,10 +1448,11 @@ class LLMRails:
         """
 
         self.embedding_search_providers[name] = cls
+        return self
 
     def register_embedding_provider(
         self, cls: Type[EmbeddingModel], name: Optional[str] = None
-    ) -> None:
+    ) -> Self:
         """Register a custom embedding provider.
 
         Args:
@@ -1457,6 +1464,7 @@ class LLMRails:
             ValueError: If the model does not have 'encode' or 'encode_async' methods.
         """
         register_embedding_provider(engine_name=name, model=cls)
+        return self
 
     def explain(self) -> ExplainInfo:
         """Helper function to return the latest ExplainInfo object."""
