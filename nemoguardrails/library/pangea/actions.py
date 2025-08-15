@@ -123,6 +123,8 @@ async def pangea_ai_guard(
                 "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA/NeMo-Guardrails)",
             },
         )
+        response.raise_for_status()
+
         text_guard_response = TextGuardResponse(**response.json())
         result = text_guard_response.result
         prompt_messages = result.prompt_messages or []
