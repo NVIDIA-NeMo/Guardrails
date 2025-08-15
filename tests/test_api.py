@@ -41,6 +41,26 @@ def test_get():
     assert len(result) > 0
 
 
+def test_get_models():
+    """Test the OpenAI-compatible /v1/models endpoint."""
+    response = client.get("/v1/models")
+    assert response.status_code == 200
+
+    result = response.json()
+
+    # Check OpenAI models list format
+    assert result["object"] == "list"
+    assert "data" in result
+    assert len(result["data"]) > 0
+
+    # Check each model has the required OpenAI format
+    for model in result["data"]:
+        assert "id" in model
+        assert model["object"] == "model"
+        assert "created" in model
+        assert model["owned_by"] == "nemo-guardrails"
+
+
 @pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
 def test_chat_completion():
     response = client.post(
@@ -57,8 +77,14 @@ def test_chat_completion():
     )
     assert response.status_code == 200
     res = response.json()
-    assert len(res["messages"]) == 1
-    assert res["messages"][0]["content"]
+    # Check OpenAI-compatible response structure
+    assert res["object"] == "chat.completion"
+    assert "id" in res
+    assert "created" in res
+    assert "model" in res
+    assert len(res["choices"]) == 1
+    assert res["choices"][0]["message"]["content"]
+    assert res["choices"][0]["message"]["role"] == "assistant"
 
 
 @pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
@@ -78,8 +104,14 @@ def test_chat_completion_with_default_configs():
     )
     assert response.status_code == 200
     res = response.json()
-    assert len(res["messages"]) == 1
-    assert res["messages"][0]["content"]
+    # Check OpenAI-compatible response structure
+    assert res["object"] == "chat.completion"
+    assert "id" in res
+    assert "created" in res
+    assert "model" in res
+    assert len(res["choices"]) == 1
+    assert res["choices"][0]["message"]["content"]
+    assert res["choices"][0]["message"]["role"] == "assistant"
 
 
 def test_request_body_validation():
@@ -111,6 +143,31 @@ def test_request_body_validation():
     data = {"messages": [{"role": "user", "content": "Hello"}]}
     request_body = RequestBody.model_validate(data)
     assert request_body.config_ids is None
+
+
+def test_openai_model_field_mapping():
+    """Test OpenAI-compatible model field mapping to config_id."""
+
+    # Test model field maps to config_id
+    data = {
+        "model": "test_model",
+        "messages": [{"role": "user", "content": "Hello"}],
+    }
+    request_body = RequestBody.model_validate(data)
+    assert request_body.model == "test_model"
+    assert request_body.config_id == "test_model"
+    assert request_body.config_ids == ["test_model"]
+
+    # Test model and config_id both provided (config_id takes precedence)
+    data = {
+        "model": "test_model",
+        "config_id": "test_config",
+        "messages": [{"role": "user", "content": "Hello"}],
+    }
+    request_body = RequestBody.model_validate(data)
+    assert request_body.model == "test_model"
+    assert request_body.config_id == "test_config"
+    assert request_body.config_ids == ["test_config"]
 
 
 def test_request_body_state():

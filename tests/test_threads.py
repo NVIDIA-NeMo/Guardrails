@@ -51,8 +51,8 @@ def test_1():
     )
     assert response.status_code == 200
     res = response.json()
-    assert len(res["messages"]) == 1
-    assert res["messages"][0]["content"] == "Hello!"
+    assert len(res["choices"][0]["messages"]) == 2
+    assert res["choices"][0]["messages"]["content"] == "Hello!"
 
     # When making a second call with the same thread_id, the conversations should continue
     # and we should get the "Hello again!" message.
@@ -70,7 +70,7 @@ def test_1():
         },
     )
     res = response.json()
-    assert res["messages"][0]["content"] == "Hello again!"
+    assert res["choices"][0]["messages"]["content"] == "Hello again!"
 
 
 @pytest.mark.parametrize(
@@ -138,4 +138,4 @@ def test_with_redis():
         },
     )
     res = response.json()
-    assert res["messages"][0]["content"] == "Hello again!"
+    assert res["choices"]["messages"][0]["content"] == "Hello again!"

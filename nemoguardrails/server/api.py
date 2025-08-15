@@ -20,6 +20,7 @@ import logging
 import os.path
 import re
 import time
+import uuid
 import warnings
 from contextlib import asynccontextmanager
 from typing import Any, Callable, List, Optional
@@ -32,7 +33,6 @@ from starlette.staticfiles import StaticFiles
 
 from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.options import (
-    GenerationLog,
     GenerationOptions,
     GenerationResponse,
 )
@@ -87,9 +87,9 @@ async def lifespan(app: GuardrailsApp):
 
     # If there is a `config.yml` in the root `app.rails_config_path`, then
     # that means we are in single config mode.
-    if os.path.exists(os.path.join(app.rails_config_path, "config.yml")) or os.path.exists(
-        os.path.join(app.rails_config_path, "config.yaml")
-    ):
+    if os.path.exists(
+        os.path.join(app.rails_config_path, "config.yml")
+    ) or os.path.exists(os.path.join(app.rails_config_path, "config.yaml")):
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
     else:
@@ -227,16 +227,63 @@ class RequestBody(BaseModel):
         default=None,
         description="A state object that should be used to continue the interaction.",
     )
+    # Standard OpenAI completion parameters
+    model: Optional[str] = Field(
+        default=None,
+        description="The model to use for chat completion. Maps to config_id for backward compatibility.",
+    )
+    max_tokens: Optional[int] = Field(
+        default=None,
+        description="The maximum number of tokens to generate.",
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        description="Sampling temperature to use.",
+    )
+    top_p: Optional[float] = Field(
+        default=None,
+        description="Top-p sampling parameter.",
+    )
+    stop: Optional[str] = Field(
+        default=None,
+        description="Stop sequences.",
+    )
+    presence_penalty: Optional[float] = Field(
+        default=None,
+        description="Presence penalty parameter.",
+    )
+    frequency_penalty: Optional[float] = Field(
+        default=None,
+        description="Frequency penalty parameter.",
+    )
+    function_call: Optional[dict] = Field(
+        default=None,
+        description="Function call parameter.",
+    )
+    logit_bias: Optional[dict] = Field(
+        default=None,
+        description="Logit bias parameter.",
+    )
+    log_probs: Optional[bool] = Field(
+        default=None,
+        description="Log probabilities parameter.",
+    )
 
     @root_validator(pre=True)
     def ensure_config_id(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            if data.get("model") is not None and data.get("config_id") is None:
+                data["config_id"] = data["model"]
             if data.get("config_id") is not None and data.get("config_ids") is not None:
-                raise ValueError("Only one of config_id or config_ids should be specified")
+                raise ValueError(
+                    "Only one of config_id or config_ids should be specified"
+                )
             if data.get("config_id") is None and data.get("config_ids") is not None:
                 data["config_id"] = None
             if data.get("config_id") is None and data.get("config_ids") is None:
-                warnings.warn("No config_id or config_ids provided, using default config_id")
+                warnings.warn(
+                    "No config_id or config_ids provided, using default config_id"
+                )
         return data
 
     @validator("config_ids", pre=True, always=True)
@@ -247,21 +294,113 @@ class RequestBody(BaseModel):
         return v
 
 
+class Choice(BaseModel):
+    index: Optional[int] = Field(
+        default=None, description="The index of the choice in the list of choices."
+    )
+    messages: Optional[dict] = Field(
+        default=None, description="The message of the choice"
+    )
+    logprobs: Optional[dict] = Field(
+        default=None, description="The log probabilities of the choice"
+    )
+    finish_reason: Optional[str] = Field(
+        default=None, description="The reason the model stopped generating tokens."
+    )
+
+
 class ResponseBody(BaseModel):
-    messages: Optional[List[dict]] = Field(default=None, description="The new messages in the conversation")
-    llm_output: Optional[dict] = Field(
+    # OpenAI-compatible fields
+    id: Optional[str] = Field(
+        default=None, description="A unique identifier for the chat completion."
+    )
+    object: str = Field(
+        default="chat.completion",
+        description="The object type, which is always chat.completion",
+    )
+    created: Optional[int] = Field(
         default=None,
-        description="Contains any additional output coming from the LLM.",
+        description="The Unix timestamp (in seconds) of when the chat completion was created.",
+    )
+    model: Optional[str] = Field(
+        default=None, description="The model used for the chat completion."
+    )
+    choices: Optional[List[Choice]] = Field(
+        default=None, description="A list of chat completion choices."
+    )
+    # NeMo-Guardrails specific fields for backward compatibility
+    state: Optional[dict] = Field(
+        default=None, description="State object for continuing the conversation."
+    )
+    llm_output: Optional[dict] = Field(
+        default=None, description="Additional LLM output data."
     )
     output_data: Optional[dict] = Field(
-        default=None,
-        description="The output data, i.e. a dict with the values corresponding to the `output_vars`.",
+        default=None, description="Additional output data."
     )
-    log: Optional[GenerationLog] = Field(default=None, description="Additional logging information.")
-    state: Optional[dict] = Field(
-        default=None,
-        description="A state object that should be used to continue the interaction in the future.",
+    log: Optional[dict] = Field(default=None, description="Generation log data.")
+
+
+class Model(BaseModel):
+    id: str = Field(
+        description="The model identifier, which can be referenced in the API endpoints."
     )
+    object: str = Field(
+        default="model", description="The object type, which is always 'model'."
+    )
+    created: int = Field(
+        description="The Unix timestamp (in seconds) of when the model was created."
+    )
+    owned_by: str = Field(
+        default="nemo-guardrails", description="The organization that owns the model."
+    )
+
+
+class ModelsResponse(BaseModel):
+    object: str = Field(
+        default="list", description="The object type, which is always 'list'."
+    )
+    data: List[Model] = Field(description="The list of models.")
+
+
+@app.get(
+    "/v1/models",
+    response_model=ModelsResponse,
+    summary="List available models",
+    description="Lists the currently available models, mapping guardrails configurations to OpenAI-compatible model format.",
+)
+async def get_models():
+    """Returns the list of available models (guardrails configurations) in OpenAI-compatible format."""
+
+    # Use the same logic as get_rails_configs to find available configurations
+    if app.single_config_mode:
+        config_ids = [app.single_config_id] if app.single_config_id else []
+    else:
+        config_ids = [
+            f
+            for f in os.listdir(app.rails_config_path)
+            if os.path.isdir(os.path.join(app.rails_config_path, f))
+            and f[0] != "."
+            and f[0] != "_"
+            # Filter out all the configs for which there is no `config.yml` file.
+            and (
+                os.path.exists(os.path.join(app.rails_config_path, f, "config.yml"))
+                or os.path.exists(os.path.join(app.rails_config_path, f, "config.yaml"))
+            )
+        ]
+
+    # Convert configurations to OpenAI model format
+    models = []
+    for config_id in config_ids:
+        model = Model(
+            id=config_id,
+            object="model",
+            created=int(time.time()),  # Use current time as created timestamp
+            owned_by="nemo-guardrails",
+        )
+        models.append(model)
+
+    return ModelsResponse(data=models)
 
 
 @app.get(
@@ -349,7 +488,9 @@ def _get_rails(config_ids: List[str]) -> LLMRails:
     llm_rails_instances[configs_cache_key] = llm_rails
 
     # If we have a cache for the events, we restore it
-    llm_rails.events_history_cache = llm_rails_events_history_cache.get(configs_cache_key, {})
+    llm_rails.events_history_cache = llm_rails_events_history_cache.get(
+        configs_cache_key, {}
+    )
 
     return llm_rails
 
@@ -366,7 +507,9 @@ async def chat_completion(body: RequestBody, request: Request):
     """
     log.info("Got request for config %s", body.config_id)
     for logger in registered_loggers:
-        asyncio.get_event_loop().create_task(logger({"endpoint": "/v1/chat/completions", "body": body.json()}))
+        asyncio.get_event_loop().create_task(
+            logger({"endpoint": "/v1/chat/completions", "body": body.json()})
+        )
 
     # Save the request headers in a context variable.
     api_request_headers.set(request.headers)
@@ -378,20 +521,31 @@ async def chat_completion(body: RequestBody, request: Request):
         if app.default_config_id:
             config_ids = [app.default_config_id]
         else:
-            raise GuardrailsConfigurationError("No request config_ids provided and server has no default configuration")
+            raise GuardrailsConfigurationError(
+                "No request config_ids provided and server has no default configuration"
+            )
 
     try:
         llm_rails = _get_rails(config_ids)
     except ValueError as ex:
         log.exception(ex)
         return ResponseBody(
-            messages=[
-                {
-                    "role": "assistant",
-                    "content": f"Could not load the {config_ids} guardrails configuration. "
-                    f"An internal error has occurred.",
-                }
-            ]
+            id=f"chatcmpl-{uuid.uuid4()}",
+            object="chat.completion",
+            created=int(time.time()),
+            model=config_ids[0] if config_ids else None,
+            choices=[
+                Choice(
+                    index=0,
+                    messages={
+                        "content": f"Could not load the {config_ids} guardrails configuration. "
+                        f"An internal error has occurred.",
+                        "role": "assistant",
+                    },
+                    finish_reason="error",
+                    logprobs=None,
+                )
+            ],
         )
 
     try:
@@ -409,12 +563,21 @@ async def chat_completion(body: RequestBody, request: Request):
             # We make sure the `thread_id` meets the minimum complexity requirement.
             if len(body.thread_id) < 16:
                 return ResponseBody(
-                    messages=[
-                        {
-                            "role": "assistant",
-                            "content": "The `thread_id` must have a minimum length of 16 characters.",
-                        }
-                    ]
+                    id=f"chatcmpl-{uuid.uuid4()}",
+                    object="chat.completion",
+                    created=int(time.time()),
+                    model=None,
+                    choices=[
+                        Choice(
+                            index=0,
+                            messages={
+                                "content": "The `thread_id` must have a minimum length of 16 characters.",
+                                "role": "assistant",
+                            },
+                            finish_reason="error",
+                            logprobs=None,
+                        )
+                    ],
                 )
 
             # Fetch the existing thread messages. For easier management, we prepend
@@ -425,18 +588,37 @@ async def chat_completion(body: RequestBody, request: Request):
             # And prepend them.
             messages = thread_messages + messages
 
+        # Map OpenAI-compatible parameters to generation options
+        generation_options = body.options
+        # Initialize llm_params if not already set
+        if generation_options.llm_params is None:
+            generation_options.llm_params = {}
+        if body.max_tokens:
+            generation_options.llm_params["max_tokens"] = body.max_tokens
+        if body.temperature is not None:
+            generation_options.llm_params["temperature"] = body.temperature
+        if body.top_p is not None:
+            generation_options.llm_params["top_p"] = body.top_p
+        if body.stop:
+            generation_options.llm_params["stop"] = body.stop
+        if body.presence_penalty is not None:
+            generation_options.llm_params["presence_penalty"] = body.presence_penalty
+        if body.frequency_penalty is not None:
+            generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
+
         if body.stream:
+            # Use stream_async for streaming
             streaming_handler = llm_rails.stream_async(
                 messages=messages,
-                options=body.options,
+                options=generation_options,
                 state=body.state,
             )
 
-            # TODO: Add support for thread_ids in streaming mode
-
             return StreamingResponse(streaming_handler)
         else:
-            res = await llm_rails.generate_async(messages=messages, options=body.options, state=body.state)
+            res = await llm_rails.generate_async(
+                messages=messages, options=generation_options, state=body.state
+            )
 
             if isinstance(res, GenerationResponse):
                 bot_message_content = res.response[0]
@@ -454,20 +636,50 @@ async def chat_completion(body: RequestBody, request: Request):
             if body.thread_id and datastore is not None and datastore_key is not None:
                 await datastore.set(datastore_key, json.dumps(messages + [bot_message]))
 
-            result = ResponseBody(messages=[bot_message])
+            # Build the response with OpenAI-compatible format plus NeMo-Guardrails extensions
+            response_kwargs = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": config_ids[0] if config_ids else None,
+                "choices": [
+                    Choice(
+                        index=0,
+                        messages=bot_message,
+                        finish_reason="stop",
+                        logprobs=None,
+                    )
+                ],
+            }
 
-            # If we have additional GenerationResponse fields, we return as well
+            # If we have additional GenerationResponse fields, include them for backward compatibility
             if isinstance(res, GenerationResponse):
-                result.llm_output = res.llm_output
-                result.output_data = res.output_data
-                result.log = res.log
-                result.state = res.state
+                response_kwargs["llm_output"] = res.llm_output
+                response_kwargs["output_data"] = res.output_data
+                response_kwargs["log"] = res.log
+                response_kwargs["state"] = res.state
 
-            return result
+            return ResponseBody(**response_kwargs)
 
     except Exception as ex:
         log.exception(ex)
-        return ResponseBody(messages=[{"role": "assistant", "content": "Internal server error."}])
+        return ResponseBody(
+            id=f"chatcmpl-{uuid.uuid4()}",
+            object="chat.completion",
+            created=int(time.time()),
+            model=None,
+            choices=[
+                Choice(
+                    index=0,
+                    messages={
+                        "content": "Internal server error",
+                        "role": "assistant",
+                    },
+                    finish_reason="error",
+                    logprobs=None,
+                )
+            ],
+        )
 
 
 # By default, there are no challenges
@@ -517,7 +729,9 @@ def start_auto_reload_monitoring():
                     return None
 
                 elif event.event_type == "created" or event.event_type == "modified":
-                    log.info(f"Watchdog received {event.event_type} event for file {event.src_path}")
+                    log.info(
+                        f"Watchdog received {event.event_type} event for file {event.src_path}"
+                    )
 
                     # Compute the relative path
                     src_path_str = str(event.src_path)
@@ -541,7 +755,9 @@ def start_auto_reload_monitoring():
                                 # We save the events history cache, to restore it on the new instance
                                 llm_rails_events_history_cache[config_id] = val
 
-                            log.info(f"Configuration {config_id} has changed. Clearing cache.")
+                            log.info(
+                                f"Configuration {config_id} has changed. Clearing cache."
+                            )
 
         observer = Observer()
         event_handler = Handler()
@@ -556,7 +772,9 @@ def start_auto_reload_monitoring():
 
     except ImportError:
         # Since this is running in a separate thread, we just print the error.
-        print("The auto-reload feature requires `watchdog`. Please install using `pip install watchdog`.")
+        print(
+            "The auto-reload feature requires `watchdog`. Please install using `pip install watchdog`."
+        )
         # Force close everything.
         os._exit(-1)
 
