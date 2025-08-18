@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from collections.abc import Mapping
 from typing import Any, Optional
@@ -24,6 +25,8 @@ from typing_extensions import Literal, cast
 
 from nemoguardrails.actions import action
 from nemoguardrails.rails.llm.config import PangeaRailConfig, RailsConfig
+
+log = logging.getLogger(__name__)
 
 
 class Message(BaseModel):
@@ -121,9 +124,19 @@ async def pangea_ai_guard(
                 "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA/NeMo-Guardrails)",
             },
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+            text_guard_response = TextGuardResponse(**response.json())
+        except Exception as e:
+            log.error("Error calling Pangea AI Guard API: %s", e)
+            return TextGuardResult(
+                prompt_messages=messages,
+                blocked=False,
+                transformed=False,
+                bot_message=bot_message,
+                user_message=user_message,
+            )
 
-        text_guard_response = TextGuardResponse(**response.json())
         result = text_guard_response.result
         prompt_messages = result.prompt_messages or []
 
