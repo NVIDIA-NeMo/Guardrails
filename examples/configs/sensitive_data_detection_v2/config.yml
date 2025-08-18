@@ -1,0 +1,29 @@
+colang_version: "2.x"
+
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+rails:
+  config:
+    sensitive_data_detection:
+      input:
+        score_threshold: 0.4
+        entities:
+          - PERSON
+          - EMAIL_ADDRESS
+          - PHONE_NUMBER
+          - CREDIT_CARD
+          - US_SSN
+          - LOCATION
+
+      output:
+        score_threshold: 0.4
+        entities:
+          - PERSON
+          - EMAIL_ADDRESS
+          - PHONE_NUMBER
+          - CREDIT_CARD
+          - US_SSN
+          - LOCATION
