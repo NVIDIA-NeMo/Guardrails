@@ -32,4 +32,4 @@ tracing:
   enabled: true
   adapters:
     - name: FileSystem
-      filepath: "sequential_trace.json"
+      filepath: "sequential_trace.jsonl"

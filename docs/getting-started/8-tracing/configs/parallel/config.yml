@@ -33,4 +33,4 @@ tracing:
   enabled: true
   adapters:
     - name: FileSystem
-      filepath: "parallel_trace.json"
+      filepath: "parallel_trace.jsonl"
