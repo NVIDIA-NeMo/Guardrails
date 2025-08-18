@@ -49,6 +49,7 @@ flow generating user intent for unhandled user utterance
   activate polling llm request response
   activate tracking bot talking state
   global $bot_talking_state
+  global $user_message
 
   await _user_said_something_unexpected as $user_said
   $event = $user_said.event
@@ -60,7 +61,15 @@ flow generating user intent for unhandled user utterance
 
   log 'unexpected user utterance: "{$event.final_transcript}"'
   log 'start generating user intent...'
-  $action = 'user said "{$event.final_transcript}"'
+
+  # Use the processed user message if available;
+  # otherwise, fall back to the original user input
+  if $user_message is not None
+    $message_for_llm = $user_message
+  else
+    $message_for_llm = $event.final_transcript
+
+  $action = 'user said "{$message_for_llm}"'
   $intent = await GenerateUserIntentAction(user_action=$action, max_example_flows=20)
   log 'generated user intent: {$intent}'
 
@@ -68,7 +77,8 @@ flow generating user intent for unhandled user utterance
   send FinishFlow(flow_id=$intent)
 
   # We need to log the user action
-  send UserActionLog(flow_id="user said", parameter=$event.final_transcript, intent_flow_id=$intent)
+  send UserActionLog(flow_id="user said", parameter=$message_for_llm, intent_flow_id=$intent)
+
   # And we also need to log the generated user intent if not done by another mechanism
   when UserIntentLog(flow_id=$intent)
     return
@@ -84,6 +94,7 @@ flow continuation on unhandled user utterance
   activate polling llm request response
   activate tracking bot talking state
   global $bot_talking_state
+  global $user_message
 
   await _user_said_something_unexpected as $user_said
   $event = $user_said.event
@@ -95,7 +106,15 @@ flow continuation on unhandled user utterance
     abort
 
   log 'start generating user intent and bot intent/action...'
-  $action = 'user said "{$event.final_transcript}"'
+
+  # Use the processed user message if available;
+  # otherwise, fall back to the original user input
+  if $user_message is not None
+    $message_for_llm = $user_message
+  else
+    $message_for_llm = $event.final_transcript
+
+  $action = 'user said "{$message_for_llm}"'
 
 
   # retrieve relevant chunks from KB if user_message is not empty
@@ -117,7 +136,8 @@ flow continuation on unhandled user utterance
   send FinishFlow(flow_id=$user_intent)
 
   # We need to log the user action
-  send UserActionLog(flow_id="user said", parameter=$event.final_transcript, intent_flow_id=$user_intent)
+  send UserActionLog(flow_id="user said", parameter=$message_for_llm, intent_flow_id=$user_intent)
+
   # And we also need to log the generated user intent if not done by another mechanism
   when UserIntentLog(flow_id=$user_intent)
     return
