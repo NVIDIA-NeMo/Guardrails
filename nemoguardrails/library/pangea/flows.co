@@ -11,9 +11,7 @@ flow pangea ai guard input
     abort
 
   if $result.transformed
-    global $bot_message
     global $user_message
-    $bot_message = $result.bot_message
     $user_message = $result.user_message
 
 # OUTPUT RAILS
@@ -30,6 +28,4 @@ flow pangea ai guard output
 
   if $result.transformed
     global $bot_message
-    global $user_message
     $bot_message = $result.bot_message
-    $user_message = $result.user_message
