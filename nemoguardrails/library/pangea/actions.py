@@ -65,8 +65,8 @@ async def pangea_ai_guard(
     mode: Literal["input", "output"],
     config: RailsConfig,
     context: Mapping[str, Any] = {},
-    user_message: str | None = None,
-    bot_message: str | None = None,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
 ) -> TextGuardResult:
     pangea_base_url_template = os.getenv(
         "PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud"
