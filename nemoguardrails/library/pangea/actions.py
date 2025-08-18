@@ -50,11 +50,6 @@ class TextGuardResponse(BaseModel):
     result: TextGuardResult
 
 
-class ActionContext(BaseModel):
-    user_message: Optional[str] = None
-    bot_message: Optional[str] = None
-
-
 def get_pangea_config(config: RailsConfig) -> PangeaRailConfig:
     if not hasattr(config.rails.config, "pangea") or config.rails.config.pangea is None:
         return PangeaRailConfig()
@@ -67,7 +62,8 @@ async def pangea_ai_guard(
     mode: Literal["input", "output"],
     config: RailsConfig,
     context: Mapping[str, Any] = {},
-    **kwargs,
+    user_message: str | None = None,
+    bot_message: str | None = None,
 ) -> TextGuardResult:
     pangea_base_url_template = os.getenv(
         "PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud"
@@ -78,9 +74,11 @@ async def pangea_ai_guard(
         raise ValueError("PANGEA_API_TOKEN environment variable is not set.")
 
     pangea_config = get_pangea_config(config)
-    action_context = ActionContext(**context)
 
-    if not any([action_context.user_message, action_context.bot_message]):
+    user_message = user_message or context.get("user_message")
+    bot_message = bot_message or context.get("bot_message")
+
+    if not any([user_message, bot_message]):
         raise ValueError("Either user_message or bot_message must be provided.")
 
     messages: list[Message] = []
@@ -91,10 +89,10 @@ async def pangea_ai_guard(
                 for instruction in config.instructions
             ]
         )
-    if action_context.user_message:
-        messages.append(Message(role="user", content=action_context.user_message))
-    if mode == "output" and action_context.bot_message:
-        messages.append(Message(role="assistant", content=action_context.bot_message))
+    if user_message:
+        messages.append(Message(role="user", content=user_message))
+    if mode == "output" and bot_message:
+        messages.append(Message(role="assistant", content=bot_message))
 
     recipe = (
         pangea_config.input.recipe
@@ -130,12 +128,10 @@ async def pangea_ai_guard(
         prompt_messages = result.prompt_messages or []
 
         result.bot_message = next(
-            (m.content for m in prompt_messages if m.role == "assistant"),
-            action_context.bot_message,
+            (m.content for m in prompt_messages if m.role == "assistant"), bot_message
         )
         result.user_message = next(
-            (m.content for m in prompt_messages if m.role == "user"),
-            action_context.user_message,
+            (m.content for m in prompt_messages if m.role == "user"), user_message
         )
 
         return result
