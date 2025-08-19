@@ -25,8 +25,8 @@ class SpanFormat(str, Enum):
     Inherits from str to allow direct string comparison and JSON serialization.
     """
 
-    # flat structure with metrics dictionary (simple, minimal overhead)
-    FLAT = "flat"
+    # legacy structure with metrics dictionary (simple, minimal overhead)
+    LEGACY = "legacy"
 
     # OpenTelemetry Semantic Conventions compliant format
     # see https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
@@ -60,7 +60,7 @@ class SpanFormat(str, Enum):
 
 
 # Type alias for function signatures
-SpanFormatType = Union[SpanFormat, Literal["flat", "opentelemetry"], str]
+SpanFormatType = Union[SpanFormat, Literal["legacy", "opentelemetry"], str]
 
 
 def validate_span_format(value: SpanFormatType) -> SpanFormat:

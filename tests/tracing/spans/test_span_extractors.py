@@ -22,14 +22,14 @@ from nemoguardrails.rails.llm.options import ActivatedRail, ExecutedAction
 from nemoguardrails.tracing import (
     SpanExtractorV1,
     SpanExtractorV2,
-    SpanFlat,
+    SpanLegacy,
     create_span_extractor,
 )
 from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 
 
 class TestSpanExtractors:
-    """Test span extraction for flat and OpenTelemetry formats."""
+    """Test span extraction for legacy and OpenTelemetry formats."""
 
     @pytest.fixture
     def test_data(self):
@@ -70,16 +70,16 @@ class TestSpanExtractors:
 
         return [rail]
 
-    def test_span_extractor_flat_format(self, test_data):
-        """Test flat format span extractor produces flat spans."""
+    def test_span_extractor_legacy_format(self, test_data):
+        """Test legacy format span extractor produces legacy spans."""
         extractor = SpanExtractorV1()
         spans = extractor.extract_spans(test_data)
 
         assert len(spans) > 0
 
-        # All spans should be flat format
+        # All spans should be legacy format
         for span in spans:
-            assert isinstance(span, SpanFlat)
+            assert isinstance(span, SpanLegacy)
             assert not hasattr(span, "attributes")
 
         span_names = [s.name for s in spans]
@@ -185,9 +185,9 @@ class TestSpanExtractors:
 class TestSpanFormatConfiguration:
     """Test span format configuration and factory."""
 
-    def test_create_span_extractor_flat(self):
-        """Test creating flat format span extractor."""
-        extractor = create_span_extractor(span_format="flat")
+    def test_create_span_extractor_legacy(self):
+        """Test creating legacy format span extractor."""
+        extractor = create_span_extractor(span_format="legacy")
         assert isinstance(extractor, SpanExtractorV1)
 
     def test_create_span_extractor_opentelemetry(self):
@@ -211,11 +211,11 @@ class TestSpanFormatConfiguration:
         assert isinstance(extractor, SpanExtractorV2)
         assert extractor.internal_events == events
 
-    def test_flat_extractor_ignores_extra_params(self):
-        """Test flat extractor ignores OpenTelemetry-specific parameters."""
-        # Flat extractor should ignore events and enable_content_capture
+    def test_legacy_extractor_ignores_extra_params(self):
+        """Test legacy extractor ignores OpenTelemetry-specific parameters."""
+        # Legacy extractor should ignore events and enable_content_capture
         extractor = create_span_extractor(
-            span_format="flat", events=[{"type": "test"}], enable_content_capture=True
+            span_format="legacy", events=[{"type": "test"}], enable_content_capture=True
         )
 
         assert isinstance(extractor, SpanExtractorV1)
@@ -226,8 +226,8 @@ class TestSpanFormatConfiguration:
     @pytest.mark.parametrize(
         "format_str,expected_class",
         [
-            ("flat", SpanExtractorV1),
-            ("FLAT", SpanExtractorV1),
+            ("legacy", SpanExtractorV1),
+            ("LEGACY", SpanExtractorV1),
             ("opentelemetry", SpanExtractorV2),
             ("OPENTELEMETRY", SpanExtractorV2),
             ("OpenTelemetry", SpanExtractorV2),

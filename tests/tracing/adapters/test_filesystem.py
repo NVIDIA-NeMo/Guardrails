@@ -20,7 +20,7 @@ import os
 import tempfile
 import unittest
 
-from nemoguardrails.tracing import InteractionLog, SpanFlat
+from nemoguardrails.tracing import InteractionLog, SpanLegacy
 from nemoguardrails.tracing.adapters.filesystem import FileSystemAdapter
 from nemoguardrails.tracing.spans import (
     ActionSpan,
@@ -58,7 +58,7 @@ class TestFileSystemAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="test_span",
                     span_id="span_1",
                     parent_id=None,
@@ -92,7 +92,7 @@ class TestFileSystemAdapter(unittest.TestCase):
                 activated_rails=[],
                 events=[],
                 trace=[
-                    SpanFlat(
+                    SpanLegacy(
                         name="test_span",
                         span_id="span_1",
                         parent_id=None,
@@ -122,7 +122,7 @@ class TestFileSystemAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="test_span",
                     span_id="span_1",
                     parent_id=None,
@@ -140,14 +140,14 @@ class TestFileSystemAdapter(unittest.TestCase):
             log_dict = json.loads(content.strip())
             self.assertEqual(log_dict["schema_version"], "2.0")
 
-    def test_span_flat_with_metrics(self):
+    def test_span_legacy_with_metrics(self):
         adapter = FileSystemAdapter(filepath=self.filepath)
         interaction_log = InteractionLog(
             id="test_trace",
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="llm_call",
                     span_id="span_1",
                     parent_id=None,
@@ -168,7 +168,7 @@ class TestFileSystemAdapter(unittest.TestCase):
             content = f.read()
             log_dict = json.loads(content.strip())
             span = log_dict["spans"][0]
-            self.assertEqual(span["span_type"], "SpanFlat")
+            self.assertEqual(span["span_type"], "SpanLegacy")
             self.assertIn("metrics", span)
             self.assertEqual(span["metrics"]["input_tokens"], 10)
             self.assertEqual(span["metrics"]["output_tokens"], 20)
@@ -367,7 +367,7 @@ class TestFileSystemAdapter(unittest.TestCase):
                     rail_name="check_jailbreak",
                     rail_stop=False,
                 ),
-                SpanFlat(
+                SpanLegacy(
                     name="legacy_span",
                     span_id="span_3",
                     parent_id="span_1",
@@ -392,7 +392,7 @@ class TestFileSystemAdapter(unittest.TestCase):
             self.assertEqual(log_dict["spans"][1]["span_type"], "RailSpan")
             self.assertEqual(log_dict["spans"][1]["parent_id"], "span_1")
 
-            self.assertEqual(log_dict["spans"][2]["span_type"], "SpanFlat")
+            self.assertEqual(log_dict["spans"][2]["span_type"], "SpanLegacy")
             self.assertIn("metrics", log_dict["spans"][2])
             self.assertNotIn("span_kind", log_dict["spans"][2])
 

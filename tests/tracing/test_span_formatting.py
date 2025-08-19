@@ -25,13 +25,13 @@ from nemoguardrails.tracing.spans import (
     LLMSpan,
     RailSpan,
     SpanEvent,
-    SpanFlat,
+    SpanLegacy,
 )
 
 
 class TestFormatSpanForFilesystem:
-    def test_format_flat_span_with_metrics(self):
-        span = SpanFlat(
+    def test_format_legacy_span_with_metrics(self):
+        span = SpanLegacy(
             name="llm_call",
             span_id="span_1",
             parent_id="parent_1",
@@ -49,13 +49,13 @@ class TestFormatSpanForFilesystem:
         assert result["start_time"] == 0.5
         assert result["end_time"] == 1.5
         assert result["duration"] == 1.0
-        assert result["span_type"] == "SpanFlat"
+        assert result["span_type"] == "SpanLegacy"
         assert result["metrics"] == {"input_tokens": 10, "output_tokens": 20}
         assert "span_kind" not in result
         assert "attributes" not in result
 
-    def test_format_flat_span_without_metrics(self):
-        span = SpanFlat(
+    def test_format_legacy_span_without_metrics(self):
+        span = SpanLegacy(
             name="test",
             span_id="span_1",
             parent_id=None,
@@ -67,7 +67,7 @@ class TestFormatSpanForFilesystem:
 
         result = format_span_for_filesystem(span)
 
-        assert result["span_type"] == "SpanFlat"
+        assert result["span_type"] == "SpanLegacy"
         assert "metrics" not in result
 
     def test_format_interaction_span(self):
@@ -168,12 +168,12 @@ class TestFormatSpanForFilesystem:
             format_span_for_filesystem(UnknownSpan())
 
         assert "Unknown span type: UnknownSpan" in str(exc_info.value)
-        assert "Only SpanFlat and typed spans are supported" in str(exc_info.value)
+        assert "Only SpanLegacy and typed spans are supported" in str(exc_info.value)
 
 
 class TestExtractSpanAttributes:
-    def test_extract_from_flat_span_with_metrics(self):
-        span = SpanFlat(
+    def test_extract_from_legacy_span_with_metrics(self):
+        span = SpanLegacy(
             name="test",
             span_id="1",
             parent_id=None,
@@ -188,8 +188,8 @@ class TestExtractSpanAttributes:
         assert attrs == {"tokens": 100, "latency": 0.5}
         assert attrs is not span.metrics
 
-    def test_extract_from_flat_span_without_metrics(self):
-        span = SpanFlat(
+    def test_extract_from_legacy_span_without_metrics(self):
+        span = SpanLegacy(
             name="test",
             span_id="1",
             parent_id=None,

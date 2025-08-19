@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from nemoguardrails.rails.llm.options import ActivatedRail, GenerationLog
 from nemoguardrails.tracing.span_extractors import SpanExtractor, create_span_extractor
-from nemoguardrails.tracing.spans import SpanFlat, SpanOpentelemetry
+from nemoguardrails.tracing.spans import SpanLegacy, SpanOpentelemetry
 
 
 class InteractionLog(BaseModel):
@@ -36,7 +36,7 @@ class InteractionLog(BaseModel):
         default_factory=list,
         description="The full list of events recorded during the interaction.",
     )
-    trace: List[Union[SpanFlat, SpanOpentelemetry]] = Field(
+    trace: List[Union[SpanLegacy, SpanOpentelemetry]] = Field(
         default_factory=list, description="Detailed information about the execution."
     )
 
@@ -62,7 +62,7 @@ def extract_interaction_log(
     Args:
         interaction_output: The interaction output
         generation_log: The generation log
-        span_format: Span format to use ("flat" or "opentelemetry")
+        span_format: Span format to use ("legacy" or "opentelemetry")
         enable_content_capture: Whether to include content in trace events
     """
     internal_events = generation_log.internal_events

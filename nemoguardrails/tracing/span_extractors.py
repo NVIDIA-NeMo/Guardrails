@@ -34,7 +34,7 @@ from nemoguardrails.tracing.spans import (
     LLMSpan,
     RailSpan,
     SpanEvent,
-    SpanFlat,
+    SpanLegacy,
     SpanOpentelemetry,
     TypedSpan,
 )
@@ -47,7 +47,7 @@ class SpanExtractor(ABC):
     @abstractmethod
     def extract_spans(
         self, activated_rails: List[ActivatedRail]
-    ) -> List[Union[SpanFlat, SpanOpentelemetry]]:
+    ) -> List[Union[SpanLegacy, SpanOpentelemetry]]:
         """Extract spans from activated rails."""
         ...
 
@@ -57,16 +57,16 @@ class SpanExtractorV1(SpanExtractor):
 
     def extract_spans(
         self, activated_rails: List[ActivatedRail]
-    ) -> List[Union[SpanFlat, SpanOpentelemetry]]:
+    ) -> List[Union[SpanLegacy, SpanOpentelemetry]]:
         """Extract v1 spans from activated rails."""
-        spans: List[SpanFlat] = []
+        spans: List[SpanLegacy] = []
         if not activated_rails:
             return spans
 
         ref_time = activated_rails[0].started_at or 0.0
 
         # Create interaction span
-        interaction_span = SpanFlat(
+        interaction_span = SpanLegacy(
             span_id=new_uuid(),
             name=SpanTypes.INTERACTION,  # V1 uses legacy naming
             start_time=(activated_rails[0].started_at or 0.0) - ref_time,
@@ -86,7 +86,7 @@ class SpanExtractorV1(SpanExtractor):
 
         # Process rails and actions
         for activated_rail in activated_rails:
-            rail_span = SpanFlat(
+            rail_span = SpanLegacy(
                 span_id=new_uuid(),
                 name="rail: " + activated_rail.name,
                 parent_id=interaction_span.span_id,
@@ -97,7 +97,7 @@ class SpanExtractorV1(SpanExtractor):
             spans.append(rail_span)
 
             for action in activated_rail.executed_actions:
-                action_span = SpanFlat(
+                action_span = SpanLegacy(
                     span_id=new_uuid(),
                     name="action: " + action.action_name,
                     parent_id=rail_span.span_id,
@@ -119,7 +119,7 @@ class SpanExtractorV1(SpanExtractor):
                 # Process LLM calls
                 for llm_call in action.llm_calls:
                     model_name = llm_call.llm_model_name or SystemConstants.UNKNOWN
-                    llm_span = SpanFlat(
+                    llm_span = SpanLegacy(
                         span_id=new_uuid(),
                         name="LLM: " + model_name,
                         parent_id=action_span.span_id,
@@ -165,7 +165,7 @@ class SpanExtractorV2(SpanExtractor):
 
     def extract_spans(
         self, activated_rails: List[ActivatedRail]
-    ) -> List[Union[SpanFlat, SpanOpentelemetry, TypedSpan]]:
+    ) -> List[Union[SpanLegacy, SpanOpentelemetry, TypedSpan]]:
         """Extract v2 spans from activated rails with OpenTelemetry attributes."""
         spans: List[TypedSpan] = []
         ref_time = activated_rails[0].started_at or 0.0
@@ -451,14 +451,14 @@ from nemoguardrails.tracing.span_format import SpanFormat, validate_span_format
 
 
 def create_span_extractor(
-    span_format: str = "flat",
+    span_format: str = "legacy",
     events: Optional[List[dict]] = None,
     enable_content_capture: bool = True,
 ) -> SpanExtractor:
     """Create a span extractor based on format and configuration.
 
     Args:
-        span_format: Format of span extractor ('flat' or 'opentelemetry')
+        span_format: Format of span extractor ('legacy' or 'opentelemetry')
         events: Internal events for OpenTelemetry extractor
         enable_content_capture: Whether to capture content in spans
 
@@ -470,8 +470,8 @@ def create_span_extractor(
     """
     format_enum = validate_span_format(span_format)
 
-    if format_enum == SpanFormat.FLAT:
-        return SpanExtractorV1()  # TODO: Rename to SpanExtractorFlat
+    if format_enum == SpanFormat.LEGACY:
+        return SpanExtractorV1()  # TODO: Rename to SpanExtractorLegacy
     elif format_enum == SpanFormat.OPENTELEMETRY:
         return SpanExtractorV2(  # TODO: Rename to SpanExtractorOTel
             events=events,

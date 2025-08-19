@@ -50,7 +50,7 @@ models:
 
 tracing:
   enabled: true
-  span_format: flat
+  span_format: legacy
   adapters: []
 """
     )
@@ -136,12 +136,12 @@ async def test_v2_spans_generated_with_events(v2_config):
 
 
 def test_v1_backward_compatibility(v1_config):
-    assert v1_config.tracing.span_format == "flat"
+    assert v1_config.tracing.span_format == "legacy"
 
     llm = FakeLLM(responses=["Hello!"])
     _rails = LLMRails(config=v1_config, llm=llm)
 
-    extractor = create_span_extractor(span_format="flat")
+    extractor = create_span_extractor(span_format="legacy")
     assert extractor.__class__.__name__ == "SpanExtractorV1"
 
 
@@ -150,8 +150,8 @@ def test_default_span_format(default_config):
 
 
 def test_span_format_configuration_direct():
-    extractor_flat = create_span_extractor(span_format="flat")
-    assert extractor_flat.__class__.__name__ == "SpanExtractorV1"
+    extractor_legacy = create_span_extractor(span_format="legacy")
+    assert extractor_legacy.__class__.__name__ == "SpanExtractorV1"
 
     extractor_otel = create_span_extractor(span_format="opentelemetry")
     assert extractor_otel.__class__.__name__ == "SpanExtractorV2"

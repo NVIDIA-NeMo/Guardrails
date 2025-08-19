@@ -366,7 +366,7 @@ class TracingConfig(BaseModel):
     )
     span_format: str = Field(
         default="opentelemetry",
-        description="The span format to use. Options are 'flat' (simple metrics) or 'opentelemetry' (OpenTelemetry semantic conventions).",
+        description="The span format to use. Options are 'legacy' (simple metrics) or 'opentelemetry' (OpenTelemetry semantic conventions).",
     )
     enable_content_capture: bool = Field(
         default=False,

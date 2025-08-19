@@ -47,7 +47,7 @@ class SpanEvent(BaseModel):
     )
 
 
-class SpanFlat(BaseModel):
+class SpanLegacy(BaseModel):
     """Simple span model (v1) for basic tracing."""
 
     span_id: str = Field(description="The id of the span.")
@@ -101,7 +101,7 @@ class BaseSpan(BaseModel, ABC):
 
     @abstractmethod
     def to_otel_attributes(self) -> Dict[str, Any]:
-        """Convert typed fields to flat OpenTelemetry attributes dictionary.
+        """Convert typed fields to legacy OpenTelemetry attributes dictionary.
 
         Returns:
             Dict containing OTel semantic convention attributes.

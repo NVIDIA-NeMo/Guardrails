@@ -25,7 +25,7 @@ from opentelemetry.trace import NoOpTracerProvider
 from nemoguardrails.tracing import (
     InteractionLog,
     SpanEvent,
-    SpanFlat,
+    SpanLegacy,
     SpanOpentelemetry,
 )
 from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
@@ -77,7 +77,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="test_span",
                     span_id="span_1",
                     parent_id=None,
@@ -129,7 +129,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="test_span",
                     span_id="span_1",
                     parent_id=None,
@@ -182,7 +182,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="test_span",
                     span_id="span_1",
                     parent_id=None,
@@ -210,7 +210,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             activated_rails=[],
             events=[],
             trace=[
-                SpanFlat(
+                SpanLegacy(
                     name="parent_span",
                     span_id="span_1",
                     parent_id=None,
@@ -219,7 +219,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
                     duration=2.0,
                     metrics={"parent_key": 1},
                 ),
-                SpanFlat(
+                SpanLegacy(
                     name="child_span",
                     span_id="span_2",
                     parent_id="span_1",
@@ -288,7 +288,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
                 activated_rails=[],
                 events=[],
                 trace=[
-                    SpanFlat(
+                    SpanLegacy(
                         name="test_span",
                         span_id="span_1",
                         parent_id=None,
@@ -345,7 +345,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
                 activated_rails=[],
                 events=[],
                 trace=[
-                    SpanFlat(
+                    SpanLegacy(
                         name="test_span",
                         span_id="span_1",
                         parent_id=None,
@@ -412,7 +412,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         spans = []
         for i in range(5):
             spans.append(
-                SpanFlat(
+                SpanLegacy(
                     name=f"v1_span_{i}",
                     span_id=str(i),
                     start_time=float(i * 0.1),  # 0, 0.1, 0.2, 0.3, 0.4

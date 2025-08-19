@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 from nemoguardrails.tracing import (
     InteractionLog,
     SpanEvent,
-    SpanFlat,
+    SpanLegacy,
     SpanOpentelemetry,
 )
 from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
@@ -49,7 +49,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
         mock_span = MagicMock()
         self.mock_tracer.start_span.return_value = mock_span
 
-        v1_span = SpanFlat(
+        v1_span = SpanLegacy(
             name="test_v1",
             span_id="v1_123",
             start_time=0.0,
@@ -208,7 +208,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
         mock_span = MagicMock()
         self.mock_tracer.start_span.return_value = mock_span
 
-        v1_span = SpanFlat(
+        v1_span = SpanLegacy(
             name="action: check_input",
             span_id="v1_span",
             start_time=0.0,

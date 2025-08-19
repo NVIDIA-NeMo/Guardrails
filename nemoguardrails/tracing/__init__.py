@@ -20,7 +20,7 @@ from .span_extractors import (
     SpanExtractorV2,
     create_span_extractor,
 )
-from .spans import SpanEvent, SpanFlat, SpanOpentelemetry
+from .spans import SpanEvent, SpanLegacy, SpanOpentelemetry
 from .tracer import Tracer, create_log_adapters
 
 ___all__ = [
@@ -31,6 +31,6 @@ ___all__ = [
     Tracer,
     create_log_adapters,
     SpanEvent,
-    SpanFlat,
+    SpanLegacy,
     SpanOpentelemetry,
 ]

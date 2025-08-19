@@ -23,7 +23,7 @@ from nemoguardrails.tracing import (
     SpanEvent,
     SpanExtractorV1,
     SpanExtractorV2,
-    SpanFlat,
+    SpanLegacy,
     SpanOpentelemetry,
     create_span_extractor,
 )
@@ -32,7 +32,7 @@ from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 
 class TestSpanModels:
     def test_span_v1_creation(self):
-        span = SpanFlat(
+        span = SpanLegacy(
             span_id="test-123",
             name="test span",
             start_time=0.0,
@@ -87,7 +87,7 @@ class TestSpanModels:
         assert attributes["gen_ai.provider.name"] == "openai"
         assert attributes["gen_ai.request.model"] == "gpt-4"
 
-        assert not isinstance(span, SpanFlat)
+        assert not isinstance(span, SpanLegacy)
         # Python 3.9 compatibility: cannot use isinstance with Union types
         # SpanOpentelemetry is TypedSpan which is a Union, so check the actual type
         assert isinstance(span, LLMSpan)
@@ -149,7 +149,7 @@ class TestSpanExtractors:
         assert len(spans) > 0
 
         for span in spans:
-            assert isinstance(span, SpanFlat)
+            assert isinstance(span, SpanLegacy)
             assert not hasattr(span, "attributes")
 
         span_names = [s.name for s in spans]
@@ -251,8 +251,8 @@ class TestSpanExtractors:
 
 
 class TestSpanVersionConfiguration:
-    def test_create_span_extractor_flat(self):
-        extractor = create_span_extractor(span_format="flat")
+    def test_create_span_extractor_legacy(self):
+        extractor = create_span_extractor(span_format="legacy")
         assert isinstance(extractor, SpanExtractorV1)
 
     def test_create_span_extractor_opentelemetry(self):

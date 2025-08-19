@@ -30,40 +30,40 @@ class TestSpanFormat:
 
     def test_enum_values(self):
         """Test that enum has expected values."""
-        assert SpanFormat.FLAT.value == "flat"
+        assert SpanFormat.LEGACY.value == "legacy"
         assert SpanFormat.OPENTELEMETRY.value == "opentelemetry"
 
     def test_string_inheritance(self):
         """Test that SpanFormat inherits from str."""
-        assert isinstance(SpanFormat.FLAT, str)
+        assert isinstance(SpanFormat.LEGACY, str)
         assert isinstance(SpanFormat.OPENTELEMETRY, str)
 
     def test_string_comparison(self):
         """Test direct string comparison works."""
-        assert SpanFormat.FLAT == "flat"
+        assert SpanFormat.LEGACY == "legacy"
         assert SpanFormat.OPENTELEMETRY == "opentelemetry"
-        assert SpanFormat.FLAT != "opentelemetry"
+        assert SpanFormat.LEGACY != "opentelemetry"
 
     def test_json_serialization(self):
         """Test that enum values can be JSON serialized."""
-        data = {"format": SpanFormat.FLAT}
+        data = {"format": SpanFormat.LEGACY}
         json_str = json.dumps(data)
-        assert '"format": "flat"' in json_str
+        assert '"format": "legacy"' in json_str
 
         parsed = json.loads(json_str)
-        assert parsed["format"] == "flat"
+        assert parsed["format"] == "legacy"
 
     def test_str_method(self):
         """Test __str__ method returns value."""
-        assert str(SpanFormat.FLAT) == "flat"
+        assert str(SpanFormat.LEGACY) == "legacy"
         assert str(SpanFormat.OPENTELEMETRY) == "opentelemetry"
 
     def test_from_string_valid_values(self):
         """Test from_string with valid values."""
-        assert SpanFormat.from_string("flat") == SpanFormat.FLAT
+        assert SpanFormat.from_string("legacy") == SpanFormat.LEGACY
         assert SpanFormat.from_string("opentelemetry") == SpanFormat.OPENTELEMETRY
 
-        assert SpanFormat.from_string("FLAT") == SpanFormat.FLAT
+        assert SpanFormat.from_string("LEGACY") == SpanFormat.LEGACY
         assert SpanFormat.from_string("OpenTelemetry") == SpanFormat.OPENTELEMETRY
         assert SpanFormat.from_string("OPENTELEMETRY") == SpanFormat.OPENTELEMETRY
 
@@ -74,7 +74,7 @@ class TestSpanFormat:
 
         error_msg = str(exc_info.value)
         assert "Invalid span format: 'invalid'" in error_msg
-        assert "Valid formats are: flat, opentelemetry" in error_msg
+        assert "Valid formats are: legacy, opentelemetry" in error_msg
 
     def test_from_string_empty_value(self):
         """Test from_string with empty string raises ValueError."""
@@ -92,8 +92,8 @@ class TestValidateSpanFormat:
 
     def test_validate_span_format_enum(self):
         """Test validation with SpanFormat enum."""
-        result = validate_span_format(SpanFormat.FLAT)
-        assert result == SpanFormat.FLAT
+        result = validate_span_format(SpanFormat.LEGACY)
+        assert result == SpanFormat.LEGACY
         assert isinstance(result, SpanFormat)
 
         result = validate_span_format(SpanFormat.OPENTELEMETRY)
@@ -102,16 +102,16 @@ class TestValidateSpanFormat:
 
     def test_validate_span_format_string(self):
         """Test validation with string values."""
-        result = validate_span_format("flat")
-        assert result == SpanFormat.FLAT
+        result = validate_span_format("legacy")
+        assert result == SpanFormat.LEGACY
         assert isinstance(result, SpanFormat)
 
         result = validate_span_format("opentelemetry")
         assert result == SpanFormat.OPENTELEMETRY
         assert isinstance(result, SpanFormat)
 
-        result = validate_span_format("FLAT")
-        assert result == SpanFormat.FLAT
+        result = validate_span_format("LEGACY")
+        assert result == SpanFormat.LEGACY
 
     def test_validate_span_format_invalid_string(self):
         """Test validation with invalid string raises ValueError."""
@@ -138,12 +138,12 @@ class TestValidateSpanFormat:
     def test_validate_span_format_list(self):
         """Test validation with list raises TypeError."""
         with pytest.raises(TypeError):
-            validate_span_format(["flat"])
+            validate_span_format(["legacy"])
 
     def test_validate_span_format_dict(self):
         """Test validation with dict raises TypeError."""
         with pytest.raises(TypeError):
-            validate_span_format({"format": "flat"})
+            validate_span_format({"format": "legacy"})
 
 
 class TestSpanFormatType:
@@ -155,8 +155,8 @@ class TestSpanFormatType:
         def test_function(format_type: SpanFormatType) -> SpanFormat:
             return validate_span_format(format_type)
 
-        result = test_function(SpanFormat.FLAT)
-        assert result == SpanFormat.FLAT
+        result = test_function(SpanFormat.LEGACY)
+        assert result == SpanFormat.LEGACY
 
     def test_type_alias_accepts_string(self):
         """Test that type alias accepts string values."""
@@ -164,8 +164,8 @@ class TestSpanFormatType:
         def test_function(format_type: SpanFormatType) -> SpanFormat:
             return validate_span_format(format_type)
 
-        result = test_function("flat")
-        assert result == SpanFormat.FLAT
+        result = test_function("legacy")
+        assert result == SpanFormat.LEGACY
 
         result = test_function("opentelemetry")
         assert result == SpanFormat.OPENTELEMETRY
@@ -187,12 +187,12 @@ class TestSpanFormatIntegration:
     def test_function_parameter_pattern(self):
         """Test typical function parameter usage pattern."""
 
-        def process_spans(span_format: SpanFormatType = SpanFormat.FLAT):
+        def process_spans(span_format: SpanFormatType = SpanFormat.LEGACY):
             validated_format = validate_span_format(span_format)
             return validated_format
 
         result = process_spans()
-        assert result == SpanFormat.FLAT
+        assert result == SpanFormat.LEGACY
 
         result = process_spans("opentelemetry")
         assert result == SpanFormat.OPENTELEMETRY
@@ -202,7 +202,7 @@ class TestSpanFormatIntegration:
 
     def test_all_enum_values_have_tests(self):
         """Ensure all enum values are tested."""
-        tested_values = {"flat", "opentelemetry"}
+        tested_values = {"legacy", "opentelemetry"}
         actual_values = {format_enum.value for format_enum in SpanFormat}
         assert (
             tested_values == actual_values

@@ -16,16 +16,16 @@
 
 import pytest
 
-from nemoguardrails.tracing import SpanEvent, SpanFlat
+from nemoguardrails.tracing import SpanEvent, SpanLegacy
 from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 
 
 class TestSpanModels:
-    """Test the span models for flat and OpenTelemetry formats."""
+    """Test the span models for legacy and OpenTelemetry formats."""
 
-    def test_span_flat_creation(self):
-        """Test creating a flat format span."""
-        span = SpanFlat(
+    def test_span_legacy_creation(self):
+        """Test creating a legacy format span."""
+        span = SpanLegacy(
             span_id="test-123",
             name="test span",
             start_time=0.0,
@@ -39,7 +39,7 @@ class TestSpanModels:
         assert span.duration == 1.0
         assert span.metrics["test_metric"] == 42
 
-        # Flat spans don't have OpenTelemetry attributes
+        # Legacy spans don't have OpenTelemetry attributes
         assert not hasattr(span, "attributes")
         assert not hasattr(span, "events")
         assert not hasattr(span, "otel_metrics")
@@ -78,10 +78,10 @@ class TestSpanModels:
         assert attributes["gen_ai.provider.name"] == "openai"
         assert attributes["gen_ai.request.model"] == "gpt-4"
 
-    def test_span_flat_model_is_simple(self):
-        """Test that Flat span model is a simple span without OpenTelemetry features."""
-        flat_span = SpanFlat(
-            span_id="flat-123",
+    def test_span_legacy_model_is_simple(self):
+        """Test that Legacy span model is a simple span without OpenTelemetry features."""
+        legacy_span = SpanLegacy(
+            span_id="legacy-123",
             name="test",
             start_time=0.0,
             end_time=1.0,
@@ -89,10 +89,10 @@ class TestSpanModels:
             metrics={"metric": 1},
         )
 
-        assert isinstance(flat_span, SpanFlat)
-        assert flat_span.span_id == "flat-123"
-        assert flat_span.metrics["metric"] == 1
+        assert isinstance(legacy_span, SpanLegacy)
+        assert legacy_span.span_id == "legacy-123"
+        assert legacy_span.metrics["metric"] == 1
 
-        # Flat spans don't have OpenTelemetry attributes or events
-        assert not hasattr(flat_span, "attributes")
-        assert not hasattr(flat_span, "events")
+        # Legacy spans don't have OpenTelemetry attributes or events
+        assert not hasattr(legacy_span, "attributes")
+        assert not hasattr(legacy_span, "events")
