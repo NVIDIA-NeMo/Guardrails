@@ -138,7 +138,7 @@ class TestFileSystemAdapter(unittest.TestCase):
         with open(self.filepath, "r") as f:
             content = f.read()
             log_dict = json.loads(content.strip())
-            self.assertEqual(log_dict["schema_version"], "2.0")
+            self.assertEqual(log_dict["schema_version"], "1.0")
 
     def test_span_legacy_with_metrics(self):
         adapter = FileSystemAdapter(filepath=self.filepath)

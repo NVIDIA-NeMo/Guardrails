@@ -20,6 +20,15 @@ from typing import Any, Dict
 from nemoguardrails.tracing.spans import SpanLegacy, is_opentelemetry_span
 
 
+def get_schema_version_for_filesystem(span) -> str:
+    """Return the schema version string based on the span type."""
+    if isinstance(span, SpanLegacy):
+        return "1.0"
+    if is_opentelemetry_span(span):
+        return "2.0"
+    raise ValueError(f"Unknown span type: {type(span).__name__}.")
+
+
 def format_span_for_filesystem(span) -> Dict[str, Any]:
     """Format any span type for JSON filesystem storage.
 

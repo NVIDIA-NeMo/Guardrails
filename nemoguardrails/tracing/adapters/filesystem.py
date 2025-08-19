@@ -24,12 +24,14 @@ if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
-from nemoguardrails.tracing.span_formatting import format_span_for_filesystem
+from nemoguardrails.tracing.span_formatting import (
+    format_span_for_filesystem,
+    get_schema_version_for_filesystem,
+)
 
 
 class FileSystemAdapter(InteractionLogAdapter):
     name = "FileSystem"
-    SCHEMA_VERSION = "2.0"
 
     def __init__(self, filepath: Optional[str] = None):
         if not filepath:
@@ -40,14 +42,17 @@ class FileSystemAdapter(InteractionLogAdapter):
 
     def transform(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into a JSON string."""
-        spans = []
+        spans = [
+            format_span_for_filesystem(span_data) for span_data in interaction_log.trace
+        ]
 
-        for span_data in interaction_log.trace:
-            span_dict = format_span_for_filesystem(span_data)
-            spans.append(span_dict)
+        if not interaction_log.trace:
+            schema_version = None
+        else:
+            schema_version = get_schema_version_for_filesystem(interaction_log.trace[0])
 
         log_dict = {
-            "schema_version": self.SCHEMA_VERSION,
+            "schema_version": schema_version,
             "trace_id": interaction_log.id,
             "spans": spans,
         }
@@ -63,14 +68,17 @@ class FileSystemAdapter(InteractionLogAdapter):
                 "aiofiles is required for async file writing. Please install it using `pip install aiofiles`"
             )
 
-        spans = []
+        spans = [
+            format_span_for_filesystem(span_data) for span_data in interaction_log.trace
+        ]
 
-        for span_data in interaction_log.trace:
-            span_dict = format_span_for_filesystem(span_data)
-            spans.append(span_dict)
+        if not interaction_log.trace:
+            schema_version = None
+        else:
+            schema_version = get_schema_version_for_filesystem(interaction_log.trace[0])
 
         log_dict = {
-            "schema_version": self.SCHEMA_VERSION,
+            "schema_version": schema_version,
             "trace_id": interaction_log.id,
             "spans": spans,
         }
