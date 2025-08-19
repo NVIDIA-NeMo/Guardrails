@@ -474,6 +474,10 @@ async def run_parameter_contamination_test():
         )
 
 
+@pytest.mark.skipif(
+    not TEST_LIVE_MODE,
+    reason="This test requires TEST_LIVE_MODE environment variable to be set for live testing",
+)
 class TestLLMIsolationConfiguredActionsOnly:
     """Test that isolated LLMs are created only for actions configured in rails flows."""
 
