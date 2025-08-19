@@ -523,7 +523,7 @@ class LLMRails:
             )
 
             created_count = 0
-            # out of flows defined in rails config we get the actions
+            # Get the actions from flows defined in rails config
             get_action_details = partial(
                 get_action_details_from_flow_id, flows=self.config.flows
             )
