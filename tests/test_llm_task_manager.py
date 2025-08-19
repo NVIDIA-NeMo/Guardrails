@@ -494,7 +494,26 @@ def test_get_task_model_with_no_matching_models():
 def test_get_task_model_with_main_model():
     """Test that get_task_model returns the main model when present."""
     config = RailsConfig.parse_object(
-        {"models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}]}
+        {
+            "models": [
+                {
+                    "type": "embeddings",
+                    "engine": "openai",
+                    "model": "text-embedding-ada-002",
+                },
+                {
+                    "type": "custom_task",
+                    "engine": "anthropic",
+                    "model": "claude-4.1-opus",
+                },
+                {
+                    "type": "fact_checking",
+                    "engine": "openai",
+                    "model": "gpt-4",
+                },
+                {"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"},
+            ]
+        }
     )
 
     result = get_task_model(config, "main")
