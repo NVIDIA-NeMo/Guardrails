@@ -20,7 +20,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.llm.filters import conversation_to_events
-from nemoguardrails.llm.prompts import get_prompt
+from nemoguardrails.llm.prompts import get_prompt, get_task_model
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 
@@ -457,3 +457,78 @@ def test_reasoning_traces_not_included_in_prompt_history():
         "Hi there!" in rendered_prompt
         or "I don't have access to real-time weather information." in rendered_prompt
     )
+
+
+def test_get_task_model_with_empty_models():
+    """Test that get_task_model returns None when models list is empty.
+
+    This tests the fix for the IndexError that occurred when the models list was empty.
+    """
+    config = RailsConfig.parse_object({"models": []})
+
+    result = get_task_model(config, "main")
+    assert result is None
+
+    result = get_task_model(config, Task.GENERAL)
+    assert result is None
+
+
+def test_get_task_model_with_no_matching_models():
+    """Test that get_task_model returns None when no models match the requested type."""
+    config = RailsConfig.parse_object(
+        {
+            "models": [
+                {
+                    "type": "embeddings",
+                    "engine": "openai",
+                    "model": "text-embedding-ada-002",
+                }
+            ]
+        }
+    )
+
+    result = get_task_model(config, "main")
+    assert result is None
+
+
+def test_get_task_model_with_main_model():
+    """Test that get_task_model returns the main model when present."""
+    config = RailsConfig.parse_object(
+        {
+            "models": [
+                {
+                    "type": "embeddings",
+                    "engine": "openai",
+                    "model": "text-embedding-ada-002",
+                },
+                {
+                    "type": "custom_task",
+                    "engine": "anthropic",
+                    "model": "claude-4.1-opus",
+                },
+                {
+                    "type": "fact_checking",
+                    "engine": "openai",
+                    "model": "gpt-4",
+                },
+                {"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"},
+            ]
+        }
+    )
+
+    result = get_task_model(config, "main")
+    assert result is not None
+    assert result.type == "main"
+    assert result.engine == "openai"
+    assert result.model == "gpt-3.5-turbo"
+
+
+def test_get_task_model_fallback_to_main():
+    """Test that get_task_model falls back to main model when specific task model not found."""
+    config = RailsConfig.parse_object(
+        {"models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}]}
+    )
+
+    result = get_task_model(config, "some_other_task")
+    assert result is not None
+    assert result.type == "main"
