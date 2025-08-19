@@ -474,5 +474,131 @@ async def run_parameter_contamination_test():
         )
 
 
+class TestLLMIsolationConfiguredActionsOnly:
+    """Test that isolated LLMs are created only for actions configured in rails flows."""
+
+    @staticmethod
+    def _create_rails_with_config(config_content: str) -> LLMRails:
+        """Helper to create LLMRails instance from config content."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.yml"
+            config_path.write_text(config_content)
+            config = RailsConfig.from_path(str(temp_dir))
+            return LLMRails(config, verbose=False)
+
+    @staticmethod
+    def _get_isolated_llm_params(
+        rails: LLMRails, exclude_specialized: bool = False
+    ) -> list:
+        """Helper to get isolated LLM parameters from rails instance."""
+        registered_params = rails.runtime.registered_action_params
+        isolated_llm_params = [
+            key
+            for key in registered_params.keys()
+            if key.endswith("_llm") and key != "llm" and key != "llms"
+        ]
+
+        if exclude_specialized:
+            specialized_llms = ["content_safety_llm", "topic_safety_llm"]
+            isolated_llm_params = [
+                param for param in isolated_llm_params if param not in specialized_llms
+            ]
+
+        return isolated_llm_params
+
+    def test_only_configured__rail_actions_get_isolated_llms(self):
+        """Test that only actions from output rails flows get isolated LLMs."""
+        config_content = """
+        models:
+          - type: main
+            engine: openai
+            model: gpt-4o-mini
+
+        rails:
+          output:
+            flows:
+              - self check output
+              - self check input
+
+        prompts:
+          - task: self_check_output
+            content: |
+              Check if output is safe.
+              Output: {{ bot_message }}
+              Safe? (Yes/No):
+          - task: self_check_input
+            content: |
+              Check if input is safe.
+              Input: {{ user_input }}
+              Safe? (Yes/No):
+        """
+
+        rails = self._create_rails_with_config(config_content)
+        isolated_llm_params = self._get_isolated_llm_params(rails)
+
+        assert "self_check_output_llm" in isolated_llm_params
+        assert "self_check_input_llm" in isolated_llm_params
+        assert "self_check_facts_llm" not in isolated_llm_params
+
+    def test_no_isolated_llms_when_no_rails_configured(self):
+        """Test that no isolated LLMs are created when no rails are configured."""
+        config_content = """
+        models:
+          - type: main
+            engine: openai
+            model: gpt-4o-mini
+        """
+
+        rails = self._create_rails_with_config(config_content)
+        isolated_llm_params = self._get_isolated_llm_params(
+            rails, exclude_specialized=True
+        )
+
+        assert (
+            len(isolated_llm_params) == 0
+        ), f"Unexpected isolated LLMs created: {isolated_llm_params}"
+
+    def test_empty_rails_flows_creates_no_isolated_llms(self):
+        """Test that empty rails flows list creates no isolated LLMs."""
+        config_content = """
+        models:
+          - type: main
+            engine: openai
+            model: gpt-4o-mini
+
+        rails:
+          input:
+            flows: []
+          output:
+            flows: []
+        """
+
+        rails = self._create_rails_with_config(config_content)
+        isolated_llm_params = self._get_isolated_llm_params(
+            rails, exclude_specialized=True
+        )
+
+        assert (
+            len(isolated_llm_params) == 0
+        ), f"Unexpected isolated LLMs created: {isolated_llm_params}"
+
+    def test_non_llm_requiring_actions_dont_get_isolated_llms(self):
+        """Test that even valid flows don't get isolated LLMs if actions don't require LLMs."""
+        config_content = """
+        models:
+          - type: main
+            engine: openai
+            model: gpt-4o-mini
+        """
+
+        rails = self._create_rails_with_config(config_content)
+
+        # retrieve_relevant_chunks action exists but doesn't require LLM
+        # so it should never get an isolated LLM even if it were configured
+        assert (
+            "retrieve_relevant_chunks_llm" not in rails.runtime.registered_action_params
+        )
+
+
 if __name__ == "__main__":
     asyncio.run(run_parameter_contamination_test())
