@@ -1,0 +1,31 @@
+# INPUT RAILS
+
+flow pangea ai guard input
+  $result = await PangeaAiGuardAction(mode="input")
+
+  if $result.blocked
+    if $system.config.enable_rails_exceptions
+      send PangeaAiGuardRailException(message="Response not allowed. The response was blocked by the 'pangea ai guard input' flow.")
+    else
+      bot inform answer unknown
+    abort
+
+  if $result.transformed
+    global $user_message
+    $user_message = $result.user_message
+
+# OUTPUT RAILS
+
+flow pangea ai guard output
+  $result = await PangeaAiGuardAction(mode="output")
+
+  if $result.blocked
+    if $system.config.enable_rails_exceptions
+      send PangeaAiGuardRailException(message="Response not allowed. The response was blocked by the 'pangea ai guard output' flow.")
+    else
+      bot inform answer unknown
+    abort
+
+  if $result.transformed
+    global $bot_message
+    $bot_message = $result.bot_message

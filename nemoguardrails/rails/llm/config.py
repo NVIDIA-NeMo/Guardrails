@@ -757,6 +757,28 @@ class ClavataRailConfig(BaseModel):
     )
 
 
+class PangeaRailOptions(BaseModel):
+    """Configuration data for the Pangea AI Guard API"""
+
+    recipe: str = Field(
+        description="""Recipe key of a configuration of data types and settings defined in the Pangea User Console. It
+        specifies the rules that are to be applied to the text, such as defang malicious URLs."""
+    )
+
+
+class PangeaRailConfig(BaseModel):
+    """Configuration data for the Pangea AI Guard API"""
+
+    input: Optional[PangeaRailOptions] = Field(
+        default=None,
+        description="Pangea configuration for an Input Guardrail",
+    )
+    output: Optional[PangeaRailOptions] = Field(
+        default=None,
+        description="Pangea configuration for an Output Guardrail",
+    )
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -803,6 +825,11 @@ class RailsConfigData(BaseModel):
     clavata: Optional[ClavataRailConfig] = Field(
         default_factory=ClavataRailConfig,
         description="Configuration for Clavata.",
+    )
+
+    pangea: Optional[PangeaRailConfig] = Field(
+        default_factory=PangeaRailConfig,
+        description="Configuration for Pangea.",
     )
 
 

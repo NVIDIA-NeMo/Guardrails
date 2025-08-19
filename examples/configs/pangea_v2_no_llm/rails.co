@@ -1,0 +1,8 @@
+import guardrails
+import nemoguardrails.library.pangea
+
+flow input rails $input_text
+    pangea ai guard input
+
+flow output rails $output_text
+    pangea ai guard output
