@@ -16,7 +16,7 @@
 """Prompts for the various steps in the interaction."""
 
 import os
-from typing import List, Union
+from typing import List, Optional, Union
 
 import yaml
 
@@ -129,7 +129,7 @@ def _get_prompt(
     raise ValueError(f"Could not find prompt for task {task_name} and model {model}")
 
 
-def get_task_model(config: RailsConfig, task: Union[str, Task]) -> Model:
+def get_task_model(config: RailsConfig, task: Union[str, Task]) -> Optional[Model]:
     """Return the model for the given task in the current config."""
     # Fetch current task parameters like name, models to use, and the prompting mode
     task_name = str(task.value) if isinstance(task, Task) else task
