@@ -25,7 +25,7 @@ import pytest
 from nemoguardrails import LLMRails
 from nemoguardrails.rails.llm.config import RailsConfig
 
-TEST_LIVE_MODE = os.environ.get("TEST_LIVE_MODE")
+LIVE_TEST_MODE = os.environ.get("TEST_LIVE_MODE")
 
 
 @pytest.fixture
@@ -75,7 +75,7 @@ def test_config_path(test_config_content):
 
 
 @pytest.mark.skipif(
-    not TEST_LIVE_MODE,
+    not LIVE_TEST_MODE,
     reason="This test requires TEST_LIVE_MODE environment variable to be set for live testing",
 )
 class TestLLMIsolationE2E:
@@ -383,7 +383,7 @@ class TestLLMIsolationE2E:
 
 
 @pytest.mark.skipif(
-    not TEST_LIVE_MODE,
+    not LIVE_TEST_MODE,
     reason="This test requires TEST_LIVE_MODE environment variable to be set for live testing",
 )
 class TestLLMIsolationErrorHandling:
@@ -475,7 +475,7 @@ async def run_parameter_contamination_test():
 
 
 @pytest.mark.skipif(
-    not TEST_LIVE_MODE,
+    not LIVE_TEST_MODE,
     reason="This test requires TEST_LIVE_MODE environment variable to be set for live testing",
 )
 class TestLLMIsolationConfiguredActionsOnly:
