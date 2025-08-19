@@ -46,7 +46,17 @@ async def topic_safety_check_input(
         model_name = model_name or context.get("model", None)
 
     if events is not None:
-        conversation_history = to_chat_messages(events)
+        # convert InternalEvent objects to dictionary format for compatibility with to_chat_messages
+        dict_events = []
+        for event in events:
+            if hasattr(event, "name") and hasattr(event, "arguments"):
+                dict_event = {"type": event.name}
+                dict_event.update(event.arguments)
+                dict_events.append(dict_event)
+            else:
+                dict_events.append(event)
+
+        conversation_history = to_chat_messages(dict_events)
 
     if model_name is None:
         error_msg = (
