@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-from typing import List
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 def get_history_cache_key(messages: List[dict]) -> str:
@@ -56,3 +56,57 @@ def get_history_cache_key(messages: List[dict]) -> str:
     history_cache_key = ":".join(key_items)
 
     return history_cache_key
+
+
+def get_action_details_from_flow_id(
+    flow_id: str,
+    flows: List[Union[Dict, Any]],
+    prefixes: Optional[List[str]] = None,
+) -> Tuple[str, Any]:
+    """Get the action name and parameters from the flow id.
+
+    First, try to find an exact match.
+    If not found, then if the provided flow_id starts with one of the special prefixes,
+    return the first flow whose id starts with that same prefix.
+    """
+    supported_prefixes = [
+        "content safety check output",
+        "topic safety check output",
+    ]
+    if prefixes:
+        supported_prefixes.extend(prefixes)
+
+    candidate_flow = None
+
+    for flow in flows:
+        # If exact match, use it
+        if flow["id"] == flow_id:
+            candidate_flow = flow
+            break
+
+        # If no exact match, check if both the provided flow_id and this flow's id share a special prefix
+        for prefix in supported_prefixes:
+            if flow_id.startswith(prefix) and flow["id"].startswith(prefix):
+                candidate_flow = flow
+                # We don't break immediately here because an exact match would have been preferred,
+                # but since we're in the else branch it's fine to choose the first matching candidate.
+                # TODO:we should avoid having multiple matchin prefixes
+                break
+
+        if candidate_flow is not None:
+            break
+
+    if candidate_flow is None:
+        raise ValueError(f"No action found for flow_id: {flow_id}")
+
+    # we have identified a candidate, look for the run_action element.
+    for element in candidate_flow["elements"]:
+        if (
+            element["_type"] == "run_action"
+            and element["_source_mapping"]["filename"].endswith(".co")
+            and "execute" in element["_source_mapping"]["line_text"]
+            and "action_name" in element
+        ):
+            return element["action_name"], element["action_params"]
+
+    raise ValueError(f"No run_action element found for flow_id: {flow_id}")
