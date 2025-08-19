@@ -21,7 +21,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.rails.llm.llmrails import _get_action_details_from_flow_id
+from nemoguardrails.rails.llm.llmrails import get_action_details_from_flow_id
 from tests.utils import FakeLLM, clean_events, event_sequence_conforms
 
 
@@ -625,124 +625,6 @@ async def test_2(rails_config):
         "role": "assistant",
         "content": "The answer is 5\nAre you happy with the result?",
     }
-
-
-# get_action_details_from_flow_id used in llmrails.py
-
-
-@pytest.fixture
-def dummy_flows() -> List[Union[Dict, Any]]:
-    return [
-        {
-            "id": "test_flow",
-            "elements": [
-                {
-                    "_type": "run_action",
-                    "_source_mapping": {
-                        "filename": "flows.v1.co",
-                        "line_text": "execute something",
-                    },
-                    "action_name": "test_action",
-                    "action_params": {"param1": "value1"},
-                }
-            ],
-        },
-        # Additional flow that should match on a prefix
-        {
-            "id": "other_flow is prefix",
-            "elements": [
-                {
-                    "_type": "run_action",
-                    "_source_mapping": {
-                        "filename": "flows.v1.co",
-                        "line_text": "execute something else",
-                    },
-                    "action_name": "other_action",
-                    "action_params": {"param2": "value2"},
-                }
-            ],
-        },
-        {
-            "id": "test_rails_co",
-            "elements": [
-                {
-                    "_type": "run_action",
-                    "_source_mapping": {
-                        "filename": "rails.co",
-                        "line_text": "execute something",
-                    },
-                    "action_name": "test_action_supported",
-                    "action_params": {"param1": "value1"},
-                }
-            ],
-        },
-        {
-            "id": "test_rails_co_v2",
-            "elements": [
-                {
-                    "_type": "run_action",
-                    "_source_mapping": {
-                        "filename": "rails.co",
-                        "line_text": "await something",  # in colang 2 we use await
-                    },
-                    "action_name": "test_action_not_supported",
-                    "action_params": {"param1": "value1"},
-                }
-            ],
-        },
-    ]
-
-
-def test_get_action_details_exact_match(dummy_flows):
-    action_name, action_params = _get_action_details_from_flow_id(
-        "test_flow", dummy_flows
-    )
-    assert action_name == "test_action"
-    assert action_params == {"param1": "value1"}
-
-
-def test_get_action_details_exact_match_any_co_file(dummy_flows):
-    action_name, action_params = _get_action_details_from_flow_id(
-        "test_rails_co", dummy_flows
-    )
-    assert action_name == "test_action_supported"
-    assert action_params == {"param1": "value1"}
-
-
-def test_get_action_details_exact_match_not_colang_2(dummy_flows):
-    with pytest.raises(ValueError) as exc_info:
-        _get_action_details_from_flow_id("test_rails_co_v2", dummy_flows)
-
-    assert "No run_action element found for flow_id" in str(exc_info.value)
-
-
-def test_get_action_details_prefix_match(dummy_flows):
-    # For a flow_id that starts with the prefix "other_flow",
-    # we expect to retrieve the action details from the flow whose id starts with that prefix.
-    # we expect a result since we are passing the prefixes argument.
-    action_name, action_params = _get_action_details_from_flow_id(
-        "other_flow", dummy_flows, prefixes=["other_flow"]
-    )
-    assert action_name == "other_action"
-    assert action_params == {"param2": "value2"}
-
-
-def test_get_action_details_prefix_match_unsupported_prefix(dummy_flows):
-    # For a flow_id that starts with the prefix "other_flow",
-    # we expect to retrieve the action details from the flow whose id starts with that prefix.
-    # but as the prefix is not supported, we expect a ValueError.
-
-    with pytest.raises(ValueError) as exc_info:
-        _get_action_details_from_flow_id("other_flow", dummy_flows)
-
-    assert "No action found for flow_id" in str(exc_info.value)
-
-
-def test_get_action_details_no_match(dummy_flows):
-    # Tests that a non matching flow_id raises a ValueError
-    with pytest.raises(ValueError) as exc_info:
-        _get_action_details_from_flow_id("non_existing_flow", dummy_flows)
-    assert "No action found for flow_id" in str(exc_info.value)
 
 
 @pytest.fixture

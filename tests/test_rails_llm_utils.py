@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.rails.llm.utils import get_history_cache_key
+from typing import Any, Dict, List, Union
+
+import pytest
+
+from nemoguardrails.rails.llm.utils import (
+    get_action_details_from_flow_id,
+    get_history_cache_key,
+)
 
 
 def test_basic():
@@ -55,3 +62,378 @@ def test_with_context():
         )
         == '{"user_name": "John"}:hi:Hello!:How are you?'
     )
+
+
+def test_multimodal_content():
+    """Test get_history_cache_key with multimodal content (list-based content)."""
+    multimodal_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/jpeg;base64,..."},
+                },
+            ],
+        }
+    ]
+    assert get_history_cache_key(multimodal_messages) == "What's in this image?"
+
+    multi_text_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "First part"},
+                {"type": "text", "text": "Second part"},
+            ],
+        }
+    ]
+    assert get_history_cache_key(multi_text_messages) == "First part Second part"
+
+    mixed_content_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Hello"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/jpeg;base64,..."},
+                },
+                {"type": "text", "text": "World"},
+            ],
+        }
+    ]
+    assert get_history_cache_key(mixed_content_messages) == "Hello World"
+
+    empty_text_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": ""},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/jpeg;base64,..."},
+                },
+            ],
+        }
+    ]
+    assert get_history_cache_key(empty_text_messages) == ""
+
+
+def test_get_action_details_from_flow_id_exact_match():
+    """Test get_action_details_from_flow_id with exact flow ID match."""
+    flows = [
+        {
+            "id": "test_flow",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "test.co",
+                        "line_text": "execute action_name",
+                    },
+                    "action_name": "test_action",
+                    "action_params": {"param1": "value1"},
+                }
+            ],
+        }
+    ]
+
+    action_name, action_params = get_action_details_from_flow_id("test_flow", flows)
+    assert action_name == "test_action"
+    assert action_params == {"param1": "value1"}
+
+
+def test_get_action_details_from_flow_id_prefix_match():
+    """Test get_action_details_from_flow_id with prefix matching."""
+    flows = [
+        {
+            "id": "content safety check output with model gpt-4",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "safety.co",
+                        "line_text": "execute content_safety_check",
+                    },
+                    "action_name": "content_safety_check",
+                    "action_params": {"model": "gpt-4"},
+                }
+            ],
+        }
+    ]
+
+    action_name, action_params = get_action_details_from_flow_id(
+        "content safety check output", flows
+    )
+    assert action_name == "content_safety_check"
+    assert action_params == {"model": "gpt-4"}
+
+
+def test_get_action_details_from_flow_id_topic_safety_prefix():
+    """Test get_action_details_from_flow_id with topic safety prefix."""
+    flows = [
+        {
+            "id": "topic safety check output with model claude",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "topic.co",
+                        "line_text": "execute topic_safety_check",
+                    },
+                    "action_name": "topic_safety_check",
+                    "action_params": {"model": "claude"},
+                }
+            ],
+        }
+    ]
+
+    action_name, action_params = get_action_details_from_flow_id(
+        "topic safety check output", flows
+    )
+    assert action_name == "topic_safety_check"
+    assert action_params == {"model": "claude"}
+
+
+def test_get_action_details_from_flow_id_custom_prefixes():
+    """Test get_action_details_from_flow_id with custom prefixes."""
+    flows = [
+        {
+            "id": "custom prefix flow with params",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "custom.co",
+                        "line_text": "execute custom_action",
+                    },
+                    "action_name": "custom_action",
+                    "action_params": {"custom": "value"},
+                }
+            ],
+        }
+    ]
+
+    action_name, action_params = get_action_details_from_flow_id(
+        "custom prefix flow", flows, prefixes=["custom prefix"]
+    )
+    assert action_name == "custom_action"
+    assert action_params == {"custom": "value"}
+
+
+def test_get_action_details_from_flow_id_no_match():
+    """Test get_action_details_from_flow_id when no flow matches."""
+    flows = [
+        {
+            "id": "different_flow",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "test.co",
+                        "line_text": "execute test_action",
+                    },
+                    "action_name": "test_action",
+                    "action_params": {},
+                }
+            ],
+        }
+    ]
+
+    with pytest.raises(
+        ValueError, match="No action found for flow_id: nonexistent_flow"
+    ):
+        get_action_details_from_flow_id("nonexistent_flow", flows)
+
+
+def test_get_action_details_from_flow_id_no_run_action():
+    """Test get_action_details_from_flow_id when flow has no run_action element."""
+    flows = [
+        {
+            "id": "test_flow",
+            "elements": [{"_type": "other_element", "some_data": "value"}],
+        }
+    ]
+
+    with pytest.raises(
+        ValueError, match="No run_action element found for flow_id: test_flow"
+    ):
+        get_action_details_from_flow_id("test_flow", flows)
+
+
+def test_get_action_details_from_flow_id_invalid_run_action():
+    """Test get_action_details_from_flow_id when run_action element is invalid."""
+    flows = [
+        {
+            "id": "test_flow",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "test.py",
+                        "line_text": "execute test_action",
+                    },
+                    "action_name": "test_action",
+                    "action_params": {},
+                }
+            ],
+        }
+    ]
+
+    with pytest.raises(
+        ValueError, match="No run_action element found for flow_id: test_flow"
+    ):
+        get_action_details_from_flow_id("test_flow", flows)
+
+
+def test_get_action_details_from_flow_id_multiple_run_actions():
+    """Test get_action_details_from_flow_id with multiple run_action elements."""
+    flows = [
+        {
+            "id": "multi_action_flow",
+            "elements": [
+                {"_type": "other_element", "data": "ignore"},
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "multi.co",
+                        "line_text": "execute first_action",
+                    },
+                    "action_name": "first_action",
+                    "action_params": {"order": "first"},
+                },
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "multi.co",
+                        "line_text": "execute second_action",
+                    },
+                    "action_name": "second_action",
+                    "action_params": {"order": "second"},
+                },
+            ],
+        }
+    ]
+
+    # Should return the first valid run_action element
+    action_name, action_params = get_action_details_from_flow_id(
+        "multi_action_flow", flows
+    )
+    assert action_name == "first_action"
+    assert action_params == {"order": "first"}
+
+
+@pytest.fixture
+def dummy_flows() -> List[Union[Dict, Any]]:
+    return [
+        {
+            "id": "test_flow",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "flows.v1.co",
+                        "line_text": "execute something",
+                    },
+                    "action_name": "test_action",
+                    "action_params": {"param1": "value1"},
+                }
+            ],
+        },
+        {
+            "id": "other_flow is prefix",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "flows.v1.co",
+                        "line_text": "execute something else",
+                    },
+                    "action_name": "other_action",
+                    "action_params": {"param2": "value2"},
+                }
+            ],
+        },
+        {
+            "id": "test_rails_co",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "rails.co",
+                        "line_text": "execute something",
+                    },
+                    "action_name": "test_action_supported",
+                    "action_params": {"param1": "value1"},
+                }
+            ],
+        },
+        {
+            "id": "test_rails_co_v2",
+            "elements": [
+                {
+                    "_type": "run_action",
+                    "_source_mapping": {
+                        "filename": "rails.co",
+                        "line_text": "await something",
+                    },
+                    "action_name": "test_action_not_supported",
+                    "action_params": {"param1": "value1"},
+                }
+            ],
+        },
+    ]
+
+
+def test_get_action_details_exact_match(dummy_flows):
+    action_name, action_params = get_action_details_from_flow_id(
+        "test_flow", dummy_flows
+    )
+    assert action_name == "test_action"
+    assert action_params == {"param1": "value1"}
+
+
+def test_get_action_details_exact_match_any_co_file(dummy_flows):
+    action_name, action_params = get_action_details_from_flow_id(
+        "test_rails_co", dummy_flows
+    )
+    assert action_name == "test_action_supported"
+    assert action_params == {"param1": "value1"}
+
+
+def test_get_action_details_exact_match_not_colang_2(dummy_flows):
+    with pytest.raises(ValueError) as exc_info:
+        get_action_details_from_flow_id("test_rails_co_v2", dummy_flows)
+
+    assert "No run_action element found for flow_id" in str(exc_info.value)
+
+
+def test_get_action_details_prefix_match(dummy_flows):
+    # For a flow_id that starts with the prefix "other_flow",
+    # we expect to retrieve the action details from the flow whose id starts with that prefix.
+    # we expect a result since we are passing the prefixes argument.
+    action_name, action_params = get_action_details_from_flow_id(
+        "other_flow", dummy_flows, prefixes=["other_flow"]
+    )
+    assert action_name == "other_action"
+    assert action_params == {"param2": "value2"}
+
+
+def test_get_action_details_prefix_match_unsupported_prefix(dummy_flows):
+    # For a flow_id that starts with the prefix "other_flow",
+    # we expect to retrieve the action details from the flow whose id starts with that prefix.
+    # but as the prefix is not supported, we expect a ValueError.
+
+    with pytest.raises(ValueError) as exc_info:
+        get_action_details_from_flow_id("other_flow", dummy_flows)
+
+    assert "No action found for flow_id" in str(exc_info.value)
+
+
+def test_get_action_details_no_match(dummy_flows):
+    # Tests that a non matching flow_id raises a ValueError
+    with pytest.raises(ValueError) as exc_info:
+        get_action_details_from_flow_id("non_existing_flow", dummy_flows)
+    assert "No action found for flow_id" in str(exc_info.value)
