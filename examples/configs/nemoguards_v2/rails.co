@@ -1,0 +1,12 @@
+import guardrails
+import nemoguardrails.library.content_safety
+import nemoguardrails.library.topic_safety
+import nemoguardrails.library.jailbreak_detection
+
+flow input rails $input_text
+    content safety check input $model="content_safety"
+    topic safety check input $model="topic_control"
+    jailbreak detection model
+
+flow output rails $output_text
+    content safety check output $model="content_safety"
