@@ -523,7 +523,21 @@ class LLMRails:
             )
 
             created_count = 0
-            for action_name in actions_needing_llms:
+            # Get the actions from flows defined in rails config
+            get_action_details = partial(
+                get_action_details_from_flow_id, flows=self.config.flows
+            )
+            configured_actions_names = []
+            for flow_id in self.config.rails.input.flows:
+                action_name, _ = get_action_details(flow_id)
+                configured_actions_names.append(action_name)
+            for flow_id in self.config.rails.output.flows:
+                action_name, _ = get_action_details(flow_id)
+                configured_actions_names.append(action_name)
+
+            for action_name in configured_actions_names:
+                if action_name not in actions_needing_llms:
+                    continue
                 if f"{action_name}_llm" not in self.runtime.registered_action_params:
                     isolated_llm = self._create_action_llm_copy(self.llm, action_name)
                     if isolated_llm:
