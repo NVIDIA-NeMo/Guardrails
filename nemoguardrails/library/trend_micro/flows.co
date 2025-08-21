@@ -1,0 +1,10 @@
+# INPUT AND/OR OUTPUT RAIL
+flow trend ai guard $text
+    $result = await TrendAiGuardAction(text=$text)
+
+    if $result.action == "Block" # Fails open if AI Guard service has an error
+        if $system.config.enable_rails_exceptions
+            send TrendAiGuardException(message="Blocked by the 'trend ai guard' flow: " + $result.reason)
+        else
+            bot refuse to respond
+            abort
