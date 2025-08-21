@@ -29,6 +29,7 @@ docker run -it --gpus=all --runtime=nvidia \
 ```
 
 ## Using the NIM in Guardrails
+
 Within your guardrails configuration file, you can specify that you want to use the NIM endpoint as part of the jailbreak detection configuration.
 To do this, ensure that you specify the endpoint of the NIM in the `nim_base_url` parameter.
 If you need an API key, you can export it as an environment variable and specify the name of that environment variable in `api_key_env_var`.
@@ -47,7 +48,7 @@ models:
 rails:
   config:
     jailbreak_detection:
-      nim_base_url: "http://localhost:8000/v1"
+      nim_base_url: "http://localhost:8000/v1/"
       api_key_env_var: "JAILBREAK_KEY"
       nim_server_endpoint: "classify"
   input:
