@@ -225,8 +225,7 @@ class TestLLMIsolation:
 
         isolated_llm = rails._create_action_llm_copy(original_llm, "test_action")
 
-        assert isolated_llm.model_kwargs == {}
-        assert isinstance(isolated_llm.model_kwargs, dict)
+        assert isolated_llm.model_kwargs is None
 
     def test_create_action_llm_copy_handles_copy_failure(self, rails_with_mock_llm):
         """Test that copy failures raise detailed error message."""

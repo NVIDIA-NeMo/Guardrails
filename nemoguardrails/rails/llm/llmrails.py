@@ -596,8 +596,6 @@ class LLMRails:
                 and isolated_llm.model_kwargs is not None
             ):
                 isolated_llm.model_kwargs = isolated_llm.model_kwargs.copy()
-            else:
-                isolated_llm.model_kwargs = {}
 
             log.debug(
                 "Successfully created isolated LLM copy for action: %s", action_name
