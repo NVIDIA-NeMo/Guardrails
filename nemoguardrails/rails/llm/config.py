@@ -358,6 +358,11 @@ class LogAdapterConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class SpanFormat(str, Enum):
+    legacy = "legacy"
+    opentelemetry = "opentelemetry"
+
+
 class TracingConfig(BaseModel):
     enabled: bool = False
     adapters: List[LogAdapterConfig] = Field(
@@ -365,7 +370,7 @@ class TracingConfig(BaseModel):
         description="The list of tracing adapters to use. If not specified, the default adapters are used.",
     )
     span_format: str = Field(
-        default="opentelemetry",
+        default=SpanFormat.opentelemetry,
         description="The span format to use. Options are 'legacy' (simple metrics) or 'opentelemetry' (OpenTelemetry semantic conventions).",
     )
     enable_content_capture: bool = Field(
