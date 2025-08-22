@@ -104,7 +104,7 @@ class ExplainInfo(BaseModel):
             for i in range(len(self.llm_calls)):
                 llm_call = self.llm_calls[i]
                 msg = (
-                    f"{i + 1}. Task `{llm_call.task}` took {llm_call.duration:.2f} seconds "
+                    f"{i+1}. Task `{llm_call.task}` took {llm_call.duration:.2f} seconds "
                     + (
                         f"and used {llm_call.total_tokens} tokens."
                         if total_tokens
