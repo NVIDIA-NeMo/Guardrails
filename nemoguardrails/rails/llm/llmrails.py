@@ -539,19 +539,13 @@ class LLMRails:
                         configured_actions_names.append(action_name)
                 else:
                     # for configurations without flow definitions, use all actions that need LLMs
-                    print(
+                    log.info(
                         "No flow definitions found, creating isolated LLMs for all actions requiring them"
                     )
                     configured_actions_names = list(actions_needing_llms)
             except Exception as e:
                 # if flow matching fails, fall back to all actions that need LLMs
                 log.info(
-                    "No flow definitions found, creating isolated LLMs for all actions requiring them"
-                )
-                configured_actions_names = list(actions_needing_llms)
-            except Exception as e:
-                # if flow matching fails, fall back to all actions that need LLMs
-                log.warning(
                     "Flow matching failed (%s), creating isolated LLMs for all actions requiring them",
                     e,
                 )
