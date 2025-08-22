@@ -73,10 +73,8 @@ def get_action_details_from_flow_id(
 
     candidate_flow = None
 
-    for flow in flows:
-        # If exact match, use it
-        flow_id = _normalize_flow_id(flow_id)
     normalized_flow_id = _normalize_flow_id(flow_id)
+
     for flow in flows:
         # If exact match, use it
         if flow["id"] == normalized_flow_id:
