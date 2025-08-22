@@ -19,6 +19,10 @@ With tracing, you can:
 - [](common-integrations.md) - Setup examples for Jaeger, Zipkin, and OpenTelemetry Collector
 - [](troubleshooting.md) - Common issues and solutions
 
+## Jupyter Notebooks
+
+- [Tracing Quickstart](../getting-started/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
+
 ```{toctree}
 :hidden:
 
