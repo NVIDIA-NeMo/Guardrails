@@ -25,31 +25,51 @@ class TestJailbreakRequestChanges:
     """Test jailbreak request function changes introduced in this PR."""
 
     def test_url_joining_logic(self):
-        """Test that URL joining works correctly using urljoin."""
+        """Test that URL joining works correctly with all slash combinations."""
+        from nemoguardrails.library.jailbreak_detection.request import join_nim_url
+
         test_cases = [
             (
                 "http://localhost:8000/v1",
                 "classify",
-                "http://localhost:8000/classify",
-            ),  # v1 replaced by classify
+                "http://localhost:8000/v1/classify",
+            ),
             (
                 "http://localhost:8000/v1/",
                 "classify",
                 "http://localhost:8000/v1/classify",
-            ),  # trailing slash preserves v1
+            ),
             (
-                "http://localhost:8000",
-                "v1/classify",
+                "http://localhost:8000/v1",
+                "/classify",
                 "http://localhost:8000/v1/classify",
             ),
+            (
+                "http://localhost:8000/v1/",
+                "/classify",
+                "http://localhost:8000/v1/classify",
+            ),
+            ("http://localhost:8000", "classify", "http://localhost:8000/classify"),
+            ("http://localhost:8000", "/classify", "http://localhost:8000/classify"),
+            ("http://localhost:8000/", "classify", "http://localhost:8000/classify"),
             ("http://localhost:8000/", "/classify", "http://localhost:8000/classify"),
+            (
+                "http://localhost:8000/api/v1",
+                "classify",
+                "http://localhost:8000/api/v1/classify",
+            ),
+            (
+                "http://localhost:8000/api/v1/",
+                "/classify",
+                "http://localhost:8000/api/v1/classify",
+            ),
         ]
 
-        for base_url, path, expected_url in test_cases:
-            result = urljoin(base_url, path)
+        for base_url, classification_path, expected_url in test_cases:
+            result = join_nim_url(base_url, classification_path)
             assert (
                 result == expected_url
-            ), f"urljoin({base_url}, {path}) should equal {expected_url}"
+            ), f"join_nim_url({base_url}, {classification_path}) should equal {expected_url}, got {result}"
 
     def test_auth_header_logic(self):
         """Test the authorization header logic."""
