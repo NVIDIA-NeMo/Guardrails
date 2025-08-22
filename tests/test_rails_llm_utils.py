@@ -145,11 +145,11 @@ def test_get_action_details_from_flow_id_exact_match():
     assert action_params == {"param1": "value1"}
 
 
-def test_get_action_details_from_flow_id_prefix_match():
-    """Test get_action_details_from_flow_id with prefix matching."""
+def test_get_action_details_from_flow_id_content_safety():
+    """Test get_action_details_from_flow_id  ."""
     flows = [
         {
-            "id": "content safety check output with model gpt-4",
+            "id": "content safety check output",
             "elements": [
                 {
                     "_type": "run_action",
@@ -165,17 +165,17 @@ def test_get_action_details_from_flow_id_prefix_match():
     ]
 
     action_name, action_params = get_action_details_from_flow_id(
-        "content safety check output", flows
+        "content safety check output $model=anothe_model_config", flows
     )
     assert action_name == "content_safety_check"
     assert action_params == {"model": "gpt-4"}
 
 
-def test_get_action_details_from_flow_id_topic_safety_prefix():
-    """Test get_action_details_from_flow_id with topic safety prefix."""
+def test_get_action_details_from_flow_id_topic_safety():
+    """Test get_action_details_from_flow_id with topic safety."""
     flows = [
         {
-            "id": "topic safety check output with model claude",
+            "id": "topic safety check output",
             "elements": [
                 {
                     "_type": "run_action",
@@ -191,36 +191,10 @@ def test_get_action_details_from_flow_id_topic_safety_prefix():
     ]
 
     action_name, action_params = get_action_details_from_flow_id(
-        "topic safety check output", flows
+        "topic safety check output $model=claude_model", flows
     )
     assert action_name == "topic_safety_check"
     assert action_params == {"model": "claude"}
-
-
-def test_get_action_details_from_flow_id_custom_prefixes():
-    """Test get_action_details_from_flow_id with custom prefixes."""
-    flows = [
-        {
-            "id": "custom prefix flow with params",
-            "elements": [
-                {
-                    "_type": "run_action",
-                    "_source_mapping": {
-                        "filename": "custom.co",
-                        "line_text": "execute custom_action",
-                    },
-                    "action_name": "custom_action",
-                    "action_params": {"custom": "value"},
-                }
-            ],
-        }
-    ]
-
-    action_name, action_params = get_action_details_from_flow_id(
-        "custom prefix flow", flows, prefixes=["custom prefix"]
-    )
-    assert action_name == "custom_action"
-    assert action_params == {"custom": "value"}
 
 
 def test_get_action_details_from_flow_id_no_match():
@@ -408,28 +382,6 @@ def test_get_action_details_exact_match_not_colang_2(dummy_flows):
         get_action_details_from_flow_id("test_rails_co_v2", dummy_flows)
 
     assert "No run_action element found for flow_id" in str(exc_info.value)
-
-
-def test_get_action_details_prefix_match(dummy_flows):
-    # For a flow_id that starts with the prefix "other_flow",
-    # we expect to retrieve the action details from the flow whose id starts with that prefix.
-    # we expect a result since we are passing the prefixes argument.
-    action_name, action_params = get_action_details_from_flow_id(
-        "other_flow", dummy_flows, prefixes=["other_flow"]
-    )
-    assert action_name == "other_action"
-    assert action_params == {"param2": "value2"}
-
-
-def test_get_action_details_prefix_match_unsupported_prefix(dummy_flows):
-    # For a flow_id that starts with the prefix "other_flow",
-    # we expect to retrieve the action details from the flow whose id starts with that prefix.
-    # but as the prefix is not supported, we expect a ValueError.
-
-    with pytest.raises(ValueError) as exc_info:
-        get_action_details_from_flow_id("other_flow", dummy_flows)
-
-    assert "No action found for flow_id" in str(exc_info.value)
 
 
 def test_get_action_details_no_match(dummy_flows):
