@@ -284,6 +284,8 @@ class LLMRails:
         # We also register the kb as a parameter that can be passed to actions.
         self.runtime.register_action_param("kb", self.kb)
 
+        # detect actions that need isolated LLM instances and create them
+        self._create_isolated_llms_for_actions()
         # Reference to the general ExplainInfo object.
         self.explain_info = None
 
@@ -507,9 +509,6 @@ class LLMRails:
 
         self.runtime.register_action_param("llms", llms)
 
-        # detect actions that need isolated LLM instances and create them
-        self._create_isolated_llms_for_actions()
-
     def _create_isolated_llms_for_actions(self):
         """Create isolated LLM copies for all actions that accept 'llm' parameter."""
         if not self.llm:
@@ -525,17 +524,32 @@ class LLMRails:
             )
 
             created_count = 0
-            # Get the actions from flows defined in rails config
-            get_action_details = partial(
-                get_action_details_from_flow_id, flows=self.config.flows
-            )
+
             configured_actions_names = []
-            for flow_id in self.config.rails.input.flows:
-                action_name, _ = get_action_details(flow_id)
-                configured_actions_names.append(action_name)
-            for flow_id in self.config.rails.output.flows:
-                action_name, _ = get_action_details(flow_id)
-                configured_actions_names.append(action_name)
+            try:
+                if self.config.flows:
+                    get_action_details = partial(
+                        get_action_details_from_flow_id, flows=self.config.flows
+                    )
+                    for flow_id in self.config.rails.input.flows:
+                        action_name, _ = get_action_details(flow_id)
+                        configured_actions_names.append(action_name)
+                    for flow_id in self.config.rails.output.flows:
+                        action_name, _ = get_action_details(flow_id)
+                        configured_actions_names.append(action_name)
+                else:
+                    # for configurations without flow definitions, use all actions that need LLMs
+                    log.info(
+                        "No flow definitions found, creating isolated LLMs for all actions requiring them"
+                    )
+                    configured_actions_names = list(actions_needing_llms)
+            except Exception as e:
+                # if flow matching fails, fall back to all actions that need LLMs
+                log.info(
+                    "Flow matching failed (%s), creating isolated LLMs for all actions requiring them",
+                    e,
+                )
+                configured_actions_names = list(actions_needing_llms)
 
             for action_name in configured_actions_names:
                 if action_name not in actions_needing_llms:

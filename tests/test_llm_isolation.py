@@ -536,3 +536,44 @@ class TestLLMIsolationEdgeCases:
         mock_get_action.assert_not_called()
 
         rails.runtime.register_action_param.assert_not_called()
+
+    def test_llm_isolation_timing_with_empty_flows(self, rails_with_mock_llm, caplog):
+        """Test that LLM isolation handles empty flows gracefully during initialization.
+
+        This test reproduces the timing issue where _create_isolated_llms_for_actions()
+        was called before flows were properly loaded. Before the fix, this would fail
+        when trying to resolve rail flow IDs against an empty flows list, causing
+        LLM isolation to fail silently with a warning log.
+        """
+        rails = rails_with_mock_llm
+
+        rails.llm = MockLLM(model_kwargs={}, temperature=0.7)
+
+        # simulate the problematic scenario: rail flows defined but config.flows empty
+        rails.config.rails = Mock()
+        rails.config.rails.input = Mock()
+        rails.config.rails.output = Mock()
+        rails.config.rails.input.flows = [
+            "content safety check input $model=content_safety"
+        ]
+        rails.config.rails.output.flows = [
+            "content safety check output $model=content_safety"
+        ]
+        rails.config.flows = []  # Empty flows list (timing issue scenario)
+
+        rails.runtime = Mock()
+        rails.runtime.action_dispatcher = MockActionDispatcher()
+        rails.runtime.registered_action_params = {}
+        rails.runtime.register_action_param = Mock()
+
+        # before the fix, this would log a warning about failing to create isolated LLMs
+        # after the fix, it should handle empty flows gracefully without the warning
+        rails._create_isolated_llms_for_actions()
+
+        warning_messages = [
+            record.message for record in caplog.records if record.levelname == "WARNING"
+        ]
+        assert not any(
+            "Failed to create isolated LLMs for actions" in msg
+            for msg in warning_messages
+        ), f"Fix failed: Warning still logged: {warning_messages}"

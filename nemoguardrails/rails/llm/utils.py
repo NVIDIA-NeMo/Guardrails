@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
+
+from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
 
 
 def get_history_cache_key(messages: List[dict]) -> str:
@@ -61,7 +63,6 @@ def get_history_cache_key(messages: List[dict]) -> str:
 def get_action_details_from_flow_id(
     flow_id: str,
     flows: List[Union[Dict, Any]],
-    prefixes: Optional[List[str]] = None,
 ) -> Tuple[str, Any]:
     """Get the action name and parameters from the flow id.
 
@@ -69,29 +70,15 @@ def get_action_details_from_flow_id(
     If not found, then if the provided flow_id starts with one of the special prefixes,
     return the first flow whose id starts with that same prefix.
     """
-    supported_prefixes = [
-        "content safety check output",
-        "topic safety check output",
-    ]
-    if prefixes:
-        supported_prefixes.extend(prefixes)
 
     candidate_flow = None
 
+    normalized_flow_id = _normalize_flow_id(flow_id)
+
     for flow in flows:
         # If exact match, use it
-        if flow["id"] == flow_id:
+        if flow["id"] == normalized_flow_id:
             candidate_flow = flow
-            break
-
-        # If no exact match, check if both the provided flow_id and this flow's id share a special prefix
-        for prefix in supported_prefixes:
-            if flow_id.startswith(prefix) and flow["id"].startswith(prefix):
-                candidate_flow = flow
-                # We don't break immediately here because an exact match would have been preferred,
-                # but since we're in the else branch it's fine to choose the first matching candidate.
-                # TODO:we should avoid having multiple matchin prefixes
-                break
 
         if candidate_flow is not None:
             break
