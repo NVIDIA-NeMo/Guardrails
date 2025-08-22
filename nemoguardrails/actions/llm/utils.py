@@ -66,6 +66,8 @@ def _infer_model_name(llm: BaseLanguageModel):
 async def llm_call(
     llm: BaseLanguageModel,
     prompt: Union[str, List[dict]],
+    model_name: Optional[str] = None,
+    model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
     custom_callback_handlers: Optional[List[AsyncCallbackHandler]] = None,
 ) -> str:
@@ -76,7 +78,8 @@ async def llm_call(
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
-    llm_call_info.llm_model_name = _infer_model_name(llm)
+    llm_call_info.llm_model_name = model_name or _infer_model_name(llm)
+    llm_call_info.llm_provider_name = model_provider
 
     if custom_callback_handlers and custom_callback_handlers != [None]:
         all_callbacks = BaseCallbackManager(

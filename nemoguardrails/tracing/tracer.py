@@ -18,12 +18,15 @@ import uuid
 from contextlib import AsyncExitStack
 from typing import List, Optional
 
-from nemoguardrails.eval.eval import _extract_interaction_log
-from nemoguardrails.eval.models import InteractionLog, InteractionOutput
 from nemoguardrails.rails.llm.config import TracingConfig
 from nemoguardrails.rails.llm.options import GenerationLog, GenerationResponse
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
 from nemoguardrails.tracing.adapters.registry import LogAdapterRegistry
+from nemoguardrails.tracing.interaction_types import (
+    InteractionLog,
+    InteractionOutput,
+    extract_interaction_log,
+)
 
 
 def new_uuid() -> str:
@@ -36,6 +39,8 @@ class Tracer:
         input,
         response: GenerationResponse,
         adapters: Optional[List[InteractionLogAdapter]] = None,
+        span_format: str = "opentelemetry",
+        enable_content_capture: bool = False,
     ):
         self._interaction_output = InteractionOutput(
             id=new_uuid(), input=input[-1]["content"], output=response.response
@@ -46,6 +51,8 @@ class Tracer:
             raise RuntimeError("Generation log is missing.")
 
         self.adapters = adapters or []
+        self._span_format = span_format
+        self._enable_content_capture = enable_content_capture
 
     def generate_interaction_log(
         self,
@@ -59,7 +66,12 @@ class Tracer:
         if generation_log is None:
             generation_log = self._generation_log
 
-        interaction_log = _extract_interaction_log(interaction_output, generation_log)
+        interaction_log = extract_interaction_log(
+            interaction_output,
+            generation_log,
+            span_format=self._span_format,
+            enable_content_capture=self._enable_content_capture,
+        )
         return interaction_log
 
     def add_adapter(self, adapter: InteractionLogAdapter):

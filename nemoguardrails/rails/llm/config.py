@@ -358,11 +358,28 @@ class LogAdapterConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class SpanFormat(str, Enum):
+    legacy = "legacy"
+    opentelemetry = "opentelemetry"
+
+
 class TracingConfig(BaseModel):
     enabled: bool = False
     adapters: List[LogAdapterConfig] = Field(
         default_factory=lambda: [LogAdapterConfig()],
         description="The list of tracing adapters to use. If not specified, the default adapters are used.",
+    )
+    span_format: str = Field(
+        default=SpanFormat.opentelemetry,
+        description="The span format to use. Options are 'legacy' (simple metrics) or 'opentelemetry' (OpenTelemetry semantic conventions).",
+    )
+    enable_content_capture: bool = Field(
+        default=False,
+        description=(
+            "Capture prompts and responses (user/assistant/tool message content) in tracing/telemetry events. "
+            "Disabled by default for privacy and alignment with OpenTelemetry GenAI semantic conventions. "
+            "WARNING: Enabling this may include PII and sensitive data in your telemetry backend."
+        ),
     )
 
 

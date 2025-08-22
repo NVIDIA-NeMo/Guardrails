@@ -16,7 +16,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from nemoguardrails.eval.models import InteractionLog
+from nemoguardrails.tracing.interaction_types import InteractionLog
 
 
 class InteractionLogAdapter(ABC):

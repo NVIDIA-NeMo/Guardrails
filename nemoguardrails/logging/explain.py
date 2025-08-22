@@ -59,6 +59,10 @@ class LLMCallInfo(LLMCallSummary):
         default="unknown",
         description="The name of the model use for the LLM call.",
     )
+    llm_provider_name: Optional[str] = Field(
+        default="unknown",
+        description="The provider of the model used for the LLM call, e.g. 'openai', 'nvidia'.",
+    )
 
 
 class ExplainInfo(BaseModel):

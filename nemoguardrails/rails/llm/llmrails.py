@@ -244,6 +244,8 @@ class LLMRails:
             from nemoguardrails.tracing import create_log_adapters
 
             self._log_adapters = create_log_adapters(config.tracing)
+        else:
+            self._log_adapters = None
 
         # We run some additional checks on the config
         self._validate_config()
@@ -1167,9 +1169,19 @@ class LLMRails:
                 # lazy import to avoid circular dependency
                 from nemoguardrails.tracing import Tracer
 
-                # Create a Tracer instance with instantiated adapters
+                span_format = getattr(
+                    self.config.tracing, "span_format", "opentelemetry"
+                )
+                enable_content_capture = getattr(
+                    self.config.tracing, "enable_content_capture", False
+                )
+                # Create a Tracer instance with instantiated adapters and span configuration
                 tracer = Tracer(
-                    input=messages, response=res, adapters=self._log_adapters
+                    input=messages,
+                    response=res,
+                    adapters=self._log_adapters,
+                    span_format=span_format,
+                    enable_content_capture=enable_content_capture,
                 )
                 await tracer.export_async()
 

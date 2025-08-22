@@ -24,6 +24,10 @@ if TYPE_CHECKING:
     from nemoguardrails.tracing import InteractionLog
 
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter
+from nemoguardrails.tracing.span_formatting import (
+    format_span_for_filesystem,
+    get_schema_version_for_filesystem,
+)
 
 
 class FileSystemAdapter(InteractionLogAdapter):
@@ -38,56 +42,46 @@ class FileSystemAdapter(InteractionLogAdapter):
 
     def transform(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into a JSON string."""
-        spans = []
+        spans = [
+            format_span_for_filesystem(span_data) for span_data in interaction_log.trace
+        ]
 
-        for span_data in interaction_log.trace:
-            span_dict = {
-                "name": span_data.name,
-                "span_id": span_data.span_id,
-                "parent_id": span_data.parent_id,
-                "trace_id": interaction_log.id,
-                "start_time": span_data.start_time,
-                "end_time": span_data.end_time,
-                "duration": span_data.duration,
-                "metrics": span_data.metrics,
-            }
-            spans.append(span_dict)
+        if not interaction_log.trace:
+            schema_version = None
+        else:
+            schema_version = get_schema_version_for_filesystem(interaction_log.trace[0])
 
         log_dict = {
+            "schema_version": schema_version,
             "trace_id": interaction_log.id,
             "spans": spans,
         }
 
-        with open(self.filepath, "a") as f:
-            f.write(json.dumps(log_dict, indent=2) + "\n")
+        with open(self.filepath, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_dict) + "\n")
 
     async def transform_async(self, interaction_log: "InteractionLog"):
         try:
             import aiofiles
         except ImportError:
             raise ImportError(
-                "aiofiles is required for async file writing. Please install it using `pip install aiofiles"
+                "aiofiles is required for async file writing. Please install it using `pip install aiofiles`"
             )
 
-        spans = []
+        spans = [
+            format_span_for_filesystem(span_data) for span_data in interaction_log.trace
+        ]
 
-        for span_data in interaction_log.trace:
-            span_dict = {
-                "name": span_data.name,
-                "span_id": span_data.span_id,
-                "parent_id": span_data.parent_id,
-                "trace_id": interaction_log.id,
-                "start_time": span_data.start_time,
-                "end_time": span_data.end_time,
-                "duration": span_data.duration,
-                "metrics": span_data.metrics,
-            }
-            spans.append(span_dict)
+        if not interaction_log.trace:
+            schema_version = None
+        else:
+            schema_version = get_schema_version_for_filesystem(interaction_log.trace[0])
 
         log_dict = {
+            "schema_version": schema_version,
             "trace_id": interaction_log.id,
             "spans": spans,
         }
 
-        async with aiofiles.open(self.filepath, "a") as f:
-            await f.write(json.dumps(log_dict, indent=2) + "\n")
+        async with aiofiles.open(self.filepath, "a", encoding="utf-8") as f:
+            await f.write(json.dumps(log_dict) + "\n")

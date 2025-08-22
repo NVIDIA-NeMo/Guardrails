@@ -13,4 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tracer import InteractionLog, Tracer, create_log_adapters
+from .interaction_types import InteractionLog, InteractionOutput
+from .span_extractors import (
+    SpanExtractor,
+    SpanExtractorV1,
+    SpanExtractorV2,
+    create_span_extractor,
+)
+from .spans import SpanEvent, SpanLegacy, SpanOpentelemetry
+from .tracer import Tracer, create_log_adapters
+
+___all__ = [
+    SpanExtractor,
+    SpanExtractorV1,
+    SpanExtractorV2,
+    create_span_extractor,
+    Tracer,
+    create_log_adapters,
+    SpanEvent,
+    SpanLegacy,
+    SpanOpentelemetry,
+]
