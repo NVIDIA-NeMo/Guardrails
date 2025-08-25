@@ -11,6 +11,65 @@ With tracing, you can:
 - Debug flow execution and identify bottlenecks.
 - Analyze conversation patterns and errors.
 
+## Span Formats
+
+Starting with NeMo Guardrails v0.16.0, the tracing system has transitioned to OpenTelemetry semantic conventions for Generative AI (GenAI), moving away from the legacy span format. This change enhances observability standardization and improves monitoring capabilities for AI workloads.
+
+**Reference Documentation:**
+
+- [OpenTelemetry Semantic Conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) - Overview of GenAI semantic conventions
+- [GenAI Events Specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) - Details on capturing user inputs and model outputs
+- [GenAI Spans Specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) - Span naming and attribute conventions
+
+### Current Formats
+
+- **OpenTelemetry** (`opentelemetry`) - **Recommended default format** following OpenTelemetry semantic conventions for GenAI
+- **Legacy** (`legacy`) - Previous format with simple metrics dictionary (deprecated)
+
+### Configuration
+
+The span format is controlled through the tracing configuration:
+
+```yaml
+tracing:
+  enabled: true
+  span_format: "opentelemetry"  # default
+  enable_content_capture: false  # default, see privacy considerations below
+```
+
+### Key Differences
+
+**OpenTelemetry Format:**
+
+- Follows standardized [semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+- Rich structured attributes and events (e.g., `gen_ai.request.model`, `gen_ai.usage.input_tokens`)
+- Enhanced LLM call tracking with provider and model information
+- Support for span events and error tracking
+- Compatible with OpenTelemetry ecosystem tools
+
+**Legacy Format:**
+
+- Simple metrics dictionary
+- Minimal overhead but limited observability
+- **Deprecated** - maintained for backward compatibility only
+
+### Important Considerations
+
+**Development Status**: The [OpenTelemetry semantic conventions for GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) are currently in development and may undergo changes. Consider the following risks:
+
+- **Evolving Standards**: Conventions may change as they mature, potentially affecting existing implementations
+- **Data Privacy**: The `enable_content_capture` option captures user inputs and model outputs, which may include sensitive information (PII). Only enable when necessary and ensure compliance with data protection regulations. See [GenAI Events documentation](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) for details
+- **Performance Impact**: Extensive telemetry collection may impact system performance, especially with large inputs/outputs
+
+### Migration Path
+
+Existing configurations will continue to work, but we strongly recommend migrating to the OpenTelemetry format:
+
+1. Update your configuration to use `span_format: "opentelemetry"`
+2. Review your telemetry backends for compatibility with OpenTelemetry conventions
+3. Test thoroughly, as span structures and attribute names have changed
+4. Consider privacy implications if enabling content capture
+
 ## Contents
 
 - [](quick-start.md) - Minimal setup to enable tracing using the OpenTelemetry SDK
