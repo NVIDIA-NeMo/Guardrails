@@ -5,16 +5,17 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.11.2
     hooks:
-      - id: isort
-        args: [ "--profile", "black" ]
-        name: isort (python)
-  - repo: https://github.com/psf/black
-    rev: 23.3.0
-    hooks:
-      - id: black
+      # Run the linter.
+      - id: ruff
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
+
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.4.2
     hooks:
@@ -32,9 +33,3 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-# Deactivating this for now.
-#  - repo: https://github.com/pycqa/pylint
-#    rev: v2.17.0
-#    hooks:
-#      - id: pylint
-#        language_version: python3.10
