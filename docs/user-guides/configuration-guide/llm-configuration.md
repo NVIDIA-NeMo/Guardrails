@@ -249,7 +249,7 @@ models:
     engine: nim
     model: meta/llama3-8b-instruct
     parameters:
-      base_url: http://localhost:8000/v1/
+      base_url: http://localhost:8000/v1
 ```
 
 #### NVIDIA AI Endpoints
