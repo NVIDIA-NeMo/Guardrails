@@ -26,6 +26,8 @@ tracing:
       filepath: "./logs/traces.jsonl"
 ```
 
+For working examples, refer to the [Tracing Quickstart](../../getting-started/8-tracing/1_tracing_quickstart.ipynb) notebook.
+
 (opentelemetry-adapter)=
 
 ## OpenTelemetry Adapter
