@@ -15,6 +15,8 @@
 
 from unittest import mock
 
+import pytest
+
 from nemoguardrails import RailsConfig
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 
@@ -22,6 +24,7 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 class TestJailbreakDetectionActions:
     """Test suite for jailbreak detection actions with comprehensive coverage of PR changes."""
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_with_nim_base_url(self, monkeypatch):
         """Test jailbreak_detection_model action with nim_base_url config."""
         from nemoguardrails.library.jailbreak_detection.actions import (
@@ -64,6 +67,7 @@ class TestJailbreakDetectionActions:
             nim_classification_path="classify",
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_api_key_not_set(self, monkeypatch, caplog):
         """Test warning when api_key_env_var is configured but environment variable is not set."""
         from nemoguardrails.library.jailbreak_detection.actions import (
@@ -114,6 +118,7 @@ class TestJailbreakDetectionActions:
             nim_classification_path="classify",
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_no_api_key_env_var(self, monkeypatch):
         """Test that None token is used when api_key_env_var is not configured."""
         from nemoguardrails.library.jailbreak_detection.actions import (
@@ -153,6 +158,7 @@ class TestJailbreakDetectionActions:
             nim_classification_path="classify",
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_runtime_error(
         self, monkeypatch, caplog
     ):
@@ -191,6 +197,7 @@ class TestJailbreakDetectionActions:
         assert "Jailbreak detection model not available" in caplog.text
         assert "No classifier available" in caplog.text
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_import_error(
         self, monkeypatch, caplog
     ):
@@ -232,6 +239,7 @@ class TestJailbreakDetectionActions:
             "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_success(self, monkeypatch, caplog):
         """Test successful local model execution."""
         from nemoguardrails.library.jailbreak_detection.actions import (
@@ -267,6 +275,7 @@ class TestJailbreakDetectionActions:
         assert "Local model jailbreak detection result" in caplog.text
         mock_check_jailbreak.assert_called_once_with(prompt="malicious prompt")
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_empty_context(self, monkeypatch):
         """Test handling of empty context."""
         from nemoguardrails.library.jailbreak_detection.actions import (
@@ -304,6 +313,7 @@ class TestJailbreakDetectionActions:
             nim_classification_path="classify",
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_context_without_user_message(
         self, monkeypatch
     ):
@@ -344,6 +354,7 @@ class TestJailbreakDetectionActions:
             nim_classification_path="classify",
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_legacy_server_endpoint(self, monkeypatch):
         """Test fallback to legacy server_endpoint when nim_base_url is not set."""
         from nemoguardrails.library.jailbreak_detection.actions import (
@@ -379,6 +390,7 @@ class TestJailbreakDetectionActions:
             prompt="test prompt", api_url="http://legacy-server:1337/model"
         )
 
+    @pytest.mark.asyncio
     async def test_jailbreak_detection_model_none_response_handling(
         self, monkeypatch, caplog
     ):
