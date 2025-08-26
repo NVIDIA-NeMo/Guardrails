@@ -26,7 +26,7 @@ tracing:
       filepath: "./logs/traces.jsonl"
 ```
 
-For working examples, refer to the [Tracing Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb) notebook.
+For working examples, refer to the [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb) notebook.
 
 (opentelemetry-adapter)=
 
@@ -40,6 +40,8 @@ tracing:
   adapters:
     - name: OpenTelemetry
 ```
+
+For working examples, refer to the [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/2_tracing_with_jaeger.ipynb) notebook.
 
 ```{important}
 OpenTelemetry requires additional SDK configuration in your application code. See the sections below for setup instructions.

@@ -21,7 +21,8 @@ With tracing, you can:
 
 ## Jupyter Notebooks
 
-- [Tracing Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
+- [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
+- [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/2_tracing_with_jaeger.ipynb) - A guide to visualize Guardrails traces in Jaeger.
 
 ```{toctree}
 :hidden:
