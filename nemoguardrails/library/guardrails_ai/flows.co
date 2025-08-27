@@ -1,0 +1,20 @@
+flow guardrailsai check input $validator
+  """Check input text using relevant Guardrails AI validators."""
+  $result = await ValidateGuardrailsAiInputAction(validator=$validator, text=$user_message)
+  if not $result["valid"]
+    if $system.config.enable_rails_exceptions
+      send GuardrailsAIException(message="Guardrails AI {$validator} validation failed")
+    else
+      bot refuse to respond
+    abort
+
+
+flow guardrailsai check output $validator
+  """Check output text using relevant Guardrails AI validators."""
+  $result = await ValidateGuardrailsAiOutputAction(validator=$validator, text=$bot_message)
+  if not $result["valid"]
+    if $system.config.enable_rails_exceptions
+      send GuardrailsAIException(message="Guardrails AI {$validator} validation failed")
+    else
+      bot refuse to respond
+    abort

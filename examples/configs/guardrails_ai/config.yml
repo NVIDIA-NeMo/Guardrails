@@ -1,0 +1,33 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4
+
+rails:
+  config:
+    guardrails_ai:
+      validators:
+        - name: toxic_language
+          parameters:
+            threshold: 0.5
+            validation_method: "sentence"
+          metadata: {}
+        - name: guardrails_pii
+          parameters:
+            entities: ["phone_number", "email", "ssn"]
+          metadata: {}
+        - name: competitor_check
+          parameters:
+            competitors: ["Apple", "Google", "Microsoft"]
+          metadata: {}
+        - name: restricttotopic
+          parameters:
+            valid_topics: ["technology", "science", "education"]
+          metadata: {}
+  input:
+    flows:
+      - guardrailsai check input $validator="guardrails_pii"
+      - guardrailsai check input $validator="competitor_check"
+  output:
+    flows:
+      - guardrailsai check output $validator="restricttotopic"

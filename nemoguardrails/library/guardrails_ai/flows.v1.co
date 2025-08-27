@@ -1,0 +1,24 @@
+define flow guardrailsai check input
+  """Check input text using relevant Guardrails AI validators."""
+
+  $result = execute validate_guardrails_ai_input(validator=$validator, text=$user_message)
+  if not $result["valid"]
+    if $config.enable_rails_exceptions
+      $msg = "Guardrails AI " + $validator + " validation failed"
+      create event GuardrailsAIException(message=$msg)
+    else
+      bot refuse to respond
+    stop
+
+
+define flow guardrailsai check output
+  """Check output text using relevant Guardrails AI validators."""
+
+  $result = execute validate_guardrails_ai_output(validator=$validator, text=$bot_message)
+  if not $result["valid"]
+    if $config.enable_rails_exceptions
+      $msg = "Guardrails AI " + $validator + " validation failed"
+      create event GuardrailsAIException(message=$msg)
+    else
+      bot refuse to respond
+    stop

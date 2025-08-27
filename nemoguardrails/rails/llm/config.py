@@ -796,6 +796,40 @@ class PangeaRailConfig(BaseModel):
     )
 
 
+class GuardrailsAIValidatorConfig(BaseModel):
+    """Configuration for a single Guardrails AI validator."""
+
+    name: str = Field(
+        description="Unique identifier or import path for the Guardrails AI validator (e.g., 'toxic_language', 'pii', 'regex_match', or 'guardrails/competitor_check')."
+    )
+
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters to pass to the validator during initialization (e.g., threshold, regex pattern).",
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Metadata to pass to the validator during validation (e.g., valid_topics, context).",
+    )
+
+
+class GuardrailsAIRailConfig(BaseModel):
+    """Configuration data for Guardrails AI integration."""
+
+    validators: List[GuardrailsAIValidatorConfig] = Field(
+        default_factory=list,
+        description="List of Guardrails AI validators to apply. Each validator can have its own parameters and metadata.",
+    )
+
+    def get_validator_config(self, name: str) -> Optional[GuardrailsAIValidatorConfig]:
+        """Get a specific validator configuration by name."""
+        for _validator in self.validators:
+            if _validator.name == name:
+                return _validator
+        return None
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -847,6 +881,11 @@ class RailsConfigData(BaseModel):
     pangea: Optional[PangeaRailConfig] = Field(
         default_factory=PangeaRailConfig,
         description="Configuration for Pangea.",
+    )
+
+    guardrails_ai: Optional[GuardrailsAIRailConfig] = Field(
+        default_factory=GuardrailsAIRailConfig,
+        description="Configuration for Guardrails AI validators.",
     )
 
 
