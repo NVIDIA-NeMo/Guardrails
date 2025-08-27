@@ -21,9 +21,10 @@ import random
 import re
 import sys
 import threading
+from dataclasses import asdict
 from functools import lru_cache
 from time import time
-from typing import Callable, List, Optional, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
@@ -136,7 +137,7 @@ class LLMGenerationActions:
             self._init_flows_index(),
         )
 
-    def _extract_user_message_example(self, flow: Flow):
+    def _extract_user_message_example(self, flow: Flow) -> None:
         """Heuristic to extract user message examples from a flow."""
         elements = [
             item
@@ -148,39 +149,52 @@ class LLMGenerationActions:
 
         el = elements[1]
         if isinstance(el, SpecOp):
-            if el.op == "match":
-                spec = cast(SpecOp, el).spec
-                if (
-                    not hasattr(spec, "name")
-                    or spec.name != "UtteranceUserActionFinished"
-                ):
+            spec_op: SpecOp = cast(SpecOp, el)
+
+            if spec_op.op == "match":
+                # The SpecOp.spec type is Union[Spec, dict]. So convert to Dict and modify following code to suit
+                spec: Dict[str, Any] = (
+                    asdict(spec_op.spec)
+                    if type(spec_op.spec) == Spec
+                    else cast(Dict, spec_op.spec)
+                )
+
+                if not spec["name"] or spec["name"] != "UtteranceUserActionFinished":
                     return
 
-                if "final_transcript" not in spec.arguments:
+                if "final_transcript" not in spec["arguments"]:
                     return
 
                 # Extract the message and remove the double quotes
-                message = eval_expression(spec.arguments["final_transcript"], {})
+                message = eval_expression(spec["arguments"]["final_transcript"], {})
                 if isinstance(message, str):
                     self.user_messages[flow.name] = [message]
 
-            elif el.op == "await":
-                spec = cast(SpecOp, el).spec
-                if isinstance(spec, dict) and spec.get("_type") == "spec_or":
-                    specs = spec.get("elements")
+            elif spec_op.op == "await":
+                # The SpecOp.spec type is Union[Spec, dict]. So convert to Dict and modify following code to suit
+                spec: Dict[str, Any] = (
+                    asdict(spec_op.spec)
+                    if type(spec_op.spec) == Spec
+                    else cast(Dict, spec_op.spec)
+                )
+
+                if spec["_type"] == "spec_or":
+                    specs = spec[
+                        "elements"
+                    ]  # TODO There is no `elements` attribute in SpecOr
                 else:
                     assert isinstance(spec, Spec)
                     specs = [spec]
 
                 for spec in specs:
                     if (
-                        not spec.name.startswith("user ")
-                        or not spec.arguments
-                        or not spec.arguments["$0"]
+                        not spec["name"].startswith("user ")
+                        or not spec["arguments"]
+                        or not spec["arguments"]["$0"]
                     ):
                         continue
 
-                    message = eval_expression(spec.arguments["$0"], {})
+                    message = eval_expression(spec["arguments"]["$0"], {})
                     if isinstance(message, str):
                         if flow.name not in self.user_messages:
                             self.user_messages[flow.name] = []
