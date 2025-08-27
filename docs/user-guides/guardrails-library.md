@@ -22,6 +22,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Clavata.ai](#clavata)
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
+   - [GuardrailsAI Integration](#guardrailsai-integration)
    - [Private AI PII detection](#private-ai-pii-detection)
    - [Fiddler Guardrails for Safety and Hallucination Detection](#fiddler-guardrails-for-safety-and-hallucination-detection)
    - [Prompt Security Protection](#prompt-security-protection)
@@ -771,6 +772,33 @@ rails:
 ```
 
 For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/gcp-text-moderations.md) page.
+
+### GuardrailsAI Integration
+
+NeMo Guardrails supports using [GuardrailsAI validators](https://github.com/guardrails-ai/guardrails) for comprehensive input and output validation. GuardrailsAI provides a wide range of validators for content safety, PII detection, toxic language filtering, jailbreak detection, and more.
+
+#### Example usage
+
+```yaml
+rails:
+  config:
+    guardrails_ai:
+      validators:
+        - name: toxic_language
+          parameters:
+            threshold: 0.5
+        - name: guardrails_pii
+          parameters:
+            entities: ["phone_number", "email", "ssn"]
+  input:
+    flows:
+      - guardrailsai check input $validator="guardrails_pii"
+  output:
+    flows:
+      - guardrailsai check output $validator="toxic_language"
+```
+
+For more details, check out the [GuardrailsAI Integration](./community/guardrails-ai.md) page.
 
 ### Private AI PII Detection
 
