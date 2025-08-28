@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Sequence, Union
 
 from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
@@ -72,7 +72,7 @@ async def llm_call(
     model_name: Optional[str] = None,
     model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
-    custom_callback_handlers: Optional[List[AsyncCallbackHandler]] = None,
+    custom_callback_handlers: Optional[Sequence[AsyncCallbackHandler]] = None,
     llm_params: Optional[dict] = None,
 ) -> str:
     """Calls the LLM with a prompt and returns the generated text.

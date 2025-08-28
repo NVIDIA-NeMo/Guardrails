@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
+from langchain.callbacks.base import AsyncCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
 
@@ -453,7 +454,7 @@ class LLMGenerationActions:
                     )
                 else:
                     results = await self.user_message_index.search(
-                        text=text, max_results=5
+                        text=text, max_results=5, threshold=None
                     )
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
@@ -556,14 +557,23 @@ class LLMGenerationActions:
                     # Initialize the LLMCallInfo object
                     llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
 
-                    generation_options: GenerationOptions = generation_options_var.get()
+                    generation_options: Optional[
+                        GenerationOptions
+                    ] = generation_options_var.get()
+
                     llm_params = (
                         generation_options and generation_options.llm_params
                     ) or {}
-                    text = await llm_call(
-                        llm,
-                        prompt,
-                        custom_callback_handlers=[streaming_handler_var.get()],
+                    streaming_handler: Optional[
+                            StreamingHandler
+                        ] = streaming_handler_var.get()
+                        custom_callback_handlers = (
+                            [streaming_handler] if streaming_handler else None
+                        )
+                        text = await llm_call(
+                            llm,
+                            prompt,
+                            custom_callback_handlers=custom_callback_handlers,
                         llm_params=llm_params,
                     )
                     text = self.llm_task_manager.parse_task_output(
@@ -594,14 +604,23 @@ class LLMGenerationActions:
                     context={"relevant_chunks": relevant_chunks},
                 )
 
-                generation_options: GenerationOptions = generation_options_var.get()
+                generation_options: Optional[
+                    GenerationOptions
+                ] = generation_options_var.get()
                 llm_params = (
                     generation_options and generation_options.llm_params
                 ) or {}
-                result = await llm_call(
-                    llm,
-                    prompt,
-                    custom_callback_handlers=[streaming_handler_var.get()],
+                streaming_handler: Optional[
+                        StreamingHandler
+                    ] = streaming_handler_var.get()
+                    custom_callback_handlers = (
+                        [streaming_handler] if streaming_handler else None
+                    )
+
+                    result = await llm_call(
+                        llm,
+                        prompt,
+                        custom_callback_handlers=custom_callback_handlers,
                     stop=["User:"],
                     llm_params=llm_params,
                 )
