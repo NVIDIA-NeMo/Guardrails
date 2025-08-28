@@ -43,7 +43,7 @@ tracing:
 
 **OpenTelemetry Format:**
 
-- Follows standardized [semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+- Follows the standardized [semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 - Rich structured attributes and events (e.g., `gen_ai.request.model`, `gen_ai.usage.input_tokens`)
 - Enhanced LLM call tracking with provider and model information
 - Support for span events and error tracking
