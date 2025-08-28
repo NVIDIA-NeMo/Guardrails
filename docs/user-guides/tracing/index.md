@@ -28,7 +28,7 @@ Starting with NeMo Guardrails v0.16.0, the tracing system has transitioned to Op
 
 ### Configuration
 
-The span format is controlled through the tracing configuration:
+You can control the span format through the tracing configuration:
 
 ```yaml
 tracing:
