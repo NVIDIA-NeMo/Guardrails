@@ -392,6 +392,7 @@ class LLMGenerationActions:
             )
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
+        assert event
         assert event["type"] == "UserMessage"
 
         # Use action specific llm if registered else fallback to main llm
