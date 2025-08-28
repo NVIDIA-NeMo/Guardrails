@@ -330,25 +330,32 @@ class LLMGenerationActions:
         # NOTE: this should be very fast, otherwise needs to be moved to separate thread.
         await self.flows_index.build()
 
-    def _get_general_instructions(self):
+    def _get_general_instructions(self) -> Optional[str]:
         """Helper to extract the general instruction."""
-        text = ""
+
+        # If there's no instructions field return None
+        if not self.config.instructions:
+            return None
+
+        # Return the content of the first general instruction
         for instruction in self.config.instructions:
             if instruction.type == "general":
-                text = instruction.content
+                return instruction.content
 
-                # We stop at the first one for now
-                break
-
-        return text
+        return None
 
     @lru_cache
-    def _get_sample_conversation_two_turns(self):
+    def _get_sample_conversation_two_turns(self) -> Optional[str]:
         """Helper to extract only the two turns from the sample conversation.
 
         This is needed to be included to "seed" the conversation so that the model
         can follow the format more easily.
         """
+
+        # The RailsConfig.sample_conversation field is Optional, early-out if it's not provided
+        if not self.config.sample_conversation:
+            return None
+
         lines = self.config.sample_conversation.split("\n")
         i = 0
         user_count = 0
