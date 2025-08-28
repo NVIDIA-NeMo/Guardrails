@@ -397,7 +397,7 @@ class LLMGenerationActions:
         assert event["type"] == "UserMessage"
 
         # Use action specific llm if registered else fallback to main llm
-        llm = llm or self.llm
+        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
 
         streaming_handler = streaming_handler_var.get()
 
@@ -476,7 +476,7 @@ class LLMGenerationActions:
 
             # We make this call with temperature 0 to have it as deterministic as possible.
             result = await llm_call(
-                llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+                generation_llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
             )
 
             # Parse the output using the associated parser
@@ -571,7 +571,7 @@ class LLMGenerationActions:
                             [streaming_handler] if streaming_handler else None
                         )
                         text = await llm_call(
-                            llm,
+                            generation_llm,
                             prompt,
                             custom_callback_handlers=custom_callback_handlers,
                         llm_params=llm_params,
@@ -618,7 +618,7 @@ class LLMGenerationActions:
                     )
 
                     result = await llm_call(
-                        llm,
+                        generation_llm,
                         prompt,
                         custom_callback_handlers=custom_callback_handlers,
                     stop=["User:"],
@@ -851,7 +851,7 @@ class LLMGenerationActions:
         log.info("Phase 3 :: Generating bot message ...")
 
         # Use action specific llm if registered else fallback to main llm
-        llm = llm or self.llm
+        generation_llm = llm or self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "BotIntent".
         event = get_last_bot_intent_event(events)
