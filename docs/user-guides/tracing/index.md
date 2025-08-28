@@ -67,7 +67,7 @@ The following are the key differences between the supported span formats.
 
 ### Migration Path
 
-Existing configurations will continue to work, but we strongly recommend migrating to the OpenTelemetry format:
+Existing configurations will continue to work. However, it is strongly recommended to migrate to the OpenTelemetry format. Migration steps are:
 
 1. Update your configuration to use `span_format: "opentelemetry"`
 2. Review your telemetry backends for compatibility with OpenTelemetry conventions
