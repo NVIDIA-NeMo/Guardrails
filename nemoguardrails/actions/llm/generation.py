@@ -206,16 +206,28 @@ class LLMGenerationActions:
             return
 
         el = flow.elements[1]
+
+        if type(el) != SpecOp:
+            return
+
+        spec_op: SpecOp = cast(SpecOp, el)
+        spec: Dict[str, Any] = (
+            asdict(
+                spec_op.spec
+            )  # TODO! Refactor thiss function as it's duplicated in many places
+            if type(spec_op.spec) == Spec
+            else cast(Dict, spec_op.spec)
+        )
+
         if (
-            not isinstance(el, SpecOp)
-            or not hasattr(el.spec, "name")
-            or el.spec.name != "UtteranceBotAction"
-            or "script" not in el.spec.arguments
+            not spec["name"]
+            or spec["name"] != "UtteranceUserActionFinished"
+            or "script" not in spec["arguments"]
         ):
             return
 
         # Extract the message and remove the double quotes
-        message = el.spec.arguments["script"][1:-1]
+        message = spec["arguments"]["script"][1:-1]
 
         self.bot_messages[flow.name] = [message]
 
