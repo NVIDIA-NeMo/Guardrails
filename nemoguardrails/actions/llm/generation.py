@@ -381,7 +381,7 @@ class LLMGenerationActions:
         events: List[dict],
         context: dict,
         config: RailsConfig,
-        llm: Optional[BaseLLM] = None,
+        llm: Optional[Union[BaseLLM, BaseChatModel]] = None,
         kb: Optional[KnowledgeBase] = None,
     ):
         """Generate the canonical form for what the user said i.e. user intent."""
