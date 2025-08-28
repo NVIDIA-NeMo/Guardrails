@@ -658,7 +658,12 @@ class LLMGenerationActions:
 
     async def _search_flows_index(self, text, max_results):
         """Search the index of flows."""
-        results = await self.flows_index.search(text=text, max_results=10)
+        if not self.flows_index:
+            raise Exception("Searching flows index for %s with no flows_index", text)
+
+        results = await self.flows_index.search(
+            text=text, max_results=10, threshold=None
+        )
 
         # we filter the results to keep only unique flows
         flows = set()
