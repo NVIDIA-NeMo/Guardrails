@@ -679,7 +679,7 @@ class LLMGenerationActions:
 
     @action(is_system_action=True)
     async def generate_next_step(
-        self, events: List[dict], llm: Optional[BaseLLM] = None
+        self, events: List[dict], llm: Optional[Union[BaseLLM, BaseChatModel]] = None
     ):
         """Generate the next step in the current conversation flow.
 
@@ -688,10 +688,12 @@ class LLMGenerationActions:
         log.info("Phase 2 :: Generating next step ...")
 
         # Use action specific llm if registered else fallback to main llm
-        llm = llm or self.llm
+        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "UserIntent".
         event = get_last_user_intent_event(events)
+        if not event:
+            raise Exception("Couldn't find last user intent in events: %s", events)
 
         # Currently, we only predict next step after a user intent using LLM
         if event["type"] == "UserIntent":
@@ -724,7 +726,7 @@ class LLMGenerationActions:
 
             # We use temperature 0 for next step prediction as well
             result = await llm_call(
-                llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+                generation_llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
             )
 
             # Parse the output using the associated parser
