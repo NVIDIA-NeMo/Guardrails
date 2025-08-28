@@ -41,6 +41,8 @@ tracing:
 
 ### Key Differences
 
+The following are the key differences between the supported span formats.
+
 **OpenTelemetry Format:**
 
 - Follows the standardized [semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
