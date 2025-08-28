@@ -21,7 +21,9 @@ Starting with NeMo Guardrails v0.16.0, the tracing system has transitioned to Op
 - [GenAI Events Specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/) - Details on capturing user inputs and model outputs
 - [GenAI Spans Specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/) - Span naming and attribute conventions
 
-### Current Formats
+### Supported Formats
+
+NeMo Guardrails support the following formats.
 
 - **OpenTelemetry** (`opentelemetry`) - **Recommended default format** following OpenTelemetry semantic conventions for GenAI
 - **Legacy** (`legacy`) - Previous format with simple metrics dictionary (deprecated)
