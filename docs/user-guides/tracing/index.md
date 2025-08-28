@@ -54,7 +54,7 @@ The following are the key differences between the supported span formats.
 **Legacy Format:**
 
 - Simple metrics dictionary
-- Minimal overhead but limited observability
+- Minimal overhead with limited observability
 - **Deprecated** - maintained for backward compatibility only
 
 ### Important Considerations
