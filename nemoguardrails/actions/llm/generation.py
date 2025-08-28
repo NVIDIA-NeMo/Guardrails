@@ -233,8 +233,13 @@ class LLMGenerationActions:
 
     def _process_flows(self):
         """Process the provided flows to extract the user utterance examples."""
-        flow: Flow
-        for flow in self.config.flows:
+        # Convert all the flows to Flow object
+        flows: List[Flow] = [
+            cast(Flow, flow) if type(flow) == Flow else Flow(**flow)
+            for flow in self.config.flows
+        ]
+
+        for flow in flows:
             if flow.name.startswith("user "):
                 self._extract_user_message_example(flow)
 
