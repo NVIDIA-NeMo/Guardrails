@@ -1506,7 +1506,7 @@ class LLMGenerationActions:
                 events=[new_event_dict("BotMessage", text=text)],
             )
 
-    def _include_reasoning_traces(self) -> Optional[bool]:
+    def _include_reasoning_traces(self) -> bool:
         """Get the configuration value for whether to include reasoning traces in output."""
         return _get_apply_to_reasoning_traces(self.config)
 
@@ -1548,6 +1548,9 @@ def _process_parsed_output(
     return _assemble_response(output.text, reasoning_trace, include_reasoning_trace)
 
 
-def _get_apply_to_reasoning_traces(config: RailsConfig) -> Optional[bool]:
+def _get_apply_to_reasoning_traces(config: RailsConfig) -> bool:
     """Get the configuration value for whether to include reasoning traces in output."""
+    if not config.rails.output.apply_to_reasoning_traces:
+        return False
+
     return config.rails.output.apply_to_reasoning_traces
