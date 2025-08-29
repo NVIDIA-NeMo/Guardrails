@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+import os
 
 from tqdm import tqdm
 
@@ -51,6 +52,7 @@ def load_dataset(dataset_path: str, translation_config: str = None):
         translator = _load_langprovider(translation_config)
         translate_to = _extract_target_language(translation_config)
         service_name = get_translation_cache_name(translator)
+        service_name = service_name + "_" + os.path.basename(dataset_path).split(".")[0]
         cache = get_translation_cache(service_name)
         translated_dataset = []
 

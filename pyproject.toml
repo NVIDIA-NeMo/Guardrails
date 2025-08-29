@@ -110,7 +110,7 @@ gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "opentelemetry-sdk", "aiofiles"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
-translation = ["deepl", "nvidia-riva-client", "torch", "transformers" "sentencepiece"]
+translation = ["deepl", "nvidia-riva-client", "torch", "transformers", "sentencepiece", "langdetect"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
@@ -130,7 +130,7 @@ all = [
   "deepl",
   "nvidia-riva-client",
   "torch",
-  "transformers"
+  "transformers",
   "sentencepiece"
 ]
 

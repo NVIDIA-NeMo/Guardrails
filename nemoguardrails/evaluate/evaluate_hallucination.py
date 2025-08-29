@@ -25,6 +25,7 @@ import typer
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.evaluate.utils import load_dataset
+from nemoguardrails.evaluate.utils_translate import normalize_text
 from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -71,26 +72,19 @@ class HallucinationRailsEvaluation:
 
         # Initialize translation provider if enabled
         self.translator = None
-        self.translate_to = None
         if self.enable_translation:
             try:
-                from nemoguardrails.evaluate.utils import (
-                    _extract_target_language,
-                    _load_langprovider,
-                )
+                from nemoguardrails.evaluate.utils import _load_langprovider
 
                 self.translator = _load_langprovider(self.translation_config)
-                self.translate_to = _extract_target_language(self.translation_config)
-                print(f"✓ Translation provider initialized for {self.translate_to}")
             except Exception as e:
                 print(f"⚠ Translation provider not available: {e}")
 
             # Load dataset with optional translation
-            if self.translator:
-                self.dataset = load_dataset(
-                    self.dataset_path, translation_config=self.translation_config
-                )[: self.num_samples]
-                logging.warning(f"Loaded {len(self.dataset)} samples with translation")
+            self.dataset = load_dataset(
+                self.dataset_path, translation_config=self.translation_config
+            )[: self.num_samples]
+            logging.warning(f"Loaded {len(self.dataset)} samples with translation")
         else:
             self.dataset = load_dataset(self.dataset_path)[: self.num_samples]
 
@@ -99,6 +93,8 @@ class HallucinationRailsEvaluation:
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
+
+        self.english_translator = None
 
     def get_response_with_retries(self, prompt, max_tries=1):
         num_tries = 0
@@ -190,6 +186,22 @@ class HallucinationRailsEvaluation:
                     llm_call(prompt=hallucination_check_prompt, llm=self.llm)
                 )
                 hallucination = hallucination.lower().strip()
+                if self.enable_translation:
+                    from nemoguardrails.evaluate.utils_translate import (
+                        detect_language,
+                        setup_english_translator,
+                        translate_to_english,
+                    )
+
+                    lang = detect_language(hallucination)
+                    if self.english_translator is None:
+                        self.english_translator = setup_english_translator(
+                            self.translator, lang
+                        )
+                    hallucination = translate_to_english(
+                        self.english_translator, hallucination, lang
+                    )
+                    hallucination = normalize_text(hallucination)
 
                 prediction = {
                     "question": question,

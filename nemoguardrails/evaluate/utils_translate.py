@@ -140,6 +140,111 @@ def _translate_with_cache(
     return translated_text
 
 
+def detect_language(text: str) -> str:
+    """
+    Detect the language of the given text.
+
+    Args:
+        text (str): The text to detect language for.
+
+    Returns:
+        str: The detected language code (e.g., 'en', 'ja', 'es', etc.)
+    """
+    try:
+        from langdetect import detect
+
+        detect_language = detect(text)
+        return detect_language
+    except Exception as e:
+        logging.warning(f"Language detection failed: {e}")
+        return "en"  # Default to English if detection fails
+
+
+def setup_english_translator(translator, detect_language: str):
+    # Initialize English translator for fact checking if auto_translate_to_english is enabled
+    try:
+        # Create a translator specifically for English translation
+        # This will be used to translate non-English text to English for fact checking
+        import tempfile
+
+        import yaml
+
+        # Create config for English translation based on the original translator
+        english_config = {
+            "langproviders": [
+                {
+                    "model_type": translator.__class__.__module__.split(".")[-1]
+                    + "."
+                    + translator.__class__.__name__,
+                    "language": detect_language
+                    + ",en",  # auto-detect source language, translate to English
+                    "local_mode": getattr(translator, "local_mode", False),
+                }
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            print("english_config:", english_config)
+            yaml.dump(english_config, f)
+            temp_config_path = f.name
+
+        try:
+            english_translator = _load_langprovider(temp_config_path)
+            print(f"✓ English translation provider initialized for fact checking")
+            return english_translator
+        finally:
+            os.unlink(temp_config_path)
+
+    except Exception as e:
+        print(f"⚠ English translation provider not available: {e}")
+
+
+def translate_to_english(
+    english_translator: TranslationProvider, text: str, source_lang: str
+) -> str:
+    """
+    Translate text to English if it's not already in English.
+
+    Args:
+        text (str): The text to translate.
+        source_lang (str): The source language code.
+
+    Returns:
+        str: The translated text (or original if already English).
+    """
+    if source_lang == "en":
+        return text
+
+    # Skip translation for simple yes/no responses
+    for check_text in ["yes", "no"]:
+        if check_text in text.lower().strip():
+            return text
+
+    if not english_translator:
+        logging.warning("No English translator available, using original text")
+        return text
+
+    try:
+        # Use the dedicated English translator
+        translated_text = english_translator._translate(text)
+        return translated_text
+
+    except Exception as e:
+        logging.warning(f"Translation to English failed: {e}")
+        return text
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normalize hallucination_agreement values into 'yes' or 'no'.
+    """
+    import re
+
+    text = text.strip().lower()
+    text = re.sub(r"[。.,!?]", "", text)
+    return text
+
+
 def load_dataset(dataset_path: str, translation_config: str = None):
     """Loads a dataset from a file with optional translation."""
 
@@ -153,6 +258,7 @@ def load_dataset(dataset_path: str, translation_config: str = None):
     if translation_config:
         translator = _load_langprovider(translation_config)
         service_name = get_translation_cache_name(translator)
+        service_name = service_name + "_" + os.path.basename(dataset_path).split(".")[0]
         cache = get_translation_cache(service_name)
 
         translated_dataset = []
