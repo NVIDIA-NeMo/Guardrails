@@ -102,14 +102,16 @@ def test_translation_cache():
     print(f"Cache file: {stats2.get('cache_file', 'N/A')}")
 
     # Show cache file contents - use new file name format
-    expected_cache_file = "translation_cache/translations_DeeplTranslator.json"
+    expected_cache_file = (
+        "translation_cache/translations_DeeplTranslator_test_data.json"
+    )
     if os.path.exists(expected_cache_file):
         print(f"\nCache file contents ({expected_cache_file}):")
         with open(expected_cache_file, "r") as f:
             cache_data = json.load(f)
             print(f"Cache entries: {len(cache_data)}")
             for key, value in list(cache_data.items())[:3]:  # Show first 3 entries
-                print(f"  {key[:20]}... -> {value[:50]}...")
+                print(f"  {key}... -> {value}...")
     else:
         print(f"\nCache file not found: {expected_cache_file}")
 
@@ -182,7 +184,7 @@ class TestTranslationCache:
 
         # Get cache entry
         result = cache.get(text, target_lang)
-        assert result["translation"] == translated_text
+        assert result == translated_text
 
     def test_cache_persistence(self):
         """Test that cache persists between instances."""
@@ -198,7 +200,7 @@ class TestTranslationCache:
         # Create second cache instance and check if entry exists
         cache2 = TranslationCache(cache_dir=self.cache_dir, service_name=service_name)
         result = cache2.get(text, target_lang)
-        assert result["translation"] == translated_text
+        assert result == translated_text
 
     def test_cache_stats(self):
         """Test cache statistics functionality."""

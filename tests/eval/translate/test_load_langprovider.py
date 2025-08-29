@@ -254,7 +254,9 @@ class TestLoadLangProvider:
             result = load_dataset(test_dataset_path, test_translation_config)
 
             # Verify that get_translation_cache was called with the expected service name
-            expected_service_name = "LocalHFTranslator_facebook_m2m100_1.2B"
+            expected_service_name = (
+                "LocalHFTranslator_facebook_m2m100_1.2B_test_dataset"
+            )
             mock_get_cache.assert_called_once_with(expected_service_name)
 
     @patch("nemoguardrails.evaluate.utils_translate._load_langprovider")
@@ -306,5 +308,5 @@ class TestLoadLangProvider:
             result = load_dataset(test_dataset_path, test_translation_config)
 
             # Verify that get_translation_cache was called with the expected service name
-            expected_service_name = "DeeplTranslator"
+            expected_service_name = "DeeplTranslator_test_dataset"
             mock_get_cache.assert_called_once_with(expected_service_name)
