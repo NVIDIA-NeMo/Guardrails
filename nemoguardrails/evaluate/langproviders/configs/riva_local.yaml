@@ -1,0 +1,5 @@
+langproviders:
+  - language: en,ja
+    model_type: remote.RivaTranslator
+    local_mode: true
+    uri: "localhost:50051"

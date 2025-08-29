@@ -1,0 +1,7 @@
+langproviders:
+  - language: en,ja
+    model_type: remote.RivaTranslator
+    local_mode: false
+    uri: "grpc.nvcf.nvidia.com:443"
+    use_ssl: true
+    function_id: "647147c1-9c23-496c-8304-2e29e7574510"
