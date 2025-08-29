@@ -851,15 +851,17 @@ class LLMGenerationActions:
         log.info("Phase 3 :: Generating bot message ...")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm = llm or self.llm
+        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "BotIntent".
         event = get_last_bot_intent_event(events)
+        assert event
         assert event["type"] == "BotIntent"
         bot_intent = event["intent"]
         context_updates = {}
 
-        streaming_handler = streaming_handler_var.get()
+        streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
+        custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
         # when we have 'output rails streaming' enabled
         # we must disable (skip) the output rails which gets executed on $bot_message
@@ -868,7 +870,11 @@ class LLMGenerationActions:
         # streaming_handler is set when stream_async method is used
 
         # if streaming_handler and len(self.config.rails.output.flows) > 0:
-        if streaming_handler and self.config.rails.output.streaming.enabled:
+        if (
+            streaming_handler
+            and self.config.rails.output.streaming
+            and self.config.rails.output.streaming.enabled
+        ):
             context_updates["skip_output_rails"] = True
 
         if bot_intent in self.config.bot_messages:
@@ -898,7 +904,7 @@ class LLMGenerationActions:
             if self.config.rails.dialog.single_call.enabled:
                 event = get_last_user_intent_event(events)
 
-                if event["type"] == "UserIntent":
+                if event and event["type"] == "UserIntent":
                     bot_message_event = event["additional_info"]["bot_message_event"]
 
                     # We only need to use the bot message if it corresponds to the
@@ -906,7 +912,8 @@ class LLMGenerationActions:
                     last_bot_intent = get_last_bot_intent_event(events)
 
                     if (
-                        last_bot_intent["intent"]
+                        last_bot_intent
+                        and last_bot_intent["intent"]
                         == event["additional_info"]["bot_intent_event"]["intent"]
                     ):
                         text = bot_message_event["text"]
@@ -985,7 +992,9 @@ class LLMGenerationActions:
                                     prompt[i]["content"] = user_message
                                     break
                     else:
-                        prompt = context.get("user_message")
+                        prompt: Optional[str] = context.get("user_message")
+                    if not prompt:
+                        raise Exception("User message not found in context")
 
                     generation_options: GenerationOptions = generation_options_var.get()
                     llm_params = (
@@ -1018,8 +1027,11 @@ class LLMGenerationActions:
                 examples = ""
                 # NOTE: disabling bot message index when there are no user messages
                 if self.config.user_messages and self.bot_message_index:
+                    if not event:
+                        raise Exception("Event intent not found")
+
                     results = await self.bot_message_index.search(
-                        text=event["intent"], max_results=5
+                        text=event["intent"], max_results=5, threshold=None
                     )
 
                     # We add these in reverse order so the most relevant is towards the end.
