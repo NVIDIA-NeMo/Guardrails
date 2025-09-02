@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -195,7 +196,8 @@ class TestServerCommand:
         mock_exists.return_value = True
         result = runner.invoke(app, ["server"])
         assert result.exit_code == 0
-        assert mock_app.rails_config_path == "/current/dir/config"
+        expected_path = os.path.join("/current/dir", "config")
+        assert mock_app.rails_config_path == expected_path
 
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
