@@ -86,6 +86,59 @@ class FakeLLM(LLM):
         """Return type of llm."""
         return "fake-list"
 
+    def _stream(self, prompt, stop=None, run_manager=None, **kwargs):
+        """Stream the response by breaking it into tokens."""
+        if self.exception:
+            raise self.exception
+
+        current_i = self.i
+        if current_i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {current_i + 1} in FakeLLM. "
+                "Most likely, too many LLM calls are made or additional responses need to be provided."
+            )
+
+        response = self.responses[current_i]
+        self.i = current_i + 1
+
+        if not self.streaming:
+            # If streaming is disabled, return single response
+            yield response
+            return
+
+        tokens = response.split()
+        for i, token in enumerate(tokens):
+            if i == 0:
+                yield token
+            else:
+                yield " " + token
+
+    async def _astream(self, prompt, stop=None, run_manager=None, **kwargs):
+        """Async stream the response by breaking it into tokens."""
+        if self.exception:
+            raise self.exception
+
+        current_i = self.i
+        if current_i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {current_i + 1} in FakeLLM. "
+                "Most likely, too many LLM calls are made or additional responses need to be provided."
+            )
+
+        response = self.responses[current_i]
+        self.i = current_i + 1
+
+        if not self.streaming:
+            yield response
+            return
+
+        tokens = response.split()
+        for i, token in enumerate(tokens):
+            if i == 0:
+                yield token
+            else:
+                yield " " + token
+
     def _call(
         self,
         prompt: str,
