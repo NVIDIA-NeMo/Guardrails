@@ -68,5 +68,8 @@ async def trend_ai_guard(text: Optional[str] = None):
             log.debug("Trend Micro AI Guard Result: %s", guard_result)
         except Exception as e:
             log.error("Error calling Trend Micro AI Guard API: %s", e)
-            return GuardResult(action="allow", reason=str(e))
+            return GuardResult(
+                action="allow",
+                reason="An error occurred while calling the Trend Micro AI Guard API.",
+            )
         return guard_result

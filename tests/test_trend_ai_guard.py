@@ -69,7 +69,7 @@ def test_trend_ai_guard_error(
         is_reusable=True, status_code=status_code, json={"result": {}}
     )
 
-    chat = TestChat(output_rail_config, llm_completions=["  Hello!"])  ## ??
+    chat = TestChat(output_rail_config, llm_completions=["  Hello!"])
 
     chat >> "Hi!"
     chat << "Hello!"
