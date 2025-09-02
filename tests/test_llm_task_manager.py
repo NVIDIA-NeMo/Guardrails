@@ -532,3 +532,37 @@ def test_get_task_model_fallback_to_main():
     result = get_task_model(config, "some_other_task")
     assert result is not None
     assert result.type == "main"
+
+
+def test_get_task_model_with_model_specification():
+    """Test that get_task_model correctly extracts model type from task names with $model= specification."""
+    config = RailsConfig.parse_object(
+        {
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "openai",
+                    "model": "gpt-3.5-turbo",
+                },
+                {
+                    "type": "content_safety",
+                    "engine": "openai",
+                    "model": "gpt-4",
+                },
+            ]
+        }
+    )
+
+    # Test with a task name that contains $model= specification
+    result = get_task_model(config, "content_safety_check_input $model=content_safety")
+    assert result is not None
+    assert result.type == "content_safety"
+    assert result.engine == "openai"
+    assert result.model == "gpt-4"
+
+    # Test fallback to main model when specified model type doesn't exist
+    result = get_task_model(config, "unknown_task $model=nonexistent")
+    assert result is not None
+    assert result.type == "main"
+    assert result.engine == "openai"
+    assert result.model == "gpt-3.5-turbo"

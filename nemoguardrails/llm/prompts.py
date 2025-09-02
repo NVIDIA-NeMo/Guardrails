@@ -134,6 +134,17 @@ def get_task_model(config: RailsConfig, task: Union[str, Task]) -> Optional[Mode
     # Fetch current task parameters like name, models to use, and the prompting mode
     task_name = str(task.value) if isinstance(task, Task) else task
 
+    # Check if the task name contains a model specification (e.g., "content_safety_check_input $model=content_safety")
+    if "$model=" in task_name:
+        # Extract the model type from the task name
+        model_type = task_name.split("$model=")[-1].strip()
+        # Look for a model with this specific type
+        if config.models:
+            _models = [model for model in config.models if model.type == model_type]
+            if _models:
+                return _models[0]
+
+    # If no model specification or no matching model found, fall back to the original logic
     if config.models:
         _models = [model for model in config.models if model.type == task_name]
         if not _models:
