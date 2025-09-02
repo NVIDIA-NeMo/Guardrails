@@ -136,7 +136,7 @@ class LLMGenerationActions:
             self._init_flows_index(),
         )
 
-    def _extract_user_message_example(self, flow: Flow):
+    def _extract_user_message_example(self, flow: Flow) -> None:
         """Heuristic to extract user message examples from a flow."""
         elements = [
             item
