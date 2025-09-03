@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.utils import new_event_dict
@@ -37,13 +37,13 @@ async def create_event(
         ActionResult: An action result containing the created event.
     """
 
-    event_dict = new_event_dict(
+    event_dict: Dict[str, Any] = new_event_dict(
         event["_type"], **{k: v for k, v in event.items() if k != "_type"}
     )
 
     # We add basic support for referring variables as values
     for k, v in event_dict.items():
         if isinstance(v, str) and v[0] == "$":
-            event_dict[k] = context.get(v[1:])
+            event_dict[k] = context.get(v[1:], None) if context else None
 
     return ActionResult(events=[event_dict])

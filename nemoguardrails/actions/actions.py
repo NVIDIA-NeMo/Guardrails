@@ -65,7 +65,7 @@ def action(
         callable: The decorated function or class.
     """
 
-    def decorator(fn_or_cls: Union[Callable, type]) -> Union[Callable, type]:
+    def decorator(fn_or_cls: Union[Callable, Type]) -> Union[Callable, Type]:
         """Inner decorator function to add metadata to the action.
 
         Args:

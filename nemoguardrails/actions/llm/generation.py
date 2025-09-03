@@ -124,9 +124,7 @@ class LLMGenerationActions:
 
         # If set, in passthrough mode, this function will be used instead of
         # calling the LLM with the user input.
-        self.passthrough_fn: Optional[
-            Callable[[Dict, List[Dict]], Awaitable[str]]
-        ] = None
+        self.passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
 
     async def init(self):
         # For Colang 2.x we need to do some initial processing
@@ -154,53 +152,58 @@ class LLMGenerationActions:
             spec_op: SpecOp = cast(SpecOp, el)
 
             if spec_op.op == "match":
-                # The SpecOp.spec type is Union[Spec, dict]. So convert to Dict and modify following code to suit
-                spec: Dict[str, Any] = (
-                    asdict(spec_op.spec)
+                # The SpecOp.spec type is Union[Spec, dict]. Convert Dict to Spec if it's provided
+                match_spec: Spec = (
+                    spec_op.spec
                     if type(spec_op.spec) == Spec
-                    else cast(Dict, spec_op.spec)
+                    else Spec(**cast(Dict, spec_op.spec))
                 )
 
-                if not spec["name"] or spec["name"] != "UtteranceUserActionFinished":
+                if (
+                    not match_spec.name
+                    or match_spec.name != "UtteranceUserActionFinished"
+                ):
                     return
 
-                if "final_transcript" not in spec["arguments"]:
+                if "final_transcript" not in match_spec.arguments:
                     return
 
                 # Extract the message and remove the double quotes
-                message = eval_expression(spec["arguments"]["final_transcript"], {})
+                message = eval_expression(match_spec.arguments["final_transcript"], {})
                 if isinstance(message, str):
                     self.user_messages[flow.name] = [message]
 
             elif spec_op.op == "await":
-                # The SpecOp.spec type is Union[Spec, dict]. So convert to Dict and modify following code to suit
-                spec: Dict[str, Any] = (
+                # The SpecOp.spec type is Union[Spec, dict]. Need to convert to Dict to have `elements` field
+                # which isn't in the Spec definition
+                await_spec_dict: Dict[str, Any] = (
                     asdict(spec_op.spec)
                     if type(spec_op.spec) == Spec
                     else cast(Dict, spec_op.spec)
                 )
 
-                if spec["_type"] == "spec_or":
-                    specs = spec[
-                        "elements"
-                    ]  # TODO There is no `elements` attribute in SpecOr
+                if (
+                    isinstance(await_spec_dict, dict)
+                    and await_spec_dict.get("_type") == "spec_or"
+                ):
+                    specs = await_spec_dict.get("elements", None)
                 else:
-                    assert isinstance(spec, Spec)
-                    specs = [spec]
+                    specs = [await_spec_dict]
 
-                for spec in specs:
-                    if (
-                        not spec["name"].startswith("user ")
-                        or not spec["arguments"]
-                        or not spec["arguments"]["$0"]
-                    ):
-                        continue
+                if specs:
+                    for spec in specs:
+                        if (
+                            not spec["name"].startswith("user ")
+                            or not spec["arguments"]
+                            or not spec["arguments"]["$0"]
+                        ):
+                            continue
 
-                    message = eval_expression(spec["arguments"]["$0"], {})
-                    if isinstance(message, str):
-                        if flow.name not in self.user_messages:
-                            self.user_messages[flow.name] = []
-                        self.user_messages[flow.name].append(message)
+                        message = eval_expression(spec["arguments"]["$0"], {})
+                        if isinstance(message, str):
+                            if flow.name not in self.user_messages:
+                                self.user_messages[flow.name] = []
+                            self.user_messages[flow.name].append(message)
 
     def _extract_bot_message_example(self, flow: Flow):
         # Quick heuristic to identify the user utterance examples
@@ -1213,7 +1216,7 @@ class LLMGenerationActions:
     async def generate_intent_steps_message(
         self,
         events: List[dict],
-        llm: Optional[BaseLLM] = None,
+        llm: Optional[Union[BaseLLM, BaseChatModel]] = None,
         kb: Optional[KnowledgeBase] = None,
     ):
         """Generate all three main Guardrails phases with a single LLM call.
