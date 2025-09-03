@@ -14,14 +14,35 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional, TypedDict, Union
+from typing import (
+    Any,
+    Callable,
+    List,
+    Optional,
+    Protocol,
+    Type,
+    TypedDict,
+    TypeVar,
+    Union,
+    cast,
+)
 
 
-class ActionMeta(TypedDict, total=False):
+class ActionMeta(TypedDict):
     name: str
     is_system_action: bool
     execute_async: bool
     output_mapping: Optional[Callable[[Any], bool]]
+
+
+class Actionable(Protocol):
+    """Protocol for any object with ActionMeta metadata (i.e. decorated with @action)"""
+
+    action_meta: ActionMeta
+
+
+# Create a TypeVar to represent the decorated function or class
+T = TypeVar("T", bound=Union[Callable[..., Any], Type[Any]])
 
 
 def action(
@@ -29,12 +50,12 @@ def action(
     name: Optional[str] = None,
     execute_async: bool = False,
     output_mapping: Optional[Callable[[Any], bool]] = None,
-) -> Callable[[Union[Callable, type]], Union[Callable, type]]:
+) -> Callable[[T], T]:
     """Decorator to mark a function or class as an action.
 
     Args:
         is_system_action (bool): Flag indicating if the action is a system action.
-        name (Optional[str]): The name to associate with the action.
+        name (str): The name to associate with the action.
         execute_async: Whether the function should be executed in async mode.
         output_mapping (Optional[Callable[[Any], bool]]): A function to interpret the action's result.
             It accepts the return value (e.g. the first element of a tuple) and return True if the output
@@ -52,8 +73,11 @@ def action(
         """
         fn_or_cls_target = getattr(fn_or_cls, "__func__", fn_or_cls)
 
+        # Action name is optional for the decorator, but mandatory for ActionMeta TypedDict
+        action_name: str = cast(str, name or fn_or_cls.__name__)
+
         action_meta: ActionMeta = {
-            "name": name or fn_or_cls.__name__,
+            "name": action_name,
             "is_system_action": is_system_action,
             "execute_async": execute_async,
             "output_mapping": output_mapping,
