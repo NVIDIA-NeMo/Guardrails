@@ -1,3 +1,5 @@
+(kv-cache-reuse)=
+
 # KV Cache Reuse for NemoGuard NIM
 
 When you configure NeMo Guardrails to call NemoGuard NIMs in response to a client request, every NIM call interjecting the input and response adds to the inference latency.
