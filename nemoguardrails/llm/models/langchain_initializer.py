@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 # Suppress specific LangChain warnings
 warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
 warnings.filterwarnings("ignore", category=LangChainBetaWarning)
+warnings.filterwarnings("ignore", module="langchain_nvidia_ai_endpoints._common")
 
 
 class ModelInitializationError(Exception):
