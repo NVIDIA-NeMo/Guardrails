@@ -23,6 +23,10 @@ input_rail_config = RailsConfig.from_content(
     yaml_content="""
         models: []
         rails:
+          config:
+            trend_micro:
+              v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard"
+              api_key_env_var: "V1_API_KEY"
           input:
             flows:
               - trend ai guard input
@@ -32,6 +36,10 @@ output_rail_config = RailsConfig.from_content(
     yaml_content="""
         models: []
         rails:
+          config:
+            trend_micro:
+              v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard"
+              api_key_env_var: "V1_API_KEY"
           output:
             flows:
               - trend ai guard output
@@ -60,7 +68,7 @@ def test_trend_ai_guard_blocked(httpx_mock: HTTPXMock, monkeypatch: pytest.Monke
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("status_code", frozenset({429, 500, 502, 503, 504}))
+@pytest.mark.parametrize("status_code", frozenset({400, 403, 429, 500}))
 def test_trend_ai_guard_error(
     httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, status_code: int
 ):

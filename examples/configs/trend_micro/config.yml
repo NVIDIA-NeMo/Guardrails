@@ -11,6 +11,9 @@ instructions:
       You are a helpful assistant.
 
 rails:
+  config:
+    trend_micro:
+      api_key_env_var: "V1_API_KEY"
   input:
     flows:
       - trend ai guard input

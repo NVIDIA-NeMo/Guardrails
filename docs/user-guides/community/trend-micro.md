@@ -7,16 +7,10 @@ Trend Micro Vision One [AI Application Security's](https://docs.trendmicro.com/e
 - Sensitive Data
 
 
-The following environment variable is required to use the integration:
-
-- `V1_API_KEY`: A Vision One API Token with AI Guard Permissions
-
-You can optionally set:
-
-- `V1_URL`: The URL for which instances of AI Guard should be invoked
-  Defaults to `https://api.xdr.trendmicro.com/beta/aiSecurity/guard` for Vision One's hosted US SaaS deployment
-
 ## Setup
+
+1. Create a new [Vision One API Key](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-platform-api-keys) with permissions to Call Detection API
+2. See the [AI Guard Integration Guide](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-platform-api-keys) for details around creating your policy
 
 [Colang v1](../../../examples/configs/trend_micro/):
 
@@ -24,6 +18,10 @@ You can optionally set:
 # config.yml
 
 rails:
+  config:
+    trend_micro:
+      v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard" # Replace this with your AI Guard URL
+      api_key_env_var: "V1_API_KEY"
   input:
     flows:
       - trend ai guard input
@@ -36,6 +34,11 @@ rails:
 ```yaml
 # config.yml
 colang_version: "2.x"
+rails:
+  config:
+    trend_micro:
+      v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard" # Replace this with your AI Guard URL
+      api_key_env_var: "V1_API_KEY"
 ```
 ```
 # rails.co

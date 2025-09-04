@@ -2,7 +2,11 @@ import guardrails
 import nemoguardrails.library.trend_micro
 
 flow input rails $input_text
-    trend ai guard $input_text
+    $result = await TrendAiGuardAction(text=$input_text)
+
+    if $result.action == "Block"
+       send AiGuardException(message="AI Guard detection: " + $result.reason)
+       abort
 
 flow output rails $output_text
     trend ai guard $output_text

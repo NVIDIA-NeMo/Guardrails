@@ -918,7 +918,10 @@ For more details, check out the [Pangea AI Guard Integration](./community/pangea
 
 ### Trend Micro Vision One AI Application Security
 
-NeMo Guardrails supports using Trend Micro Vision One AI Guard for protecting input and output flows within AI-powered applications.
+NeMo Guardrails supports using
+[Trend Micro Vision One AI Guard](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-ai-scanner-ai-guard) for protecting input and output flows within AI-powered applications.
+
+See [Trend Micro](community/trend-micro.md) for more details.
 
 #### Example usage
 

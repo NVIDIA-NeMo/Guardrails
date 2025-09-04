@@ -14,14 +14,15 @@
 # limitations under the License.
 
 import logging
-import os
 from typing import Optional
 
 import httpx
 from pydantic import BaseModel
 from pydantic_core import to_json
+from typing_extensions import cast
 
 from nemoguardrails.actions import action
+from nemoguardrails.rails.llm.config import RailsConfig, TrendMicroRailConfig
 
 log = logging.getLogger(__name__)
 
@@ -35,17 +36,30 @@ class GuardResult(BaseModel):
     reason: str
 
 
+def get_config(config: RailsConfig) -> TrendMicroRailConfig:
+    if (
+        not hasattr(config.rails.config, "trend_micro")
+        or config.rails.config.trend_micro is None
+    ):
+        return TrendMicroRailConfig()
+
+    return cast(TrendMicroRailConfig, config.rails.config.trend_micro)
+
+
 @action(is_system_action=True)
-async def trend_ai_guard(text: Optional[str] = None):
+async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
     """
     Custom action to invoke the Trend Ai Guard
     """
-    v1_url = os.environ.get(
-        "V1_URL", "https://api.xdr.trendmicro.com/beta/aiSecurity/guard"
-    )
-    v1_api_key = os.environ.get("V1_API_KEY")
+
+    trend_config = get_config(config)
+
+    # No checks required since default is set in TrendMicroRailConfig
+    v1_url = trend_config.v1_url
+
+    v1_api_key = trend_config.get_api_key()
     if not v1_api_key:
-        raise ValueError("V1_API_KEY environment variable is not set.")
+        raise ValueError("Trend Micro Vision One API Key not found")
 
     if text is None:
         raise ValueError("No prompt/response found in the last event.")
