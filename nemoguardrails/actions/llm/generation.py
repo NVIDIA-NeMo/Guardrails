@@ -238,9 +238,9 @@ class LLMGenerationActions:
 
     def _process_flows(self):
         """Process the provided flows to extract the user utterance examples."""
-        # Convert all the flows to Flow object
+        # Flows can be either Flow or Dict. Convert them all to Flow for following code
         flows: List[Flow] = [
-            cast(Flow, flow) if type(flow) == Flow else Flow(**flow)
+            cast(Flow, flow) if type(flow) == Flow else Flow(**cast(Dict, flow))
             for flow in self.config.flows
         ]
 
@@ -958,7 +958,7 @@ class LLMGenerationActions:
             if self.config.passthrough:
                 # If we have a passthrough function, we use that.
                 if self.passthrough_fn:
-                    prompt = None
+                    prompt = None  # pyright: ignore (TODO - refactor nested `prompt` definitions)
                     raw_output = await self.passthrough_fn(
                         context=context, events=events
                     )
@@ -999,7 +999,9 @@ class LLMGenerationActions:
                                     prompt[i]["content"] = user_message
                                     break
                     else:
-                        prompt: Optional[str] = context.get("user_message")
+                        prompt: Optional[str] = context.get(
+                        "user_message"
+                    )  # pyright: ignore (TODO - refactor nested `prompt` definitions)
                     if not prompt:
                         raise Exception("User message not found in context")
 

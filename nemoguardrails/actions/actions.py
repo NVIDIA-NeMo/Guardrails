@@ -86,7 +86,7 @@ def action(
         setattr(fn_or_cls_target, "action_meta", action_meta)
         return fn_or_cls
 
-    return decorator
+    return decorator  # pyright: ignore (TODO - resolve how the Actionable Protocol doesn't resolve the issue)
 
 
 @dataclass

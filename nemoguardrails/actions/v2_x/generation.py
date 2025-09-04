@@ -19,9 +19,11 @@ import logging
 import re
 import textwrap
 from ast import literal_eval
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
+from pytest_asyncio.plugin import event_loop
 from rich.text import Text
 
 from nemoguardrails.actions.actions import action
@@ -37,7 +39,7 @@ from nemoguardrails.actions.llm.utils import (
     llm_call,
     remove_action_intent_identifiers,
 )
-from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
+from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, Spec, SpecOp
 from nemoguardrails.colang.v2_x.runtime.errors import LlmResponseError
 from nemoguardrails.colang.v2_x.runtime.flows import ActionEvent, InternalEvent
 from nemoguardrails.colang.v2_x.runtime.statemachine import (
@@ -60,6 +62,7 @@ from nemoguardrails.llm.types import Task
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.utils import console, new_uuid
 
 log = logging.getLogger(__name__)
@@ -122,15 +125,23 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         # The list of flows that have instructions, i.e. docstring at the beginning.
         instruction_flows = []
-
         for flow in self.config.flows:
-            colang_flow = flow.get("source_code")
+            # RailsConfig flow can be either Dict or Flow. Convert dicts to Flow for rest of the function
+            typed_flow: Flow = (
+                Flow(**cast(Dict, flow)) if isinstance(flow, Dict) else flow
+            )
+            colang_flow = typed_flow.source_code
             if colang_flow:
-                assert isinstance(flow, Flow)
                 # Check if we need to exclude this flow.
-                if flow.file_info.get("exclude_from_llm") or (
-                    "meta" in flow.decorators
-                    and flow.decorators["meta"].parameters.get("llm_exclude")
+
+                has_llm_exclude_parameter: bool = any(
+                    [
+                        "llm_exclude" in decorator.parameters
+                        for decorator in typed_flow.decorators
+                    ]
+                )
+                if typed_flow.file_info.get("exclude_from_llm") or (
+                    "meta" in typed_flow.decorators and has_llm_exclude_parameter
                 ):
                     continue
 
@@ -223,9 +234,15 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
                     ):
                         if flow_config.elements[1]["_type"] == "doc_string_stmt":
                             examples += "user action: <" + (
-                                flow_config.elements[1]["elements"][0]["elements"][0][
+                                flow_config.elements[1]["elements"][0]["elements"][
+                                    0
+                                ][  # pyright: ignore (TODO - Don't know where to even start with this line of code)
                                     "elements"
-                                ][0][3:-3]
+                                ][
+                                    0
+                                ][
+                                    3:-3
+                                ]
                                 + ">\n"
                             )
                             examples += f"user intent: {flow_id}\n\n"
@@ -250,7 +267,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         return event["final_transcript"]
 
     @action(name="GenerateUserIntentAction", is_system_action=True, execute_async=True)
-    async def generate_user_intent(
+    async def generate_user_intent(  # pyright: ignore (TODO - Signature completely different to base class)
         self,
         state: State,
         events: List[dict],

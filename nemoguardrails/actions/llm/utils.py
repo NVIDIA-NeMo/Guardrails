@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
@@ -56,9 +56,10 @@ def _infer_model_name(llm: BaseLanguageModel):
             if isinstance(val, str):
                 return val
 
-    if hasattr(llm, "model_kwargs") and isinstance(llm.model_kwargs, dict):
+    model_kwargs = getattr(llm, "model_kwargs", None)
+    if model_kwargs and isinstance(model_kwargs, Dict):
         for attr in ["model", "model_name", "name"]:
-            val = llm.model_kwargs.get(attr)
+            val = model_kwargs.get(attr)
             if isinstance(val, str):
                 return val
 
@@ -124,8 +125,9 @@ def _prepare_callbacks(
     """Prepare callback manager with custom handlers if provided."""
     if custom_callback_handlers and custom_callback_handlers != [None]:
         return BaseCallbackManager(
-            handlers=logging_callbacks.handlers + custom_callback_handlers,
-            inheritable_handlers=logging_callbacks.handlers + custom_callback_handlers,
+            handlers=logging_callbacks.handlers + list(custom_callback_handlers),
+            inheritable_handlers=logging_callbacks.handlers
+            + list(custom_callback_handlers),
         )
     return logging_callbacks
 

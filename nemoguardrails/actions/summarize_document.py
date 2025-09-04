@@ -15,7 +15,7 @@
 
 from langchain.chains import AnalyzeDocumentChain
 from langchain.chains.summarize import load_summarize_chain
-from langchain.llms import BaseLLM
+from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import action
 
