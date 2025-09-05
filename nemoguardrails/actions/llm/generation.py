@@ -999,7 +999,9 @@ class LLMGenerationActions:
                                     prompt[i]["content"] = user_message
                                     break
                     else:
-                        prompt: Optional[str] = context.get(
+                        prompt: Optional[
+                        str
+                    ] = context.get(  # pyright: ignore (TODO Refactor these branches into separate methods)
                         "user_message"
                     )  # pyright: ignore (TODO - refactor nested `prompt` definitions)
                     if not prompt:
