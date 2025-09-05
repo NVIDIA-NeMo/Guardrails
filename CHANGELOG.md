@@ -21,6 +21,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 🐛 Bug Fixes
 
+- *(models)* Suppress langchain_nvidia_ai_endpoints warnings ([#1371](https://github.com/NVIDIA/NeMo-Guardrails/issues/1371))
 - *(tracing)* Respect the user-provided log options regardless of tracing configuration
 - *(config)* Ensure adding RailsConfig objects handles None values ([#1328](https://github.com/NVIDIA/NeMo-Guardrails/issues/1328))
 - *(config)* Add handling for config directory with `.yml`/`.yaml` extension ([#1293](https://github.com/NVIDIA/NeMo-Guardrails/issues/1293))
@@ -36,6 +37,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 📚 Documentation
 
+- Integrate with multilingual NIM ([#1354](https://github.com/NVIDIA/NeMo-Guardrails/issues/1354))
+- *(tracing)* Update tracing notebooks with VDR feedback ([#1376](https://github.com/NVIDIA/NeMo-Guardrails/issues/1376))
 - Add kv cache reuse documentation ([#1330](https://github.com/NVIDIA/NeMo-Guardrails/issues/1330))
 - *(examples)* Add Colang 2.0 example for sensitive data detection ([#1301](https://github.com/NVIDIA/NeMo-Guardrails/issues/1301))
 - Add extra slash to jailbreak detect nim_base_url([#1345](https://github.com/NVIDIA/NeMo-Guardrails/issues/1345))
@@ -52,7 +55,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### ⚙️ Miscellaneous Tasks
 
 - *(docs)* Rename test_csl.py to csl.py ([#1347](https://github.com/NVIDIA/NeMo-Guardrails/issues/1347))
-
 
 ## [0.15.0] - 2025-08-08
 
