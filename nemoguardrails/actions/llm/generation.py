@@ -999,11 +999,11 @@ class LLMGenerationActions:
                                     prompt[i]["content"] = user_message
                                     break
                     else:
-                        prompt: Optional[
+                        prompt: Optional[  # pyright: ignore (TODO Refactor these branches into separate methods)
                         str
                     ] = context.get(  # pyright: ignore (TODO Refactor these branches into separate methods)
                         "user_message"
-                    )  # pyright: ignore (TODO - refactor nested `prompt` definitions)
+                    )
                     if not prompt:
                         raise Exception("User message not found in context")
 
@@ -1058,7 +1058,10 @@ class LLMGenerationActions:
                 ] = self.llm_task_manager.render_task_prompt(
                     task=Task.GENERATE_BOT_MESSAGE,
                     events=events,
-                    context={"examples": examples, "relevant_chunks": relevant_chunks},
+                    context={
+                        "examples": examples,
+                        "relevant_chunks": relevant_chunks,
+                    },
                 )
 
                 t0 = time()

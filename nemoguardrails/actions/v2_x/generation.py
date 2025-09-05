@@ -235,18 +235,11 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
                         and "_user_intent" in element_flow_state_instance[0].context
                     ):
                         if flow_config.elements[1]["_type"] == "doc_string_stmt":
+                            # TODO! Need to make this type-safe but no idea what's going on
                             examples += "user action: <" + (
-                                flow_config.elements[1]["elements"][0][
-                                    "elements"
-                                ][  # pyright: ignore (TODO - Don't know where to even start with this line of code)
+                                flow_config.elements[1]["elements"][  # pyright: ignore
                                     0
-                                ][
-                                    "elements"
-                                ][
-                                    0
-                                ][
-                                    3:-3
-                                ]
+                                ]["elements"][0]["elements"][0][3:-3]
                                 + ">\n"
                             )
                             examples += f"user intent: {flow_id}\n\n"
@@ -495,8 +488,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         )
 
         text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
-
-        text = result.text
 
         return text
 
