@@ -177,9 +177,13 @@ def convert_colang_2alpha_syntax(lines: List[str]) -> List[str]:
                     r"#\s*meta:\s*loop_id=(.*)", r'@loop("\1")', line.lstrip()
                 )
             else:
+
+                def replace_meta(m):
+                    return "@meta(" + m.group(1).replace(" ", "_") + "=True)"
+
                 meta_decorator = re.sub(
                     r"#\s*meta:\s*(.*)",
-                    lambda m: "@meta(" + m.group(1).replace(" ", "_") + "=True)",
+                    replace_meta,
                     line.lstrip(),
                 )
             meta_decorators.append(meta_decorator)
@@ -216,7 +220,8 @@ def convert_colang_1_syntax(lines: List[str]) -> List[str]:
 
         # Check if the line matches the pattern $variable = ...
         # use of ellipsis in Colang 1.0
-        # Based on https://github.com/NVIDIA/NeMo-Guardrails/blob/ff17a88efe70ed61580a36aaae5739f5aac6dccc/nemoguardrails/colang/v1_0/lang/coyml_parser.py#L610C1-L617C84
+        # Based on https://github.com/NVIDIA/NeMo-Guardrails/blob/ff17a88efe70ed61580a36aaae5739f5aac6dccc/
+        # nemoguardrails/colang/v1_0/lang/coyml_parser.py#L610C1-L617C84
 
         if i > 0 and re.match(r"\s*\$\s*.*\s*=\s*\.\.\.", line):
             # Extract the variable name
@@ -224,9 +229,14 @@ def convert_colang_1_syntax(lines: List[str]) -> List[str]:
             comment_match = re.search(r"# (.*)", lines[i - 1])
             if variable_match and comment_match:
                 variable = variable_match.group(1)
-                comment = comment_match.group(1)
+                comment = comment_match.group(1) or ""
                 # Extract the leading whitespace
-                leading_whitespace = re.match(r"(\s*)", line).group(1)
+                leading_whitespace_match = re.match(r"(\s*)", line)
+                leading_whitespace = (
+                    leading_whitespace_match.group(1)
+                    if leading_whitespace_match
+                    else ""
+                )
                 # Replace the line, preserving the leading whitespace
                 line = f'{leading_whitespace}${variable} = ... "{comment}"'
 
@@ -256,7 +266,7 @@ def convert_colang_1_syntax(lines: List[str]) -> List[str]:
 
         if _is_anonymous_flow(line):
             # warnings.warn("Using anonymous flow is deprecated in Colang 2.0.")
-            line = _revise_anonymous_flow(line, next_line) + "\n"
+            line = _revise_anonymous_flow(line, next_line or "") + "\n"
 
         # We convert "define bot" to "flow bot" and set the flag
         if "define bot" in line:
@@ -572,7 +582,7 @@ def _add_active_decorator(new_lines: List) -> List:
 
 def _get_raw_config(config_path: str):
     """read the yaml file and get rails key"""
-
+    raw_config = None
     if config_path.endswith(".yaml") or config_path.endswith(".yml"):
         with open(config_path) as f:
             raw_config = yaml.safe_load(f.read())
@@ -1067,9 +1077,9 @@ def _process_sample_conversation_in_config(file_path: str):
 
     stripped_sample_lines = [line[sample_conv_indent:] for line in sample_lines]
     new_sample_lines = convert_sample_conversation_syntax(stripped_sample_lines)
-    # revert  the indentation
+    # revert the indentation
     indented_new_sample_lines = [
-        " " * sample_conv_indent + line for line in new_sample_lines
+        " " * (sample_conv_indent or 0) + line for line in new_sample_lines
     ]
     lines[sample_conv_line_idx + 1 : sample_conv_end_idx] = indented_new_sample_lines
     # Write back the modified lines
