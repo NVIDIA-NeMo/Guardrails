@@ -412,6 +412,10 @@ class GenerationResponse(BaseModel):
         default=None,
         description="Tool calls extracted from the LLM response, if any.",
     )
+    llm_metadata: Optional[dict] = Field(
+        default=None,
+        description="Metadata from the LLM response (additional_kwargs, response_metadata, usage_metadata, etc.)",
+    )
 
 
 if __name__ == "__main__":
