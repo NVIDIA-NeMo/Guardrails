@@ -673,6 +673,21 @@ def get_and_clear_tool_calls_contextvar() -> Optional[list]:
     return None
 
 
+def extract_tool_calls_from_events(events: list) -> Optional[list]:
+    """Extract tool_calls from BotToolCall events.
+
+    Args:
+        events: List of events to search through
+
+    Returns:
+        tool_calls if found in BotToolCall event, None otherwise
+    """
+    for event in events:
+        if event.get("type") == "BotToolCall":
+            return event.get("tool_calls")
+    return None
+
+
 def get_and_clear_response_metadata_contextvar() -> Optional[dict]:
     """Get the current response metadata and clear it from the context.
 

@@ -102,6 +102,34 @@ define parallel extension flow generate bot message
   execute generate_bot_message
 
 
+define parallel extension flow process bot tool call
+  """Processes tool calls from the bot."""
+  priority 100
+
+  event BotToolCall
+
+  $tool_calls = $event.tool_calls
+
+  # Run tool-specific output rails if configured (Phase 2)
+  if $config.rails.tool_output.flows
+    # If we have generation options, we make sure the tool output rails are enabled.
+    if $generation_options is None or $generation_options.rails.tool_output:
+      # Create a marker event.
+      create event StartToolOutputRails
+      event StartToolOutputRails
+
+      # Run all the tool output rails
+      # This can potentially alter or block the tool calls
+      do run tool output rails
+
+      # Create a marker event.
+      create event ToolOutputRailsFinished
+      event ToolOutputRailsFinished
+
+  # Create the action event for tool execution
+  create event StartToolCallBotAction(tool_calls=$tool_calls)
+
+
 define parallel extension flow process bot message
   """Runs the output rails on a bot message."""
   priority 100
@@ -164,3 +192,25 @@ define subflow run retrieval rails
   while $i < len($retrieval_flows)
     do $retrieval_flows[$i]
     $i = $i + 1
+
+
+define subflow run tool output rails
+  """Runs all the tool output rails in a sequential order."""
+  $tool_output_flows = $config.rails.tool_output.flows
+
+  $i = 0
+  while $i < len($tool_output_flows)
+    # We set the current rail as being triggered.
+    $triggered_tool_output_rail = $tool_output_flows[$i]
+
+    create event StartToolOutputRail(flow_id=$triggered_tool_output_rail)
+    event StartToolOutputRail
+
+    do $tool_output_flows[$i]
+    $i = $i + 1
+
+    create event ToolOutputRailFinished(flow_id=$triggered_tool_output_rail)
+    event ToolOutputRailFinished
+
+    # If all went smooth, we remove it.
+    $triggered_tool_output_rail = None

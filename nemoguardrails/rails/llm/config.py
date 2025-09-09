@@ -527,6 +527,40 @@ class ActionRails(BaseModel):
     )
 
 
+class ToolOutputRails(BaseModel):
+    """Configuration of tool output rails.
+
+    Tool output rails are applied to tool calls before they are executed.
+    They can validate tool names, parameters, and context to ensure safe tool usage.
+    """
+
+    flows: List[str] = Field(
+        default_factory=list,
+        description="The names of all the flows that implement tool output rails.",
+    )
+    parallel: Optional[bool] = Field(
+        default=False,
+        description="If True, the tool output rails are executed in parallel.",
+    )
+
+
+class ToolInputRails(BaseModel):
+    """Configuration of tool input rails.
+
+    Tool input rails are applied to tool results before they are processed.
+    They can validate, filter, or transform tool outputs for security and safety.
+    """
+
+    flows: List[str] = Field(
+        default_factory=list,
+        description="The names of all the flows that implement tool input rails.",
+    )
+    parallel: Optional[bool] = Field(
+        default=False,
+        description="If True, the tool input rails are executed in parallel.",
+    )
+
+
 class SingleCallConfig(BaseModel):
     """Configuration for the single LLM call option for topical rails."""
 
@@ -911,6 +945,14 @@ class Rails(BaseModel):
     )
     actions: ActionRails = Field(
         default_factory=ActionRails, description="Configuration of action rails."
+    )
+    tool_output: ToolOutputRails = Field(
+        default_factory=ToolOutputRails,
+        description="Configuration of tool output rails.",
+    )
+    tool_input: ToolInputRails = Field(
+        default_factory=ToolInputRails,
+        description="Configuration of tool input rails.",
     )
 
 
