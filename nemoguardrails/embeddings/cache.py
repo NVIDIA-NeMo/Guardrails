@@ -20,7 +20,12 @@ import logging
 from abc import ABC, abstractmethod
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+try:
+    import redis  # type: ignore
+except ImportError:
+    redis = None  # type: ignore
 
 from nemoguardrails.rails.llm.config import EmbeddingsCacheConfig
 
@@ -30,6 +35,8 @@ log = logging.getLogger(__name__)
 class KeyGenerator(ABC):
     """Abstract class for key generators."""
 
+    name: str  # Class attribute that should be defined in subclasses
+
     @abstractmethod
     def generate_key(self, text: str) -> str:
         pass
@@ -37,11 +44,11 @@ class KeyGenerator(ABC):
     @classmethod
     def from_name(cls, name):
         for subclass in cls.__subclasses__():
-            if subclass.name == name:
+            if hasattr(subclass, "name") and subclass.name == name:
                 return subclass
         raise ValueError(
             f"Unknown {cls.__name__}: {name}. Available {cls.__name__}s are: "
-            f"{', '.join([subclass.name for subclass in cls.__subclasses__()])}"
+            f"{', '.join([subclass.name for subclass in cls.__subclasses__() if hasattr(subclass, 'name')])}"
             ". Make sure to import the derived class before using it."
         )
 
@@ -76,6 +83,8 @@ class SHA256KeyGenerator(KeyGenerator):
 class CacheStore(ABC):
     """Abstract class for cache stores."""
 
+    name: str  # Class attribute that should be defined in subclasses
+
     @abstractmethod
     def get(self, key):
         """Get a value from the cache."""
@@ -94,11 +103,11 @@ class CacheStore(ABC):
     @classmethod
     def from_name(cls, name):
         for subclass in cls.__subclasses__():
-            if subclass.name == name:
+            if hasattr(subclass, "name") and subclass.name == name:
                 return subclass
         raise ValueError(
             f"Unknown {cls.__name__}: {name}. Available {cls.__name__}s are: "
-            f"{', '.join([subclass.name for subclass in cls.__subclasses__()])}"
+            f"{', '.join([subclass.name for subclass in cls.__subclasses__() if hasattr(subclass, 'name')])}"
             ". Make sure to import the derived class before using it."
         )
 
@@ -147,7 +156,7 @@ class FilesystemCacheStore(CacheStore):
 
     name = "filesystem"
 
-    def __init__(self, cache_dir: str = None):
+    def __init__(self, cache_dir: Optional[str] = None):
         self._cache_dir = Path(cache_dir or ".cache/embeddings")
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -190,8 +199,10 @@ class RedisCacheStore(CacheStore):
     name = "redis"
 
     def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0):
-        import redis
-
+        if redis is None:
+            raise ImportError(
+                "Could not import redis, please install it with `pip install redis`."
+            )
         self._redis = redis.Redis(host=host, port=port, db=db)
 
     def get(self, key):
@@ -207,9 +218,9 @@ class RedisCacheStore(CacheStore):
 class EmbeddingsCache:
     def __init__(
         self,
-        key_generator: KeyGenerator = None,
-        cache_store: CacheStore = None,
-        store_config: dict = None,
+        key_generator: Optional[KeyGenerator] = None,
+        cache_store: Optional[CacheStore] = None,
+        store_config: Optional[dict] = None,
     ):
         self._key_generator = key_generator
         self._cache_store = cache_store
@@ -218,7 +229,10 @@ class EmbeddingsCache:
     @classmethod
     def from_dict(cls, d: Dict[str, str]):
         key_generator = KeyGenerator.from_name(d.get("key_generator"))()
-        store_config = d.get("store_config")
+        store_config_raw = d.get("store_config")
+        store_config: dict = (
+            store_config_raw if isinstance(store_config_raw, dict) else {}
+        )
         cache_store = CacheStore.from_name(d.get("store"))(**store_config)
 
         return cls(key_generator=key_generator, cache_store=cache_store)
@@ -230,8 +244,8 @@ class EmbeddingsCache:
 
     def get_config(self):
         return EmbeddingsCacheConfig(
-            key_generator=self._key_generator.name,
-            store=self._cache_store.name,
+            key_generator=self._key_generator.name if self._key_generator else "sha256",
+            store=self._cache_store.name if self._cache_store else "filesystem",
             store_config=self._store_config,
         )
 
@@ -239,8 +253,10 @@ class EmbeddingsCache:
     def get(self, texts):
         raise NotImplementedError
 
-    @get.register
+    @get.register(str)
     def _(self, text: str):
+        if self._key_generator is None or self._cache_store is None:
+            return None
         key = self._key_generator.generate_key(text)
         log.info(f"Fetching key {key} for text '{text[:20]}...' from cache")
 
@@ -248,7 +264,7 @@ class EmbeddingsCache:
 
         return result
 
-    @get.register
+    @get.register(list)
     def _(self, texts: list):
         cached = {}
 
@@ -266,19 +282,22 @@ class EmbeddingsCache:
     def set(self, texts):
         raise NotImplementedError
 
-    @set.register
+    @set.register(str)
     def _(self, text: str, value: List[float]):
+        if self._key_generator is None or self._cache_store is None:
+            return
         key = self._key_generator.generate_key(text)
         log.info(f"Cache miss for text '{text}'. Storing key {key} in cache.")
         self._cache_store.set(key, value)
 
-    @set.register
+    @set.register(list)
     def _(self, texts: list, values: List[List[float]]):
         for text, value in zip(texts, values):
             self.set(text, value)
 
     def clear(self):
-        self._cache_store.clear()
+        if self._cache_store is not None:
+            self._cache_store.clear()
 
 
 def cache_embeddings(func):
