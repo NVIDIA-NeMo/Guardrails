@@ -216,7 +216,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         heads = find_all_active_event_matchers(state)
         for head in heads:
             el = get_element_from_head(state, head)
-            element = el if type(el) == SpecOp else SpecOp(**cast(Dict, el))
+            element = el if isinstance(el, SpecOp) else SpecOp(**cast(Dict, el))
             flow_state = state.flow_states[head.flow_state_uid]
             event = get_event_from_element(state, flow_state, element)
             if (

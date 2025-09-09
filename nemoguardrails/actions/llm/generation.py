@@ -155,7 +155,7 @@ class LLMGenerationActions:
                 # The SpecOp.spec type is Union[Spec, dict]. Convert Dict to Spec if it's provided
                 match_spec: Spec = (
                     spec_op.spec
-                    if type(spec_op.spec) == Spec
+                    if isinstance(spec_op.spec, Spec)
                     else Spec(**cast(Dict, spec_op.spec))
                 )
 
@@ -178,7 +178,7 @@ class LLMGenerationActions:
                 # which isn't in the Spec definition
                 await_spec_dict: Dict[str, Any] = (
                     asdict(spec_op.spec)
-                    if type(spec_op.spec) == Spec
+                    if isinstance(spec_op.spec, Spec)
                     else cast(Dict, spec_op.spec)
                 )
 
@@ -212,15 +212,15 @@ class LLMGenerationActions:
 
         el = flow.elements[1]
 
-        if type(el) != SpecOp:
+        if not isinstance(el, SpecOp):
             return
 
         spec_op: SpecOp = cast(SpecOp, el)
         spec: Dict[str, Any] = (
             asdict(
                 spec_op.spec
-            )  # TODO! Refactor thiss function as it's duplicated in many places
-            if type(spec_op.spec) == Spec
+            )  # TODO! Refactor this function as it's duplicated in many places
+            if isinstance(spec_op.spec, Spec)
             else cast(Dict, spec_op.spec)
         )
 
@@ -240,7 +240,7 @@ class LLMGenerationActions:
         """Process the provided flows to extract the user utterance examples."""
         # Flows can be either Flow or Dict. Convert them all to Flow for following code
         flows: List[Flow] = [
-            cast(Flow, flow) if type(flow) == Flow else Flow(**cast(Dict, flow))
+            cast(Flow, flow) if isinstance(flow, Flow) else Flow(**cast(Dict, flow))
             for flow in self.config.flows
         ]
 
