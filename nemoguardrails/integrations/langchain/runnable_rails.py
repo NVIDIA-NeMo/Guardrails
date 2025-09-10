@@ -26,6 +26,7 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     SystemMessage,
+    ToolMessage,
 )
 from langchain_core.prompt_values import ChatPromptValue, StringPromptValue
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableSerializable
@@ -231,11 +232,23 @@ class RunnableRails(Runnable[Input, Output]):
     def _message_to_dict(self, msg: BaseMessage) -> Dict[str, Any]:
         """Convert a BaseMessage to dictionary format."""
         if isinstance(msg, AIMessage):
-            return {"role": "assistant", "content": msg.content}
+            result = {"role": "assistant", "content": msg.content}
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                result["tool_calls"] = msg.tool_calls
+            return result
         elif isinstance(msg, HumanMessage):
             return {"role": "user", "content": msg.content}
         elif isinstance(msg, SystemMessage):
             return {"role": "system", "content": msg.content}
+        elif isinstance(msg, ToolMessage):
+            result = {
+                "role": "tool",
+                "content": msg.content,
+                "tool_call_id": msg.tool_call_id,
+            }
+            if hasattr(msg, "name") and msg.name:
+                result["name"] = msg.name
+            return result
         else:  # Handle other message types
             role = getattr(msg, "type", "user")
             return {"role": role, "content": msg.content}

@@ -109,7 +109,8 @@ class TestToolCallingPassthroughOnly:
     async def test_tool_calls_work_in_passthrough_mode(
         self, config_passthrough, mock_llm_with_tool_calls
     ):
-        """Test that tool calls create BotToolCall events in passthrough mode."""
+        """Test that tool calls create BotToolCalls events in passthrough mode."""
+        # Set up context with tool calls
         tool_calls = [
             {
                 "id": "call_123",
@@ -135,7 +136,7 @@ class TestToolCallingPassthroughOnly:
         )
 
         assert len(result.events) == 1
-        assert result.events[0]["type"] == "BotToolCall"
+        assert result.events[0]["type"] == "BotToolCalls"
         assert result.events[0]["tool_calls"] == tool_calls
 
     @pytest.mark.asyncio
