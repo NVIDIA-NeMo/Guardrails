@@ -66,6 +66,10 @@ class Tracer:
         if generation_log is None:
             generation_log = self._generation_log
 
+        # At this point generation_log should not be None since it comes from self._generation_log
+        if generation_log is None:
+            raise Exception("Can't generate interaction log without Generation log")
+
         interaction_log = extract_interaction_log(
             interaction_output,
             generation_log,

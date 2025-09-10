@@ -78,6 +78,6 @@ def extract_interaction_log(
     return InteractionLog(
         id=interaction_output.id,
         activated_rails=generation_log.activated_rails,
-        events=generation_log.internal_events,
+        events=generation_log.internal_events or [],
         trace=spans,
     )
