@@ -31,6 +31,7 @@ from nemoguardrails.colang.v2_x.runtime.errors import (
     ColangSyntaxError,
 )
 from nemoguardrails.colang.v2_x.runtime.flows import Event, FlowStatus
+from nemoguardrails.colang.v2_x.runtime.serialization import json_to_state
 from nemoguardrails.colang.v2_x.runtime.statemachine import (
     FlowConfig,
     InternalEvent,
@@ -394,10 +395,13 @@ class RuntimeV2_x(Runtime):
             state = State(flow_states={}, flow_configs=self.flow_configs, rails_config=self.config)
             initialize_state(state)
         elif isinstance(state, dict):
-            # TODO: Implement dict to State conversion
-            raise NotImplementedError()
-        #     if isinstance(state, dict):
-        #         state = State.from_dict(state)
+            # Convert dict to State object
+            if state.get("version") == "2.x" and "state" in state:
+                # Handle the serialized state format from API calls
+                state = json_to_state(state["state"])
+            else:
+                # TODO: Implement other dict to State conversion formats if needed
+                raise NotImplementedError("Unsupported state dict format")
 
         assert isinstance(state, State)
         assert state.main_flow_state is not None

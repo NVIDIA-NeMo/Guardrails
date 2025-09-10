@@ -44,6 +44,8 @@ def _test_call(config_id):
 
     # When making a second call with the returned state, the conversations should continue
     # and we should get the "Hello again!" message.
+    # For Colang 2.x, we only send the new user message, not the conversation history
+    # since the state maintains the conversation context.
     response = client.post(
         "/v1/chat/completions",
         json={
@@ -52,11 +54,7 @@ def _test_call(config_id):
                 {
                     "content": "hi",
                     "role": "user",
-                },
-                {
-                    "content": "hi",
-                    "role": "assistant",
-                },
+                }
             ],
             "state": res["state"],
         },
