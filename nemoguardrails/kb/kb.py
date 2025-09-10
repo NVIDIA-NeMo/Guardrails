@@ -167,6 +167,8 @@ class KnowledgeBase:
                 # We also save the file for future use
                 os.makedirs(CACHE_FOLDER, exist_ok=True)
                 basic_index = cast(BasicEmbeddingsIndex, self.index)
+                if not basic_index.embeddings_index:
+                    raise Exception("Couldn't create basic embeddings index")
                 basic_index.embeddings_index.save(cache_file)
 
                 # And, explicitly save the size as we need it when we reload
