@@ -46,8 +46,7 @@ async def custom_llm_request(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=prompt_template_name))
 
-    with llm_params(llm, temperature=0.5):
-        result = await llm_call(llm, prompt, stop=stop)
+    result = await llm_call(llm, prompt, stop=stop, llm_params={"temperature": 0.5})
 
     result = llm_task_manager.parse_task_output(prompt_template_name, output=result)
     result = result.text

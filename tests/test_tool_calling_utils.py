@@ -19,6 +19,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from nemoguardrails.actions.llm.utils import (
+    LLMCallException,
     _convert_messages_to_langchain_format,
     _extract_content,
     _store_tool_calls,
@@ -237,6 +238,81 @@ async def test_llm_call_stores_tool_calls():
 
     assert result == "Response with tools"
     assert tool_calls_var.get() == test_tool_calls
+
+
+@pytest.mark.asyncio
+async def test_llm_call_with_llm_params():
+    """Test that llm_call calls bind() with llm_params."""
+    mock_llm = MagicMock()
+    mock_bound_llm = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.content = "LLM response with params"
+
+    mock_llm.bind = MagicMock(return_value=mock_bound_llm)
+    mock_bound_llm.ainvoke.return_value = mock_response
+
+    llm_params = {"temperature": 0.5, "max_tokens": 100}
+    result = await llm_call(mock_llm, "Test prompt", llm_params=llm_params)
+
+    assert result == "LLM response with params"
+    mock_llm.bind.assert_called_once_with(**llm_params)
+    mock_bound_llm.ainvoke.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_llm_call_with_empty_llm_params():
+    """Test that llm_call doesn't call bind() with empty llm_params (falsy)."""
+    mock_llm = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.content = "LLM response"
+    mock_llm.ainvoke.return_value = mock_response
+
+    result = await llm_call(mock_llm, "Test prompt", llm_params={})
+
+    assert result == "LLM response"
+    mock_llm.bind.assert_not_called()
+    mock_llm.ainvoke.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_llm_call_with_none_llm_params():
+    """Test that llm_call works with None llm_params (default behavior)."""
+    mock_llm = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.content = "LLM response no params"
+    mock_llm.ainvoke.return_value = mock_response
+
+    result = await llm_call(mock_llm, "Test prompt", llm_params=None)
+
+    assert result == "LLM response no params"
+    mock_llm.bind.assert_not_called()
+    mock_llm.ainvoke.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_llm_call_with_llm_params_temperature_max_tokens():
+    """Test llm_call with specific temperature and max_tokens parameters."""
+    mock_llm = MagicMock()
+    mock_bound_llm = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.content = "Response with temp and tokens"
+
+    mock_llm.bind = MagicMock(return_value=mock_bound_llm)
+    mock_bound_llm.ainvoke.return_value = mock_response
+
+    llm_params = {"temperature": 0.8, "max_tokens": 50}
+    result = await llm_call(mock_llm, "Test prompt", llm_params=llm_params)
+
+    assert result == "Response with temp and tokens"
+    mock_llm.bind.assert_called_once_with(temperature=0.8, max_tokens=50)
+    mock_bound_llm.ainvoke.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_llm_call_with_none_llm_and_params():
+    """Test that llm_call handles None llm gracefully even with params."""
+    with pytest.raises(LLMCallException):
+        await llm_call(None, "Test prompt", llm_params={"temperature": 0.5})
 
 
 def test_generation_response_tool_calls_field():

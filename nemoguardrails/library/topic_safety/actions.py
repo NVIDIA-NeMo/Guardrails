@@ -103,8 +103,7 @@ async def topic_safety_check_input(
     messages.extend(conversation_history)
     messages.append({"type": "user", "content": user_input})
 
-    with llm_params(llm, temperature=0.01):
-        result = await llm_call(llm, messages, stop=stop)
+    result = await llm_call(llm, messages, stop=stop, llm_params={"temperature": 0.01})
 
     if result.lower().strip() == "off-topic":
         on_topic = False

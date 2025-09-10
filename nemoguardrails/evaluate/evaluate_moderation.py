@@ -136,8 +136,13 @@ class ModerationRailsEvaluation:
         """
 
         try:
-            with llm_params(self.llm, temperature=0.1, max_tokens=100):
-                bot_response = asyncio.run(llm_call(prompt=prompt, llm=self.llm))
+            bot_response = asyncio.run(
+                llm_call(
+                    prompt=prompt,
+                    llm=self.llm,
+                    llm_params={"temperature": 0.1, "max_tokens": 100},
+                )
+            )
 
             check_output_check_prompt = self.llm_task_manager.render_task_prompt(
                 Task.SELF_CHECK_OUTPUT,

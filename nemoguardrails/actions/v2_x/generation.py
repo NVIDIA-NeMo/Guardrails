@@ -294,8 +294,12 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         )
 
         # We make this call with lowest temperature to have it as deterministic as possible.
-        with llm_params(llm, temperature=self.config.lowest_temperature):
-            result = await llm_call(llm, prompt, stop=stop)
+        result = await llm_call(
+            llm,
+            prompt,
+            stop=stop,
+            llm_params={"temperature": self.config.lowest_temperature},
+        )
 
         # Parse the output using the associated parser
         result = self.llm_task_manager.parse_task_output(
@@ -372,8 +376,12 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         )
 
         # We make this call with lowest temperature to have it as deterministic as possible.
-        with llm_params(llm, temperature=self.config.lowest_temperature):
-            result = await llm_call(llm, prompt, stop=stop)
+        result = await llm_call(
+            llm,
+            prompt,
+            stop=stop,
+            llm_params={"temperature": self.config.lowest_temperature},
+        )
 
         # Parse the output using the associated parser
         result = self.llm_task_manager.parse_task_output(
@@ -450,19 +458,19 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         generation_options: GenerationOptions = generation_options_var.get()
 
-        with llm_params(
+        generation_llm_params = (
+            generation_options and generation_options.llm_params
+        ) or {}
+        text = await llm_call(
             llm,
-            **((generation_options and generation_options.llm_params) or {}),
-        ):
-            text = await llm_call(
-                llm,
-                user_message,
-                custom_callback_handlers=[streaming_handler_var.get()],
-            )
+            user_message,
+            custom_callback_handlers=[streaming_handler_var.get()],
+            llm_params=generation_llm_params,
+        )
 
-            text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
+        text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
 
-            text = result.text
+        text = result.text
 
         return text
 
@@ -540,8 +548,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         )
 
         # We make this call with temperature 0 to have it as deterministic as possible.
-        with llm_params(llm, temperature=self.config.lowest_temperature):
-            result = await llm_call(llm, prompt)
+        result = await llm_call(
+            llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+        )
 
         result = self.llm_task_manager.parse_task_output(
             task=Task.GENERATE_FLOW_FROM_INSTRUCTIONS, output=result
@@ -614,8 +623,12 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         stop = self.llm_task_manager.get_stop_tokens(Task.GENERATE_FLOW_FROM_NAME)
 
         # We make this call with temperature 0 to have it as deterministic as possible.
-        with llm_params(llm, temperature=self.config.lowest_temperature):
-            result = await llm_call(llm, prompt, stop)
+        result = await llm_call(
+            llm,
+            prompt,
+            stop=stop,
+            llm_params={"temperature": self.config.lowest_temperature},
+        )
 
         result = self.llm_task_manager.parse_task_output(
             task=Task.GENERATE_FLOW_FROM_NAME, output=result
@@ -680,8 +693,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         )
 
         # We make this call with temperature 0 to have it as deterministic as possible.
-        with llm_params(llm, temperature=temperature):
-            result = await llm_call(llm, prompt)
+        result = await llm_call(llm, prompt, llm_params={"temperature": temperature})
 
         # TODO: Currently, we only support generating a bot action as continuation. This could be generalized
         # Colang statements.
@@ -810,8 +822,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             Task.GENERATE_USER_INTENT_FROM_USER_ACTION
         )
 
-        with llm_params(llm, temperature=0.1):
-            result = await llm_call(llm, prompt, stop)
+        result = await llm_call(llm, prompt, stop=stop, llm_params={"temperature": 0.1})
 
         # Parse the output using the associated parser
         result = self.llm_task_manager.parse_task_output(
@@ -919,8 +930,12 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             Task.GENERATE_FLOW_CONTINUATION_FROM_NLD
         )
 
-        with llm_params(llm, temperature=self.config.lowest_temperature):
-            result = await llm_call(llm, prompt, stop)
+        result = await llm_call(
+            llm,
+            prompt,
+            stop=stop,
+            llm_params={"temperature": self.config.lowest_temperature},
+        )
 
         # Parse the output using the associated parser
         result = self.llm_task_manager.parse_task_output(

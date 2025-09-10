@@ -115,10 +115,12 @@ async def patronus_lynx_check_output_hallucination(
         LLMCallInfo(task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION.value)
     )
 
-    with llm_params(patronus_lynx_llm, temperature=0.0):
-        result = await llm_call(
-            patronus_lynx_llm, check_output_hallucination_prompt, stop=stop
-        )
+    result = await llm_call(
+        patronus_lynx_llm,
+        check_output_hallucination_prompt,
+        stop=stop,
+        llm_params={"temperature": 0.0},
+    )
 
     hallucination, reasoning = parse_patronus_lynx_response(result)
     return {"hallucination": hallucination, "reasoning": reasoning}

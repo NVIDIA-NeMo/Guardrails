@@ -26,7 +26,6 @@ from langchain.prompts import PromptTemplate
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.evaluate.utils import load_dataset
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -102,10 +101,11 @@ class FactCheckEvaluation:
             assert "evidence" in data and "question" in data and "answer" in data
             evidence = data["evidence"]
             answer = data["answer"]
-            with llm_params(self.llm, temperature=0.8, max_tokens=300):
-                negative_answer = create_negatives_chain.predict(
-                    evidence=evidence, answer=answer
-                )
+            negative_answer_result = create_negatives_chain.invoke(
+                {"evidence": evidence, "answer": answer},
+                config={"temperature": 0.8, "max_tokens": 300},
+            )
+            negative_answer = negative_answer_result["text"]
             data["incorrect_answer"] = negative_answer.strip()
 
         return dataset

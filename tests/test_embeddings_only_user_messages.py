@@ -205,7 +205,7 @@ def test_examples_included_in_prompts_2(colang_2_config):
 
     info = rails.explain()
     assert len(info.llm_calls) == 2
-    assert 'user said "hi"' in info.llm_calls[0].prompt
+    assert 'user said "Hi"' in info.llm_calls[0].prompt
 
 
 def test_no_llm_calls_embedding_only(colang_2_config):

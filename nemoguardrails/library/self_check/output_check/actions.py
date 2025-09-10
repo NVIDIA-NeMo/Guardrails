@@ -71,10 +71,15 @@ async def self_check_output(
         # Initialize the LLMCallInfo object
         llm_call_info_var.set(LLMCallInfo(task=task.value))
 
-        with llm_params(
-            llm, temperature=config.lowest_temperature, max_tokens=max_tokens
-        ):
-            response = await llm_call(llm, prompt, stop=stop)
+        response = await llm_call(
+            llm,
+            prompt,
+            stop=stop,
+            llm_params={
+                "temperature": config.lowest_temperature,
+                "max_tokens": max_tokens,
+            },
+        )
 
         log.info(f"Output self-checking result is: `{response}`.")
 
