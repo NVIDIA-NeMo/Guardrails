@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Optional, Type
 
-from . import fastembed, nim, openai, sentence_transformers
+from . import azure, fastembed, nim, openai, sentence_transformers
 from .base import EmbeddingModel
 from .registry import EmbeddingProviderRegistry
 
@@ -63,6 +63,7 @@ _embedding_model_cache = {}
 # Add all the implemented embedding providers to the registry.
 # As we are not using the `Registered` class, we need to manually register the providers.
 
+register_embedding_provider(azure.AzureOpenAIEmbeddingModel)
 register_embedding_provider(fastembed.FastEmbedEmbeddingModel)
 register_embedding_provider(openai.OpenAIEmbeddingModel)
 register_embedding_provider(sentence_transformers.SentenceTransformerEmbeddingModel)
