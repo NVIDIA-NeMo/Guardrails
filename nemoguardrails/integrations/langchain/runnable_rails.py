@@ -49,6 +49,8 @@ class RunnableRails(Runnable[Input, Output]):
         self.passthrough_bot_output_key = output_key
         self.verbose = verbose
         self.config: Optional[RunnableConfig] = None
+        self._current_config: Optional[RunnableConfig] = None
+        self._current_kwargs: dict = {}
 
         # We override the config passthrough.
         config.passthrough = passthrough
@@ -74,7 +76,10 @@ class RunnableRails(Runnable[Input, Output]):
             # First, we fetch the input from the context
             _input = context.get("passthrough_input")
             async_wrapped_invoke = async_wrap(self.passthrough_runnable.invoke)
-            _output = await async_wrapped_invoke(_input, self.config, **self.kwargs)
+            
+            # Pass the config and kwargs that were captured in the invoke method
+            # This ensures that callbacks (like Langfuse tracing) are properly propagated
+            _output = await async_wrapped_invoke(_input, self._current_config, **self._current_kwargs)
 
             # If the output is a string, we consider it to be the output text
             if isinstance(_output, str):
@@ -188,8 +193,12 @@ class RunnableRails(Runnable[Input, Output]):
     ) -> Output:
         """Invoke this runnable synchronously."""
         input_messages = self._transform_input_to_rails_format(input)
+        # Store config and kwargs for use in passthrough function
+        # This ensures callbacks are properly passed to the underlying runnable
         self.config = config
         self.kwargs = kwargs
+        self._current_config = config
+        self._current_kwargs = kwargs
         res = self.rails.generate(
             messages=input_messages, options=GenerationOptions(output_vars=True)
         )

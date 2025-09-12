@@ -658,3 +658,32 @@ def test_live_rag():
     print(result)
     assert "LOL" not in result["output"]
     assert "can't respond" in result["output"]
+
+
+def test_runnable_config_callback_passthrough():
+    """Test that RunnableConfig with callbacks is properly passed to passthrough runnable."""
+    config_received = []
+    
+    class CallbackTestRunnable(Runnable):
+        def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
+            # Capture the config to verify callbacks were passed
+            config_received.append(config)
+            return {"output": "Test response"}
+    
+    # Create a mock callback for testing
+    mock_callbacks = ["mock_callback"]
+    test_config = RunnableConfig(callbacks=mock_callbacks)
+    
+    rails_config = RailsConfig.from_content(config={"models": []})
+    runnable_with_rails = RunnableRails(
+        rails_config, passthrough=True, runnable=CallbackTestRunnable()
+    )
+    
+    # Invoke with the config containing callbacks
+    result = runnable_with_rails.invoke("test input", config=test_config)
+    
+    # Verify that the config with callbacks was passed through
+    assert len(config_received) == 1
+    assert config_received[0] is not None
+    assert config_received[0].get("callbacks") == mock_callbacks
+    assert result == {"output": "Test response"}
