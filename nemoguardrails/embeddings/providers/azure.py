@@ -66,17 +66,14 @@ class AzureOpenAIEmbeddingModel(EmbeddingModel):
             )
 
         self.model = embedding_model
-        
+
         # Set default values for Azure OpenAI configuration
-        client_kwargs = {
-            "api_version": api_version,
-            **kwargs
-        }
-        
+        client_kwargs = {"api_version": api_version, **kwargs}
+
         # Add azure_endpoint if provided
         if azure_endpoint:
             client_kwargs["azure_endpoint"] = azure_endpoint
-            
+
         self.client = AzureOpenAI(**client_kwargs)
 
         # Azure OpenAI supports the same embedding models as OpenAI
