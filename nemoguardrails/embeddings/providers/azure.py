@@ -53,7 +53,7 @@ class AzureOpenAIEmbeddingModel(EmbeddingModel):
     ):
         try:
             import openai
-            from openai import AzureOpenAI, AsyncAzureOpenAI
+            from openai import AsyncAzureOpenAI, AzureOpenAI
         except ImportError:
             raise ImportError(
                 "Could not import openai, please install it with "

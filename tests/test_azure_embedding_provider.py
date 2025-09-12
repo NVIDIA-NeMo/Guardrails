@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
 from nemoguardrails.embeddings.providers import init_embedding_model
-from nemoguardrails.embeddings.providers.registry import EmbeddingProviderRegistry
+from nemoguardrails.embeddings.providers.registry import \
+    EmbeddingProviderRegistry
 
 
 def test_azure_embedding_provider_registration():
@@ -143,9 +145,8 @@ def test_azure_embedding_missing_openai_import():
     # Mock the import to raise ImportError
     with patch.dict("sys.modules", {"openai": None}):
         with pytest.raises(ImportError, match="Could not import openai"):
-            from nemoguardrails.embeddings.providers.azure import (
-                AzureOpenAIEmbeddingModel,
-            )
+            from nemoguardrails.embeddings.providers.azure import \
+                AzureOpenAIEmbeddingModel
 
             AzureOpenAIEmbeddingModel(
                 embedding_model="test-model",
