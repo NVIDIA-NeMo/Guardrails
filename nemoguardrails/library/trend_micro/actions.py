@@ -14,10 +14,12 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from pydantic import field_validator as validator
+from pydantic import model_validator
 from pydantic_core import to_json
 from typing_extensions import cast
 
@@ -28,15 +30,60 @@ log = logging.getLogger(__name__)
 
 
 class Guard(BaseModel):
+    """
+    Represents a guard entity with a single string attribute.
+
+    Attributes:
+        guard (str): The input text for guard analysis.
+    """
+
     guard: str
 
 
 class GuardResult(BaseModel):
-    action: str
-    reason: str
+    """
+    Represents the result of a guard analysis, specifying the action to take and the reason.
+
+    Attributes:
+        action (Literal["Block", "Allow"]): The action to take based on guard analysis.
+        Must be either "Block" or "Allow".
+        reason (str): Explanation for the chosen action. Must be a non-empty string.
+    """
+
+    action: Literal["Block", "Allow"] = Field(
+        ..., description="Action to take based on " "guard analysis"
+    )
+    reason: str = Field(..., min_length=1, description="Explanation for the action")
+    blocked: bool = Field(
+        default=False, description="True if action is 'Block', else False"
+    )
+
+    @validator("action")
+    def validate_action(cls, v):
+        log.error(f"Validating action: {v}")
+        if v not in ["Block", "Allow"]:
+            return "Allow"
+        return v
+
+    @model_validator(mode="before")
+    def set_blocked(cls, values):
+        a = values.get("action")
+        values["blocked"] = a.lower() == "block"
+        return values
 
 
 def get_config(config: RailsConfig) -> TrendMicroRailConfig:
+    """
+    Retrieves the TrendMicroRailConfig from the provided RailsConfig object.
+
+    Args:
+        config (RailsConfig): The Rails configuration object containing possible
+        Trend Micro settings.
+
+    Returns:
+        TrendMicroRailConfig: The Trend Micro configuration, either from the provided
+        config or a default instance.
+    """
     if (
         not hasattr(config.rails.config, "trend_micro")
         or config.rails.config.trend_micro is None
@@ -46,7 +93,12 @@ def get_config(config: RailsConfig) -> TrendMicroRailConfig:
     return cast(TrendMicroRailConfig, config.rails.config.trend_micro)
 
 
-@action(is_system_action=True)
+def trend_ai_guard_mapping(result: GuardResult) -> bool:
+    """Convert Trend Micro result to boolean for flow logic."""
+    return result.action.lower() == "block"
+
+
+@action(is_system_action=True, output_mapping=trend_ai_guard_mapping)
 async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
     """
     Custom action to invoke the Trend Ai Guard
@@ -59,10 +111,11 @@ async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
 
     v1_api_key = trend_config.get_api_key()
     if not v1_api_key:
-        raise ValueError("Trend Micro Vision One API Key not found")
-
-    if text is None:
-        raise ValueError("No prompt/response found in the last event.")
+        log.error("Trend Micro Vision One API Key not found")
+        return GuardResult(
+            action="Block",
+            reason="Trend Micro Vision One API Key not found",
+        )
 
     async with httpx.AsyncClient() as client:
         data = Guard(guard=text).model_dump()
@@ -80,10 +133,10 @@ async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
             response.raise_for_status()
             guard_result = GuardResult(**response.json())
             log.debug("Trend Micro AI Guard Result: %s", guard_result)
-        except Exception as e:
+        except httpx.HTTPStatusError as e:
             log.error("Error calling Trend Micro AI Guard API: %s", e)
             return GuardResult(
-                action="allow",
+                action="Allow",
                 reason="An error occurred while calling the Trend Micro AI Guard API.",
             )
         return guard_result

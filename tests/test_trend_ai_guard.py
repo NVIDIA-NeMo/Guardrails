@@ -52,7 +52,7 @@ def test_trend_ai_guard_blocked(httpx_mock: HTTPXMock, monkeypatch: pytest.Monke
     monkeypatch.setenv("V1_API_KEY", "test-token")
     httpx_mock.add_response(
         is_reusable=True,
-        json={"action": "Block", "reason": "Prompt Attack Detected"},
+        json={"action": "Block", "reason": "Prompt Attack Detected", "blocked": True},
     )
 
     chat = TestChat(
@@ -86,8 +86,9 @@ def test_trend_ai_guard_error(
 @pytest.mark.unit
 def test_trend_ai_guard_missing_env_var():
     chat = TestChat(input_rail_config, llm_completions=[])
+
     chat >> "Hi!"
-    chat << "I'm sorry, an internal error has occurred."
+    chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -104,4 +105,4 @@ def test_trend_ai_guard_malformed_response(
 
     # Should fail open
     chat >> "What is the air-speed velocity of an unladen swallow?"
-    chat << "What do you mean? An African or a European swallow?"
+    chat << "I'm sorry, an internal error has occurred."
