@@ -687,3 +687,95 @@ def test_runnable_config_callback_passthrough():
     assert config_received[0] is not None
     assert config_received[0].get("callbacks") == mock_callbacks
     assert result == {"output": "Test response"}
+
+
+def test_consistent_output_format_preserve():
+    """Test that preserve mode maintains original inconsistent behavior."""
+    config = RailsConfig.from_content(config={"models": []})
+    
+    # Test normal passthrough (should return string)
+    runnable_with_rails = RunnableRails(
+        config, passthrough=True, runnable=MockRunnable2(), 
+        consistent_output_format="preserve"
+    )
+    result = runnable_with_rails.invoke("test input")
+    assert result == "PARIS!!"  # String format preserved
+    
+    
+def test_consistent_output_format_always_dict():
+    """Test that always_dict mode forces dictionary format."""
+    config = RailsConfig.from_content(config={"models": []})
+    
+    # Test with string output - should be converted to dict
+    runnable_with_rails = RunnableRails(
+        config, passthrough=True, runnable=MockRunnable2(),
+        consistent_output_format="always_dict"
+    )
+    result = runnable_with_rails.invoke("test input")
+    assert result == {"output": "PARIS!!"}  # Converted to dict
+    
+    # Test with dict output - should remain dict
+    runnable_with_rails2 = RunnableRails(
+        config, passthrough=True, runnable=MockRunnable(),
+        consistent_output_format="always_dict"
+    )
+    result2 = runnable_with_rails2.invoke("test input")
+    assert result2 == {"output": "PARIS!!"}  # Already dict format
+
+
+def test_consistent_output_format_always_string():
+    """Test that always_string mode forces string format when possible."""
+    config = RailsConfig.from_content(config={"models": []})
+    
+    # Test with dict output - should be converted to string
+    runnable_with_rails = RunnableRails(
+        config, passthrough=True, runnable=MockRunnable(),
+        consistent_output_format="always_string"
+    )
+    result = runnable_with_rails.invoke("test input")
+    assert result == "PARIS!!"  # Extracted from dict
+    
+    # Test with string output - should remain string
+    runnable_with_rails2 = RunnableRails(
+        config, passthrough=True, runnable=MockRunnable2(),
+        consistent_output_format="always_string" 
+    )
+    result2 = runnable_with_rails2.invoke("test input")
+    assert result2 == "PARIS!!"  # Already string
+
+
+def test_consistent_output_format_with_rails_blocking():
+    """Test consistent format when rails block the input/output."""
+    llm = FakeLLM(responses=["  ask off topic question", "  ask off topic question"])
+    config = RailsConfig.from_content(
+        config={"models": []},
+        colang_content="""
+            define user ask off topic question
+              "Can you help me cook something?"
+
+            define flow
+              user ask off topic question
+              bot refuse to respond
+
+            define bot refuse to respond
+              "I'm sorry, I can't help with that."
+            """,
+    )
+
+    # Test with always_string - even when rails trigger, should return string
+    runnable_with_rails = RunnableRails(
+        config, llm=llm, passthrough=True, runnable=MockRunnable(),
+        consistent_output_format="always_string"
+    )
+    result = runnable_with_rails.invoke("This is an off topic question")
+    assert isinstance(result, str)
+    assert result == "I'm sorry, I can't help with that."
+    
+    # Test with always_dict - should return dict format
+    runnable_with_rails2 = RunnableRails(
+        config, llm=llm, passthrough=True, runnable=MockRunnable(),
+        consistent_output_format="always_dict"
+    )
+    result2 = runnable_with_rails2.invoke("This is an off topic question")
+    assert isinstance(result2, dict)
+    assert result2 == {"output": "I'm sorry, I can't help with that."}

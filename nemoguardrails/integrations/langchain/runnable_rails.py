@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -41,6 +41,7 @@ class RunnableRails(Runnable[Input, Output]):
         input_key: str = "input",
         output_key: str = "output",
         verbose: bool = False,
+        consistent_output_format: Literal["preserve", "always_dict", "always_string"] = "preserve",
     ) -> None:
         self.llm = llm
         self.passthrough = passthrough
@@ -48,6 +49,7 @@ class RunnableRails(Runnable[Input, Output]):
         self.passthrough_user_input_key = input_key
         self.passthrough_bot_output_key = output_key
         self.verbose = verbose
+        self.consistent_output_format = consistent_output_format
         self.config: Optional[RunnableConfig] = None
         self._current_config: Optional[RunnableConfig] = None
         self._current_kwargs: dict = {}
@@ -90,6 +92,36 @@ class RunnableRails(Runnable[Input, Output]):
             return text, _output
 
         self.rails.llm_generation_actions.passthrough_fn = passthrough_fn
+
+    def _format_output_consistently(self, output: Any, input_type: Any) -> Any:
+        """Format output according to consistent_output_format setting."""
+        if self.consistent_output_format == "preserve":
+            return output
+        elif self.consistent_output_format == "always_dict":
+            if isinstance(output, str):
+                return {self.passthrough_bot_output_key: output}
+            elif isinstance(output, dict):
+                return output
+            else:
+                return {self.passthrough_bot_output_key: str(output)}
+        elif self.consistent_output_format == "always_string":
+            if isinstance(output, dict):
+                # Try to extract string from dict
+                if self.passthrough_bot_output_key in output:
+                    return output[self.passthrough_bot_output_key]
+                elif "content" in output:
+                    return output["content"]
+                elif "output" in output:
+                    return output["output"]
+                else:
+                    # Return the first string value found or convert to string
+                    for value in output.values():
+                        if isinstance(value, str):
+                            return value
+                    return str(output)
+            else:
+                return str(output)
+        return output
 
     def __or__(self, other):
         if isinstance(other, BaseLanguageModel):
@@ -231,20 +263,25 @@ class RunnableRails(Runnable[Input, Output]):
             elif isinstance(passthrough_output, dict):
                 passthrough_output[self.passthrough_bot_output_key] = bot_message
 
-            return passthrough_output
+            return self._format_output_consistently(passthrough_output, type(input))
         else:
             if isinstance(input, ChatPromptValue):
-                return AIMessage(content=result["content"])
+                output = AIMessage(content=result["content"])
+                return self._format_output_consistently(output, type(input))
             elif isinstance(input, StringPromptValue):
                 if isinstance(result, dict):
-                    return result["content"]
+                    output = result["content"]
                 else:
-                    return result
+                    output = result
+                return self._format_output_consistently(output, type(input))
             elif isinstance(input, dict):
                 user_input = input["input"]
                 if isinstance(user_input, str):
-                    return {"output": result["content"]}
+                    output = {"output": result["content"]}
                 elif isinstance(user_input, list):
-                    return {"output": result}
+                    output = {"output": result}
+                else:
+                    output = {"output": result["content"]}
+                return self._format_output_consistently(output, type(input))
             else:
                 raise ValueError(f"Unexpected input type: {type(input)}")
