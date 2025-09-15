@@ -16,7 +16,10 @@
 import asyncio
 from typing import Optional
 
-import aioredis
+try:
+    import aioredis  # type: ignore[import]
+except ImportError:
+    aioredis = None  # type: ignore[assignment]
 
 from nemoguardrails.server.datastore.datastore import DataStore
 
@@ -35,6 +38,11 @@ class RedisStore(DataStore):
             username: [Optional] The username to use for authentication.
             password: [Optional] The password to use for authentication
         """
+        if aioredis is None:
+            raise ImportError(
+                "aioredis is required for RedisStore. Install it with: pip install aioredis"
+            )
+
         self.url = url
         self.username = username
         self.password = password
