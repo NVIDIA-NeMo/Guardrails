@@ -94,6 +94,8 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
 
 ## Next Steps
 
+- Download the [demo.py()](../examples/configs/gs_content_safety/demo.py) script and run locally to reproduce the preceding steps.
+
 - Run the `content_safety_tutorial.ipynb` notebook from the
   [example notebooks](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/notebooks)
   directory of the GitHub repository.
