@@ -82,7 +82,7 @@ class LLMGenerationActions:
     def __init__(
         self,
         config: RailsConfig,
-        llm: Union[BaseLLM, BaseChatModel],
+        llm: Optional[Union[BaseLLM, BaseChatModel]],
         llm_task_manager: LLMTaskManager,
         get_embedding_search_provider_instance: Callable[
             [Optional[EmbeddingSearchProvider]], EmbeddingsIndex

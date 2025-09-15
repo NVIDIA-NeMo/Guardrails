@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Generation options give more control over the generation and the result.
+"""Generation options give more control over the generation and the result.
 
 For example, to run only the input rails::
 
@@ -233,7 +233,7 @@ class ActivatedRail(BaseModel):
     )
     decisions: List[str] = Field(
         default_factory=list,
-        descriptino="A sequence of decisions made by the rail, e.g., 'bot refuse to respond', 'stop', 'continue'.",
+        description="A sequence of decisions made by the rail, e.g., 'bot refuse to respond', 'stop', 'continue'.",
     )
     executed_actions: List[ExecutedAction] = Field(
         default_factory=list, description="The list of actions executed by the rail."
@@ -327,7 +327,7 @@ class GenerationLog(BaseModel):
         duration = 0
 
         print(f"- Total time: {self.stats.total_duration:.2f}s")
-        if self.stats.input_rails_duration:
+        if self.stats.input_rails_duration and self.stats.total_duration:
             _pc = round(
                 100 * self.stats.input_rails_duration / self.stats.total_duration, 2
             )
@@ -335,7 +335,7 @@ class GenerationLog(BaseModel):
             duration += self.stats.input_rails_duration
 
             print(f"  - [{self.stats.input_rails_duration:.2f}s][{_pc}%]: INPUT Rails")
-        if self.stats.dialog_rails_duration:
+        if self.stats.dialog_rails_duration and self.stats.total_duration:
             _pc = round(
                 100 * self.stats.dialog_rails_duration / self.stats.total_duration, 2
             )
@@ -345,7 +345,7 @@ class GenerationLog(BaseModel):
             print(
                 f"  - [{self.stats.dialog_rails_duration:.2f}s][{_pc}%]: DIALOG Rails"
             )
-        if self.stats.generation_rails_duration:
+        if self.stats.generation_rails_duration and self.stats.total_duration:
             _pc = round(
                 100 * self.stats.generation_rails_duration / self.stats.total_duration,
                 2,
@@ -356,7 +356,7 @@ class GenerationLog(BaseModel):
             print(
                 f"  - [{self.stats.generation_rails_duration:.2f}s][{_pc}%]: GENERATION Rails"
             )
-        if self.stats.output_rails_duration:
+        if self.stats.output_rails_duration and self.stats.total_duration:
             _pc = round(
                 100 * self.stats.output_rails_duration / self.stats.total_duration, 2
             )
@@ -367,12 +367,12 @@ class GenerationLog(BaseModel):
                 f"  - [{self.stats.output_rails_duration:.2f}s][{_pc}%]: OUTPUT Rails"
             )
 
-        processing_overhead = self.stats.total_duration - duration
+        processing_overhead = (self.stats.total_duration or 0) - duration
         if processing_overhead >= 0.01:
             _pc = round(100 - pc, 2)
             print(f"  - [{processing_overhead:.2f}s][{_pc}%]: Processing overhead ")
 
-        if self.stats.llm_calls_count > 0:
+        if self.stats.llm_calls_count and self.stats.llm_calls_count > 0:
             print(
                 f"- {self.stats.llm_calls_count} LLM calls, "
                 f"{self.stats.llm_calls_duration:.2f}s total duration, "
@@ -391,7 +391,10 @@ class GenerationLog(BaseModel):
             for action in activated_rail.executed_actions:
                 llm_calls_count += len(action.llm_calls)
                 llm_calls_durations.extend(
-                    [f"{round(llm_call.duration, 2)}s" for llm_call in action.llm_calls]
+                    [
+                        f"{round(llm_call.duration or 0, 2)}s"
+                        for llm_call in action.llm_calls
+                    ]
                 )
             print(
                 f"- [{activated_rail.duration:.2f}s] {activated_rail.type.upper()} ({activated_rail.name}): "
@@ -431,4 +434,4 @@ class GenerationResponse(BaseModel):
 
 
 if __name__ == "__main__":
-    print(GenerationOptions(**{"rails": {"input": False}}))
+    print(GenerationOptions(rails=GenerationRailsOptions(input=False)))
