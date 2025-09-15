@@ -19,7 +19,25 @@ import json
 import queue
 import time
 from functools import partial
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+# Try to import tritonclient dependencies, with fallbacks for type checking
+try:
+    import tritonclient.grpc as grpcclient
+    from tritonclient.grpc.service_pb2 import (
+        ModelInferResponse,  # type: ignore[attr-defined]
+    )
+
+    TRITONCLIENT_AVAILABLE = True
+except ImportError:
+    # Create dummy types when tritonclient is not available
+    grpcclient = Any  # type: ignore
+    ModelInferResponse = Any  # type: ignore
+    TRITONCLIENT_AVAILABLE = False
+
+if TYPE_CHECKING and not TRITONCLIENT_AVAILABLE:
+    import tritonclient.grpc as grpcclient  # type: ignore
+    from tritonclient.grpc.service_pb2 import ModelInferResponse  # type: ignore
 
 STOP_WORDS = ["</s>"]
 BAD_WORDS = [""]
@@ -31,11 +49,11 @@ class TritonClient:
 
     def __init__(self, server_url: str) -> None:
         """Initialize the client."""
-        # pylint: disable-next=import-outside-toplevel
-        import tritonclient.grpc as grpcclient
+        if not TRITONCLIENT_AVAILABLE:
+            raise ImportError("tritonclient is required for TensorRT-LLM support")
 
         self.server_url = server_url
-        self.client = grpcclient.InferenceServerClient(server_url)
+        self.client = grpcclient.InferenceServerClient(server_url)  # type: ignore
 
     def load_model(self, model_name: str, timeout: int = 1000) -> None:
         """Load a model into the server."""
@@ -54,29 +72,33 @@ class TritonClient:
     def get_model_list(self) -> List[str]:
         """Get a list of models loaded in the triton server."""
         res = self.client.get_model_repository_index(as_json=True)
+        if res is None or "models" not in res:
+            return []
         return [model["name"] for model in res["models"]]
 
     def get_model_concurrency(self, model_name: str, timeout: int = 1000) -> int:
         """Get the modle concurrency."""
         self.load_model(model_name, timeout)
-        instances = self.client.get_model_config(model_name, as_json=True)["config"][
-            "instance_group"
-        ]
+        config_result = self.client.get_model_config(model_name, as_json=True)
+        if config_result is None or "config" not in config_result:
+            return 0
+        instances = config_result["config"].get("instance_group", [])
         return sum(instance["count"] * len(instance["gpus"]) for instance in instances)
 
     @staticmethod
     def process_result(result: Dict[str, str]) -> Dict[str, str]:
         """Post-process the result from the server."""
-        import google.protobuf.json_format  # pylint: disable=import-outside-toplevel
-        import tritonclient.grpc as grpcclient  # pylint: disable=import-outside-toplevel
+        if not TRITONCLIENT_AVAILABLE:
+            raise ImportError("tritonclient is required for TensorRT-LLM support")
 
-        # pylint: disable-next=import-outside-toplevel
-        from tritonclient.grpc.service_pb2 import ModelInferResponse
+        import google.protobuf.json_format
 
-        message = ModelInferResponse()
+        message = ModelInferResponse()  # type: ignore[misc]
         google.protobuf.json_format.Parse(json.dumps(result), message)
-        infer_result = grpcclient.InferResult(message)
+        infer_result = grpcclient.InferResult(message)  # type: ignore
         np_res = infer_result.as_numpy("OUTPUT_0")
+        if np_res is None:
+            return {"OUTPUT_0": ""}
         if np_res.ndim == 2:
             generated_text = np_res[0, 0].decode()
         else:
@@ -140,21 +162,21 @@ class TritonClient:
         self.client.stop_stream()
 
     @staticmethod
-    def generate_outputs() -> List["grpcclient.InferRequestedOutput"]:
+    def generate_outputs() -> List[Any]:
         """Generate the expected output structure."""
-        import tritonclient.grpc as grpcclient  # pylint: disable=import-outside-toplevel
-
-        return [grpcclient.InferRequestedOutput("OUTPUT_0")]
+        if not TRITONCLIENT_AVAILABLE:
+            raise ImportError("tritonclient is required for TensorRT-LLM support")
+        return [grpcclient.InferRequestedOutput("OUTPUT_0")]  # type: ignore
 
     @staticmethod
-    def prepare_tensor(name: str, input_data: Any) -> "grpcclient.InferInput":
+    def prepare_tensor(name: str, input_data: Any) -> Any:
         """Prepare an input data structure."""
-        import tritonclient.grpc as grpcclient  # pylint: disable=import-outside-toplevel
+        if not TRITONCLIENT_AVAILABLE:
+            raise ImportError("tritonclient is required for TensorRT-LLM support")
 
-        # pylint: disable-next=import-outside-toplevel
         from tritonclient.utils import np_to_triton_dtype
 
-        t = grpcclient.InferInput(
+        t = grpcclient.InferInput(  # type: ignore
             name, input_data.shape, np_to_triton_dtype(input_data.dtype)
         )
         t.set_data_from_numpy(input_data)
@@ -170,7 +192,7 @@ class TritonClient:
         beam_width: int = 1,
         repetition_penalty: float = 1,
         length_penalty: float = 1.0,
-    ) -> List["grpcclient.InferInput"]:
+    ) -> List[Any]:
         """Create the input for the triton inference server."""
         import numpy as np  # pylint: disable=import-outside-toplevel
 

@@ -13,18 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Type, Union
+from typing import List, Optional, Type
 
 from langchain.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain_core.language_models.llms import LLM, BaseLLM
+from langchain_core.language_models.llms import LLM
 
 
-def get_llm_instance_wrapper(
-    llm_instance: Union[LLM, BaseLLM], llm_type: str
-) -> Type[LLM]:
+def get_llm_instance_wrapper(llm_instance: LLM, llm_type: str) -> Type[LLM]:
     """Wraps an LLM instance in a class that can be registered with LLMRails.
 
     This is useful to create specific types of LLMs using a generic LLM provider
@@ -47,7 +45,7 @@ def get_llm_instance_wrapper(
             These are needed to allow changes to the arguments of the LLM calls.
             """
             if hasattr(llm_instance, "model_kwargs"):
-                return llm_instance.model_kwargs
+                return getattr(llm_instance, "model_kwargs")
             return {}
 
         @property
@@ -66,26 +64,29 @@ def get_llm_instance_wrapper(
             """
 
             if hasattr(llm_instance, "model_kwargs"):
-                if isinstance(llm_instance.model_kwargs, dict):
-                    llm_instance.model_kwargs["temperature"] = self.temperature
-                    llm_instance.model_kwargs["streaming"] = self.streaming
+                model_kwargs = getattr(llm_instance, "model_kwargs")
+                if isinstance(model_kwargs, dict):
+                    model_kwargs["temperature"] = self.temperature
+                    model_kwargs["streaming"] = self.streaming
 
         def _call(
             self,
             prompt: str,
             stop: Optional[List[str]] = None,
             run_manager: Optional[CallbackManagerForLLMRun] = None,
+            **kwargs,
         ) -> str:
             self._modify_instance_kwargs()
-            return llm_instance._call(prompt, stop, run_manager)
+            return llm_instance._call(prompt, stop, run_manager, **kwargs)
 
         async def _acall(
             self,
             prompt: str,
             stop: Optional[List[str]] = None,
             run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+            **kwargs,
         ) -> str:
             self._modify_instance_kwargs()
-            return await llm_instance._acall(prompt, stop, run_manager)
+            return await llm_instance._acall(prompt, stop, run_manager, **kwargs)
 
     return WrapperLLM

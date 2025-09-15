@@ -18,7 +18,13 @@ from __future__ import annotations
 
 import queue
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    try:
+        from tritonclient.utils import InferenceServerException
+    except ImportError:
+        InferenceServerException = Exception
 
 from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models.llms import BaseLLM
@@ -107,7 +113,7 @@ class TRTLLM(BaseLLM):
     def _call(
         self,
         prompt: str,
-        stop: Optional[List[str]] = None,
+        stop: Optional[List[str]] = None,  # pylint: disable=unused-argument
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:

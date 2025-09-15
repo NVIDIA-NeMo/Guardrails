@@ -140,7 +140,7 @@ def to_messages(colang_history: str) -> List[dict]:
     # a message from the user, and the rest gets translated to messages from the assistant.
     lines = colang_history.split("\n")
 
-    bot_lines = []
+    bot_lines: list[str] = []
     for i, line in enumerate(lines):
         if line.startswith('user "'):
             # If we have bot lines in the buffer, we first add a bot message.
@@ -181,8 +181,8 @@ def to_messages_v2(colang_history: str) -> List[dict]:
     # a message from the user, and the rest gets translated to messages from the assistant.
     lines = colang_history.split("\n")
 
-    user_lines = []
-    bot_lines = []
+    user_lines: list[str] = []
+    bot_lines: list[str] = []
     for line in lines:
         if line.startswith("user action:"):
             if len(bot_lines) > 0:
@@ -275,7 +275,7 @@ def verbose_v1(colang_history: str) -> str:
     return "\n".join(lines)
 
 
-def to_chat_messages(events: List[dict]) -> str:
+def to_chat_messages(events: List[dict]) -> List[dict]:
     """Filter that turns an array of events into a sequence of user/assistant messages.
 
     Properly handles multimodal content by preserving the structure when the content

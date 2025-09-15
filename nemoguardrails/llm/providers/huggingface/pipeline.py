@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 from typing import Any, List, Optional
 
 from langchain.callbacks.manager import (
@@ -20,7 +21,25 @@ from langchain.callbacks.manager import (
     CallbackManagerForLLMRun,
 )
 from langchain.schema.output import GenerationChunk
-from langchain_community.llms import HuggingFacePipeline
+
+# Import HuggingFacePipeline with fallbacks for different LangChain versions
+HuggingFacePipeline = None  # type: ignore[assignment]
+
+try:
+    from langchain_community.llms import (
+        HuggingFacePipeline,  # type: ignore[attr-defined,no-redef]
+    )
+except ImportError:
+    # Fallback for older versions of langchain
+    try:
+        from langchain.llms import (
+            HuggingFacePipeline,  # type: ignore[attr-defined,no-redef]
+        )
+    except ImportError:
+        # Create a dummy class if HuggingFacePipeline is not available
+        class HuggingFacePipeline:  # type: ignore[misc,no-redef]
+            def __init__(self, *args, **kwargs):
+                raise ImportError("HuggingFacePipeline is not available")
 
 
 class HuggingFacePipelineCompatible(HuggingFacePipeline):
@@ -47,12 +66,13 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
             )
 
         # Streaming for NeMo Guardrails is not supported in sync calls.
-        if self.model_kwargs and self.model_kwargs.get("streaming"):
-            raise Exception(
+        model_kwargs = getattr(self, "model_kwargs", {})
+        if model_kwargs and model_kwargs.get("streaming"):
+            raise NotImplementedError(
                 "Streaming mode not supported for HuggingFacePipeline in NeMo Guardrails!"
             )
 
-        llm_result = self._generate(
+        llm_result = getattr(self, "_generate")(
             [prompt],
             stop=stop,
             run_manager=run_manager,
@@ -78,11 +98,12 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
             )
 
         # Handle streaming, if the flag is set
-        if self.model_kwargs and self.model_kwargs.get("streaming"):
+        model_kwargs = getattr(self, "model_kwargs", {})
+        if model_kwargs and model_kwargs.get("streaming"):
             # Retrieve the streamer object, needs to be set in model_kwargs
-            streamer = self.model_kwargs.get("streamer")
+            streamer = model_kwargs.get("streamer")
             if not streamer:
-                raise Exception(
+                raise ValueError(
                     "Cannot stream, please add HuggingFace streamer object to model_kwargs!"
                 )
 
@@ -99,7 +120,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
                 run_manager=run_manager,
                 **kwargs,
             )
-            loop.create_task(self._agenerate(**generation_kwargs))
+            loop.create_task(getattr(self, "_agenerate")(**generation_kwargs))
 
             # And start waiting for the chunks to come in.
             completion = ""
@@ -111,7 +132,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
 
             return completion
 
-        llm_result = await self._agenerate(
+        llm_result = await getattr(self, "_agenerate")(
             [prompt],
             stop=stop,
             run_manager=run_manager,

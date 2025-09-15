@@ -95,6 +95,8 @@ class LLMTaskManager:
     def _get_general_instructions(self):
         """Helper to extract the general instructions."""
         text = ""
+        if self.config.instructions is None:
+            return text
         for instruction in self.config.instructions:
             if instruction.type == "general":
                 text = instruction.content
@@ -266,7 +268,9 @@ class LLMTaskManager:
             task_prompt = self._render_string(
                 prompt.content, context=context, events=events
             )
-            while len(task_prompt) > prompt.max_length:
+            while (
+                prompt.max_length is not None and len(task_prompt) > prompt.max_length
+            ):
                 if not events:
                     raise Exception(
                         f"Prompt exceeds max length of {prompt.max_length} characters even without history"
@@ -288,20 +292,27 @@ class LLMTaskManager:
 
             return task_prompt
         else:
+            if prompt.messages is None:
+                return []
             task_messages = self._render_messages(
                 prompt.messages, context=context, events=events
             )
             task_prompt_length = self._get_messages_text_length(task_messages)
-            while task_prompt_length > prompt.max_length:
+            while (
+                prompt.max_length is not None and task_prompt_length > prompt.max_length
+            ):
                 if not events:
                     raise Exception(
                         f"Prompt exceeds max length of {prompt.max_length} characters even without history"
                     )
                 # Remove events from the beginning of the history until the prompt fits.
                 events = events[1:]
-                task_messages = self._render_messages(
-                    prompt.messages, context=context, events=events
-                )
+                if prompt.messages is not None:
+                    task_messages = self._render_messages(
+                        prompt.messages, context=context, events=events
+                    )
+                else:
+                    task_messages = []
                 task_prompt_length = self._get_messages_text_length(task_messages)
             return task_messages
 

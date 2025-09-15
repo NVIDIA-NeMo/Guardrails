@@ -20,12 +20,15 @@ from typing import Any, Dict, Literal, Optional, Union
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
 
-from .langchain_initializer import ModelInitializationError, init_langchain_model
+from nemoguardrails.llm.models.langchain_initializer import (
+    ModelInitializationError,
+    init_langchain_model,
+)
 
 
 # later we can easily conver it to a class
 def init_llm_model(
-    model_name: Optional[str],
+    model_name: str,
     provider_name: str,
     mode: Literal["chat", "text"],
     kwargs: Dict[str, Any],

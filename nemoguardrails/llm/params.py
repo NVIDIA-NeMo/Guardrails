@@ -36,7 +36,7 @@ Also allows registration of custom parameter managers for different language mod
 
 import logging
 import warnings
-from typing import Dict, Type
+from typing import Any, Dict, Type
 
 from langchain.base_language import BaseLanguageModel
 
@@ -61,18 +61,18 @@ class LLMParams:
         warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
         self.llm = llm
         self.altered_params = kwargs
-        self.original_params = {}
+        self.original_params: dict[str, Any] = {}
 
     def __enter__(self):
         # Here we can access and modify the global language model parameters.
-        self.original_params = {}
         for param, value in self.altered_params.items():
             if hasattr(self.llm, param):
                 self.original_params[param] = getattr(self.llm, param)
                 setattr(self.llm, param, value)
 
             elif hasattr(self.llm, "model_kwargs"):
-                if param not in self.llm.model_kwargs:
+                model_kwargs = getattr(self.llm, "model_kwargs", {})
+                if param not in model_kwargs:
                     log.warning(
                         "Parameter %s does not exist for %s. Passing to model_kwargs",
                         param,
@@ -81,9 +81,10 @@ class LLMParams:
 
                     self.original_params[param] = None
                 else:
-                    self.original_params[param] = self.llm.model_kwargs[param]
+                    self.original_params[param] = model_kwargs[param]
 
-                self.llm.model_kwargs[param] = value
+                model_kwargs[param] = value
+                setattr(self.llm, "model_kwargs", model_kwargs)
 
             else:
                 log.warning(
@@ -92,7 +93,7 @@ class LLMParams:
                     self.llm.__class__.__name__,
                 )
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, value, traceback):
         # Restore original parameters when exiting the context
         for param, value in self.original_params.items():
             if hasattr(self.llm, param):
