@@ -1750,7 +1750,7 @@ class RailsConfig(BaseModel):
             # if we have output rails streaming enabled
             # we keep it in case it was needed when we have
             # support per rails
-            if self.rails.output.streaming.enabled:
+            if self.rails.output.streaming and self.rails.output.streaming.enabled:
                 return True
             return False
 

@@ -1595,6 +1595,9 @@ class LLMRails:
                 **action_params,
             }
 
+        output_rails_streaming_config = self.config.rails.output.streaming
+        if output_rails_streaming_config is None:
+            raise ValueError("Output rails streaming config is not available")
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
         output_rails_flows_id = self.config.rails.output.flows
         stream_first = stream_first or output_rails_streaming_config.stream_first
