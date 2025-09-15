@@ -153,25 +153,36 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                     action_params=event_data["action_params"],
                     started_at=event["timestamp"],
                 )
-                activated_rail.executed_actions.append(executed_action)
+                if activated_rail is not None:
+                    activated_rail.executed_actions.append(executed_action)
 
             elif event_type == "InternalSystemActionFinished":
                 action_name = event_data["action_name"]
                 if action_name in ignored_actions:
                     continue
 
-                executed_action.finished_at = event["timestamp"]
-                executed_action.duration = (
-                    executed_action.finished_at - executed_action.started_at
-                )
-                executed_action.return_value = event_data["return_value"]
+                if executed_action is not None:
+                    executed_action.finished_at = event["timestamp"]
+                    if (
+                        executed_action.finished_at is not None
+                        and executed_action.started_at is not None
+                    ):
+                        executed_action.duration = (
+                            executed_action.finished_at - executed_action.started_at
+                        )
+                    executed_action.return_value = event_data["return_value"]
                 executed_action = None
 
             elif event_type in ["InputRailFinished", "OutputRailFinished"]:
-                activated_rail.finished_at = event["timestamp"]
-                activated_rail.duration = (
-                    activated_rail.finished_at - activated_rail.started_at
-                )
+                if activated_rail is not None:
+                    activated_rail.finished_at = event["timestamp"]
+                    if (
+                        activated_rail.finished_at is not None
+                        and activated_rail.started_at is not None
+                    ):
+                        activated_rail.duration = (
+                            activated_rail.finished_at - activated_rail.started_at
+                        )
                 activated_rail = None
 
             elif event_type == "InputRailsFinished":
@@ -181,14 +192,21 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
                 output_rails_finished_at = event["timestamp"]
 
         elif event["type"] == "llm_call_info":
-            executed_action.llm_calls.append(event["data"])
+            if executed_action is not None:
+                executed_action.llm_calls.append(event["data"])
 
     # If at the end of the processing we still have an active rail, it is because
     # we have hit a stop. In this case, we take the last timestamp as the timestamp for
     # finishing the rail.
     if activated_rail is not None:
         activated_rail.finished_at = last_timestamp
-        activated_rail.duration = activated_rail.finished_at - activated_rail.started_at
+        if (
+            activated_rail.finished_at is not None
+            and activated_rail.started_at is not None
+        ):
+            activated_rail.duration = (
+                activated_rail.finished_at - activated_rail.started_at
+            )
 
         if activated_rail.type in ["input", "output"]:
             activated_rail.stop = True
@@ -213,9 +231,13 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
         if activated_rail.type in ["dialog", "generation"]:
             next_rail = generation_log.activated_rails[i + 1]
             activated_rail.finished_at = next_rail.started_at
-            activated_rail.duration = (
-                activated_rail.finished_at - activated_rail.started_at
-            )
+            if (
+                activated_rail.finished_at is not None
+                and activated_rail.started_at is not None
+            ):
+                activated_rail.duration = (
+                    activated_rail.finished_at - activated_rail.started_at
+                )
 
     # If we have output rails, we also record the general stats
     if output_rails_started_at:
@@ -257,17 +279,21 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
 
         for executed_action in activated_rail.executed_actions:
             for llm_call in executed_action.llm_calls:
-                generation_log.stats.llm_calls_count += 1
-                generation_log.stats.llm_calls_duration += llm_call.duration
-                generation_log.stats.llm_calls_total_prompt_tokens += (
-                    llm_call.prompt_tokens or 0
-                )
-                generation_log.stats.llm_calls_total_completion_tokens += (
-                    llm_call.completion_tokens or 0
-                )
-                generation_log.stats.llm_calls_total_tokens += (
-                    llm_call.total_tokens or 0
-                )
+                generation_log.stats.llm_calls_count = (
+                    generation_log.stats.llm_calls_count or 0
+                ) + 1
+                generation_log.stats.llm_calls_duration = (
+                    generation_log.stats.llm_calls_duration or 0
+                ) + (llm_call.duration or 0)
+                generation_log.stats.llm_calls_total_prompt_tokens = (
+                    generation_log.stats.llm_calls_total_prompt_tokens or 0
+                ) + (llm_call.prompt_tokens or 0)
+                generation_log.stats.llm_calls_total_completion_tokens = (
+                    generation_log.stats.llm_calls_total_completion_tokens or 0
+                ) + (llm_call.completion_tokens or 0)
+                generation_log.stats.llm_calls_total_tokens = (
+                    generation_log.stats.llm_calls_total_tokens or 0
+                ) + (llm_call.total_tokens or 0)
 
     generation_log.stats.total_duration = (
         processing_log[-1]["timestamp"] - processing_log[0]["timestamp"]

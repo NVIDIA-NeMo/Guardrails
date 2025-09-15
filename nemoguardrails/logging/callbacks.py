@@ -15,11 +15,15 @@
 import logging
 import uuid
 from time import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from uuid import UUID
 
 from langchain.callbacks import StdOutCallbackHandler
-from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
+from langchain.callbacks.base import (
+    AsyncCallbackHandler,
+    BaseCallbackHandler,
+    BaseCallbackManager,
+)
 from langchain.callbacks.manager import AsyncCallbackManagerForChainRun
 from langchain.schema import AgentAction, AgentFinish, AIMessage, BaseMessage, LLMResult
 from langchain_core.outputs import ChatGeneration
@@ -33,7 +37,7 @@ from nemoguardrails.utils import new_uuid
 log = logging.getLogger(__name__)
 
 
-class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
+class LoggingCallbackHandler(AsyncCallbackHandler):
     """Async callback handler that can be used to handle callbacks from langchain."""
 
     async def on_llm_start(
@@ -203,10 +207,17 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
                 )
 
         log.info("Output Stats :: %s", response.llm_output)
-        took = llm_call_info.finished_at - llm_call_info.started_at
-        log.info("--- :: LLM call took %.2f seconds", took)
-        llm_stats.inc("total_time", took)
-        llm_call_info.duration = took
+        if (
+            llm_call_info.finished_at is not None
+            and llm_call_info.started_at is not None
+        ):
+            took = llm_call_info.finished_at - llm_call_info.started_at
+            log.info("--- :: LLM call took %.2f seconds", took)
+            llm_stats.inc("total_time", took)
+            llm_call_info.duration = took
+        else:
+            log.warning("LLM call timing information incomplete")
+            llm_call_info.duration = 0.0
 
         # Update the token usage stats as well
         token_stats_found = False
@@ -278,7 +289,7 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
 
     async def on_llm_error(
         self,
-        error: Union[Exception, KeyboardInterrupt],
+        error: BaseException,
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
@@ -309,7 +320,7 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
 
     async def on_chain_error(
         self,
-        error: Union[Exception, KeyboardInterrupt],
+        error: BaseException,
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
@@ -340,7 +351,7 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
 
     async def on_tool_error(
         self,
-        error: Union[Exception, KeyboardInterrupt],
+        error: BaseException,
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
@@ -381,14 +392,15 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
 
 handlers = [LoggingCallbackHandler()]
 logging_callbacks = BaseCallbackManager(
-    handlers=handlers, inheritable_handlers=handlers
+    handlers=cast(List[BaseCallbackHandler], handlers),
+    inheritable_handlers=cast(List[BaseCallbackHandler], handlers),
 )
 
 logging_callback_manager_for_chain = AsyncCallbackManagerForChainRun(
     run_id=uuid.uuid4(),
     parent_run_id=None,
-    handlers=handlers,
-    inheritable_handlers=handlers,
+    handlers=cast(List[BaseCallbackHandler], handlers),
+    inheritable_handlers=cast(List[BaseCallbackHandler], handlers),
     tags=[],
     inheritable_tags=[],
 )
