@@ -408,6 +408,10 @@ class GenerationResponse(BaseModel):
         default=None,
         description="A state object which can be used in subsequent calls to continue the interaction.",
     )
+    tool_calls: Optional[list] = Field(
+        default=None,
+        description="Tool calls extracted from the LLM response, if any.",
+    )
 
 
 if __name__ == "__main__":

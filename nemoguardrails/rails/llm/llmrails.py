@@ -33,6 +33,7 @@ from typing_extensions import Self
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
     get_and_clear_reasoning_trace_contextvar,
+    get_and_clear_tool_calls_contextvar,
     get_colang_history,
 )
 from nemoguardrails.actions.output_mapping import is_output_blocked
@@ -1084,6 +1085,8 @@ class LLMRails:
                 options.log.llm_calls = True
                 options.log.internal_events = True
 
+        tool_calls = get_and_clear_tool_calls_contextvar()
+
         # If we have generation options, we prepare a GenerationResponse instance.
         if options:
             # If a prompt was used, we only need to return the content of the message.
@@ -1099,6 +1102,9 @@ class LLMRails:
                     res.response[0]["content"] = (
                         reasoning_trace + res.response[0]["content"]
                     )
+
+            if tool_calls:
+                res.tool_calls = tool_calls
 
             if self.config.colang_version == "1.0":
                 # If output variables are specified, we extract their values
@@ -1228,6 +1234,8 @@ class LLMRails:
             if prompt:
                 return new_message["content"]
             else:
+                if tool_calls:
+                    new_message["tool_calls"] = tool_calls
                 return new_message
 
     def stream_async(
