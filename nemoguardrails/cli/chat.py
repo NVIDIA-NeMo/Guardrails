@@ -119,13 +119,13 @@ async def _run_chat_v1_0(
                 ] = await rails_app.generate_async(messages=history)
 
                 # Handle different return types from generate_async
-                if type(response) == Tuple[Dict, Dict]:
+                if isinstance(response, tuple) and len(response) == 2:
                     bot_message = (
                         response[0]
                         if response
                         else {"role": "assistant", "content": ""}
                     )
-                elif type(response) == GenerationResponse:
+                elif isinstance(response, GenerationResponse):
                     # GenerationResponse case
                     response_attr = getattr(response, "response", None)
                     if isinstance(response_attr, list) and len(response_attr) > 0:
@@ -135,7 +135,7 @@ async def _run_chat_v1_0(
                             "role": "assistant",
                             "content": str(response_attr),
                         }
-                elif type(response) == Dict:
+                elif isinstance(response, dict):
                     # Direct dict case
                     bot_message = response
                 else:

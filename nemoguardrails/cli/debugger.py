@@ -181,8 +181,6 @@ def flows(
     if order_by_name:
         rows.sort(key=lambda x: x[0])
     else:
-        if not state:
-            raise RuntimeError("No state available")
         flow_configs: Dict[str, FlowConfig] = state.flow_configs
         rows.sort(key=lambda x: (-flow_configs[x[0]].loop_priority, x[0]))
 
@@ -257,7 +255,7 @@ def tree(
                         # Convert Spec to Spec object if it's a Dict
                         spec: Spec = (
                             head_element_spec_op.spec
-                            if type(head_element_spec_op.spec) == SpecOp
+                            if isinstance(head_element_spec_op.spec, Spec)
                             else Spec(**cast(Dict, head_element_spec_op.spec))
                         )
 

@@ -225,9 +225,7 @@ def convert(
     absolute_path = os.path.abspath(path)
 
     # Typer CLI args have to use an enum, not literal. Convert to Literal here
-    from_version_literal: Literal["1.0", "2.0-alpha"] = (
-        "1.0" if from_version == ColangVersions.one else "2.0-alpha"
-    )
+    from_version_literal: Literal["1.0", "2.0-alpha"] = from_version.value
 
     migrate(
         path=absolute_path,
