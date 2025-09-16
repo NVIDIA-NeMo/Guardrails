@@ -64,8 +64,8 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo-out.txt
    :language: text
-   :start-after: "# start-generate-response"
-   :end-before: "# end-generate-response"
+   :start-after: "# start-unsafe-response"
+   :end-before: "# end-unsafe-response"
    ```
 
    The following is an example response of the safe input.
