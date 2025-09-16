@@ -52,15 +52,7 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
    :language: yaml
    ```
 
-4. Load the guardrails configuration:
-
-   ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
-   :language: python
-   :start-after: "# start-load-config"
-   :end-before: "# end-load-config"
-   ```
-
-5. Generate a response:
+4. Run the following code to load the guardrails configurations from the previous steps and try out unsafe and safe inputs.
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
    :language: python
@@ -68,23 +60,15 @@ The sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com
    :end-before: "# end-generate-response"
    ```
 
-   _Example Output_
+   The following is an example response of the unsafe input.
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo-out.txt
    :language: text
-   :start-after: "# start-generate-response"
-   :end-before: "# end-generate-response"
+   :start-after: "# start-unsafe-response"
+   :end-before: "# end-unsafe-response"
    ```
 
-6. Send a safe request and generate a response:
-
-   ```{literalinclude} ../examples/configs/gs_content_safety/demo.py
-   :language: python
-   :start-after: "# start-safe-response"
-   :end-before: "# end-safe-response"
-   ```
-
-   _Example Output_
+   The following is an example response of the safe input.
 
    ```{literalinclude} ../examples/configs/gs_content_safety/demo-out.txt
    :language: text
