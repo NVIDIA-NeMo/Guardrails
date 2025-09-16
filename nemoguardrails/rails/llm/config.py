@@ -15,6 +15,8 @@
 
 """Module for the configuration of rails."""
 
+from __future__ import annotations
+
 import logging
 import os
 import warnings
@@ -95,6 +97,12 @@ class Model(BaseModel):
     mode: Literal["chat", "text"] = Field(
         default="chat",
         description="Whether the mode is 'text' completion or 'chat' completion. Allowed values are 'chat' or 'text'.",
+    )
+
+    # Cache configuration specific to this model (for content safety models)
+    cache: Optional["ModelCacheConfig"] = Field(
+        default=None,
+        description="Cache configuration for this specific model (primarily used for content safety models)",
     )
 
     @model_validator(mode="before")
@@ -867,6 +875,62 @@ class AIDefenseRailConfig(BaseModel):
     fail_open: bool = Field(
         default=False,
         description="If True, allow content when AI Defense API call fails (fail open). If False, block content when API call fails (fail closed). Does not affect missing configuration validation.",
+    )
+
+
+class CachePersistenceConfig(BaseModel):
+    """Configuration for cache persistence to disk."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Whether cache persistence is enabled (persistence requires both enabled=True and a valid interval)",
+    )
+    interval: Optional[float] = Field(
+        default=None,
+        description="Seconds between periodic cache persistence to disk (None disables persistence)",
+    )
+    path: Optional[str] = Field(
+        default=None,
+        description="Path to persistence file for cache data (defaults to 'cache_{model_name}.json' if persistence is enabled)",
+    )
+
+
+class CacheStatsConfig(BaseModel):
+    """Configuration for cache statistics tracking and logging."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether cache statistics tracking is enabled",
+    )
+    log_interval: Optional[float] = Field(
+        default=None,
+        description="Seconds between periodic cache stats logging to logs (None disables logging)",
+    )
+
+
+class ModelCacheConfig(BaseModel):
+    """Configuration for model caching."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether caching is enabled (default: False - no caching)",
+    )
+    capacity_per_model: int = Field(
+        default=50000, description="Maximum number of entries in the cache per model"
+    )
+    store: str = Field(
+        default="memory", description="Cache store: 'memory', 'filesystem', 'redis'"
+    )
+    store_config: Dict[str, Any] = Field(
+        default_factory=dict, description="Backend-specific configuration"
+    )
+    persistence: CachePersistenceConfig = Field(
+        default_factory=CachePersistenceConfig,
+        description="Configuration for cache persistence",
+    )
+    stats: CacheStatsConfig = Field(
+        default_factory=CacheStatsConfig,
+        description="Configuration for cache statistics tracking and logging",
     )
 
 

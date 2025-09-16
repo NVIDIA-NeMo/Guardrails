@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
-from typing import Dict, Optional
+import re
+from typing import Dict, List, Optional, Union
 
 from langchain_core.language_models.llms import BaseLLM
 
@@ -25,6 +27,32 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 
 log = logging.getLogger(__name__)
+
+
+PROMPT_PATTERN_WHITESPACES = re.compile(r"\s+")
+
+
+def _create_cache_key(prompt: Union[str, List[str]]) -> str:
+    """Create a cache key from the prompt."""
+    # can the prompt really be a list?
+    if isinstance(prompt, list):
+        prompt_str = json.dumps(prompt)
+    else:
+        prompt_str = prompt
+
+    # normalize the prompt to a string
+    # should we do more normalizations?
+    return PROMPT_PATTERN_WHITESPACES.sub(" ", prompt_str).strip()
+
+
+# Thread Safety Note:
+# The content safety caching mechanism is thread-safe for single-node deployments.
+# The underlying LFUCache uses threading.RLock to ensure atomic operations.
+# ContentSafetyManager uses double-checked locking for efficient cache creation.
+#
+# However, this implementation is NOT suitable for distributed environments.
+# For multi-node deployments, consider using distributed caching solutions
+# like Redis or a shared database.
 
 
 @action()
@@ -75,6 +103,24 @@ async def content_safety_check_input(
 
     max_tokens = max_tokens or _MAX_TOKENS
 
+    # Check cache if content safety manager is available for this model
+    cached_result = None
+    cache_key = None
+    cache = None
+
+    # Try to get the model-specific content safety manager
+    content_safety_manager = kwargs.get(f"content_safety_manager_{model_name}")
+
+    if content_safety_manager:
+        cache = content_safety_manager.get_cache()
+        if cache:
+            cache_key = _create_cache_key(check_input_prompt)
+            cached_result = cache.get(cache_key)
+            if cached_result is not None:
+                log.debug(f"Content safety cache hit for model '{model_name}'")
+                return cached_result
+
+    # Make the actual LLM call
     result = await llm_call(
         llm,
         check_input_prompt,
@@ -86,7 +132,14 @@ async def content_safety_check_input(
 
     is_safe, *violated_policies = result
 
-    return {"allowed": is_safe, "policy_violations": violated_policies}
+    final_result = {"allowed": is_safe, "policy_violations": violated_policies}
+
+    # Store in cache if available
+    if cache_key and cache:
+        cache.put(cache_key, final_result)
+        log.debug(f"Content safety result cached for model '{model_name}'")
+
+    return final_result
 
 
 def content_safety_check_output_mapping(result: dict) -> bool:

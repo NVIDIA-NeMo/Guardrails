@@ -131,6 +131,7 @@ class LLMRails:
         self.config = config
         self.llm = llm
         self.verbose = verbose
+        self._content_safety_managers = {}
 
         if self.verbose:
             set_verbose(True, llm_calls=True)
@@ -500,6 +501,7 @@ class LLMRails:
                     kwargs=kwargs,
                 )
 
+                # If the model is a content safety model, we need to create a ContentSafetyManager for it
                 if llm_config.type == "main":
                     # If a main LLM was already injected, skip creating another
                     # one. Otherwise, create and register it.
@@ -524,6 +526,36 @@ class LLMRails:
                 raise
 
         self.runtime.register_action_param("llms", llms)
+
+        # Register content safety managers if content safety features are used
+        if self._has_content_safety_rails():
+            from nemoguardrails.library.content_safety.manager import (
+                ContentSafetyManager,
+            )
+
+            # Create a ContentSafetyManager for each content safety model
+            for model in self.config.models:
+                if model.type not in ["main", "embeddings"]:
+                    # Use model's cache config if available, otherwise None (no caching)
+                    cache_config = model.cache
+
+                    manager = ContentSafetyManager(
+                        model_name=model.type, cache_config=cache_config
+                    )
+
+                    self._content_safety_managers[model.type] = manager
+
+                    # Register the manager for this specific model
+                    self.runtime.register_action_param(
+                        f"content_safety_manager_{model.type}", manager
+                    )
+
+                    log.info(
+                        f"Initialized ContentSafetyManager for model '{model.type}' with cache %s",
+                        "enabled"
+                        if cache_config and cache_config.enabled
+                        else "disabled",
+                    )
 
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
@@ -1477,6 +1509,16 @@ class LLMRails:
         register_embedding_provider(engine_name=name, model=cls)
         return self
 
+    def _has_content_safety_rails(self) -> bool:
+        """Check if any content safety rails are configured in flows.
+        At the moment, we only support content safety manager in input flows.
+        """
+        flows = self.config.rails.input.flows
+        for flow in flows:
+            if "content safety check input" in flow:
+                return True
+        return False
+
     def explain(self) -> ExplainInfo:
         """Helper function to return the latest ExplainInfo object."""
         if self.explain_info is None:
@@ -1760,3 +1802,27 @@ class LLMRails:
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
+
+    def close(self):
+        """Properly close and clean up resources, including persisting caches."""
+        if self._content_safety_managers:
+            log.info("Persisting content safety caches on close")
+            for model_name, manager in self._content_safety_managers.items():
+                manager.persist_cache()
+
+    def __del__(self):
+        """Ensure caches are persisted when the object is garbage collected."""
+        try:
+            self.close()
+        except Exception as e:
+            # Silently fail in destructor to avoid issues during shutdown
+            log.debug(f"Error during LLMRails cleanup: {e}")
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensure cleanup."""
+        self.close()
+        return False

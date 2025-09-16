@@ -14,3 +14,18 @@ rails:
   output:
     flows:
       - content safety check output $model=content_safety
+
+  # Content safety cache configuration with persistence and stats
+  config:
+    content_safety:
+      cache:
+        enabled: true
+        capacity_per_model: 5000
+        store: memory # In-memory cache with optional disk persistence
+        persistence:
+          enabled: true # Enable persistence (requires interval to be set)
+          interval: 300.0 # Persist every 5 minutes
+          path: ./content_safety_cache.json # Where to save cache
+        stats:
+          enabled: true # Enable statistics tracking
+          log_interval: 60.0 # Log cache statistics every minute
