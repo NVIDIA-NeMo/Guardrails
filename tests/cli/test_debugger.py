@@ -222,12 +222,3 @@ class TestTreeCommand:
 
         assert result.exit_code == 0
         mock_tree.assert_called_with("main")
-
-
-# TODO: addd tests
-# class TestVarsCommand:
-#     def setup_method(self):
-#         self.state = MagicMock(spec=State)
-#         self.runtime = MagicMock()
-#         debugger.state = self.state
-#         debugger.runtime = self.runtime
