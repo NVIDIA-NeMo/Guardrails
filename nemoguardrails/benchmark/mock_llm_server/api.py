@@ -15,10 +15,11 @@
 
 
 import time
-from typing import Union
+from typing import Annotated, Union
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
+from nemoguardrails.benchmark.mock_llm_server.config import AppModelConfig, get_config
 from nemoguardrails.benchmark.mock_llm_server.models import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -59,14 +60,19 @@ app = FastAPI(
 )
 
 
+ModelConfigDep = Annotated[AppModelConfig, Depends(get_config)]
+
+
 @app.get("/")
-async def root():
+async def root(current_config: ModelConfigDep):
     """Root endpoint with basic server information."""
+    print(current_config)
     return {
         "message": "Mock LLM Server",
         "version": "0.0.1",
         "description": "OpenAI-compatible mock LLM server for testing and benchmarking",
         "endpoints": ["/v1/models", "/v1/chat/completions", "/v1/completions"],
+        "model_configuration": current_config,
     }
 
 

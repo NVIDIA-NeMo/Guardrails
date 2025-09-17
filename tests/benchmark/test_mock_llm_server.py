@@ -21,6 +21,7 @@ of the OpenAI-compatible mock LLM server.
 """
 
 import json
+import os
 import time
 from typing import Any, Dict, List
 from unittest.mock import patch
@@ -29,6 +30,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails.benchmark.mock_llm_server.api import app
+from nemoguardrails.benchmark.mock_llm_server.config import (
+    AppModelConfig,
+    get_config,
+    load_config,
+)
 from nemoguardrails.benchmark.mock_llm_server.response_data import (
     DUMMY_CHAT_RESPONSES,
     DUMMY_MODELS,
@@ -37,17 +43,6 @@ from nemoguardrails.benchmark.mock_llm_server.response_data import (
     get_dummy_chat_response,
     get_dummy_completion_response,
 )
-
-#
-# # Import the server and its components
-# from mock_llm_server.mock_llm_server import (
-#     DUMMY_MODELS,
-#     app,
-#     calculate_tokens,
-#     generate_id,
-#     get_dummy_chat_response,
-#     get_dummy_completion_response,
-# )
 
 
 class TestMockLLMServer:
@@ -81,6 +76,17 @@ class TestMockLLMServer:
     # Root endpoint tests
     def test_root_endpoint(self, client):
         """Test the root endpoint returns correct information."""
+
+        mock_config = AppModelConfig(
+            model="mock_config_model_name",
+            refusal_text="I'm afraid I can't do that, Dave",
+        )
+
+        def override_get_config():
+            return mock_config
+
+        app.dependency_overrides[get_config] = override_get_config
+
         response = client.get("/")
         assert response.status_code == 200
 
@@ -91,6 +97,8 @@ class TestMockLLMServer:
         assert "/v1/models" in data["endpoints"]
         assert "/v1/chat/completions" in data["endpoints"]
         assert "/v1/completions" in data["endpoints"]
+        assert data["model_configuration"]["model"] == mock_config.model
+        assert data["model_configuration"]["refusal_text"] == mock_config.refusal_text
 
     # Health check tests
     def test_health_check(self, client):
@@ -558,3 +566,18 @@ class TestMockLLMServer:
         assert "/v1/models" in openapi_data["paths"]
         assert "/v1/chat/completions" in openapi_data["paths"]
         assert "/v1/completions" in openapi_data["paths"]
+
+    def test_read_root_with_mock_config(self):
+        """Tests load_config method correctly populates the `settings` global variable"""
+        yaml_file = os.path.join(os.path.dirname(__file__), "mock_model_config.yaml")
+
+        # Make sure settings is empty to start with, load and check it's populated
+        load_config(yaml_file)
+        config = get_config()
+        assert config is not None
+
+        # Now check the contents against `mock_model_config.yaml`
+        assert isinstance(config, AppModelConfig)
+        assert config.model == "mock_model"
+        assert config.refusal_probability == 0.01
+        assert config.refusal_text == "I'm sorry, I can't help you with that request"

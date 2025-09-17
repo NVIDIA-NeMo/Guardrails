@@ -1,0 +1,12 @@
+model: "nvidia/llama-3.1-nemoguard-8b-content-safety"
+refusal_probability: 0.01
+refusal_text: |
+  {
+    "User Safety": "unsafe",
+    "Response Safety": "unsafe",
+    "Safety Categories": "PII/Privacy"
+  }
+latency_min_seconds: 0.1
+latency_max_seconds: 5
+latency_mean_seconds: 0.4
+latency_std_seconds: 0.1

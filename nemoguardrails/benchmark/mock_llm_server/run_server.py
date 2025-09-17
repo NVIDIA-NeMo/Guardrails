@@ -26,9 +26,7 @@ import sys
 
 import uvicorn
 from api import app
-
-# # Add the current directory to Python path to import the server module
-# sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config import get_config, load_config, settings
 
 
 def main():
@@ -54,11 +52,20 @@ def main():
         help="Log level (default: info)",
     )
 
+    parser.add_argument(
+        "--config-file", help="YAML file to configure model", required=True
+    )
+
     args = parser.parse_args()
+
+    # Load model configuration
+    load_config(args.config_file)
+    model_config = get_config()
 
     print(f"Starting Mock LLM Server on {args.host}:{args.port}")
     print(f"OpenAPI docs available at: http://{args.host}:{args.port}/docs")
     print(f"Health check at: http://{args.host}:{args.port}/health")
+    print(f"Model configuration: {model_config}")
     print("Press Ctrl+C to stop the server")
 
     try:

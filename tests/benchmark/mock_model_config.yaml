@@ -1,0 +1,3 @@
+model: "mock_model"
+refusal_probability: 0.01
+refusal_text: "I'm sorry, I can't help you with that request"
