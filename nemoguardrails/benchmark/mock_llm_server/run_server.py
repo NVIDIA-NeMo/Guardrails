@@ -25,9 +25,10 @@ import os
 import sys
 
 import uvicorn
+from api import app
 
-# Add the current directory to Python path to import the server module
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# # Add the current directory to Python path to import the server module
+# sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
@@ -62,7 +63,7 @@ def main():
 
     try:
         uvicorn.run(
-            "mock_llm_server:app",
+            app=app,
             host=args.host,
             port=args.port,
             reload=args.reload,

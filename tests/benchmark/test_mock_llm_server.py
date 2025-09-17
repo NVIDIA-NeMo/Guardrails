@@ -28,15 +28,26 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-# Import the server and its components
-from mock_llm_server.mock_llm_server import (
+from nemoguardrails.benchmark.mock_llm_server.api import app
+from nemoguardrails.benchmark.mock_llm_server.response_data import (
+    DUMMY_CHAT_RESPONSES,
     DUMMY_MODELS,
-    app,
     calculate_tokens,
     generate_id,
     get_dummy_chat_response,
     get_dummy_completion_response,
 )
+
+#
+# # Import the server and its components
+# from mock_llm_server.mock_llm_server import (
+#     DUMMY_MODELS,
+#     app,
+#     calculate_tokens,
+#     generate_id,
+#     get_dummy_chat_response,
+#     get_dummy_completion_response,
+# )
 
 
 class TestMockLLMServer:
@@ -75,7 +86,7 @@ class TestMockLLMServer:
 
         data = response.json()
         assert data["message"] == "Mock LLM Server"
-        assert data["version"] == "1.0.0"
+        assert data["version"] == "0.0.1"
         assert "description" in data
         assert "/v1/models" in data["endpoints"]
         assert "/v1/chat/completions" in data["endpoints"]
@@ -491,16 +502,34 @@ class TestMockLLMServer:
         assert data["usage"]["prompt_tokens"] > 1000
 
     # Mock and patch tests
-    @patch("mock_llm_server.mock_llm_server.get_dummy_chat_response")
-    def test_chat_response_mocking(self, mock_response, client, valid_chat_request):
+    @patch("nemoguardrails.benchmark.mock_llm_server.api.get_dummy_chat_response")
+    def test_chat_completion_response_mocking(
+        self, mock_response, client, valid_chat_request
+    ):
         """Test mocking of chat response generation."""
-        mock_response.return_value = "Mocked response for testing"
+        expected_response = "Mocked response for testing chat completions"
+        mock_response.return_value = expected_response
 
         response = client.post("/v1/chat/completions", json=valid_chat_request)
         assert response.status_code == 200
 
         data = response.json()
-        assert data["choices"][0]["message"]["content"] == "Mocked response for testing"
+        assert data["choices"][0]["message"]["content"] == expected_response
+        mock_response.assert_called_once()
+
+    @patch("nemoguardrails.benchmark.mock_llm_server.api.get_dummy_completion_response")
+    def test_completion_response_mocking(
+        self, mock_response, client, valid_completion_request
+    ):
+        """Test mocking of chat response generation."""
+        expected_response = "Mocked response to check completion responses"
+        mock_response.return_value = expected_response
+
+        response = client.post("/v1/completions", json=valid_completion_request)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["choices"][0]["text"] == expected_response
         mock_response.assert_called_once()
 
     @patch("time.time")
