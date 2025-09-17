@@ -18,7 +18,6 @@ from functools import lru_cache
 from typing import Any, Optional, Union
 
 import yaml
-from openai._utils import lru_cache
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -61,7 +60,6 @@ def load_config(yaml_file: str) -> None:
     settings = AppModelConfig(**config_data)
 
 
-@lru_cache
 def get_config() -> AppModelConfig:
     """FastAPI Dependency to inject model configuration"""
     print(f"get_config called, settings = {settings}")

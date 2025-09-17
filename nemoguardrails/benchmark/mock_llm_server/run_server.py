@@ -21,12 +21,11 @@ This script starts the FastAPI server with configurable host and port settings.
 """
 
 import argparse
-import os
 import sys
 
 import uvicorn
-from api import app
-from config import get_config, load_config, settings
+
+from nemoguardrails.benchmark.mock_llm_server.config import get_config, load_config
 
 
 def main():
@@ -61,6 +60,9 @@ def main():
     # Load model configuration
     load_config(args.config_file)
     model_config = get_config()
+
+    # Import the app after configuration is loaded. This caches the values in the app Dependencies
+    from nemoguardrails.benchmark.mock_llm_server.api import app
 
     print(f"Starting Mock LLM Server on {args.host}:{args.port}")
     print(f"OpenAPI docs available at: http://{args.host}:{args.port}/docs")
