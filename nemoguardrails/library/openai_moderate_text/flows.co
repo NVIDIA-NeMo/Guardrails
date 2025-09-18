@@ -1,0 +1,93 @@
+"""
+https://platform.openai.com/docs/guides/moderation
+
+Supported Categories:
+
+Category	        Description
+harassment	                Content that expresses, incites, or promotes harassing language towards any target.
+harassment/threatening	    Harassment content that also includes violence or serious harm towards any target.
+hate	                    Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.
+hate/threatening	        Hateful content that also includes violence or serious harm towards the targeted group based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste.
+illicit	                    Content that gives advice or instruction on how to commit illicit acts. A phrase like "how to shoplift" would fit this category.
+illicit/violent	            The same types of content flagged by the illicit category, but also includes references to violence or procuring a weapon.
+self-harm     	            Content that promotes, encourages, or depicts acts of self-harm, such as suicide, cutting, and eating disorders.
+self-harm/intent        	Content where the speaker expresses that they are engaging or intend to engage in acts of self-harm, such as suicide, cutting, and eating disorders.
+self-harm/instructions	    Content that encourages performing acts of self-harm, such as suicide, cutting, and eating disorders, or that gives instructions or advice on how to commit such acts.
+sexual	                    Content meant to arouse sexual excitement, such as the description of sexual activity, or that promotes sexual services (excluding sex education and wellness).
+sexual/minors  	            Sexual content that includes an individual who is under 18 years old.
+violence	                Content that depicts death, violence, or physical injury.
+violence/graphic	        Content that depicts death, violence, or physical injury in graphic detail.
+"""
+
+define subflow openai moderation
+  """Guardrail based on model classification of potentially harmful content"""
+  $result = execute openai_moderation_api
+
+  if $result.get("flagged", False)
+    bot refuse to respond
+    stop
+
+define subflow openai moderation detailed
+  """Guardrail based on individual risk scores."""
+  $result = execute openai_moderation_api
+
+  if $result.categories.get("sexual", False)
+    stop
+    bot inform cannot engage in inappropriate content
+
+  if $result.categories.get("sexual/minors", False)
+    stop
+    bot inform cannot engage in inappropriate content
+
+  if $result.categories.get("harassment", False)
+    bot inform cannot engage in abusive or harmful behavior
+    stop
+
+  if $result.categories.get("harassment/threatening", False)
+    bot inform cannot engage in abusive or harmful behavior
+    stop
+
+  if $result.categories.get("hate", False)
+    bot inform cannot engage in abusive or harmful behavior
+    stop
+
+  if $result.categories.get("hate/threatening", False)
+    bot inform cannot engage in abusive or harmful behavior
+    stop
+
+  if $result.categories.get("illicit", False)
+    bot inform cannot engage in inappropriate content
+    stop
+
+  if $result.categories.get("illicit/violent", False)
+    bot inform cannot engage in inappropriate content
+    stop
+
+  if $result.categories.get("self-harm", False)
+    bot inform cannot engage with sensitive content
+    stop
+
+  if $result.categories.get("self-harm/intent", False)
+    bot inform cannot engage with sensitive content
+    stop
+
+  if $result.categories.get("self-harm/instructions", False)
+    bot inform cannot engage with sensitive content
+    stop
+
+  if $result.categories.get("violence", False)
+    bot inform cannot engage in abusive or harmful behavior
+    stop
+
+  if $result.categories.get("violence/graphic", False)
+    bot inform cannot engage in abusive or harmful behavior
+    stop
+
+define bot inform cannot engage in abusive or harmful behavior
+  "I will not engage in any abusive or harmful behavior."
+
+define bot inform cannot engage with inappropriate content
+  "I will not engage with inappropriate content."
+
+define bot inform cannot engage with sensitive content
+  "I will not engage with sensitive content."

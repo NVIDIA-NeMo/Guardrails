@@ -20,11 +20,12 @@ import logging
 import os.path
 import re
 import time
+import uuid
 import warnings
 from contextlib import asynccontextmanager
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, root_validator, validator
 from starlette.responses import StreamingResponse
@@ -46,7 +47,7 @@ log = logging.getLogger(__name__)
 # backends and storage engines.
 registered_loggers = []
 
-api_description = """Guardrails Sever API."""
+api_description = """Guardrails Server API."""
 
 # The headers for each request
 api_request_headers = contextvars.ContextVar("headers")
@@ -574,6 +575,126 @@ class GuardrailsConfigurationError(Exception):
     """Exception raised for errors in the configuration."""
 
     pass
+
+
+class ModerationsRequest(BaseModel):
+    input: Union[str, List[str]]
+    model: Optional[str] = None
+    config_id: Optional[str] = Field(default=os.getenv("DEFAULT_CONFIG_ID", None))
+    config_ids: Optional[List[str]] = None
+
+    @root_validator(pre=True)
+    def normalize_keys(cls, data):
+        if isinstance(data, dict) and "Model" in data and "model" not in data:
+            data["model"] = data.pop("Model")
+        return data
+
+    @validator("config_ids", pre=True, always=True)
+    def ensure_config_ids(cls, v, values):
+        if v is None and values.get("config_id"):
+            return [values["config_id"]]
+        return v
+
+
+class ModerationsResponse(BaseModel):
+    id: str
+    model: str
+    results: List[dict]
+
+
+def _moderation_actions(dispatcher) -> list[str]:
+    out = []
+    for name, fn in dispatcher.registered_actions.items():
+        meta = getattr(fn, "action_meta", {}) or {}
+        tags = set(meta.get("tags", []))
+        if "moderation" in tags:
+            out.append(name)
+    return sorted(out)
+
+
+def _resolve_moderation_action(dispatcher, model_or_action: str | None) -> str:
+    mods = _moderation_actions(dispatcher)
+    if not mods:
+        raise HTTPException(
+            status_code=500, detail="No moderation actions are registered."
+        )
+
+    if not model_or_action:
+        return mods[0]
+
+    wanted = model_or_action.strip()
+    if dispatcher.has_registered(wanted) and wanted in mods:
+        return wanted
+
+    def norm(s: str) -> str:
+        return s.lower().replace(" ", "")
+
+    for m in mods:
+        if norm(m) == norm(wanted):
+            return m
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"Unknown moderation action '{model_or_action}'. Available: {', '.join(mods)}",
+    )
+
+
+@app.post("/v1/moderations", response_model=ModerationsResponse)
+async def create_moderations(body: ModerationsRequest, request: Request):
+    for logger in registered_loggers:
+        asyncio.get_event_loop().create_task(
+            logger({"endpoint": "/v1/moderations", "body": body.json()})
+        )
+    api_request_headers.set(request.headers)
+
+    config_ids = body.config_ids or ([body.config_id] if body.config_id else None)
+    if not config_ids:
+        if app.default_config_id:
+            config_ids = [app.default_config_id]
+        elif app.single_config_mode and app.single_config_id:
+            config_ids = [app.single_config_id]
+        else:
+            raise GuardrailsConfigurationError(
+                "No 'config_id' provided and no default configuration is set for the server."
+            )
+
+    try:
+        llm_rails = _get_rails(config_ids)
+    except Exception:
+        raise HTTPException(
+            status_code=500, detail="Could not load guardrails configuration."
+        )
+
+    dispatcher = llm_rails.runtime.action_dispatcher
+    action_name = _resolve_moderation_action(dispatcher, body.model)
+
+    texts = body.input if isinstance(body.input, list) else [body.input]
+    results = []
+
+    for text in texts:
+        params = {"context": {"user_message": text}}
+        try:
+            result = await dispatcher.execute_action(action_name, params)
+        except Exception:
+            raise HTTPException(
+                status_code=502, detail=f"Moderation action '{action_name}' failed."
+            )
+
+        value, status = (
+            result
+            if isinstance(result, tuple) and len(result) == 2
+            else (result, "success")
+        )
+        payload = getattr(value, "return_value", value) or {}
+        if not isinstance(payload, dict):
+            payload = {"value": payload}
+        results.append(payload)
+
+    return ModerationsResponse(
+        id=f"modr-{uuid.uuid4()}",
+        model=action_name,
+        results=results,
+    )
 
 
 # # Register a nicer error message for 422 error

@@ -142,3 +142,6 @@ async def call_gcp_text_moderation_api(
         violations_dict[violation.name] = violation.confidence
 
     return {"max_risk_score": max_risk_score, "violations": violations_dict}
+
+
+call_gcp_text_moderation_api.action_meta.setdefault("tags", []).append("moderation")
