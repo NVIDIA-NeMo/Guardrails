@@ -66,7 +66,6 @@ ModelConfigDep = Annotated[AppModelConfig, Depends(get_config)]
 @app.get("/")
 async def root(current_config: ModelConfigDep):
     """Root endpoint with basic server information."""
-    print(current_config)
     return {
         "message": "Mock LLM Server",
         "version": "0.0.1",

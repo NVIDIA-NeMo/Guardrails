@@ -62,9 +62,6 @@ def load_config(yaml_file: str) -> None:
 
 def get_config() -> AppModelConfig:
     """FastAPI Dependency to inject model configuration"""
-    print(f"get_config called, settings = {settings}")
-    print(f"GET_CONFIG CALLED IN PROCESS ID: {os.getpid()}")
-
     if settings is None:
         raise RuntimeError("No configuration loaded")
     return settings
