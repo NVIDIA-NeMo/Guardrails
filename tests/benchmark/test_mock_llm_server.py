@@ -581,3 +581,9 @@ class TestMockLLMServer:
         assert config.model == "mock_model"
         assert config.refusal_probability == 0.01
         assert config.refusal_text == "I'm sorry, I can't help you with that request"
+
+    @patch("nemoguardrails.benchmark.mock_llm_server.config.settings", None)
+    def test_get_config_raises_exception(self):
+        """Check if we call `get_config()` without settings set we raise an exception"""
+        with pytest.raises(RuntimeError, match="No configuration loaded"):
+            get_config()

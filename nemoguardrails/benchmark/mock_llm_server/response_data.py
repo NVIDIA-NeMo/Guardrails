@@ -14,7 +14,13 @@
 # limitations under the License.
 
 
+import random
 import uuid
+from typing import Optional
+
+import numpy as np
+
+from nemoguardrails.benchmark.mock_llm_server.config import AppModelConfig, get_config
 
 DUMMY_MODELS = [
     {
@@ -65,15 +71,50 @@ def calculate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def get_dummy_chat_response() -> str:
+def get_dummy_chat_response(config: AppModelConfig) -> str:
     """Get a dummy chat response."""
-    import random
+
+    if is_refusal(config):
+        return config.refusal_text
 
     return random.choice(DUMMY_CHAT_RESPONSES)
 
 
-def get_dummy_completion_response() -> str:
+def get_dummy_completion_response(config: AppModelConfig) -> str:
     """Get a dummy completion response."""
-    import random
+    if is_refusal(config):
+        return config.refusal_text
 
     return random.choice(DUMMY_COMPLETION_RESPONSES)
+
+
+def get_latency_seconds(config: AppModelConfig, seed: Optional[int] = None) -> float:
+    """Sample latency for this request using the model's config
+    Very inefficient to generate each sample singly rather than in batch
+    """
+    if seed:
+        np.random.seed(seed)
+
+    # Sample from the normal distribution using model config
+    latency_seconds = np.random.normal(
+        loc=config.latency_mean_seconds, scale=config.latency_std_seconds, size=1
+    )
+
+    # Truncate distribution's support using min and max config values
+    latency_seconds = np.clip(
+        latency_seconds,
+        a_min=config.latency_min_seconds,
+        a_max=config.latency_max_seconds,
+    )
+    return float(latency_seconds)
+
+
+def is_refusal(config: AppModelConfig, seed: Optional[int] = None) -> bool:
+    """Check if the model should return a refusal
+    Very inefficient to generate each sample singly rather than in batch
+    """
+    if seed:
+        np.random.seed(seed)
+
+    refusal = np.random.binomial(n=1, p=config.refusal_probability, size=1)
+    return bool(refusal[0])

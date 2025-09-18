@@ -15,7 +15,7 @@
 
 
 import time
-from typing import Annotated, Union
+from typing import Annotated, Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException
 
@@ -84,13 +84,15 @@ async def list_models():
 
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
-async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResponse:
+async def chat_completions(
+    request: ChatCompletionRequest, config: ModelConfigDep
+) -> ChatCompletionResponse:
     """Create a chat completion."""
     # Validate model exists
     _validate_request_model(request)
 
     # Generate dummy response
-    response_content = get_dummy_chat_response()
+    response_content = get_dummy_chat_response(config)
 
     # Calculate token usage
     prompt_text = " ".join([msg.content for msg in request.messages])
@@ -127,7 +129,9 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
 
 
 @app.post("/v1/completions", response_model=CompletionResponse)
-async def completions(request: CompletionRequest) -> CompletionResponse:
+async def completions(
+    request: CompletionRequest, config: ModelConfigDep
+) -> CompletionResponse:
     """Create a text completion."""
 
     # Validate model exists
@@ -140,7 +144,7 @@ async def completions(request: CompletionRequest) -> CompletionResponse:
         prompt_text = request.prompt
 
     # Generate dummy response
-    response_text = get_dummy_completion_response()
+    response_text = get_dummy_completion_response(config)
 
     # Calculate token usage
     prompt_tokens = calculate_tokens(prompt_text)
