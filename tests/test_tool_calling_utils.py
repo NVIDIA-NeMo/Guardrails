@@ -141,7 +141,7 @@ def test_convert_messages_to_langchain_format_unknown_type():
     """Test that unknown message types raise ValueError."""
     messages = [{"role": "unknown", "content": "Unknown message"}]
 
-    with pytest.raises(ValueError, match="Unknown message type unknown"):
+    with pytest.raises(ValueError, match="Unknown message type: unknown"):
         _convert_messages_to_langchain_format(messages)
 
 
