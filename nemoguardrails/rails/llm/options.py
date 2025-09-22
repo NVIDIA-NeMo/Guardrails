@@ -127,6 +127,16 @@ class GenerationRailsOptions(BaseModel):
         default=True,
         description="Whether the dialog rails are enabled or not.",
     )
+    tool_output: Union[bool, List[str]] = Field(
+        default=True,
+        description="Whether the tool output rails are enabled or not. "
+        "If a list of names is specified, then only the specified tool output rails will be applied.",
+    )
+    tool_input: Union[bool, List[str]] = Field(
+        default=True,
+        description="Whether the tool input rails are enabled or not. "
+        "If a list of names is specified, then only the specified tool input rails will be applied.",
+    )
 
 
 class GenerationOptions(BaseModel):
@@ -177,6 +187,8 @@ class GenerationOptions(BaseModel):
                 "dialog": False,
                 "retrieval": False,
                 "output": False,
+                "tool_output": False,
+                "tool_input": False,
             }
             for rail_type in values["rails"]:
                 _rails[rail_type] = True

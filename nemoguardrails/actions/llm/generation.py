@@ -582,7 +582,21 @@ class LLMGenerationActions:
             if streaming_handler:
                 await streaming_handler.push_chunk(text)
 
-            output_events.append(new_event_dict("BotMessage", text=text))
+            if self.config.passthrough:
+                from nemoguardrails.actions.llm.utils import (
+                    get_and_clear_tool_calls_contextvar,
+                )
+
+                tool_calls = get_and_clear_tool_calls_contextvar()
+
+                if tool_calls:
+                    output_events.append(
+                        new_event_dict("BotToolCall", tool_calls=tool_calls)
+                    )
+                else:
+                    output_events.append(new_event_dict("BotMessage", text=text))
+            else:
+                output_events.append(new_event_dict("BotMessage", text=text))
 
             return ActionResult(events=output_events)
 
