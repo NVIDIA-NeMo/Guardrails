@@ -23,7 +23,6 @@ import typer
 
 from nemoguardrails import LLMRails
 from nemoguardrails.evaluate.utils import load_dataset
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig

@@ -36,7 +36,6 @@ from nemoguardrails.eval.models import (
     InteractionSet,
 )
 from nemoguardrails.eval.ui.utils import EvalData
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.config import Model

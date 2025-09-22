@@ -22,7 +22,6 @@ import tqdm
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.evaluate.utils import load_dataset
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -235,14 +234,14 @@ class ModerationRailsEvaluation:
 
         if self.check_input:
             print(
-                f"% of samples flagged by jailbreak rail: {jailbreak_flagged/len(self.dataset) * 100}"
+                f"% of samples flagged by jailbreak rail: {jailbreak_flagged / len(self.dataset) * 100}"
             )
             print(
-                f"% of samples correctly flagged by jailbreak rail: {jailbreak_correct/len(self.dataset) * 100}"
+                f"% of samples correctly flagged by jailbreak rail: {jailbreak_correct / len(self.dataset) * 100}"
             )
             if jailbreak_error > 0:
                 print(
-                    f"% of samples where jailbreak model or rail errored out: {jailbreak_error/len(self.dataset) * 100}"
+                    f"% of samples where jailbreak model or rail errored out: {jailbreak_error / len(self.dataset) * 100}"
                 )
             print("\n")
             print("*" * 50)
@@ -250,14 +249,14 @@ class ModerationRailsEvaluation:
 
         if self.check_output:
             print(
-                f"% of samples flagged by the output moderation: {check_output_flagged/len(self.dataset) * 100}"
+                f"% of samples flagged by the output moderation: {check_output_flagged / len(self.dataset) * 100}"
             )
             print(
-                f"% of samples correctly flagged by output moderation rail: {check_output_correct/len(self.dataset) * 100}"
+                f"% of samples correctly flagged by output moderation rail: {check_output_correct / len(self.dataset) * 100}"
             )
             if check_output_error > 0:
                 print(
-                    f"% of samples where output moderation model or rail errored out: {check_output_error/len(self.dataset) * 100}"
+                    f"% of samples where output moderation model or rail errored out: {check_output_error / len(self.dataset) * 100}"
                 )
             print("\n")
             print(
