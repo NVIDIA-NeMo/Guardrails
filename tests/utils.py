@@ -45,99 +45,16 @@ class FakeLLM(LLM):
     """Fake LLM wrapper for testing purposes."""
 
     responses: List
+    i: int = 0
     streaming: bool = False
     exception: Optional[Exception] = None
     token_usage: Optional[List[Dict[str, int]]] = None  # Token usage per response
     should_enable_stream_usage: bool = False
-    _shared_state: Optional[Dict] = None  # Shared state for isolated copies
-
-    def __init__(self, **kwargs):
-        """Initialize FakeLLM."""
-        # Extract initial counter value before parent init
-        initial_i = kwargs.pop("i", 0)
-        super().__init__(**kwargs)
-        # If no shared state, create one with initial counter
-        if self._shared_state is None:
-            self._shared_state = {"counter": initial_i}
-
-    def __copy__(self):
-        """Create a shallow copy that shares state with the original."""
-        new_instance = self.__class__.__new__(self.__class__)
-        new_instance.__dict__.update(self.__dict__)
-        # Share the same state dict so counter is synchronized
-        new_instance._shared_state = self._shared_state
-        return new_instance
-
-    @property
-    def i(self) -> int:
-        """Get current counter value from shared state."""
-        if self._shared_state:
-            return self._shared_state["counter"]
-        return 0
-
-    @i.setter
-    def i(self, value: int):
-        """Set counter value in shared state."""
-        if self._shared_state:
-            self._shared_state["counter"] = value
 
     @property
     def _llm_type(self) -> str:
         """Return type of llm."""
         return "fake-list"
-
-    def _stream(self, prompt, stop=None, run_manager=None, **kwargs):
-        """Stream the response by breaking it into tokens."""
-        if self.exception:
-            raise self.exception
-
-        current_i = self.i
-        if current_i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {current_i + 1} in FakeLLM. "
-                "Most likely, too many LLM calls are made or additional responses need to be provided."
-            )
-
-        response = self.responses[current_i]
-        self.i = current_i + 1
-
-        if not self.streaming:
-            # If streaming is disabled, return single response
-            yield response
-            return
-
-        tokens = response.split()
-        for i, token in enumerate(tokens):
-            if i == 0:
-                yield token
-            else:
-                yield " " + token
-
-    async def _astream(self, prompt, stop=None, run_manager=None, **kwargs):
-        """Async stream the response by breaking it into tokens."""
-        if self.exception:
-            raise self.exception
-
-        current_i = self.i
-        if current_i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {current_i + 1} in FakeLLM. "
-                "Most likely, too many LLM calls are made or additional responses need to be provided."
-            )
-
-        response = self.responses[current_i]
-        self.i = current_i + 1
-
-        if not self.streaming:
-            yield response
-            return
-
-        tokens = response.split()
-        for i, token in enumerate(tokens):
-            if i == 0:
-                yield token
-            else:
-                yield " " + token
 
     def _call(
         self,
@@ -150,15 +67,14 @@ class FakeLLM(LLM):
         if self.exception:
             raise self.exception
 
-        current_i = self.i
-        if current_i >= len(self.responses):
+        if self.i >= len(self.responses):
             raise RuntimeError(
-                f"No responses available for query number {current_i + 1} in FakeLLM. "
+                f"No responses available for query number {self.i + 1} in FakeLLM. "
                 "Most likely, too many LLM calls are made or additional responses need to be provided."
             )
 
-        response = self.responses[current_i]
-        self.i = current_i + 1
+        response = self.responses[self.i]
+        self.i += 1
         return response
 
     async def _acall(
@@ -172,15 +88,15 @@ class FakeLLM(LLM):
         if self.exception:
             raise self.exception
 
-        current_i = self.i
-        if current_i >= len(self.responses):
+        if self.i >= len(self.responses):
             raise RuntimeError(
-                f"No responses available for query number {current_i + 1} in FakeLLM. "
+                f"No responses available for query number {self.i + 1} in FakeLLM. "
                 "Most likely, too many LLM calls are made or additional responses need to be provided."
             )
 
-        response = self.responses[current_i]
-        self.i = current_i + 1
+        response = self.responses[self.i]
+
+        self.i += 1
 
         if self.streaming and run_manager:
             # To mock streaming, we just split in chunk by spaces
