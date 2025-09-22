@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import MagicMock
+
 import pytest
+from langchain.llms.base import BaseLLM
 from pydantic import ValidationError
 
 from nemoguardrails.rails.llm.config import (
@@ -23,6 +26,7 @@ from nemoguardrails.rails.llm.config import (
     RailsConfig,
     TaskPrompt,
 )
+from nemoguardrails.rails.llm.llmrails import LLMRails
 
 
 def test_task_prompt_valid_content():
@@ -307,3 +311,34 @@ def test_rails_config_none_config_path():
 
     result2 = config3 + config4
     assert result2.config_path == ""
+
+
+def test_llm_rails_configure_streaming_with_attr():
+    """Check LLM has the streaming attribute set if RailsConfig has it"""
+
+    mock_llm = MagicMock(spec=BaseLLM)
+    config = RailsConfig(
+        models=[],
+        streaming=True,
+    )
+
+    rails = LLMRails(config, llm=mock_llm)
+    setattr(mock_llm, "streaming", None)
+    rails._configure_main_llm_streaming(llm=mock_llm)
+
+    assert mock_llm.streaming
+
+
+def test_llm_rails_configure_streaming_without_attr(caplog):
+    """Check LLM has the streaming attribute set if RailsConfig has it"""
+
+    mock_llm = MagicMock(spec=BaseLLM)
+    config = RailsConfig(
+        models=[],
+        streaming=True,
+    )
+
+    rails = LLMRails(config, llm=mock_llm)
+    rails._configure_main_llm_streaming(mock_llm)
+
+    assert caplog.messages[-1] == "Provided main LLM does not support streaming."
