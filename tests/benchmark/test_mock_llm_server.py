@@ -37,11 +37,26 @@ from nemoguardrails.benchmark.mock_llm_server.config import (
 )
 from nemoguardrails.benchmark.mock_llm_server.response_data import (
     DUMMY_CHAT_RESPONSES,
+    DUMMY_COMPLETION_RESPONSES,
     DUMMY_MODELS,
     calculate_tokens,
     generate_id,
     get_dummy_chat_response,
     get_dummy_completion_response,
+)
+
+RANDOM_SEED = 12345
+REFUSAL_TEXT = "I'm sorry Dave, I'm afraid I can't do that"
+NO_REFUSAL_CONFIG = AppModelConfig(
+    model="mock-model",
+    refusal_text=REFUSAL_TEXT,
+    refusal_probability=0.0,
+)
+
+ALL_REFUSAL_CONFIG = AppModelConfig(
+    model="mock-model",
+    refusal_text=REFUSAL_TEXT,
+    refusal_probability=1.0,
 )
 
 
@@ -375,15 +390,25 @@ class TestMockLLMServer:
         expected_tokens = max(1, len(long_text) // 4)
         assert calculate_tokens(long_text) == expected_tokens
 
-    def test_get_dummy_responses(self):
-        """Test dummy response generation functions."""
-        chat_response = get_dummy_chat_response()
-        assert isinstance(chat_response, str)
-        assert len(chat_response) > 0
+    def test_get_dummy_completion_response_refusal(self):
+        """Test response generation with P = 1.0 of refusal"""
+        response = get_dummy_completion_response(ALL_REFUSAL_CONFIG, RANDOM_SEED)
+        assert response == ALL_REFUSAL_CONFIG.refusal_text
 
-        completion_response = get_dummy_completion_response()
-        assert isinstance(completion_response, str)
-        assert len(completion_response) > 0
+    def test_get_dummy_chat_response_refusal(self):
+        """Test response generation with P = 1.0 of refusal"""
+        response = get_dummy_chat_response(ALL_REFUSAL_CONFIG, RANDOM_SEED)
+        assert response == ALL_REFUSAL_CONFIG.refusal_text
+
+    def test_get_dummy_completion_response_no_refusal(self):
+        """Test /completion response generation with P = 0.0 of refusal"""
+        response = get_dummy_completion_response(NO_REFUSAL_CONFIG)
+        assert response in set(DUMMY_COMPLETION_RESPONSES)
+
+    def test_get_dummy_chat_response_no_refusal(self):
+        """Test /chat/completion response with P = 0.0 of refusal."""
+        response = get_dummy_chat_response(NO_REFUSAL_CONFIG)
+        assert response in set(DUMMY_CHAT_RESPONSES)
 
     # Edge cases and error handling
     def test_missing_required_fields_chat(self, client):
