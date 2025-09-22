@@ -15,25 +15,23 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, TypeVar, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from langchain_core.language_models import BaseLanguageModel
-from langchain_core.messages import (
-    AIMessage,
-    AIMessageChunk,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
 from langchain_core.prompt_values import ChatPromptValue, StringPromptValue
-from langchain_core.runnables import Runnable, RunnableConfig, RunnableSerializable
+from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.runnables.utils import Input, Output, gather_with_concurrency
 from langchain_core.tools import Tool
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.integrations.langchain.message_utils import (
+    all_base_messages,
+    create_ai_message,
+    create_ai_message_chunk,
+    is_base_message,
+    message_to_dict,
+)
 from nemoguardrails.integrations.langchain.utils import async_wrap
 from nemoguardrails.rails.llm.options import GenerationOptions
 
@@ -129,7 +127,7 @@ class RunnableRails(Runnable[Input, Output]):
             # If the output is a string, we consider it to be the output text
             if isinstance(_output, str):
                 text = _output
-            elif isinstance(_output, BaseMessage):
+            elif is_base_message(_output):
                 text = _output.content
             else:
                 text = _output.get(self.passthrough_bot_output_key)
@@ -204,7 +202,7 @@ class RunnableRails(Runnable[Input, Output]):
         """Extract text content from various input types for passthrough mode."""
         if isinstance(_input, str):
             return _input
-        elif isinstance(_input, BaseMessage):
+        elif is_base_message(_input):
             return _input.content
         elif isinstance(_input, dict) and self.passthrough_user_input_key in _input:
             return _input.get(self.passthrough_user_input_key)
@@ -229,41 +227,11 @@ class RunnableRails(Runnable[Input, Output]):
             },
         ]
 
-    def _message_to_dict(self, msg: BaseMessage) -> Dict[str, Any]:
-        """Convert a BaseMessage to dictionary format."""
-        if isinstance(msg, AIMessage):
-            result = {"role": "assistant", "content": msg.content}
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                result["tool_calls"] = msg.tool_calls
-            return result
-        elif isinstance(msg, HumanMessage):
-            return {"role": "user", "content": msg.content}
-        elif isinstance(msg, SystemMessage):
-            return {"role": "system", "content": msg.content}
-        elif isinstance(msg, ToolMessage):
-            result = {
-                "role": "tool",
-                "content": msg.content,
-                "tool_call_id": msg.tool_call_id,
-            }
-            if hasattr(msg, "name") and msg.name:
-                result["name"] = msg.name
-            return result
-        else:  # Handle other message types
-            role = getattr(msg, "type", "user")
-            return {"role": role, "content": msg.content}
-
     def _transform_chat_prompt_value(
         self, _input: ChatPromptValue
     ) -> List[Dict[str, Any]]:
         """Transform ChatPromptValue to messages list."""
-        return [self._message_to_dict(msg) for msg in _input.messages]
-
-    def _transform_base_message_list(
-        self, _input: List[BaseMessage]
-    ) -> List[Dict[str, Any]]:
-        """Transform list of BaseMessage objects to messages list."""
-        return [self._message_to_dict(msg) for msg in _input]
+        return [message_to_dict(msg) for msg in _input.messages]
 
     def _extract_user_input_from_dict(self, _input: dict):
         """Extract user input from dictionary, checking configured key first."""
@@ -281,9 +249,9 @@ class RunnableRails(Runnable[Input, Output]):
 
     def _transform_dict_message_list(self, user_input: list) -> List[Dict[str, Any]]:
         """Transform list from dictionary input to messages."""
-        if all(isinstance(msg, BaseMessage) for msg in user_input):
+        if all_base_messages(user_input):
             # Handle BaseMessage objects in the list
-            return [self._message_to_dict(msg) for msg in user_input]
+            return [message_to_dict(msg) for msg in user_input]
         elif all(isinstance(msg, dict) for msg in user_input):
             # Handle dict-style messages
             for msg in user_input:
@@ -301,8 +269,8 @@ class RunnableRails(Runnable[Input, Output]):
         """Transform user input value from dictionary."""
         if isinstance(user_input, str):
             return [{"role": "user", "content": user_input}]
-        elif isinstance(user_input, BaseMessage):
-            return [self._message_to_dict(user_input)]
+        elif is_base_message(user_input):
+            return [message_to_dict(user_input)]
         elif isinstance(user_input, list):
             return self._transform_dict_message_list(user_input)
         else:
@@ -344,12 +312,10 @@ class RunnableRails(Runnable[Input, Output]):
                 return self._transform_chat_prompt_value(_input)
             elif isinstance(_input, StringPromptValue):
                 return [{"role": "user", "content": _input.text}]
-            elif isinstance(_input, BaseMessage):
-                return [self._message_to_dict(_input)]
-            elif isinstance(_input, list) and all(
-                isinstance(msg, BaseMessage) for msg in _input
-            ):
-                return self._transform_base_message_list(_input)
+            elif is_base_message(_input):
+                return [message_to_dict(_input)]
+            elif isinstance(_input, list) and all_base_messages(_input):
+                return [message_to_dict(msg) for msg in _input]
             elif isinstance(_input, dict):
                 return self._transform_dict_input(_input)
             elif isinstance(_input, str):
@@ -420,10 +386,10 @@ class RunnableRails(Runnable[Input, Output]):
             metadata_copy.pop("content", None)
             if tool_calls:
                 metadata_copy["tool_calls"] = tool_calls
-            return AIMessage(content=content, **metadata_copy)
+            return create_ai_message(content=content, **metadata_copy)
         elif tool_calls:
-            return AIMessage(content=content, tool_calls=tool_calls)
-        return AIMessage(content=content)
+            return create_ai_message(content=content, tool_calls=tool_calls)
+        return create_ai_message(content=content)
 
     def _format_string_prompt_output(self, result: Any) -> str:
         """Format output for StringPromptValue input."""
@@ -443,10 +409,10 @@ class RunnableRails(Runnable[Input, Output]):
             metadata_copy.pop("content", None)
             if tool_calls:
                 metadata_copy["tool_calls"] = tool_calls
-            return AIMessage(content=content, **metadata_copy)
+            return create_ai_message(content=content, **metadata_copy)
         elif tool_calls:
-            return AIMessage(content=content, tool_calls=tool_calls)
-        return AIMessage(content=content)
+            return create_ai_message(content=content, tool_calls=tool_calls)
+        return create_ai_message(content=content)
 
     def _format_dict_output_for_string_input(
         self, result: Any, output_key: str
@@ -482,10 +448,12 @@ class RunnableRails(Runnable[Input, Output]):
             metadata_copy.pop("content", None)
             if tool_calls:
                 metadata_copy["tool_calls"] = tool_calls
-            return {output_key: AIMessage(content=content, **metadata_copy)}
+            return {output_key: create_ai_message(content=content, **metadata_copy)}
         elif tool_calls:
-            return {output_key: AIMessage(content=content, tool_calls=tool_calls)}
-        return {output_key: AIMessage(content=content)}
+            return {
+                output_key: create_ai_message(content=content, tool_calls=tool_calls)
+            }
+        return {output_key: create_ai_message(content=content)}
 
     def _format_dict_output_for_base_message(
         self,
@@ -501,10 +469,12 @@ class RunnableRails(Runnable[Input, Output]):
             metadata_copy = metadata.copy()
             if tool_calls:
                 metadata_copy["tool_calls"] = tool_calls
-            return {output_key: AIMessage(content=content, **metadata_copy)}
+            return {output_key: create_ai_message(content=content, **metadata_copy)}
         elif tool_calls:
-            return {output_key: AIMessage(content=content, tool_calls=tool_calls)}
-        return {output_key: AIMessage(content=content)}
+            return {
+                output_key: create_ai_message(content=content, tool_calls=tool_calls)
+            }
+        return {output_key: create_ai_message(content=content)}
 
     def _format_dict_output(
         self,
@@ -528,13 +498,13 @@ class RunnableRails(Runnable[Input, Output]):
                     return self._format_dict_output_for_dict_message_list(
                         result, output_key
                     )
-                elif all(isinstance(msg, BaseMessage) for msg in user_input):
+                elif all_base_messages(user_input):
                     return self._format_dict_output_for_base_message_list(
                         result, output_key, tool_calls, metadata
                     )
                 else:
                     return {output_key: result}
-            elif isinstance(user_input, BaseMessage):
+            elif is_base_message(user_input):
                 return self._format_dict_output_for_base_message(
                     result, output_key, tool_calls, metadata
                 )
@@ -575,11 +545,9 @@ class RunnableRails(Runnable[Input, Output]):
             return self._format_chat_prompt_output(result, tool_calls, metadata)
         elif isinstance(input, StringPromptValue):
             return self._format_string_prompt_output(result)
-        elif isinstance(input, (HumanMessage, AIMessage, BaseMessage)):
+        elif is_base_message(input):
             return self._format_message_output(result, tool_calls, metadata)
-        elif isinstance(input, list) and all(
-            isinstance(msg, BaseMessage) for msg in input
-        ):
+        elif isinstance(input, list) and all_base_messages(input):
             return self._format_message_output(result, tool_calls, metadata)
         elif isinstance(input, dict):
             return self._format_dict_output(input, result, tool_calls, metadata)
@@ -659,7 +627,7 @@ class RunnableRails(Runnable[Input, Output]):
         rails_messages = []
         for msg in messages:
             if hasattr(msg, "role") and hasattr(msg, "content"):
-                # LangChain BaseMessage format
+                # LangChain message format
                 rails_messages.append(
                     {
                         "role": (
@@ -893,15 +861,13 @@ class RunnableRails(Runnable[Input, Output]):
             if generation_info:
                 metadata = generation_info.copy()
         if isinstance(input, ChatPromptValue):
-            return AIMessageChunk(content=text_content, **metadata)
+            return create_ai_message_chunk(content=text_content, **metadata)
         elif isinstance(input, StringPromptValue):
             return text_content  # String outputs don't support metadata
-        elif isinstance(input, (HumanMessage, AIMessage, BaseMessage)):
-            return AIMessageChunk(content=text_content, **metadata)
-        elif isinstance(input, list) and all(
-            isinstance(msg, BaseMessage) for msg in input
-        ):
-            return AIMessageChunk(content=text_content, **metadata)
+        elif is_base_message(input):
+            return create_ai_message_chunk(content=text_content, **metadata)
+        elif isinstance(input, list) and all_base_messages(input):
+            return create_ai_message_chunk(content=text_content, **metadata)
         elif isinstance(input, dict):
             output_key = self.passthrough_bot_output_key
             if self.passthrough_user_input_key in input or "input" in input:
@@ -917,18 +883,22 @@ class RunnableRails(Runnable[Input, Output]):
                         return {
                             output_key: {"role": "assistant", "content": text_content}
                         }
-                    elif all(isinstance(msg, BaseMessage) for msg in user_input):
+                    elif all_base_messages(user_input):
                         return {
-                            output_key: AIMessageChunk(content=text_content, **metadata)
+                            output_key: create_ai_message_chunk(
+                                content=text_content, **metadata
+                            )
                         }
                     return {output_key: text_content}
-                elif isinstance(user_input, BaseMessage):
+                elif is_base_message(user_input):
                     return {
-                        output_key: AIMessageChunk(content=text_content, **metadata)
+                        output_key: create_ai_message_chunk(
+                            content=text_content, **metadata
+                        )
                     }
             return {output_key: text_content}
         elif isinstance(input, str):
-            return AIMessageChunk(content=text_content, **metadata)
+            return create_ai_message_chunk(content=text_content, **metadata)
         else:
             raise ValueError(f"Unexpected input type: {type(input)}")
 

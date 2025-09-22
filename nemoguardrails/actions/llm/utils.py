@@ -18,9 +18,6 @@ from typing import Any, List, Optional, Union
 
 from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
-from langchain.prompts.base import StringPromptValue
-from langchain.prompts.chat import ChatPromptValue
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEvents
@@ -30,6 +27,7 @@ from nemoguardrails.context import (
     reasoning_trace_var,
     tool_calls_var,
 )
+from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -146,34 +144,7 @@ async def _invoke_with_message_list(
 
 def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
     """Convert message list to LangChain message format."""
-    messages = []
-    for msg in prompt:
-        msg_type = msg["type"] if "type" in msg else msg["role"]
-
-        if msg_type == "user":
-            messages.append(HumanMessage(content=msg["content"]))
-        elif msg_type in ["bot", "assistant"]:
-            tool_calls = msg.get("tool_calls")
-            if tool_calls:
-                messages.append(
-                    AIMessage(content=msg["content"], tool_calls=tool_calls)
-                )
-            else:
-                messages.append(AIMessage(content=msg["content"]))
-        elif msg_type == "system":
-            messages.append(SystemMessage(content=msg["content"]))
-        elif msg_type == "tool":
-            tool_message = ToolMessage(
-                content=msg["content"],
-                tool_call_id=msg.get("tool_call_id", ""),
-            )
-            if msg.get("name"):
-                tool_message.name = msg["name"]
-            messages.append(tool_message)
-        else:
-            raise ValueError(f"Unknown message type {msg_type}")
-
-    return messages
+    return dicts_to_messages(prompt)
 
 
 def _store_tool_calls(response) -> None:

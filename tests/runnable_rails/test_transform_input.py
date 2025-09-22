@@ -63,9 +63,26 @@ def test_transform_chat_prompt_value(rails):
 
     result = rails._transform_input_to_rails_format(chat_prompt)
     expected = [
-        {"role": "system", "content": "You are helpful"},
-        {"role": "user", "content": "Hello"},
-        {"role": "assistant", "content": "Hi there"},
+        {
+            "role": "system",
+            "content": "You are helpful",
+            "additional_kwargs": {},
+            "response_metadata": {},
+        },
+        {
+            "role": "user",
+            "content": "Hello",
+            "additional_kwargs": {},
+            "response_metadata": {},
+        },
+        {
+            "role": "assistant",
+            "content": "Hi there",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "tool_calls": [],
+            "invalid_tool_calls": [],
+        },
     ]
     assert result == expected
 
@@ -139,8 +156,20 @@ def test_transform_list_of_base_messages(rails):
 
     result = rails._transform_input_to_rails_format(messages)
     expected = [
-        {"role": "user", "content": "What is Python?"},
-        {"role": "assistant", "content": "Python is a programming language"},
+        {
+            "role": "user",
+            "content": "What is Python?",
+            "additional_kwargs": {},
+            "response_metadata": {},
+        },
+        {
+            "role": "assistant",
+            "content": "Python is a programming language",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "tool_calls": [],
+            "invalid_tool_calls": [],
+        },
     ]
     assert result == expected
 
@@ -150,7 +179,14 @@ def test_transform_single_human_message(rails):
     message = HumanMessage(content="Hello there")
 
     result = rails._transform_input_to_rails_format(message)
-    expected = [{"role": "user", "content": "Hello there"}]
+    expected = [
+        {
+            "role": "user",
+            "content": "Hello there",
+            "additional_kwargs": {},
+            "response_metadata": {},
+        }
+    ]
     assert result == expected
 
 
@@ -159,7 +195,16 @@ def test_transform_single_ai_message(rails):
     message = AIMessage(content="Hello back")
 
     result = rails._transform_input_to_rails_format(message)
-    expected = [{"role": "assistant", "content": "Hello back"}]
+    expected = [
+        {
+            "role": "assistant",
+            "content": "Hello back",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "tool_calls": [],
+            "invalid_tool_calls": [],
+        }
+    ]
     assert result == expected
 
 
