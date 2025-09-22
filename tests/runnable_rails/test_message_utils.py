@@ -75,6 +75,9 @@ class TestMessageRoleAndClass:
     def test_get_message_class_system(self):
         assert get_message_class("system") == SystemMessage
 
+    def test_get_message_class_developer(self):
+        assert get_message_class("developer") == SystemMessage
+
     def test_get_message_class_tool(self):
         assert get_message_class("tool") == ToolMessage
 
@@ -121,6 +124,28 @@ class TestMessageConversion:
         assert recreated.response_metadata == original.response_metadata
         assert recreated.id == original.id
 
+    def test_ai_message_with_invalid_tool_calls(self):
+        original = AIMessage(
+            content="",
+            invalid_tool_calls=[
+                {
+                    "name": "malformed_tool",
+                    "args": "invalid json string",
+                    "id": "call_invalid",
+                    "error": "Invalid JSON in arguments",
+                }
+            ],
+            id="msg-invalid",
+        )
+
+        msg_dict = message_to_dict(original)
+        recreated = dict_to_message(msg_dict)
+
+        assert isinstance(recreated, AIMessage)
+        assert recreated.content == original.content
+        assert recreated.invalid_tool_calls == original.invalid_tool_calls
+        assert recreated.id == original.id
+
     def test_tool_message(self):
         original = ToolMessage(
             content="Result data",
@@ -158,12 +183,20 @@ class TestMessageConversion:
         assert recreated.content == original.content
         assert recreated.id == original.id
 
-    def test_empty_collections_not_included(self):
+    def test_developer_role_conversion(self):
+        msg_dict = {"role": "developer", "content": "Developer instructions"}
+        msg = dict_to_message(msg_dict)
+        assert isinstance(msg, SystemMessage)
+        assert msg.content == "Developer instructions"
+
+    def test_empty_collections_now_included(self):
         msg = AIMessage(content="Test", additional_kwargs={}, tool_calls=[])
         msg_dict = message_to_dict(msg)
 
-        assert "additional_kwargs" not in msg_dict
-        assert "tool_calls" not in msg_dict
+        assert "additional_kwargs" in msg_dict
+        assert "tool_calls" in msg_dict
+        assert msg_dict["additional_kwargs"] == {}
+        assert msg_dict["tool_calls"] == []
 
     def test_message_to_dict_preserves_role(self):
         human_msg = HumanMessage(content="test")
@@ -259,12 +292,22 @@ class TestTypeChecking:
         assert not is_base_message({"role": "user", "content": "test"})
 
     def test_is_ai_message(self):
-        assert is_ai_message(AIMessage(content="test"))
+        ai_msg = AIMessage(content="test")
+        assert is_ai_message(ai_msg)
+
         assert not is_ai_message(HumanMessage(content="test"))
+        assert not is_ai_message(SystemMessage(content="test"))
+        assert not is_ai_message(ToolMessage(content="test", tool_call_id="123"))
+        assert not is_ai_message("not a message")
 
     def test_is_human_message(self):
-        assert is_human_message(HumanMessage(content="test"))
+        human_msg = HumanMessage(content="test")
+        assert is_human_message(human_msg)
+
         assert not is_human_message(AIMessage(content="test"))
+        assert not is_human_message(SystemMessage(content="test"))
+        assert not is_human_message(ToolMessage(content="test", tool_call_id="123"))
+        assert not is_human_message("not a message")
 
     def test_is_system_message(self):
         assert is_system_message(SystemMessage(content="test"))
@@ -374,6 +417,40 @@ class TestMessageCreation:
 
 
 class TestEdgeCases:
+    def test_falsey_values_preservation(self):
+        original = AIMessage(
+            content="Test",
+            additional_kwargs={},
+            tool_calls=[],
+            name="",
+            response_metadata={},
+            id="test-id",
+        )
+        msg_dict = message_to_dict(original)
+        recreated = dict_to_message(msg_dict)
+
+        assert recreated.additional_kwargs == {}
+        assert recreated.tool_calls == []
+        assert recreated.name == ""
+        assert recreated.response_metadata == {}
+        assert recreated.id == "test-id"
+
+    def test_human_message_with_empty_name(self):
+        original = HumanMessage(content="Hello", name="")
+        msg_dict = message_to_dict(original)
+        recreated = dict_to_message(msg_dict)
+
+        assert isinstance(recreated, HumanMessage)
+        assert recreated.name == ""
+
+    def test_system_message_with_empty_additional_kwargs(self):
+        original = SystemMessage(content="System prompt", additional_kwargs={})
+        msg_dict = message_to_dict(original)
+        recreated = dict_to_message(msg_dict)
+
+        assert isinstance(recreated, SystemMessage)
+        assert recreated.additional_kwargs == {}
+
     def test_dict_to_message_missing_role_and_type(self):
         with pytest.raises(ValueError, match="must have 'type' or 'role'"):
             dict_to_message({"content": "test"})

@@ -47,7 +47,7 @@ def get_message_class(msg_type: str) -> Type[BaseMessage]:
         return HumanMessage
     elif msg_type in ["bot", "assistant"]:
         return AIMessage
-    elif msg_type == "system":
+    elif msg_type in ["system", "developer"]:
         return SystemMessage
     elif msg_type == "tool":
         return ToolMessage
@@ -76,7 +76,7 @@ def message_to_dict(msg: BaseMessage) -> Dict[str, Any]:
         for field_name in msg.model_fields:
             if field_name not in exclude_fields and field_name not in result:
                 value = getattr(msg, field_name, None)
-                if value is not None and (not isinstance(value, (list, dict)) or value):
+                if value is not None:
                     result[field_name] = value
 
     return result
