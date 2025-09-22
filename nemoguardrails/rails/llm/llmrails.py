@@ -33,6 +33,7 @@ from typing_extensions import Self
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
     get_and_clear_reasoning_trace_contextvar,
+    get_and_clear_response_metadata_contextvar,
     get_and_clear_tool_calls_contextvar,
     get_colang_history,
 )
@@ -1086,6 +1087,7 @@ class LLMRails:
                 options.log.internal_events = True
 
         tool_calls = get_and_clear_tool_calls_contextvar()
+        llm_metadata = get_and_clear_response_metadata_contextvar()
 
         # If we have generation options, we prepare a GenerationResponse instance.
         if options:
@@ -1105,6 +1107,9 @@ class LLMRails:
 
             if tool_calls:
                 res.tool_calls = tool_calls
+
+            if llm_metadata:
+                res.llm_metadata = llm_metadata
 
             if self.config.colang_version == "1.0":
                 # If output variables are specified, we extract their values

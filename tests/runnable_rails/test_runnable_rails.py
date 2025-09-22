@@ -728,3 +728,52 @@ def test_live_rag():
     print(result)
     assert "LOL" not in result["output"]
     assert "can't respond" in result["output"]
+
+
+def test_metadata_preservation_integration():
+    """Integration test to verify that metadata is preserved through RunnableRails."""
+    # Use FakeLLM instead of Mock to avoid registration issues
+    from unittest.mock import patch
+
+    from langchain_community.llms.fake import FakeListLLM
+
+    fake_llm = FakeListLLM(responses=["Test response"])
+
+    config = RailsConfig.from_content(
+        colang_content="",
+        yaml_content="""
+        models:
+          - type: main
+            engine: openai
+            model: gpt-3.5-turbo
+        """,
+    )
+
+    runnable_rails = RunnableRails(config, llm=fake_llm, passthrough=True)
+
+    # Mock the rails generate method to return GenerationResponse with metadata
+    from unittest.mock import Mock
+
+    mock_generation_response = Mock()
+    mock_generation_response.response = "Test response"
+    mock_generation_response.output_data = {}
+    mock_generation_response.tool_calls = None
+    mock_generation_response.llm_metadata = {
+        "additional_kwargs": {"test_key": "test_value"},
+        "response_metadata": {"model_name": "test-model", "token_usage": {"total": 10}},
+        "usage_metadata": {"input_tokens": 5, "output_tokens": 5, "total_tokens": 10},
+        "id": "test-id",
+    }
+
+    runnable_rails.rails.generate = Mock(return_value=mock_generation_response)
+
+    from langchain_core.prompts import ChatPromptTemplate
+
+    prompt = ChatPromptTemplate.from_messages([("human", "Test")])
+    result = runnable_rails.invoke(prompt.format_prompt())
+
+    assert isinstance(result, AIMessage)
+    assert result.additional_kwargs == {"test_key": "test_value"}
+    assert result.response_metadata["model_name"] == "test-model"
+    assert result.usage_metadata["total_tokens"] == 10
+    assert result.id == "test-id"

@@ -26,6 +26,7 @@ from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEvents
 from nemoguardrails.context import (
     llm_call_info_var,
+    llm_response_metadata_var,
     reasoning_trace_var,
     tool_calls_var,
 )
@@ -85,6 +86,7 @@ async def llm_call(
         response = await _invoke_with_message_list(llm, prompt, all_callbacks, stop)
 
     _store_tool_calls(response)
+    _store_response_metadata(response)
     return _extract_content(response)
 
 
@@ -171,6 +173,20 @@ def _store_tool_calls(response) -> None:
     """Extract and store tool calls from response in context."""
     tool_calls = getattr(response, "tool_calls", None)
     tool_calls_var.set(tool_calls)
+
+
+def _store_response_metadata(response) -> None:
+    """Store response metadata excluding content for metadata preservation."""
+    if hasattr(response, "model_fields"):
+        metadata = {}
+        for field_name in response.model_fields:
+            if (
+                field_name != "content"
+            ):  # Exclude content since it may be modified by rails
+                metadata[field_name] = getattr(response, field_name)
+        llm_response_metadata_var.set(metadata)
+    else:
+        llm_response_metadata_var.set(None)
 
 
 def _extract_content(response) -> str:
@@ -654,4 +670,16 @@ def get_and_clear_tool_calls_contextvar() -> Optional[list]:
     if tool_calls := tool_calls_var.get():
         tool_calls_var.set(None)
         return tool_calls
+    return None
+
+
+def get_and_clear_response_metadata_contextvar() -> Optional[dict]:
+    """Get the current response metadata and clear it from the context.
+
+    Returns:
+        Optional[dict]: The response metadata if it exists, None otherwise.
+    """
+    if metadata := llm_response_metadata_var.get():
+        llm_response_metadata_var.set(None)
+        return metadata
     return None

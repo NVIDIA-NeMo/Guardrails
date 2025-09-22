@@ -42,3 +42,8 @@ reasoning_trace_var: contextvars.ContextVar[Optional[str]] = contextvars.Context
 tool_calls_var: contextvars.ContextVar[Optional[list]] = contextvars.ContextVar(
     "tool_calls", default=None
 )
+
+# The response metadata from the current LLM response.
+llm_response_metadata_var: contextvars.ContextVar[
+    Optional[dict]
+] = contextvars.ContextVar("llm_response_metadata", default=None)

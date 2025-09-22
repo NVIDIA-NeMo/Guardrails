@@ -393,11 +393,21 @@ class RunnableRails(Runnable[Input, Output]):
         return passthrough_output
 
     def _format_chat_prompt_output(
-        self, result: Any, tool_calls: Optional[list] = None
+        self,
+        result: Any,
+        tool_calls: Optional[list] = None,
+        metadata: Optional[dict] = None,
     ) -> AIMessage:
         """Format output for ChatPromptValue input."""
         content = self._extract_content_from_result(result)
-        if tool_calls:
+
+        if metadata and isinstance(metadata, dict):
+            metadata_copy = metadata.copy()
+            metadata_copy.pop("content", None)
+            if tool_calls:
+                metadata_copy["tool_calls"] = tool_calls
+            return AIMessage(content=content, **metadata_copy)
+        elif tool_calls:
             return AIMessage(content=content, tool_calls=tool_calls)
         return AIMessage(content=content)
 
@@ -406,11 +416,21 @@ class RunnableRails(Runnable[Input, Output]):
         return self._extract_content_from_result(result)
 
     def _format_message_output(
-        self, result: Any, tool_calls: Optional[list] = None
+        self,
+        result: Any,
+        tool_calls: Optional[list] = None,
+        metadata: Optional[dict] = None,
     ) -> AIMessage:
         """Format output for BaseMessage input types."""
         content = self._extract_content_from_result(result)
-        if tool_calls:
+
+        if metadata and isinstance(metadata, dict):
+            metadata_copy = metadata.copy()
+            metadata_copy.pop("content", None)
+            if tool_calls:
+                metadata_copy["tool_calls"] = tool_calls
+            return AIMessage(content=content, **metadata_copy)
+        elif tool_calls:
             return AIMessage(content=content, tool_calls=tool_calls)
         return AIMessage(content=content)
 
@@ -434,25 +454,50 @@ class RunnableRails(Runnable[Input, Output]):
         }
 
     def _format_dict_output_for_base_message_list(
-        self, result: Any, output_key: str, tool_calls: Optional[list] = None
+        self,
+        result: Any,
+        output_key: str,
+        tool_calls: Optional[list] = None,
+        metadata: Optional[dict] = None,
     ) -> Dict[str, Any]:
         """Format dict output when user input was a list of BaseMessage objects."""
         content = self._extract_content_from_result(result)
-        if tool_calls:
+
+        if metadata and isinstance(metadata, dict):
+            metadata_copy = metadata.copy()
+            metadata_copy.pop("content", None)
+            if tool_calls:
+                metadata_copy["tool_calls"] = tool_calls
+            return {output_key: AIMessage(content=content, **metadata_copy)}
+        elif tool_calls:
             return {output_key: AIMessage(content=content, tool_calls=tool_calls)}
         return {output_key: AIMessage(content=content)}
 
     def _format_dict_output_for_base_message(
-        self, result: Any, output_key: str, tool_calls: Optional[list] = None
+        self,
+        result: Any,
+        output_key: str,
+        tool_calls: Optional[list] = None,
+        metadata: Optional[dict] = None,
     ) -> Dict[str, Any]:
         """Format dict output when user input was a BaseMessage."""
         content = self._extract_content_from_result(result)
-        if tool_calls:
+
+        if metadata:
+            metadata_copy = metadata.copy()
+            if tool_calls:
+                metadata_copy["tool_calls"] = tool_calls
+            return {output_key: AIMessage(content=content, **metadata_copy)}
+        elif tool_calls:
             return {output_key: AIMessage(content=content, tool_calls=tool_calls)}
         return {output_key: AIMessage(content=content)}
 
     def _format_dict_output(
-        self, input_dict: dict, result: Any, tool_calls: Optional[list] = None
+        self,
+        input_dict: dict,
+        result: Any,
+        tool_calls: Optional[list] = None,
+        metadata: Optional[dict] = None,
     ) -> Dict[str, Any]:
         """Format output for dictionary input."""
         output_key = self.passthrough_bot_output_key
@@ -471,13 +516,13 @@ class RunnableRails(Runnable[Input, Output]):
                     )
                 elif all(isinstance(msg, BaseMessage) for msg in user_input):
                     return self._format_dict_output_for_base_message_list(
-                        result, output_key, tool_calls
+                        result, output_key, tool_calls, metadata
                     )
                 else:
                     return {output_key: result}
             elif isinstance(user_input, BaseMessage):
                 return self._format_dict_output_for_base_message(
-                    result, output_key, tool_calls
+                    result, output_key, tool_calls, metadata
                 )
 
         # Generic fallback for dictionaries
@@ -490,6 +535,7 @@ class RunnableRails(Runnable[Input, Output]):
         result: Any,
         context: Dict[str, Any],
         tool_calls: Optional[list] = None,
+        metadata: Optional[dict] = None,
     ) -> Any:
         """Format the output based on the input type and rails result.
 
@@ -512,17 +558,17 @@ class RunnableRails(Runnable[Input, Output]):
             return self._format_passthrough_output(result, context)
 
         if isinstance(input, ChatPromptValue):
-            return self._format_chat_prompt_output(result, tool_calls)
+            return self._format_chat_prompt_output(result, tool_calls, metadata)
         elif isinstance(input, StringPromptValue):
             return self._format_string_prompt_output(result)
         elif isinstance(input, (HumanMessage, AIMessage, BaseMessage)):
-            return self._format_message_output(result, tool_calls)
+            return self._format_message_output(result, tool_calls, metadata)
         elif isinstance(input, list) and all(
             isinstance(msg, BaseMessage) for msg in input
         ):
-            return self._format_message_output(result, tool_calls)
+            return self._format_message_output(result, tool_calls, metadata)
         elif isinstance(input, dict):
-            return self._format_dict_output(input, result, tool_calls)
+            return self._format_dict_output(input, result, tool_calls, metadata)
         elif isinstance(input, str):
             return self._format_string_prompt_output(result)
         else:
@@ -669,7 +715,9 @@ class RunnableRails(Runnable[Input, Output]):
             result = result[0]
 
         # Format and return the output based in input type
-        return self._format_output(input, result, context, res.tool_calls)
+        return self._format_output(
+            input, result, context, res.tool_calls, res.llm_metadata
+        )
 
     async def ainvoke(
         self,
@@ -731,7 +779,9 @@ class RunnableRails(Runnable[Input, Output]):
         result = res.response
 
         # Format and return the output based on input type
-        return self._format_output(input, result, context, res.tool_calls)
+        return self._format_output(
+            input, result, context, res.tool_calls, res.llm_metadata
+        )
 
     def stream(
         self,
