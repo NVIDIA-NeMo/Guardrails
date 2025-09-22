@@ -633,11 +633,11 @@ def test_chat_prompt_template_with_runnable_rails_fixed():
 
     llm = FakeLLM(
         responses=[
-            "Hi!",
+            "no",
             "express greeting",
+            "no",
             "Welcome to our clinic! I'm so glad you're here.",
-            "Additional response",
-            "Another response",
+            "no",
         ]
     )
 
