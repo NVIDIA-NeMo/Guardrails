@@ -27,6 +27,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Fiddler Guardrails for Safety and Hallucination Detection](#fiddler-guardrails-for-safety-and-hallucination-detection)
    - [Prompt Security Protection](#prompt-security-protection)
    - [Pangea AI Guard](#pangea-ai-guard)
+   - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
    - OpenAI Moderation API - *[COMING SOON]*
 
 4. Other
@@ -914,6 +915,27 @@ rails:
 ```
 
 For more details, check out the [Pangea AI Guard Integration](./community/pangea.md) page.
+
+### Trend Micro Vision One AI Application Security
+
+NeMo Guardrails supports using
+[Trend Micro Vision One AI Guard](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-ai-scanner-ai-guard) for protecting input and output flows within AI-powered applications.
+
+See [Trend Micro](community/trend-micro.md) for more details.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - trend ai guard input
+  output:
+    flows:
+      - trend ai guard output
+```
+
+For more details, check out the [Trend Micro Vision One AI Application Security](./community/trend-micro.md) page.
 
 ## Other
 

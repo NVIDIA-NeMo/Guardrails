@@ -1,0 +1,18 @@
+colang_version: "2.x"
+
+enable_rails_exceptions: True
+
+rails:
+  config:
+    trend_micro:
+      api_key_env_var: "V1_API_KEY"
+
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+instructions:
+  - type: general
+    content: |
+      You are a helpful assistant.

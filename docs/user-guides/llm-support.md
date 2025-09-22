@@ -41,6 +41,7 @@ If you want to use an LLM and you cannot see a prompt in the [prompts folder](ht
 | Fiddler Fast Faitfhulness Hallucination Detection _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔
 | Fiddler Fast Safety & Jailbreak Detection _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                     |
 | Pangea AI Guard integration _(LLM independent)_          | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                     |
+| Trend Micro Vision One AI Application Security _(LLM independent)_       | ✔                         | ✔                         | ✔                         | ✔                         | ✔                         | ✔                  | ✔                    | ✔                    | ✔                    | ✔                    | ✔                     |
 
 Table legend:
 

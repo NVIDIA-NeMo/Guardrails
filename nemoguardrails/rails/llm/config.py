@@ -864,6 +864,39 @@ class GuardrailsAIRailConfig(BaseModel):
         return None
 
 
+class TrendMicroRailConfig(BaseModel):
+    """Configuration data for the Trend Micro AI Guard API"""
+
+    v1_url: Optional[str] = Field(
+        default="https://api.xdr.trendmicro.com/beta/aiSecurity/guard",
+        description="The endpoint for the Trend Micro AI Guard API",
+    )
+
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        description="Environment variable containing API key for Trend Micro AI Guard",
+    )
+
+    def get_api_key(self) -> Optional[str]:
+        """Helper to return an API key (if it exists) from a Trend Micro configuration.
+        The `api_key_env_var` field, a string stored in this environment variable.
+
+        If the environment variable is not found None is returned.
+        """
+
+        if self.api_key_env_var:
+            v1_api_key = os.getenv(self.api_key_env_var)
+            if v1_api_key:
+                return v1_api_key
+
+            log.warning(
+                "Specified a value for Trend Micro config api_key_env var at %s but the environment variable was not set!"
+                % self.api_key_env_var
+            )
+
+        return None
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -920,6 +953,11 @@ class RailsConfigData(BaseModel):
     guardrails_ai: Optional[GuardrailsAIRailConfig] = Field(
         default_factory=GuardrailsAIRailConfig,
         description="Configuration for Guardrails AI validators.",
+    )
+
+    trend_micro: Optional[TrendMicroRailConfig] = Field(
+        default_factory=TrendMicroRailConfig,
+        description="Configuration for Trend Micro.",
     )
 
 
