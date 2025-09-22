@@ -218,6 +218,7 @@ class RunnableRails(Runnable[Input, Output]):
                 "role": "context",
                 "content": {
                     "passthrough_input": _input,
+                    # We also set all the input variables as top level context variables
                     **(_input if isinstance(_input, dict) else {}),
                 },
             },
@@ -838,7 +839,20 @@ class RunnableRails(Runnable[Input, Output]):
             streaming_enabled = True
 
         try:
-            async for chunk in self.rails.stream_async(messages=input_messages):
+            from nemoguardrails.streaming import END_OF_STREAM
+
+            async for chunk in self.rails.stream_async(
+                messages=input_messages, include_generation_metadata=True
+            ):
+                # Skip END_OF_STREAM markers
+                chunk_text = (
+                    chunk["text"]
+                    if isinstance(chunk, dict) and "text" in chunk
+                    else chunk
+                )
+                if chunk_text is END_OF_STREAM:
+                    continue
+
                 # Format the chunk based on the input type for streaming
                 formatted_chunk = self._format_streaming_chunk(input, chunk)
                 yield formatted_chunk
@@ -846,26 +860,35 @@ class RunnableRails(Runnable[Input, Output]):
             if streaming_enabled and hasattr(self.rails.llm, "streaming"):
                 self.rails.llm.streaming = original_streaming
 
-    def _format_streaming_chunk(self, input: Any, chunk: str) -> Any:
+    def _format_streaming_chunk(self, input: Any, chunk) -> Any:
         """Format a streaming chunk based on the input type.
 
         Args:
             input: The original input
-            chunk: The current text chunk
+            chunk: The current chunk (string or dict with text/generation_info)
 
         Returns:
             The formatted streaming chunk (using AIMessageChunk for LangChain compatibility)
         """
+        text_content = chunk
+        metadata = {}
+
+        if isinstance(chunk, dict) and "text" in chunk:
+            text_content = chunk["text"]
+            generation_info = chunk.get("generation_info", {})
+
+            if generation_info:
+                metadata = generation_info.copy()
         if isinstance(input, ChatPromptValue):
-            return AIMessageChunk(content=chunk)
+            return AIMessageChunk(content=text_content, **metadata)
         elif isinstance(input, StringPromptValue):
-            return chunk
+            return text_content  # String outputs don't support metadata
         elif isinstance(input, (HumanMessage, AIMessage, BaseMessage)):
-            return AIMessageChunk(content=chunk)
+            return AIMessageChunk(content=text_content, **metadata)
         elif isinstance(input, list) and all(
             isinstance(msg, BaseMessage) for msg in input
         ):
-            return AIMessageChunk(content=chunk)
+            return AIMessageChunk(content=text_content, **metadata)
         elif isinstance(input, dict):
             output_key = self.passthrough_bot_output_key
             if self.passthrough_user_input_key in input or "input" in input:
@@ -873,20 +896,26 @@ class RunnableRails(Runnable[Input, Output]):
                     self.passthrough_user_input_key, input.get("input")
                 )
                 if isinstance(user_input, str):
-                    return {output_key: chunk}
+                    return {output_key: text_content}
                 elif isinstance(user_input, list):
                     if all(
                         isinstance(msg, dict) and "role" in msg for msg in user_input
                     ):
-                        return {output_key: {"role": "assistant", "content": chunk}}
+                        return {
+                            output_key: {"role": "assistant", "content": text_content}
+                        }
                     elif all(isinstance(msg, BaseMessage) for msg in user_input):
-                        return {output_key: AIMessageChunk(content=chunk)}
-                    return {output_key: chunk}
+                        return {
+                            output_key: AIMessageChunk(content=text_content, **metadata)
+                        }
+                    return {output_key: text_content}
                 elif isinstance(user_input, BaseMessage):
-                    return {output_key: AIMessageChunk(content=chunk)}
-            return {output_key: chunk}
+                    return {
+                        output_key: AIMessageChunk(content=text_content, **metadata)
+                    }
+            return {output_key: text_content}
         elif isinstance(input, str):
-            return AIMessageChunk(content=chunk)
+            return AIMessageChunk(content=text_content, **metadata)
         else:
             raise ValueError(f"Unexpected input type: {type(input)}")
 

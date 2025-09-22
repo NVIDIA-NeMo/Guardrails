@@ -60,12 +60,10 @@ class StreamingFakeLLM(FakeLLM):
 
 def test_runnable_rails_basic_streaming():
     """Test basic synchronous streaming functionality."""
-    # Configure a streaming LLM with a response
     llm = StreamingFakeLLM(responses=["Hello there! How can I help you today?"])
     config = RailsConfig.from_content(config={"models": []})
     rails = RunnableRails(config, llm=llm)
 
-    # Collect chunks from the stream
     chunks = []
     for chunk in rails.stream("Hi there"):
         chunks.append(chunk)
@@ -451,3 +449,56 @@ def test_streaming_with_different_input_types():
         ), f"Failed for {input_type}: {full_content}"
 
     assert llm.streaming == False
+
+
+def test_streaming_metadata_preservation():
+    """Test that streaming chunks preserve metadata structure."""
+    llm = FakeLLM(responses=["Test response"])
+    config = RailsConfig.from_content(config={"models": []})
+    model_with_rails = RunnableRails(config, llm=llm)
+
+    chunks = []
+    for chunk in model_with_rails.stream("Test input"):
+        chunks.append(chunk)
+
+    assert len(chunks) > 0
+
+    for chunk in chunks:
+        assert hasattr(chunk, "content")
+        assert hasattr(chunk, "additional_kwargs")
+        assert hasattr(chunk, "response_metadata")
+        assert isinstance(chunk.additional_kwargs, dict)
+        assert isinstance(chunk.response_metadata, dict)
+
+
+@pytest.mark.asyncio
+async def test_async_streaming_metadata_preservation():
+    """Test that async streaming chunks preserve metadata structure."""
+    llm = FakeLLM(responses=["Test async response"])
+    config = RailsConfig.from_content(config={"models": []})
+    model_with_rails = RunnableRails(config, llm=llm)
+
+    chunks = []
+    async for chunk in model_with_rails.astream("Test input"):
+        chunks.append(chunk)
+
+    assert len(chunks) > 0
+
+    for chunk in chunks:
+        assert hasattr(chunk, "content")
+        assert hasattr(chunk, "additional_kwargs")
+        assert hasattr(chunk, "response_metadata")
+        assert isinstance(chunk.additional_kwargs, dict)
+        assert isinstance(chunk.response_metadata, dict)
+
+
+def test_streaming_chunk_types():
+    """Test that streaming returns proper AIMessageChunk types."""
+    llm = FakeLLM(responses=["Hello world"])
+    config = RailsConfig.from_content(config={"models": []})
+    model_with_rails = RunnableRails(config, llm=llm)
+
+    chunks = list(model_with_rails.stream("Hi"))
+
+    for chunk in chunks:
+        assert chunk.__class__.__name__ == "AIMessageChunk"
