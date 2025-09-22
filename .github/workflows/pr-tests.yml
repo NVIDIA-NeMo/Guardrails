@@ -1,8 +1,6 @@
 name: PR Tests
 
 on:
-  push:
-
   pull_request:
     # we don't ignore markdkowns to run pre-commits
     paths-ignore:
