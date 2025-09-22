@@ -373,3 +373,75 @@ class TestMetadataPreservation:
         assert result.content == "Test response"
         assert result.additional_kwargs == {"custom_field": "value"}
         assert result.response_metadata is None or result.response_metadata == {}
+
+    def test_streaming_metadata_preservation(self, mock_rails_config):
+        """Test that streaming preserves metadata in chunks."""
+        from unittest.mock import AsyncMock
+
+        mock_rails = AsyncMock()
+        mock_generation_response = Mock()
+        mock_generation_response.response = "Streaming response"
+        mock_generation_response.output_data = {}
+        mock_generation_response.tool_calls = None
+        mock_generation_response.llm_metadata = {
+            "additional_kwargs": {"finish_reason": "stop"},
+            "response_metadata": {"model_name": "test-model"},
+        }
+
+        async def mock_stream(*args, **kwargs):
+            chunks = [
+                {
+                    "text": "Hello ",
+                    "generation_info": {"model": "test-model", "finish_reason": "stop"},
+                },
+                {
+                    "text": "world!",
+                    "generation_info": {"model": "test-model", "finish_reason": "stop"},
+                },
+            ]
+            for chunk in chunks:
+                yield chunk
+
+        mock_rails.stream_async = mock_stream
+
+        runnable_rails = RunnableRails(config=mock_rails_config, passthrough=True)
+        runnable_rails.rails = mock_rails
+
+        chunks = list(runnable_rails.stream("Test input"))
+
+        assert len(chunks) == 2
+        for chunk in chunks:
+            assert hasattr(chunk, "content")
+            assert hasattr(chunk, "additional_kwargs") or hasattr(chunk, "model")
+            assert hasattr(chunk, "response_metadata") or hasattr(
+                chunk, "finish_reason"
+            )
+
+    @pytest.mark.asyncio
+    async def test_async_streaming_metadata_preservation(self, mock_rails_config):
+        """Test that async streaming preserves metadata in chunks."""
+        from unittest.mock import AsyncMock
+
+        mock_rails = AsyncMock()
+
+        async def mock_stream(*args, **kwargs):
+            chunks = [
+                {"text": "Async ", "generation_info": {"model": "test-model"}},
+                {"text": "stream!", "generation_info": {"model": "test-model"}},
+            ]
+            for chunk in chunks:
+                yield chunk
+
+        mock_rails.stream_async = mock_stream
+
+        runnable_rails = RunnableRails(config=mock_rails_config, passthrough=True)
+        runnable_rails.rails = mock_rails
+
+        chunks = []
+        async for chunk in runnable_rails.astream("Test input"):
+            chunks.append(chunk)
+
+        assert len(chunks) == 2
+        for chunk in chunks:
+            assert hasattr(chunk, "content")
+            assert hasattr(chunk, "additional_kwargs") or hasattr(chunk, "model")
