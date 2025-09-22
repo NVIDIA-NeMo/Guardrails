@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for BotToolCall event handling in NeMo Guardrails."""
+"""Tests for BotToolCalls event handling in NeMo Guardrails."""
 
 from unittest.mock import patch
 
@@ -25,7 +25,7 @@ from tests.utils import TestChat
 
 @pytest.mark.asyncio
 async def test_bot_tool_call_event_creation():
-    """Test that BotToolCall events are created when tool_calls are present."""
+    """Test that BotToolCalls events are created when tool_calls are present."""
 
     test_tool_calls = [
         {
@@ -55,7 +55,7 @@ async def test_bot_tool_call_event_creation():
 
 @pytest.mark.asyncio
 async def test_bot_message_vs_bot_tool_call_event():
-    """Test that regular text creates BotMessage, tool calls create BotToolCall."""
+    """Test that regular text creates BotMessage, tool calls create BotToolCalls."""
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 

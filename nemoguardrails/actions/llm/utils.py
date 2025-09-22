@@ -153,16 +153,23 @@ def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
         if msg_type == "user":
             messages.append(HumanMessage(content=msg["content"]))
         elif msg_type in ["bot", "assistant"]:
-            messages.append(AIMessage(content=msg["content"]))
+            tool_calls = msg.get("tool_calls")
+            if tool_calls:
+                messages.append(
+                    AIMessage(content=msg["content"], tool_calls=tool_calls)
+                )
+            else:
+                messages.append(AIMessage(content=msg["content"]))
         elif msg_type == "system":
             messages.append(SystemMessage(content=msg["content"]))
         elif msg_type == "tool":
-            messages.append(
-                ToolMessage(
-                    content=msg["content"],
-                    tool_call_id=msg.get("tool_call_id", ""),
-                )
+            tool_message = ToolMessage(
+                content=msg["content"],
+                tool_call_id=msg.get("tool_call_id", ""),
             )
+            if msg.get("name"):
+                tool_message.name = msg["name"]
+            messages.append(tool_message)
         else:
             raise ValueError(f"Unknown message type {msg_type}")
 
@@ -674,16 +681,16 @@ def get_and_clear_tool_calls_contextvar() -> Optional[list]:
 
 
 def extract_tool_calls_from_events(events: list) -> Optional[list]:
-    """Extract tool_calls from BotToolCall events.
+    """Extract tool_calls from BotToolCalls events.
 
     Args:
         events: List of events to search through
 
     Returns:
-        tool_calls if found in BotToolCall event, None otherwise
+        tool_calls if found in BotToolCalls event, None otherwise
     """
     for event in events:
-        if event.get("type") == "BotToolCall":
+        if event.get("type") == "BotToolCalls":
             return event.get("tool_calls")
     return None
 

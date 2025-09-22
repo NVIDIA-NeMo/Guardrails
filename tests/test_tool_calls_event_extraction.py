@@ -165,7 +165,7 @@ async def test_llmrails_extracts_tool_calls_from_events():
     ]
 
     mock_events = [
-        {"type": "BotToolCall", "tool_calls": test_tool_calls, "uid": "test_uid"}
+        {"type": "BotToolCalls", "tool_calls": test_tool_calls, "uid": "test_uid"}
     ]
 
     from nemoguardrails.actions.llm.utils import extract_tool_calls_from_events

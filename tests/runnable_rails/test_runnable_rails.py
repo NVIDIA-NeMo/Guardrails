@@ -327,7 +327,9 @@ def test_string_passthrough_mode_on_with_dialog_rails():
     info = model_with_rails.rails.explain()
     assert len(info.llm_calls) == 2
 
-    assert info.llm_calls[1].prompt == "The capital of France is "
+    # In passthrough mode with dialog rails, the second call should use the message format
+    # since RunnableRails converts StringPromptValue to message list, which gets formatted as "Human: ..."
+    assert info.llm_calls[1].prompt == "Human: The capital of France is "
     assert result == "Paris."
 
 

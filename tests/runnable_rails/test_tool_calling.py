@@ -264,7 +264,7 @@ def test_empty_content_with_tool_calls_not_blocked():
 
 
 def test_bot_tool_call_event_creation():
-    """Test that BotToolCall events are created instead of BotMessage when tool_calls exist."""
+    """Test that BotToolCalls events are created instead of BotMessage when tool_calls exist."""
 
     class MockLLMReturningToolCall:
         def invoke(self, messages, **kwargs):
