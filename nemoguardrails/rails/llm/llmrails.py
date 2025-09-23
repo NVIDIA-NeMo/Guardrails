@@ -80,7 +80,11 @@ from nemoguardrails.logging.stats import LLMStats
 from nemoguardrails.logging.verbose import set_verbose
 from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
-from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
+from nemoguardrails.rails.llm.config import (
+    EmbeddingSearchProvider,
+    OutputRailsStreamingConfig,
+    RailsConfig,
+)
 from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationOptions,
@@ -1348,6 +1352,7 @@ class LLMRails:
             ):
                 return self._run_output_rails_in_streaming(
                     streaming_handler=generator,
+                    output_rails_streaming_config=self.config.rails.output.streaming,
                     messages=messages,
                     prompt=prompt,
                 )
@@ -1403,6 +1408,7 @@ class LLMRails:
             # returns an async generator
             return self._run_output_rails_in_streaming(
                 streaming_handler=streaming_handler,
+                output_rails_streaming_config=self.config.rails.output.streaming,
                 messages=messages,
                 prompt=prompt,
             )
@@ -1631,6 +1637,7 @@ class LLMRails:
     async def _run_output_rails_in_streaming(
         self,
         streaming_handler: AsyncIterator[str],
+        output_rails_streaming_config: OutputRailsStreamingConfig,
         prompt: Optional[str] = None,
         messages: Optional[List[dict]] = None,
         stream_first: Optional[bool] = None,
@@ -1733,9 +1740,6 @@ class LLMRails:
                 **action_params,
             }
 
-        output_rails_streaming_config = self.config.rails.output.streaming
-        if output_rails_streaming_config is None:
-            raise ValueError("Output rails streaming config is not available")
         buffer_strategy = get_buffer_strategy(output_rails_streaming_config)
         output_rails_flows_id = self.config.rails.output.flows
         stream_first = stream_first or output_rails_streaming_config.stream_first
