@@ -15,11 +15,13 @@
 
 import os
 from typing import Any, Dict, List, Optional, Union
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain_core.language_models import BaseChatModel
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.llmrails import get_action_details_from_flow_id
 from tests.utils import FakeLLM, clean_events, event_sequence_conforms
@@ -1170,3 +1172,18 @@ def test_method_chaining():
     assert "chained_action" in rails.runtime.action_dispatcher.registered_actions
     assert "chained_param" in rails.runtime.registered_action_params
     assert rails.runtime.registered_action_params["chained_param"] == "param_value"
+
+
+def test_explain_calls_ensure_explain_info():
+    """Make sure if no `explain_info` attribute is present in LLMRails it's populated with
+    an empty ExplainInfo object"""
+
+    mock_llm = MagicMock(spec=BaseChatModel)
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=mock_llm)
+    rails.generate(messages=[{"role": "user", "content": "Hi!"}])
+
+    rails.explain_info = None
+    info = rails.explain()
+    assert info == ExplainInfo()
+    assert rails.explain_info == ExplainInfo()
