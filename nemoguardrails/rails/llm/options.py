@@ -76,6 +76,7 @@ To get more details on the LLM calls that were executed, including the raw respo
     # {..., log: {"llm_calls": [...]}}
 
 """
+
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, root_validator
@@ -146,7 +147,7 @@ class GenerationOptions(BaseModel):
         default=None,
         description="Additional parameters that should be used for the LLM call",
     )
-    llm_output: Optional[bool] = Field(
+    llm_output: bool = Field(
         default=False,
         description="Whether the response should also include any custom LLM output.",
     )
