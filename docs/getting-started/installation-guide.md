@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide walks you through the following steps to install NeMo Guardrails:
+This guide walks you through the following steps to install the NeMo Guardrails SDK:
 
 1. Setting up a fresh virtual environment.
 2. Installing using `pip`.
@@ -8,22 +8,30 @@ This guide walks you through the following steps to install NeMo Guardrails:
 4. Optional dependencies.
 5. Using Docker.
 
-## Prerequisites
+## Requirements
+
+Review the following requirements to install the NeMo Guardrails SDK.
+
+### Hardware Requirements
+
+The NeMo Guardrails SDK runs on CPUs. This SDK adds a layer to manage processes between your application front-end and the backend LLM and does not require any GPUs.
+
+### Software Requirements
 
 - Python 3.9, 3.10, or 3.11
 
-## Additional dependencies
+### Additional Dependencies
 
 NeMo Guardrails uses [annoy](https://github.com/spotify/annoy), which is a C++ library with Python bindings. To install it, you need to have a valid C++ runtime on your computer.
 Most systems already have installed a C++ runtime. If the **annoy** installation fails due to a missing C++ runtime, you can install a C++ runtime as follows:
 
-### Installing a C++ runtime on Linux, Mac, or Unix-based OS
+#### Installing a C++ runtime on Linux, Mac, or Unix-based OS
 
   1. Install `gcc` and `g++` using `apt-get install gcc g++`.
   2. Update the following environment variables: `export CC=`*path_to_clang* and `export CXX=`*path_to_clang* (usually, *path_to_clang* is */usr/bin/clang*).
   3. In some cases, you might also need to install the `python-dev` package using `apt-get install python-dev` (or `apt-get install python3-dev`). Check out this [thread](https://stackoverflow.com/questions/21530577/fatal-error-python-h-no-such-file-or-directory) if the error persists.
 
-### Installing a C++ runtime on Windows
+#### Installing a C++ runtime on Windows
 
 Install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). This installs Microsoft Visual C++ (version 14.0 or greater is required by the latest version of **annoy**).
 
