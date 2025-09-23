@@ -73,10 +73,27 @@ async def llm_call(
     model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
     custom_callback_handlers: Optional[List[AsyncCallbackHandler]] = None,
+    llm_params: Optional[dict] = None,
 ) -> str:
-    """Calls the LLM with a prompt and returns the generated text."""
+    """Calls the LLM with a prompt and returns the generated text.
+
+    Args:
+        llm: The language model instance to use
+        prompt: The prompt string or list of messages
+        model_name: Optional model name for tracking
+        model_provider: Optional model provider for tracking
+        stop: Optional list of stop tokens
+        custom_callback_handlers: Optional list of callback handlers
+        llm_params: Optional configuration dictionary to pass to the LLM (e.g., temperature, max_tokens)
+
+    Returns:
+        The generated text response
+    """
     _setup_llm_call_info(llm, model_name, model_provider)
     all_callbacks = _prepare_callbacks(custom_callback_handlers)
+
+    if llm_params and llm is not None:
+        llm = llm.bind(**llm_params)
 
     if isinstance(prompt, str):
         response = await _invoke_with_string_prompt(llm, prompt, all_callbacks, stop)

@@ -28,7 +28,6 @@ from nemoguardrails.actions.llm.utils import (
     strip_quotes,
 )
 from nemoguardrails.context import llm_call_info_var
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.callbacks import logging_callback_manager_for_chain
@@ -85,11 +84,14 @@ async def self_check_hallucination(
         chain = LLMChain(prompt=last_bot_prompt, llm=llm)
 
         # Generate multiple responses with temperature 1.
-        with llm_params(llm, temperature=1.0, n=num_responses):
-            extra_llm_response = await chain.agenerate(
-                [{"text": last_bot_prompt_string}],
-                run_manager=logging_callback_manager_for_chain,
-            )
+        # Use chain.with_config for runtime parameters
+        configured_chain = chain.with_config(
+            configurable={"temperature": 1.0, "n": num_responses}
+        )
+        extra_llm_response = await configured_chain.agenerate(
+            [{"text": last_bot_prompt_string}],
+            run_manager=logging_callback_manager_for_chain,
+        )
 
         extra_llm_completions = []
         if len(extra_llm_response.generations) > 0:
@@ -131,8 +133,12 @@ async def self_check_hallucination(
             llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_HALLUCINATION.value))
             stop = llm_task_manager.get_stop_tokens(task=Task.SELF_CHECK_HALLUCINATION)
 
-            with llm_params(llm, temperature=config.lowest_temperature):
-                agreement = await llm_call(llm, prompt, stop=stop)
+            agreement = await llm_call(
+                llm,
+                prompt,
+                stop=stop,
+                llm_params={"temperature": config.lowest_temperature},
+            )
 
             agreement = agreement.lower().strip()
             log.info(f"Agreement result for looking for hallucination is {agreement}.")

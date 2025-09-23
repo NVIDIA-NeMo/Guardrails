@@ -15,9 +15,12 @@
 
 import unittest
 from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from pydantic import BaseModel
 
+from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.llm.params import LLMParams, llm_params, register_param_manager
 
 
@@ -219,3 +222,48 @@ class TestLLMParamsFunction(unittest.TestCase):
             pass
 
         self.assertIsInstance(llm_params(UnregisteredLLM()), LLMParams)
+
+
+class TestLLMParamsMigration(unittest.TestCase):
+    """Test migration from context manager to direct parameter passing."""
+
+    def test_context_manager_equivalent_to_direct_params(self):
+        """Test that context manager behavior matches direct parameter passing."""
+        llm = FakeLLM(param3="original", model_kwargs={"temperature": 0.5})
+
+        with llm_params(llm, temperature=0.8, param3="modified"):
+            context_temp = llm.model_kwargs.get("temperature")
+            context_param3 = llm.param3
+
+        assert context_temp == 0.8
+        assert context_param3 == "modified"
+        assert llm.model_kwargs.get("temperature") == 0.5
+        assert llm.param3 == "original"
+
+    @pytest.mark.asyncio
+    async def test_llm_call_params_vs_context_manager(self):
+        """Test that llm_call with params produces similar results to context manager approach."""
+        mock_llm = AsyncMock()
+        mock_bound_llm = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.content = "Response content"
+
+        mock_llm.bind.return_value = mock_bound_llm
+        mock_bound_llm.ainvoke.return_value = mock_response
+
+        params = {"temperature": 0.7, "max_tokens": 100}
+
+        result = await llm_call(mock_llm, "Test prompt", llm_params=params)
+
+        assert result == "Response content"
+        mock_llm.bind.assert_called_once_with(**params)
+        mock_bound_llm.ainvoke.assert_called_once()
+
+    def test_parameter_isolation_after_migration(self):
+        """Test that parameter changes don't persist after llm_call completes."""
+        llm = FakeLLM(param3="original", model_kwargs={"temperature": 0.5})
+        original_temp = llm.model_kwargs.get("temperature")
+        original_param3 = llm.param3
+
+        assert original_temp == 0.5
+        assert original_param3 == "original"

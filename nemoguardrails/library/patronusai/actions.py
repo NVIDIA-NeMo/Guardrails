@@ -24,7 +24,6 @@ from langchain_core.language_models.llms import BaseLLM
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -115,10 +114,12 @@ async def patronus_lynx_check_output_hallucination(
         LLMCallInfo(task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION.value)
     )
 
-    with llm_params(patronus_lynx_llm, temperature=0.0):
-        result = await llm_call(
-            patronus_lynx_llm, check_output_hallucination_prompt, stop=stop
-        )
+    result = await llm_call(
+        patronus_lynx_llm,
+        check_output_hallucination_prompt,
+        stop=stop,
+        llm_params={"temperature": 0.0},
+    )
 
     hallucination, reasoning = parse_patronus_lynx_response(result)
     return {"hallucination": hallucination, "reasoning": reasoning}

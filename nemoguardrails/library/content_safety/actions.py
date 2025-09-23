@@ -21,7 +21,6 @@ from langchain_core.language_models.llms import BaseLLM
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -76,8 +75,12 @@ async def content_safety_check_input(
 
     max_tokens = max_tokens or _MAX_TOKENS
 
-    with llm_params(llm, temperature=1e-20, max_tokens=max_tokens):
-        result = await llm_call(llm, check_input_prompt, stop=stop)
+    result = await llm_call(
+        llm,
+        check_input_prompt,
+        stop=stop,
+        llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
+    )
 
     result = llm_task_manager.parse_task_output(task, output=result)
     result = result.text
@@ -153,8 +156,12 @@ async def content_safety_check_output(
 
     llm_call_info_var.set(LLMCallInfo(task=task))
 
-    with llm_params(llm, temperature=1e-20, max_tokens=max_tokens):
-        result = await llm_call(llm, check_output_prompt, stop=stop)
+    result = await llm_call(
+        llm,
+        check_output_prompt,
+        stop=stop,
+        llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
+    )
 
     result = llm_task_manager.parse_task_output(task, output=result)
 

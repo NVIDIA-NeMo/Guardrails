@@ -55,6 +55,7 @@ To override the prompt for any other custom purpose, you can specify the `mode` 
 As an example of this, let's consider the case of compacting. Some applications might need concise prompts, for instance to avoid handling long contexts, and lower latency at the risk of slightly degraded performance due to the smaller context. For this, you might want to have multiple versions of a prompt for the same task and same model. This can be achieved as follows:
 
 Task configuration:
+
 ```yaml
 models:
   - type: main
@@ -65,6 +66,7 @@ prompting_mode: "compact"  # Default value is "standard"
 ```
 
 Prompts configuration:
+
 ```yaml
 prompts:
   - task: generate_user_intent
@@ -117,6 +119,7 @@ prompts:
         content: ...
       # ...
 ```
+
 For each task, you can also specify the maximum length of the prompt to be used for the LLM call in terms of the number of characters. This is useful if you want to limit the number of tokens used by the LLM or when you want to make sure that the prompt length does not exceed the maximum context length. When the maximum length is exceeded, the prompt is truncated by removing older turns from the conversation history until length of the prompt is less than or equal to the maximum length. The default maximum length is 16000 characters.
 
 For example, for the `generate_user_intent` task, you can specify the following:
@@ -128,7 +131,6 @@ prompts:
       - openai/gpt-3.5-turbo
     max_length: 3000
 ```
-
 
 ### Content Template
 
@@ -200,7 +202,6 @@ Optionally, the output from the LLM can be parsed using an *output parser*. The 
 - `bot_message`: parse the bot message, i.e., removes the "Bot message:" prefix if present;
 - `verbose_v1`: parse the output of the `verbose_v1` filter.
 
-
 ## Predefined Prompts
 
 Currently, the NeMo Guardrails toolkit includes prompts for `openai/gpt-3.5-turbo-instruct`, `openai/gpt-3.5-turbo`, `openai/gpt-4`, `databricks/dolly-v2-3b`, `cohere/command`, `cohere/command-light`, `cohere/command-light-nightly`.
@@ -232,8 +233,7 @@ prompt = llm_task_manager.render_task_prompt(
     },
 )
 
-with llm_params(llm, temperature=0.0):
-    check = await llm_call(llm, prompt)
+check = await llm_call(llm, prompt, llm_params={"temperature": 0.0})
 ...
 ```
 
