@@ -487,7 +487,7 @@ class OutputRails(BaseModel):
         description="The names of all the flows that implement output rails.",
     )
 
-    streaming: Optional[OutputRailsStreamingConfig] = Field(
+    streaming: OutputRailsStreamingConfig = Field(
         default_factory=OutputRailsStreamingConfig,
         description="Configuration for streaming output rails.",
     )

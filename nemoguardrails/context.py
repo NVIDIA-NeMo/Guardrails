@@ -14,11 +14,14 @@
 # limitations under the License.
 
 import contextvars
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+from nemoguardrails.logging.explain import LLMCallInfo
 
 if TYPE_CHECKING:
     from nemoguardrails.logging.explain import ExplainInfo
-    from nemoguardrails.rails.llm.options import GenerationOptions, LLMStats
+    from nemoguardrails.logging.stats import LLMStats
+    from nemoguardrails.rails.llm.options import GenerationOptions
     from nemoguardrails.streaming import StreamingHandler
 
 streaming_handler_var: contextvars.ContextVar[
@@ -31,9 +34,9 @@ explain_info_var: contextvars.ContextVar[
 ] = contextvars.ContextVar("explain_info", default=None)
 
 # The current LLM call.
-llm_call_info_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
-    "llm_call_info", default=None
-)
+llm_call_info_var: contextvars.ContextVar[
+    Optional[LLMCallInfo]
+] = contextvars.ContextVar("llm_call_info", default=None)
 
 # All the generation options applicable to the current context.
 generation_options_var: contextvars.ContextVar[
@@ -47,9 +50,9 @@ llm_stats_var: contextvars.ContextVar[Optional["LLMStats"]] = contextvars.Contex
 
 # The raw LLM request that comes from the user.
 # This is used in passthrough mode.
-raw_llm_request: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar(
-    "raw_llm_request", default=None
-)
+raw_llm_request: contextvars.ContextVar[
+    Optional[Union[str, List[Dict[str, Any]]]]
+] = contextvars.ContextVar("raw_llm_request", default=None)
 
 reasoning_trace_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "reasoning_trace", default=None

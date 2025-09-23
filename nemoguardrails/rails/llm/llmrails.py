@@ -831,7 +831,7 @@ class LLMRails:
             and messages[-1]["role"] == "assistant"
             and options
             and hasattr(options, "rails")
-            and getattr(getattr(options, "rails", None), "dialog", None) is False
+            and getattr(getattr(options, "rails"), "dialog", None) is False
         ):
             # We already have the first message with a context update, so we use that
             messages[0]["content"]["bot_message"] = messages[-1]["content"]

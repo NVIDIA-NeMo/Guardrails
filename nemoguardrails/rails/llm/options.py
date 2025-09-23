@@ -372,7 +372,7 @@ class GenerationLog(BaseModel):
             _pc = round(100 - pc, 2)
             print(f"  - [{processing_overhead:.2f}s][{_pc}%]: Processing overhead ")
 
-        if self.stats.llm_calls_count and self.stats.llm_calls_count > 0:
+        if self.stats.llm_calls_count:
             print(
                 f"- {self.stats.llm_calls_count} LLM calls, "
                 f"{self.stats.llm_calls_duration:.2f}s total duration, "

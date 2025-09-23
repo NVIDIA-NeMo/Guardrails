@@ -18,7 +18,11 @@ import os.path
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.rails.llm.options import (
+    GenerationLog,
+    GenerationResponse,
+    GenerationStats,
+)
 from tests.utils import TestChat
 
 
@@ -313,3 +317,38 @@ def test_only_input_output_validation():
     assert res.response == [
         {"content": "I'm sorry, I can't respond to that.", "role": "assistant"}
     ]
+
+
+def test_generation_log_print_summary(capsys):
+    """Test printing rais stats with dummy data"""
+
+    stats = GenerationStats(
+        input_rails_duration=1.0,
+        dialog_rails_duration=2.0,
+        generation_rails_duration=3.0,
+        output_rails_duration=4.0,
+        total_duration=10.0,  # Sum of all previous rail durations
+        llm_calls_duration=8.0,  # Less than total duration
+        llm_calls_count=4,  # Input, dialog, generation and output calls
+        llm_calls_total_prompt_tokens=1000,
+        llm_calls_total_completion_tokens=2000,
+        llm_calls_total_tokens=3000,  # Sum of prompt and completion tokens
+    )
+
+    generation_log = GenerationLog(activated_rails=[], stats=stats)
+
+    generation_log.print_summary()
+    capture = capsys.readouterr()
+    capture_lines = capture.out.splitlines()
+
+    # Check the correct times were printed
+    assert capture_lines[1] == "# General stats"
+    assert capture_lines[3] == "- Total time: 10.00s"
+    assert capture_lines[4] == "  - [1.00s][10.0%]: INPUT Rails"
+    assert capture_lines[5] == "  - [2.00s][20.0%]: DIALOG Rails"
+    assert capture_lines[6] == "  - [3.00s][30.0%]: GENERATION Rails"
+    assert capture_lines[7] == "  - [4.00s][40.0%]: OUTPUT Rails"
+    assert (
+        capture_lines[8]
+        == "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
+    )
