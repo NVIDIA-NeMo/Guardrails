@@ -776,6 +776,19 @@ class LLMRails:
             The completion (when a prompt is provided) or the next message.
 
         System messages are not yet supported."""
+        # convert options to gen_options of type GenerationOptions
+        gen_options: Optional[GenerationOptions] = None
+
+        if prompt is None and messages is None:
+            raise ValueError("Either prompt or messages must be provided.")
+
+        if prompt is not None and messages is not None:
+            raise ValueError("Only one of prompt or messages can be provided.")
+
+        if prompt is not None:
+            # Currently, we transform the prompt request into a single turn conversation
+            messages = [{"role": "user", "content": prompt}]
+
         # If a state object is specified, then we switch to "generation options" mode.
         # This is because we want the output to be a GenerationResponse which will contain
         # the output state.
@@ -785,15 +798,25 @@ class LLMRails:
                 state = json_to_state(state["state"])
 
             if options is None:
-                options = GenerationOptions()
-
-        # We allow options to be specified both as a dict and as an object.
-        if options and isinstance(options, dict):
-            options = GenerationOptions(**options)
+                gen_options = GenerationOptions()
+            elif isinstance(options, dict):
+                gen_options = GenerationOptions(**options)
+            else:
+                gen_options = options
+        else:
+            # We allow options to be specified both as a dict and as an object.
+            if options and isinstance(options, dict):
+                gen_options = GenerationOptions(**options)
+            elif isinstance(options, GenerationOptions):
+                gen_options = options
+            elif options is None:
+                gen_options = None
+            else:
+                raise TypeError("options must be a dict or GenerationOptions")
 
         # Save the generation options in the current async context.
-        # At this point, options is either None or GenerationOptions
-        generation_options_var.set(options if not isinstance(options, dict) else None)
+        # At this point, gen_options is either None or GenerationOptions
+        generation_options_var.set(gen_options)
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
@@ -803,23 +826,14 @@ class LLMRails:
         # requests are made.
         self.explain_info = self._ensure_explain_info()
 
-        if prompt is not None:
-            # Currently, we transform the prompt request into a single turn conversation
-            messages = [{"role": "user", "content": prompt}]
-            raw_llm_request.set(prompt)
-        else:
-            raw_llm_request.set(messages)
+        raw_llm_request.set(messages)
 
         # If we have generation options, we also add them to the context
-        if options:
+        if gen_options:
             messages = [
                 {
                     "role": "context",
-                    "content": {
-                        "generation_options": getattr(
-                            options, "dict", lambda: options
-                        )()
-                    },
+                    "content": {"generation_options": gen_options.model_dump()},
                 }
             ] + (messages or [])
 
@@ -848,7 +862,7 @@ class LLMRails:
         processing_log = []
 
         # The array of events corresponding to the provided sequence of messages.
-        events = self._get_events_for_messages(messages or [], state)
+        events = self._get_events_for_messages(messages, state)  # type: ignore
 
         if self.config.colang_version == "1.0":
             # If we had a state object, we also need to prepend the events from the state.
@@ -967,7 +981,7 @@ class LLMRails:
             # If a state object is not used, then we use the implicit caching
             if state is None:
                 # Save the new events in the history and update the cache
-                cache_key = get_history_cache_key((messages or []) + [new_message])
+                cache_key = get_history_cache_key((messages) + [new_message])  # type: ignore
                 self.events_history_cache[cache_key] = events
             else:
                 output_state = {"events": events}
@@ -995,33 +1009,29 @@ class LLMRails:
         # IF tracing is enabled we need to set GenerationLog attrs
         original_log_options = None
         if self.config.tracing.enabled:
-            if options is None:
-                options = GenerationOptions()
+            if gen_options is None:
+                gen_options = GenerationOptions()
             else:
-                # create a copy of the options to avoid modifying the original
-                if isinstance(options, GenerationOptions):
-                    options = options.model_copy(deep=True)
-                else:
-                    # If options is a dict, convert it to GenerationOptions
-                    options = GenerationOptions(**options)
-            original_log_options = options.log.model_copy(deep=True)
+                # create a copy of the gen_options to avoid modifying the original
+                gen_options = gen_options.model_copy(deep=True)
+            original_log_options = gen_options.log.model_copy(deep=True)
 
             # enable log options
             # it is aggressive, but these are required for tracing
             if (
-                not options.log.activated_rails
-                or not options.log.llm_calls
-                or not options.log.internal_events
+                not gen_options.log.activated_rails
+                or not gen_options.log.llm_calls
+                or not gen_options.log.internal_events
             ):
-                options.log.activated_rails = True
-                options.log.llm_calls = True
-                options.log.internal_events = True
+                gen_options.log.activated_rails = True
+                gen_options.log.llm_calls = True
+                gen_options.log.internal_events = True
 
         tool_calls = extract_tool_calls_from_events(new_events)
         llm_metadata = get_and_clear_response_metadata_contextvar()
 
         # If we have generation options, we prepare a GenerationResponse instance.
-        if options:
+        if gen_options:
             # If a prompt was used, we only need to return the content of the message.
             if prompt:
                 res = GenerationResponse(response=new_message["content"])
@@ -1048,9 +1058,9 @@ class LLMRails:
 
             if self.config.colang_version == "1.0":
                 # If output variables are specified, we extract their values
-                if getattr(options, "output_vars", None):
+                if gen_options and gen_options.output_vars:
                     context = compute_context(events)
-                    output_vars = getattr(options, "output_vars", None)
+                    output_vars = gen_options.output_vars
                     if isinstance(output_vars, list):
                         # If we have only a selection of keys, we filter to only that.
                         res.output_data = {k: context.get(k) for k in output_vars}
@@ -1061,41 +1071,40 @@ class LLMRails:
                 _log = compute_generation_log(processing_log)
 
                 # Include information about activated rails and LLM calls if requested
-                log_options = getattr(options, "log", None)
+                log_options = gen_options.log if gen_options else None
                 if log_options and (
-                    getattr(log_options, "activated_rails", False)
-                    or getattr(log_options, "llm_calls", False)
+                    log_options.activated_rails or log_options.llm_calls
                 ):
                     res.log = GenerationLog()
 
                     # We always include the stats
                     res.log.stats = _log.stats
 
-                    if getattr(log_options, "activated_rails", False):
+                    if log_options.activated_rails:
                         res.log.activated_rails = _log.activated_rails
 
-                    if getattr(log_options, "llm_calls", False):
+                    if log_options.llm_calls:
                         res.log.llm_calls = []
                         for activated_rail in _log.activated_rails:
                             for executed_action in activated_rail.executed_actions:
                                 res.log.llm_calls.extend(executed_action.llm_calls)
 
                 # Include internal events if requested
-                if getattr(log_options, "internal_events", False):
+                if log_options and log_options.internal_events:
                     if res.log is None:
                         res.log = GenerationLog()
 
                     res.log.internal_events = new_events
 
                 # Include the Colang history if requested
-                if getattr(log_options, "colang_history", False):
+                if log_options and log_options.colang_history:
                     if res.log is None:
                         res.log = GenerationLog()
 
                     res.log.colang_history = get_colang_history(events)
 
                 # Include the raw llm output if requested
-                if getattr(options, "llm_output", False):
+                if gen_options and gen_options.llm_output:
                     # Currently, we include the output from the generation LLM calls.
                     for activated_rail in _log.activated_rails:
                         if activated_rail.type == "generation":
@@ -1103,23 +1112,23 @@ class LLMRails:
                                 for llm_call in executed_action.llm_calls:
                                     res.llm_output = llm_call.raw_response
             else:
-                if getattr(options, "output_vars", None):
+                if gen_options and gen_options.output_vars:
                     raise ValueError(
                         "The `output_vars` option is not supported for Colang 2.0 configurations."
                     )
 
-                log_options = getattr(options, "log", None)
+                log_options = gen_options.log if gen_options else None
                 if log_options and (
-                    getattr(log_options, "activated_rails", False)
-                    or getattr(log_options, "llm_calls", False)
-                    or getattr(log_options, "internal_events", False)
-                    or getattr(log_options, "colang_history", False)
+                    log_options.activated_rails
+                    or log_options.llm_calls
+                    or log_options.internal_events
+                    or log_options.colang_history
                 ):
                     raise ValueError(
                         "The `log` option is not supported for Colang 2.0 configurations."
                     )
 
-                if getattr(options, "llm_output", False):
+                if gen_options and gen_options.llm_output:
                     raise ValueError(
                         "The `llm_output` option is not supported for Colang 2.0 configurations."
                     )
@@ -1153,25 +1162,21 @@ class LLMRails:
                 if original_log_options:
                     if not any(
                         (
-                            getattr(original_log_options, "internal_events", False),
-                            getattr(original_log_options, "activated_rails", False),
-                            getattr(original_log_options, "llm_calls", False),
-                            getattr(original_log_options, "colang_history", False),
+                            original_log_options.internal_events,
+                            original_log_options.activated_rails,
+                            original_log_options.llm_calls,
+                            original_log_options.colang_history,
                         )
                     ):
                         res.log = None
                     else:
                         # Ensure res.log exists before setting attributes
                         if res.log is not None:
-                            if not getattr(
-                                original_log_options, "internal_events", False
-                            ):
+                            if not original_log_options.internal_events:
                                 res.log.internal_events = []
-                            if not getattr(
-                                original_log_options, "activated_rails", False
-                            ):
+                            if not original_log_options.activated_rails:
                                 res.log.activated_rails = []
-                            if not getattr(original_log_options, "llm_calls", False):
+                            if not original_log_options.llm_calls:
                                 res.log.llm_calls = []
 
             return res
