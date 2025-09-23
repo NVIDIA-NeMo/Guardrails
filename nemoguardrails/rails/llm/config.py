@@ -527,6 +527,40 @@ class ActionRails(BaseModel):
     )
 
 
+class ToolOutputRails(BaseModel):
+    """Configuration of tool output rails.
+
+    Tool output rails are applied to tool calls before they are executed.
+    They can validate tool names, parameters, and context to ensure safe tool usage.
+    """
+
+    flows: List[str] = Field(
+        default_factory=list,
+        description="The names of all the flows that implement tool output rails.",
+    )
+    parallel: Optional[bool] = Field(
+        default=False,
+        description="If True, the tool output rails are executed in parallel.",
+    )
+
+
+class ToolInputRails(BaseModel):
+    """Configuration of tool input rails.
+
+    Tool input rails are applied to tool results before they are processed.
+    They can validate, filter, or transform tool outputs for security and safety.
+    """
+
+    flows: List[str] = Field(
+        default_factory=list,
+        description="The names of all the flows that implement tool input rails.",
+    )
+    parallel: Optional[bool] = Field(
+        default=False,
+        description="If True, the tool input rails are executed in parallel.",
+    )
+
+
 class SingleCallConfig(BaseModel):
     """Configuration for the single LLM call option for topical rails."""
 
@@ -796,6 +830,73 @@ class PangeaRailConfig(BaseModel):
     )
 
 
+class GuardrailsAIValidatorConfig(BaseModel):
+    """Configuration for a single Guardrails AI validator."""
+
+    name: str = Field(
+        description="Unique identifier or import path for the Guardrails AI validator (e.g., 'toxic_language', 'pii', 'regex_match', or 'guardrails/competitor_check')."
+    )
+
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters to pass to the validator during initialization (e.g., threshold, regex pattern).",
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Metadata to pass to the validator during validation (e.g., valid_topics, context).",
+    )
+
+
+class GuardrailsAIRailConfig(BaseModel):
+    """Configuration data for Guardrails AI integration."""
+
+    validators: List[GuardrailsAIValidatorConfig] = Field(
+        default_factory=list,
+        description="List of Guardrails AI validators to apply. Each validator can have its own parameters and metadata.",
+    )
+
+    def get_validator_config(self, name: str) -> Optional[GuardrailsAIValidatorConfig]:
+        """Get a specific validator configuration by name."""
+        for _validator in self.validators:
+            if _validator.name == name:
+                return _validator
+        return None
+
+
+class TrendMicroRailConfig(BaseModel):
+    """Configuration data for the Trend Micro AI Guard API"""
+
+    v1_url: Optional[str] = Field(
+        default="https://api.xdr.trendmicro.com/beta/aiSecurity/guard",
+        description="The endpoint for the Trend Micro AI Guard API",
+    )
+
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        description="Environment variable containing API key for Trend Micro AI Guard",
+    )
+
+    def get_api_key(self) -> Optional[str]:
+        """Helper to return an API key (if it exists) from a Trend Micro configuration.
+        The `api_key_env_var` field, a string stored in this environment variable.
+
+        If the environment variable is not found None is returned.
+        """
+
+        if self.api_key_env_var:
+            v1_api_key = os.getenv(self.api_key_env_var)
+            if v1_api_key:
+                return v1_api_key
+
+            log.warning(
+                "Specified a value for Trend Micro config api_key_env var at %s but the environment variable was not set!"
+                % self.api_key_env_var
+            )
+
+        return None
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -849,6 +950,16 @@ class RailsConfigData(BaseModel):
         description="Configuration for Pangea.",
     )
 
+    guardrails_ai: Optional[GuardrailsAIRailConfig] = Field(
+        default_factory=GuardrailsAIRailConfig,
+        description="Configuration for Guardrails AI validators.",
+    )
+
+    trend_micro: Optional[TrendMicroRailConfig] = Field(
+        default_factory=TrendMicroRailConfig,
+        description="Configuration for Trend Micro.",
+    )
+
 
 class Rails(BaseModel):
     """Configuration of specific rails."""
@@ -872,6 +983,14 @@ class Rails(BaseModel):
     )
     actions: ActionRails = Field(
         default_factory=ActionRails, description="Configuration of action rails."
+    )
+    tool_output: ToolOutputRails = Field(
+        default_factory=ToolOutputRails,
+        description="Configuration of tool output rails.",
+    )
+    tool_input: ToolInputRails = Field(
+        default_factory=ToolInputRails,
+        description="Configuration of tool input rails.",
     )
 
 

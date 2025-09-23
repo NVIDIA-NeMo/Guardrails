@@ -1,0 +1,22 @@
+enable_rails_exceptions: True
+
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+instructions:
+  - type: general
+    content: |
+      You are a helpful assistant.
+
+rails:
+  config:
+    trend_micro:
+      api_key_env_var: "V1_API_KEY"
+  input:
+    flows:
+      - trend ai guard input
+  output:
+    flows:
+      - trend ai guard output

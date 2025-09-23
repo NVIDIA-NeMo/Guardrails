@@ -31,10 +31,28 @@
 import asyncio
 import logging
 from typing import Optional
+from urllib.parse import urljoin
 
 import aiohttp
 
 log = logging.getLogger(__name__)
+
+
+def join_nim_url(base_url: str, classification_path: str) -> str:
+    """Join NIM base URL with classification path, handling trailing/leading slashes.
+
+    Args:
+        base_url: The base NIM URL (with or without trailing slash)
+        classification_path: The classification endpoint path (with or without leading slash)
+
+    Returns:
+        Properly joined URL
+    """
+    # Ensure base_url ends with '/' for proper urljoin behavior
+    normalized_base = base_url.rstrip("/") + "/"
+    # Remove leading slash from classification path to ensure relative joining
+    normalized_path = classification_path.lstrip("/")
+    return urljoin(normalized_base, normalized_path)
 
 
 async def jailbreak_detection_heuristics_request(
@@ -101,14 +119,12 @@ async def jailbreak_nim_request(
     nim_auth_token: Optional[str],
     nim_classification_path: str,
 ):
-    from urllib.parse import urljoin
-
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     payload = {
         "input": prompt,
     }
 
-    endpoint = urljoin(nim_url, nim_classification_path)
+    endpoint = join_nim_url(nim_url, nim_classification_path)
     try:
         async with aiohttp.ClientSession() as session:
             try:

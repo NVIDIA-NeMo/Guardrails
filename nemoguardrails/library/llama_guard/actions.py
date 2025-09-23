@@ -21,7 +21,6 @@ from langchain_core.language_models.llms import BaseLLM
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -76,8 +75,9 @@ async def llama_guard_check_input(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_INPUT.value))
 
-    with llm_params(llama_guard_llm, temperature=0.0):
-        result = await llm_call(llama_guard_llm, check_input_prompt, stop=stop)
+    result = await llm_call(
+        llama_guard_llm, check_input_prompt, stop=stop, llm_params={"temperature": 0.0}
+    )
 
     allowed, policy_violations = parse_llama_guard_response(result)
     return {"allowed": allowed, "policy_violations": policy_violations}
@@ -124,8 +124,9 @@ async def llama_guard_check_output(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_OUTPUT.value))
 
-    with llm_params(llama_guard_llm, temperature=0.0):
-        result = await llm_call(llama_guard_llm, check_output_prompt, stop=stop)
+    result = await llm_call(
+        llama_guard_llm, check_output_prompt, stop=stop, llm_params={"temperature": 0.0}
+    )
 
     allowed, policy_violations = parse_llama_guard_response(result)
     return {"allowed": allowed, "policy_violations": policy_violations}

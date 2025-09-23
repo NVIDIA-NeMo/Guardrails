@@ -32,7 +32,9 @@ from typing_extensions import Self
 
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
+    extract_tool_calls_from_events,
     get_and_clear_reasoning_trace_contextvar,
+    get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
 from nemoguardrails.actions.output_mapping import is_output_blocked
@@ -284,8 +286,6 @@ class LLMRails:
         # We also register the kb as a parameter that can be passed to actions.
         self.runtime.register_action_param("kb", self.kb)
 
-        # detect actions that need isolated LLM instances and create them
-        self._create_isolated_llms_for_actions()
         # Reference to the general ExplainInfo object.
         self.explain_info = None
 
@@ -509,147 +509,6 @@ class LLMRails:
 
         self.runtime.register_action_param("llms", llms)
 
-    def _create_isolated_llms_for_actions(self):
-        """Create isolated LLM copies for all actions that accept 'llm' parameter."""
-        if not self.llm:
-            log.debug("No main LLM available for creating isolated copies")
-            return
-
-        try:
-            actions_needing_llms = self._detect_llm_requiring_actions()
-            log.info(
-                "%d actions requiring isolated LLMs: %s",
-                len(actions_needing_llms),
-                list(actions_needing_llms),
-            )
-
-            created_count = 0
-
-            configured_actions_names = []
-            try:
-                if self.config.flows:
-                    get_action_details = partial(
-                        get_action_details_from_flow_id, flows=self.config.flows
-                    )
-                    for flow_id in self.config.rails.input.flows:
-                        action_name, _ = get_action_details(flow_id)
-                        configured_actions_names.append(action_name)
-                    for flow_id in self.config.rails.output.flows:
-                        action_name, _ = get_action_details(flow_id)
-                        configured_actions_names.append(action_name)
-                else:
-                    # for configurations without flow definitions, use all actions that need LLMs
-                    log.info(
-                        "No flow definitions found, creating isolated LLMs for all actions requiring them"
-                    )
-                    configured_actions_names = list(actions_needing_llms)
-            except Exception as e:
-                # if flow matching fails, fall back to all actions that need LLMs
-                log.info(
-                    "Flow matching failed (%s), creating isolated LLMs for all actions requiring them",
-                    e,
-                )
-                configured_actions_names = list(actions_needing_llms)
-
-            for action_name in configured_actions_names:
-                if action_name not in actions_needing_llms:
-                    continue
-                if f"{action_name}_llm" not in self.runtime.registered_action_params:
-                    isolated_llm = self._create_action_llm_copy(self.llm, action_name)
-                    if isolated_llm:
-                        self.runtime.register_action_param(
-                            f"{action_name}_llm", isolated_llm
-                        )
-                        created_count += 1
-                        log.debug("Created isolated LLM for action: %s", action_name)
-                else:
-                    log.debug(
-                        "Action %s already has dedicated LLM, skipping isolation",
-                        action_name,
-                    )
-
-            log.info("Created %d isolated LLM instances for actions", created_count)
-
-        except Exception as e:
-            log.warning("Failed to create isolated LLMs for actions: %s", e)
-
-    def _detect_llm_requiring_actions(self):
-        """Auto-detect actions that have 'llm' parameter."""
-        import inspect
-
-        actions_needing_llms = set()
-
-        if (
-            not hasattr(self.runtime, "action_dispatcher")
-            or not self.runtime.action_dispatcher
-        ):
-            log.debug("Action dispatcher not available")
-            return actions_needing_llms
-
-        for (
-            action_name,
-            action_info,
-        ) in self.runtime.action_dispatcher.registered_actions.items():
-            action_func = self._get_action_function(action_info)
-            if not action_func:
-                continue
-
-            try:
-                sig = inspect.signature(action_func)
-                if "llm" in sig.parameters:
-                    actions_needing_llms.add(action_name)
-                    log.debug("Action %s has 'llm' parameter", action_name)
-
-            except Exception as e:
-                log.debug("Could not inspect action %s: %s", action_name, e)
-
-        return actions_needing_llms
-
-    def _get_action_function(self, action_info):
-        """Extract the actual function from action info."""
-        return action_info if callable(action_info) else None
-
-    def _create_action_llm_copy(
-        self, main_llm: Union[BaseLLM, BaseChatModel], action_name: str
-    ) -> Optional[Union[BaseLLM, BaseChatModel]]:
-        """Create an isolated copy of main LLM for a specific action."""
-        import copy
-
-        try:
-            # shallow copy to preserve HTTP clients, credentials, etc.
-            # but create new instance to avoid shared state
-            isolated_llm = copy.copy(main_llm)
-
-            # isolate model_kwargs to prevent shared mutable state
-            if (
-                hasattr(isolated_llm, "model_kwargs")
-                and isolated_llm.model_kwargs is not None
-            ):
-                isolated_llm.model_kwargs = isolated_llm.model_kwargs.copy()
-
-            log.debug(
-                "Successfully created isolated LLM copy for action: %s", action_name
-            )
-            return isolated_llm
-
-        except Exception as e:
-            error_msg = (
-                "Failed to create isolated LLM instance for action '%s'. "
-                "This is required to prevent parameter contamination between different actions. "
-                "\n\nPossible solutions:"
-                "\n1. If using a custom LLM class, ensure it supports copy.copy() operation"
-                "\n2. Check that your LLM configuration doesn't contain non-copyable objects"
-                "\n3. Consider using a dedicated LLM configuration for action '%s'"
-                "\n\nOriginal error: %s"
-                "\n\nTo use a dedicated LLM for this action, add to your config:"
-                "\nmodels:"
-                "\n  - type: %s"
-                "\n    engine: <your_engine>"
-                "\n    model: <your_model>"
-            ) % (action_name, action_name, e, action_name)
-            log.error(error_msg)
-            raise RuntimeError(error_msg)
-
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
     ) -> EmbeddingsIndex:
@@ -745,19 +604,24 @@ class LLMRails:
                         )
 
                 elif msg["role"] == "assistant":
-                    action_uid = new_uuid()
-                    start_event = new_event_dict(
-                        "StartUtteranceBotAction",
-                        script=msg["content"],
-                        action_uid=action_uid,
-                    )
-                    finished_event = new_event_dict(
-                        "UtteranceBotActionFinished",
-                        final_script=msg["content"],
-                        is_success=True,
-                        action_uid=action_uid,
-                    )
-                    events.extend([start_event, finished_event])
+                    if msg.get("tool_calls"):
+                        events.append(
+                            {"type": "BotToolCalls", "tool_calls": msg["tool_calls"]}
+                        )
+                    else:
+                        action_uid = new_uuid()
+                        start_event = new_event_dict(
+                            "StartUtteranceBotAction",
+                            script=msg["content"],
+                            action_uid=action_uid,
+                        )
+                        finished_event = new_event_dict(
+                            "UtteranceBotActionFinished",
+                            final_script=msg["content"],
+                            is_success=True,
+                            action_uid=action_uid,
+                        )
+                        events.extend([start_event, finished_event])
                 elif msg["role"] == "context":
                     events.append({"type": "ContextUpdate", "data": msg["content"]})
                 elif msg["role"] == "event":
@@ -765,6 +629,49 @@ class LLMRails:
                 elif msg["role"] == "system":
                     # Handle system messages - convert them to SystemMessage events
                     events.append({"type": "SystemMessage", "content": msg["content"]})
+                elif msg["role"] == "tool":
+                    # For the last tool message, create grouped tool event and synthetic UserMessage
+                    if idx == len(messages) - 1:
+                        # Find the original user message for response generation
+                        user_message = None
+                        for prev_msg in reversed(messages[:idx]):
+                            if prev_msg["role"] == "user":
+                                user_message = prev_msg["content"]
+                                break
+
+                        if user_message:
+                            # If tool input rails are configured, group all tool messages
+                            if self.config.rails.tool_input.flows:
+                                # Collect all tool messages for grouped processing
+                                tool_messages = []
+                                for tool_idx in range(len(messages)):
+                                    if messages[tool_idx]["role"] == "tool":
+                                        tool_messages.append(
+                                            {
+                                                "content": messages[tool_idx][
+                                                    "content"
+                                                ],
+                                                "name": messages[tool_idx].get(
+                                                    "name", "unknown"
+                                                ),
+                                                "tool_call_id": messages[tool_idx].get(
+                                                    "tool_call_id", ""
+                                                ),
+                                            }
+                                        )
+
+                                events.append(
+                                    {
+                                        "type": "UserToolMessages",
+                                        "tool_messages": tool_messages,
+                                    }
+                                )
+
+                            else:
+                                events.append(
+                                    {"type": "UserMessage", "text": user_message}
+                                )
+
         else:
             for idx in range(len(messages)):
                 msg = messages[idx]
@@ -1084,6 +991,9 @@ class LLMRails:
                 options.log.llm_calls = True
                 options.log.internal_events = True
 
+        tool_calls = extract_tool_calls_from_events(new_events)
+        llm_metadata = get_and_clear_response_metadata_contextvar()
+
         # If we have generation options, we prepare a GenerationResponse instance.
         if options:
             # If a prompt was used, we only need to return the content of the message.
@@ -1099,6 +1009,12 @@ class LLMRails:
                     res.response[0]["content"] = (
                         reasoning_trace + res.response[0]["content"]
                     )
+
+            if tool_calls:
+                res.tool_calls = tool_calls
+
+            if llm_metadata:
+                res.llm_metadata = llm_metadata
 
             if self.config.colang_version == "1.0":
                 # If output variables are specified, we extract their values
@@ -1228,6 +1144,8 @@ class LLMRails:
             if prompt:
                 return new_message["content"]
             else:
+                if tool_calls:
+                    new_message["tool_calls"] = tool_calls
                 return new_message
 
     def stream_async(

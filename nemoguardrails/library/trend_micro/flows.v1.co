@@ -1,0 +1,23 @@
+# INPUT RAIL
+define subflow trend ai guard input
+    $result = execute trend_ai_guard(text=$user_message)
+
+    if $result.blocked # Fails open if AI Guard service has an error
+        if $config.enable_rails_exceptions
+            $msg = "Blocked by the 'trend ai guard input' flow: " + $result.reason
+            create event TrendAiGuardRailException(message=$msg)
+        else
+            bot refuse to respond
+        stop
+
+# OUTPUT RAIL
+define subflow trend ai guard output
+    $result = execute trend_ai_guard(text=$bot_message)
+
+    if $result.blocked # Fails open if AI Guard service has an error
+        if $config.enable_rails_exceptions
+            $msg = "Blocked by the 'trend ai guard output' flow: " + $result.reason
+            create event TrendAiGuardRailException(message=$msg)
+        else
+            bot refuse to respond
+        stop

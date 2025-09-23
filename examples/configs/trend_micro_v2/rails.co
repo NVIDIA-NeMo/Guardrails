@@ -1,0 +1,8 @@
+import guardrails
+import nemoguardrails.library.trend_micro
+
+flow input rails $input_text
+    trend ai guard input $input_text
+
+flow output rails $output_text
+    trend ai guard output $output_text

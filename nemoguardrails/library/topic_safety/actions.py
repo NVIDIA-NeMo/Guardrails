@@ -22,7 +22,6 @@ from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.filters import to_chat_messages
-from nemoguardrails.llm.params import llm_params
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -103,8 +102,7 @@ async def topic_safety_check_input(
     messages.extend(conversation_history)
     messages.append({"type": "user", "content": user_input})
 
-    with llm_params(llm, temperature=0.01):
-        result = await llm_call(llm, messages, stop=stop)
+    result = await llm_call(llm, messages, stop=stop, llm_params={"temperature": 0.01})
 
     if result.lower().strip() == "off-topic":
         on_topic = False

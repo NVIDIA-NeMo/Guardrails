@@ -18,13 +18,16 @@ from typing import Any, List, Optional, Union
 
 from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
-from langchain.prompts.base import StringPromptValue
-from langchain.prompts.chat import ChatPromptValue
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEvents
-from nemoguardrails.context import llm_call_info_var, reasoning_trace_var
+from nemoguardrails.context import (
+    llm_call_info_var,
+    llm_response_metadata_var,
+    reasoning_trace_var,
+    tool_calls_var,
+)
+from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -70,9 +73,42 @@ async def llm_call(
     model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
     custom_callback_handlers: Optional[List[AsyncCallbackHandler]] = None,
+    llm_params: Optional[dict] = None,
 ) -> str:
-    """Calls the LLM with a prompt and returns the generated text."""
-    # We initialize a new LLM call if we don't have one already
+    """Calls the LLM with a prompt and returns the generated text.
+
+    Args:
+        llm: The language model instance to use
+        prompt: The prompt string or list of messages
+        model_name: Optional model name for tracking
+        model_provider: Optional model provider for tracking
+        stop: Optional list of stop tokens
+        custom_callback_handlers: Optional list of callback handlers
+        llm_params: Optional configuration dictionary to pass to the LLM (e.g., temperature, max_tokens)
+
+    Returns:
+        The generated text response
+    """
+    _setup_llm_call_info(llm, model_name, model_provider)
+    all_callbacks = _prepare_callbacks(custom_callback_handlers)
+
+    if llm_params and llm is not None:
+        llm = llm.bind(**llm_params)
+
+    if isinstance(prompt, str):
+        response = await _invoke_with_string_prompt(llm, prompt, all_callbacks, stop)
+    else:
+        response = await _invoke_with_message_list(llm, prompt, all_callbacks, stop)
+
+    _store_tool_calls(response)
+    _store_response_metadata(response)
+    return _extract_content(response)
+
+
+def _setup_llm_call_info(
+    llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]
+) -> None:
+    """Initialize or update LLM call info in context."""
     llm_call_info = llm_call_info_var.get()
     if llm_call_info is None:
         llm_call_info = LLMCallInfo()
@@ -81,52 +117,78 @@ async def llm_call(
     llm_call_info.llm_model_name = model_name or _infer_model_name(llm)
     llm_call_info.llm_provider_name = model_provider
 
+
+def _prepare_callbacks(
+    custom_callback_handlers: Optional[List[AsyncCallbackHandler]],
+) -> BaseCallbackManager:
+    """Prepare callback manager with custom handlers if provided."""
     if custom_callback_handlers and custom_callback_handlers != [None]:
-        all_callbacks = BaseCallbackManager(
+        return BaseCallbackManager(
             handlers=logging_callbacks.handlers + custom_callback_handlers,
             inheritable_handlers=logging_callbacks.handlers + custom_callback_handlers,
         )
+    return logging_callbacks
+
+
+async def _invoke_with_string_prompt(
+    llm: BaseLanguageModel,
+    prompt: str,
+    callbacks: BaseCallbackManager,
+    stop: Optional[List[str]],
+):
+    """Invoke LLM with string prompt."""
+    try:
+        return await llm.ainvoke(prompt, config={"callbacks": callbacks, "stop": stop})
+    except Exception as e:
+        raise LLMCallException(e)
+
+
+async def _invoke_with_message_list(
+    llm: BaseLanguageModel,
+    prompt: List[dict],
+    callbacks: BaseCallbackManager,
+    stop: Optional[List[str]],
+):
+    """Invoke LLM with message list after converting to LangChain format."""
+    messages = _convert_messages_to_langchain_format(prompt)
+    try:
+        return await llm.ainvoke(
+            messages, config={"callbacks": callbacks, "stop": stop}
+        )
+    except Exception as e:
+        raise LLMCallException(e)
+
+
+def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
+    """Convert message list to LangChain message format."""
+    return dicts_to_messages(prompt)
+
+
+def _store_tool_calls(response) -> None:
+    """Extract and store tool calls from response in context."""
+    tool_calls = getattr(response, "tool_calls", None)
+    tool_calls_var.set(tool_calls)
+
+
+def _store_response_metadata(response) -> None:
+    """Store response metadata excluding content for metadata preservation."""
+    if hasattr(response, "model_fields"):
+        metadata = {}
+        for field_name in response.model_fields:
+            if (
+                field_name != "content"
+            ):  # Exclude content since it may be modified by rails
+                metadata[field_name] = getattr(response, field_name)
+        llm_response_metadata_var.set(metadata)
     else:
-        all_callbacks = logging_callbacks
+        llm_response_metadata_var.set(None)
 
-    if isinstance(prompt, str):
-        # stop sinks here
-        try:
-            result = await llm.agenerate_prompt(
-                [StringPromptValue(text=prompt)], callbacks=all_callbacks, stop=stop
-            )
-        except Exception as e:
-            raise LLMCallException(e)
-        llm_call_info.raw_response = result.llm_output
 
-        # TODO: error handling
-        return result.generations[0][0].text
-    else:
-        # We first need to translate the array of messages into LangChain message format
-        messages = []
-        for _msg in prompt:
-            msg_type = _msg["type"] if "type" in _msg else _msg["role"]
-            if msg_type == "user":
-                messages.append(HumanMessage(content=_msg["content"]))
-            elif msg_type in ["bot", "assistant"]:
-                messages.append(AIMessage(content=_msg["content"]))
-            elif msg_type == "system":
-                messages.append(SystemMessage(content=_msg["content"]))
-            else:
-                # TODO: add support for tool-related messages
-                raise ValueError(f"Unknown message type {msg_type}")
-
-        try:
-            result = await llm.agenerate_prompt(
-                [ChatPromptValue(messages=messages)], callbacks=all_callbacks, stop=stop
-            )
-
-        except Exception as e:
-            raise LLMCallException(e)
-
-        llm_call_info.raw_response = result.llm_output
-
-        return result.generations[0][0].text
+def _extract_content(response) -> str:
+    """Extract text content from response."""
+    if hasattr(response, "content"):
+        return response.content
+    return str(response)
 
 
 def get_colang_history(
@@ -175,15 +237,15 @@ def get_colang_history(
                 history += f'user "{event["text"]}"\n'
             elif event["type"] == "UserIntent":
                 if include_texts:
-                    history += f'  {event["intent"]}\n'
+                    history += f"  {event['intent']}\n"
                 else:
-                    history += f'user {event["intent"]}\n'
+                    history += f"user {event['intent']}\n"
             elif event["type"] == "BotIntent":
                 # If we have instructions, we add them before the bot message.
                 # But we only do that for the last bot message.
                 if "instructions" in event and idx == last_bot_intent_idx:
                     history += f"# {event['instructions']}\n"
-                history += f'bot {event["intent"]}\n'
+                history += f"bot {event['intent']}\n"
             elif event["type"] == "StartUtteranceBotAction" and include_texts:
                 history += f'  "{event["script"]}"\n'
             # We skip system actions from this log
@@ -352,9 +414,9 @@ def flow_to_colang(flow: Union[dict, Flow]) -> str:
             if "_type" not in element:
                 raise Exception("bla")
             if element["_type"] == "UserIntent":
-                colang_flow += f'user {element["intent_name"]}\n'
+                colang_flow += f"user {element['intent_name']}\n"
             elif element["_type"] == "run_action" and element["action_name"] == "utter":
-                colang_flow += f'bot {element["action_params"]["value"]}\n'
+                colang_flow += f"bot {element['action_params']['value']}\n"
 
     return colang_flow
 
@@ -591,4 +653,43 @@ def get_and_clear_reasoning_trace_contextvar() -> Optional[str]:
     if reasoning_trace := reasoning_trace_var.get():
         reasoning_trace_var.set(None)
         return reasoning_trace
+    return None
+
+
+def get_and_clear_tool_calls_contextvar() -> Optional[list]:
+    """Get the current tool calls and clear them from the context.
+
+    Returns:
+        Optional[list]: The tool calls if they exist, None otherwise.
+    """
+    if tool_calls := tool_calls_var.get():
+        tool_calls_var.set(None)
+        return tool_calls
+    return None
+
+
+def extract_tool_calls_from_events(events: list) -> Optional[list]:
+    """Extract tool_calls from BotToolCalls events.
+
+    Args:
+        events: List of events to search through
+
+    Returns:
+        tool_calls if found in BotToolCalls event, None otherwise
+    """
+    for event in events:
+        if event.get("type") == "BotToolCalls":
+            return event.get("tool_calls")
+    return None
+
+
+def get_and_clear_response_metadata_contextvar() -> Optional[dict]:
+    """Get the current response metadata and clear it from the context.
+
+    Returns:
+        Optional[dict]: The response metadata if it exists, None otherwise.
+    """
+    if metadata := llm_response_metadata_var.get():
+        llm_response_metadata_var.set(None)
+        return metadata
     return None

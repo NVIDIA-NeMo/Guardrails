@@ -26,7 +26,7 @@ define bot response untrustworthy
 Install the Python client to use Cleanlab's trustworthiness score:
 
 ```
-pip install cleanlab-studio
+pip install --upgrade cleanlab-tlm
 ```
 
 You can get an API key for free by [creating a Cleanlab account](https://tlm.cleanlab.ai/) or experiment with the trustworthiness scores in the [playground](https://chat.cleanlab.ai/chat). Feel free to [email Cleanlab](mailto:suport@cleanlab.ai) with any questions.

@@ -22,10 +22,12 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Clavata.ai](#clavata)
    - [Cleanlab Trustworthiness Score](#cleanlab)
    - [GCP Text Moderation](#gcp-text-moderation)
+   - [GuardrailsAI Integration](#guardrailsai-integration)
    - [Private AI PII detection](#private-ai-pii-detection)
    - [Fiddler Guardrails for Safety and Hallucination Detection](#fiddler-guardrails-for-safety-and-hallucination-detection)
    - [Prompt Security Protection](#prompt-security-protection)
    - [Pangea AI Guard](#pangea-ai-guard)
+   - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
    - OpenAI Moderation API - *[COMING SOON]*
 
 4. Other
@@ -772,6 +774,33 @@ rails:
 
 For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/gcp-text-moderations.md) page.
 
+### GuardrailsAI Integration
+
+NeMo Guardrails supports using [GuardrailsAI validators](https://github.com/guardrails-ai/guardrails) for comprehensive input and output validation. GuardrailsAI provides a wide range of validators for content safety, PII detection, toxic language filtering, jailbreak detection, and more.
+
+#### Example usage
+
+```yaml
+rails:
+  config:
+    guardrails_ai:
+      validators:
+        - name: toxic_language
+          parameters:
+            threshold: 0.5
+        - name: guardrails_pii
+          parameters:
+            entities: ["phone_number", "email", "ssn"]
+  input:
+    flows:
+      - guardrailsai check input $validator="guardrails_pii"
+  output:
+    flows:
+      - guardrailsai check output $validator="toxic_language"
+```
+
+For more details, check out the [GuardrailsAI Integration](./community/guardrails-ai.md) page.
+
 ### Private AI PII Detection
 
 NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection and masking input, output and retrieval flows.
@@ -886,6 +915,27 @@ rails:
 ```
 
 For more details, check out the [Pangea AI Guard Integration](./community/pangea.md) page.
+
+### Trend Micro Vision One AI Application Security
+
+NeMo Guardrails supports using
+[Trend Micro Vision One AI Guard](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-ai-scanner-ai-guard) for protecting input and output flows within AI-powered applications.
+
+See [Trend Micro](community/trend-micro.md) for more details.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - trend ai guard input
+  output:
+    flows:
+      - trend ai guard output
+```
+
+For more details, check out the [Trend Micro Vision One AI Application Security](./community/trend-micro.md) page.
 
 ## Other
 
