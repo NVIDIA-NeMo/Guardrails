@@ -457,9 +457,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         generation_options: GenerationOptions = generation_options_var.get()
 
-        generation_llm_params = (
-            generation_options and generation_options.llm_params
-        ) or {}
+        generation_llm_params = generation_options and generation_options.llm_params
         text = await llm_call(
             llm,
             user_message,
