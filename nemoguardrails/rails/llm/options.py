@@ -434,4 +434,6 @@ class GenerationResponse(BaseModel):
 
 
 if __name__ == "__main__":
-    print(GenerationOptions(rails=GenerationRailsOptions(input=False)))
+    print(
+        GenerationOptions(rails=GenerationRailsOptions(input=False))
+    )  # pragma: no cover (Can't run as script for test coverage)
