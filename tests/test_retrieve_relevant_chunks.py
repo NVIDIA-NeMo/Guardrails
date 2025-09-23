@@ -12,15 +12,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.language_models import BaseChatModel
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.kb.kb import KnowledgeBase
 from tests.utils import TestChat
 
-config = RailsConfig.from_content(
+RAILS_CONFIG = RailsConfig.from_content(
     """
 import llm
 import core
@@ -55,7 +56,7 @@ def test_relevant_chunk_inserted_in_prompt():
     ]
 
     chat = TestChat(
-        config,
+        RAILS_CONFIG,
         llm_completions=[
             " user express greeting",
             ' bot respond to aditional context\nbot action: "Hello is there anything else" ',
@@ -70,19 +71,21 @@ def test_relevant_chunk_inserted_in_prompt():
         {"role": "user", "content": "Hi!"},
     ]
 
-    new_message = rails.generate(messages=messages)
+    before_llm_calls = len(rails.explain().llm_calls)
+    _ = rails.generate(messages=messages)
+    after_llm_calls = len(rails.explain().llm_calls)
+    llm_call_count = after_llm_calls - before_llm_calls
 
     info = rails.explain()
-    assert len(info.llm_calls) == 2
-    assert "Test Body" in info.llm_calls[1].prompt
-
-    assert "markdown" in info.llm_calls[1].prompt
-    assert "context" in info.llm_calls[1].prompt
+    assert llm_call_count == 2
+    assert "Test Body" in info.llm_calls[-1].prompt
+    assert "markdown" in info.llm_calls[-1].prompt
+    assert "context" in info.llm_calls[-1].prompt
 
 
 def test_relevant_chunk_inserted_in_prompt_no_kb():
     chat = TestChat(
-        config,
+        RAILS_CONFIG,
         llm_completions=[
             " user express greeting",
             ' bot respond to aditional context\nbot action: "Hello is there anything else" ',
@@ -92,8 +95,13 @@ def test_relevant_chunk_inserted_in_prompt_no_kb():
     messages = [
         {"role": "user", "content": "Hi!"},
     ]
-    new_message = rails.generate(messages=messages)
+
+    before_llm_calls = len(rails.explain().llm_calls)
+    _ = rails.generate(messages=messages)
+    after_llm_calls = len(rails.explain().llm_calls)
+    llm_call_count = after_llm_calls - before_llm_calls
+
     info = rails.explain()
-    assert len(info.llm_calls) == 2
+    assert llm_call_count == 2
     assert "markdown" not in info.llm_calls[1].prompt
     assert "context" not in info.llm_calls[1].prompt
