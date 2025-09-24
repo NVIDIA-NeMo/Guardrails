@@ -14,10 +14,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, AsyncGenerator, List, NamedTuple
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+from typing import AsyncGenerator, List, NamedTuple
 
 from nemoguardrails.rails.llm.config import OutputRailsStreamingConfig
 
@@ -114,7 +111,9 @@ class BufferStrategy(ABC):
         ...
 
     @abstractmethod
-    async def process_stream(self, streaming_handler):
+    async def process_stream(
+        self, streaming_handler
+    ) -> AsyncGenerator[ChunkBatch, None]:
         """Process streaming chunks and yield chunk batches.
 
         This is the main method that concrete buffer strategies must implement.
@@ -139,9 +138,10 @@ class BufferStrategy(ABC):
             ...     print(f"Processing: {context_formatted}")
             ...     print(f"User: {user_formatted}")
         """
-        yield ChunkBatch([], [])  # pragma: no cover
+        raise NotImplementedError
+        yield
 
-    async def __call__(self, streaming_handler):
+    async def __call__(self, streaming_handler) -> AsyncGenerator[ChunkBatch, None]:
         """Callable interface that delegates to process_stream.
 
         It delegates to the `process_stream` method and can
@@ -257,7 +257,9 @@ class RollingBuffer(BufferStrategy):
             buffer_context_size=config.context_size, buffer_chunk_size=config.chunk_size
         )
 
-    async def process_stream(self, streaming_handler):
+    async def process_stream(
+        self, streaming_handler
+    ) -> AsyncGenerator[ChunkBatch, None]:
         """Process streaming chunks using rolling buffer strategy.
 
         This method implements the rolling buffer logic, accumulating chunks
