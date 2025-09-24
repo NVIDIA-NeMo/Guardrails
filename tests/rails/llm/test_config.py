@@ -307,6 +307,7 @@ def test_rails_config_none_config_path():
     result2 = config3 + config4
     assert result2.config_path == ""
 
+
 def test_llm_rails_configure_streaming_with_attr():
     """Check LLM has the streaming attribute set if RailsConfig has it"""
 
