@@ -335,32 +335,25 @@ class LLMGenerationActions:
         # NOTE: this should be very fast, otherwise needs to be moved to separate thread.
         await self.flows_index.build()
 
-    def _get_general_instructions(self) -> Optional[str]:
+    def _get_general_instructions(self):
         """Helper to extract the general instruction."""
-
-        # If there's no instructions field return None
-        if not self.config.instructions:
-            return None
-
-        # Return the content of the first general instruction
+        text = ""
         for instruction in self.config.instructions:
             if instruction.type == "general":
-                return instruction.content
+                text = instruction.content
 
-        return None
+                # We stop at the first one for now
+                break
+
+        return text
 
     @lru_cache
-    def _get_sample_conversation_two_turns(self) -> Optional[str]:
+    def _get_sample_conversation_two_turns(self):
         """Helper to extract only the two turns from the sample conversation.
 
         This is needed to be included to "seed" the conversation so that the model
         can follow the format more easily.
         """
-
-        # The RailsConfig.sample_conversation field is Optional, early-out if it's not provided
-        if not self.config.sample_conversation:
-            return None
-
         lines = self.config.sample_conversation.split("\n")
         i = 0
         user_count = 0
@@ -397,11 +390,10 @@ class LLMGenerationActions:
             )
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
-        assert event
         assert event["type"] == "UserMessage"
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        llm = llm or self.llm
 
         streaming_handler = streaming_handler_var.get()
 
@@ -458,7 +450,7 @@ class LLMGenerationActions:
                     )
                 else:
                     results = await self.user_message_index.search(
-                        text=text, max_results=5, threshold=None
+                        text=text, max_results=5
                     )
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
@@ -480,9 +472,7 @@ class LLMGenerationActions:
 
             # We make this call with temperature 0 to have it as deterministic as possible.
             result = await llm_call(
-                generation_llm,
-                prompt,
-                llm_params={"temperature": self.config.lowest_temperature},
+                llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
             )
 
             # Parse the output using the associated parser
@@ -601,26 +591,14 @@ class LLMGenerationActions:
                     context={"relevant_chunks": relevant_chunks},
                 )
 
-                generation_options: Optional[
-                    GenerationOptions
-                ] = generation_options_var.get()
-
+                generation_options: GenerationOptions = generation_options_var.get()
                 llm_params = (
                     generation_options and generation_options.llm_params
                 ) or {}
-
-                streaming_handler: Optional[
-                    StreamingHandler
-                ] = streaming_handler_var.get()
-
-                custom_callback_handlers = (
-                    [streaming_handler] if streaming_handler else None
-                )
-
                 result = await llm_call(
-                    generation_llm,
+                    llm,
                     prompt,
-                    custom_callback_handlers=custom_callback_handlers,
+                    custom_callback_handlers=[streaming_handler_var.get()],
                     stop=["User:"],
                     llm_params=llm_params,
                 )
@@ -630,9 +608,6 @@ class LLMGenerationActions:
                 )
 
                 text = _process_parsed_output(text, self._include_reasoning_traces())
-                if not text:
-                    raise Exception("Error processing parsed output")
-
                 text = text.strip()
                 if text.startswith('"'):
                     text = text[1:-1]
@@ -661,12 +636,7 @@ class LLMGenerationActions:
 
     async def _search_flows_index(self, text, max_results):
         """Search the index of flows."""
-        if not self.flows_index:
-            raise Exception("Searching flows index for %s with no flows_index", text)
-
-        results = await self.flows_index.search(
-            text=text, max_results=10, threshold=None
-        )
+        results = await self.flows_index.search(text=text, max_results=10)
 
         # we filter the results to keep only unique flows
         flows = set()
@@ -682,7 +652,7 @@ class LLMGenerationActions:
 
     @action(is_system_action=True)
     async def generate_next_step(
-        self, events: List[dict], llm: Optional[Union[BaseLLM, BaseChatModel]] = None
+        self, events: List[dict], llm: Optional[BaseLLM] = None
     ):
         """Generate the next step in the current conversation flow.
 
@@ -691,12 +661,10 @@ class LLMGenerationActions:
         log.info("Phase 2 :: Generating next step ...")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        llm = llm or self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "UserIntent".
         event = get_last_user_intent_event(events)
-        if not event:
-            raise Exception("Couldn't find last user intent in events: %s", events)
 
         # Currently, we only predict next step after a user intent using LLM
         if event["type"] == "UserIntent":
@@ -729,9 +697,7 @@ class LLMGenerationActions:
 
             # We use temperature 0 for next step prediction as well
             result = await llm_call(
-                generation_llm,
-                prompt,
-                llm_params={"temperature": self.config.lowest_temperature},
+                llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
             )
 
             # Parse the output using the associated parser
@@ -856,17 +822,15 @@ class LLMGenerationActions:
         log.info("Phase 3 :: Generating bot message ...")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        llm = llm or self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "BotIntent".
         event = get_last_bot_intent_event(events)
-        assert event
         assert event["type"] == "BotIntent"
         bot_intent = event["intent"]
         context_updates = {}
 
-        streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
-        custom_callback_handlers = [streaming_handler] if streaming_handler else None
+        streaming_handler = streaming_handler_var.get()
 
         # when we have 'output rails streaming' enabled
         # we must disable (skip) the output rails which gets executed on $bot_message
@@ -875,11 +839,7 @@ class LLMGenerationActions:
         # streaming_handler is set when stream_async method is used
 
         # if streaming_handler and len(self.config.rails.output.flows) > 0:
-        if (
-            streaming_handler
-            and self.config.rails.output.streaming
-            and self.config.rails.output.streaming.enabled
-        ):
+        if streaming_handler and self.config.rails.output.streaming.enabled:
             context_updates["skip_output_rails"] = True
 
         if bot_intent in self.config.bot_messages:
@@ -909,7 +869,7 @@ class LLMGenerationActions:
             if self.config.rails.dialog.single_call.enabled:
                 event = get_last_user_intent_event(events)
 
-                if event and event["type"] == "UserIntent":
+                if event["type"] == "UserIntent":
                     bot_message_event = event["additional_info"]["bot_message_event"]
 
                     # We only need to use the bot message if it corresponds to the
@@ -917,8 +877,7 @@ class LLMGenerationActions:
                     last_bot_intent = get_last_bot_intent_event(events)
 
                     if (
-                        last_bot_intent
-                        and last_bot_intent["intent"]
+                        last_bot_intent["intent"]
                         == event["additional_info"]["bot_intent_event"]["intent"]
                     ):
                         text = bot_message_event["text"]
@@ -956,7 +915,7 @@ class LLMGenerationActions:
             if self.config.passthrough:
                 # If we have a passthrough function, we use that.
                 if self.passthrough_fn:
-                    prompt = None  # pyright: ignore (TODO - refactor nested `prompt` definitions)
+                    prompt = None
                     raw_output = await self.passthrough_fn(
                         context=context, events=events
                     )
@@ -997,13 +956,7 @@ class LLMGenerationActions:
                                     prompt[i]["content"] = user_message
                                     break
                     else:
-                        prompt: Optional[  # pyright: ignore (TODO Refactor these branches into separate methods)
-                            str
-                        ] = context.get(  # pyright: ignore (TODO Refactor these branches into separate methods)
-                            "user_message"
-                        )
-                    if not prompt:
-                        raise Exception("User message not found in context")
+                        prompt = context.get("user_message")
 
                     generation_options: GenerationOptions = generation_options_var.get()
                     llm_params = (
@@ -1036,11 +989,8 @@ class LLMGenerationActions:
                 examples = ""
                 # NOTE: disabling bot message index when there are no user messages
                 if self.config.user_messages and self.bot_message_index:
-                    if not event:
-                        raise Exception("Event intent not found")
-
                     results = await self.bot_message_index.search(
-                        text=event["intent"], max_results=5, threshold=None
+                        text=event["intent"], max_results=5
                     )
 
                     # We add these in reverse order so the most relevant is towards the end.
@@ -1051,15 +1001,10 @@ class LLMGenerationActions:
                 relevant_chunks = get_retrieved_relevant_chunks(events)
 
                 prompt_config = get_prompt(self.config, Task.GENERATE_BOT_MESSAGE)
-                prompt: Union[
-                    str, List[dict]
-                ] = self.llm_task_manager.render_task_prompt(
+                prompt = self.llm_task_manager.render_task_prompt(
                     task=Task.GENERATE_BOT_MESSAGE,
                     events=events,
-                    context={
-                        "examples": examples,
-                        "relevant_chunks": relevant_chunks,
-                    },
+                    context={"examples": examples, "relevant_chunks": relevant_chunks},
                 )
 
                 t0 = time()
@@ -1080,15 +1025,10 @@ class LLMGenerationActions:
                 llm_params = (
                     generation_options and generation_options.llm_params
                 ) or {}
-
-                custom_callback_handlers = (
-                    [streaming_handler] if streaming_handler else None
-                )
-
                 result = await llm_call(
                     llm,
                     prompt,
-                    custom_callback_handlers=custom_callback_handlers,
+                    custom_callback_handlers=[streaming_handler],
                     llm_params=llm_params,
                 )
 
@@ -1156,7 +1096,7 @@ class LLMGenerationActions:
         :param llm: Custom llm model to generate_value
         """
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        llm = llm or self.llm
 
         last_event = events[-1]
         assert last_event["type"] == "StartInternalSystemAction"
@@ -1192,9 +1132,7 @@ class LLMGenerationActions:
         llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_VALUE.value))
 
         result = await llm_call(
-            generation_llm,
-            prompt,
-            llm_params={"temperature": self.config.lowest_temperature},
+            llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
         )
 
         # Parse the output using the associated parser
@@ -1224,7 +1162,7 @@ class LLMGenerationActions:
     async def generate_intent_steps_message(
         self,
         events: List[dict],
-        llm: Optional[Union[BaseLLM, BaseChatModel]] = None,
+        llm: Optional[BaseLLM] = None,
         kb: Optional[KnowledgeBase] = None,
     ):
         """Generate all three main Guardrails phases with a single LLM call.
@@ -1234,11 +1172,10 @@ class LLMGenerationActions:
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
-        assert event
         assert event["type"] == "UserMessage"
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        llm = llm or self.llm
 
         streaming_handler = streaming_handler_var.get()
 
@@ -1260,9 +1197,7 @@ class LLMGenerationActions:
                 # Some of these intents might not have an associated flow and will be
                 # skipped from the few-shot examples.
                 intent_results = await self.user_message_index.search(
-                    text=event["text"],
-                    max_results=10,
-                    threshold=None,
+                    text=event["text"], max_results=10
                 )
 
                 # We fill in the list of potential user intents
@@ -1314,9 +1249,7 @@ class LLMGenerationActions:
                             if self.bot_message_index:
                                 bot_messages_results = (
                                     await self.bot_message_index.search(
-                                        text=bot_canonical_form,
-                                        max_results=1,
-                                        threshold=None,
+                                        text=bot_canonical_form, max_results=1
                                     )
                                 )
 
@@ -1376,7 +1309,7 @@ class LLMGenerationActions:
                 await _streaming_handler.enable_buffering()
                 asyncio.create_task(
                     llm_call(
-                        generation_llm,
+                        llm,
                         prompt,
                         custom_callback_handlers=[_streaming_handler],
                         stop=["\nuser ", "\nUser "],
@@ -1402,16 +1335,12 @@ class LLMGenerationActions:
                     LLMCallInfo(task=Task.GENERATE_INTENT_STEPS_MESSAGE.value)
                 )
 
-                generation_options: Optional[
-                    GenerationOptions
-                ] = generation_options_var.get()
+                generation_options: GenerationOptions = generation_options_var.get()
                 additional_params = {
                     **((generation_options and generation_options.llm_params) or {}),
                     "temperature": self.config.lowest_temperature,
                 }
-                result = await llm_call(
-                    generation_llm, prompt, llm_params=additional_params
-                )
+                result = await llm_call(llm, prompt, llm_params=additional_params)
 
             # Parse the output using the associated parser
             result = self.llm_task_manager.parse_task_output(
@@ -1426,17 +1355,9 @@ class LLMGenerationActions:
             # line 1 - user intent, line 2 - bot intent.
             # Afterwards we have the bot message.
             next_three_lines = get_top_k_nonempty_lines(result, k=2)
-            user_intent: Optional[str] = (
-                next_three_lines[0]
-                if next_three_lines and len(next_three_lines) > 0
-                else None
-            )
-            bot_intent: Optional[str] = (
-                next_three_lines[1]
-                if next_three_lines and len(next_three_lines) > 1
-                else None
-            )
-            bot_message: Optional[str] = None
+            user_intent = next_three_lines[0] if len(next_three_lines) > 0 else None
+            bot_intent = next_three_lines[1] if len(next_three_lines) > 1 else None
+            bot_message = None
             if bot_intent:
                 pos = result.find(bot_intent)
                 if pos != -1:
@@ -1563,7 +1484,4 @@ def _process_parsed_output(
 
 def _get_apply_to_reasoning_traces(config: RailsConfig) -> bool:
     """Get the configuration value for whether to include reasoning traces in output."""
-    if not config.rails.output.apply_to_reasoning_traces:
-        return False
-
     return config.rails.output.apply_to_reasoning_traces
