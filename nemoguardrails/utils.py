@@ -375,7 +375,7 @@ def get_railsignore_patterns(railsignore_path: Path) -> Set[str]:
         return ignored_patterns
 
 
-def is_ignored_by_railsignore(filename: str, ignore_patterns: str) -> bool:
+def is_ignored_by_railsignore(filename: str, ignore_patterns: Set[str]) -> bool:
     """Verify if a filename should be ignored by a railsignore pattern"""
 
     ignore = False

@@ -23,7 +23,14 @@ repos:
         args:
           - --license-filepath
           - LICENSE.md
-
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: poetry run pyright
+        language: system
+        types: [python]
+        pass_filenames: false
 # Deactivating this for now.
 #  - repo: https://github.com/pycqa/pylint
 #    rev: v2.17.0

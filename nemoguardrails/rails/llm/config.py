@@ -487,7 +487,7 @@ class OutputRails(BaseModel):
         description="The names of all the flows that implement output rails.",
     )
 
-    streaming: Optional[OutputRailsStreamingConfig] = Field(
+    streaming: OutputRailsStreamingConfig = Field(
         default_factory=OutputRailsStreamingConfig,
         description="Configuration for streaming output rails.",
     )
@@ -1128,7 +1128,9 @@ def _load_path(
 
     # the first .railsignore file found from cwd down to its subdirectories
     railsignore_path = utils.get_railsignore_path(config_path)
-    ignore_patterns = utils.get_railsignore_patterns(railsignore_path)
+    ignore_patterns = (
+        utils.get_railsignore_patterns(railsignore_path) if railsignore_path else set()
+    )
 
     if os.path.isdir(config_path):
         for root, _, files in os.walk(config_path, followlinks=True):
@@ -1245,8 +1247,8 @@ def _parse_colang_files_recursively(
         current_file, current_path = colang_files[len(parsed_colang_files)]
 
         with open(current_path, "r", encoding="utf-8") as f:
+            content = f.read()
             try:
-                content = f.read()
                 _parsed_config = parse_colang_file(
                     current_file, content=content, version=colang_version
                 )
@@ -1748,7 +1750,7 @@ class RailsConfig(BaseModel):
             # if we have output rails streaming enabled
             # we keep it in case it was needed when we have
             # support per rails
-            if self.rails.output.streaming.enabled:
+            if self.rails.output.streaming and self.rails.output.streaming.enabled:
                 return True
             return False
 

@@ -151,7 +151,11 @@ pytest-profiling = "^1.7.0"
 yara-python = "^4.5.1"
 opentelemetry-api = "^1.34.1"
 opentelemetry-sdk = "^1.34.1"
+pyright = "^1.1.405"
 
+# Directories in which to run Pyright type-checking
+[tool.pyright]
+include = ["nemoguardrails/rails/**"]
 
 [tool.poetry.group.docs]
 optional = true

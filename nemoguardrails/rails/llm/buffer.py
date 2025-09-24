@@ -138,7 +138,8 @@ class BufferStrategy(ABC):
             ...     print(f"Processing: {context_formatted}")
             ...     print(f"User: {user_formatted}")
         """
-        ...
+        raise NotImplementedError
+        yield
 
     async def __call__(self, streaming_handler) -> AsyncGenerator[ChunkBatch, None]:
         """Callable interface that delegates to process_stream.
