@@ -109,6 +109,8 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
                     if msg.type == "human"
                     else "Bot"
                     if msg.type == "ai"
+                    else "Tool"
+                    if msg.type == "tool"
                     else "System"
                 )
                 + "[/]"
