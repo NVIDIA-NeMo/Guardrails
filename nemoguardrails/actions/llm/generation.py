@@ -480,7 +480,9 @@ class LLMGenerationActions:
 
             # We make this call with temperature 0 to have it as deterministic as possible.
             result = await llm_call(
-                generation_llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+                generation_llm,
+                prompt,
+                llm_params={"temperature": self.config.lowest_temperature},
             )
 
             # Parse the output using the associated parser
@@ -561,23 +563,14 @@ class LLMGenerationActions:
                     # Initialize the LLMCallInfo object
                     llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
 
-                    generation_options: Optional[
-                        GenerationOptions
-                    ] = generation_options_var.get()
-
+                    generation_options: GenerationOptions = generation_options_var.get()
                     llm_params = (
                         generation_options and generation_options.llm_params
                     ) or {}
-                    streaming_handler: Optional[
-                            StreamingHandler
-                        ] = streaming_handler_var.get()
-                        custom_callback_handlers = (
-                            [streaming_handler] if streaming_handler else None
-                        )
-                        text = await llm_call(
-                            generation_llm,
-                            prompt,
-                            custom_callback_handlers=custom_callback_handlers,
+                    text = await llm_call(
+                        llm,
+                        prompt,
+                        custom_callback_handlers=[streaming_handler_var.get()],
                         llm_params=llm_params,
                     )
                     text = self.llm_task_manager.parse_task_output(
@@ -611,20 +604,23 @@ class LLMGenerationActions:
                 generation_options: Optional[
                     GenerationOptions
                 ] = generation_options_var.get()
+
                 llm_params = (
                     generation_options and generation_options.llm_params
                 ) or {}
-                streaming_handler: Optional[
-                        StreamingHandler
-                    ] = streaming_handler_var.get()
-                    custom_callback_handlers = (
-                        [streaming_handler] if streaming_handler else None
-                    )
 
-                    result = await llm_call(
-                        generation_llm,
-                        prompt,
-                        custom_callback_handlers=custom_callback_handlers,
+                streaming_handler: Optional[
+                    StreamingHandler
+                ] = streaming_handler_var.get()
+
+                custom_callback_handlers = (
+                    [streaming_handler] if streaming_handler else None
+                )
+
+                result = await llm_call(
+                    generation_llm,
+                    prompt,
+                    custom_callback_handlers=custom_callback_handlers,
                     stop=["User:"],
                     llm_params=llm_params,
                 )
@@ -733,7 +729,9 @@ class LLMGenerationActions:
 
             # We use temperature 0 for next step prediction as well
             result = await llm_call(
-                generation_llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+                generation_llm,
+                prompt,
+                llm_params={"temperature": self.config.lowest_temperature},
             )
 
             # Parse the output using the associated parser
@@ -1000,10 +998,10 @@ class LLMGenerationActions:
                                     break
                     else:
                         prompt: Optional[  # pyright: ignore (TODO Refactor these branches into separate methods)
-                        str
-                    ] = context.get(  # pyright: ignore (TODO Refactor these branches into separate methods)
-                        "user_message"
-                    )
+                            str
+                        ] = context.get(  # pyright: ignore (TODO Refactor these branches into separate methods)
+                            "user_message"
+                        )
                     if not prompt:
                         raise Exception("User message not found in context")
 
@@ -1082,12 +1080,13 @@ class LLMGenerationActions:
                 llm_params = (
                     generation_options and generation_options.llm_params
                 ) or {}
-                custom_callback_handlers = (
-                        [streaming_handler] if streaming_handler else None
-                    )
 
-                    result = await llm_call(
-                        llm,
+                custom_callback_handlers = (
+                    [streaming_handler] if streaming_handler else None
+                )
+
+                result = await llm_call(
+                    llm,
                     prompt,
                     custom_callback_handlers=custom_callback_handlers,
                     llm_params=llm_params,
@@ -1193,7 +1192,9 @@ class LLMGenerationActions:
         llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_VALUE.value))
 
         result = await llm_call(
-            generation_llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+            generation_llm,
+            prompt,
+            llm_params={"temperature": self.config.lowest_temperature},
         )
 
         # Parse the output using the associated parser
@@ -1408,7 +1409,9 @@ class LLMGenerationActions:
                     **((generation_options and generation_options.llm_params) or {}),
                     "temperature": self.config.lowest_temperature,
                 }
-                result = await llm_call(generation_llm, prompt, llm_params=additional_params)
+                result = await llm_call(
+                    generation_llm, prompt, llm_params=additional_params
+                )
 
             # Parse the output using the associated parser
             result = self.llm_task_manager.parse_task_output(
