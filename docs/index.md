@@ -67,6 +67,7 @@ user-guides/advanced/nemoguard-topiccontrol-deployment
 user-guides/advanced/nemoguard-jailbreakdetect-deployment
 user-guides/advanced/kv-cache-reuse
 user-guides/advanced/safeguarding-ai-virtual-assistant-blueprint
+user-guides/advanced/tools-integration
 ```
 
 ```{toctree}
