@@ -101,20 +101,17 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
         if explain_info:
             explain_info.llm_calls.append(llm_call_info)
 
+        type_map = {
+            "human": "User",
+            "ai": "Bot",
+            "tool": "Tool",
+            "system": "System",
+            "developer": "Developer",
+        }
         prompt = "\n" + "\n".join(
             [
                 "[cyan]"
-                + (
-                    "User"
-                    if msg.type == "human"
-                    else "Bot"
-                    if msg.type == "ai"
-                    else "Tool"
-                    if msg.type == "tool"
-                    else "System"
-                    if msg.type in {"system", "developer"}
-                    else msg.type.title()
-                )
+                + type_map.get(msg.type, msg.type.title())
                 + "[/]"
                 + "\n"
                 + (msg.content if isinstance(msg.content, str) else "")
