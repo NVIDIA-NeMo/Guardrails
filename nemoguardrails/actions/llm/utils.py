@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
+from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.base import Runnable
 
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEvents
@@ -90,16 +92,23 @@ async def llm_call(
     Returns:
         The generated text response
     """
+    if llm is None:
+        raise LLMCallException("No LLM provided to llm_call()")
     _setup_llm_call_info(llm, model_name, model_provider)
     all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
-    if llm_params and llm is not None:
-        llm = llm.bind(**llm_params)
+    generation_llm: Union[BaseLanguageModel, Runnable] = (
+        llm.bind(stop=stop, **llm_params) if llm_params and llm is not None else llm
+    )
 
     if isinstance(prompt, str):
-        response = await _invoke_with_string_prompt(llm, prompt, all_callbacks, stop)
+        response = await _invoke_with_string_prompt(
+            generation_llm, prompt, all_callbacks
+        )
     else:
-        response = await _invoke_with_message_list(llm, prompt, all_callbacks, stop)
+        response = await _invoke_with_message_list(
+            generation_llm, prompt, all_callbacks
+        )
 
     _store_tool_calls(response)
     _store_response_metadata(response)
@@ -120,7 +129,7 @@ def _setup_llm_call_info(
 
 
 def _prepare_callbacks(
-    custom_callback_handlers: Optional[List[AsyncCallbackHandler]],
+    custom_callback_handlers: Optional[Sequence[AsyncCallbackHandler]],
 ) -> BaseCallbackManager:
     """Prepare callback manager with custom handlers if provided."""
     if custom_callback_handlers and custom_callback_handlers != [None]:
@@ -133,30 +142,27 @@ def _prepare_callbacks(
 
 
 async def _invoke_with_string_prompt(
-    llm: BaseLanguageModel,
+    llm: Union[BaseLanguageModel, Runnable],
     prompt: str,
     callbacks: BaseCallbackManager,
-    stop: Optional[List[str]],
 ):
     """Invoke LLM with string prompt."""
     try:
-        return await llm.ainvoke(prompt, config={"callbacks": callbacks, "stop": stop})
+        return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks))
     except Exception as e:
         raise LLMCallException(e)
 
 
 async def _invoke_with_message_list(
-    llm: BaseLanguageModel,
+    llm: Union[BaseLanguageModel, Runnable],
     prompt: List[dict],
     callbacks: BaseCallbackManager,
-    stop: Optional[List[str]],
 ):
     """Invoke LLM with message list after converting to LangChain format."""
     messages = _convert_messages_to_langchain_format(prompt)
+
     try:
-        return await llm.ainvoke(
-            messages, config={"callbacks": callbacks, "stop": stop}
-        )
+        return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks))
     except Exception as e:
         raise LLMCallException(e)
 

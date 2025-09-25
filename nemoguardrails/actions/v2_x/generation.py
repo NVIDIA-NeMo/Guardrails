@@ -275,7 +275,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         """Generate the canonical form for what the user said i.e. user intent."""
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
 
         log.info("Phase 1 :: Generating user intent")
         (
@@ -356,8 +358,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         """Generate the canonical form for what the user said i.e. user intent and a suitable bot action."""
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
-
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
         log.info("Phase 1 :: Generating user intent and bot action")
 
         (
@@ -534,8 +537,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             raise RuntimeError("No instruction flows index has been created.")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
-
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
         log.info("Generating flow for instructions: %s", instructions)
 
         results = await self.instruction_flows_index.search(
@@ -566,7 +570,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         # We make this call with temperature 0 to have it as deterministic as possible.
         result = await llm_call(
-            generation_llm, prompt, llm_params={"temperature": self.config.lowest_temperature}
+            generation_llm,
+            prompt,
+            llm_params={"temperature": self.config.lowest_temperature},
         )
 
         result = self.llm_task_manager.parse_task_output(
@@ -613,8 +619,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             raise RuntimeError("No flows index has been created.")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
-
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
         log.info("Generating flow for name: {name}")
 
         if not self.instruction_flows_index:
@@ -682,7 +689,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             raise RuntimeError("No instruction flows index has been created.")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
 
         log.info("Generating flow continuation.")
 
@@ -717,7 +726,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         )
 
         # We make this call with temperature 0 to have it as deterministic as possible.
-        result = await llm_call(generation_llm, prompt, llm_params={"temperature": temperature})
+        result = await llm_call(
+            generation_llm, prompt, llm_params={"temperature": temperature}
+        )
 
         # TODO: Currently, we only support generating a bot action as continuation. This could be generalized
         # Colang statements.
@@ -810,7 +821,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         :param llm: Custom llm model to generate_value
         """
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
 
         # We search for the most relevant flows.
         examples = ""
@@ -852,7 +865,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             Task.GENERATE_USER_INTENT_FROM_USER_ACTION
         )
 
-        result = await llm_call(generation_llm, prompt, stop=stop, llm_params={"temperature": 0.1})
+        result = await llm_call(
+            generation_llm, prompt, stop=stop, llm_params={"temperature": 0.1}
+        )
 
         # Parse the output using the associated parser
         result = self.llm_task_manager.parse_task_output(
@@ -895,7 +910,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
     ) -> dict:
         """Generate the body for a flow."""
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Union[BaseLLM, BaseChatModel] = llm if llm else self.llm
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
+            llm if llm else self.llm
+        )
 
         triggering_flow_id = flow_id
         if not triggering_flow_id:
