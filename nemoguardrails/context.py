@@ -17,8 +17,6 @@ import contextvars
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from nemoguardrails.logging.explain import LLMCallInfo
-
-from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import StreamingHandler
 
