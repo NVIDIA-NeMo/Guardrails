@@ -492,7 +492,7 @@ class OutputRails(BaseModel):
         description="Configuration for streaming output rails.",
     )
 
-    apply_to_reasoning_traces: Optional[bool] = Field(
+    apply_to_reasoning_traces: bool = Field(
         default=False,
         description=(
             "If True, output rails will apply guardrails to both reasoning traces and output response. "

@@ -68,7 +68,7 @@ def _infer_model_name(llm: BaseLanguageModel):
 
 
 async def llm_call(
-    llm: BaseLanguageModel,
+    llm: Optional[BaseLanguageModel],
     prompt: Union[str, List[dict]],
     model_name: Optional[str] = None,
     model_provider: Optional[str] = None,
