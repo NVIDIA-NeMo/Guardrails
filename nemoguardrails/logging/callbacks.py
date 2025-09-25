@@ -112,6 +112,8 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
                     else "Tool"
                     if msg.type == "tool"
                     else "System"
+                    if msg.type in {"system", "developer"}
+                    else msg.type.title()
                 )
                 + "[/]"
                 + "\n"

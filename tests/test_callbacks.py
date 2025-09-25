@@ -18,7 +18,13 @@ from uuid import uuid4
 
 import pytest
 from langchain.schema import Generation, LLMResult
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.outputs import ChatGeneration
 
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
@@ -212,3 +218,46 @@ async def test_tool_message_labeling_in_logging():
         assert "[cyan]Bot[/]" in logged_prompt
         assert "[cyan]System[/]" in logged_prompt
         assert "[cyan]Tool[/]" in logged_prompt
+
+
+@pytest.mark.asyncio
+async def test_unknown_message_type_labeling():
+    """Test that unknown message types display their actual type name."""
+    llm_call_info = LLMCallInfo()
+    llm_call_info_var.set(llm_call_info)
+
+    llm_stats = LLMStats()
+    llm_stats_var.set(llm_stats)
+
+    explain_info = ExplainInfo()
+    explain_info_var.set(explain_info)
+
+    handler = LoggingCallbackHandler()
+
+    class CustomMessage(BaseMessage):
+        def __init__(self, content, msg_type):
+            super().__init__(content=content, type=msg_type)
+
+    messages: list[BaseMessage] = [
+        CustomMessage("Custom message", "custom"),
+        CustomMessage("Function message", "function"),
+    ]
+
+    with patch("nemoguardrails.logging.callbacks.log") as mock_log:
+        await handler.on_chat_model_start(
+            serialized={},
+            messages=[messages],
+            run_id=uuid4(),
+        )
+
+        mock_log.info.assert_called()
+
+        logged_prompt = None
+        for call in mock_log.info.call_args_list:
+            if "Prompt Messages" in str(call):
+                logged_prompt = call[0][1]
+                break
+
+        assert logged_prompt is not None
+        assert "[cyan]Custom[/]" in logged_prompt
+        assert "[cyan]Function[/]" in logged_prompt
