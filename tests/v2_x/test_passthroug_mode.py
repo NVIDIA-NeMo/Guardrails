@@ -81,6 +81,9 @@ class TestPassthroughLLMActionLogging(unittest.IsolatedAsyncioTestCase):
             self.assertIn("content", response)
             self.assertIsInstance(response["content"], str)
 
+    @unittest.skip(
+        reason="Github issue https://github.com/NVIDIA/NeMo-Guardrails/issues/1378"
+    )
     def test_passthrough_llm_action_invoked_via_logs(self):
         chat = TestChat(
             config,

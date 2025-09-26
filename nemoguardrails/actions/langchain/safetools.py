@@ -19,10 +19,26 @@ The same validation logic can be applied to others as well.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 from nemoguardrails.actions.validation import validate_input, validate_response
 
 log = logging.getLogger(__name__)
+
+# Include these outside the try .. except so the Type-checker knows they're always imported
+if TYPE_CHECKING:
+    from langchain_community.utilities import (
+        ApifyWrapper,
+        BingSearchAPIWrapper,
+        GoogleSearchAPIWrapper,
+        GoogleSerperAPIWrapper,
+        OpenWeatherMapAPIWrapper,
+        SearxSearchWrapper,
+        SerpAPIWrapper,
+        WikipediaAPIWrapper,
+        WolframAlphaAPIWrapper,
+        ZapierNLAWrapper,
+    )
 
 try:
     from langchain_community.utilities import (

@@ -14,7 +14,7 @@
 # limitations under the License.
 import json
 import re
-from typing import List
+from typing import List, Sequence
 from urllib.parse import quote
 
 from nemoguardrails.actions.validation.filter_secrets import contains_secrets
@@ -22,7 +22,7 @@ from nemoguardrails.actions.validation.filter_secrets import contains_secrets
 MAX_LEN = 50
 
 
-def validate_input(attribute: str, validators: List[str] = (), **validation_args):
+def validate_input(attribute: str, validators: Sequence[str] = (), **validation_args):
     """A generic decorator that can be used by any action (class method or function) for input validation.
 
     Supported validation choices are: length and quote.

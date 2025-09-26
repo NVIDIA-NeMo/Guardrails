@@ -19,8 +19,9 @@ import importlib.util
 import inspect
 import logging
 import os
+from importlib.machinery import ModuleSpec
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
 
 from langchain.chains.base import Chain
 from langchain_core.runnables import Runnable
@@ -51,7 +52,7 @@ class ActionDispatcher:
         """
         log.info("Initializing action dispatcher")
 
-        self._registered_actions = {}
+        self._registered_actions: Dict[str, Union[Type, Callable[..., Any]]] = {}
 
         if load_all_actions:
             # TODO: check for better way to find actions dir path or use constants.py
@@ -78,9 +79,12 @@ class ActionDispatcher:
             # Last, but not least, if there was a config path, we try to load actions
             # from there as well.
             if config_path:
-                config_path = config_path.split(",")
-                for path in config_path:
-                    self.load_actions_from_path(Path(path.strip()))
+                split_config_path: List[str] = config_path.split(",")
+
+                # Don't load actions if we have an empty list
+                if split_config_path:
+                    for path in split_config_path:
+                        self.load_actions_from_path(Path(path.strip()))
 
             # If there are any imported paths, we load the actions from there as well.
             if import_paths:
@@ -120,26 +124,28 @@ class ActionDispatcher:
             )
 
     def register_action(
-        self, action: callable, name: Optional[str] = None, override: bool = True
+        self, action: Callable, name: Optional[str] = None, override: bool = True
     ):
         """Registers an action with the given name.
 
         Args:
-            action (callable): The action function.
+            action (Callable): The action function.
             name (Optional[str]): The name of the action. Defaults to None.
             override (bool): If an action already exists, whether it should be overridden or not.
         """
         if name is None:
             action_meta = getattr(action, "action_meta", None)
-            name = action_meta["name"] if action_meta else action.__name__
+            action_name = action_meta["name"] if action_meta else action.__name__
+        else:
+            action_name = name
 
         # If we're not allowed to override, we stop.
-        if name in self._registered_actions and not override:
+        if action_name in self._registered_actions and not override:
             return
 
-        self._registered_actions[name] = action
+        self._registered_actions[action_name] = action
 
-    def register_actions(self, actions_obj: any, override: bool = True):
+    def register_actions(self, actions_obj: Any, override: bool = True):
         """Registers all the actions from the given object.
 
         Args:
@@ -167,7 +173,7 @@ class ActionDispatcher:
         name = self._normalize_action_name(name)
         return name in self.registered_actions
 
-    def get_action(self, name: str) -> callable:
+    def get_action(self, name: str) -> Optional[Callable]:
         """Get the registered action by name.
 
         Args:
@@ -181,7 +187,7 @@ class ActionDispatcher:
 
     async def execute_action(
         self, action_name: str, params: Dict[str, Any]
-    ) -> Tuple[Union[str, Dict[str, Any]], str]:
+    ) -> Tuple[Union[Optional[str], Dict[str, Any]], str]:
         """Execute a registered action.
 
         Args:
@@ -195,16 +201,21 @@ class ActionDispatcher:
         action_name = self._normalize_action_name(action_name)
 
         if action_name in self._registered_actions:
-            log.info(f"Executing registered action: {action_name}")
-            fn = self._registered_actions.get(action_name, None)
+            log.info("Executing registered action: %s", action_name)
+            maybe_fn: Optional[Callable] = self._registered_actions.get(
+                action_name, None
+            )
+            if not maybe_fn:
+                raise Exception(f"Action '{action_name}' is not registered.")
 
+            fn = cast(Callable, maybe_fn)
             # Actions that are registered as classes are initialized lazy, when
             # they are first used.
             if inspect.isclass(fn):
                 fn = fn()
                 self._registered_actions[action_name] = fn
 
-            if fn is not None:
+            if fn:
                 try:
                     # We support both functions and classes as actions
                     if inspect.isfunction(fn) or inspect.ismethod(fn):
@@ -245,7 +256,17 @@ class ActionDispatcher:
                         result = await runnable.ainvoke(input=params)
                     else:
                         # TODO: there should be a common base class here
-                        result = fn.run(**params)
+                        fn_run_func = getattr(fn, "run", None)
+                        if not callable(fn_run_func):
+                            raise Exception(
+                                f"No 'run' method defined for action '{action_name}'."
+                            )
+
+                        fn_run_func_with_signature = cast(
+                            Callable[[], Union[Optional[str], Dict[str, Any]]],
+                            fn_run_func,
+                        )
+                        result = fn_run_func_with_signature(**params)
                     return result, "success"
 
                 # We forward LLM Call exceptions
@@ -288,6 +309,7 @@ class ActionDispatcher:
         """
         action_objects = {}
         filename = os.path.basename(filepath)
+        module = None
 
         if not os.path.isfile(filepath):
             log.error(f"{filepath} does not exist or is not a file.")
@@ -298,13 +320,16 @@ class ActionDispatcher:
             log.debug(f"Analyzing file {filename}")
             # Import the module from the file
 
-            spec = importlib.util.spec_from_file_location(filename, filepath)
-            if spec is None:
+            spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(
+                filename, filepath
+            )
+            if not spec:
                 log.error(f"Failed to create a module spec from {filepath}.")
                 return action_objects
 
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            if spec.loader:
+                spec.loader.exec_module(module)
 
             # Loop through all members in the module and check for the `@action` decorator
             # If class has action decorator is_action class member is true
@@ -313,19 +338,25 @@ class ActionDispatcher:
                     obj, "action_meta"
                 ):
                     try:
-                        action_objects[obj.action_meta["name"]] = obj
-                        log.info(f"Added {obj.action_meta['name']} to actions")
+                        actionable_name: str = getattr(obj, "action_meta").get("name")
+                        action_objects[actionable_name] = obj
+                        log.info(f"Added {actionable_name} to actions")
                     except Exception as e:
                         log.error(
-                            f"Failed to register {obj.action_meta['name']} in action dispatcher due to exception {e}"
+                            f"Failed to register {name} in action dispatcher due to exception {e}"
                         )
         except Exception as e:
+            if module is None:
+                raise RuntimeError(f"Failed to load actions from module at {filepath}.")
+            if not module.__file__:
+                raise RuntimeError(f"No file found for module {module} at {filepath}.")
+
             try:
                 relative_filepath = Path(module.__file__).relative_to(Path.cwd())
             except ValueError:
                 relative_filepath = Path(module.__file__).resolve()
             log.error(
-                f"Failed to register {filename} from {relative_filepath} in action dispatcher due to exception: {e}"
+                f"Failed to register {filename} in action dispatcher due to exception: {e}"
             )
 
         return action_objects

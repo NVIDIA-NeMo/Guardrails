@@ -17,7 +17,12 @@ import contextvars
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.streaming import StreamingHandler
 
+streaming_handler_var: contextvars.ContextVar[
+    Optional[StreamingHandler]
+] = contextvars.ContextVar("streaming_handler", default=None)
 if TYPE_CHECKING:
     from nemoguardrails.logging.explain import ExplainInfo
     from nemoguardrails.logging.stats import LLMStats
@@ -40,7 +45,7 @@ llm_call_info_var: contextvars.ContextVar[
 
 # All the generation options applicable to the current context.
 generation_options_var: contextvars.ContextVar[
-    Optional["GenerationOptions"]
+    Optional[GenerationOptions]
 ] = contextvars.ContextVar("generation_options", default=None)
 
 # The stats about the LLM calls.

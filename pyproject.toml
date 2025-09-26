@@ -155,7 +155,9 @@ pyright = "^1.1.405"
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]
-include = ["nemoguardrails/rails/**", "tests/test_callbacks.py"]
+include = ["nemoguardrails/rails/**",
+           "nemoguardrails/actions/**",
+           "tests/test_callbacks.py"]
 
 [tool.poetry.group.docs]
 optional = true

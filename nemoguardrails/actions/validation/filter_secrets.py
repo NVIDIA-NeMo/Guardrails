@@ -22,7 +22,7 @@ def contains_secrets(resp):
     ArtifactoryDetector    : False
     """
     try:
-        import detect_secrets
+        import detect_secrets  # type: ignore (Assume user installs detect_secrets with instructions below)
     except ModuleNotFoundError:
         raise ValueError(
             "Could not import detect_secrets. Please install using `pip install detect-secrets`"

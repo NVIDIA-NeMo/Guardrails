@@ -52,7 +52,7 @@ async def retrieve_relevant_chunks(
         ```
     """
 
-    user_message = context.get("last_user_message")
+    user_message: Optional[str] = context.get("last_user_message") if context else None
     context_updates = {}
 
     if user_message and kb:
@@ -72,14 +72,18 @@ async def retrieve_relevant_chunks(
     else:
         # No KB is set up, we keep the existing relevant_chunks if we have them.
         if is_colang_2:
-            context_updates["relevant_chunks"] = context.get("relevant_chunks", "")
+            context_updates["relevant_chunks"] = (
+                context.get("relevant_chunks", "") if context else None
+            )
             if context_updates["relevant_chunks"]:
                 context_updates["relevant_chunks"] += "\n"
         else:
             context_updates["relevant_chunks"] = (
-                context.get("relevant_chunks", "") + "\n"
+                (context.get("relevant_chunks", "") + "\n") if context else None
             )
-        context_updates["relevant_chunks_sep"] = context.get("relevant_chunks_sep", [])
+        context_updates["relevant_chunks_sep"] = (
+            context.get("relevant_chunks_sep", []) if context else None
+        )
         context_updates["retrieved_for"] = None
 
     return ActionResult(
