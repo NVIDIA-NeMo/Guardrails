@@ -359,7 +359,7 @@ execute_with_tools(safe_rails, "SAFE CONFIG (Input + Output Rails)")
 
 The results may vary slightly due to the non-deterministic nature of LLMs, but typically:
 
-**Bare Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
+* **Bare Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
 **Unsafe Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
 **Safe Config Output**: `"I'm sorry, I can't respond to that."`
 
