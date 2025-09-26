@@ -23,8 +23,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
-from langchain_text_splitters import ElementType
-from pytest_asyncio.plugin import event_loop
 from rich.text import Text
 
 from nemoguardrails.actions.actions import action
@@ -35,7 +33,6 @@ from nemoguardrails.actions.llm.utils import (
     get_first_bot_intent,
     get_first_nonempty_line,
     get_first_user_intent,
-    get_initial_actions,
     get_last_user_utterance_event_v2_x,
     llm_call,
     remove_action_intent_identifiers,
@@ -447,11 +444,13 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         llm: Optional[BaseLLM] = None,
     ):
         if not llm:
-            raise Exception("No LLM provided to passthrough LLM Action")
+            raise RuntimeError("No LLM provided to passthrough LLM Action")
 
         event = get_last_user_utterance_event_v2_x(events)
         if not event:
-            raise Exception("Passthrough LLM Action couldn't find last user utterance")
+            raise RuntimeError(
+                "Passthrough LLM Action couldn't find last user utterance"
+            )
 
         # We check if we have a raw request. If the guardrails API is using
         # the `generate_events` API, this will not be set.
@@ -625,7 +624,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         log.info("Generating flow for name: {name}")
 
         if not self.instruction_flows_index:
-            raise Exception("No instruction flows index has been created.")
+            raise RuntimeError("No instruction flows index has been created.")
 
         results = await self.instruction_flows_index.search(
             text=f"flow {name}", max_results=5, threshold=None
@@ -828,23 +827,19 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         # We search for the most relevant flows.
         examples = ""
         if self.flows_index:
-            results = (
-                await self.flows_index.search(
+            results = None
+            if var_name:
+                results = await self.flows_index.search(
                     text=f"${var_name} = ", max_results=5, threshold=None
                 )
-                if var_name
-                else None
-            )
-
-            if not results:
-                raise Exception("No results found while generating value")
 
             # We add these in reverse order so the most relevant is towards the end.
-            for result in reversed(results):
-                # If the flow includes "GenerateValueAction", we ignore it as we don't want the LLM
-                # to learn to predict it.
-                if "GenerateValueAction" not in result.text:
-                    examples += f"{result.text}\n\n"
+            if results:
+                for result in reversed(results):
+                    # If the flow includes "GenerateValueAction", we ignore it as we don't want the LLM
+                    # to learn to predict it.
+                    if "GenerateValueAction" not in result.text:
+                        examples += f"{result.text}\n\n"
 
         llm_call_info_var.set(
             LLMCallInfo(task=Task.GENERATE_VALUE_FROM_INSTRUCTION.value)
@@ -916,13 +911,13 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         triggering_flow_id = flow_id
         if not triggering_flow_id:
-            raise Exception(
-                f"No flow_id provided to generate flow."
+            raise RuntimeError(
+                "No flow_id provided to generate flow."
             )  # TODO! Should flow_id be mandatory?
 
         flow_config = state.flow_configs[triggering_flow_id]
         if not flow_config.source_code:
-            raise Exception(f"No source_code in flow_config {flow_config}")
+            raise RuntimeError(f"No source_code in flow_config {flow_config}")
         docstrings = re.findall(r'"""(.*?)"""', flow_config.source_code, re.DOTALL)
 
         if len(docstrings) > 0:

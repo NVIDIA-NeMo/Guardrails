@@ -114,8 +114,6 @@ class LLMGenerationActions:
             t = threading.Thread(target=asyncio.run, args=(self.init(),))
             t.start()
             t.join()
-        else:
-            loop.run_until_complete(self.init())
 
         self.llm_task_manager = llm_task_manager
 
@@ -396,8 +394,15 @@ class LLMGenerationActions:
             )
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
-        assert event
-        assert event["type"] == "UserMessage"
+        if not event:
+            raise ValueError(
+                "No user message found in event stream. Unable to generate user intent."
+            )
+        if event["type"] != "UserMessage":
+            raise ValueError(
+                f"Expected UserMessage event, but found {event['type']}. "
+                "Cannot generate user intent from this event type."
+            )
 
         # Use action specific llm if registered else fallback to main llm
         # This can be None as some code-paths use embedding lookups rather than LLM generation
@@ -1090,7 +1095,7 @@ class LLMGenerationActions:
                 )
 
                 result = await llm_call(
-                    llm,
+                    generation_llm,
                     prompt,
                     custom_callback_handlers=custom_callback_handlers,
                     llm_params=llm_params,
@@ -1240,9 +1245,15 @@ class LLMGenerationActions:
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
-        assert event
-        assert event["type"] == "UserMessage"
-
+        if not event:
+            raise ValueError(
+                "No user message found in event stream. Unable to generate user intent."
+            )
+        if event["type"] != "UserMessage":
+            raise ValueError(
+                f"Expected UserMessage event, but found {event['type']}. "
+                "Cannot generate user intent from this event type."
+            )
         # Use action specific llm if registered else fallback to main llm
         generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
             llm if llm else self.llm

@@ -27,7 +27,6 @@ from langchain.chains.base import Chain
 from langchain_core.runnables import Runnable
 
 from nemoguardrails import utils
-from nemoguardrails.actions.actions import Actionable, ActionMeta
 from nemoguardrails.actions.llm.utils import LLMCallException
 from nemoguardrails.logging.callbacks import logging_callbacks
 
@@ -310,6 +309,7 @@ class ActionDispatcher:
         """
         action_objects = {}
         filename = os.path.basename(filepath)
+        module = None
 
         if not os.path.isfile(filepath):
             log.error(f"{filepath} does not exist or is not a file.")
@@ -338,8 +338,7 @@ class ActionDispatcher:
                     obj, "action_meta"
                 ):
                     try:
-                        actionable_obj = cast(Actionable, obj)
-                        actionable_name: str = actionable_obj.action_meta["name"]
+                        actionable_name: str = getattr(obj, "action_meta").get("name")
                         action_objects[actionable_name] = obj
                         log.info(f"Added {actionable_name} to actions")
                     except Exception as e:
@@ -347,11 +346,15 @@ class ActionDispatcher:
                             f"Failed to register {name} in action dispatcher due to exception {e}"
                         )
         except Exception as e:
-            # todo! What are we trying to do here?
-            # try:
-            #     relative_filepath = Path(module.__file__).relative_to(Path.cwd())
-            # except ValueError:
-            #     relative_filepath = Path(module.__file__).resolve()
+            if module is None:
+                raise RuntimeError(f"Failed to load actions from module at {filepath}.")
+            if not module.__file__:
+                raise RuntimeError(f"No file found for module {module} at {filepath}.")
+
+            try:
+                relative_filepath = Path(module.__file__).relative_to(Path.cwd())
+            except ValueError:
+                relative_filepath = Path(module.__file__).resolve()
             log.error(
                 f"Failed to register {filename} in action dispatcher due to exception: {e}"
             )

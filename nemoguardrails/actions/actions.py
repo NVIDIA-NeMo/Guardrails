@@ -35,12 +35,6 @@ class ActionMeta(TypedDict):
     output_mapping: Optional[Callable[[Any], bool]]
 
 
-class Actionable(Protocol):
-    """Protocol for any object with ActionMeta metadata (i.e. decorated with @action)"""
-
-    action_meta: ActionMeta
-
-
 # Create a TypeVar to represent the decorated function or class
 T = TypeVar("T", bound=Union[Callable[..., Any], Type[Any]])
 
