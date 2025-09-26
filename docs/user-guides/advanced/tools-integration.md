@@ -361,7 +361,7 @@ The results may vary slightly due to the non-deterministic nature of LLMs, but t
 
 **Bare Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
 **Unsafe Config Output**: "Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."
-**Safe Config Output**: "I'm sorry, I can't respond to that."
+**Safe Config Output**: `"I'm sorry, I can't respond to that."`
 
 ## Integration with RunnableRails
 
