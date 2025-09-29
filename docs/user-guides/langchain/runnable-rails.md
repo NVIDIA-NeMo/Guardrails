@@ -218,7 +218,6 @@ guardrails = RunnableRails(
 rag_chain_with_guardrails = guardrails | rag_chain
 ```
 
-<!-- Q. Why is the following suddenly documented? I can't see how this is related to the custom keys. -->
 When a guardrail is triggered and predefined messages must be returned instead of the output from the LLM, only a dictionary with the output key is returned.
 
 ```json
