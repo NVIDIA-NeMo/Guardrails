@@ -1,12 +1,18 @@
 # RunnableRails
 
-This guide demonstrates how to integrate NeMo Guardrails into LangChain applications using the `RunnableRails` class, which implements the full [Runnable Protocol](https://python.langchain.com/docs/concepts/runnables/) with comprehensive support for synchronous/asynchronous operations, streaming, and batch processing.
+This guide demonstrates how to integrate NeMo Guardrails into LangChain applications using the `RunnableRails` class. The class implements the full [Runnable Protocol](https://python.langchain.com/docs/concepts/runnables/) with comprehensive support for synchronous and asynchronous operations, streaming, and batch processing.
+
+---
 
 ## Overview
 
 `RunnableRails` provides a complete LangChain-native interface that wraps guardrail configurations around LLMs or entire chains. It supports all Runnable methods including `invoke()`, `ainvoke()`, `stream()`, `astream()`, `batch()`, and `abatch()` with full metadata preservation.
 
-To get started, load a guardrail configuration and create a `RunnableRails` instance:
+---
+
+## Getting Started
+
+To get started, load a guardrail configuration and create a `RunnableRails` instance.
 
 ```python
 from nemoguardrails import RailsConfig
@@ -16,9 +22,9 @@ config = RailsConfig.from_path("path/to/config")
 guardrails = RunnableRails(config)
 ```
 
-To add guardrails around an LLM model inside a chain, you have to "wrap" the LLM model with a `RunnableRails` instance, i.e., `(guardrails | ...)`.
+To add guardrails around an LLM model inside a chain, wrap the LLM model with a `RunnableRails` instance. For example, `(guardrails | ...)`.
 
-Here's a typical example using a prompt, model, and output parser:
+The following is an example of using a prompt, model, and output parser:
 
 ```python
 from langchain_openai import ChatOpenAI
@@ -32,7 +38,7 @@ output_parser = StrOutputParser()
 chain = prompt | model | output_parser
 ```
 
-To add guardrails around the LLM model in the above example:
+Add guardrails around the LLM model in the example above with the following code:
 
 ```python
 chain_with_guardrails = prompt | (guardrails | model) | output_parser
@@ -42,7 +48,7 @@ chain_with_guardrails = prompt | (guardrails | model) | output_parser
 Using the extra parenthesis is essential to enforce the order in which the `|` (pipe) operator is applied.
 ```
 
-To add guardrails to an existing chain (or any `Runnable`) you must wrap it similarly:
+To add guardrails to an existing chain or any `Runnable`, wrap it similarly.
 
 ```python
 rag_chain = (
@@ -55,7 +61,7 @@ rag_chain = (
 rag_chain_with_guardrails = guardrails | rag_chain
 ```
 
-You can also use the same approach to add guardrails only around certain parts of your chain. The example below (extracted from the [RunnableBranch Documentation](https://python.langchain.com/docs/expression_language/how_to/routing)), adds guardrails around the "anthropic" and "general" branches inside a `RunnableBranch`:
+You can also use the same approach to add guardrails only around certain parts of your chain. The following example from the [RunnableBranch Documentation](https://python.langchain.com/docs/expression_language/how_to/routing) adds guardrails around the `"anthropic"` and `"general"` branches inside a `RunnableBranch`.
 
 ```python
 from langchain_core.runnables import RunnableBranch
@@ -67,16 +73,18 @@ branch = RunnableBranch(
 )
 ```
 
-In general, you can wrap any part of a runnable chain with guardrails:
+In general, you can wrap any part of a runnable chain with guardrails.
 
 ```python
 chain = runnable_1 | runnable_2 | runnable_3 | runnable_4 | ...
 chain_with_guardrails = runnable_1 | (guardrails | (runnable_2 | runnable_3)) | runnable_4 | ...
 ```
 
+---
+
 ## Streaming Support
 
-`RunnableRails` provides full streaming support with both synchronous and asynchronous methods. This enables responsive applications that stream LLM outputs as they're generated.
+`RunnableRails` provides full streaming support with both synchronous and asynchronous methods. This enables responsive applications that stream LLM outputs as they are generated.
 
 ```python
 # Synchronous streaming
@@ -89,11 +97,13 @@ async def stream_example():
         print(chunk, end="", flush=True)
 ```
 
-**Metadata in Streaming**: RunnableRails preserves all metadata during streaming, including `response_metadata`, `usage_metadata`, and `additional_kwargs` in `AIMessageChunk` objects.
+**Metadata in Streaming**: `RunnableRails` preserves all metadata during streaming, including `response_metadata`, `usage_metadata`, and `additional_kwargs` in `AIMessageChunk` objects.
+
+---
 
 ## Batch Processing
 
-`RunnableRails` supports efficient batch processing for multiple inputs:
+`RunnableRails` supports efficient batch processing for multiple inputs. The following example shows how to use the `batch` and `abatch` methods.
 
 ```python
 inputs = [
@@ -114,9 +124,11 @@ config = RunnableConfig(max_concurrency=3)
 results = await guardrails.abatch(inputs, config=config)
 ```
 
+---
+
 ## Input/Output Formats
 
-`RunnableRails` intelligently handles various input and output formats with automatic transformation:
+`RunnableRails` intelligently handles various input and output formats with automatic transformation.
 
 ### LLM Wrapping Formats
 
@@ -137,15 +149,17 @@ results = await guardrails.abatch(inputs, config=config)
 | `str` | `str` | String passthrough |
 | Mixed formats | Intelligently detected | Automatic format detection |
 
+---
+
 ## Metadata Preservation
 
-`RunnableRails` maintains complete metadata compatibility with LangChain components. All `AIMessage` responses include:
+`RunnableRails` maintains complete metadata compatibility with LangChain components. All `AIMessage` responses include the following:
 
-- **`response_metadata`**: Token usage, model info, finish reasons
-- **`usage_metadata`**: Input/output token counts, total tokens
-- **`additional_kwargs`**: Custom fields from the LLM provider
-- **`id`**: Unique message identifiers
-- **`tool_calls`**: Tool call information when applicable
+- **`response_metadata`**: Token usage, model info, finish reasons.
+- **`usage_metadata`**: Input/output token counts, total tokens.
+- **`additional_kwargs`**: Custom fields from the LLM provider.
+- **`id`**: Unique message identifiers.
+- **`tool_calls`**: Tool call information when applicable.
 
 ```python
 result = guardrails.invoke("Hello world")
@@ -157,18 +171,22 @@ print(result.id)                 # 'msg_abc123...'
 
 This ensures seamless integration with LangChain components that depend on message metadata.
 
+---
+
 ## Configuration Options
 
 ### Passthrough Mode
 
-The role of a guardrail configuration is to validate user input, check LLM output, and guide the LLM model on how to respond (see [Configuration Guide](../configuration-guide.md#guardrails-definitions) for more details on the different types of rails). To achieve this, the guardrail configuration might make additional calls to the LLM or other models/APIs (e.g., for fact-checking and content moderation).
+The role of a guardrail configuration is to validate user input, check LLM output, and guide the LLM model on how to respond. See the [Configuration Guide](../configuration-guide.md#guardrails-definitions) for more details on the different types of rails.
 
-By default, when the guardrail configuration decides that it is safe to prompt the LLM, **it will use the exact prompt that was provided as the input** (i.e., string, `StringPromptValue` or `ChatPromptValue`). However, to enforce specific rails (e.g., dialog rails, general instructions), the guardrails configuration needs to alter the prompt used to generate the response.
+To achieve this, the guardrail configuration might make additional calls to the LLM or other models/APIs (for example, for fact-checking and content moderation).
 
-The `passthrough` parameter controls this behavior:
+By default, when the guardrail configuration decides that it is safe to prompt the LLM, it uses the exact prompt that was provided as the input, such as a string, `StringPromptValue` or `ChatPromptValue`. However, to enforce specific rails, for example, dialog rails, general instructions, the guardrails configuration needs to alter the prompt used to generate the response.
 
-- **`passthrough=True`** (default): Uses the exact input prompt, minimal guardrail intervention
-- **`passthrough=False`**: Allows guardrails to modify prompts for enhanced protection
+The `passthrough` parameter controls this behavior.
+
+- **`passthrough=True`** (default): Uses the exact input prompt with minimal guardrail intervention.
+- **`passthrough=False`**: Allows guardrails to modify prompts for enhanced protection.
 
 ```python
 # Minimal intervention (required for tool calling)
@@ -182,9 +200,11 @@ guardrails = RunnableRails(config, passthrough=False)
 
 ### Custom Input/Output Keys
 
-When a guardrail configuration is used to wrap a chain (or a `Runnable`), the input and output are either dictionaries or strings. However, a guardrail configuration always operates on a text input from the user and a text output from the LLM. To achieve this, when dicts are used, one of the keys from the input dict must be designated as the "input text" and one of the keys from the output as the "output text".
+When you use a guardrail configuration to wrap a chain or a `Runnable`, the input and output are either dictionaries or strings. However, a guardrail configuration always operates on a text input from the user and a text output from the LLM. To achieve this, when dictionaries are used, one of the keys from the input dictionary must be designated as the `"input text"` and one of the keys from the output as the `"output text"`.
 
-By default, these keys are `input` and `output`. To customize these keys, provide the `input_key` and `output_key` parameters when creating the `RunnableRails` instance:
+By default, these keys are `input` and `output`. To customize these keys, provide the `input_key` and `output_key` parameters when creating the `RunnableRails` instance.
+
+The following examples show how to customize the input and output keys with "question" and "answer" keys.
 
 ```python
 # Custom keys for specialized chains
@@ -198,21 +218,24 @@ guardrails = RunnableRails(
 rag_chain_with_guardrails = guardrails | rag_chain
 ```
 
-When a guardrail is triggered and predefined messages must be returned instead of the output from the LLM, only a dict with the output key is returned:
+<!-- Q. Why is the following suddenly documented? I can't see how this is related to the custom keys. -->
+When a guardrail is triggered and predefined messages must be returned instead of the output from the LLM, only a dictionary with the output key is returned.
 
 ```json
 {"answer": "I can't assist with that request."}
 ```
 
+---
+
 ## Tool Calling
 
-`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling requires `passthrough=True` for proper function.
+`RunnableRails` supports LangChain tool calling with full metadata preservation and streaming. Tool calling requires `passthrough=True` to work properly.
 
-**Requirements:**
+The following steps are required to use tool calling with `RunnableRails`:
 
-- Set `passthrough=True` when creating `RunnableRails` instance
-- Use `bind_tools()` to attach tools to your model
-- Handle tool execution in your application logic
+- Set `passthrough=True` when creating `RunnableRails` instance.
+- Use `bind_tools()` to attach tools to your model.
+- Handle tool execution in your application logic.
 
 ### Basic Tool Setup
 
@@ -240,7 +263,7 @@ guarded_model = guardrails | model
 
 ### Two-Call Tool Pattern
 
-The standard tool calling flow: get tool calls, execute them, synthesize results.
+The standard flow for two-call tool calling is to get tool calls, execute them, and synthesize results.
 
 ```python
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -273,7 +296,7 @@ print(final_result.content)
 
 ### Single-Call with Pre-processed Messages
 
-Use this when you already have complete message history with tool results:
+Use single-call tool calling when you already have a complete message history with tool results.
 
 ```python
 messages = [
@@ -300,9 +323,11 @@ result = guarded_model.invoke(messages)
 print(result.content)  # "2 + 2 equals 4."
 ```
 
+---
+
 ## Composition and Chaining
 
-`RunnableRails` integrates seamlessly with complex LangChain compositions:
+`RunnableRails` integrates with complex LangChain compositions. The following example shows how to use `RunnableRails` with a conditional branching chain.
 
 ```python
 from langchain_core.runnables import RunnablePassthrough, RunnableBranch
@@ -324,9 +349,9 @@ branch = RunnableBranch(
 )
 ```
 
-**Key Benefits:**
+**Key Benefits of `RunnableRails`:**
 
-- Maintains full Runnable protocol compatibility
-- Preserves metadata throughout the chain
-- Supports all async/sync operations
-- Works with streaming and batch processing
+- Maintains full Runnable protocol compatibility.
+- Preserves metadata throughout the chain.
+- Supports all async/sync operations.
+- Works with streaming and batch processing.
