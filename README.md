@@ -24,7 +24,7 @@ NeMo Guardrails is an open-source toolkit for easily adding *programmable guardr
 
 ## Requirements
 
-Python 3.9, 3.10, 3.11 or 3.12.
+Python 3.10, 3.11, 3.12 or 3.13.
 
 NeMo Guardrails uses [annoy](https://github.com/spotify/annoy) which is a C++ library with Python bindings. To install NeMo Guardrails you will need to have the C++ compiler and dev tools installed. Check out the [Installation Guide](https://docs.nvidia.com/nemo/guardrails/getting-started/installation-guide.html#prerequisites) for platform-specific instructions.
 

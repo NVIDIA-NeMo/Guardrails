@@ -18,7 +18,7 @@ The NeMo Guardrails SDK runs on CPUs. This SDK adds a layer to manage processes 
 
 ### Software Requirements
 
-- Python 3.9, 3.10, or 3.11
+- Python 3.10, 3.11, 3.12 or 3.13
 
 ### Additional Dependencies
 

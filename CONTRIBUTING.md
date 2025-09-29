@@ -106,7 +106,7 @@ If you would like to take on an issue, feel free to comment on the issue. We are
 
 To get started quickly, follow the steps below.
 
-1. Ensure you have Python 3.9+ and [Git](https://git-scm.com/) installed on your system. You can check your Python version by running:
+1. Ensure you have Python 3.10+ and [Git](https://git-scm.com/) installed on your system. You can check your Python version by running:
 
    ```bash
    python --version
