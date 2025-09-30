@@ -40,13 +40,11 @@ def _create_mock_setup(llm_responses, parsed_result):
     llms = {"test_model": mock_llm}
 
     mock_task_manager = MagicMock()
-    mock_parsed_result = MagicMock()
-    mock_parsed_result.text = parsed_result
 
     mock_task_manager.render_task_prompt.return_value = "test prompt"
     mock_task_manager.get_stop_tokens.return_value = []
     mock_task_manager.get_max_tokens.return_value = 3
-    mock_task_manager.parse_task_output.return_value = mock_parsed_result
+    mock_task_manager.parse_task_output.return_value = parsed_result
 
     return llms, mock_task_manager
 

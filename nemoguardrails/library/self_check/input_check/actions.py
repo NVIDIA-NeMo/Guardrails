@@ -87,7 +87,6 @@ async def self_check_input(
                 task, output=response, forced_output_parser="is_content_safe"
             )
 
-        result = result.text
         is_safe = result[0]
 
         if not is_safe:

@@ -179,7 +179,10 @@ def _store_tool_calls(response) -> None:
 
 
 def _store_response_metadata(response) -> None:
-    """Store response metadata excluding content for metadata preservation."""
+    """Store response metadata excluding content for metadata preservation.
+
+    Also extracts reasoning content from additional_kwargs if available from LangChain.
+    """
     if hasattr(response, "model_fields"):
         metadata = {}
         for field_name in response.model_fields:
@@ -188,6 +191,16 @@ def _store_response_metadata(response) -> None:
             ):  # Exclude content since it may be modified by rails
                 metadata[field_name] = getattr(response, field_name)
         llm_response_metadata_var.set(metadata)
+
+        if hasattr(response, "additional_kwargs"):
+            additional_kwargs = response.additional_kwargs
+            if (
+                isinstance(additional_kwargs, dict)
+                and "reasoning_content" in additional_kwargs
+            ):
+                reasoning_content = additional_kwargs["reasoning_content"]
+                if reasoning_content:
+                    reasoning_trace_var.set(reasoning_content)
     else:
         llm_response_metadata_var.set(None)
 

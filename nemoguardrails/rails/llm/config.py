@@ -69,34 +69,6 @@ colang_path_dirs.append(standard_library_path)
 colang_path_dirs.append(guardrails_stdlib_path)
 
 
-class ReasoningModelConfig(BaseModel):
-    """Configuration for reasoning models/LLMs, including start and end tokens for reasoning traces."""
-
-    remove_reasoning_traces: Optional[bool] = Field(
-        default=True,
-        description="For reasoning models (e.g. DeepSeek-r1), if the output parser should remove reasoning traces.",
-    )
-    remove_thinking_traces: Optional[bool] = Field(
-        default=None,
-        deprecated="The `remove_thinking_traces` field is deprecated use remove_reasoning_traces instead.",
-    )
-    start_token: Optional[str] = Field(
-        default="<think>",
-        description="The start token used for reasoning traces.",
-    )
-    end_token: Optional[str] = Field(
-        default="</think>",
-        description="The end token used for reasoning traces.",
-    )
-
-    @model_validator(mode="after")
-    def _migrate_thinking_traces(self) -> "ReasoningModelConfig":
-        # If someone uses the old field, propagate it silently
-        if self.remove_thinking_traces is not None:
-            self.remove_reasoning_traces = self.remove_thinking_traces
-        return self
-
-
 class Model(BaseModel):
     """Configuration of a model used by the rails engine.
 
@@ -117,10 +89,6 @@ class Model(BaseModel):
     api_key_env_var: Optional[str] = Field(
         default=None,
         description='Optional environment variable with model\'s API Key. Do not include "$".',
-    )
-    reasoning_config: Optional[ReasoningModelConfig] = Field(
-        default_factory=ReasoningModelConfig,
-        description="Configuration parameters for reasoning LLMs.",
     )
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
@@ -490,15 +458,6 @@ class OutputRails(BaseModel):
     streaming: OutputRailsStreamingConfig = Field(
         default_factory=OutputRailsStreamingConfig,
         description="Configuration for streaming output rails.",
-    )
-
-    apply_to_reasoning_traces: bool = Field(
-        default=False,
-        description=(
-            "If True, output rails will apply guardrails to both reasoning traces and output response. "
-            "If False, output rails will only apply guardrails to the output response excluding the reasoning traces, "
-            "thus keeping reasoning traces unaltered."
-        ),
     )
 
 
@@ -1437,80 +1396,6 @@ class RailsConfig(BaseModel):
         default_factory=TracingConfig,
         description="Configuration for tracing.",
     )
-
-    @root_validator(pre=True, allow_reuse=True)
-    def check_reasoning_traces_with_dialog_rails(cls, values):
-        """Check that reasoning traces are not enabled when dialog rails are present."""
-
-        models = values.get("models", [])
-        rails = values.get("rails", {})
-        dialog_rails = rails.get("dialog", {})
-
-        # dialog rail tasks that should not have reasoning traces
-        dialog_rail_tasks = [
-            # Task.GENERATE_BOT_MESSAGE,
-            Task.GENERATE_USER_INTENT,
-            Task.GENERATE_NEXT_STEPS,
-            Task.GENERATE_INTENT_STEPS_MESSAGE,
-        ]
-
-        embeddings_only = dialog_rails.get("user_messages", {}).get(
-            "embeddings_only", False
-        )
-
-        has_dialog_rail_configs = (
-            bool(values.get("user_messages"))
-            or bool(values.get("bot_messages"))
-            or bool(values.get("flows"))
-        )
-
-        # dialog rails are activated (explicitly or implicitly) and require validation
-        # skip validation when embeddings_only is True
-        has_dialog_rails = (
-            bool(dialog_rails) or has_dialog_rail_configs
-        ) and not embeddings_only
-
-        if has_dialog_rails:
-            main_model = next(
-                (model for model in models if model.get("type") == "main"), None
-            )
-
-            violations = []
-
-            for task in dialog_rail_tasks:
-                task_model = next(
-                    (model for model in models if model.get("type") == task.value), None
-                )
-
-                if task_model:
-                    reasoning_config = (
-                        task_model.reasoning_config
-                        if hasattr(task_model, "reasoning_config")
-                        else task_model.get("reasoning_config", {})
-                    )
-                    if not reasoning_config.get("remove_reasoning_traces", True):
-                        violations.append(
-                            f"Model '{task_model.get('type')}' has reasoning traces enabled in config.yml. "
-                            f"Reasoning traces must be disabled for dialog rail tasks. "
-                            f"Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config for this model."
-                        )
-                elif main_model:
-                    reasoning_config = (
-                        main_model.reasoning_config
-                        if hasattr(main_model, "reasoning_config")
-                        else main_model.get("reasoning_config", {})
-                    )
-                    if not reasoning_config.get("remove_reasoning_traces", True):
-                        violations.append(
-                            f"Main model has reasoning traces enabled in config.yml and is being used for dialog rail task '{task.value}'. "
-                            f"Reasoning traces must be disabled when dialog rails are present. "
-                            f"Please update your config.yml to set 'remove_reasoning_traces: true' under reasoning_config for the main model."
-                        )
-
-            if violations:
-                raise ValueError("\n".join(violations))
-
-        return values
 
     @root_validator(pre=True, allow_reuse=True)
     def check_prompt_exist_for_self_check_rails(cls, values):

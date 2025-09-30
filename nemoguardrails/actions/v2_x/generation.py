@@ -318,8 +318,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             Task.GENERATE_USER_INTENT_FROM_USER_ACTION, output=result
         )
 
-        result = result.text
-
         user_intent = get_first_nonempty_line(result)
         # GTP-4o often adds 'user intent: ' in front
         if user_intent and ":" in user_intent:
@@ -400,8 +398,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         result = self.llm_task_manager.parse_task_output(
             Task.GENERATE_USER_INTENT_AND_BOT_ACTION_FROM_USER_ACTION, output=result
         )
-
-        result = result.text
 
         user_intent = get_first_nonempty_line(result)
 
@@ -578,8 +574,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             task=Task.GENERATE_FLOW_FROM_INSTRUCTIONS, output=result
         )
 
-        result = result.text
-
         # TODO: why this is not part of a filter or output_parser?
         #
         lines = _remove_leading_empty_lines(result).split("\n")
@@ -660,8 +654,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             task=Task.GENERATE_FLOW_FROM_NAME, output=result
         )
 
-        result = result.text
-
         lines = _remove_leading_empty_lines(result).split("\n")
 
         if lines[0].startswith("flow"):
@@ -735,8 +727,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         result = self.llm_task_manager.parse_task_output(
             task=Task.GENERATE_FLOW_CONTINUATION, output=result
         )
-
-        result = result.text
 
         lines = _remove_leading_empty_lines(result).split("\n")
 
@@ -869,8 +859,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
             Task.GENERATE_VALUE_FROM_INSTRUCTION, output=result
         )
 
-        result = result.text
-
         # We only use the first line for now
         # TODO: support multi-line values?
         value = result.strip().split("\n")[0]
@@ -993,8 +981,6 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         result = self.llm_task_manager.parse_task_output(
             Task.GENERATE_FLOW_CONTINUATION_FROM_NLD, output=result
         )
-
-        result = result.text
 
         result = _remove_leading_empty_lines(result)
         lines = result.split("\n")
