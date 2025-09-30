@@ -2,5 +2,3 @@ models:
   - type: main
     engine: nim
     model: nvidia/llama-3.1-nemotron-ultra-253b-v1
-    reasoning_config:
-      remove_reasoning_traces: False # Set True to remove traces from the internal tasks

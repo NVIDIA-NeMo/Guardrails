@@ -88,9 +88,7 @@ async def test_content_safety_parsing(
     expected_violations,
 ):
     llms = fake_llm("irrelevant")
-    mock_parsed = MagicMock()
-    mock_parsed.text = parsed_text
-    mock_task_manager.parse_task_output.return_value = mock_parsed
+    mock_task_manager.parse_task_output.return_value = parsed_text
 
     result = await check_fn(
         llms=llms,
