@@ -1,0 +1,158 @@
+name: Publish to PyPI (with Approval)
+
+on:
+  workflow_run:
+    workflows: ["Build and Test Distribution"]
+    types:
+      - completed
+
+jobs:
+  publish-pypi:
+    if: github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-production
+      url: https://pypi.org/project/nemoguardrails/
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${TAG_NAME#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "artifact_name=${TAG_NAME}-build" >> $GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+          sparse-checkout: |
+            pyproject.toml
+            CHANGELOG.md
+
+      - name: Validate version matches tag
+        run: |
+          VERSION_IN_FILE=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [ "$VERSION_IN_FILE" != "$TAG_VERSION" ]; then
+            echo "❌ Version mismatch: pyproject.toml=$VERSION_IN_FILE, tag=$TAG_VERSION"
+            exit 1
+          fi
+          echo "✅ Version validated: $VERSION_IN_FILE matches tag $TAG_VERSION"
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact_name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: List files
+        run: ls -la
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          packages-dir: ./
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag }}"
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          CHANGELOG_SECTION=$(awk -v version="${{ steps.version.outputs.version }}" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" version "\\]") {
+                found=1
+                next
+              }
+            }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md || echo "No changelog entry found for this version.")
+
+          echo "$CHANGELOG_SECTION" > release_notes.md
+
+          gh release create "$TAG_NAME" \
+            --draft \
+            --title "$TAG_NAME" \
+            --notes-file release_notes.md \
+            --repo ${{ github.repository }} \
+            || echo "Release already exists or failed to create"
+
+          rm -f release_notes.md
+
+  verify-pypi-publish:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${TAG_NAME#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Wait for PyPI to process package
+        run: |
+          echo "Waiting 120 seconds for PyPI to process the package..."
+          sleep 120
+
+      - name: Install from PyPI
+        run: |
+          pip install --upgrade pip
+          pip install "nemoguardrails==${{ steps.version.outputs.version }}" --no-cache-dir
+
+      - name: Start server in the background
+        run: |
+          nemoguardrails server &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for server to be up
+        run: |
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl --output /dev/null --silent --head --fail http://localhost:8000; then
+              echo "Server is up!"
+              break
+            else
+              echo "Waiting..."
+              sleep 1
+            fi
+          done
+
+      - name: Check server status
+        run: |
+          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Server responded with code $RESPONSE_CODE."
+            exit 1
+          fi
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            kill $SERVER_PID || true
+          fi
