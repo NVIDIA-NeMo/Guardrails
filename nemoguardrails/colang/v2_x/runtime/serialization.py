@@ -86,13 +86,21 @@ def encode_to_dict(obj: Any, refs: Dict[int, Any]):
                 "value": {k: encode_to_dict(v, refs) for k, v in obj.items()},
             }
         elif is_dataclass(obj):
-            value = {
-                "__type": type(obj).__name__,
-                "value": {
-                    k: encode_to_dict(getattr(obj, k), refs)
-                    for k in obj.__dataclass_fields__.keys()
-                },
+            # Encode dataclasses. If it's a known class (present in name_to_class),
+            # keep its type tag so we can fully round-trip via json_to_state.
+            # Otherwise, fall back to a plain dict to avoid "Unknown d_type" on decode.
+            cls = type(obj)
+            encoded_fields = {
+                k: encode_to_dict(getattr(obj, k), refs)
+                for k in obj.__dataclass_fields__.keys()
             }
+
+            if cls.__name__ in name_to_class and name_to_class[cls.__name__] is cls:
+                value = {"__type": cls.__name__, "value": encoded_fields}
+            else:
+                # Unknown dataclass → JSON-friendly dict
+                value = {"__type": "dict", "value": encoded_fields}
+
         elif isinstance(obj, RailsConfig):
             value = {
                 "__type": "RailsConfig",
