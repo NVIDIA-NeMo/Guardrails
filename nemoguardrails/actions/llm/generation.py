@@ -34,6 +34,7 @@ from langchain_core.language_models.llms import BaseLLM
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.llm.utils import (
     flow_to_colang,
+    get_and_clear_reasoning_trace_contextvar,
     get_first_nonempty_line,
     get_last_bot_intent_event,
     get_last_user_intent_event,
@@ -51,7 +52,6 @@ from nemoguardrails.context import (
     generation_options_var,
     llm_call_info_var,
     raw_llm_request,
-    reasoning_trace_var,
     streaming_handler_var,
 )
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
@@ -519,6 +519,7 @@ class LLMGenerationActions:
                 )
         else:
             output_events = []
+            context_updates = {}
 
             # If we are in passthrough mode, we just use the input for prompting
             if self.config.passthrough:
@@ -642,6 +643,13 @@ class LLMGenerationActions:
             if streaming_handler:
                 await streaming_handler.push_chunk(text)
 
+            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+            if reasoning_trace:
+                context_updates["bot_thinking"] = reasoning_trace
+                output_events.append(
+                    new_event_dict("BotThinking", content=reasoning_trace)
+                )
+
             if self.config.passthrough:
                 from nemoguardrails.actions.llm.utils import (
                     get_and_clear_tool_calls_contextvar,
@@ -658,7 +666,7 @@ class LLMGenerationActions:
             else:
                 output_events.append(new_event_dict("BotMessage", text=text))
 
-            return ActionResult(events=output_events)
+            return ActionResult(events=output_events, context_updates=context_updates)
 
     async def _search_flows_index(self, text, max_results):
         """Search the index of flows."""
@@ -949,16 +957,37 @@ class LLMGenerationActions:
                                 '"\n',
                             ]
                             text = await _streaming_handler.wait()
-                            return ActionResult(
-                                events=[new_event_dict("BotMessage", text=text)]
+
+                            output_events = []
+                            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+                            if reasoning_trace:
+                                output_events.append(
+                                    new_event_dict(
+                                        "BotThinking", content=reasoning_trace
+                                    )
+                                )
+                            output_events.append(
+                                new_event_dict("BotMessage", text=text)
                             )
+
+                            return ActionResult(events=output_events)
                         else:
                             if streaming_handler:
                                 await streaming_handler.push_chunk(
                                     bot_message_event["text"]
                                 )
 
-                            return ActionResult(events=[bot_message_event])
+                            output_events = []
+                            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+                            if reasoning_trace:
+                                output_events.append(
+                                    new_event_dict(
+                                        "BotThinking", content=reasoning_trace
+                                    )
+                                )
+                            output_events.append(bot_message_event)
+
+                            return ActionResult(events=output_events)
 
             # If we are in passthrough mode, we just use the input for prompting
             if self.config.passthrough:
@@ -1117,8 +1146,17 @@ class LLMGenerationActions:
             if streaming_handler:
                 await streaming_handler.push_chunk(bot_utterance)
 
+            output_events = []
+            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+            if reasoning_trace:
+                context_updates["bot_thinking"] = reasoning_trace
+                output_events.append(
+                    new_event_dict("BotThinking", content=reasoning_trace)
+                )
+            output_events.append(new_event_dict("BotMessage", text=bot_utterance))
+
             return ActionResult(
-                events=[new_event_dict("BotMessage", text=bot_utterance)],
+                events=output_events,
                 context_updates=context_updates,
             )
         else:
@@ -1127,8 +1165,17 @@ class LLMGenerationActions:
             if streaming_handler:
                 await streaming_handler.push_chunk(bot_utterance)
 
+            output_events = []
+            reasoning_trace = get_and_clear_reasoning_trace_contextvar()
+            if reasoning_trace:
+                context_updates["bot_thinking"] = reasoning_trace
+                output_events.append(
+                    new_event_dict("BotThinking", content=reasoning_trace)
+                )
+            output_events.append(new_event_dict("BotMessage", text=bot_utterance))
+
             return ActionResult(
-                events=[new_event_dict("BotMessage", text=bot_utterance)],
+                events=output_events,
                 context_updates=context_updates,
             )
 
