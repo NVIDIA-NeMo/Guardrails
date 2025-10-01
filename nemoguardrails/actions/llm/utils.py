@@ -110,6 +110,7 @@ async def llm_call(
             generation_llm, prompt, all_callbacks
         )
 
+    _store_reasoning_traces(response)
     _store_tool_calls(response)
     _store_response_metadata(response)
     return _extract_content(response)
@@ -172,6 +173,18 @@ def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
     return dicts_to_messages(prompt)
 
 
+def _store_reasoning_traces(response) -> None:
+    if hasattr(response, "additional_kwargs"):
+        additional_kwargs = response.additional_kwargs
+        if (
+            isinstance(additional_kwargs, dict)
+            and "reasoning_content" in additional_kwargs
+        ):
+            reasoning_content = additional_kwargs["reasoning_content"]
+            if reasoning_content:
+                reasoning_trace_var.set(reasoning_content)
+
+
 def _store_tool_calls(response) -> None:
     """Extract and store tool calls from response in context."""
     tool_calls = getattr(response, "tool_calls", None)
@@ -192,15 +205,6 @@ def _store_response_metadata(response) -> None:
                 metadata[field_name] = getattr(response, field_name)
         llm_response_metadata_var.set(metadata)
 
-        if hasattr(response, "additional_kwargs"):
-            additional_kwargs = response.additional_kwargs
-            if (
-                isinstance(additional_kwargs, dict)
-                and "reasoning_content" in additional_kwargs
-            ):
-                reasoning_content = additional_kwargs["reasoning_content"]
-                if reasoning_content:
-                    reasoning_trace_var.set(reasoning_content)
     else:
         llm_response_metadata_var.set(None)
 
@@ -702,6 +706,12 @@ def extract_tool_calls_from_events(events: list) -> Optional[list]:
         if event.get("type") == "BotToolCalls":
             return event.get("tool_calls")
     return None
+
+
+def extract_bot_thinking_from_events(events: list):
+    for event in events:
+        if event.get("type") == "BotThinking":
+            return event.get("content")
 
 
 def get_and_clear_response_metadata_contextvar() -> Optional[dict]:

@@ -43,8 +43,8 @@ from typing_extensions import Self
 
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.actions.llm.utils import (
+    extract_bot_thinking_from_events,
     extract_tool_calls_from_events,
-    get_and_clear_reasoning_trace_contextvar,
     get_and_clear_response_metadata_contextvar,
     get_colang_history,
 )
@@ -1037,7 +1037,7 @@ class LLMRails:
             else:
                 res = GenerationResponse(response=[new_message])
 
-            if reasoning_trace := get_and_clear_reasoning_trace_contextvar():
+            if reasoning_trace := extract_bot_thinking_from_events(events):
                 if prompt:
                     # For prompt mode, response should be a string
                     if isinstance(res.response, str):
@@ -1182,7 +1182,7 @@ class LLMRails:
         else:
             # If a prompt is used, we only return the content of the message.
 
-            if reasoning_trace := get_and_clear_reasoning_trace_contextvar():
+            if reasoning_trace := extract_bot_thinking_from_events(events):
                 new_message["content"] = reasoning_trace + new_message["content"]
 
             if prompt:
