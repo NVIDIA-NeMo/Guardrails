@@ -1,0 +1,16 @@
+models:
+  - type: main
+    engine: nim
+    model: deepseek-ai/deepseek-r1
+  - type: self_check_output
+    model: gpt-4o-mini
+    engine: openai
+
+rails:
+  # input:
+  #   flows:
+  #     - self check input
+
+  output:
+    flows:
+      - self check output
