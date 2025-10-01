@@ -1,0 +1,24 @@
+# INPUT RAILS
+
+define subflow ai defense inspect prompt
+  """Check if the prompt is safe according to AI Defense."""
+  $result = execute ai_defense_inspect(user_prompt=$user_message)
+  if $result["is_blocked"]
+    if $config.enable_rails_exceptions
+      create event AIDefenseRailException(message="Prompt not allowed. The prompt was blocked by the 'ai defense inspect prompt' flow.")
+    else
+      bot refuse to respond
+    stop
+
+
+# OUTPUT RAILS
+
+define subflow ai defense inspect response
+  """Check if the response is safe according to AI Defense."""
+  $result = execute ai_defense_inspect(bot_response=$bot_message)
+  if $result["is_blocked"]
+    if $config.enable_rails_exceptions
+      create event AIDefenseRailException(message="Response not allowed. The response was blocked by the 'ai defense inspect response' flow.")
+    else
+      bot refuse to respond
+    stop

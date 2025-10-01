@@ -29,6 +29,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Pangea AI Guard](#pangea-ai-guard)
    - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
    - OpenAI Moderation API - *[COMING SOON]*
+   - [Cisco AI Defense](#cisco-ai-defense)
 
 4. Other
    - [Jailbreak Detection](#jailbreak-detection)
@@ -936,6 +937,27 @@ rails:
 ```
 
 For more details, check out the [Trend Micro Vision One AI Application Security](./community/trend-micro.md) page.
+
+### Cisco AI Defense Protection
+
+NeMo Guardrails supports using [Cisco AI Defense Inspection](https://www.cisco.com/site/us/en/products/security/ai-defense/index.html?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output flows.
+
+To activate the protection, you need to set the `AI_DEFENSE_API_KEY` and `AI_DEFENSE_API_ENDPOINT` environment variables.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - ai defense inspect prompt
+
+  output:
+    flows:
+      - ai defense inspect response
+```
+
+For more details, check out the [Cisco AI Defense Integration](./community/ai-defense.md) page.
 
 ## Other
 
