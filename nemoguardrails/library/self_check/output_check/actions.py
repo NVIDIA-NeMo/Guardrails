@@ -52,6 +52,7 @@ async def self_check_output(
     _MAX_TOKENS = 3
     bot_response = context.get("bot_message")
     user_input = context.get("user_message")
+    bot_thinking = context.get("bot_thinking")
 
     task = Task.SELF_CHECK_OUTPUT
 
@@ -61,6 +62,7 @@ async def self_check_output(
             context={
                 "user_input": user_input,
                 "bot_response": bot_response,
+                "bot_thinking": bot_thinking,
             },
         )
         stop = llm_task_manager.get_stop_tokens(task=task)
