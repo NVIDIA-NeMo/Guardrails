@@ -720,7 +720,7 @@ def extract_tool_calls_from_events(events: list) -> Optional[list]:
 def extract_bot_thinking_from_events(events: list):
     for event in events:
         if event.get("type") == "BotThinking":
-            return event.get("thinking_content")
+            return event.get("content")
 
 
 def get_and_clear_response_metadata_contextvar() -> Optional[dict]:
