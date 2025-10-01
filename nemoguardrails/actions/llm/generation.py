@@ -1028,6 +1028,8 @@ class LLMGenerationActions:
                         Task.GENERAL, output=result
                     )
 
+                    # we need bot thinking here
+
                     log.info(
                         "--- :: LLM Bot Message Generation passthrough call took %.2f seconds",
                         time() - t0,
@@ -1088,6 +1090,8 @@ class LLMGenerationActions:
                     custom_callback_handlers=custom_callback_handlers,
                     llm_params=llm_params,
                 )
+
+                # we also need bot thinking here?
 
                 log.info(
                     "--- :: LLM Bot Message Generation call took %.2f seconds",
