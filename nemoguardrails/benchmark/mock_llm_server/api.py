@@ -33,23 +33,23 @@ from nemoguardrails.benchmark.mock_llm_server.models import (
     Usage,
 )
 from nemoguardrails.benchmark.mock_llm_server.response_data import (
-    DUMMY_MODELS,
     calculate_tokens,
     generate_id,
-    get_dummy_chat_response,
-    get_dummy_completion_response,
+    get_response,
 )
+
+ModelConfigDep = Annotated[AppModelConfig, Depends(get_config)]
 
 
 def _validate_request_model(
+    config: ModelConfigDep,
     request: Union[CompletionRequest, ChatCompletionRequest],
 ) -> None:
     """Check the Completion or Chat Completion `model` field is in our supported model list"""
-    available_models = set([model["id"] for model in DUMMY_MODELS])
-    if request.model not in available_models:
+    if request.model != config.model:
         raise HTTPException(
             status_code=400,
-            detail=f"Model '{request.model}' not found. Available models: {available_models}",
+            detail=f"Model '{request.model}' not found. Available models: {config.model}",
         )
 
 
@@ -60,27 +60,25 @@ app = FastAPI(
 )
 
 
-ModelConfigDep = Annotated[AppModelConfig, Depends(get_config)]
-
-
 @app.get("/")
-async def root(current_config: ModelConfigDep):
+async def root(config: ModelConfigDep):
     """Root endpoint with basic server information."""
     return {
         "message": "Mock LLM Server",
         "version": "0.0.1",
-        "description": "OpenAI-compatible mock LLM server for testing and benchmarking",
+        "description": f"OpenAI-compatible mock LLM server for model: {config.model}",
         "endpoints": ["/v1/models", "/v1/chat/completions", "/v1/completions"],
-        "model_configuration": current_config,
+        "model_configuration": config,
     }
 
 
 @app.get("/v1/models", response_model=ModelsResponse)
-async def list_models():
+async def list_models(config: ModelConfigDep):
     """List available models."""
-    return ModelsResponse(
-        object="list", data=[Model(**model) for model in DUMMY_MODELS]
+    model = Model(
+        id=config.model, object="model", created=int(time.time()), owned_by="system"
     )
+    return ModelsResponse(object="list", data=[model])
 
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
@@ -89,10 +87,10 @@ async def chat_completions(
 ) -> ChatCompletionResponse:
     """Create a chat completion."""
     # Validate model exists
-    _validate_request_model(request)
+    _validate_request_model(config, request)
 
     # Generate dummy response
-    response_content = get_dummy_chat_response(config)
+    response_content = get_response(config)
 
     # Calculate token usage
     prompt_text = " ".join([msg.content for msg in request.messages])
@@ -135,7 +133,7 @@ async def completions(
     """Create a text completion."""
 
     # Validate model exists
-    _validate_request_model(request)
+    _validate_request_model(config, request)
 
     # Handle prompt (can be string or list)
     if isinstance(request.prompt, list):
@@ -144,7 +142,7 @@ async def completions(
         prompt_text = request.prompt
 
     # Generate dummy response
-    response_text = get_dummy_completion_response(config)
+    response_text = get_response(config)
 
     # Calculate token usage
     prompt_tokens = calculate_tokens(prompt_text)

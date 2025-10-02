@@ -27,12 +27,13 @@ class AppModelConfig(BaseModel):
 
     # Mandatory fields
     model: str = Field(..., description="Model name served by mock server")
-    refusal_text: str = Field(..., description="Refusal response text")
+    unsafe_probability: float = Field(
+        default=0.1, description="Probability of unsafe response (between 0 and 1)"
+    )
+    unsafe_text: str = Field(..., description="Refusal response to unsafe prompt")
+    safe_text: str = Field(..., description="Safe response")
 
     # Config with default values
-    refusal_probability: float = Field(
-        default=0.1, description="Probability of refusal (between 0 and 1)"
-    )
     # Latency sampled from a truncated-normal distribution.
     # Plain Normal distributions have infinite support, and can be negative
     latency_min_seconds: float = Field(

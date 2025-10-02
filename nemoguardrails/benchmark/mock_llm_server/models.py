@@ -146,7 +146,7 @@ class CompletionChoice(BaseModel):
 
 
 class ChatCompletionResponse(BaseModel):
-    """Chat completion response."""
+    """Chat completion response - https://platform.openai.com/docs/api-reference/chat/object"""
 
     id: str = Field(..., description="Unique identifier for the completion")
     object: str = Field("chat.completion", description="Object type")
@@ -161,7 +161,7 @@ class ChatCompletionResponse(BaseModel):
 
 
 class CompletionResponse(BaseModel):
-    """Text completion response."""
+    """Text completion response. https://platform.openai.com/docs/api-reference/completions/object"""
 
     id: str = Field(..., description="Unique identifier for the completion")
     object: str = Field("text_completion", description="Object type")

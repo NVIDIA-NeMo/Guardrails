@@ -1,0 +1,21 @@
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+    parameters:
+      base_url: http://localhost:8000
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    parameters:
+      base_url: http://localhost:8001
+
+
+rails:
+  input:
+    flows:
+      - content safety check input $model=content_safety
+  output:
+    flows:
+      - content safety check output $model=content_safety
