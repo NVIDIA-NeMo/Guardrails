@@ -21,11 +21,28 @@ This script starts the FastAPI server with configurable host and port settings.
 """
 
 import argparse
+import logging
 import sys
 
 import uvicorn
+from uvicorn.logging import AccessFormatter
 
 from nemoguardrails.benchmark.mock_llm_server.config import get_config, load_config
+
+# 1. Get a logger instance
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)  # Set the lowest level to capture all messages
+
+# Set up formatter and direct it to the console
+formatter = logging.Formatter(
+    "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)  # DEBUG and higher will go to the console
+console_handler.setFormatter(formatter)
+
+# Add the console handler for logging
+log.addHandler(console_handler)
 
 
 def main():
@@ -64,11 +81,11 @@ def main():
     # Import the app after configuration is loaded. This caches the values in the app Dependencies
     from nemoguardrails.benchmark.mock_llm_server.api import app
 
-    print(f"Starting Mock LLM Server on {args.host}:{args.port}")
-    print(f"OpenAPI docs available at: http://{args.host}:{args.port}/docs")
-    print(f"Health check at: http://{args.host}:{args.port}/health")
-    print(f"Model configuration: {model_config}")
-    print("Press Ctrl+C to stop the server")
+    log.info(f"Starting Mock LLM Server on {args.host}:{args.port}")
+    log.info(f"OpenAPI docs available at: http://{args.host}:{args.port}/docs")
+    log.info(f"Health check at: http://{args.host}:{args.port}/health")
+    log.info(f"Model configuration: {model_config}")
+    log.info("Press Ctrl+C to stop the server")
 
     try:
         uvicorn.run(
@@ -79,9 +96,9 @@ def main():
             log_level=args.log_level,
         )
     except KeyboardInterrupt:
-        print("\nServer stopped by user")
+        log.info("\nServer stopped by user")
     except Exception as e:  # pylint: disable=broad-except
-        print(f"Error starting server: {e}")
+        log.error(f"Error starting server: {e}")
         sys.exit(1)
 
 

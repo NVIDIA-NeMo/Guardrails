@@ -14,10 +14,12 @@
 # limitations under the License.
 
 
+import asyncio
+import logging
 import time
 from typing import Annotated, Optional, Union
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 from nemoguardrails.benchmark.mock_llm_server.config import AppModelConfig, get_config
 from nemoguardrails.benchmark.mock_llm_server.models import (
@@ -35,8 +37,27 @@ from nemoguardrails.benchmark.mock_llm_server.models import (
 from nemoguardrails.benchmark.mock_llm_server.response_data import (
     calculate_tokens,
     generate_id,
+    get_latency_seconds,
     get_response,
 )
+
+# Create a console logging handler
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)  # TODO Control this from the CLi args
+
+# Create a formatter to define the log message format
+formatter = logging.Formatter(
+    "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# Create a console handler to print logs to the console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # DEBUG and higher will go to the console
+console_handler.setFormatter(formatter)
+
+# Add console handler to logs
+log.addHandler(console_handler)
+
 
 ModelConfigDep = Annotated[AppModelConfig, Depends(get_config)]
 
@@ -60,6 +81,24 @@ app = FastAPI(
 )
 
 
+@app.middleware("http")
+async def log_http_duration(request: Request, call_next):
+    """
+    Middleware to log incoming requests and their responses.
+    """
+    request_time = time.time()
+    response = await call_next(request)
+    response_time = time.time()
+
+    duration_seconds = response_time - request_time
+    log.info(
+        "Request finished: %s, took %.3f seconds",
+        response.status_code,
+        duration_seconds,
+    )
+    return response
+
+
 @app.get("/")
 async def root(config: ModelConfigDep):
     """Root endpoint with basic server information."""
@@ -75,10 +114,14 @@ async def root(config: ModelConfigDep):
 @app.get("/v1/models", response_model=ModelsResponse)
 async def list_models(config: ModelConfigDep):
     """List available models."""
+    log.debug("/v1/models request")
+
     model = Model(
         id=config.model, object="model", created=int(time.time()), owned_by="system"
     )
-    return ModelsResponse(object="list", data=[model])
+    response = ModelsResponse(object="list", data=[model])
+    log.debug("/v1/models response: %s", response)
+    return response
 
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
@@ -86,11 +129,15 @@ async def chat_completions(
     request: ChatCompletionRequest, config: ModelConfigDep
 ) -> ChatCompletionResponse:
     """Create a chat completion."""
+
+    log.debug("/v1/chat/completions request: %s", request)
+
     # Validate model exists
     _validate_request_model(config, request)
 
     # Generate dummy response
     response_content = get_response(config)
+    response_latency_seconds = get_latency_seconds(config, seed=12345)
 
     # Calculate token usage
     prompt_text = " ".join([msg.content for msg in request.messages])
@@ -122,7 +169,8 @@ async def chat_completions(
             total_tokens=prompt_tokens + completion_tokens,
         ),
     )
-
+    await asyncio.sleep(response_latency_seconds)
+    log.debug("/v1/chat/completions response: %s", response)
     return response
 
 
@@ -131,6 +179,8 @@ async def completions(
     request: CompletionRequest, config: ModelConfigDep
 ) -> CompletionResponse:
     """Create a text completion."""
+
+    log.debug("/v1/completions request: %s", request)
 
     # Validate model exists
     _validate_request_model(config, request)
@@ -143,6 +193,7 @@ async def completions(
 
     # Generate dummy response
     response_text = get_response(config)
+    response_latency_seconds = get_latency_seconds(config, seed=12345)
 
     # Calculate token usage
     prompt_tokens = calculate_tokens(prompt_text)
@@ -171,10 +222,16 @@ async def completions(
             total_tokens=prompt_tokens + completion_tokens,
         ),
     )
+
+    await asyncio.sleep(response_latency_seconds)
+    log.debug("/v1/completions response: %s", response)
     return response
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "timestamp": int(time.time())}
+    log.debug("/health request")
+    response = {"status": "healthy", "timestamp": int(time.time())}
+    log.debug("/health response: %s", response)
+    return response
