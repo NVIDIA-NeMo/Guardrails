@@ -1,17 +1,8 @@
 model: "nvidia/llama-3.1-nemoguard-8b-content-safety"
 unsafe_probability: 0.03
-unsafe_text: |
-  {
-    "User Safety": "unsafe",
-    "Response Safety": "unsafe",
-    "Safety Categories": "PII/Privacy"
-  }
-safe_text : |
-  {
-    "User Safety": "safe",
-    "Response Safety": "safe",
-  }
-latency_min_seconds: 0.1
-latency_max_seconds: 5
+unsafe_text: "{\"User Safety\": \"unsafe\", \"Response Safety\": \"unsafe\", \"Safety Categories\": \"Violence, Criminal Planning/Confessions\"} "
+safe_text: "{\"User Safety\": \"safe\", \"Response Safety\": \"safe\"}"
+latency_min_seconds: 0.4
+latency_max_seconds: 0.4
 latency_mean_seconds: 0.4
-latency_std_seconds: 0.1
+latency_std_seconds: 0.0
