@@ -28,7 +28,7 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Prompt Security Protection](#prompt-security-protection)
    - [Pangea AI Guard](#pangea-ai-guard)
    - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
-   - OpenAI Moderation API - *[COMING SOON]*
+   - [OpenAI Moderations API](#openai-moderations-api)
 
 4. Other
    - [Jailbreak Detection](#jailbreak-detection)
@@ -936,6 +936,21 @@ rails:
 ```
 
 For more details, check out the [Trend Micro Vision One AI Application Security](./community/trend-micro.md) page.
+
+### OpenAI Moderations API
+
+NeMo Guardrails supports using the [OpenAI Moderation API](https://platform.openai.com/docs/guides/moderation) for input and output content moderation. You need to have the `OPENAI_API_KEY` environment variable set.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - openai moderation
+```
+
+For more details, check out the [OpenAI Moderations API Integration](./community/openai-moderations-api.md) page.
 
 ## Other
 
