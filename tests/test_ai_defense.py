@@ -178,7 +178,7 @@ def test_ai_defense_protection_input():
 @pytest.mark.integration
 def test_real_api_call_with_safe_output():
     """Test with a real API call for a safe output if API key is available."""
-    """ TBD: Not calling output guardrails """
+
     config = RailsConfig.from_content(
         yaml_content="""
             models: []
@@ -240,15 +240,6 @@ def test_real_api_call_with_unsafe_output():
           define bot refuse to respond
             "I can't provide that information."
         """,
-    )
-    # Debug: Check what flows are registered
-    print("All flows in config:")
-    for flow in config.flows:
-        print(f"  - {flow.get('name', 'unnamed')}")
-
-    print(
-        "Output flows from YAML:",
-        config.rails.output.flows if config.rails.output else "None",
     )
 
     chat = TestChat(

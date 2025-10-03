@@ -28,12 +28,12 @@ log = logging.getLogger(__name__)
 
 def ai_defense_text_mapping(result: dict) -> bool:
     """
-    Mapping for inspect API response
+    Mapping for inspect API response.
     Expects result to be a dict with:
-      - "is_blocked": a boolean indicating if the prompt or response passed sent to AI Defense should be blocked.
+      - "is_blocked": a boolean indicating if the prompt or response sent to AI Defense should be blocked.
 
     Returns:
-        True if the response should be blocked (i.e. if "is_safe" is False),
+        True if "is_blocked" is True (i.e., the response should be blocked),
         False otherwise.
     """
     # If the provider does not return "is_safe", default to safe (not blocked)
