@@ -878,23 +878,6 @@ class AIDefenseRailConfig(BaseModel):
     )
 
 
-class CachePersistenceConfig(BaseModel):
-    """Configuration for cache persistence to disk."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Whether cache persistence is enabled (persistence requires both enabled=True and a valid interval)",
-    )
-    interval: Optional[float] = Field(
-        default=None,
-        description="Seconds between periodic cache persistence to disk (None disables persistence)",
-    )
-    path: Optional[str] = Field(
-        default=None,
-        description="Path to persistence file for cache data (defaults to 'cache_{model_name}.json' if persistence is enabled)",
-    )
-
-
 class CacheStatsConfig(BaseModel):
     """Configuration for cache statistics tracking and logging."""
 
@@ -923,10 +906,6 @@ class ModelCacheConfig(BaseModel):
     )
     store_config: Dict[str, Any] = Field(
         default_factory=dict, description="Backend-specific configuration"
-    )
-    persistence: CachePersistenceConfig = Field(
-        default_factory=CachePersistenceConfig,
-        description="Configuration for cache persistence",
     )
     stats: CacheStatsConfig = Field(
         default_factory=CacheStatsConfig,

@@ -3,29 +3,40 @@ models:
     engine: nim
     model: meta/llama-3.3-70b-instruct
 
+  # Multiple content safety models with different cache configurations
   - type: content_safety
     engine: nim
     model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    # Model-specific cache configuration (optional)
+    cache:
+      enabled: true
+      capacity_per_model: 50000 # Larger cache for primary model
+      stats:
+        enabled: true
+        log_interval: 60.0 # Log stats every minute
+
+  - type: llama_guard
+    engine: vllm_openai
+    model: meta-llama/Llama-Guard-7b
+    # Different cache settings for this model
+    cache:
+      enabled: true
+      capacity_per_model: 25000 # Medium cache
+      stats:
+        enabled: false # No stats for this model
+
+  - type: shieldgemma
+    engine: google
+    model: google/shieldgemma-2b
+    # No cache configuration = no caching (default behavior)
 
 rails:
   input:
     flows:
+      # You can use multiple content safety models
       - content safety check input $model=content_safety
+      # - content safety check input $model=llama_guard
+      # - content safety check input $model=shieldgemma
   output:
     flows:
       - content safety check output $model=content_safety
-
-  # Content safety cache configuration with persistence and stats
-  config:
-    content_safety:
-      cache:
-        enabled: true
-        capacity_per_model: 5000
-        store: memory # In-memory cache with optional disk persistence
-        persistence:
-          enabled: true # Enable persistence (requires interval to be set)
-          interval: 300.0 # Persist every 5 minutes
-          path: ./content_safety_cache.json # Where to save cache
-        stats:
-          enabled: true # Enable statistics tracking
-          log_interval: 60.0 # Log cache statistics every minute

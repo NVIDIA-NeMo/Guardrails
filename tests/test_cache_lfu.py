@@ -32,7 +32,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from nemoguardrails.cache.lfu import LFUCache
-from nemoguardrails.library.content_safety.manager import ContentSafetyManager
 
 
 class TestLFUCache(unittest.TestCase):
@@ -365,327 +364,6 @@ class TestLFUCacheInterface(unittest.TestCase):
         # Check property
         self.assertEqual(cache.capacity, 5)
 
-    def test_persistence_interface_methods(self):
-        """Verify persistence interface methods are implemented."""
-        # Cache without persistence
-        cache_no_persist = LFUCache(5)
-        self.assertTrue(callable(getattr(cache_no_persist, "persist_now", None)))
-        self.assertTrue(
-            callable(getattr(cache_no_persist, "supports_persistence", None))
-        )
-        self.assertFalse(cache_no_persist.supports_persistence())
-
-        # Cache with persistence
-        temp_file = os.path.join(tempfile.mkdtemp(), "test_interface.json")
-        try:
-            cache_with_persist = LFUCache(
-                5, persistence_interval=10.0, persistence_path=temp_file
-            )
-            self.assertTrue(cache_with_persist.supports_persistence())
-
-            # persist_now should work without errors
-            cache_with_persist.put("key", "value")
-            cache_with_persist.persist_now()  # Should not raise any exception
-        finally:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-            if os.path.exists(os.path.dirname(temp_file)):
-                os.rmdir(os.path.dirname(temp_file))
-
-
-class TestLFUCachePersistence(unittest.TestCase):
-    """Test cases for LFU Cache persistence functionality."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        # Create temporary directory for test files
-        self.temp_dir = tempfile.mkdtemp()
-        self.test_file = os.path.join(self.temp_dir, "test_cache.json")
-
-    def tearDown(self):
-        """Clean up test files."""
-        # Clean up any created files
-        if os.path.exists(self.test_file):
-            os.remove(self.test_file)
-        # Remove temporary directory
-        if os.path.exists(self.temp_dir):
-            os.rmdir(self.temp_dir)
-
-    def test_basic_persistence(self):
-        """Test basic save and load functionality."""
-        # Create cache and add items
-        cache = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-
-        cache.put("key1", "value1")
-        cache.put("key2", {"nested": "value"})
-        cache.put("key3", [1, 2, 3])
-
-        # Force persistence
-        cache.persist_now()
-
-        # Verify file was created
-        self.assertTrue(os.path.exists(self.test_file))
-
-        # Load into new cache
-        new_cache = LFUCache(
-            5, persistence_interval=10.0, persistence_path=self.test_file
-        )
-
-        # Verify data was loaded correctly
-        self.assertEqual(new_cache.size(), 3)
-        self.assertEqual(new_cache.get("key1"), "value1")
-        self.assertEqual(new_cache.get("key2"), {"nested": "value"})
-        self.assertEqual(new_cache.get("key3"), [1, 2, 3])
-
-    def test_frequency_preservation(self):
-        """Test that frequencies are preserved across persistence."""
-        cache = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-
-        # Create different frequency levels
-        cache.put("freq1", "value1")
-        cache.put("freq3", "value3")
-        cache.put("freq5", "value5")
-
-        # Access items to create different frequencies
-        cache.get("freq3")  # freq = 2
-        cache.get("freq3")  # freq = 3
-
-        cache.get("freq5")  # freq = 2
-        cache.get("freq5")  # freq = 3
-        cache.get("freq5")  # freq = 4
-        cache.get("freq5")  # freq = 5
-
-        # Force persistence
-        cache.persist_now()
-
-        # Load into new cache
-        new_cache = LFUCache(
-            5, persistence_interval=10.0, persistence_path=self.test_file
-        )
-
-        # Add new items to test eviction order
-        new_cache.put("new1", "newvalue1")
-        new_cache.put("new2", "newvalue2")
-        new_cache.put("new3", "newvalue3")
-
-        # freq1 should be evicted first (lowest frequency)
-        self.assertIsNone(new_cache.get("freq1"))
-        # freq3 and freq5 should still be there
-        self.assertEqual(new_cache.get("freq3"), "value3")
-        self.assertEqual(new_cache.get("freq5"), "value5")
-
-    def test_periodic_persistence(self):
-        """Test automatic periodic persistence."""
-        # Use short interval for testing
-        cache = LFUCache(5, persistence_interval=0.5, persistence_path=self.test_file)
-
-        cache.put("key1", "value1")
-
-        # File shouldn't exist yet
-        self.assertFalse(os.path.exists(self.test_file))
-
-        # Wait for interval to pass
-        time.sleep(0.6)
-
-        # Access cache to trigger persistence check
-        cache.get("key1")
-
-        # File should now exist
-        self.assertTrue(os.path.exists(self.test_file))
-
-        # Verify content
-        with open(self.test_file, "r") as f:
-            data = json.load(f)
-
-        self.assertEqual(data["capacity"], 5)
-        self.assertEqual(len(data["nodes"]), 1)
-        self.assertEqual(data["nodes"][0]["key"], "key1")
-
-    def test_persistence_with_empty_cache(self):
-        """Test persistence behavior with empty cache."""
-        cache = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-
-        # Add and remove items
-        cache.put("key1", "value1")
-        cache.clear()
-
-        # Force persistence
-        cache.persist_now()
-
-        # File should be removed when cache is empty
-        self.assertFalse(os.path.exists(self.test_file))
-
-    def test_no_persistence_when_disabled(self):
-        """Test that persistence doesn't occur when not configured."""
-        # Create cache without persistence
-        cache = LFUCache(5)
-
-        cache.put("key1", "value1")
-        cache.persist_now()  # Should do nothing
-
-        # No file should be created
-        self.assertFalse(os.path.exists("lfu_cache.json"))
-
-    def test_load_from_nonexistent_file(self):
-        """Test loading when persistence file doesn't exist."""
-        # Create cache with non-existent file
-        cache = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-
-        # Should start empty
-        self.assertEqual(cache.size(), 0)
-        self.assertTrue(cache.is_empty())
-
-    def test_persistence_with_complex_data(self):
-        """Test persistence with various data types."""
-        cache = LFUCache(10, persistence_interval=10.0, persistence_path=self.test_file)
-
-        # Add various data types
-        test_data = {
-            "string": "hello world",
-            "int": 42,
-            "float": 3.14,
-            "bool": True,
-            "none": None,
-            "list": [1, 2, [3, 4]],
-            "dict": {"a": 1, "b": {"c": 2}},
-            "tuple_key": "value_for_tuple",  # Will use string key since tuples aren't JSON serializable
-        }
-
-        for key, value in test_data.items():
-            cache.put(key, value)
-
-        # Force persistence
-        cache.persist_now()
-
-        # Load into new cache
-        new_cache = LFUCache(
-            10, persistence_interval=10.0, persistence_path=self.test_file
-        )
-
-        # Verify all data types
-        for key, value in test_data.items():
-            self.assertEqual(new_cache.get(key), value)
-
-    def test_persistence_file_corruption_handling(self):
-        """Test handling of corrupted persistence files."""
-        # Create invalid JSON file
-        with open(self.test_file, "w") as f:
-            f.write("{ invalid json content")
-
-        # Should handle gracefully and start with empty cache
-        cache = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-        self.assertEqual(cache.size(), 0)
-
-        # Cache should still be functional
-        cache.put("key1", "value1")
-        self.assertEqual(cache.get("key1"), "value1")
-
-    def test_multiple_persistence_cycles(self):
-        """Test multiple save/load cycles."""
-        # First cycle
-        cache1 = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-        cache1.put("key1", "value1")
-        cache1.put("key2", "value2")
-        cache1.persist_now()
-
-        # Second cycle - load and modify
-        cache2 = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-        self.assertEqual(cache2.size(), 2)
-        cache2.put("key3", "value3")
-        cache2.persist_now()
-
-        # Third cycle - verify all changes
-        cache3 = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-        self.assertEqual(cache3.size(), 3)
-        self.assertEqual(cache3.get("key1"), "value1")
-        self.assertEqual(cache3.get("key2"), "value2")
-        self.assertEqual(cache3.get("key3"), "value3")
-
-    def test_capacity_change_on_load(self):
-        """Test loading cache data into cache with different capacity."""
-        # Create cache with capacity 5
-        cache1 = LFUCache(5, persistence_interval=10.0, persistence_path=self.test_file)
-        for i in range(5):
-            cache1.put(f"key{i}", f"value{i}")
-        cache1.persist_now()
-
-        # Load into cache with smaller capacity
-        cache2 = LFUCache(3, persistence_interval=10.0, persistence_path=self.test_file)
-
-        # Current design: loads all persisted items regardless of new capacity
-        # This is a valid design choice - preserve data integrity on load
-        self.assertEqual(cache2.size(), 5)
-
-        # The cache continues to operate with loaded items
-        # New items can still be added, and the cache will manage its size
-        cache2.put("new_key", "new_value")
-
-        # Verify the cache is still functional and contains the new item
-        self.assertEqual(cache2.get("new_key"), "new_value")
-        self.assertGreaterEqual(
-            cache2.size(), 4
-        )  # At least has the new item plus some old ones
-
-    def test_persistence_timing(self):
-        """Test that persistence doesn't happen too frequently."""
-        cache = LFUCache(5, persistence_interval=1.0, persistence_path=self.test_file)
-
-        cache.put("key1", "value1")
-
-        # Multiple operations within interval shouldn't trigger persistence
-        for i in range(10):
-            cache.get("key1")
-            self.assertFalse(os.path.exists(self.test_file))
-            time.sleep(0.05)  # Total time still less than interval
-
-        # Wait for interval to pass
-        time.sleep(0.6)
-        cache.get("key1")
-
-        # Now file should exist
-        self.assertTrue(os.path.exists(self.test_file))
-
-    def test_persistence_with_statistics(self):
-        """Test persistence doesn't interfere with statistics tracking."""
-        cache = LFUCache(
-            5,
-            track_stats=True,
-            persistence_interval=0.5,
-            persistence_path=self.test_file,
-        )
-
-        # Perform operations
-        cache.put("key1", "value1")
-        cache.put("key2", "value2")
-        cache.get("key1")
-        cache.get("nonexistent")
-
-        # Wait for persistence
-        time.sleep(0.6)
-        cache.get("key1")  # Trigger persistence
-
-        # Check stats are still correct
-        stats = cache.get_stats()
-        self.assertEqual(stats["puts"], 2)
-        self.assertEqual(stats["hits"], 2)
-        self.assertEqual(stats["misses"], 1)
-
-        # Load into new cache with stats
-        new_cache = LFUCache(
-            5,
-            track_stats=True,
-            persistence_interval=0.5,
-            persistence_path=self.test_file,
-        )
-
-        # Stats should be reset in new instance
-        new_stats = new_cache.get_stats()
-        self.assertEqual(new_stats["puts"], 0)
-        self.assertEqual(new_stats["hits"], 0)
-
-        # But data should be loaded
-        self.assertEqual(new_cache.size(), 2)
-
 
 class TestLFUCacheStatsLogging(unittest.TestCase):
     """Test cases for LFU Cache statistics logging functionality."""
@@ -923,39 +601,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             self.assertIn("Updates: 2", log_message)
             self.assertIn("Puts: 1", log_message)
 
-    def test_stats_logging_combined_with_persistence(self):
-        """Test that stats logging and persistence work together."""
-        import logging
-        from unittest.mock import patch
-
-        cache = LFUCache(
-            5,
-            track_stats=True,
-            persistence_interval=1.0,
-            persistence_path=self.test_file,
-            stats_logging_interval=0.5,
-        )
-
-        cache.put("key1", "value1")
-
-        with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
-        ) as mock_log:
-            # Wait for stats logging interval
-            time.sleep(0.6)
-            cache.get("key1")  # Trigger stats log
-
-            self.assertEqual(mock_log.call_count, 1)
-            self.assertFalse(os.path.exists(self.test_file))  # Not persisted yet
-
-            # Wait for persistence interval
-            time.sleep(0.5)
-            cache.get("key1")  # Trigger persistence
-
-            self.assertTrue(os.path.exists(self.test_file))  # Now persisted
-            # Stats log might trigger again if interval passed
-            self.assertGreaterEqual(mock_log.call_count, 1)
-
     def test_stats_log_format_percentages(self):
         """Test that percentages in stats log are formatted correctly."""
         import logging
@@ -1010,33 +655,25 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
 
     def test_cache_config_with_stats_disabled(self):
         """Test cache configuration with stats disabled."""
-        from nemoguardrails.library.content_safety.manager import ContentSafetyManager
-        from nemoguardrails.rails.llm.config import (
-            CacheStatsConfig,
-            ModelCacheConfig,
-            ModelConfig,
-        )
+        from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
 
         cache_config = ModelCacheConfig(
             enabled=True, capacity_per_model=1000, stats=CacheStatsConfig(enabled=False)
         )
 
-        model_config = ModelConfig(cache=cache_config)
-        manager = ContentSafetyManager(model_config)
+        cache = LFUCache(
+            capacity=cache_config.capacity_per_model,
+            track_stats=cache_config.stats.enabled,
+            stats_logging_interval=None,
+        )
 
-        cache = manager.get_cache_for_model("test_model")
         self.assertIsNotNone(cache)
         self.assertFalse(cache.track_stats)
         self.assertFalse(cache.supports_stats_logging())
 
     def test_cache_config_with_stats_tracking_only(self):
         """Test cache configuration with stats tracking but no logging."""
-        from nemoguardrails.library.content_safety.manager import ContentSafetyManager
-        from nemoguardrails.rails.llm.config import (
-            CacheStatsConfig,
-            ModelCacheConfig,
-            ModelConfig,
-        )
+        from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
 
         cache_config = ModelCacheConfig(
             enabled=True,
@@ -1044,10 +681,12 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
             stats=CacheStatsConfig(enabled=True, log_interval=None),
         )
 
-        model_config = ModelConfig(cache=cache_config)
-        manager = ContentSafetyManager(model_config)
+        cache = LFUCache(
+            capacity=cache_config.capacity_per_model,
+            track_stats=cache_config.stats.enabled,
+            stats_logging_interval=cache_config.stats.log_interval,
+        )
 
-        cache = manager.get_cache_for_model("test_model")
         self.assertIsNotNone(cache)
         self.assertTrue(cache.track_stats)
         self.assertFalse(cache.supports_stats_logging())
@@ -1055,12 +694,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
 
     def test_cache_config_with_stats_logging(self):
         """Test cache configuration with stats tracking and logging."""
-        from nemoguardrails.library.content_safety.manager import ContentSafetyManager
-        from nemoguardrails.rails.llm.config import (
-            CacheStatsConfig,
-            ModelCacheConfig,
-            ModelConfig,
-        )
+        from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
 
         cache_config = ModelCacheConfig(
             enabled=True,
@@ -1068,10 +702,12 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
             stats=CacheStatsConfig(enabled=True, log_interval=60.0),
         )
 
-        model_config = ModelConfig(cache=cache_config)
-        manager = ContentSafetyManager(model_config)
+        cache = LFUCache(
+            capacity=cache_config.capacity_per_model,
+            track_stats=cache_config.stats.enabled,
+            stats_logging_interval=cache_config.stats.log_interval,
+        )
 
-        cache = manager.get_cache_for_model("test_model")
         self.assertIsNotNone(cache)
         self.assertTrue(cache.track_stats)
         self.assertTrue(cache.supports_stats_logging())
@@ -1079,48 +715,19 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
 
     def test_cache_config_default_stats(self):
         """Test cache configuration with default stats settings."""
-        from nemoguardrails.library.content_safety.manager import ContentSafetyManager
-        from nemoguardrails.rails.llm.config import ModelCacheConfig, ModelConfig
+        from nemoguardrails.rails.llm.config import ModelCacheConfig
 
         cache_config = ModelCacheConfig(enabled=True)
 
-        model_config = ModelConfig(cache=cache_config)
-        manager = ContentSafetyManager(model_config)
+        cache = LFUCache(
+            capacity=cache_config.capacity_per_model,
+            track_stats=cache_config.stats.enabled,
+            stats_logging_interval=None,
+        )
 
-        cache = manager.get_cache_for_model("test_model")
         self.assertIsNotNone(cache)
         self.assertFalse(cache.track_stats)  # Default is disabled
         self.assertFalse(cache.supports_stats_logging())
-
-    def test_cache_config_stats_with_persistence(self):
-        """Test cache configuration with both stats and persistence."""
-        from nemoguardrails.library.content_safety.manager import ContentSafetyManager
-        from nemoguardrails.rails.llm.config import (
-            CachePersistenceConfig,
-            CacheStatsConfig,
-            ModelCacheConfig,
-            ModelConfig,
-        )
-
-        cache_config = ModelCacheConfig(
-            enabled=True,
-            capacity_per_model=1000,
-            stats=CacheStatsConfig(enabled=True, log_interval=30.0),
-            persistence=CachePersistenceConfig(
-                enabled=True, interval=60.0, path=self.test_file
-            ),
-        )
-
-        model_config = ModelConfig(cache=cache_config)
-        manager = ContentSafetyManager(model_config)
-
-        cache = manager.get_cache_for_model("test_model")
-        self.assertIsNotNone(cache)
-        self.assertTrue(cache.track_stats)
-        self.assertTrue(cache.supports_stats_logging())
-        self.assertEqual(cache.stats_logging_interval, 30.0)
-        self.assertTrue(cache.supports_persistence())
-        self.assertEqual(cache.persistence_interval, 60.0)
 
     def test_cache_config_from_dict(self):
         """Test cache configuration creation from dictionary."""
@@ -1154,40 +761,6 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         stats3 = CacheStatsConfig(enabled=False, log_interval=60.0)
         self.assertFalse(stats3.enabled)
         self.assertEqual(stats3.log_interval, 60.0)
-
-    def test_multiple_model_caches_with_stats(self):
-        """Test multiple model caches each with their own stats configuration."""
-        from nemoguardrails.library.content_safety.manager import ContentSafetyManager
-        from nemoguardrails.rails.llm.config import (
-            CacheStatsConfig,
-            ModelCacheConfig,
-            ModelConfig,
-        )
-
-        cache_config = ModelCacheConfig(
-            enabled=True,
-            capacity_per_model=1000,
-            stats=CacheStatsConfig(enabled=True, log_interval=30.0),
-        )
-
-        model_config = ModelConfig(
-            cache=cache_config, model_mapping={"model_alias": "actual_model"}
-        )
-        manager = ContentSafetyManager(model_config)
-
-        # Get caches for different models
-        cache1 = manager.get_cache_for_model("model1")
-        cache2 = manager.get_cache_for_model("model2")
-        cache_alias = manager.get_cache_for_model("model_alias")
-        cache_actual = manager.get_cache_for_model("actual_model")
-
-        # All should have stats enabled
-        self.assertTrue(cache1.track_stats)
-        self.assertTrue(cache2.track_stats)
-        self.assertTrue(cache_alias.track_stats)
-
-        # Alias should resolve to same cache as actual
-        self.assertIs(cache_alias, cache_actual)
 
 
 class TestLFUCacheThreadSafety(unittest.TestCase):
@@ -1429,54 +1002,6 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_concurrent_persistence(self):
-        """Test thread safety of persistence operations."""
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
-            cache_file = f.name
-
-        try:
-            # Create cache with persistence
-            cache = LFUCache(
-                capacity=50,
-                track_stats=True,
-                persistence_interval=0.1,  # Short interval for testing
-                persistence_path=cache_file,
-            )
-
-            def worker(thread_id):
-                """Worker that performs operations."""
-                for i in range(20):
-                    cache.put(f"persist_key_{thread_id}_{i}", f"value_{thread_id}_{i}")
-                    cache.get(f"persist_key_{thread_id}_{i}")
-
-                    # Force persistence sometimes
-                    if i % 5 == 0:
-                        cache.persist_now()
-
-            # Run workers
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(worker, i) for i in range(5)]
-                for future in futures:
-                    future.result()
-
-            # Final persist
-            cache.persist_now()
-
-            # Load the persisted data
-            new_cache = LFUCache(
-                capacity=50, persistence_interval=1.0, persistence_path=cache_file
-            )
-
-            # Verify some data was persisted correctly
-            # (Due to capacity limits, not all items will be present)
-            self.assertGreater(new_cache.size(), 0)
-            self.assertLessEqual(new_cache.size(), 50)
-
-        finally:
-            # Clean up
-            if os.path.exists(cache_file):
-                os.unlink(cache_file)
-
     def test_thread_safe_size_operations(self):
         """Test that size-related operations are thread-safe."""
         results = []
@@ -1685,176 +1210,6 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         stats = small_cache.get_stats()
         self.assertGreater(stats["evictions"], 0)
         self.assertGreater(stats["puts"], 0)
-
-
-class TestContentSafetyManagerThreadSafety(unittest.TestCase):
-    """Test thread safety of ContentSafetyManager."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        # Create mock cache config
-        self.cache_config = MagicMock()
-        self.cache_config.enabled = True
-        self.cache_config.store = "memory"
-        self.cache_config.capacity_per_model = 100
-        self.cache_config.stats.enabled = True
-        self.cache_config.stats.log_interval = None
-        self.cache_config.persistence.enabled = False
-        self.cache_config.persistence.interval = None
-        self.cache_config.persistence.path = None
-
-        # Create mock model config
-        self.model_config = MagicMock()
-        self.model_config.cache = self.cache_config
-        self.model_config.model_mapping = {"alias_model": "actual_model"}
-
-    def test_concurrent_cache_creation(self):
-        """Test that concurrent cache creation returns the same instance."""
-        manager = ContentSafetyManager(self.model_config)
-        caches = []
-
-        def worker(thread_id):
-            """Worker that gets cache for model."""
-            cache = manager.get_cache_for_model("test_model")
-            caches.append((thread_id, cache))
-            return cache
-
-        # Run many threads to increase chance of race condition
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            futures = [executor.submit(worker, i) for i in range(20)]
-            for future in futures:
-                future.result()
-
-        # All caches should be the same instance
-        first_cache = caches[0][1]
-        for thread_id, cache in caches:
-            self.assertIs(
-                cache, first_cache, f"Thread {thread_id} got different cache instance"
-            )
-
-    def test_concurrent_multi_model_caches(self):
-        """Test concurrent access to caches for different models."""
-        manager = ContentSafetyManager(self.model_config)
-        results = []
-
-        def worker(thread_id):
-            """Worker that accesses multiple model caches."""
-            model_names = [f"model_{i}" for i in range(5)]
-
-            for model_name in model_names:
-                cache = manager.get_cache_for_model(model_name)
-
-                # Perform operations
-                key = f"thread_{thread_id}_key"
-                value = f"thread_{thread_id}_value"
-                cache.put(key, value)
-                retrieved = cache.get(key)
-
-                if retrieved != value:
-                    results.append(f"Mismatch for {model_name}: {retrieved} != {value}")
-
-        # Run workers
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(worker, i) for i in range(10)]
-            for future in futures:
-                future.result()
-
-        # Check for errors
-        self.assertEqual(len(results), 0, f"Errors found: {results}")
-
-    def test_concurrent_persist_all_caches(self):
-        """Test thread safety of persist_all_caches method."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create mock config with persistence
-            cache_config = MagicMock()
-            cache_config.enabled = True
-            cache_config.store = "memory"
-            cache_config.capacity_per_model = 50
-            cache_config.persistence.enabled = True
-            cache_config.persistence.interval = 1.0
-            cache_config.persistence.path = f"{temp_dir}/cache_{{model_name}}.json"
-            cache_config.stats.enabled = True
-            cache_config.stats.log_interval = None
-
-            model_config = MagicMock()
-            model_config.cache = cache_config
-            model_config.model_mapping = {}
-
-            manager = ContentSafetyManager(model_config)
-
-            # Create caches for multiple models
-            for i in range(5):
-                cache = manager.get_cache_for_model(f"model_{i}")
-                for j in range(10):
-                    cache.put(f"key_{j}", f"value_{j}")
-
-            persist_count = [0]
-
-            def persist_worker():
-                """Worker that calls persist_all_caches."""
-                manager.persist_all_caches()
-                persist_count[0] += 1
-
-            def modify_worker():
-                """Worker that modifies caches while persistence happens."""
-                for i in range(20):
-                    model_name = f"model_{i % 5}"
-                    cache = manager.get_cache_for_model(model_name)
-                    cache.put(f"new_key_{i}", f"new_value_{i}")
-                    time.sleep(0.001)
-
-            # Run persistence and modifications concurrently
-            threads = []
-
-            # Multiple persist threads
-            for _ in range(3):
-                t = threading.Thread(target=persist_worker)
-                threads.append(t)
-                t.start()
-
-            # Modification thread
-            t = threading.Thread(target=modify_worker)
-            threads.append(t)
-            t.start()
-
-            # Wait for all threads
-            for t in threads:
-                t.join()
-
-            # Verify persistence was called
-            self.assertEqual(persist_count[0], 3)
-
-    def test_model_alias_thread_safety(self):
-        """Test thread safety when using model aliases."""
-        manager = ContentSafetyManager(self.model_config)
-        caches = []
-
-        def worker(use_alias):
-            """Worker that gets cache using alias or actual name."""
-            if use_alias:
-                cache = manager.get_cache_for_model("alias_model")
-            else:
-                cache = manager.get_cache_for_model("actual_model")
-            caches.append(cache)
-
-        # Mix of threads using alias and actual name
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = []
-            for i in range(10):
-                use_alias = i % 2 == 0
-                futures.append(executor.submit(worker, use_alias))
-
-            for future in futures:
-                future.result()
-
-        # All should get the same cache instance
-        first_cache = caches[0]
-        for cache in caches:
-            self.assertIs(
-                cache,
-                first_cache,
-                "Alias and actual model should resolve to same cache",
-            )
 
 
 if __name__ == "__main__":

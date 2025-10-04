@@ -48,7 +48,6 @@ def _create_cache_key(prompt: Union[str, List[str]]) -> str:
 # Thread Safety Note:
 # The content safety caching mechanism is thread-safe for single-node deployments.
 # The underlying LFUCache uses threading.RLock to ensure atomic operations.
-# ContentSafetyManager uses double-checked locking for efficient cache creation.
 #
 # However, this implementation is NOT suitable for distributed environments.
 # For multi-node deployments, consider using distributed caching solutions
@@ -103,22 +102,19 @@ async def content_safety_check_input(
 
     max_tokens = max_tokens or _MAX_TOKENS
 
-    # Check cache if content safety manager is available for this model
+    # Check cache if available for this model
     cached_result = None
     cache_key = None
-    cache = None
 
-    # Try to get the model-specific content safety manager
-    content_safety_manager = kwargs.get(f"content_safety_manager_{model_name}")
+    # Try to get the model-specific cache
+    cache = kwargs.get(f"model_cache_{model_name}")
 
-    if content_safety_manager:
-        cache = content_safety_manager.get_cache()
-        if cache:
-            cache_key = _create_cache_key(check_input_prompt)
-            cached_result = cache.get(cache_key)
-            if cached_result is not None:
-                log.debug(f"Content safety cache hit for model '{model_name}'")
-                return cached_result
+    if cache:
+        cache_key = _create_cache_key(check_input_prompt)
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            log.debug(f"Content safety cache hit for model '{model_name}'")
+            return cached_result
 
     # Make the actual LLM call
     result = await llm_call(

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The content safety checks in `actions.py` now use an LFU (Least Frequently Used) cache to improve performance by avoiding redundant LLM calls for identical safety checks. The cache supports optional persistence to disk for resilience across restarts.
+The content safety checks in `actions.py` now use an LFU (Least Frequently Used) cache to improve performance by avoiding redundant LLM calls for identical safety checks.
 
 ## Implementation Details
 
@@ -14,7 +14,6 @@ The content safety checks in `actions.py` now use an LFU (Least Frequently Used)
 - Statistics tracking: Enabled by default
 - Tracks timestamps: `created_at` and `accessed_at` for each entry
 - Cache creation: Automatic when a model is first used
-- Persistence: Optional periodic save to disk with configurable interval
 
 ### Cached Functions
 
@@ -60,51 +59,6 @@ models_with_caches = list(_MODEL_CACHES.keys())
 if "llama_guard" in _MODEL_CACHES:
     stats = _MODEL_CACHES["llama_guard"].get_stats()
 ```
-
-### Persistence Configuration
-
-The cache supports optional persistence to disk for resilience across restarts:
-
-```yaml
-rails:
-  config:
-    content_safety:
-      cache:
-        enabled: true
-        capacity_per_model: 5000
-        persistence:
-          interval: 300.0  # Persist every 5 minutes
-          path: ./cache_{model_name}.json  # {model_name} is replaced
-```
-
-**Configuration Options:**
-
-- `persistence.interval`: Seconds between automatic saves (None = no persistence)
-- `persistence.path`: Where to save cache data (can include `{model_name}` placeholder)
-
-**How Persistence Works:**
-
-1. **Automatic Saves**: Cache checks trigger persistence if interval has passed
-2. **On Shutdown**: Caches are automatically persisted when LLMRails is closed or garbage collected
-3. **On Restart**: Cache loads from disk if persistence file exists
-4. **Preserves State**: Frequencies and access patterns are maintained
-5. **Per-Model Files**: Each model gets its own persistence file
-
-**Manual Persistence:**
-
-```python
-# Force immediate persistence of all caches
-content_safety_manager.persist_all_caches()
-```
-
-This is useful for graceful shutdown scenarios.
-
-**Notes on Persistence:**
-
-- Persistence only works with "memory" store type
-- Cache files are JSON format for easy inspection and debugging
-- Set `persistence.interval` to None to disable persistence
-- The cache automatically persists on each check if the interval has passed
 
 ### Statistics and Monitoring
 
@@ -175,24 +129,19 @@ if "safety_model" in _MODEL_CACHES:
 ```python
 from nemoguardrails import RailsConfig, LLMRails
 
-# Method 1: Using context manager (recommended - ensures cleanup)
+# Method 1: Using context manager
 config = RailsConfig.from_path("./config.yml")
 with LLMRails(config) as rails:
-    # Content safety checks will be cached and persisted automatically
+    # Content safety checks will be cached automatically
     response = await rails.generate_async(
         messages=[{"role": "user", "content": "Hello, how are you?"}]
     )
-# Caches are automatically persisted on exit
 
-# Method 2: Manual cleanup
+# Method 2: Direct usage
 rails = LLMRails(config)
 response = await rails.generate_async(
     messages=[{"role": "user", "content": "Hello, how are you?"}]
 )
-rails.close()  # Manually persist caches
-
-# Note: If neither method is used, caches will still be persisted
-# when the object is garbage collected (__del__)
 ```
 
 ### Thread Safety
@@ -207,7 +156,6 @@ The content safety caching system is **thread-safe** for single-node deployments
 2. **ContentSafetyManager**:
    - Thread-safe cache creation using double-checked locking pattern
    - Ensures only one cache instance per model across all threads
-   - Thread-safe persistence operations
 
 3. **Key Features**:
    - **No Data Corruption**: Concurrent operations maintain data integrity
@@ -231,9 +179,8 @@ The content safety caching system is **thread-safe** for single-node deployments
 5. **Model Isolation**: Each model has its own cache, preventing interference between different safety models
 6. **Statistics Tracking**: Monitor cache performance with hit rates, evictions, and more per model
 7. **Timestamp Tracking**: Track when entries were created and last accessed
-8. **Resilience**: Cache survives process restarts without losing data when persistence is enabled
-9. **Efficiency**: LFU eviction algorithm ensures the most useful entries remain in cache
-10. **Thread Safety**: Safe for concurrent access in multi-threaded environments
+8. **Efficiency**: LFU eviction algorithm ensures the most useful entries remain in cache
+9. **Thread Safety**: Safe for concurrent access in multi-threaded environments
 
 ### Example Usage Pattern
 

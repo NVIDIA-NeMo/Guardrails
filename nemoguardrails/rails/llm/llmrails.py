@@ -131,7 +131,7 @@ class LLMRails:
         self.config = config
         self.llm = llm
         self.verbose = verbose
-        self._content_safety_managers = {}
+        self._model_caches = {}
 
         if self.verbose:
             set_verbose(True, llm_calls=True)
@@ -501,7 +501,7 @@ class LLMRails:
                     kwargs=kwargs,
                 )
 
-                # If the model is a content safety model, we need to create a ContentSafetyManager for it
+                # Configure the model based on its type
                 if llm_config.type == "main":
                     # If a main LLM was already injected, skip creating another
                     # one. Otherwise, create and register it.
@@ -529,32 +529,44 @@ class LLMRails:
 
         # Register content safety managers if content safety features are used
         if self._has_content_safety_rails():
-            from nemoguardrails.library.content_safety.manager import (
-                ContentSafetyManager,
-            )
+            from nemoguardrails.cache.lfu import LFUCache
 
-            # Create a ContentSafetyManager for each content safety model
+            # Create a cache for each content safety model
             for model in self.config.models:
                 if model.type not in ["main", "embeddings"]:
-                    # Use model's cache config if available, otherwise None (no caching)
-                    cache_config = model.cache
+                    cache = None
 
-                    manager = ContentSafetyManager(
-                        model_name=model.type, cache_config=cache_config
-                    )
+                    # Create cache if configured
+                    if model.cache and model.cache.enabled:
+                        if model.cache.store == "memory":
+                            stats_logging_interval = None
+                            if (
+                                model.cache.stats.enabled
+                                and model.cache.stats.log_interval is not None
+                            ):
+                                stats_logging_interval = model.cache.stats.log_interval
 
-                    self._content_safety_managers[model.type] = manager
+                            cache = LFUCache(
+                                capacity=model.cache.capacity_per_model,
+                                track_stats=model.cache.stats.enabled,
+                                stats_logging_interval=stats_logging_interval,
+                            )
 
-                    # Register the manager for this specific model
+                            log.info(
+                                f"Created cache for model '{model.type}' with capacity {model.cache.capacity_per_model}"
+                            )
+
+                    # Register the cache for this specific model
                     self.runtime.register_action_param(
-                        f"content_safety_manager_{model.type}", manager
+                        f"model_cache_{model.type}", cache
                     )
+
+                    if cache:
+                        self._model_caches[model.type] = cache
 
                     log.info(
-                        f"Initialized ContentSafetyManager for model '{model.type}' with cache %s",
-                        "enabled"
-                        if cache_config and cache_config.enabled
-                        else "disabled",
+                        f"Initialized content safety for model '{model.type}' with cache %s",
+                        "enabled" if cache else "disabled",
                     )
 
     def _get_embeddings_search_provider_instance(
@@ -1804,14 +1816,11 @@ class LLMRails:
                     yield chunk
 
     def close(self):
-        """Properly close and clean up resources, including persisting caches."""
-        if self._content_safety_managers:
-            log.info("Persisting content safety caches on close")
-            for model_name, manager in self._content_safety_managers.items():
-                manager.persist_cache()
+        """Properly close and clean up resources."""
+        pass
 
     def __del__(self):
-        """Ensure caches are persisted when the object is garbage collected."""
+        """Clean up resources when the object is garbage collected."""
         try:
             self.close()
         except Exception as e:
