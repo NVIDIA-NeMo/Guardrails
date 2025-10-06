@@ -86,8 +86,6 @@ The LLM should have no ability to access any authentication information for exte
 
 Integrating LLMs with external resources is inherently an exercise in API security. When designing these interfaces, early and timely involvement with security experts can reduce the risk associated with these interfaces as well as speed development.
 
-Like with a web server, red-teaming and testing at the scale of the web is a requirement to approach an industry-grade solution. Exposing the API at zero cost and minimal API key registration friction is a necessity to exercise the scale, robustness, and moderation capabilities of the system.
-
 ## Adversarial testing
 
 AI safety and security is a community effort, and this is one of the main reasons we have released NeMo Guardrails to the community. We hope to bring many developers and enthusiasts together to build better solutions for Trustworthy AI. Our initial release is a starting point. We have built a collection of guardrails and educational examples that provide helpful controls and resist a variety of common attacks, however, they are not perfect. We have conducted adversarial testing on these example bots and will soon release a whitepaper on a larger-scale study. Here are some items to watch out for when creating your own bots:
