@@ -50,6 +50,7 @@ from nemoguardrails.actions.llm.utils import (
 )
 from nemoguardrails.actions.output_mapping import is_output_blocked
 from nemoguardrails.actions.v2_x.generation import LLMGenerationActionsV2dotx
+from nemoguardrails.cache.lfu import LFUCache
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute_context
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
@@ -527,47 +528,41 @@ class LLMRails:
 
         self.runtime.register_action_param("llms", llms)
 
-        # Register content safety managers if content safety features are used
-        if self._has_content_safety_rails():
-            from nemoguardrails.cache.lfu import LFUCache
+        # Create cache per model
+        for model in self.config.models:
+            if model.type not in ["main", "embeddings"]:
+                cache = None
 
-            # Create a cache for each content safety model
-            for model in self.config.models:
-                if model.type not in ["main", "embeddings"]:
-                    cache = None
+                # Create cache if configured
+                if model.cache and model.cache.enabled:
+                    if model.cache.store == "memory":
+                        stats_logging_interval = None
+                        if (
+                            model.cache.stats.enabled
+                            and model.cache.stats.log_interval is not None
+                        ):
+                            stats_logging_interval = model.cache.stats.log_interval
 
-                    # Create cache if configured
-                    if model.cache and model.cache.enabled:
-                        if model.cache.store == "memory":
-                            stats_logging_interval = None
-                            if (
-                                model.cache.stats.enabled
-                                and model.cache.stats.log_interval is not None
-                            ):
-                                stats_logging_interval = model.cache.stats.log_interval
+                        cache = LFUCache(
+                            capacity=model.cache.capacity_per_model,
+                            track_stats=model.cache.stats.enabled,
+                            stats_logging_interval=stats_logging_interval,
+                        )
 
-                            cache = LFUCache(
-                                capacity=model.cache.capacity_per_model,
-                                track_stats=model.cache.stats.enabled,
-                                stats_logging_interval=stats_logging_interval,
-                            )
+                        log.info(
+                            f"Created cache for model '{model.type}' with capacity {model.cache.capacity_per_model}"
+                        )
 
-                            log.info(
-                                f"Created cache for model '{model.type}' with capacity {model.cache.capacity_per_model}"
-                            )
+                # Register the cache for this specific model
+                self.runtime.register_action_param(f"model_cache_{model.type}", cache)
 
-                    # Register the cache for this specific model
-                    self.runtime.register_action_param(
-                        f"model_cache_{model.type}", cache
-                    )
+                if cache:
+                    self._model_caches[model.type] = cache
 
-                    if cache:
-                        self._model_caches[model.type] = cache
-
-                    log.info(
-                        f"Initialized content safety for model '{model.type}' with cache %s",
-                        "enabled" if cache else "disabled",
-                    )
+                log.info(
+                    f"Initialized model '{model.type}' with cache %s",
+                    "enabled" if cache else "disabled",
+                )
 
     def _get_embeddings_search_provider_instance(
         self, esp_config: Optional[EmbeddingSearchProvider] = None
@@ -1520,16 +1515,6 @@ class LLMRails:
         """
         register_embedding_provider(engine_name=name, model=cls)
         return self
-
-    def _has_content_safety_rails(self) -> bool:
-        """Check if any content safety rails are configured in flows.
-        At the moment, we only support content safety manager in input flows.
-        """
-        flows = self.config.rails.input.flows
-        for flow in flows:
-            if "content safety check input" in flow:
-                return True
-        return False
 
     def explain(self) -> ExplainInfo:
         """Helper function to return the latest ExplainInfo object."""
