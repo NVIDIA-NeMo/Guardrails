@@ -972,7 +972,16 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         self.assertEqual(result, "computed_value_1")
 
     def test_get_or_compute_exception_handling(self):
-        """Test get_or_compute handles exceptions properly."""
+        """Test get_or_compute handles exceptions properly.
+
+        NOTE: This test will produce "ValueError: Computation failed" messages in the test output.
+        These are EXPECTED and NORMAL - the test intentionally triggers failures to verify
+        that the cache handles exceptions correctly. Each of the 5 workers will generate one
+        error message, but all workers should receive the fallback value successfully.
+        """
+        # Optional: Uncomment to see a message before the expected errors
+        # print("\n[test_get_or_compute_exception_handling] Note: The following 5 'ValueError: Computation failed' messages are expected...")
+
         call_count = [0]
 
         async def failing_compute():

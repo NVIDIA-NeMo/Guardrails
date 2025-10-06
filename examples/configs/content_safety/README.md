@@ -10,6 +10,13 @@ This example demonstrates how to configure content safety rails with NeMo Guardr
 - **Per-Model Caching**: Optional caching with configurable settings per model
 - **Multiple Models**: Support for different content safety models with different configurations
 
+## Folder Structure
+
+The structure of the config folder is the following:
+
+- `config.yml` - The main configuration file with model definitions, rails configuration, and cache settings
+- `prompts.yml` - Contains the content safety prompt templates used by the safety models to evaluate content
+
 ## Configuration Overview
 
 ### Basic Configuration
@@ -77,9 +84,9 @@ By default, caching is **disabled**. Models without cache configuration will hav
 
 ```yaml
 models:
-  - type: shieldgemma
-    engine: google
-    model: google/shieldgemma-2b
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
     # No cache config = no caching (default)
 ```
 
@@ -126,6 +133,8 @@ This makes it suitable for:
 # From the NeMo-Guardrails root directory
 nemoguardrails server --config examples/configs/content_safety/
 ```
+
+Please see the docs for more details about the [recommended ContentSafety deployment](./../../../docs/user-guides/advanced/nemoguard-contentsafety-deployment.md) methods, either using locally downloaded NIMs or NVIDIA AI Enterprise (NVAIE).
 
 ## Benefits
 
