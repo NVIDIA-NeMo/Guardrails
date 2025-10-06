@@ -1,4 +1,3 @@
-# Default content safety prompts for nvidia/llama-3.1-nemoguard-8b-content-safety
 # These are the default prompts released by Meta, except for policy O7, which was added to address direct insults.
 prompts:
   - task: content_safety_check_input $model=content_safety

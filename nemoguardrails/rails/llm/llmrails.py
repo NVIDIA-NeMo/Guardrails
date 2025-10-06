@@ -132,7 +132,6 @@ class LLMRails:
         self.config = config
         self.llm = llm
         self.verbose = verbose
-        self._model_caches = {}
 
         if self.verbose:
             set_verbose(True, llm_calls=True)
@@ -555,9 +554,6 @@ class LLMRails:
 
                 # Register the cache for this specific model
                 self.runtime.register_action_param(f"model_cache_{model.type}", cache)
-
-                if cache:
-                    self._model_caches[model.type] = cache
 
                 log.info(
                     f"Initialized model '{model.type}' with cache %s",
@@ -1799,24 +1795,3 @@ class LLMRails:
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
-
-    def close(self):
-        """Properly close and clean up resources."""
-        pass
-
-    def __del__(self):
-        """Clean up resources when the object is garbage collected."""
-        try:
-            self.close()
-        except Exception as e:
-            # Silently fail in destructor to avoid issues during shutdown
-            log.debug(f"Error during LLMRails cleanup: {e}")
-
-    def __enter__(self):
-        """Context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - ensure cleanup."""
-        self.close()
-        return False
