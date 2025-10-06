@@ -14,6 +14,11 @@ You'll need to set the following env variables to work with  Cisco AI Defense:
 
 ```yaml
 rails:
+  config:
+    ai_defense:
+      timeout: 30.0
+      fail_open: false
+
   input:
     flows:
       - ai defense inspect prompt
@@ -24,6 +29,17 @@ rails:
 ```
 
 Don't forget to set the `AI_DEFENSE_API_ENDPOINT` and `AI_DEFENSE_API_KEY` environment variables.
+
+### Configuration Options
+
+The AI Defense integration supports the following configuration options under `rails.config.ai_defense`:
+
+- **`timeout`** (float, default: 30.0): Timeout in seconds for API requests to the AI Defense service.
+- **`fail_open`** (boolean, default: false): Determines the behavior when AI Defense API calls fail:
+  - `false` (fail closed): Block content when API calls fail or return malformed responses
+  - `true` (fail open): Allow content when API calls fail or return malformed responses
+
+**Note**: Configuration validation failures (missing API key or endpoint) will always block content regardless of the `fail_open` setting.
 
 ## Usage
 
@@ -36,7 +52,18 @@ The `ai_defense_inspect` action in `nemoguardrails/library/ai_defense/actions.py
 
 ## Error Handling
 
-If the Cisco AI Defense API request fails, it will operate in a fail-open mode (not blocking the prompt/response).
+The AI Defense integration provides configurable error handling through the `fail_open` setting:
+
+- **Fail Closed (default)**: When `fail_open: false`, API failures and malformed responses will block the content (conservative approach)
+- **Fail Open**: When `fail_open: true`, API failures and malformed responses will allow the content to proceed
+
+This allows you to choose between security (fail closed) and availability (fail open) based on your requirements.
+
+### Error Scenarios
+
+1. **API Failures** (network errors, timeouts, HTTP errors): Behavior determined by `fail_open` setting
+2. **Malformed Responses** (missing required fields): Behavior determined by `fail_open` setting
+3. **Configuration Errors** (missing API key/endpoint): Always fail closed regardless of `fail_open` setting
 
 ## Notes
 

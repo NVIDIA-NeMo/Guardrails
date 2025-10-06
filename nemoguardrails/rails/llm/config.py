@@ -897,6 +897,20 @@ class TrendMicroRailConfig(BaseModel):
         return None
 
 
+class AIDefenseRailConfig(BaseModel):
+    """Configuration data for the Cisco AI Defense API"""
+
+    timeout: float = Field(
+        default=30.0,
+        description="Timeout in seconds for API requests to AI Defense service",
+    )
+
+    fail_open: bool = Field(
+        default=False,
+        description="If True, allow content when AI Defense API call fails (fail open). If False, block content when API call fails (fail closed). Does not affect missing configuration validation.",
+    )
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -958,6 +972,11 @@ class RailsConfigData(BaseModel):
     trend_micro: Optional[TrendMicroRailConfig] = Field(
         default_factory=TrendMicroRailConfig,
         description="Configuration for Trend Micro.",
+    )
+
+    ai_defense: Optional[AIDefenseRailConfig] = Field(
+        default_factory=AIDefenseRailConfig,
+        description="Configuration for Cisco AI Defense.",
     )
 
 

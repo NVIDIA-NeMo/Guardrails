@@ -938,7 +938,7 @@ rails:
 
 For more details, check out the [Trend Micro Vision One AI Application Security](./community/trend-micro.md) page.
 
-### Cisco AI Defense Protection
+### Cisco AI Defense
 
 NeMo Guardrails supports using [Cisco AI Defense Inspection](https://www.cisco.com/site/us/en/products/security/ai-defense/index.html?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output flows.
 

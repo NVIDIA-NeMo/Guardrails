@@ -662,25 +662,25 @@ def test_ai_defense_input_flow_passes_user_message_to_action():
 
 # Unit tests for AI Defense actions
 @pytest.mark.unit
-def test_ai_defense_text_mapping():
-    """Test the ai_defense_text_mapping function."""
-    from nemoguardrails.library.ai_defense.actions import ai_defense_text_mapping
+def test_is_ai_defense_text_blocked():
+    """Test the is_ai_defense_text_blocked function."""
+    from nemoguardrails.library.ai_defense.actions import is_ai_defense_text_blocked
 
     # Test blocked response
     result = {"is_blocked": True}
-    assert ai_defense_text_mapping(result) is True
+    assert is_ai_defense_text_blocked(result) is True
 
     # Test safe response
     result = {"is_blocked": False}
-    assert ai_defense_text_mapping(result) is False
+    assert is_ai_defense_text_blocked(result) is False
 
     # Test missing is_blocked key (should default to True/blocked)
     result = {}
-    assert ai_defense_text_mapping(result) is True
+    assert is_ai_defense_text_blocked(result) is True
 
     # Test with additional fields
     result = {"is_blocked": False, "is_safe": True, "rules": []}
-    assert ai_defense_text_mapping(result) is False
+    assert is_ai_defense_text_blocked(result) is False
 
 
 @pytest.mark.unit
@@ -701,10 +701,13 @@ async def test_ai_defense_inspect_missing_api_key():
             del os.environ["AI_DEFENSE_API_KEY"]
         os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com"
 
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
         with pytest.raises(
             ValueError, match="AI_DEFENSE_API_KEY environment variable not set"
         ):
-            await ai_defense_inspect(user_prompt="test")
+            await ai_defense_inspect(config, user_prompt="test")
     finally:
         # Restore original values
         if original_api_key:
@@ -735,10 +738,13 @@ async def test_ai_defense_inspect_missing_endpoint():
         if "AI_DEFENSE_API_ENDPOINT" in os.environ:
             del os.environ["AI_DEFENSE_API_ENDPOINT"]
 
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
         with pytest.raises(
             ValueError, match="AI_DEFENSE_API_ENDPOINT environment variable not set"
         ):
-            await ai_defense_inspect(user_prompt="test")
+            await ai_defense_inspect(config, user_prompt="test")
     finally:
         # Restore original values
         if original_api_key:
@@ -768,10 +774,13 @@ async def test_ai_defense_inspect_missing_input():
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
         os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com"
 
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
         with pytest.raises(
             ValueError, match="Either user_prompt or bot_response must be provided"
         ):
-            await ai_defense_inspect()
+            await ai_defense_inspect(config)
     finally:
         # Restore original values
         if original_api_key:
@@ -811,7 +820,10 @@ async def test_ai_defense_inspect_user_prompt_success(httpx_mock):
             status_code=200,
         )
 
-        result = await ai_defense_inspect(user_prompt="Hello, how are you?")
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
+        result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
 
         assert result["is_blocked"] is False
         assert result["is_safe"] is True
@@ -876,8 +888,11 @@ async def test_ai_defense_inspect_bot_response_blocked(httpx_mock):
             status_code=200,
         )
 
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
         result = await ai_defense_inspect(
-            bot_response="Yes, I can teach you how to build a bomb"
+            config, bot_response="Yes, I can teach you how to build a bomb"
         )
 
         assert result["is_blocked"] is True
@@ -932,7 +947,12 @@ async def test_ai_defense_inspect_with_user_metadata(httpx_mock):
             status_code=200,
         )
 
-        result = await ai_defense_inspect(user_prompt="Hello", user="test_user_123")
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
+        result = await ai_defense_inspect(
+            config, user_prompt="Hello", user="test_user_123"
+        )
 
         assert result["is_blocked"] is False
         assert result["is_safe"] is True
@@ -985,8 +1005,11 @@ async def test_ai_defense_inspect_http_error(httpx_mock):
             text="Unauthorized",
         )
 
+        # Create a minimal config for the test
+        config = RailsConfig.from_content(yaml_content="models: []")
+
         with pytest.raises(ValueError, match="Error calling AI Defense API:"):
-            await ai_defense_inspect(user_prompt="test")
+            await ai_defense_inspect(config, user_prompt="test")
 
     finally:
         # Restore original values
@@ -1027,11 +1050,355 @@ async def test_ai_defense_inspect_default_safe_response(httpx_mock):
             status_code=200,
         )
 
-        result = await ai_defense_inspect(user_prompt="Hello")
+        # Create a minimal config with no fail_open setting to test default behavior
+        config = RailsConfig.from_content(yaml_content="models: []")
 
-        # Should default to safe when is_safe is missing
+        result = await ai_defense_inspect(config, user_prompt="Hello")
+
+        # Should default to blocked when is_safe is missing and fail_open is not configured (defaults to False)
+        assert result["is_blocked"] is True
+        assert result["is_safe"] is False
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+# Configuration Tests
+def test_ai_defense_config_timeout_default():
+    """Test that default timeout configuration is used correctly."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense: {}
+        """,
+    )
+    ai_defense_config = getattr(config.rails.config, "ai_defense", None)
+    assert ai_defense_config is not None
+    assert ai_defense_config.timeout == 30.0  # DEFAULT_TIMEOUT
+
+
+def test_ai_defense_config_timeout_custom():
+    """Test that custom timeout configuration is used correctly."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  timeout: 15.0
+        """,
+    )
+    ai_defense_config = getattr(config.rails.config, "ai_defense", None)
+    assert ai_defense_config is not None
+    assert ai_defense_config.timeout == 15.0
+
+
+def test_ai_defense_config_fail_open_default():
+    """Test that default fail_open (False) configuration works."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense: {}
+        """,
+    )
+    ai_defense_config = getattr(config.rails.config, "ai_defense", None)
+    assert ai_defense_config is not None
+    assert ai_defense_config.fail_open is False
+
+
+def test_ai_defense_config_fail_open_true():
+    """Test that fail_open=True configuration works."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: true
+        """,
+    )
+    ai_defense_config = getattr(config.rails.config, "ai_defense", None)
+    assert ai_defense_config is not None
+    assert ai_defense_config.fail_open is True
+
+
+def test_ai_defense_config_combined():
+    """Test that both timeout and fail_open configuration work together."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  timeout: 45.0
+                  fail_open: true
+        """,
+    )
+    ai_defense_config = getattr(config.rails.config, "ai_defense", None)
+    assert ai_defense_config is not None
+    assert ai_defense_config.timeout == 45.0
+    assert ai_defense_config.fail_open is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_inspect_api_failure_fail_closed(httpx_mock):
+    """Test API failure with fail_open=False (default) - should raise ValueError."""
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: false
+        """,
+    )
+
+    # Save original values
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        # Set required environment variables
+        os.environ["AI_DEFENSE_API_KEY"] = "test-key"
+        os.environ[
+            "AI_DEFENSE_API_ENDPOINT"
+        ] = "https://test.example.com/api/v1/inspect/chat"
+
+        # Mock API failure (500 error)
+        httpx_mock.add_response(
+            method="POST",
+            url="https://test.example.com/api/v1/inspect/chat",
+            status_code=500,
+        )
+
+        with pytest.raises(ValueError, match="Error calling AI Defense API"):
+            await ai_defense_inspect(config, user_prompt="Hello, how are you?")
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_inspect_api_failure_fail_open(httpx_mock):
+    """Test API failure with fail_open=True - should return safe result."""
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: true
+        """,
+    )
+
+    # Save original values
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        # Set required environment variables
+        os.environ["AI_DEFENSE_API_KEY"] = "test-key"
+        os.environ[
+            "AI_DEFENSE_API_ENDPOINT"
+        ] = "https://test.example.com/api/v1/inspect/chat"
+
+        # Mock API failure (500 error)
+        httpx_mock.add_response(
+            method="POST",
+            url="https://test.example.com/api/v1/inspect/chat",
+            status_code=500,
+        )
+
+        result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
+
+        # Should return safe result when fail_open=True
         assert result["is_blocked"] is False
         assert result["is_safe"] is True
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_inspect_malformed_response_fail_closed(httpx_mock):
+    """Test malformed response (missing is_safe) with fail_open=False."""
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: false
+        """,
+    )
+
+    # Save original values
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        # Set required environment variables
+        os.environ["AI_DEFENSE_API_KEY"] = "test-key"
+        os.environ[
+            "AI_DEFENSE_API_ENDPOINT"
+        ] = "https://test.example.com/api/v1/inspect/chat"
+
+        # Mock malformed response (missing is_safe field)
+        httpx_mock.add_response(
+            method="POST",
+            url="https://test.example.com/api/v1/inspect/chat",
+            json={"rules": []},  # Missing is_safe field
+            status_code=200,
+        )
+
+        result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
+
+        # Should block content when fail_open=False and response is malformed
+        assert result["is_blocked"] is True
+        assert result["is_safe"] is False
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_inspect_malformed_response_fail_open(httpx_mock):
+    """Test malformed response (missing is_safe) with fail_open=True."""
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: true
+        """,
+    )
+
+    # Save original values
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        # Set required environment variables
+        os.environ["AI_DEFENSE_API_KEY"] = "test-key"
+        os.environ[
+            "AI_DEFENSE_API_ENDPOINT"
+        ] = "https://test.example.com/api/v1/inspect/chat"
+
+        # Mock malformed response (missing is_safe field)
+        httpx_mock.add_response(
+            method="POST",
+            url="https://test.example.com/api/v1/inspect/chat",
+            json={"rules": []},  # Missing is_safe field
+            status_code=200,
+        )
+
+        result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
+
+        # Should allow content when fail_open=True and response is malformed
+        assert result["is_blocked"] is False
+        assert result["is_safe"] is True
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_inspect_config_validation_always_fails():
+    """Test that config validation failures (missing API key) always raise ValueError regardless of fail_open."""
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: true  # Even with fail_open=True, config validation should fail
+        """,
+    )
+
+    # Save original values
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        # Remove API key to test validation failure
+        if "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com"
+
+        with pytest.raises(
+            ValueError, match="AI_DEFENSE_API_KEY environment variable not set"
+        ):
+            await ai_defense_inspect(config, user_prompt="test")
 
     finally:
         # Restore original values
