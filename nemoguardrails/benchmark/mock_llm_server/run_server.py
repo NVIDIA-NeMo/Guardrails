@@ -86,6 +86,9 @@ def main():
             "No CONFIG_FILE environment variable set, or --config-file CLI argument"
         )
 
+    if not (os.path.exists(config_file) and os.path.isfile(config_file)):
+        raise RuntimeError(f"Can't open {config_file}")
+
     log.info("Using config file: %s", config_file)
     os.environ[CONFIG_FILE_ENV_VAR] = config_file
 
