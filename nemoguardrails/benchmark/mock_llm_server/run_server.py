@@ -22,12 +22,18 @@ This script starts the FastAPI server with configurable host and port settings.
 
 import argparse
 import logging
+import os
 import sys
 
 import uvicorn
+import yaml
 from uvicorn.logging import AccessFormatter
 
-from nemoguardrails.benchmark.mock_llm_server.config import get_config, load_config
+from nemoguardrails.benchmark.mock_llm_server.config import (
+    CONFIG_FILE_ENV_VAR,
+    ModelSettings,
+    get_settings,
+)
 
 # 1. Get a logger instance
 log = logging.getLogger(__name__)
@@ -74,26 +80,29 @@ def main():
 
     args = parser.parse_args()
 
-    # Load model configuration
-    load_config(args.config_file)
-    model_config = get_config()
+    config_file = os.environ.get("CONFIG_FILE", args.config_file)
+    if not config_file:
+        raise RuntimeError(
+            "No CONFIG_FILE environment variable set, or --config-file CLI argument"
+        )
 
-    # Import the app after configuration is loaded. This caches the values in the app Dependencies
-    from nemoguardrails.benchmark.mock_llm_server.api import app
+    log.info("Using config file: %s", config_file)
+    os.environ[CONFIG_FILE_ENV_VAR] = config_file
 
     log.info(f"Starting Mock LLM Server on {args.host}:{args.port}")
     log.info(f"OpenAPI docs available at: http://{args.host}:{args.port}/docs")
     log.info(f"Health check at: http://{args.host}:{args.port}/health")
-    log.info(f"Model configuration: {model_config}")
+    log.info(f"Serving model with config {config_file}")
     log.info("Press Ctrl+C to stop the server")
 
     try:
         uvicorn.run(
-            app=app,
+            "api:app",
             host=args.host,
             port=args.port,
             reload=args.reload,
             log_level=args.log_level,
+            env_file=config_file,
         )
     except KeyboardInterrupt:
         log.info("\nServer stopped by user")

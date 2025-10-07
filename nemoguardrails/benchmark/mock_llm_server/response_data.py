@@ -20,7 +20,7 @@ from typing import Optional
 
 import numpy as np
 
-from nemoguardrails.benchmark.mock_llm_server.config import AppModelConfig, get_config
+from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings
 
 
 def generate_id(prefix: str = "chatcmpl") -> str:
@@ -33,7 +33,7 @@ def calculate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def get_response(config: AppModelConfig, seed: Optional[int] = None) -> str:
+def get_response(config: ModelSettings, seed: Optional[int] = None) -> str:
     """Get a dummy /completion or /chat/completion response."""
 
     if is_unsafe(config, seed):
@@ -41,7 +41,7 @@ def get_response(config: AppModelConfig, seed: Optional[int] = None) -> str:
     return config.safe_text
 
 
-def get_latency_seconds(config: AppModelConfig, seed: Optional[int] = None) -> float:
+def get_latency_seconds(config: ModelSettings, seed: Optional[int] = None) -> float:
     """Sample latency for this request using the model's config
     Very inefficient to generate each sample singly rather than in batch
     """
@@ -62,7 +62,7 @@ def get_latency_seconds(config: AppModelConfig, seed: Optional[int] = None) -> f
     return float(latency_seconds)
 
 
-def is_unsafe(config: AppModelConfig, seed: Optional[int] = None) -> bool:
+def is_unsafe(config: ModelSettings, seed: Optional[int] = None) -> bool:
     """Check if the model should return a refusal
     Very inefficient to generate each sample singly rather than in batch
     """

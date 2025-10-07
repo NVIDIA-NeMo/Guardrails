@@ -15,14 +15,23 @@
 
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+CONFIG_FILE_ENV_VAR = "MOCK_LLM_CONFIG_FILE"
+config_file_path = os.getenv(CONFIG_FILE_ENV_VAR, "model_settings.yml")
+CONFIG_FILE = Path(config_file_path)
 
 
-class AppModelConfig(BaseModel):
+class ModelSettings(BaseSettings):
     """Pydantic model to configure the Mock LLM Server."""
 
     # Mandatory fields
@@ -49,20 +58,11 @@ class AppModelConfig(BaseModel):
         default=0.1, description="Standard deviation of response time"
     )
 
-
-settings: Optional[AppModelConfig] = None
-
-
-def load_config(yaml_file: str) -> None:
-    """Load the Model configuration from YAML file, store in global `settings` var"""
-    global settings
-    with open(yaml_file, "r") as f:
-        config_data = yaml.safe_load(f)
-    settings = AppModelConfig(**config_data)
+    model_config = SettingsConfigDict(env_file=CONFIG_FILE)
 
 
-def get_config() -> AppModelConfig:
-    """FastAPI Dependency to inject model configuration"""
-    if settings is None:
-        raise RuntimeError("No configuration loaded")
+def get_settings() -> ModelSettings:
+    """Singleton-pattern to get settings once via lru_cache"""
+    settings = ModelSettings()
+    print("Returning ModelSettings: %s", settings)
     return settings

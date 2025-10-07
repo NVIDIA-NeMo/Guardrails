@@ -21,7 +21,10 @@ from typing import Annotated, Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
-from nemoguardrails.benchmark.mock_llm_server.config import AppModelConfig, get_config
+from nemoguardrails.benchmark.mock_llm_server.config import (  # get_config,
+    ModelSettings,
+    get_settings,
+)
 from nemoguardrails.benchmark.mock_llm_server.models import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -59,11 +62,11 @@ console_handler.setFormatter(formatter)
 log.addHandler(console_handler)
 
 
-ModelConfigDep = Annotated[AppModelConfig, Depends(get_config)]
+ModelSettingsDep = Annotated[ModelSettings, Depends(get_settings)]
 
 
 def _validate_request_model(
-    config: ModelConfigDep,
+    config: ModelSettingsDep,
     request: Union[CompletionRequest, ChatCompletionRequest],
 ) -> None:
     """Check the Completion or Chat Completion `model` field is in our supported model list"""
@@ -100,7 +103,7 @@ async def log_http_duration(request: Request, call_next):
 
 
 @app.get("/")
-async def root(config: ModelConfigDep):
+async def root(config: ModelSettingsDep):
     """Root endpoint with basic server information."""
     return {
         "message": "Mock LLM Server",
@@ -112,7 +115,7 @@ async def root(config: ModelConfigDep):
 
 
 @app.get("/v1/models", response_model=ModelsResponse)
-async def list_models(config: ModelConfigDep):
+async def list_models(config: ModelSettingsDep):
     """List available models."""
     log.debug("/v1/models request")
 
@@ -126,7 +129,7 @@ async def list_models(config: ModelConfigDep):
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(
-    request: ChatCompletionRequest, config: ModelConfigDep
+    request: ChatCompletionRequest, config: ModelSettingsDep
 ) -> ChatCompletionResponse:
     """Create a chat completion."""
 
@@ -176,7 +179,7 @@ async def chat_completions(
 
 @app.post("/v1/completions", response_model=CompletionResponse)
 async def completions(
-    request: CompletionRequest, config: ModelConfigDep
+    request: CompletionRequest, config: ModelSettingsDep
 ) -> CompletionResponse:
     """Create a text completion."""
 
