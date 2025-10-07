@@ -63,6 +63,6 @@ class ModelSettings(BaseSettings):
 
 def get_settings() -> ModelSettings:
     """Singleton-pattern to get settings once via lru_cache"""
-    settings = ModelSettings()
+    settings = ModelSettings()  # type: ignore (These are filled in by loading from CONFIG_FILE)
     print("Returning ModelSettings: %s", settings)
     return settings
