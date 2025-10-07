@@ -156,11 +156,11 @@ To enhance the functionality of your LangGraph agents, you can combine tool call
 
 ### Tool Definition
 
-Define the following tools.
+Define the following simplified example tools that demonstrate the integration pattern with NeMo Guardrails.
 
 The first tool, `search_knowledge`, searches a predefined knowledge base for information matching the user's query. It performs matching against keywords like `"capital"`, `"weather"`, and `"python"`, returning relevant information or a generic response if no match is found.
 
-The second tool, `calculate_math`, safely evaluates mathematical expressions by first validating that only allowed characters such as digits, operators, parentheses, and spaces are present. Then, it uses the `eval()` function from Python to calculate the result. It includes error handling to catch and report any calculation errors.
+The second tool, `multiply`, performs multiplication of two integers.
 
 ```python
 from langchain_core.tools import tool
@@ -182,17 +182,9 @@ def search_knowledge(query: str) -> str:
     return f"General information about: {query}"
 
 @tool
-def calculate_math(expression: str) -> str:
-    """Calculate a mathematical expression safely."""
-    try:
-        allowed_chars = set("0123456789+-*/(). ")
-        if not all(c in allowed_chars for c in expression):
-            return "Expression contains invalid characters"
-
-        result = eval(expression)
-        return f"The result of {expression} is {result}"
-    except Exception as e:
-        return f"Could not calculate: {expression}. Error: {str(e)}"
+def multiply(a: int, b: int) -> int:
+    """Multiply a and b."""
+    return a * b
 ```
 
 ### Tool Calling Graph with Guardrails
@@ -204,7 +196,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 def create_tool_calling_agent():
     llm = ChatOpenAI(model="gpt-4o")
-    tools = [search_knowledge, calculate_math]
+    tools = [search_knowledge, multiply]
     llm_with_tools = llm.bind_tools(tools)
 
     config = RailsConfig.from_path(config_path)
