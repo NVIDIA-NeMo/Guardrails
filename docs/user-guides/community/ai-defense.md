@@ -10,7 +10,11 @@ You'll need to set the following env variables to work with  Cisco AI Defense:
 ## Setup
 
 1. Ensure that you have access to the Cisco AI Defense endpoints (SaaS or in your private deployment)
-2. Enable Cisco AI Defense flows in your `config.yml` file:
+2. Set the required environment variables: `AI_DEFENSE_API_ENDPOINT` and `AI_DEFENSE_API_KEY`
+
+### For Colang 1.0
+
+Enable Cisco AI Defense flows in your `config.yml` file:
 
 ```yaml
 rails:
@@ -28,7 +32,36 @@ rails:
       - ai defense inspect response
 ```
 
-Don't forget to set the `AI_DEFENSE_API_ENDPOINT` and `AI_DEFENSE_API_KEY` environment variables.
+### For Colang 2.x
+
+You can set configuration options in your `config.yml`:
+
+```yaml
+# config.yml
+colang_version: "2.x"
+
+rails:
+  config:
+    ai_defense:
+      timeout: 30.0
+      fail_open: false
+```
+
+Example `rails.co` file:
+
+```colang
+# rails.co
+import guardrails
+import nemoguardrails.library.ai_defense
+
+flow input rails $input_text
+  """Check user utterances before they get further processed."""
+  ai defense inspect prompt $input_text
+
+flow output rails $output_text
+  """Check bot responses before sending them to the user."""
+  ai defense inspect response $output_text
+```
 
 ### Configuration Options
 

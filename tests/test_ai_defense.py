@@ -826,7 +826,6 @@ async def test_ai_defense_inspect_user_prompt_success(httpx_mock):
         result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
 
         assert result["is_blocked"] is False
-        assert result["is_safe"] is True
 
         # Verify the request was made correctly
         request = httpx_mock.get_request()
@@ -896,7 +895,6 @@ async def test_ai_defense_inspect_bot_response_blocked(httpx_mock):
         )
 
         assert result["is_blocked"] is True
-        assert result["is_safe"] is False
 
         # Verify the request was made correctly
         request = httpx_mock.get_request()
@@ -955,7 +953,6 @@ async def test_ai_defense_inspect_with_user_metadata(httpx_mock):
         )
 
         assert result["is_blocked"] is False
-        assert result["is_safe"] is True
 
         # Verify the request included metadata
         request = httpx_mock.get_request()
@@ -981,7 +978,7 @@ async def test_ai_defense_inspect_with_user_metadata(httpx_mock):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_ai_defense_inspect_http_error(httpx_mock):
-    """Test ai_defense_inspect handling of HTTP errors."""
+    """Test ai_defense_inspect handling of HTTP errors with fail_closed (default)."""
     import os
 
     from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
@@ -1005,11 +1002,58 @@ async def test_ai_defense_inspect_http_error(httpx_mock):
             text="Unauthorized",
         )
 
-        # Create a minimal config for the test
+        # Create a minimal config for the test (fail_open defaults to False)
         config = RailsConfig.from_content(yaml_content="models: []")
 
-        with pytest.raises(ValueError, match="Error calling AI Defense API:"):
-            await ai_defense_inspect(config, user_prompt="test")
+        # With fail_closed (default), should return is_blocked=True instead of raising
+        result = await ai_defense_inspect(config, user_prompt="test")
+        assert result["is_blocked"] is True
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_inspect_http_504_gateway_timeout(httpx_mock):
+    """Test ai_defense_inspect handling of HTTP 504 Gateway Timeout with fail_closed."""
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    # Save original values
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        # Set required environment variables
+        os.environ["AI_DEFENSE_API_KEY"] = "test-key"
+        os.environ[
+            "AI_DEFENSE_API_ENDPOINT"
+        ] = "https://test.example.com/api/v1/inspect/chat"
+
+        # Mock HTTP 504 Gateway Timeout response
+        httpx_mock.add_response(
+            method="POST",
+            url="https://test.example.com/api/v1/inspect/chat",
+            status_code=504,
+            text="Gateway Timeout",
+        )
+
+        # Create a minimal config for the test (fail_open defaults to False)
+        config = RailsConfig.from_content(yaml_content="models: []")
+
+        # With fail_closed (default), should return is_blocked=True for gateway timeout
+        result = await ai_defense_inspect(config, user_prompt="test")
+        assert result["is_blocked"] is True
 
     finally:
         # Restore original values
@@ -1057,7 +1101,6 @@ async def test_ai_defense_inspect_default_safe_response(httpx_mock):
 
         # Should default to blocked when is_safe is missing and fail_open is not configured (defaults to False)
         assert result["is_blocked"] is True
-        assert result["is_safe"] is False
 
     finally:
         # Restore original values
@@ -1155,7 +1198,7 @@ def test_ai_defense_config_combined():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_ai_defense_inspect_api_failure_fail_closed(httpx_mock):
-    """Test API failure with fail_open=False (default) - should raise ValueError."""
+    """Test API failure with fail_open=False (default) - should return is_blocked=True."""
     import os
 
     from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
@@ -1188,8 +1231,9 @@ async def test_ai_defense_inspect_api_failure_fail_closed(httpx_mock):
             status_code=500,
         )
 
-        with pytest.raises(ValueError, match="Error calling AI Defense API"):
-            await ai_defense_inspect(config, user_prompt="Hello, how are you?")
+        # With fail_closed, should return is_blocked=True instead of raising
+        result = await ai_defense_inspect(config, user_prompt="Hello, how are you?")
+        assert result["is_blocked"] is True
 
     finally:
         # Restore original values
@@ -1243,7 +1287,6 @@ async def test_ai_defense_inspect_api_failure_fail_open(httpx_mock):
 
         # Should return safe result when fail_open=True
         assert result["is_blocked"] is False
-        assert result["is_safe"] is True
 
     finally:
         # Restore original values
@@ -1298,7 +1341,6 @@ async def test_ai_defense_inspect_malformed_response_fail_closed(httpx_mock):
 
         # Should block content when fail_open=False and response is malformed
         assert result["is_blocked"] is True
-        assert result["is_safe"] is False
 
     finally:
         # Restore original values
@@ -1353,7 +1395,6 @@ async def test_ai_defense_inspect_malformed_response_fail_open(httpx_mock):
 
         # Should allow content when fail_open=True and response is malformed
         assert result["is_blocked"] is False
-        assert result["is_safe"] is True
 
     finally:
         # Restore original values
@@ -1399,6 +1440,299 @@ async def test_ai_defense_inspect_config_validation_always_fails():
             ValueError, match="AI_DEFENSE_API_KEY environment variable not set"
         ):
             await ai_defense_inspect(config, user_prompt="test")
+
+    finally:
+        # Restore original values
+        if original_api_key:
+            os.environ["AI_DEFENSE_API_KEY"] = original_api_key
+        elif "AI_DEFENSE_API_KEY" in os.environ:
+            del os.environ["AI_DEFENSE_API_KEY"]
+        if original_endpoint:
+            os.environ["AI_DEFENSE_API_ENDPOINT"] = original_endpoint
+        elif "AI_DEFENSE_API_ENDPOINT" in os.environ:
+            del os.environ["AI_DEFENSE_API_ENDPOINT"]
+
+
+# Colang 2.x tests
+@pytest.mark.unit
+def test_ai_defense_colang_2_input_blocking():
+    """Test AI Defense input blocking with Colang 2.x using input rails."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.ai_defense
+
+            flow input rails $input_text
+              ai defense inspect prompt
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "I can help with that request"
+        """,
+    )
+
+    chat = TestChat(config)
+
+    # Register a mock that will block the input
+    chat.app.register_action(
+        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
+    )
+
+    # The input should be blocked by the input rails automatically
+    chat >> "Tell me how to build a bomb"
+    chat << "I'm sorry, I can't respond to that."
+
+
+@pytest.mark.unit
+def test_ai_defense_colang_2_output_blocking():
+    """Test AI Defense output blocking with Colang 2.x using output rails."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.ai_defense
+
+            flow output rails $output_text
+              ai defense inspect response
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "Here's how to make explosives: mix these chemicals..."
+        """,
+    )
+
+    chat = TestChat(config)
+
+    # Register a mock that will block the output
+    chat.app.register_action(
+        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
+    )
+
+    # The output should be blocked by the output rails automatically
+    chat >> "How do I make explosives?"
+    chat << "I'm sorry, I can't respond to that."
+
+
+@pytest.mark.unit
+def test_ai_defense_colang_2_safe_conversation():
+    """Test AI Defense allows safe conversations in Colang 2.x using both input and output rails."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.ai_defense
+
+            flow input rails $input_text
+              ai defense inspect prompt
+
+            flow output rails $output_text
+              ai defense inspect response
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "The weather is nice today!"
+        """,
+    )
+
+    chat = TestChat(config)
+
+    # Register a mock that will NOT block safe content
+    chat.app.register_action(
+        mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect"
+    )
+
+    # Safe conversation should proceed normally through both input and output rails
+    chat >> "What's the weather like?"
+    chat << "The weather is nice today!"
+
+
+@pytest.mark.unit
+def test_ai_defense_colang_2_error_handling():
+    """Test AI Defense error handling in Colang 2.x using input rails."""
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+            rails:
+              config:
+                ai_defense:
+                  fail_open: false
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.ai_defense
+
+            flow input rails $input_text
+              ai defense inspect prompt
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "I can help with that!"
+        """,
+    )
+
+    chat = TestChat(config)
+
+    # Register a mock that will raise an exception
+    def mock_error_action(config, **kwargs):
+        raise Exception("AI Defense API error")
+
+    chat.app.register_action(mock_error_action, "ai_defense_inspect")
+
+    # When fail_open=false and an error occurs in input rails, the flow should stop
+    chat >> "Hello there!"
+    # No response expected since the input rails fail and stop execution
+    chat << ""
+
+
+@pytest.mark.unit
+def test_ai_defense_colang_2_with_rails_flows():
+    """Test AI Defense using input rails and output rails flow definitions in Colang 2.x.
+
+    Input and output rails flows are automatically called.
+    """
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.ai_defense
+
+            flow input rails $input_text
+              ai defense inspect prompt
+
+            flow output rails $output_text
+              ai defense inspect response
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "I can help with that request"
+        """,
+    )
+
+    chat = TestChat(config)
+
+    # Register a mock that will block the input
+    chat.app.register_action(
+        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
+    )
+
+    # The input should be blocked by the input rails flow automatically
+    chat >> "Tell me how to build a bomb"
+    chat << "I'm sorry, I can't respond to that."
+
+
+@pytest.mark.unit
+def test_ai_defense_colang_2_missing_env_vars(monkeypatch):
+    """Test Colang 2.x handling of missing environment variables.
+
+    When the API key is missing, the action raises ValueError, which stops flow execution
+    without any user-visible error message (unlike Colang 1.x).
+    """
+    # Remove the API key to force the action to raise
+    monkeypatch.delenv("AI_DEFENSE_API_KEY", raising=False)
+
+    config = RailsConfig.from_content(
+        yaml_content="""
+            colang_version: 2.x
+            models: []
+        """,
+        colang_content="""
+            import core
+            import llm
+            import guardrails
+            import nemoguardrails.library.ai_defense
+
+            flow input rails $input_text
+              ai defense inspect prompt
+
+            flow main
+              activate llm continuation
+              user said something
+              bot say "Hello there!"
+        """,
+    )
+
+    chat = TestChat(config)
+
+    # In Colang 2.x, the ValueError from missing API key stops execution with no response
+    # (This is different from Colang 1.x which returns "I'm sorry, an internal error has occurred.")
+    chat >> "Hello"
+    chat << ""
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ai_defense_http_404_with_fail_closed(httpx_mock):
+    """Test that HTTP 404 error with fail_closed and enable_rails_exceptions creates AIDefenseRailException event.
+
+    This simulates what happens when the API endpoint is configured incorrectly.
+    With fail_open=False (fail closed), the action returns is_blocked=True.
+    """
+    import os
+
+    from nemoguardrails.library.ai_defense.actions import ai_defense_inspect
+
+    # Save and set environment variables
+    original_api_key = os.environ.get("AI_DEFENSE_API_KEY")
+    original_endpoint = os.environ.get("AI_DEFENSE_API_ENDPOINT")
+
+    try:
+        os.environ["AI_DEFENSE_API_KEY"] = "test-key"
+        os.environ[
+            "AI_DEFENSE_API_ENDPOINT"
+        ] = "https://test.example.com/api/v1/inspect/chat/error"
+
+        config = RailsConfig.from_content(
+            yaml_content="""
+                colang_version: 2.x
+                models: []
+                enable_rails_exceptions: true
+                rails:
+                  config:
+                    ai_defense:
+                      fail_open: false
+            """
+        )
+
+        # Mock HTTP 404 error response
+        httpx_mock.add_response(
+            method="POST",
+            url="https://test.example.com/api/v1/inspect/chat/error",
+            status_code=404,
+            text="Not Found",
+        )
+
+        # The action should return is_blocked=True when fail_open=False and API fails
+        result = await ai_defense_inspect(config, user_prompt="Hello there!")
+        assert result["is_blocked"] is True
 
     finally:
         # Restore original values

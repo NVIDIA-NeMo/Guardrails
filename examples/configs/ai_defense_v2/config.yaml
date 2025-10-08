@@ -1,0 +1,14 @@
+colang_version: "2.x"
+
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+rails:
+  config:
+    ai_defense:
+      # Optional: Configure AI Defense behavior
+      timeout: 30.0      # API request timeout in seconds (default: 30.0)
+      fail_open: false   # Fail closed on API errors (default: false)
+                         # Set to true for fail open behavior

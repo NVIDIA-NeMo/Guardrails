@@ -1,0 +1,10 @@
+import guardrails
+import nemoguardrails.library.ai_defense
+
+flow input rails $input_text
+  """Check user utterances before they get further processed."""
+  ai defense inspect prompt $input_text
+
+flow output rails $output_text
+  """Check bot responses before sending them to the user."""
+  ai defense inspect response $output_text

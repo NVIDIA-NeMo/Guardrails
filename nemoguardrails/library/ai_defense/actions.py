@@ -37,13 +37,13 @@ def is_ai_defense_text_blocked(result: Dict[str, Any]) -> bool:
       - "is_blocked": a boolean indicating if the prompt or response sent to AI Defense should be blocked.
 
     Returns:
-        True if "is_blocked" is True (i.e., the response should be blocked),
-        False otherwise.
+        bool: True if the text should be blocked, False otherwise.
     """
-    # The fail_open behavior is handled in the main function
-    # This function just extracts the is_blocked value from the result
-    is_blocked = result.get("is_blocked", True)
-    return is_blocked
+    # The fail_open behavior is handled in the main function but default to fail closed here if
+    # result is None or the is_blocked key is missing somehow
+    if result is None:
+        return True  # Fail closed: block content if result is None
+    return result.get("is_blocked", True)
 
 
 @action(is_system_action=True, output_mapping=is_ai_defense_text_blocked)
@@ -83,7 +83,7 @@ async def ai_defense_inspect(
         role = "user"
         text = str(user_prompt)
     else:
-        msg = "Either user_prompt or bot_response must be provided"
+        msg = "Either user_prompt or bot_response must be provided."
         log.error(msg)
         raise ValueError(msg)
 
@@ -111,12 +111,21 @@ async def ai_defense_inspect(
             if fail_open:
                 # Fail open: allow content when API call fails
                 log.warning(
-                    "AI Defense API call failed, but fail_open=True, allowing content"
+                    "AI Defense API call failed, but fail_open=True, allowing content."
                 )
-                return {"is_blocked": False, "is_safe": True}
+                result: Dict[str, Any] = {
+                    "is_blocked": False,
+                }
+                return result
             else:
                 # Fail closed: block content when API call fails
-                raise ValueError(msg)
+                log.warning(
+                    "AI Defense API call failed, fail_open=False, blocking content."
+                )
+                result: Dict[str, Any] = {
+                    "is_blocked": True,
+                }
+                return result
 
         # Compose a consistent return structure for flows
         # Handle malformed responses based on fail_open setting
@@ -124,19 +133,19 @@ async def ai_defense_inspect(
             # Malformed response - respect fail_open setting
             if fail_open:
                 log.warning(
-                    "AI Defense API returned malformed response (missing 'is_safe'), but fail_open=True, allowing content"
+                    "AI Defense API returned malformed response (missing 'is_safe'), but fail_open=True, allowing content."
                 )
-                is_safe = True
+                is_blocked = False
             else:
                 log.warning(
-                    "AI Defense API returned malformed response (missing 'is_safe'), fail_open=False, blocking content"
+                    "AI Defense API returned malformed response (missing 'is_safe'), fail_open=False, blocking content."
                 )
-                is_safe = False
+                is_blocked = True
         else:
-            is_safe = bool(data.get("is_safe", False))
+            is_blocked = not bool(data.get("is_safe", False))
 
         rules = data.get("rules") or []
-        if not is_safe and rules:
+        if is_blocked and rules:
             entries = [
                 f"{r.get('rule_name')} ({r.get('classification')})"
                 for r in rules
@@ -145,10 +154,9 @@ async def ai_defense_inspect(
             if entries:
                 log.debug("AI Defense matched rules: %s", ", ".join(entries))
 
-        # Ensure flows can check explicit block flag
+        # Return structure for flows
         result: Dict[str, Any] = {
-            "is_blocked": (not is_safe),
-            "is_safe": is_safe,
+            "is_blocked": is_blocked,
         }
 
         return result
