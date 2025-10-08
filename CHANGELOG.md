@@ -13,48 +13,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 🚀 Features
 
-- *(tool-calling)* Add tool call passthrough support in LLMRails ([#1364](https://github.com/NVIDIA/NeMo-Guardrails/issues/1364)) 
-- *(runnable)* Complete rewrite of RunnableRails with full LangChain Runnable protocol support ([#1366](https://github.com/NVIDIA/NeMo-Guardrails/issues/1366)) 
-- *(runnable-rails)* Implement AIMessage metadata parity in RunnableRails ([#1369](https://github.com/NVIDIA/NeMo-Guardrails/issues/1369)) 
-- *(runnable-rails)* Stream metadata in RunnableRails output ([#1370](https://github.com/NVIDIA/NeMo-Guardrails/issues/1370)) 
-- *(tool-rails)* Add support for tool output rails and validation ([#1382](https://github.com/NVIDIA/NeMo-Guardrails/issues/1382)) 
-- *(tool-rails)* Implement tool input rails for tool message validation and processing ([#1386](https://github.com/NVIDIA/NeMo-Guardrails/issues/1386)) 
-- Add Trend Micro Vision One AI Application Security community integration ([#1355](https://github.com/NVIDIA/NeMo-Guardrails/issues/1355)) 
-- *(llm)* Pass llm params directly ([#1387](https://github.com/NVIDIA/NeMo-Guardrails/issues/1387)) 
+- *(tool-calling)* Add tool call passthrough support in LLMRails ([#1364](https://github.com/NVIDIA/NeMo-Guardrails/issues/1364))
+- *(runnable-rails)* Complete rewrite of RunnableRails with full LangChain Runnable protocol support ([#1366](https://github.com/NVIDIA/NeMo-Guardrails/issues/1366), [#1369](https://github.com/NVIDIA/NeMo-Guardrails/issues/1369), [#1370](https://github.com/NVIDIA/NeMo-Guardrails/issues/1370), [#1405](https://github.com/NVIDIA/NeMo-Guardrails/issues/1405))
+- *(tool-rails)* Add support for tool output rails and validation ([#1382](https://github.com/NVIDIA/NeMo-Guardrails/issues/1382))
+- *(tool-rails)* Implement tool input rails for tool message validation and processing ([#1386](https://github.com/NVIDIA/NeMo-Guardrails/issues/1386))
+- *(library)* Add Trend Micro Vision One AI Application Security community integration ([#1355](https://github.com/NVIDIA/NeMo-Guardrails/issues/1355))
+- *(llm)* Pass llm params directly ([#1387](https://github.com/NVIDIA/NeMo-Guardrails/issues/1387))
 
 ### 🐛 Bug Fixes
 
-- *(jailbreak)* Handle URL joining with/without trailing slashes ([#1346](https://github.com/NVIDIA/NeMo-Guardrails/issues/1346)) 
-- *(logging)* Handle missing id and task in verbose logs ([#1343](https://github.com/NVIDIA/NeMo-Guardrails/issues/1343)) 
-- *(ci)* Prevent duplicate runs on PR updates ([#1406](https://github.com/NVIDIA/NeMo-Guardrails/issues/1406)) 
-- *(runnable-rails)* Preserve message metadata in RunnableRails tool calling ([#1405](https://github.com/NVIDIA/NeMo-Guardrails/issues/1405)) 
-- *(community)* Fix import package declaration to new cleanlab-tlm name ([#1401](https://github.com/NVIDIA/NeMo-Guardrails/issues/1401)) 
-- *(logging)* Add "Tool" type to message sender labeling ([#1412](https://github.com/NVIDIA/NeMo-Guardrails/issues/1412)) 
-- *(logging)* Correct message type formatting in logs ([#1416](https://github.com/NVIDIA/NeMo-Guardrails/issues/1416)) 
+- *(jailbreak)* Handle URL joining with/without trailing slashes ([#1346](https://github.com/NVIDIA/NeMo-Guardrails/issues/1346))
+- *(logging)* Handle missing id and task in verbose logs ([#1343](https://github.com/NVIDIA/NeMo-Guardrails/issues/1343))
+- *(library)* Fix import package declaration to new cleanlab-tlm name ([#1401](https://github.com/NVIDIA/NeMo-Guardrails/issues/1401))
+- *(logging)* Add "Tool" type to message sender labeling ([#1412](https://github.com/NVIDIA/NeMo-Guardrails/issues/1412))
+- *(logging)* Correct message type formatting in logs ([#1416](https://github.com/NVIDIA/NeMo-Guardrails/issues/1416))
 
 ### 🚜 Refactor
 
-- *(llm)* Remove LLMs isolation for actions ([#1408](https://github.com/NVIDIA/NeMo-Guardrails/issues/1408)) 
+- *(llm)* Remove LLMs isolation for actions ([#1408](https://github.com/NVIDIA/NeMo-Guardrails/issues/1408))
 
 ### 📚 Documentation
 
-- *(examples)* Add NeMoGuard safety rails config example for Colang 1.0 ([#1365](https://github.com/NVIDIA/NeMo-Guardrails/issues/1365)) 
-- Add hardware reqs ([#1411](https://github.com/NVIDIA/NeMo-Guardrails/issues/1411)) 
-- Add tools integration guide ([#1414](https://github.com/NVIDIA/NeMo-Guardrails/issues/1414)) 
-- *(langgraph)* Add integration guide for LangGraph ([#1422](https://github.com/NVIDIA/NeMo-Guardrails/issues/1422)) 
-- *(langchain)* Update with full support and add tool calling guide … ([#1419](https://github.com/NVIDIA/NeMo-Guardrails/issues/1419)) 
-- *(langgraph)* Clarify tool examples and replace calculate_math with multiply ([#1439](https://github.com/NVIDIA/NeMo-Guardrails/issues/1439)) 
+- *(examples)* Add NeMoGuard safety rails config example for Colang 1.0 ([#1365](https://github.com/NVIDIA/NeMo-Guardrails/issues/1365))
+- Add hardware reqs ([#1411](https://github.com/NVIDIA/NeMo-Guardrails/issues/1411))
+- Add tools integration guide ([#1414](https://github.com/NVIDIA/NeMo-Guardrails/issues/1414))
+- *(langgraph)* Add integration guide for LangGraph ([#1422](https://github.com/NVIDIA/NeMo-Guardrails/issues/1422))
+- *(langchain)* Update with full support and add tool calling guide … ([#1419](https://github.com/NVIDIA/NeMo-Guardrails/issues/1419))
+- *(langgraph)* Clarify tool examples and replace calculate_math with multiply ([#1439](https://github.com/NVIDIA/NeMo-Guardrails/issues/1439))
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(docs)* Update v0.16.0 release date in changelog ([#1377](https://github.com/NVIDIA/NeMo-Guardrails/issues/1377)) 
-- *(docs)* Add link to demo.py script in Getting-Started section ([#1399](https://github.com/NVIDIA/NeMo-Guardrails/issues/1399)) 
-- Enable codecov for all pull requests ([#1402](https://github.com/NVIDIA/NeMo-Guardrails/issues/1402)) 
-- *(types)* Type-clean rails (86 errors) ([#1396](https://github.com/NVIDIA/NeMo-Guardrails/issues/1396)) 
-- *(jailbreak-detection)* Update transformers and torch ([#1417](https://github.com/NVIDIA/NeMo-Guardrails/issues/1417)) 
-- *(types)* Type-clean /actions (189 errors) ([#1361](https://github.com/NVIDIA/NeMo-Guardrails/issues/1361)) 
-- *(docs)* Update repository owner ([#1425](https://github.com/NVIDIA/NeMo-Guardrails/issues/1425)) 
-
+- *(docs)* Update v0.16.0 release date in changelog ([#1377](https://github.com/NVIDIA/NeMo-Guardrails/issues/1377))
+- *(docs)* Add link to demo.py script in Getting-Started section ([#1399](https://github.com/NVIDIA/NeMo-Guardrails/issues/1399))
+- *(types)* Type-clean rails (86 errors) ([#1396](https://github.com/NVIDIA/NeMo-Guardrails/issues/1396))
+- *(jailbreak-detection)* Update transformers and torch ([#1417](https://github.com/NVIDIA/NeMo-Guardrails/issues/1417))
+- *(types)* Type-clean /actions (189 errors) ([#1361](https://github.com/NVIDIA/NeMo-Guardrails/issues/1361))
+- *(docs)* Update repository owner ([#1425](https://github.com/NVIDIA/NeMo-Guardrails/issues/1425))
 
 ## [0.16.0] - 2025-09-05
 
