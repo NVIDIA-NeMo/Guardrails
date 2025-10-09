@@ -49,18 +49,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ steps.version.outputs.artifact_name }}
+          path: dist
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: List files
-        run: ls -la
+        run: ls -la dist/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
-          packages-dir: ./
+          packages-dir: dist/
 
       - name: Create GitHub Release
         env:
