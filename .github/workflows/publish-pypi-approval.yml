@@ -8,24 +8,40 @@ on:
 
 jobs:
   publish-pypi:
-    if: github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v')
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: pypi-production
       url: https://pypi.org/project/nemoguardrails/
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
-      - name: Extract version from tag
+      - name: Checkout repository for tag detection
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version tag and extract info
         id: version
         run: |
-          TAG_NAME="${{ github.event.workflow_run.head_branch }}"
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+
+          TAG_NAME=$(git tag --points-at "$COMMIT_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+          if [ -z "$TAG_NAME" ]; then
+            echo "❌ No version tag found at commit $COMMIT_SHA"
+            echo "Available tags at this commit:"
+            git tag --points-at "$COMMIT_SHA" || echo "  (none)"
+            exit 1
+          fi
+
           VERSION="${TAG_NAME#v}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "artifact_name=${TAG_NAME}-build" >> $GITHUB_OUTPUT
+          echo "✅ Detected version tag: $TAG_NAME"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,6 +78,7 @@ jobs:
         with:
           verbose: true
           packages-dir: dist/
+          attestations: true
 
       - name: Create GitHub Release
         env:
@@ -86,11 +103,20 @@ jobs:
 
           echo "$CHANGELOG_SECTION" > release_notes.md
 
-          gh release create "$TAG_NAME" \
-            --draft \
-            --title "$TAG_NAME" \
-            --notes-file release_notes.md \
-            --repo ${{ github.repository }} \
-            || echo "Release already exists or failed to create"
+          if gh release view "$TAG_NAME" --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "ℹ️ Release $TAG_NAME already exists, skipping creation"
+          else
+            if gh release create "$TAG_NAME" \
+              --draft \
+              --title "$TAG_NAME" \
+              --notes-file release_notes.md \
+              --repo ${{ github.repository }}; then
+              echo "✅ Release $TAG_NAME created successfully"
+            else
+              echo "❌ Failed to create release $TAG_NAME" >&2
+              rm -f release_notes.md
+              exit 1
+            fi
+          fi
 
           rm -f release_notes.md
