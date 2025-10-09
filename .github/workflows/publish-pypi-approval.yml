@@ -47,9 +47,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.version.outputs.tag }}
-          sparse-checkout: |
-            pyproject.toml
-            CHANGELOG.md
 
       - name: Validate version matches tag
         run: |
