@@ -11,21 +11,20 @@ The content safety checks in `actions.py` now use an LFU (Least Frequently Used)
 - Per-model caches: Each model gets its own LFU cache instance
 - Default capacity: 50,000 entries per model
 - Eviction policy: LFU with LRU tiebreaker
-- Statistics tracking: Enabled by default
+- Statistics tracking: Disabled by default (configurable)
 - Tracks timestamps: `created_at` and `accessed_at` for each entry
-- Cache creation: Automatic when a model is first used
+- Cache creation: Automatic when a model is initialized with cache enabled
+- Supported model types: Any non-`main` and non-`embeddings` model type (typically content safety models)
 
 ### Cached Functions
 
-1. `content_safety_check_input()` - Caches safety checks for user inputs
-
-Note: `content_safety_check_output()` does not use caching to ensure fresh evaluation of bot responses.
+`content_safety_check_input()` - Caches safety checks for user inputs
 
 ### Cache Key Components
 
-The cache key is a SHA256 hash of:
+The cache key is generated from:
 
-- The rendered prompt only (can be a string or list of strings)
+- The rendered prompt (normalized for whitespace)
 
 Since temperature is fixed (1e-20) and stop/max_tokens are derived from the model configuration, they don't need to be part of the cache key.
 
@@ -44,43 +43,33 @@ Since temperature is fixed (1e-20) and stop/max_tokens are derived from the mode
 
 The caching system automatically creates and manages separate caches for each model. Key features:
 
-- **Automatic Creation**: Caches are created on first use for each model
+- **Automatic Creation**: Caches are created when the model is initialized with cache configuration
 - **Isolated Storage**: Each model maintains its own cache, preventing cross-model interference
-- **Default Settings**: Each cache has 50,000 entry capacity with stats tracking enabled
-
-```python
-# Internal cache access (for debugging/monitoring):
-from nemoguardrails.library.content_safety.actions import _MODEL_CACHES
-
-# View which models have caches
-models_with_caches = list(_MODEL_CACHES.keys())
-
-# Get stats for a specific model's cache
-if "llama_guard" in _MODEL_CACHES:
-    stats = _MODEL_CACHES["llama_guard"].get_stats()
-```
+- **Default Settings**: Each cache has 50,000 entry capacity (configurable)
+- **Per-Model Configuration**: Cache is configured per model in the YAML configuration
 
 ### Statistics and Monitoring
 
 The cache supports detailed statistics tracking and periodic logging for monitoring cache performance:
 
 ```yaml
-rails:
-  config:
-    content_safety:
-      cache:
-        enabled: true
-        capacity_per_model: 10000
-        stats:
-          enabled: true      # Enable stats tracking
-          log_interval: 60.0 # Log stats every minute
+models:
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    cache:
+      enabled: true
+      capacity_per_model: 10000
+      store: memory  # Currently only 'memory' is supported
+      stats:
+        enabled: true      # Enable stats tracking
+        log_interval: 60.0 # Log stats every minute
 ```
 
 **Statistics Features:**
 
 1. **Tracking Only**: Set `stats.enabled: true` with no `log_interval` to track stats without logging
 2. **Automatic Logging**: Set both `stats.enabled: true` and `log_interval` for periodic logging
-3. **Manual Logging**: Force immediate stats logging with `cache.log_stats_now()`
 
 **Statistics Tracked:**
 
@@ -100,17 +89,12 @@ LFU Cache Statistics - Size: 2456/10000 | Hits: 15234 | Misses: 2456 | Hit Rate:
 
 **Usage Examples:**
 
-```python
-# Programmatically access stats
-if "safety_model" in _MODEL_CACHES:
-    cache = _MODEL_CACHES["safety_model"]
-    stats = cache.get_stats()
-    print(f"Cache hit rate: {stats['hit_rate']:.2%}")
+The cache is managed internally by the NeMo Guardrails framework. When you configure a model with caching enabled, the framework automatically:
 
-    # Force immediate stats logging
-    if cache.supports_stats_logging():
-        cache.log_stats_now()
-```
+1. Creates an LFU cache instance for that model
+2. Passes the cache to content safety actions via kwargs
+3. Tracks statistics if configured
+4. Logs statistics at the specified interval
 
 **Configuration Options:**
 
@@ -124,21 +108,42 @@ if "safety_model" in _MODEL_CACHES:
 - Stats are reset when cache is cleared or when `reset_stats()` is called
 - Each model maintains independent statistics
 
-### Example Configuration Usage
+### Example Configuration
+
+```yaml
+# config.yml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    cache:
+      enabled: true
+      capacity_per_model: 50000
+      store: memory
+      stats:
+        enabled: true
+        log_interval: 300.0  # Log stats every 5 minutes
+
+rails:
+  input:
+    flows:
+      - content safety check input model="content_safety"
+```
+
+### Example Usage
 
 ```python
 from nemoguardrails import RailsConfig, LLMRails
 
-# Method 1: Using context manager
+# The cache is automatically configured based on your YAML config
 config = RailsConfig.from_path("./config.yml")
-with LLMRails(config) as rails:
-    # Content safety checks will be cached automatically
-    response = await rails.generate_async(
-        messages=[{"role": "user", "content": "Hello, how are you?"}]
-    )
-
-# Method 2: Direct usage
 rails = LLMRails(config)
+
+# Content safety checks will be cached automatically
 response = await rails.generate_async(
     messages=[{"role": "user", "content": "Hello, how are you?"}]
 )
@@ -153,8 +158,8 @@ The content safety caching system is **thread-safe** for single-node deployments
    - All public methods (`get`, `put`, `size`, `clear`, etc.) are protected by locks
    - Supports atomic `get_or_compute()` operations that prevent duplicate computations
 
-2. **ContentSafetyManager**:
-   - Thread-safe cache creation using double-checked locking pattern
+2. **LLMRails Model Initialization**:
+   - Thread-safe cache creation during model initialization
    - Ensures only one cache instance per model across all threads
 
 3. **Key Features**:
@@ -189,7 +194,7 @@ The content safety caching system is **thread-safe** for single-node deployments
 result = await content_safety_check_input(
     llms=llms,
     llm_task_manager=task_manager,
-    model_name="safety_model",
+    model_name="content_safety",
     context={"user_message": "Hello world"}
 )
 
@@ -197,7 +202,7 @@ result = await content_safety_check_input(
 result = await content_safety_check_input(
     llms=llms,
     llm_task_manager=task_manager,
-    model_name="safety_model",
+    model_name="content_safety",
     context={"user_message": "Hello world"}
 )
 ```
@@ -207,8 +212,8 @@ result = await content_safety_check_input(
 The implementation includes debug logging:
 
 - Cache creation: `"Created cache for model '{model_name}' with capacity {capacity}"`
-- Cache hits: `"Content safety cache hit for model '{model_name}', key: {key[:8]}..."`
-- Cache stores: `"Content safety result cached for model '{model_name}', key: {key[:8]}..."`
+- Cache hits: `"Content safety cache hit for model '{model_name}'"`
+- Cache stores: `"Content safety result cached for model '{model_name}'"`
 
 Enable debug logging to monitor cache behavior:
 

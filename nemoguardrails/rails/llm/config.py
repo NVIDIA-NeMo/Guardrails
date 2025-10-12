@@ -15,8 +15,6 @@
 
 """Module for the configuration of rails."""
 
-from __future__ import annotations
-
 import logging
 import os
 import warnings
@@ -69,6 +67,41 @@ guardrails_stdlib_path = os.path.normpath(
 )
 colang_path_dirs.append(standard_library_path)
 colang_path_dirs.append(guardrails_stdlib_path)
+
+
+class CacheStatsConfig(BaseModel):
+    """Configuration for cache statistics tracking and logging."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether cache statistics tracking is enabled",
+    )
+    log_interval: Optional[float] = Field(
+        default=None,
+        description="Seconds between periodic cache stats logging to logs (None disables logging)",
+    )
+
+
+class ModelCacheConfig(BaseModel):
+    """Configuration for model caching."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether caching is enabled (default: False - no caching)",
+    )
+    capacity_per_model: int = Field(
+        default=50000, description="Maximum number of entries in the cache per model"
+    )
+    store: str = Field(
+        default="memory", description="Cache store: 'memory', 'filesystem', 'redis'"
+    )
+    store_config: Dict[str, Any] = Field(
+        default_factory=dict, description="Backend-specific configuration"
+    )
+    stats: CacheStatsConfig = Field(
+        default_factory=CacheStatsConfig,
+        description="Configuration for cache statistics tracking and logging",
+    )
 
 
 class Model(BaseModel):
@@ -875,41 +908,6 @@ class AIDefenseRailConfig(BaseModel):
     fail_open: bool = Field(
         default=False,
         description="If True, allow content when AI Defense API call fails (fail open). If False, block content when API call fails (fail closed). Does not affect missing configuration validation.",
-    )
-
-
-class CacheStatsConfig(BaseModel):
-    """Configuration for cache statistics tracking and logging."""
-
-    enabled: bool = Field(
-        default=False,
-        description="Whether cache statistics tracking is enabled",
-    )
-    log_interval: Optional[float] = Field(
-        default=None,
-        description="Seconds between periodic cache stats logging to logs (None disables logging)",
-    )
-
-
-class ModelCacheConfig(BaseModel):
-    """Configuration for model caching."""
-
-    enabled: bool = Field(
-        default=False,
-        description="Whether caching is enabled (default: False - no caching)",
-    )
-    capacity_per_model: int = Field(
-        default=50000, description="Maximum number of entries in the cache per model"
-    )
-    store: str = Field(
-        default="memory", description="Cache store: 'memory', 'filesystem', 'redis'"
-    )
-    store_config: Dict[str, Any] = Field(
-        default_factory=dict, description="Backend-specific configuration"
-    )
-    stats: CacheStatsConfig = Field(
-        default_factory=CacheStatsConfig,
-        description="Configuration for cache statistics tracking and logging",
     )
 
 

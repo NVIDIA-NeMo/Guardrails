@@ -527,7 +527,16 @@ class LLMRails:
 
         self.runtime.register_action_param("llms", llms)
 
-        # Create cache per model
+        # Initialize caches for models
+        self._init_model_caches()
+
+    def _init_model_caches(self):
+        """
+        Initialize caches for models that have caching configured.
+
+        Creates per-model cache instances and registers them as action parameters.
+        Only models that are not 'main' or 'embeddings' types are eligible for caching.
+        """
         for model in self.config.models:
             if model.type not in ["main", "embeddings"]:
                 cache = None
@@ -556,8 +565,7 @@ class LLMRails:
                 self.runtime.register_action_param(f"model_cache_{model.type}", cache)
 
                 log.info(
-                    f"Initialized model '{model.type}' with cache %s",
-                    "enabled" if cache else "disabled",
+                    f"Initialized model '{model.type}' with cache {'enabled' if cache else 'disabled'}"
                 )
 
     def _get_embeddings_search_provider_instance(

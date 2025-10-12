@@ -40,8 +40,9 @@ def _create_cache_key(prompt: Union[str, List[str]]) -> str:
     else:
         prompt_str = prompt
 
-    # normalize the prompt to a string
-    # should we do more normalizations?
+    # Normalize the prompt by collapsing all whitespace sequences to a single space
+    # and stripping leading/trailing whitespace. This ensures semantically equivalent
+    # prompts map to the same cache key. No further normalization is currently needed.
     return PROMPT_PATTERN_WHITESPACES.sub(" ", prompt_str).strip()
 
 
