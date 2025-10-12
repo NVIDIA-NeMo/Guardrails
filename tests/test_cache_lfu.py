@@ -17,13 +17,11 @@
 Comprehensive test suite for LFU Cache implementation.
 
 Tests all functionality including basic operations, eviction policies,
-capacity management, edge cases, and persistence functionality.
+capacity management, and edge cases.
 """
 
 import asyncio
-import json
 import os
-import tempfile
 import threading
 import time
 import unittest
@@ -368,15 +366,6 @@ class TestLFUCacheInterface(unittest.TestCase):
 class TestLFUCacheStatsLogging(unittest.TestCase):
     """Test cases for LFU Cache statistics logging functionality."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.test_file = tempfile.mktemp()
-
-    def tearDown(self):
-        """Clean up test files."""
-        if os.path.exists(self.test_file):
-            os.remove(self.test_file)
-
     def test_stats_logging_disabled_by_default(self):
         """Test that stats logging is disabled when not configured."""
         cache = LFUCache(5, track_stats=True)
@@ -643,15 +632,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
 
 class TestContentSafetyCacheStatsConfig(unittest.TestCase):
     """Test cache stats configuration in content safety context."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.test_file = tempfile.mktemp()
-
-    def tearDown(self):
-        """Clean up test files."""
-        if os.path.exists(self.test_file):
-            os.remove(self.test_file)
 
     def test_cache_config_with_stats_disabled(self):
         """Test cache configuration with stats disabled."""
@@ -1193,11 +1173,11 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
                         f"Wrong value for {key}: expected {value}, got {retrieved}"
                     )
 
-                # Also work with some persistent keys (access multiple times)
-                persistent_key = f"persistent_{thread_id % 5}"
+                # Also work with some high-frequency keys (access multiple times)
+                high_freq_key = f"high_freq_{thread_id % 5}"
                 for _ in range(3):  # Access 3 times to increase frequency
-                    small_cache.put(persistent_key, f"persistent_value_{thread_id}")
-                    small_cache.get(persistent_key)
+                    small_cache.put(high_freq_key, f"high_freq_value_{thread_id}")
+                    small_cache.get(high_freq_key)
 
         # Run workers
         with ThreadPoolExecutor(max_workers=10) as executor:

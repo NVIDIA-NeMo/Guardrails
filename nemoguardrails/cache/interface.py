@@ -18,10 +18,6 @@ Cache interface for NeMo Guardrails caching system.
 
 This module defines the abstract base class for cache implementations
 that can be used interchangeably throughout the guardrails system.
-
-Cache implementations may optionally support persistence by overriding
-the persist_now() method and supports_persistence() method. Persistence
-allows cache state to be saved to and loaded from external storage.
 """
 
 from abc import ABC, abstractmethod
@@ -120,31 +116,6 @@ class CacheInterface(ABC):
             The maximum number of items the cache can hold.
         """
         pass
-
-    def persist_now(self) -> None:
-        """
-        Force immediate persistence of cache to storage.
-
-        This is an optional method that cache implementations can override
-        if they support persistence. The default implementation does nothing.
-
-        Implementations that support persistence should save the current
-        cache state to their configured storage backend.
-        """
-        # Default no-op implementation
-        pass
-
-    def supports_persistence(self) -> bool:
-        """
-        Check if this cache implementation supports persistence.
-
-        Returns:
-            True if the cache supports persistence, False otherwise.
-
-        The default implementation returns False. Cache implementations
-        that support persistence should override this to return True.
-        """
-        return False
 
     def get_stats(self) -> dict:
         """

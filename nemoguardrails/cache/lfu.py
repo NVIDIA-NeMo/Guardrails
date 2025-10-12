@@ -16,9 +16,7 @@
 """Least Frequently Used (LFU) cache implementation."""
 
 import asyncio
-import json
 import logging
-import os
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -88,8 +86,6 @@ class LFUCache(CacheInterface):
         self,
         capacity: int,
         track_stats: bool = False,
-        persistence_interval: Optional[float] = None,
-        persistence_path: Optional[str] = None,
         stats_logging_interval: Optional[float] = None,
     ) -> None:
         """
@@ -98,8 +94,6 @@ class LFUCache(CacheInterface):
         Args:
             capacity: Maximum number of items the cache can hold
             track_stats: Enable tracking of cache statistics
-            persistence_interval: Seconds between periodic dumps to disk (None disables persistence)
-            persistence_path: Path to persistence file (defaults to 'lfu_cache.json' if persistence enabled)
             stats_logging_interval: Seconds between periodic stats logging (None disables logging)
         """
         if capacity < 0:
@@ -113,12 +107,6 @@ class LFUCache(CacheInterface):
         self.key_map: dict[Any, LFUNode] = {}  # key -> node mapping
         self.freq_map: dict[int, DoublyLinkedList] = {}  # frequency -> list of nodes
         self.min_freq = 0  # Track minimum frequency for eviction
-
-        # Persistence configuration
-        self.persistence_interval = persistence_interval
-        self.persistence_path = persistence_path or "lfu_cache.json"
-        # Initialize to None to ensure first check doesn't trigger immediately
-        self.last_persist_time = None
 
         # Stats logging configuration
         self.stats_logging_interval = stats_logging_interval
@@ -134,10 +122,6 @@ class LFUCache(CacheInterface):
                 "puts": 0,
                 "updates": 0,
             }
-
-        # Load from disk if persistence is enabled and file exists
-        if self.persistence_interval is not None:
-            self._load_from_disk()
 
     def _update_node_freq(self, node: LFUNode) -> None:
         """Update the frequency of a node and move it to the appropriate frequency list."""
@@ -175,9 +159,6 @@ class LFUCache(CacheInterface):
             The value associated with the key, or default if not found
         """
         with self._lock:
-            # Check if we should persist
-            self._check_and_persist()
-
             # Check if we should log stats
             self._check_and_log_stats()
 
@@ -203,9 +184,6 @@ class LFUCache(CacheInterface):
             value: The value to associate with the key
         """
         with self._lock:
-            # Check if we should persist
-            self._check_and_persist()
-
             # Check if we should log stats
             self._check_and_log_stats()
 
@@ -311,109 +289,6 @@ class LFUCache(CacheInterface):
                     "puts": 0,
                     "updates": 0,
                 }
-
-    def _check_and_persist(self) -> None:
-        """Check if enough time has passed and persist to disk if needed."""
-        if self.persistence_interval is None:
-            return
-
-        current_time = time.time()
-
-        # Initialize timestamp on first check
-        if self.last_persist_time is None:
-            self.last_persist_time = current_time
-            return
-
-        if current_time - self.last_persist_time >= self.persistence_interval:
-            self._persist_to_disk()
-            self.last_persist_time = current_time
-
-    def _persist_to_disk(self) -> None:
-        """
-        Serialize cache to disk.
-
-        Stores cache data as JSON with node information including keys, values,
-        frequencies, and timestamps for reconstruction.
-        """
-        if not self.key_map:
-            # If cache is empty, remove the persistence file
-            if os.path.exists(self.persistence_path):
-                os.remove(self.persistence_path)
-            return
-
-        cache_data = {
-            "capacity": self._capacity,
-            "min_freq": self.min_freq,
-            "nodes": [],
-        }
-
-        # Serialize all nodes
-        for key, node in self.key_map.items():
-            cache_data["nodes"].append(
-                {
-                    "key": key,
-                    "value": node.value,
-                    "freq": node.freq,
-                    "created_at": node.created_at,
-                    "accessed_at": node.accessed_at,
-                }
-            )
-
-        # Write to disk
-        try:
-            with open(self.persistence_path, "w") as f:
-                json.dump(cache_data, f, indent=2)
-        except Exception as e:
-            # Silently fail on persistence errors to not disrupt cache operations
-            pass
-
-    def _load_from_disk(self) -> None:
-        """
-        Load cache from disk if persistence file exists.
-
-        Reconstructs the cache state including frequency lists and node relationships.
-        """
-        if not os.path.exists(self.persistence_path):
-            return
-
-        try:
-            with open(self.persistence_path, "r") as f:
-                cache_data = json.load(f)
-
-            # Reconstruct cache
-            self.min_freq = cache_data.get("min_freq", 0)
-
-            for node_data in cache_data.get("nodes", []):
-                # Create node
-                node = LFUNode(node_data["key"], node_data["value"])
-                node.freq = node_data["freq"]
-                node.created_at = node_data["created_at"]
-                node.accessed_at = node_data["accessed_at"]
-
-                # Add to key map
-                self.key_map[node.key] = node
-
-                # Add to appropriate frequency list
-                if node.freq not in self.freq_map:
-                    self.freq_map[node.freq] = DoublyLinkedList()
-                self.freq_map[node.freq].append(node)
-
-        except Exception as e:
-            # If loading fails, start with empty cache
-            self.key_map.clear()
-            self.freq_map.clear()
-            self.min_freq = 0
-
-    def persist_now(self) -> None:
-        """Force immediate persistence to disk (useful for shutdown)."""
-        with self._lock:
-            if self.persistence_interval is not None:
-                self._persist_to_disk()
-                self.last_persist_time = time.time()
-
-    def supports_persistence(self) -> bool:
-        """Check if this cache instance supports persistence."""
-        return self.persistence_interval is not None
 
     def _check_and_log_stats(self) -> None:
         """Check if enough time has passed and log stats if needed."""
@@ -644,34 +519,3 @@ if __name__ == "__main__":
     # Reset statistics
     stats_cache.reset_stats()
     print(f"\nAfter reset: {stats_cache.get_stats()}")
-
-    print("\n=== Cache with Persistence ===")
-
-    # Create cache with persistence (5 second interval)
-    persist_cache = LFUCache(
-        capacity=3, persistence_interval=5.0, persistence_path="test_cache.json"
-    )
-
-    # Add some items
-    persist_cache.put("item1", "value1")
-    persist_cache.put("item2", "value2")
-    persist_cache.put("item3", "value3")
-
-    # Force immediate persistence
-    persist_cache.persist_now()
-    print("Cache persisted to disk")
-
-    # Create new cache instance that will load from disk
-    new_cache = LFUCache(
-        capacity=3, persistence_interval=5.0, persistence_path="test_cache.json"
-    )
-
-    # Verify data was loaded
-    print(f"Loaded item1: {new_cache.get('item1')}")  # Should return 'value1'
-    print(f"Loaded item2: {new_cache.get('item2')}")  # Should return 'value2'
-    print(f"Cache size after loading: {new_cache.size()}")  # Should return 3
-
-    # Clean up
-    if os.path.exists("test_cache.json"):
-        os.remove("test_cache.json")
-        print("Cleaned up test persistence file")
