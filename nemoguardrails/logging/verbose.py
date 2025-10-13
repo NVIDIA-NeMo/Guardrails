@@ -129,6 +129,8 @@ class VerboseHandler(logging.StreamHandler):
                                     title = f"[magenta]{event_type[:-8]}[bold]Finished[/][/]"
                             elif event_type.endswith("ActionFailed"):
                                 title = f"[magenta]{event_type[:-6]}[bold]Failed[/][/]"
+                            elif event_type == "BotThinking":
+                                title = f"[yellow bold]{event_type}[/]"
                             else:
                                 title = event_type
                         else:

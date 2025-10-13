@@ -159,13 +159,6 @@ class RuntimeV1_0(Runtime):
 
             log.info("Processing event: %s", last_event)
 
-            event_type = last_event["type"]
-            log.info(
-                "Event :: %s %s",
-                event_type,
-                str({k: v for k, v in last_event.items() if k != "type"}),
-            )
-
             # If we need to execute an action, we start doing that.
             if last_event["type"] == "StartInternalSystemAction":
                 next_events = await self._process_start_action(events)
@@ -186,15 +179,22 @@ class RuntimeV1_0(Runtime):
                 if len(next_events) == 0:
                     next_events = [new_event_dict("Listen")]
 
-            # Otherwise, we append the event and continue the processing.
-            events.extend(next_events)
-            new_events.extend(next_events)
-
+            # Log all generated events and add them to processing log
             for event in next_events:
                 if event["type"] != "EventHistoryUpdate":
+                    event_type = event["type"]
+                    log.info(
+                        "Event :: %s %s",
+                        event_type,
+                        str({k: v for k, v in event.items() if k != "type"}),
+                    )
                     processing_log.append(
                         {"type": "event", "timestamp": time(), "data": event}
                     )
+
+            # Append events to the event stream and new_events list
+            events.extend(next_events)
+            new_events.extend(next_events)
 
             # If the next event is a listen, we stop the processing.
             if next_events[-1]["type"] == "Listen":

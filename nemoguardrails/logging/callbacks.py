@@ -163,9 +163,27 @@ class LoggingCallbackHandler(AsyncCallbackHandler, StdOutCallbackHandler):
             llm_call_info = LLMCallInfo()
         llm_call_info.completion = response.generations[0][0].text
         llm_call_info.finished_at = time()
+
+        completion_text = response.generations[0][0].text
+        reasoning_content = None
+
+        if isinstance(response.generations[0][0], ChatGeneration):
+            chat_gen = response.generations[0][0]
+            if hasattr(chat_gen, "message") and hasattr(
+                chat_gen.message, "additional_kwargs"
+            ):
+                reasoning_content = chat_gen.message.additional_kwargs.get(
+                    "reasoning_content"
+                )
+
+        if reasoning_content:
+            full_completion = f"{reasoning_content}\n---\n{completion_text}"
+        else:
+            full_completion = completion_text
+
         log.info(
             "Completion :: %s",
-            response.generations[0][0].text,
+            full_completion,
             extra={"id": llm_call_info.id, "task": llm_call_info.task},
         )
 
