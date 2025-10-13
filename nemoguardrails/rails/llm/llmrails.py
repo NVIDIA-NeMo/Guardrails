@@ -458,7 +458,7 @@ class LLMRails:
                 (model for model in self.config.models if model.type == "main"), None
             )
 
-            if main_model:
+            if main_model and main_model.model:
                 kwargs = self._prepare_model_kwargs(main_model)
                 self.llm = init_llm_model(
                     model_name=main_model.model,
@@ -489,7 +489,16 @@ class LLMRails:
                 continue
 
             try:
-                model_name = llm_config.model
+                model_name = (
+                    llm_config.model
+                    if llm_config.model
+                    else llm_config.parameters["model"]
+                )
+                if not model_name:
+                    raise ModelInitializationError(
+                        f"No model name provided in {llm_config}"
+                    )
+
                 provider_name = llm_config.engine
                 kwargs = self._prepare_model_kwargs(llm_config)
                 mode = llm_config.mode
