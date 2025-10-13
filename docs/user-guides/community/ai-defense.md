@@ -2,6 +2,15 @@
 
 [Cisco AI Defense](https://www.cisco.com/site/us/en/products/security/ai-defense/index.html?utm_medium=github&utm_campaign=nemo-guardrails) allows you to protect LLM interactions. This integration enables NeMo Guardrails to use Cisco AI Defense to protect input and output flows.
 
+## Overview
+
+The diagram below shows how Cisco AI Defense integrates with the NeMo Guardrails flow to provide comprehensive protection at both input and output stages:
+
+```{image} ../../_static/images/guardrails_flow_ai_defense.png
+:alt: "High-level flow through programmable guardrails including AI Defense integration, showing how Cisco AI Defense provides privacy, safety, and security inspection for both input and output rails"
+:align: center
+```
+
 You'll need to set the following environment variables to work with  Cisco AI Defense:
 
 1. AI_DEFENSE_API_ENDPOINT - This is the URL for the Cisco AI Defense inspection API endpoint. This will look like https://[REGION].api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat where REGION is us, ap, eu, etc.
@@ -9,7 +18,7 @@ You'll need to set the following environment variables to work with  Cisco AI De
 
 ## Setup
 
-1. Ensure that you have access to the Cisco AI Defense endpoints (SaaS or in your private deployment)
+1. Ensure that you have access to the [Cisco AI Defense endpoints](https://developer.cisco.com/docs/ai-defense/) (SaaS or in your private deployment)
 2. Set the required environment variables: `AI_DEFENSE_API_ENDPOINT` and `AI_DEFENSE_API_KEY`
 
 ### For Colang 1.0
