@@ -334,3 +334,148 @@ async def test_extract_bot_thinking_returns_none_when_not_present():
 
     result = extract_bot_thinking_from_events(events)
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_empty_events_list():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    events = []
+
+    result = extract_bot_thinking_from_events(events)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_returns_first_when_multiple():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    first_thinking = "First thought process"
+    second_thinking = "Second thought process"
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking", "content": first_thinking},
+        {"type": "BotMessage", "text": "Response"},
+        {"type": "BotThinking", "content": second_thinking},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result == first_thinking
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_empty_content():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking", "content": ""},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_none_content():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking", "content": None},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_without_content_field():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking"},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_multiline_content():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    multiline_thinking = """Step 1: Analyze the request
+Step 2: Consider the context
+Step 3: Formulate response"""
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking", "content": multiline_thinking},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result == multiline_thinking
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_special_characters():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    special_thinking = "Thinking: <test> \"quoted\" 'text' & symbols!"
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking", "content": special_thinking},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result == special_thinking
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_numeric_content():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinking", "content": 12345},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result == 12345
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_with_only_bot_thinking_event():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    thinking = "Isolated thought"
+
+    events = [{"type": "BotThinking", "content": thinking}]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result == thinking
+
+
+@pytest.mark.asyncio
+async def test_extract_bot_thinking_ignores_similar_event_types():
+    from nemoguardrails.actions.llm.utils import extract_bot_thinking_from_events
+
+    events = [
+        {"type": "UserMessage", "text": "Hello"},
+        {"type": "BotThinkingStarted", "content": "Should be ignored"},
+        {"type": "PreBotThinking", "content": "Should be ignored"},
+        {"type": "BotMessage", "text": "Response"},
+    ]
+
+    result = extract_bot_thinking_from_events(events)
+    assert result is None
