@@ -21,6 +21,7 @@ jobs:
       os: ${{ matrix.os }}
       image: ${{ matrix.image }}
       python-version: ${{ matrix.python-version }}
+      upgrade-deps: true
   pr-tests-summary:
     name: PR Tests Summary
     needs: pr-tests-matrix
