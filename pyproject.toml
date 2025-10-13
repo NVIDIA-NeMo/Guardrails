@@ -167,6 +167,11 @@ include = [
   "tests/test_callbacks.py",
 ]
 
+# tritonclient is only supported for Python <= 3.8, imports fail pyright-checking
+exclude = [
+  "nemoguardrails/llm/providers/trtllm/**"
+]
+
 [tool.poetry.group.docs]
 optional = true
 
