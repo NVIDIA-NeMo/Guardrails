@@ -48,7 +48,7 @@ def test_custom_llm_registration(app):
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 @pytest.mark.asyncio
-async def test_live_query():
+async def test_live_query_async():
     config = RailsConfig.from_path(
         os.path.join(CONFIGS_FOLDER, "with_azureopenai_embeddings")
     )
@@ -65,8 +65,7 @@ async def test_live_query():
 
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
-@pytest.mark.asyncio
-def test_live_query(app):
+def test_live_query_sync(app):
     result = app.generate(
         messages=[{"role": "user", "content": "tell me what you can do"}]
     )
