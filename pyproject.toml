@@ -157,6 +157,7 @@ pyright = "^1.1.405"
 include = [
   "nemoguardrails/rails/**",
   "nemoguardrails/actions/**",
+  "nemoguardrails/tracing/**",
   "tests/test_callbacks.py",
 ]
 
