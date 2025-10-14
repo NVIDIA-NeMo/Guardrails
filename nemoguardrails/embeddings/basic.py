@@ -15,7 +15,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from annoy import AnnoyIndex  # type: ignore
 
@@ -73,8 +73,14 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._model: Optional[EmbeddingModel] = None
         self._items: List[IndexItem] = []
         self._embeddings: List[List[float]] = []
-        self.embedding_model: Optional[str] = embedding_model
-        self.embedding_engine: Optional[str] = embedding_engine
+        self.embedding_model: str = (
+            embedding_model
+            if embedding_model
+            else "sentence-transformers/all-MiniLM-L6-v2"
+        )
+        self.embedding_engine: str = (
+            embedding_engine if embedding_engine else "SentenceTransformers"
+        )
         self.embedding_params = embedding_params or {}
         self._embedding_size = 0
         self.search_threshold = search_threshold or float("inf")
@@ -124,9 +130,8 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
     def _init_model(self):
         """Initialize the model used for computing the embeddings."""
-        # Provide defaults if not specified
-        model = self.embedding_model or "sentence-transformers/all-MiniLM-L6-v2"
-        engine = self.embedding_engine or "SentenceTransformers"
+        model = self.embedding_model
+        engine = self.embedding_engine
 
         self._model = init_embedding_model(
             embedding_model=model,
@@ -152,9 +157,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         if self._model is None:
             self._init_model()
 
-        if not self._model:
-            raise Exception("Couldn't initialize embedding model")
-        embeddings = await self._model.encode_async(texts)
+        # self._model can't be None here, or self._init_model() would throw a ValueError
+        model: EmbeddingModel = cast(EmbeddingModel, self._model)
+        embeddings = await model.encode_async(texts)
         return embeddings
 
     async def add_item(self, item: IndexItem):
@@ -218,7 +223,6 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         if not self._current_batch_finished_event:
             raise Exception("self._current_batch_finished_event not initialized")
 
-        assert self._current_batch_finished_event is not None
         batch_event: asyncio.Event = self._current_batch_finished_event
         self._current_batch_finished_event = None
 

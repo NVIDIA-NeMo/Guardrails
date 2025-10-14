@@ -244,9 +244,9 @@ class EmbeddingsCache:
 
     def get_config(self):
         return EmbeddingsCacheConfig(
-            key_generator=self._key_generator.name if self._key_generator else "sha256",
-            store=self._cache_store.name if self._cache_store else "filesystem",
-            store_config=self._store_config,
+            key_generator=self._key_generator.name if self._key_generator else None,
+            store=self._cache_store.name if self._cache_store else None,
+            store_config=self._store_config if self._store_config else None,
         )
 
     @singledispatchmethod
