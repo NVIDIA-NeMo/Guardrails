@@ -19,15 +19,14 @@ from .base import EmbeddingModel
 
 
 class GoogleEmbeddingModel(EmbeddingModel):
-    """Embedding model using langchain_google_genai.
+    """Embedding model google-genai.
 
     This class is a wrapper for using embedding models powered by Google AI (hosted in the Google Cloud).
 
     To use, you must have either:
 
         1. The ``GOOGLE_API_KEY`` environment variable set with your API key, or
-        2. Pass your API key using the google_api_key kwarg to the
-        GoogleGenerativeAIEmbeddings constructor.
+        2. Pass your API key using the google_api_key kwarg to the genai.Client().
 
     Args:
         embedding_model (str): The name of the embedding model to be used.
@@ -41,18 +40,17 @@ class GoogleEmbeddingModel(EmbeddingModel):
 
     def __init__(self, embedding_model: str, **kwargs):
         try:
-            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+            from google import genai
 
         except ImportError:
             raise ImportError(
-                "Could not import langchain_google_genai, please install it with "
-                "`pip install langchain-google-genai`."
+                "Could not import google-genai, please install it with "
+                "`pip install google-genai`."
             )
 
         self.model = embedding_model
-        self.document_embedder = GoogleGenerativeAIEmbeddings(
-            model=embedding_model, **kwargs
-        )
+
+        self.client = genai.Client(**kwargs)
 
         self.embedding_size_dict = {
             "gemini-embedding-001": 3072,
@@ -76,8 +74,10 @@ class GoogleEmbeddingModel(EmbeddingModel):
             List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
         """
 
-        result = await self.document_embedder.aembed_documents(documents)
-        return result
+        results = await self.client.aio.models.embed_content(
+            model=self.model, contents=documents
+        )
+        return [emb.values for emb in results.embeddings]
 
     def encode(self, documents: List[str]) -> List[List[float]]:
         """Encode a list of documents into their corresponding sentence embeddings.
@@ -88,4 +88,5 @@ class GoogleEmbeddingModel(EmbeddingModel):
         Returns:
             List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
         """
-        return self.document_embedder.embed_documents(documents)
+        results = self.client.models.embed_content(model=self.model, contents=documents)
+        return [emb.values for emb in results.embeddings]
