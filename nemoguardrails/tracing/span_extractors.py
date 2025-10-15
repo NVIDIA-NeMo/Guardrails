@@ -59,7 +59,7 @@ class SpanExtractorV1(SpanExtractor):
         self, activated_rails: List[ActivatedRail]
     ) -> List[Union[SpanLegacy, SpanOpentelemetry]]:
         """Extract v1 spans from activated rails."""
-        spans: List[SpanLegacy] = []
+        spans: List[Union[SpanLegacy, SpanOpentelemetry]] = []
         if not activated_rails:
             return spans
 
@@ -165,9 +165,9 @@ class SpanExtractorV2(SpanExtractor):
 
     def extract_spans(
         self, activated_rails: List[ActivatedRail]
-    ) -> List[Union[SpanLegacy, SpanOpentelemetry, TypedSpan]]:
+    ) -> List[Union[SpanLegacy, SpanOpentelemetry]]:
         """Extract v2 spans from activated rails with OpenTelemetry attributes."""
-        spans: List[TypedSpan] = []
+        spans: List[Union[SpanLegacy, SpanOpentelemetry]] = []
         ref_time = activated_rails[0].started_at or 0.0
 
         interaction_span = InteractionSpan(
@@ -219,17 +219,11 @@ class SpanExtractorV2(SpanExtractor):
                         for k, v in (action.action_params or {}).items()
                         if isinstance(v, (str, int, float, bool))
                     },
-                    error=True if hasattr(action, "error") and action.error else None,
-                    error_type=(
-                        type(action.error).__name__
-                        if hasattr(action, "error") and action.error
-                        else None
-                    ),
-                    error_message=(
-                        str(action.error)
-                        if hasattr(action, "error") and action.error
-                        else None
-                    ),
+                    # TODO: There is no error field in ExecutedAction. The fields below are defined on BaseSpan but
+                    #  will never be set if using an ActivatedRail object to populate an ActivatedRail object.
+                    error=None,
+                    error_type=None,
+                    error_message=None,
                 )
                 spans.append(action_span)
 

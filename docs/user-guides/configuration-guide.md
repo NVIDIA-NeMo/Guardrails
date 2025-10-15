@@ -538,6 +538,7 @@ The following tables lists the supported embedding providers:
 | OpenAI               | `openai`               | `text-embedding-ada-002`, etc.     |
 | SentenceTransformers | `SentenceTransformers` | `all-MiniLM-L6-v2`, etc.           |
 | NVIDIA AI Endpoints  | `nvidia_ai_endpoints`  | `nv-embed-v1`, etc.                |
+| AzureOpenAI          | `AzureOpenAI`          | `text-embedding-ada-002`, etc.
 
 ```{note}
 You can use any of the supported models for any of the supported embedding providers.

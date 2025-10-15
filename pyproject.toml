@@ -158,6 +158,7 @@ include = [
   "nemoguardrails/rails/**",
   "nemoguardrails/actions/**",
   "nemoguardrails/logging/**",
+  "nemoguardrails/tracing/**",
   "tests/test_callbacks.py",
 ]
 

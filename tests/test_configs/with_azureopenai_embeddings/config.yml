@@ -1,0 +1,8 @@
+models:
+    - type: main
+      engine: azure
+      model: gpt-4o
+
+    - type: embeddings
+      engine: AzureOpenAI
+      model: text-embedding-ada-002
