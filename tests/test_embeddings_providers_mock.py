@@ -102,10 +102,11 @@ class TestCohereEmbeddingModelMocked:
         mock_cohere.Client.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.embeddings = [
+        expected_embeddings = [
             [0.1, 0.2, 0.3],
             [0.4, 0.5, 0.6],
         ]
+        mock_response.embeddings = expected_embeddings
         mock_client.embed.return_value = mock_response
 
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
@@ -115,7 +116,7 @@ class TestCohereEmbeddingModelMocked:
             documents = ["hello world", "test document"]
             result = model.encode(documents)
 
-            assert result == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+            assert result == expected_embeddings
             mock_client.embed.assert_called_with(
                 texts=documents,
                 model="embed-english-light-v3.0",
@@ -128,7 +129,8 @@ class TestCohereEmbeddingModelMocked:
         mock_cohere.Client.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.embeddings = [[0.1, 0.2]]
+        expected_embeddings = [[0.1, 0.2]]
+        mock_response.embeddings = expected_embeddings
         mock_client.embed.return_value = mock_response
 
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
@@ -138,7 +140,7 @@ class TestCohereEmbeddingModelMocked:
             documents = ["classify this"]
             result = model.encode(documents)
 
-            assert result == [[0.1, 0.2]]
+            assert result == expected_embeddings
             mock_client.embed.assert_called_with(
                 texts=documents, model="embed-v4.0", input_type="classification"
             )
@@ -150,7 +152,8 @@ class TestCohereEmbeddingModelMocked:
         mock_cohere.Client.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.embeddings = [[0.1, 0.2, 0.3]]
+        expected_embeddings = [[0.1, 0.2, 0.3]]
+        mock_response.embeddings = expected_embeddings
         mock_client.embed.return_value = mock_response
 
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
@@ -160,7 +163,7 @@ class TestCohereEmbeddingModelMocked:
             documents = ["async test"]
             result = await model.encode_async(documents)
 
-            assert result == [[0.1, 0.2, 0.3]]
+            assert result == expected_embeddings
             mock_client.embed.assert_called_once()
 
     def test_init_with_api_key_kwarg(self):
@@ -267,9 +270,11 @@ class TestOpenAIEmbeddingModelMocked:
 
         mock_response = Mock()
         mock_record1 = Mock()
-        mock_record1.embedding = [0.1, 0.2, 0.3]
+        expected_embedding1 = [0.1, 0.2, 0.3]
+        mock_record1.embedding = expected_embedding1
         mock_record2 = Mock()
-        mock_record2.embedding = [0.4, 0.5, 0.6]
+        expected_embedding2 = [0.4, 0.5, 0.6]
+        mock_record2.embedding = expected_embedding2
         mock_response.data = [mock_record1, mock_record2]
         mock_client.embeddings.create.return_value = mock_response
 
@@ -280,7 +285,7 @@ class TestOpenAIEmbeddingModelMocked:
             documents = ["hello world", "test document"]
             result = model.encode(documents)
 
-            assert result == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+            assert result == [expected_embedding1, expected_embedding2]
             mock_client.embeddings.create.assert_called_with(
                 input=documents, model="text-embedding-ada-002"
             )
@@ -294,7 +299,8 @@ class TestOpenAIEmbeddingModelMocked:
 
         mock_response = Mock()
         mock_record = Mock()
-        mock_record.embedding = [0.1, 0.2, 0.3]
+        expected_embedding = [0.1, 0.2, 0.3]
+        mock_record.embedding = expected_embedding
         mock_response.data = [mock_record]
         mock_client.embeddings.create.return_value = mock_response
 
@@ -305,7 +311,7 @@ class TestOpenAIEmbeddingModelMocked:
             documents = ["async test"]
             result = await model.encode_async(documents)
 
-            assert result == [[0.1, 0.2, 0.3]]
+            assert result == [expected_embedding]
             mock_client.embeddings.create.assert_called_once()
 
     def test_init_with_api_key_kwarg(self):
