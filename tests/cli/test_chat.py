@@ -109,61 +109,67 @@ class TestChatState:
 
 
 class TestRunChat:
-    @patch("asyncio.run")
-    @patch.object(chat_module, "LLMRails")
-    @patch.object(chat_module, "RailsConfig")
-    def test_run_chat_v1_0(self, mock_rails_config, mock_llm_rails, mock_asyncio_run):
-        mock_config = MagicMock()
-        mock_config.colang_version = "1.0"
-        mock_rails_config.from_path.return_value = mock_config
+    def test_run_chat_v1_0(self):
+        with patch.object(
+            chat_module, "RailsConfig"
+        ) as mock_rails_config, patch.object(
+            chat_module, "LLMRails"
+        ) as mock_llm_rails, patch(
+            "asyncio.run"
+        ) as mock_asyncio_run:
+            mock_config = MagicMock()
+            mock_config.colang_version = "1.0"
+            mock_rails_config.from_path.return_value = mock_config
 
-        run_chat(config_path="test_config")
-
-        mock_rails_config.from_path.assert_called_once_with("test_config")
-        mock_asyncio_run.assert_called_once()
-
-    @patch.object(chat_module, "get_or_create_event_loop")
-    @patch.object(chat_module, "LLMRails")
-    @patch.object(chat_module, "RailsConfig")
-    def test_run_chat_v2_x(self, mock_rails_config, mock_llm_rails, mock_get_loop):
-        mock_config = MagicMock()
-        mock_config.colang_version = "2.x"
-        mock_rails_config.from_path.return_value = mock_config
-
-        mock_loop = MagicMock()
-        mock_get_loop.return_value = mock_loop
-
-        run_chat(config_path="test_config")
-
-        mock_rails_config.from_path.assert_called_once_with("test_config")
-        mock_llm_rails.assert_called_once_with(mock_config, verbose=False)
-        mock_loop.run_until_complete.assert_called_once()
-
-    @patch.object(chat_module, "RailsConfig")
-    def test_run_chat_invalid_version(self, mock_rails_config):
-        mock_config = MagicMock()
-        mock_config.colang_version = "3.0"
-        mock_rails_config.from_path.return_value = mock_config
-
-        with pytest.raises(Exception, match="Invalid colang version"):
             run_chat(config_path="test_config")
 
-    @patch.object(chat_module, "console")
-    @patch("asyncio.run")
-    @patch.object(chat_module, "RailsConfig")
-    def test_run_chat_verbose_with_llm_calls(
-        self, mock_rails_config, mock_asyncio_run, mock_console
-    ):
-        mock_config = MagicMock()
-        mock_config.colang_version = "1.0"
-        mock_rails_config.from_path.return_value = mock_config
+            mock_rails_config.from_path.assert_called_once_with("test_config")
+            mock_asyncio_run.assert_called_once()
 
-        run_chat(config_path="test_config", verbose=True, verbose_llm_calls=True)
+    def test_run_chat_v2_x(self):
+        with patch.object(
+            chat_module, "RailsConfig"
+        ) as mock_rails_config, patch.object(
+            chat_module, "LLMRails"
+        ) as mock_llm_rails, patch.object(
+            chat_module, "get_or_create_event_loop"
+        ) as mock_get_loop:
+            mock_config = MagicMock()
+            mock_config.colang_version = "2.x"
+            mock_rails_config.from_path.return_value = mock_config
 
-        mock_console.print.assert_any_call(
-            "NOTE: use the `--verbose-no-llm` option to exclude the LLM prompts "
-            "and completions from the log.\n"
-        )
+            mock_loop = MagicMock()
+            mock_get_loop.return_value = mock_loop
+
+            run_chat(config_path="test_config")
+
+            mock_rails_config.from_path.assert_called_once_with("test_config")
+            mock_llm_rails.assert_called_once_with(mock_config, verbose=False)
+            mock_loop.run_until_complete.assert_called_once()
+
+    def test_run_chat_invalid_version(self):
+        with patch.object(chat_module, "RailsConfig") as mock_rails_config:
+            mock_config = MagicMock()
+            mock_config.colang_version = "3.0"
+            mock_rails_config.from_path.return_value = mock_config
+
+            with pytest.raises(Exception, match="Invalid colang version"):
+                run_chat(config_path="test_config")
+
+    def test_run_chat_verbose_with_llm_calls(self):
+        with patch.object(chat_module, "RailsConfig") as mock_rails_config, patch(
+            "asyncio.run"
+        ) as mock_asyncio_run, patch.object(chat_module, "console") as mock_console:
+            mock_config = MagicMock()
+            mock_config.colang_version = "1.0"
+            mock_rails_config.from_path.return_value = mock_config
+
+            run_chat(config_path="test_config", verbose=True, verbose_llm_calls=True)
+
+            mock_console.print.assert_any_call(
+                "NOTE: use the `--verbose-no-llm` option to exclude the LLM prompts "
+                "and completions from the log.\n"
+            )
 
 
 class TestRunChatV1Async:
