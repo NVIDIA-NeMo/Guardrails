@@ -102,10 +102,11 @@ class TestCohereEmbeddingModelMocked:
         mock_cohere.Client.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.embeddings = [
+        expected_embeddings = [
             [0.1, 0.2, 0.3],
             [0.4, 0.5, 0.6],
         ]
+        mock_response.embeddings = expected_embeddings
         mock_client.embed.return_value = mock_response
 
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
@@ -115,7 +116,7 @@ class TestCohereEmbeddingModelMocked:
             documents = ["hello world", "test document"]
             result = model.encode(documents)
 
-            assert result == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+            assert result == expected_embeddings
             mock_client.embed.assert_called_with(
                 texts=documents,
                 model="embed-english-light-v3.0",
@@ -128,7 +129,8 @@ class TestCohereEmbeddingModelMocked:
         mock_cohere.Client.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.embeddings = [[0.1, 0.2]]
+        expected_embeddings = [[0.1, 0.2]]
+        mock_response.embeddings = expected_embeddings
         mock_client.embed.return_value = mock_response
 
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
@@ -138,7 +140,7 @@ class TestCohereEmbeddingModelMocked:
             documents = ["classify this"]
             result = model.encode(documents)
 
-            assert result == [[0.1, 0.2]]
+            assert result == expected_embeddings
             mock_client.embed.assert_called_with(
                 texts=documents, model="embed-v4.0", input_type="classification"
             )
@@ -150,7 +152,8 @@ class TestCohereEmbeddingModelMocked:
         mock_cohere.Client.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.embeddings = [[0.1, 0.2, 0.3]]
+        expected_embeddings = [[0.1, 0.2, 0.3]]
+        mock_response.embeddings = expected_embeddings
         mock_client.embed.return_value = mock_response
 
         with patch.dict("sys.modules", {"cohere": mock_cohere}):
@@ -160,7 +163,7 @@ class TestCohereEmbeddingModelMocked:
             documents = ["async test"]
             result = await model.encode_async(documents)
 
-            assert result == [[0.1, 0.2, 0.3]]
+            assert result == expected_embeddings
             mock_client.embed.assert_called_once()
 
     def test_init_with_api_key_kwarg(self):
@@ -193,6 +196,156 @@ class TestCohereEmbeddingModelMocked:
 
             for model_name, expected_size in models_to_test.items():
                 model = CohereEmbeddingModel(model_name)
+                assert model.embedding_size == expected_size
+                assert model.model == model_name
+
+
+class TestOpenAIEmbeddingModelMocked:
+    def test_init_with_known_model(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "1.0.0"
+        mock_client = Mock()
+        mock_openai.OpenAI.return_value = mock_client
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            model = OpenAIEmbeddingModel("text-embedding-3-small")
+
+            assert model.model == "text-embedding-3-small"
+            assert model.embedding_size == 1536
+            assert model.client == mock_client
+            mock_openai.OpenAI.assert_called_once()
+
+    def test_init_with_unknown_model(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "1.0.0"
+        mock_client = Mock()
+        mock_openai.OpenAI.return_value = mock_client
+
+        mock_response = Mock()
+        mock_record = Mock()
+        mock_record.embedding = [0.1] * 2048
+        mock_response.data = [mock_record]
+        mock_client.embeddings.create.return_value = mock_response
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            model = OpenAIEmbeddingModel("custom-unknown-model")
+
+            assert model.model == "custom-unknown-model"
+            assert model.embedding_size == 2048
+            mock_client.embeddings.create.assert_called_once_with(
+                input=["test"], model="custom-unknown-model"
+            )
+
+    def test_import_error_when_openai_not_installed(self):
+        with patch.dict("sys.modules", {"openai": None}):
+            with pytest.raises(ImportError, match="Could not import openai"):
+                if "nemoguardrails.embeddings.providers.openai" in sys.modules:
+                    del sys.modules["nemoguardrails.embeddings.providers.openai"]
+
+                from nemoguardrails.embeddings.providers.openai import (
+                    OpenAIEmbeddingModel,
+                )
+
+                OpenAIEmbeddingModel("text-embedding-3-small")
+
+    def test_old_version_error(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "0.28.0"
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            with pytest.raises(RuntimeError, match="openai<1.0.0"):
+                OpenAIEmbeddingModel("text-embedding-3-small")
+
+    def test_encode_success(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "1.0.0"
+        mock_client = Mock()
+        mock_openai.OpenAI.return_value = mock_client
+
+        mock_response = Mock()
+        mock_record1 = Mock()
+        expected_embedding1 = [0.1, 0.2, 0.3]
+        mock_record1.embedding = expected_embedding1
+        mock_record2 = Mock()
+        expected_embedding2 = [0.4, 0.5, 0.6]
+        mock_record2.embedding = expected_embedding2
+        mock_response.data = [mock_record1, mock_record2]
+        mock_client.embeddings.create.return_value = mock_response
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            model = OpenAIEmbeddingModel("text-embedding-ada-002")
+            documents = ["hello world", "test document"]
+            result = model.encode(documents)
+
+            assert result == [expected_embedding1, expected_embedding2]
+            mock_client.embeddings.create.assert_called_with(
+                input=documents, model="text-embedding-ada-002"
+            )
+
+    @pytest.mark.asyncio
+    async def test_encode_async_success(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "1.0.0"
+        mock_client = Mock()
+        mock_openai.OpenAI.return_value = mock_client
+
+        mock_response = Mock()
+        mock_record = Mock()
+        expected_embedding = [0.1, 0.2, 0.3]
+        mock_record.embedding = expected_embedding
+        mock_response.data = [mock_record]
+        mock_client.embeddings.create.return_value = mock_response
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            model = OpenAIEmbeddingModel("text-embedding-3-small")
+            documents = ["async test"]
+            result = await model.encode_async(documents)
+
+            assert result == [expected_embedding]
+            mock_client.embeddings.create.assert_called_once()
+
+    def test_init_with_api_key_kwarg(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "1.0.0"
+        mock_client = Mock()
+        mock_openai.OpenAI.return_value = mock_client
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            model = OpenAIEmbeddingModel(
+                "text-embedding-3-small", api_key="test-key-123"
+            )
+
+            mock_openai.OpenAI.assert_called_once_with(api_key="test-key-123")
+
+    def test_all_predefined_models(self):
+        mock_openai = MagicMock()
+        mock_openai.__version__ = "1.0.0"
+        mock_client = Mock()
+        mock_openai.OpenAI.return_value = mock_client
+
+        models_to_test = {
+            "text-embedding-ada-002": 1536,
+            "text-embedding-3-small": 1536,
+            "text-embedding-3-large": 3072,
+        }
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
+
+            for model_name, expected_size in models_to_test.items():
+                model = OpenAIEmbeddingModel(model_name)
                 assert model.embedding_size == expected_size
                 assert model.model == model_name
 
@@ -421,150 +574,3 @@ class TestAzureEmbeddingModelMocked:
 
             assert result == [[0.1, 0.2, 0.3]]
             assert len(result) == 1
-
-
-class TestOpenAIEmbeddingModelMocked:
-    def test_init_with_known_model(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "1.0.0"
-        mock_client = Mock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            model = OpenAIEmbeddingModel("text-embedding-3-small")
-
-            assert model.model == "text-embedding-3-small"
-            assert model.embedding_size == 1536
-            assert model.client == mock_client
-            mock_openai.OpenAI.assert_called_once()
-
-    def test_init_with_unknown_model(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "1.0.0"
-        mock_client = Mock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        mock_response = Mock()
-        mock_record = Mock()
-        mock_record.embedding = [0.1] * 2048
-        mock_response.data = [mock_record]
-        mock_client.embeddings.create.return_value = mock_response
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            model = OpenAIEmbeddingModel("custom-unknown-model")
-
-            assert model.model == "custom-unknown-model"
-            assert model.embedding_size == 2048
-            mock_client.embeddings.create.assert_called_once_with(
-                input=["test"], model="custom-unknown-model"
-            )
-
-    def test_import_error_when_openai_not_installed(self):
-        with patch.dict("sys.modules", {"openai": None}):
-            with pytest.raises(ImportError, match="Could not import openai"):
-                if "nemoguardrails.embeddings.providers.openai" in sys.modules:
-                    del sys.modules["nemoguardrails.embeddings.providers.openai"]
-
-                from nemoguardrails.embeddings.providers.openai import (
-                    OpenAIEmbeddingModel,
-                )
-
-                OpenAIEmbeddingModel("text-embedding-3-small")
-
-    def test_old_version_error(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "0.28.0"
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            with pytest.raises(RuntimeError, match="openai<1.0.0"):
-                OpenAIEmbeddingModel("text-embedding-3-small")
-
-    def test_encode_success(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "1.0.0"
-        mock_client = Mock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        mock_response = Mock()
-        mock_record1 = Mock()
-        mock_record1.embedding = [0.1, 0.2, 0.3]
-        mock_record2 = Mock()
-        mock_record2.embedding = [0.4, 0.5, 0.6]
-        mock_response.data = [mock_record1, mock_record2]
-        mock_client.embeddings.create.return_value = mock_response
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            model = OpenAIEmbeddingModel("text-embedding-ada-002")
-            documents = ["hello world", "test document"]
-            result = model.encode(documents)
-
-            assert result == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
-            mock_client.embeddings.create.assert_called_with(
-                input=documents, model="text-embedding-ada-002"
-            )
-
-    @pytest.mark.asyncio
-    async def test_encode_async_success(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "1.0.0"
-        mock_client = Mock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        mock_response = Mock()
-        mock_record = Mock()
-        mock_record.embedding = [0.1, 0.2, 0.3]
-        mock_response.data = [mock_record]
-        mock_client.embeddings.create.return_value = mock_response
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            model = OpenAIEmbeddingModel("text-embedding-3-small")
-            documents = ["async test"]
-            result = await model.encode_async(documents)
-
-            assert result == [[0.1, 0.2, 0.3]]
-            mock_client.embeddings.create.assert_called_once()
-
-    def test_init_with_api_key_kwarg(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "1.0.0"
-        mock_client = Mock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            model = OpenAIEmbeddingModel(
-                "text-embedding-3-small", api_key="test-key-123"
-            )
-
-            mock_openai.OpenAI.assert_called_once_with(api_key="test-key-123")
-
-    def test_all_predefined_models(self):
-        mock_openai = MagicMock()
-        mock_openai.__version__ = "1.0.0"
-        mock_client = Mock()
-        mock_openai.OpenAI.return_value = mock_client
-
-        models_to_test = {
-            "text-embedding-ada-002": 1536,
-            "text-embedding-3-small": 1536,
-            "text-embedding-3-large": 3072,
-        }
-
-        with patch.dict("sys.modules", {"openai": mock_openai}):
-            from nemoguardrails.embeddings.providers.openai import OpenAIEmbeddingModel
-
-            for model_name, expected_size in models_to_test.items():
-                model = OpenAIEmbeddingModel(model_name)
-                assert model.embedding_size == expected_size
-                assert model.model == model_name
