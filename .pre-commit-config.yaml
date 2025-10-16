@@ -23,6 +23,7 @@ repos:
         args:
           - --license-filepath
           - LICENSE.md
+          - --use-current-year
   - repo: local
     hooks:
       - id: pyright
