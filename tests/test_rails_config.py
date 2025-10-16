@@ -23,7 +23,13 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.llm.prompts import TaskPrompt
-from nemoguardrails.rails.llm.config import Model, RailsConfig
+from nemoguardrails.rails.llm.config import (
+    Model,
+    RailsConfig,
+    _convert_flow_to_task,
+    _get_flow_model,
+    _get_flow_name,
+)
 
 TEST_API_KEY_NAME = "DUMMY_OPENAI_API_KEY"
 TEST_API_KEY_VALUE = "sk-svcacct-abcdefGHIJKlmnoPQRSTuvXYZ1234567890"
@@ -320,3 +326,226 @@ def test_model_api_key_value_multiple_strings_one_empty():
                 ),
             ]
         )
+
+
+class TestConfigHelpers:
+    def test_get_flow_model_flow_only(self):
+        """Check we return None if the flow doesn't have a model definition"""
+        assert _get_flow_model("self check output") is None
+
+    def test_get_flow_model_flow_and_model(self):
+        """Check we return None if the flow doesn't have a model definition"""
+        assert (
+            _get_flow_model("content safety check input $model=content_safety")
+            == "content_safety"
+        )
+
+    def test_get_flow_name_flow_only(self):
+        """Check we return None if the flow doesn't have a model definition"""
+        assert _get_flow_name("self check output") == "self check output"
+
+    def test_get_flow_name_flow_and_model(self):
+        """Check we return None if the flow doesn't have a model definition"""
+        assert (
+            _get_flow_name("content safety check input $model=content_safety")
+            == "content safety check input"
+        )
+
+    def test_flow_to_task_no_model(self):
+        """Check we convert a flow (with spaces) to task (with underscores) where no model is provided"""
+        assert _convert_flow_to_task("self check output") == "self_check_output"
+
+    def test_flow_to_task_with_model(self):
+        """Check we convert a flow (with spaces) to task (with underscores) where no model is provided"""
+        assert (
+            _convert_flow_to_task("content safety check input $model=content_safety")
+            == "content_safety_check_input $model=content_safety"
+        )
+
+
+class TestContentSafetyConfig:
+    def test_content_safety_input_missing_prompt_raises(self):
+        """Check Content Safety output rail raises ValueError if we don't have a prompt"""
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+
+                    """,
+            )
+
+    def test_content_safety_output_missing_prompt_raises(self):
+        """Check Content Safety output rail raises ValueError if we don't have a prompt"""
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_output \$model=content_safety` prompt template.",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                rails:
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                """,
+            )
+
+    def test_input_content_safety_has_model(self):
+        """Check we create RailsConfig with input content-safety model specified"""
+
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: content_safety
+                engine: nim
+                model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+            rails:
+              input:
+                flows:
+                  - content safety check input $model=content_safety
+
+            prompts:
+              - task: content_safety_check_input $model=content_safety
+                content: Check content safety
+            """,
+        )
+
+        # Check a few fields to make sure we created the config correctly
+        assert config.models[0].type == "content_safety"
+        assert (
+            config.rails.input.flows[0]
+            == "content safety check input $model=content_safety"
+        )
+
+    def test_output_content_safety_has_model(self):
+        """Check we create RailsConfig with output content-safety model specified"""
+
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: content_safety
+                engine: nim
+                model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+            rails:
+              output:
+                flows:
+                  - content safety check output $model=content_safety
+
+            prompts:
+              - task: content_safety_check_output $model=content_safety
+                content: Check content safety
+            """,
+        )
+
+        # Check a few fields to make sure we created config correctly
+        assert config.models[0].type == "content_safety"
+        assert (
+            config.rails.output.flows[0]
+            == "content safety check output $model=content_safety"
+        )
+
+    def test_input_output_content_safety_has_model(self):
+        """Check we create RailsConfig with output content-safety model specified"""
+
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models:
+              - type: content_safety
+                engine: nim
+                model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+            rails:
+              input:
+                flows:
+                  - content safety check input $model=content_safety
+
+              output:
+                flows:
+                  - content safety check output $model=content_safety
+
+            prompts:
+              - task: content_safety_check_output $model=content_safety
+                content: Check content safety
+              - task: content_safety_check_input $model=content_safety
+                content: Check content safety
+            """,
+        )
+
+        # Check a few fields to make sure we created config correctly
+        assert config.models[0].type == "content_safety"
+        assert (
+            config.rails.input.flows[0]
+            == "content safety check input $model=content_safety"
+        )
+        assert (
+            config.rails.output.flows[0]
+            == "content safety check output $model=content_safety"
+        )
+
+    def test_input_content_safety_no_model_raises(self):
+        """Check we raise ValueError when creating an input content safety rail with no model"""
+
+        with pytest.raises(
+            ValueError,
+            match="No `content_safety` model provided for input flow `content safety check input`",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: openai
+                    model: gpt-4o
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+
+                prompts:
+                  - task: content_safety_check_input $model=content_safety
+                    content: Check content safety
+                    """,
+            )
+
+    def test_output_content_safety_no_model_raises(self):
+        """Check we raise ValueError when creating an output content safety rail with no model"""
+
+        with pytest.raises(
+            ValueError,
+            match="No `content_safety` model provided for output flow `content safety check output`",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: openai
+                    model: gpt-4o
+
+                rails:
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                prompts:
+                  - task: content_safety_check_output $model=content_safety
+                    content: Check content safety
+                """,
+            )

@@ -1397,6 +1397,52 @@ class RailsConfig(BaseModel):
         description="Configuration for tracing.",
     )
 
+    @root_validator(pre=True)
+    def check_model_exists_for_input_rails(cls, values):
+        """Make sure we have a model for each input rail where one is provided using $model=<model_type>"""
+        models = values.get("models", []) or []
+        model_types = {
+            model.type if isinstance(model, Model) else model["type"]
+            for model in models
+        }
+
+        rails = values.get("rails", {})
+        input_flows = rails.get("input", {}).get("flows", [])
+
+        for flow in input_flows:
+            flow_model = _get_flow_model(flow)
+            if not flow_model:
+                continue
+            if flow_model not in model_types:
+                raise ValueError(
+                    f"No `{flow_model}` model provided for input flow `{_get_flow_name(flow)}`"
+                )
+
+        return values
+
+    @root_validator(pre=True)
+    def check_model_exists_for_output_rails(cls, values):
+        """Make sure we have a model for each output rail where one is provided using $model=<model_type>"""
+        models = values.get("models", []) or []
+        model_types = {
+            model.type if isinstance(model, Model) else model["type"]
+            for model in models
+        }
+
+        rails = values.get("rails", {})
+        output_flows = rails.get("output", {}).get("flows", [])
+
+        for flow in output_flows:
+            flow_model = _get_flow_model(flow)
+            if not flow_model:
+                continue
+            if flow_model not in model_types:
+                raise ValueError(
+                    f"No `{flow_model}` model provided for output flow `{_get_flow_name(flow)}`"
+                )
+
+        return values
+
     @root_validator(pre=True, allow_reuse=True)
     def check_prompt_exist_for_self_check_rails(cls, values):
         rails = values.get("rails", {})
@@ -1421,6 +1467,22 @@ class RailsConfig(BaseModel):
         ):
             raise ValueError(
                 "You must provide a `llama_guard_check_input` prompt template."
+            )
+        if (
+            "content safety check input $model=content_safety" in enabled_input_rails
+            and "content_safety_check_input $model=content_safety"
+            not in provided_task_prompts
+        ):
+            raise ValueError(
+                "You must provide a `content_safety_check_input $model=content_safety` prompt template."
+            )
+        if (
+            "topic safety check input $model=topic_control" in enabled_input_rails
+            and "topic_safety_check_input $model=topic_control"
+            not in provided_task_prompts
+        ):
+            raise ValueError(
+                "You must provide a `topic_safety_check_input $model=topic_control` prompt template."
             )
 
         # Output moderation prompt verification
@@ -1449,6 +1511,14 @@ class RailsConfig(BaseModel):
             and "self_check_facts" not in provided_task_prompts
         ):
             raise ValueError("You must provide a `self_check_facts` prompt template.")
+        if (
+            "content safety check output $model=content_safety" in enabled_output_rails
+            and "content_safety_check_output $model=content_safety"
+            not in provided_task_prompts
+        ):
+            raise ValueError(
+                "You must provide a `content_safety_check_output $model=content_safety` prompt template."
+            )
 
         return values
 
@@ -1779,3 +1849,39 @@ def _generate_rails_flows(flows):
         flow_definitions.insert(1, _LIBRARY_IMPORT + _NEWLINE * 2)
 
     return flow_definitions
+
+
+MODEL_PREFIX = "$model="
+
+
+def _get_flow_model(flow_text) -> Optional[str]:
+    """Helper to return a model name from a flow definition"""
+    if MODEL_PREFIX not in flow_text:
+        return None
+    return flow_text.split(MODEL_PREFIX)[-1].strip()
+
+
+def _get_flow_name(flow_text) -> str:
+    """Helper to return flow name from flow-and-model definition"""
+    flow_name = (
+        flow_text.split(MODEL_PREFIX)[0].strip()
+        if MODEL_PREFIX in flow_text
+        else flow_text
+    )
+    return flow_name
+
+
+def _convert_flow_to_task(flow_text) -> str:
+    """Convert a flow to a task field found in prompts.yml.
+    For example: content safety check input $model=content_safety
+    converts to: content_safety_check_input $model=content_safety
+    """
+
+    flow_name = _get_flow_name(flow_text)
+    task_name = flow_name.replace(" ", "_")
+    model_name = _get_flow_model(flow_text)
+
+    task_text = (
+        f"{task_name}" if not model_name else f"{task_name} {MODEL_PREFIX}{model_name}"
+    )
+    return task_text
