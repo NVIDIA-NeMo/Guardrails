@@ -23,7 +23,12 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.llm.prompts import TaskPrompt
-from nemoguardrails.rails.llm.config import Model, RailsConfig, _get_flow_model
+from nemoguardrails.rails.llm.config import (
+    Model,
+    RailsConfig,
+    _get_flow_model,
+    _validate_rail_prompts,
+)
 
 TEST_API_KEY_NAME = "DUMMY_OPENAI_API_KEY"
 TEST_API_KEY_VALUE = "sk-svcacct-abcdefGHIJKlmnoPQRSTuvXYZ1234567890"
@@ -333,6 +338,54 @@ class TestConfigHelpers:
             _get_flow_model("content safety check input $model=content_safety")
             == "content_safety"
         )
+
+    def test_validate_rail_prompts(self):
+        """Check we don't raise ValueError if there's a matching prompt for a rail"""
+
+        _validate_rail_prompts(
+            ["content safety check input $model=content_safety"],
+            ["content_safety_check_input $model=content_safety"],
+            "content safety check input",
+        )
+
+    def test_validate_rail_prompts_wrong_flow_id_raises(self):
+        """Check we raise a ValueError if we have wrong flow_id but correct model"""
+
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+        ):
+            _validate_rail_prompts(
+                ["content safety check input $model=content_safety"],
+                ["topic_safety_check_input $model=content_safety"],
+                "content safety check input",
+            )
+
+    def test_validate_rail_prompts_wrong_model_raises(self):
+        """Check we don't raise ValueError if there's a matching prompt for a rail"""
+
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+        ):
+            _validate_rail_prompts(
+                ["content safety check input $model=content_safety"],
+                ["content_safety_check_input $model=local_content_safety"],
+                "content safety check input",
+            )
+
+    def test_validate_rail_prompts_no_prompt_raises(self):
+        """Check we don't raise ValueError if there's a matching prompt for a rail"""
+
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+        ):
+            _validate_rail_prompts(
+                ["content safety check input $model=content_safety"],
+                [],
+                "content safety check input",
+            )
 
 
 class TestContentSafetyConfig:

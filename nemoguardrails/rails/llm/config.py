@@ -1485,27 +1485,12 @@ class RailsConfig(BaseModel):
         # Only content-safety and topic-safety include a $model reference in the rail flow text
         # Need to match rails with flow_id (excluding $model reference) and match prompts
         # on the full flow_id (including $model reference)
-        for input_rail in enabled_input_rails:
-            input_flow_id = _normalize_flow_id(input_rail)
-            input_flow_model = _get_flow_model(input_rail)
-            if input_flow_id == "content safety check input":
-                prompt_flow_id = input_flow_id.replace(" ", "_")
-                expected_prompt = f"{prompt_flow_id} $model={input_flow_model}"
-                if expected_prompt not in provided_task_prompts:
-                    raise ValueError(
-                        f"You must provide a `{expected_prompt}` prompt template."
-                    )
-
-        for input_rail in enabled_input_rails:
-            input_flow_id = _normalize_flow_id(input_rail)
-            input_flow_model = _get_flow_model(input_rail)
-            if input_flow_id == "topic safety check input":
-                prompt_flow_id = input_flow_id.replace(" ", "_")
-                expected_prompt = f"{prompt_flow_id} $model={input_flow_model}"
-                if expected_prompt not in provided_task_prompts:
-                    raise ValueError(
-                        f"You must provide a `{expected_prompt}` prompt template."
-                    )
+        _validate_rail_prompts(
+            enabled_input_rails, provided_task_prompts, "content safety check input"
+        )
+        _validate_rail_prompts(
+            enabled_input_rails, provided_task_prompts, "topic safety check input"
+        )
 
         # Output moderation prompt verification
         if (
@@ -1537,16 +1522,10 @@ class RailsConfig(BaseModel):
         # Only content-safety and topic-safety include a $model reference in the rail flow text
         # Need to match rails with flow_id (excluding $model reference) and match prompts
         # on the full flow_id (including $model reference)
-        for output_rail in enabled_output_rails:
-            output_flow_id = _normalize_flow_id(output_rail)
-            output_flow_model = _get_flow_model(output_rail)
-            if output_flow_id == "content safety check output":
-                prompt_flow_id = output_flow_id.replace(" ", "_")
-                expected_prompt = f"{prompt_flow_id} $model={output_flow_model}"
-                if expected_prompt not in provided_task_prompts:
-                    raise ValueError(
-                        f"You must provide a `{expected_prompt}` prompt template."
-                    )
+        _validate_rail_prompts(
+            enabled_output_rails, provided_task_prompts, "content safety check output"
+        )
+
         return values
 
     @root_validator(pre=True, allow_reuse=True)
@@ -1886,3 +1865,18 @@ def _get_flow_model(flow_text) -> Optional[str]:
     if MODEL_PREFIX not in flow_text:
         return None
     return flow_text.split(MODEL_PREFIX)[-1].strip()
+
+
+def _validate_rail_prompts(
+    rails: list[str], prompts: list[Any], validation_rail: str
+) -> None:
+    for rail in rails:
+        flow_id = _normalize_flow_id(rail)
+        flow_model = _get_flow_model(rail)
+        if flow_id == validation_rail:
+            prompt_flow_id = flow_id.replace(" ", "_")
+            expected_prompt = f"{prompt_flow_id} $model={flow_model}"
+            if expected_prompt not in prompts:
+                raise ValueError(
+                    f"You must provide a `{expected_prompt}` prompt template."
+                )
