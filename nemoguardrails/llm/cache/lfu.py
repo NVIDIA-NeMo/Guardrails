@@ -21,7 +21,7 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from nemoguardrails.cache.interface import CacheInterface
+from nemoguardrails.llm.cache.interface import CacheInterface
 
 log = logging.getLogger(__name__)
 

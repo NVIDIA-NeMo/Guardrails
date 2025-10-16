@@ -15,8 +15,8 @@
 
 """General-purpose caching utilities for NeMo Guardrails."""
 
-from nemoguardrails.cache.interface import CacheInterface
-from nemoguardrails.cache.lfu import LFUCache
-from nemoguardrails.cache.utils import create_normalized_cache_key
+from nemoguardrails.llm.cache.interface import CacheInterface
+from nemoguardrails.llm.cache.lfu import LFUCache
+from nemoguardrails.llm.cache.utils import create_normalized_cache_key
 
 __all__ = ["CacheInterface", "LFUCache", "create_normalized_cache_key"]

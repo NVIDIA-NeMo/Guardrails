@@ -29,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from nemoguardrails.cache.lfu import LFUCache
+from nemoguardrails.llm.cache.lfu import LFUCache
 
 
 class TestLFUCache(unittest.TestCase):
@@ -395,7 +395,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache.get("nonexistent")
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             cache.log_stats_now()
 
@@ -425,7 +425,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache.put("key2", "value2")
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             # Initial operations shouldn't trigger logging
             cache.get("key1")
@@ -461,7 +461,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         time.sleep(0.2)
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             # This will trigger stats logging with the previous miss already counted
             cache.get("another_nonexistent")  # Trigger check
@@ -490,7 +490,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache.put("key4", "value4")
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             time.sleep(0.2)
             cache.get("key4")  # Trigger check
@@ -517,7 +517,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache.get("nonexistent")
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             cache.log_stats_now()
 
@@ -537,7 +537,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache.get("key1")
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             cache.log_stats_now()
 
@@ -552,7 +552,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache = LFUCache(5, track_stats=True, stats_logging_interval=1.0)
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             # Multiple operations within interval
             for i in range(10):
@@ -582,7 +582,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         cache.put("key1", "updated_again")  # Another update
 
         with patch.object(
-            logging.getLogger("nemoguardrails.cache.lfu"), "info"
+            logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
         ) as mock_log:
             cache.log_stats_now()
 
@@ -621,7 +621,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
                 cache.get(f"miss_key_{i}")
 
             with patch.object(
-                logging.getLogger("nemoguardrails.cache.lfu"), "info"
+                logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
             ) as mock_log:
                 cache.log_stats_now()
 

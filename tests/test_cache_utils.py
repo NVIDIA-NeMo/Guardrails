@@ -17,14 +17,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nemoguardrails.cache.lfu import LFUCache
-from nemoguardrails.cache.utils import (
+from nemoguardrails.context import llm_call_info_var, llm_stats_var
+from nemoguardrails.llm.cache.lfu import LFUCache
+from nemoguardrails.llm.cache.utils import (
     create_normalized_cache_key,
     extract_llm_stats_for_cache,
     get_from_cache_and_restore_stats,
     restore_llm_stats_from_cache,
 )
-from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats
 

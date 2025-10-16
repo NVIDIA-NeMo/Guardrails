@@ -24,7 +24,7 @@ from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
 
 if TYPE_CHECKING:
-    from nemoguardrails.cache.interface import CacheInterface
+    from nemoguardrails.llm.cache.interface import CacheInterface
 
 PROMPT_PATTERN_WHITESPACES = re.compile(r"\s+")
 

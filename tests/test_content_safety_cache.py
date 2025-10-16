@@ -17,10 +17,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nemoguardrails.cache.lfu import LFUCache
-from nemoguardrails.cache.utils import create_normalized_cache_key
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.library.content_safety.actions import content_safety_check_input
+from nemoguardrails.llm.cache.lfu import LFUCache
+from nemoguardrails.llm.cache.utils import create_normalized_cache_key
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats
 from tests.utils import FakeLLM

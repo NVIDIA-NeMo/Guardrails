@@ -20,14 +20,14 @@ from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
-from nemoguardrails.cache import CacheInterface
-from nemoguardrails.cache.utils import (
+from nemoguardrails.context import llm_call_info_var
+from nemoguardrails.llm.cache import CacheInterface
+from nemoguardrails.llm.cache.utils import (
     CacheEntry,
     create_normalized_cache_key,
     extract_llm_stats_for_cache,
     get_from_cache_and_restore_stats,
 )
-from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 
