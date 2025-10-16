@@ -25,6 +25,7 @@ from nemoguardrails.tracing import (
     SpanLegacy,
     create_span_extractor,
 )
+from nemoguardrails.tracing.constants import GuardrailsAttributes
 from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 
 
@@ -180,6 +181,78 @@ class TestSpanExtractors:
         assert "type" in user_event.body
         # Content not included by default (privacy)
         assert "final_transcript" not in user_event.body
+
+    def test_span_extractor_cache_hit_attribute(self):
+        """Test that cached LLM calls are marked with cache_hit typed field."""
+        llm_call_cached = LLMCallInfo(
+            task="generate_user_intent",
+            prompt="What is the weather?",
+            completion="I cannot provide weather information.",
+            llm_model_name="gpt-4",
+            llm_provider_name="openai",
+            prompt_tokens=10,
+            completion_tokens=20,
+            total_tokens=30,
+            started_at=time.time(),
+            finished_at=time.time() + 0.001,
+            duration=0.001,
+            from_cache=True,
+        )
+
+        llm_call_not_cached = LLMCallInfo(
+            task="generate_bot_message",
+            prompt="Generate a response",
+            completion="Here is a response",
+            llm_model_name="gpt-3.5-turbo",
+            llm_provider_name="openai",
+            prompt_tokens=5,
+            completion_tokens=15,
+            total_tokens=20,
+            started_at=time.time(),
+            finished_at=time.time() + 1.0,
+            duration=1.0,
+            from_cache=False,
+        )
+
+        action = ExecutedAction(
+            action_name="test_action",
+            action_params={},
+            llm_calls=[llm_call_cached, llm_call_not_cached],
+            started_at=time.time(),
+            finished_at=time.time() + 1.5,
+            duration=1.5,
+        )
+
+        rail = ActivatedRail(
+            type="input",
+            name="test_rail",
+            decisions=["continue"],
+            executed_actions=[action],
+            stop=False,
+            started_at=time.time(),
+            finished_at=time.time() + 2.0,
+            duration=2.0,
+        )
+
+        extractor = SpanExtractorV2()
+        spans = extractor.extract_spans([rail])
+
+        llm_spans = [s for s in spans if isinstance(s, LLMSpan)]
+        assert len(llm_spans) == 2
+
+        cached_span = next(s for s in llm_spans if "gpt-4" in s.name)
+        assert cached_span.cache_hit is True
+
+        attributes = cached_span.to_otel_attributes()
+        assert GuardrailsAttributes.LLM_CACHE_HIT in attributes
+        assert attributes[GuardrailsAttributes.LLM_CACHE_HIT] is True
+
+        not_cached_span = next(s for s in llm_spans if "gpt-3.5-turbo" in s.name)
+        assert not_cached_span.cache_hit is False
+
+        attributes = not_cached_span.to_otel_attributes()
+        assert GuardrailsAttributes.LLM_CACHE_HIT in attributes
+        assert attributes[GuardrailsAttributes.LLM_CACHE_HIT] is False
 
 
 class TestSpanFormatConfiguration:
