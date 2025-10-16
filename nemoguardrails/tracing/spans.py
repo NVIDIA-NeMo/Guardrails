@@ -270,6 +270,11 @@ class LLMSpan(BaseSpan):
         default=None, description="Finish reasons for each choice"
     )
 
+    cache_hit: bool = Field(
+        default=False,
+        description="Whether this LLM response was served from application cache",
+    )
+
     def to_otel_attributes(self) -> Dict[str, Any]:
         """Convert to OTel attributes."""
         attributes = self._base_attributes()
@@ -319,6 +324,8 @@ class LLMSpan(BaseSpan):
             attributes[
                 GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS
             ] = self.response_finish_reasons
+
+        attributes[GuardrailsAttributes.LLM_CACHE_HIT] = self.cache_hit
 
         return attributes
 

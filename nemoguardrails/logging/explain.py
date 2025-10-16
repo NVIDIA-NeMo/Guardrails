@@ -63,6 +63,10 @@ class LLMCallInfo(LLMCallSummary):
         default="unknown",
         description="The provider of the model used for the LLM call, e.g. 'openai', 'nvidia'.",
     )
+    from_cache: bool = Field(
+        default=False,
+        description="Whether this response was retrieved from cache.",
+    )
 
 
 class ExplainInfo(BaseModel):

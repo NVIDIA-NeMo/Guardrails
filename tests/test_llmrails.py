@@ -1187,3 +1187,188 @@ def test_explain_calls_ensure_explain_info():
     info = rails.explain()
     assert info == ExplainInfo()
     assert rails.explain_info == ExplainInfo()
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_cache_initialization_disabled_by_default(mock_init_llm_model):
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="fake",
+                model="fake",
+            ),
+            Model(
+                type="content_safety",
+                engine="fake",
+                model="fake",
+            ),
+        ]
+    )
+
+    rails = LLMRails(config=config, verbose=False)
+    model_caches = rails.runtime.registered_action_params.get("model_caches")
+
+    assert model_caches is None or len(model_caches) == 0
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_cache_initialization_with_enabled_cache(mock_init_llm_model):
+    from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
+
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="fake",
+                model="fake",
+            ),
+            Model(
+                type="content_safety",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(
+                    enabled=True,
+                    maxsize=1000,
+                    stats=CacheStatsConfig(enabled=False),
+                ),
+            ),
+        ]
+    )
+
+    rails = LLMRails(config=config, verbose=False)
+    model_caches = rails.runtime.registered_action_params.get("model_caches", {})
+
+    assert "content_safety" in model_caches
+    assert model_caches["content_safety"] is not None
+    assert model_caches["content_safety"].capacity == 1000
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_cache_not_created_for_main_and_embeddings_models(mock_init_llm_model):
+    from nemoguardrails.rails.llm.config import ModelCacheConfig
+
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(enabled=True, maxsize=1000),
+            ),
+            Model(
+                type="embeddings",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(enabled=True, maxsize=1000),
+            ),
+        ]
+    )
+
+    rails = LLMRails(config=config, verbose=False)
+    model_caches = rails.runtime.registered_action_params.get("model_caches", {})
+
+    assert "main" not in model_caches
+    assert "embeddings" not in model_caches
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_cache_initialization_with_zero_capacity_raises_error(mock_init_llm_model):
+    from nemoguardrails.rails.llm.config import ModelCacheConfig
+
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="content_safety",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(enabled=True, maxsize=0),
+            ),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="Invalid cache capacity"):
+        LLMRails(config=config, verbose=False)
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_cache_initialization_with_stats_enabled(mock_init_llm_model):
+    from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
+
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="content_safety",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(
+                    enabled=True,
+                    maxsize=5000,
+                    stats=CacheStatsConfig(enabled=True, log_interval=60.0),
+                ),
+            ),
+        ]
+    )
+
+    rails = LLMRails(config=config, verbose=False)
+    model_caches = rails.runtime.registered_action_params.get("model_caches", {})
+
+    cache = model_caches["content_safety"]
+    assert cache is not None
+    assert cache.track_stats is True
+    assert cache.stats_logging_interval == 60.0
+    assert cache.supports_stats_logging() is True
+
+
+@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
+def test_cache_initialization_with_multiple_models(mock_init_llm_model):
+    from nemoguardrails.rails.llm.config import ModelCacheConfig
+
+    mock_llm = FakeLLM(responses=["response"])
+    mock_init_llm_model.return_value = mock_llm
+
+    config = RailsConfig(
+        models=[
+            Model(
+                type="main",
+                engine="fake",
+                model="fake",
+            ),
+            Model(
+                type="content_safety",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(enabled=True, maxsize=1000),
+            ),
+            Model(
+                type="jailbreak_detection",
+                engine="fake",
+                model="fake",
+                cache=ModelCacheConfig(enabled=True, maxsize=2000),
+            ),
+        ]
+    )
+
+    rails = LLMRails(config=config, verbose=False)
+    model_caches = rails.runtime.registered_action_params.get("model_caches", {})
+
+    assert "main" not in model_caches
+    assert "content_safety" in model_caches
+    assert "jailbreak_detection" in model_caches
+    assert model_caches["content_safety"].capacity == 1000
+    assert model_caches["jailbreak_detection"].capacity == 2000

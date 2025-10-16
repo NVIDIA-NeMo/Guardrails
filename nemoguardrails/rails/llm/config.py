@@ -89,14 +89,8 @@ class ModelCacheConfig(BaseModel):
         default=False,
         description="Whether caching is enabled (default: False - no caching)",
     )
-    capacity_per_model: int = Field(
+    maxsize: int = Field(
         default=50000, description="Maximum number of entries in the cache per model"
-    )
-    store: str = Field(
-        default="memory", description="Cache store: 'memory', 'filesystem', 'redis'"
-    )
-    store_config: Dict[str, Any] = Field(
-        default_factory=dict, description="Backend-specific configuration"
     )
     stats: CacheStatsConfig = Field(
         default_factory=CacheStatsConfig,

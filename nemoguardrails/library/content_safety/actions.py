@@ -13,46 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-import re
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.cache import CacheInterface
+from nemoguardrails.cache.utils import (
+    CacheEntry,
+    create_normalized_cache_key,
+    extract_llm_stats_for_cache,
+    get_from_cache_and_restore_stats,
+)
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
 
 log = logging.getLogger(__name__)
-
-
-PROMPT_PATTERN_WHITESPACES = re.compile(r"\s+")
-
-
-def _create_cache_key(prompt: Union[str, List[str]]) -> str:
-    """Create a cache key from the prompt."""
-    # can the prompt really be a list?
-    if isinstance(prompt, list):
-        prompt_str = json.dumps(prompt)
-    else:
-        prompt_str = prompt
-
-    # Normalize the prompt by collapsing all whitespace sequences to a single space
-    # and stripping leading/trailing whitespace. This ensures semantically equivalent
-    # prompts map to the same cache key. No further normalization is currently needed.
-    return PROMPT_PATTERN_WHITESPACES.sub(" ", prompt_str).strip()
-
-
-# Thread Safety Note:
-# The content safety caching mechanism is thread-safe for single-node deployments.
-# The underlying LFUCache uses threading.RLock to ensure atomic operations.
-#
-# However, this implementation is NOT suitable for distributed environments.
-# For multi-node deployments, consider using distributed caching solutions
-# like Redis or a shared database.
 
 
 @action()
@@ -61,6 +40,7 @@ async def content_safety_check_input(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
     _MAX_TOKENS = 3
@@ -103,21 +83,15 @@ async def content_safety_check_input(
 
     max_tokens = max_tokens or _MAX_TOKENS
 
-    # Check cache if available for this model
-    cached_result = None
-    cache_key = None
-
-    # Try to get the model-specific cache
-    cache = kwargs.get(f"model_cache_{model_name}")
+    cache = model_caches.get(model_name) if model_caches else None
 
     if cache:
-        cache_key = _create_cache_key(check_input_prompt)
-        cached_result = cache.get(cache_key)
+        cache_key = create_normalized_cache_key(check_input_prompt)
+        cached_result = get_from_cache_and_restore_stats(cache, cache_key)
         if cached_result is not None:
             log.debug(f"Content safety cache hit for model '{model_name}'")
             return cached_result
 
-    # Make the actual LLM call
     result = await llm_call(
         llm,
         check_input_prompt,
@@ -131,9 +105,13 @@ async def content_safety_check_input(
 
     final_result = {"allowed": is_safe, "policy_violations": violated_policies}
 
-    # Store in cache if available
-    if cache_key and cache:
-        cache.put(cache_key, final_result)
+    if cache:
+        cache_key = create_normalized_cache_key(check_input_prompt)
+        cache_entry: CacheEntry = {
+            "result": final_result,
+            "llm_stats": extract_llm_stats_for_cache(),
+        }
+        cache.put(cache_key, cache_entry)
         log.debug(f"Content safety result cached for model '{model_name}'")
 
     return final_result

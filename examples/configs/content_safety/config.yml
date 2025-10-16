@@ -9,7 +9,7 @@ models:
     # Model-specific cache configuration (optional)
     cache:
       enabled: true
-      capacity_per_model: 50000 # Larger cache for primary model
+      maxsize: 50000 # Larger cache for primary model
       stats:
         enabled: true
         log_interval: 60.0 # Log stats every minute
@@ -22,3 +22,5 @@ rails:
   output:
     flows:
       - content safety check output $model=content_safety
+tracing:
+  enabled: True

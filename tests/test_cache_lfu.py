@@ -638,11 +638,11 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
 
         cache_config = ModelCacheConfig(
-            enabled=True, capacity_per_model=1000, stats=CacheStatsConfig(enabled=False)
+            enabled=True, maxsize=1000, stats=CacheStatsConfig(enabled=False)
         )
 
         cache = LFUCache(
-            capacity=cache_config.capacity_per_model,
+            capacity=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=None,
         )
@@ -657,12 +657,12 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
 
         cache_config = ModelCacheConfig(
             enabled=True,
-            capacity_per_model=1000,
+            maxsize=1000,
             stats=CacheStatsConfig(enabled=True, log_interval=None),
         )
 
         cache = LFUCache(
-            capacity=cache_config.capacity_per_model,
+            capacity=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=cache_config.stats.log_interval,
         )
@@ -678,12 +678,12 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
 
         cache_config = ModelCacheConfig(
             enabled=True,
-            capacity_per_model=1000,
+            maxsize=1000,
             stats=CacheStatsConfig(enabled=True, log_interval=60.0),
         )
 
         cache = LFUCache(
-            capacity=cache_config.capacity_per_model,
+            capacity=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=cache_config.stats.log_interval,
         )
@@ -700,7 +700,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         cache_config = ModelCacheConfig(enabled=True)
 
         cache = LFUCache(
-            capacity=cache_config.capacity_per_model,
+            capacity=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=None,
         )
@@ -715,13 +715,13 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
 
         config_dict = {
             "enabled": True,
-            "capacity_per_model": 5000,
+            "maxsize": 5000,
             "stats": {"enabled": True, "log_interval": 120.0},
         }
 
         cache_config = ModelCacheConfig(**config_dict)
         self.assertTrue(cache_config.enabled)
-        self.assertEqual(cache_config.capacity_per_model, 5000)
+        self.assertEqual(cache_config.maxsize, 5000)
         self.assertTrue(cache_config.stats.enabled)
         self.assertEqual(cache_config.stats.log_interval, 120.0)
 

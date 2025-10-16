@@ -119,7 +119,10 @@ class GuardrailsAttributes:
     ACTION_NAME = "action.name"
     ACTION_HAS_LLM_CALLS = "action.has_llm_calls"
     ACTION_LLM_CALLS_COUNT = "action.llm_calls_count"
-    ACTION_PARAM_PREFIX = "action.param."  # For dynamic action parameters
+    ACTION_PARAM_PREFIX = "action.param."
+
+    # llm attributes (application-level, not provider-level)
+    LLM_CACHE_HIT = "llm.cache.hit"
 
 
 class SpanNames:
