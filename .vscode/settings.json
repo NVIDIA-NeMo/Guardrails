@@ -46,7 +46,7 @@
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
     "python.envFile": "${workspaceFolder}/.venv",
-    "python.languageServer": "None",
+    "python.languageServer": "Pylance",
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [
         "${workspaceFolder}/tests",
@@ -54,6 +54,7 @@
     ],
     "python.testing.unittestEnabled": false,
     //"python.envFile": "${workspaceFolder}/python_release.env",
+
 
     // MYPY
     "mypy-type-checker.args": [
