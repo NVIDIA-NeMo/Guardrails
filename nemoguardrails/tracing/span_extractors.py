@@ -257,6 +257,10 @@ class SpanExtractorV2(SpanExtractor):
                         max_tokens = llm_call.raw_response.get("max_tokens")
                         top_p = llm_call.raw_response.get("top_p")
 
+                    custom_attrs = {}
+                    if hasattr(llm_call, "from_cache") and llm_call.from_cache:
+                        custom_attrs["from_cache"] = True
+
                     llm_span = LLMSpan(
                         span_id=new_uuid(),
                         name=span_name,
@@ -276,6 +280,7 @@ class SpanExtractorV2(SpanExtractor):
                         top_p=top_p,
                         response_id=response_id,
                         response_finish_reasons=finish_reasons,
+                        custom_attributes=custom_attrs,
                         # TODO: add error to LLMCallInfo for future release
                         # error=(
                         #     True
