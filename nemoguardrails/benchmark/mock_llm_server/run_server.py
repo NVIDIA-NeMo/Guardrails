@@ -51,7 +51,7 @@ console_handler.setFormatter(formatter)
 log.addHandler(console_handler)
 
 
-def main():
+def parse_arguments():
     parser = argparse.ArgumentParser(description="Run the Mock LLM Server")
     parser.add_argument(
         "--host",
@@ -78,9 +78,10 @@ def main():
         "--config-file", help="YAML file to configure model", required=True
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    config_file = os.environ.get("CONFIG_FILE", args.config_file)
+
+def validate_config_file(config_file):
     if not config_file:
         raise RuntimeError(
             "No CONFIG_FILE environment variable set, or --config-file CLI argument"
@@ -88,6 +89,15 @@ def main():
 
     if not (os.path.exists(config_file) and os.path.isfile(config_file)):
         raise RuntimeError(f"Can't open {config_file}")
+
+    return config_file
+
+
+def main():  # pragma: no cover
+    args = parse_arguments()
+
+    config_file = os.environ.get("CONFIG_FILE", args.config_file)
+    config_file = validate_config_file(config_file)
 
     log.info("Using config file: %s", config_file)
     os.environ[CONFIG_FILE_ENV_VAR] = config_file
@@ -114,5 +124,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
