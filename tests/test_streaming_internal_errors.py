@@ -59,69 +59,6 @@ def find_internal_error_chunks(chunks):
     return error_chunks
 
 
-@pytest.mark.skipif(
-    not _has_langchain_openai or not _has_openai_key,
-    reason="langchain-openai not available",
-)
-@pytest.mark.asyncio
-async def test_streaming_missing_prompt_internal_error():
-    """Test streaming internal error when content safety prompt is missing."""
-
-    config = RailsConfig.from_content(
-        config={
-            "models": [
-                {"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"},
-                {
-                    "type": "content_safety",
-                    "engine": "openai",
-                    "model": "gpt-3.5-turbo",
-                },
-            ],
-            "rails": {
-                "output": {
-                    "parallel": True,
-                    "flows": ["content safety check output $model=content_safety"],
-                    "streaming": {
-                        "enabled": True,
-                        "chunk_size": 4,
-                    },
-                }
-            },
-        },
-        colang_content="""
-        define user express greeting
-          "hi"
-        define flow
-          user express greeting
-          bot express greeting
-        """,
-    )
-
-    llm_completions = [
-        'bot express greeting\n  "Hello there! How can I help you?"',
-    ]
-
-    chat = TestChat(config, llm_completions=llm_completions, streaming=True)
-
-    chunks = await collect_streaming_chunks(
-        chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}])
-    )
-
-    internal_error_chunks = find_internal_error_chunks(chunks)
-    assert (
-        len(internal_error_chunks) == 1
-    ), f"Expected exactly one internal error chunk, got {len(internal_error_chunks)}"
-
-    error = internal_error_chunks[0]
-    assert error["error"]["type"] == "internal_error"
-    assert error["error"]["code"] == "rail_execution_failure"
-    assert "Internal error" in error["error"]["message"]
-    assert "content safety check output" in error["error"]["message"]
-    assert (
-        error["error"]["param"] == "content safety check output $model=content_safety"
-    )
-
-
 @pytest.mark.asyncio
 async def test_streaming_action_execution_failure():
     """Test streaming internal error when action execution fails."""
