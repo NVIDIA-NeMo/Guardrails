@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.cache.lfu import LFUCache
+from nemoguardrails.cache.utils import create_normalized_cache_key
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.library.content_safety.actions import content_safety_check_input
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -63,7 +64,7 @@ async def test_content_safety_cache_stores_result_and_stats(
 
     llm_call_info = llm_call_info_var.get()
 
-    cache_key = "test prompt"
+    cache_key = create_normalized_cache_key("test prompt")
     cached_entry = cache.get(cache_key)
     assert cached_entry is not None
     assert "result" in cached_entry
@@ -95,7 +96,8 @@ async def test_content_safety_cache_retrieves_result_and_restores_stats(
             "completion_tokens": 20,
         },
     }
-    cache.put("test prompt", cache_entry)
+    cache_key = create_normalized_cache_key("test prompt")
+    cache.put(cache_key, cache_entry)
 
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
@@ -137,7 +139,8 @@ async def test_content_safety_cache_duration_reflects_cache_read_time(
             "completion_tokens": 10,
         },
     }
-    cache.put("test prompt", cache_entry)
+    cache_key = create_normalized_cache_key("test prompt")
+    cache.put(cache_key, cache_entry)
 
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
@@ -189,7 +192,8 @@ async def test_content_safety_cache_handles_missing_stats_gracefully(
         "result": {"allowed": True, "policy_violations": []},
         "llm_stats": None,
     }
-    cache.put("test_key", cache_entry)
+    cache_key = create_normalized_cache_key("test_key")
+    cache.put(cache_key, cache_entry)
 
     mock_task_manager.render_task_prompt.return_value = "test_key"
 

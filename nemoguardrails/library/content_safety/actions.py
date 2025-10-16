@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import logging
-from time import time
 from typing import Dict, Optional
 
 from langchain_core.language_models.llms import BaseLLM
@@ -22,50 +21,17 @@ from langchain_core.language_models.llms import BaseLLM
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.cache import CacheInterface
-from nemoguardrails.cache.utils import create_normalized_cache_key
-from nemoguardrails.context import llm_call_info_var, llm_stats_var
+from nemoguardrails.cache.utils import (
+    CacheEntry,
+    create_normalized_cache_key,
+    extract_llm_stats_for_cache,
+    get_from_cache_and_restore_stats,
+)
+from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.logging.processing_log import processing_log_var
-from nemoguardrails.logging.stats import LLMStats
 
 log = logging.getLogger(__name__)
-
-
-def _restore_llm_stats_from_cache(
-    cached_stats: dict, cache_read_duration: float
-) -> None:
-    llm_stats = llm_stats_var.get()
-    if llm_stats is None:
-        llm_stats = LLMStats()
-        llm_stats_var.set(llm_stats)
-
-    llm_stats.inc("total_calls")
-    llm_stats.inc("total_time", cache_read_duration)
-    llm_stats.inc("total_tokens", cached_stats.get("total_tokens", 0))
-    llm_stats.inc("total_prompt_tokens", cached_stats.get("prompt_tokens", 0))
-    llm_stats.inc("total_completion_tokens", cached_stats.get("completion_tokens", 0))
-
-    llm_call_info = llm_call_info_var.get()
-    if llm_call_info:
-        llm_call_info.duration = cache_read_duration
-        llm_call_info.total_tokens = cached_stats.get("total_tokens", 0)
-        llm_call_info.prompt_tokens = cached_stats.get("prompt_tokens", 0)
-        llm_call_info.completion_tokens = cached_stats.get("completion_tokens", 0)
-        llm_call_info.from_cache = True
-        llm_call_info.started_at = time() - cache_read_duration
-        llm_call_info.finished_at = time()
-
-
-def _extract_llm_stats_for_cache() -> Optional[dict]:
-    llm_call_info = llm_call_info_var.get()
-    if llm_call_info:
-        return {
-            "total_tokens": llm_call_info.total_tokens or 0,
-            "prompt_tokens": llm_call_info.prompt_tokens or 0,
-            "completion_tokens": llm_call_info.completion_tokens or 0,
-        }
-    return None
 
 
 @action()
@@ -121,31 +87,10 @@ async def content_safety_check_input(
 
     if cache:
         cache_key = create_normalized_cache_key(check_input_prompt)
-        cached_entry = cache.get(cache_key)
-        if cached_entry is not None:
+        cached_result = get_from_cache_and_restore_stats(cache, cache_key)
+        if cached_result is not None:
             log.debug(f"Content safety cache hit for model '{model_name}'")
-
-            cache_read_start = time()
-            final_result = cached_entry["result"]
-            cached_stats = cached_entry.get("llm_stats")
-            cache_read_duration = time() - cache_read_start
-
-            if cached_stats:
-                _restore_llm_stats_from_cache(cached_stats, cache_read_duration)
-
-            processing_log = processing_log_var.get()
-            if processing_log:
-                llm_call_info = llm_call_info_var.get()
-                if llm_call_info:
-                    processing_log.append(
-                        {
-                            "type": "llm_call_info",
-                            "timestamp": time(),
-                            "data": llm_call_info,
-                        }
-                    )
-
-            return final_result
+            return cached_result
 
     result = await llm_call(
         llm,
@@ -161,9 +106,10 @@ async def content_safety_check_input(
     final_result = {"allowed": is_safe, "policy_violations": violated_policies}
 
     if cache:
-        cache_entry = {
+        cache_key = create_normalized_cache_key(check_input_prompt)
+        cache_entry: CacheEntry = {
             "result": final_result,
-            "llm_stats": _extract_llm_stats_for_cache(),
+            "llm_stats": extract_llm_stats_for_cache(),
         }
         cache.put(cache_key, cache_entry)
         log.debug(f"Content safety result cached for model '{model_name}'")
