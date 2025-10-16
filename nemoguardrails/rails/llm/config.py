@@ -35,6 +35,7 @@ from pydantic.fields import Field
 
 from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements
+from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
 from nemoguardrails.llm.types import Task
@@ -1400,14 +1401,21 @@ class RailsConfig(BaseModel):
     @root_validator(pre=True)
     def check_model_exists_for_input_rails(cls, values):
         """Make sure we have a model for each input rail where one is provided using $model=<model_type>"""
+        rails = values.get("rails", {})
+        input_flows = rails.get("input", {}).get("flows", [])
+
+        # If no flows have a model, early-out
+        input_flows_without_model = [
+            _get_flow_model(flow) is None for flow in input_flows
+        ]
+        if all(input_flows_without_model):
+            return values
+
         models = values.get("models", []) or []
         model_types = {
             model.type if isinstance(model, Model) else model["type"]
             for model in models
         }
-
-        rails = values.get("rails", {})
-        input_flows = rails.get("input", {}).get("flows", [])
 
         for flow in input_flows:
             flow_model = _get_flow_model(flow)
@@ -1415,22 +1423,28 @@ class RailsConfig(BaseModel):
                 continue
             if flow_model not in model_types:
                 raise ValueError(
-                    f"No `{flow_model}` model provided for input flow `{_get_flow_name(flow)}`"
+                    f"No `{flow_model}` model provided for input flow `{_normalize_flow_id(flow)}`"
                 )
-
         return values
 
     @root_validator(pre=True)
     def check_model_exists_for_output_rails(cls, values):
         """Make sure we have a model for each output rail where one is provided using $model=<model_type>"""
+        rails = values.get("rails", {})
+        output_flows = rails.get("output", {}).get("flows", [])
+
+        # If no flows have a model, early-out
+        output_flows_without_model = [
+            _get_flow_model(flow) is None for flow in output_flows
+        ]
+        if all(output_flows_without_model):
+            return values
+
         models = values.get("models", []) or []
         model_types = {
             model.type if isinstance(model, Model) else model["type"]
             for model in models
         }
-
-        rails = values.get("rails", {})
-        output_flows = rails.get("output", {}).get("flows", [])
 
         for flow in output_flows:
             flow_model = _get_flow_model(flow)
@@ -1438,9 +1452,8 @@ class RailsConfig(BaseModel):
                 continue
             if flow_model not in model_types:
                 raise ValueError(
-                    f"No `{flow_model}` model provided for output flow `{_get_flow_name(flow)}`"
+                    f"No `{flow_model}` model provided for output flow `{_normalize_flow_id(flow)}`"
                 )
-
         return values
 
     @root_validator(pre=True, allow_reuse=True)
@@ -1859,29 +1872,3 @@ def _get_flow_model(flow_text) -> Optional[str]:
     if MODEL_PREFIX not in flow_text:
         return None
     return flow_text.split(MODEL_PREFIX)[-1].strip()
-
-
-def _get_flow_name(flow_text) -> str:
-    """Helper to return flow name from flow-and-model definition"""
-    flow_name = (
-        flow_text.split(MODEL_PREFIX)[0].strip()
-        if MODEL_PREFIX in flow_text
-        else flow_text
-    )
-    return flow_name
-
-
-def _convert_flow_to_task(flow_text) -> str:
-    """Convert a flow to a task field found in prompts.yml.
-    For example: content safety check input $model=content_safety
-    converts to: content_safety_check_input $model=content_safety
-    """
-
-    flow_name = _get_flow_name(flow_text)
-    task_name = flow_name.replace(" ", "_")
-    model_name = _get_flow_model(flow_text)
-
-    task_text = (
-        f"{task_name}" if not model_name else f"{task_name} {MODEL_PREFIX}{model_name}"
-    )
-    return task_text
