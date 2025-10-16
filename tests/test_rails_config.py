@@ -355,8 +355,7 @@ class TestContentSafetyConfig:
                   input:
                     flows:
                       - content safety check input $model=content_safety
-
-                    """,
+                    """
             )
 
     def test_content_safety_output_missing_prompt_raises(self):
@@ -499,6 +498,31 @@ class TestContentSafetyConfig:
                     """,
             )
 
+    def test_input_content_safety_wrong_model_raises(self):
+        """Check we raise ValueError when creating an input content safety rail with no model"""
+
+        with pytest.raises(
+            ValueError,
+            match="No `content_safety` model provided for input flow `content safety check input",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: local_content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+
+                prompts:
+                  - task: content_safety_check_input $model=content_safety
+                    content: Check content safety
+                    """,
+            )
+
     def test_output_content_safety_no_model_raises(self):
         """Check we raise ValueError when creating an output content safety rail with no model"""
 
@@ -524,53 +548,30 @@ class TestContentSafetyConfig:
                 """,
             )
 
-    def test_output_content_safety_separate_models(self):
-        """Check if we use separate models for input and output content-safety this passes checks"""
+    def test_output_content_safety_wrong_model_raises(self):
+        """Check we raise ValueError when creating an output content safety rail with wrong model"""
 
-        config = RailsConfig.from_content(
-            yaml_content="""
-            models:
-              - type: my_content_safety
-                engine: nim
-                model: nvidia/llama-3.1-nemoguard-8b-content-safety
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_output \$model=content_safety` prompt template",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: local_content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
 
-              - type: your_topic_control
-                engine: nim
-                model: nvidia/llama-3.1-nemoguard-8b-topic-control
+                rails:
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
 
-              - type: our_content_safety
-                engine: nim
-                model: nvidia/llama-3.1-nemoguard-8b-content-safety
-            rails:
-              input:
-                flows:
-                  - content safety check input $model=my_content_safety
-                  - topic safety check input $model=your_topic_control
-
-              output:
-                flows:
-                  - content safety check output $model=our_content_safety
-                  """,
-        )
-
-        # Check a few fields to make sure we created config correctly
-        assert config.models[0].type == "my_content_safety"
-        assert config.models[1].type == "your_topic_control"
-        assert config.models[2].type == "our_content_safety"
-
-        assert (
-            config.rails.input.flows[0]
-            == "content safety check input $model=my_content_safety"
-        )
-        assert (
-            config.rails.input.flows[1]
-            == "topic safety check input $model=your_topic_control"
-        )
-
-        assert (
-            config.rails.output.flows[0]
-            == "content safety check output $model=our_content_safety"
-        )
+                prompts:
+                  - task: content_safety_check_input $model=content_safety
+                    content: Check content safety
+                    """,
+            )
 
 
 class TestTopicSafetyConfig:
@@ -676,4 +677,325 @@ class TestTopicSafetyConfig:
                   - task: content_safety_check_input $model=content_safety
                     content: Check the content is safe
                     """,
+            )
+
+
+class TestCombinedConfig:
+    """Test combinations of content-safety and topic-safety rails with non-standard model names"""
+
+    def test_hero_separate_models_no_prompts_raises(self):
+        """Check if we use separate models for input and output content-safety this passes checks"""
+
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=my_content_safety` prompt template",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: my_content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: your_topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                  - type: our_content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=my_content_safety
+                      - topic safety check input $model=your_topic_control
+
+                  output:
+                    flows:
+                      - content safety check output $model=our_content_safety
+                      """,
+            )
+
+    def test_hero_separate_models_with_prompts(self):
+        """Check if we use separate models with non-standard names with prompts it all works"""
+
+        config = RailsConfig.from_content(
+            yaml_content="""
+                models:
+                  - type: my_content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: your_topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                  - type: our_content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=my_content_safety
+                      - topic safety check input $model=your_topic_control
+
+                  output:
+                    flows:
+                      - content safety check output $model=our_content_safety
+
+                prompts:
+                  - task: content_safety_check_input $model=my_content_safety
+                    content: Check the input content is safe
+                  - task: content_safety_check_output $model=our_content_safety
+                    content: Check the output content is safe
+                  - task: topic_safety_check_input $model=your_topic_control
+                    content: Verify the user input is on-topic
+
+                      """,
+        )
+
+        # Check a few fields to make sure we created config correctly
+        assert config.models[0].type == "my_content_safety"
+        assert config.models[1].type == "your_topic_control"
+        assert config.models[2].type == "our_content_safety"
+
+        assert (
+            config.rails.input.flows[0]
+            == "content safety check input $model=my_content_safety"
+        )
+        assert (
+            config.rails.input.flows[1]
+            == "topic safety check input $model=your_topic_control"
+        )
+
+        assert (
+            config.rails.output.flows[0]
+            == "content safety check output $model=our_content_safety"
+        )
+
+    def test_hero_with_prompts(self):
+        """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
+        config = RailsConfig.from_content(
+            yaml_content="""
+                models:
+                  - type: main
+                    engine: nim
+                    model: meta/llama-3.3-70b-instruct
+
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: your_topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+                      - topic safety check input $model=your_topic_control
+                      - jailbreak detection model
+
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                  config:
+                    jailbreak_detection:
+                      nim_base_url: "https://ai.api.nvidia.com"
+                      nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+                      api_key_env_var: NVIDIA_API_KEY
+
+                prompts:
+                  - task: content_safety_check_input $model=content_safety
+                    content: Check the input content is safe
+                  - task: content_safety_check_output $model=content_safety
+                    content: Check the output content is safe
+                  - task: topic_safety_check_input $model=your_topic_control
+                    content: Verify the user input is on-topic
+                """
+        )
+
+        for model in config.models:
+            assert model.engine == "nim"
+        assert config.models[0].type == "main"
+        assert config.models[0].model == "meta/llama-3.3-70b-instruct"
+        assert config.models[1].type == "content_safety"
+        assert config.models[1].model == "nvidia/llama-3.1-nemoguard-8b-content-safety"
+        assert config.models[2].type == "your_topic_control"
+        assert config.models[2].model == "nvidia/llama-3.1-nemoguard-8b-topic-control"
+
+    def test_hero_no_prompts_raises(self):
+        """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: nim
+                    model: meta/llama-3.3-70b-instruct
+
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+                      - topic safety check input $model=your_topic_control
+                      - jailbreak detection model
+
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                  config:
+                    jailbreak_detection:
+                      nim_base_url: "https://ai.api.nvidia.com"
+                      nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+                      api_key_env_var: NVIDIA_API_KEY
+                """
+            )
+
+    def test_hero_no_output_content_safety_prompt_raises(self):
+        """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `topic_safety_check_input \$model=your_topic_control` prompt template",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: nim
+                    model: meta/llama-3.3-70b-instruct
+
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: your_topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+                      - topic safety check input $model=your_topic_control
+                      - jailbreak detection model
+
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                  config:
+                    jailbreak_detection:
+                      nim_base_url: "https://ai.api.nvidia.com"
+                      nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+                      api_key_env_var: NVIDIA_API_KEY
+
+                prompts:
+                  - task: content_safety_check_input $model=content_safety
+                    content: Check the input content is safe
+                """
+            )
+
+    def test_hero_no_topic_safety_prompt_raises(self):
+        """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `topic_safety_check_input \$model=your_topic_control` prompt template",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: nim
+                    model: meta/llama-3.3-70b-instruct
+
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: your_topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+                      - topic safety check input $model=your_topic_control
+                      - jailbreak detection model
+
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                  config:
+                    jailbreak_detection:
+                      nim_base_url: "https://ai.api.nvidia.com"
+                      nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+                      api_key_env_var: NVIDIA_API_KEY
+
+                prompts:
+                  - task: content_safety_check_input $model=content_safety
+                    content: Check the input content is safe
+                  - task: content_safety_check_output $model=content_safety
+                    content: Check the output content is safe
+                """
+            )
+
+    def test_hero_topic_safety_prompt_raises(self):
+        """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
+        with pytest.raises(
+            ValueError,
+            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template",
+        ):
+            _ = RailsConfig.from_content(
+                yaml_content="""
+                models:
+                  - type: main
+                    engine: nim
+                    model: meta/llama-3.3-70b-instruct
+
+                  - type: content_safety
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+                  - type: your_topic_control
+                    engine: nim
+                    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety
+                      - topic safety check input $model=your_topic_control
+                      - jailbreak detection model
+
+                  output:
+                    flows:
+                      - content safety check output $model=content_safety
+
+                  config:
+                    jailbreak_detection:
+                      nim_base_url: "https://ai.api.nvidia.com"
+                      nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+                      api_key_env_var: NVIDIA_API_KEY
+
+                prompts:
+                  - task: topic_safety_check_input $model=topic_control
+                    content: Verify the user input is on-topic
+                """
             )

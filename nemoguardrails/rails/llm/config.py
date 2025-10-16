@@ -1456,7 +1456,7 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @root_validator(pre=True)
     def check_prompt_exist_for_self_check_rails(cls, values):
         rails = values.get("rails", {})
         prompts = values.get("prompts", []) or []
@@ -1481,22 +1481,31 @@ class RailsConfig(BaseModel):
             raise ValueError(
                 "You must provide a `llama_guard_check_input` prompt template."
             )
-        if (
-            "content safety check input $model=content_safety" in enabled_input_rails
-            and "content_safety_check_input $model=content_safety"
-            not in provided_task_prompts
-        ):
-            raise ValueError(
-                "You must provide a `content_safety_check_input $model=content_safety` prompt template."
-            )
-        if (
-            "topic safety check input $model=topic_control" in enabled_input_rails
-            and "topic_safety_check_input $model=topic_control"
-            not in provided_task_prompts
-        ):
-            raise ValueError(
-                "You must provide a `topic_safety_check_input $model=topic_control` prompt template."
-            )
+
+        # Only content-safety and topic-safety include a $model reference in the rail flow text
+        # Need to match rails with flow_id (excluding $model reference) and match prompts
+        # on the full flow_id (including $model reference)
+        for input_rail in enabled_input_rails:
+            input_flow_id = _normalize_flow_id(input_rail)
+            input_flow_model = _get_flow_model(input_rail)
+            if input_flow_id == "content safety check input":
+                prompt_flow_id = input_flow_id.replace(" ", "_")
+                expected_prompt = f"{prompt_flow_id} $model={input_flow_model}"
+                if expected_prompt not in provided_task_prompts:
+                    raise ValueError(
+                        f"You must provide a `{expected_prompt}` prompt template."
+                    )
+
+        for input_rail in enabled_input_rails:
+            input_flow_id = _normalize_flow_id(input_rail)
+            input_flow_model = _get_flow_model(input_rail)
+            if input_flow_id == "topic safety check input":
+                prompt_flow_id = input_flow_id.replace(" ", "_")
+                expected_prompt = f"{prompt_flow_id} $model={input_flow_model}"
+                if expected_prompt not in provided_task_prompts:
+                    raise ValueError(
+                        f"You must provide a `{expected_prompt}` prompt template."
+                    )
 
         # Output moderation prompt verification
         if (
@@ -1524,15 +1533,20 @@ class RailsConfig(BaseModel):
             and "self_check_facts" not in provided_task_prompts
         ):
             raise ValueError("You must provide a `self_check_facts` prompt template.")
-        if (
-            "content safety check output $model=content_safety" in enabled_output_rails
-            and "content_safety_check_output $model=content_safety"
-            not in provided_task_prompts
-        ):
-            raise ValueError(
-                "You must provide a `content_safety_check_output $model=content_safety` prompt template."
-            )
 
+        # Only content-safety and topic-safety include a $model reference in the rail flow text
+        # Need to match rails with flow_id (excluding $model reference) and match prompts
+        # on the full flow_id (including $model reference)
+        for output_rail in enabled_output_rails:
+            output_flow_id = _normalize_flow_id(output_rail)
+            output_flow_model = _get_flow_model(output_rail)
+            if output_flow_id == "content safety check output":
+                prompt_flow_id = output_flow_id.replace(" ", "_")
+                expected_prompt = f"{prompt_flow_id} $model={output_flow_model}"
+                if expected_prompt not in provided_task_prompts:
+                    raise ValueError(
+                        f"You must provide a `{expected_prompt}` prompt template."
+                    )
         return values
 
     @root_validator(pre=True, allow_reuse=True)
