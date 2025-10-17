@@ -17,6 +17,5 @@
 
 from nemoguardrails.llm.cache.interface import CacheInterface
 from nemoguardrails.llm.cache.lfu import LFUCache
-from nemoguardrails.llm.cache.utils import create_normalized_cache_key
 
 __all__ = ["CacheInterface", "LFUCache"]
