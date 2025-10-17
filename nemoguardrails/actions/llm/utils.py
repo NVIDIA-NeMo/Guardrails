@@ -46,6 +46,70 @@ class LLMCallException(Exception):
         self.inner_exception = inner_exception
 
 
+def _infer_provider_from_module(llm: BaseLanguageModel) -> Optional[str]:
+    """Infer provider name from the LLM's module path.
+
+    This function extracts the provider name from LangChain package naming conventions:
+    - langchain_openai -> openai
+    - langchain_anthropic -> anthropic
+    - langchain_google_genai -> google_genai
+    - langchain_nvidia_ai_endpoints -> nvidia_ai_endpoints
+    - langchain_community.chat_models.ollama -> ollama
+
+    For patched/wrapped classes, checks base classes as well.
+
+    Args:
+        llm: The LLM instance
+
+    Returns:
+        The inferred provider name, or None if it cannot be determined
+    """
+    module = type(llm).__module__
+
+    if module.startswith("langchain_"):
+        package = module.split(".")[0]
+        provider = package.replace("langchain_", "")
+
+        if provider == "community":
+            parts = module.split(".")
+            if len(parts) >= 3:
+                provider = parts[-1]
+                return provider
+        else:
+            return provider
+
+    for base_class in type(llm).__mro__[1:]:
+        base_module = base_class.__module__
+        if base_module.startswith("langchain_"):
+            package = base_module.split(".")[0]
+            provider = package.replace("langchain_", "")
+
+            if provider == "community":
+                parts = base_module.split(".")
+                if len(parts) >= 3:
+                    provider = parts[-1]
+                    return provider
+            else:
+                return provider
+
+    return None
+
+
+def get_llm_provider(llm: BaseLanguageModel) -> Optional[str]:
+    """Get the provider name for an LLM instance by inferring from module path.
+
+    This function extracts the provider name from LangChain package naming conventions.
+    See _infer_provider_from_module for details on the inference logic.
+
+    Args:
+        llm: The LLM instance
+
+    Returns:
+        The provider name if it can be inferred, None otherwise
+    """
+    return _infer_provider_from_module(llm)
+
+
 def _infer_model_name(llm: BaseLanguageModel):
     """Helper to infer the model name based from an LLM instance.
 
@@ -126,7 +190,7 @@ def _setup_llm_call_info(
         llm_call_info_var.set(llm_call_info)
 
     llm_call_info.llm_model_name = model_name or _infer_model_name(llm)
-    llm_call_info.llm_provider_name = model_provider
+    llm_call_info.llm_provider_name = model_provider or _infer_provider_from_module(llm)
 
 
 def _prepare_callbacks(
