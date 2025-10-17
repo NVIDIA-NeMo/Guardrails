@@ -25,6 +25,7 @@ from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
     CacheEntry,
     create_normalized_cache_key,
+    extract_llm_metadata_for_cache,
     extract_llm_stats_for_cache,
     get_from_cache_and_restore_stats,
 )
@@ -110,6 +111,7 @@ async def content_safety_check_input(
         cache_entry: CacheEntry = {
             "result": final_result,
             "llm_stats": extract_llm_stats_for_cache(),
+            "llm_metadata": extract_llm_metadata_for_cache(),
         }
         cache.put(cache_key, cache_entry)
         log.debug(f"Content safety result cached for model '{model_name}'")
@@ -139,6 +141,7 @@ async def content_safety_check_output(
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
+    model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
     _MAX_TOKENS = 3
@@ -176,12 +179,22 @@ async def content_safety_check_output(
             "bot_response": bot_response,
         },
     )
+
     stop = llm_task_manager.get_stop_tokens(task=task)
     max_tokens = llm_task_manager.get_max_tokens(task=task)
 
+    llm_call_info_var.set(LLMCallInfo(task=task))
+
     max_tokens = max_tokens or _MAX_TOKENS
 
-    llm_call_info_var.set(LLMCallInfo(task=task))
+    cache = model_caches.get(model_name) if model_caches else None
+
+    if cache:
+        cache_key = create_normalized_cache_key(check_output_prompt)
+        cached_result = get_from_cache_and_restore_stats(cache, cache_key)
+        if cached_result is not None:
+            log.debug(f"Content safety output cache hit for model '{model_name}'")
+            return cached_result
 
     result = await llm_call(
         llm,
@@ -194,4 +207,16 @@ async def content_safety_check_output(
 
     is_safe, *violated_policies = result
 
-    return {"allowed": is_safe, "policy_violations": violated_policies}
+    final_result = {"allowed": is_safe, "policy_violations": violated_policies}
+
+    if cache:
+        cache_key = create_normalized_cache_key(check_output_prompt)
+        cache_entry: CacheEntry = {
+            "result": final_result,
+            "llm_stats": extract_llm_stats_for_cache(),
+            "llm_metadata": extract_llm_metadata_for_cache(),
+        }
+        cache.put(cache_key, cache_entry)
+        log.debug(f"Content safety output result cached for model '{model_name}'")
+
+    return final_result

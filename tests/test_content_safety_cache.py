@@ -18,7 +18,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
-from nemoguardrails.library.content_safety.actions import content_safety_check_input
+from nemoguardrails.library.content_safety.actions import (
+    content_safety_check_input,
+    content_safety_check_output,
+)
 from nemoguardrails.llm.cache.lfu import LFUCache
 from nemoguardrails.llm.cache.utils import create_normalized_cache_key
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -95,6 +98,7 @@ async def test_content_safety_cache_retrieves_result_and_restores_stats(
             "prompt_tokens": 80,
             "completion_tokens": 20,
         },
+        "llm_metadata": None,
     }
     cache_key = create_normalized_cache_key("test prompt")
     cache.put(cache_key, cache_entry)
@@ -138,6 +142,7 @@ async def test_content_safety_cache_duration_reflects_cache_read_time(
             "prompt_tokens": 40,
             "completion_tokens": 10,
         },
+        "llm_metadata": None,
     }
     cache_key = create_normalized_cache_key("test prompt")
     cache.put(cache_key, cache_entry)
@@ -191,6 +196,7 @@ async def test_content_safety_cache_handles_missing_stats_gracefully(
     cache_entry = {
         "result": {"allowed": True, "policy_violations": []},
         "llm_stats": None,
+        "llm_metadata": None,
     }
     cache_key = create_normalized_cache_key("test_key")
     cache.put(cache_key, cache_entry)
@@ -213,3 +219,63 @@ async def test_content_safety_cache_handles_missing_stats_gracefully(
 
     assert result["allowed"] is True
     assert llm_stats.get_stat("total_calls") == 0
+
+
+@pytest.mark.asyncio
+async def test_content_safety_check_output_cache_stores_result(
+    fake_llm_with_stats, mock_task_manager
+):
+    cache = LFUCache(maxsize=10)
+    mock_task_manager.parse_task_output.return_value = [True, "policy2"]
+
+    result = await content_safety_check_output(
+        llms=fake_llm_with_stats,
+        llm_task_manager=mock_task_manager,
+        model_name="test_model",
+        context={"user_message": "test user input", "bot_message": "test bot response"},
+        model_caches={"test_model": cache},
+    )
+
+    assert result["allowed"] is True
+    assert result["policy_violations"] == ["policy2"]
+    assert cache.size() == 1
+
+
+@pytest.mark.asyncio
+async def test_content_safety_check_output_cache_hit(
+    fake_llm_with_stats, mock_task_manager
+):
+    cache = LFUCache(maxsize=10)
+
+    cache_entry = {
+        "result": {"allowed": False, "policy_violations": ["unsafe_output"]},
+        "llm_stats": {
+            "total_tokens": 75,
+            "prompt_tokens": 60,
+            "completion_tokens": 15,
+        },
+        "llm_metadata": None,
+    }
+    cache_key = create_normalized_cache_key("test output prompt")
+    cache.put(cache_key, cache_entry)
+
+    mock_task_manager.render_task_prompt.return_value = "test output prompt"
+
+    llm_stats = LLMStats()
+    llm_stats_var.set(llm_stats)
+
+    result = await content_safety_check_output(
+        llms=fake_llm_with_stats,
+        llm_task_manager=mock_task_manager,
+        model_name="test_model",
+        context={"user_message": "user", "bot_message": "bot"},
+        model_caches={"test_model": cache},
+    )
+
+    assert result["allowed"] is False
+    assert result["policy_violations"] == ["unsafe_output"]
+    assert llm_stats.get_stat("total_calls") == 1
+    assert llm_stats.get_stat("total_tokens") == 75
+
+    llm_call_info = llm_call_info_var.get()
+    assert llm_call_info.from_cache is True
