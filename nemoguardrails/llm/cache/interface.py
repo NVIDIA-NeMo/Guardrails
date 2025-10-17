@@ -44,7 +44,7 @@ class CacheInterface(ABC):
         Returns:
             The value associated with the key, or default if not found.
         """
-        pass
+        ...
 
     @abstractmethod
     def put(self, key: Any, value: Any) -> None:
@@ -58,7 +58,7 @@ class CacheInterface(ABC):
             key: The key to store.
             value: The value to associate with the key.
         """
-        pass
+        ...
 
     @abstractmethod
     def size(self) -> int:
@@ -68,7 +68,7 @@ class CacheInterface(ABC):
         Returns:
             The number of items currently stored in the cache.
         """
-        pass
+        ...
 
     @abstractmethod
     def is_empty(self) -> bool:
@@ -78,7 +78,7 @@ class CacheInterface(ABC):
         Returns:
             True if the cache contains no items, False otherwise.
         """
-        pass
+        ...
 
     @abstractmethod
     def clear(self) -> None:
@@ -87,7 +87,7 @@ class CacheInterface(ABC):
 
         After calling this method, the cache should be empty.
         """
-        pass
+        ...
 
     def contains(self, key: Any) -> bool:
         """
@@ -115,7 +115,7 @@ class CacheInterface(ABC):
         Returns:
             The maximum number of items the cache can hold.
         """
-        pass
+        ...
 
     def get_stats(self) -> dict:
         """
