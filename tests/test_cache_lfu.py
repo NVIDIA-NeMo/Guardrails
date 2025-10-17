@@ -17,7 +17,7 @@
 Comprehensive test suite for LFU Cache implementation.
 
 Tests all functionality including basic operations, eviction policies,
-capacity management, and edge cases.
+maxsize management, and edge cases.
 """
 
 import asyncio
@@ -41,16 +41,16 @@ class TestLFUCache(unittest.TestCase):
 
     def test_initialization(self):
         """Test cache initialization with various capacities."""
-        # Normal capacity
+        # Normal maxsize
         cache = LFUCache(5)
         self.assertEqual(cache.size(), 0)
         self.assertTrue(cache.is_empty())
 
-        # Zero capacity
+        # Zero maxsize
         cache_zero = LFUCache(0)
         self.assertEqual(cache_zero.size(), 0)
 
-        # Negative capacity should raise error
+        # Negative maxsize should raise error
         with self.assertRaises(ValueError):
             LFUCache(-1)
 
@@ -165,7 +165,7 @@ class TestLFUCache(unittest.TestCase):
         # - 'f' (freq 1) - just added
         # - 'e' (freq 1) was evicted as it was least recently used among freq 1 items
 
-        # Check that we're at capacity
+        # Check that we're at maxsize
         self.assertEqual(cache.size(), 4)
 
         # 'a' should definitely still be there (highest frequency)
@@ -181,8 +181,8 @@ class TestLFUCache(unittest.TestCase):
         # 'e' should have been evicted (freq 1, LRU among freq 1 items)
         self.assertIsNone(cache.get("e"))
 
-    def test_zero_capacity_cache(self):
-        """Test cache with zero capacity."""
+    def test_zero_maxsize_cache(self):
+        """Test cache with zero maxsize."""
         cache = LFUCache(0)
 
         # Put should not store anything
@@ -258,17 +258,17 @@ class TestLFUCache(unittest.TestCase):
         # Verify key exists
         self.assertEqual(self.cache.size(), 1)
 
-    def test_size_and_capacity(self):
-        """Test size tracking and capacity limits."""
+    def test_size_and_maxsize(self):
+        """Test size tracking and maxsize limits."""
         # Start empty
         self.assertEqual(self.cache.size(), 0)
 
-        # Add items up to capacity
+        # Add items up to maxsize
         for i in range(3):
             self.cache.put(f"key{i}", f"value{i}")
             self.assertEqual(self.cache.size(), i + 1)
 
-        # Add more items - size should stay at capacity
+        # Add more items - size should stay at maxsize
         for i in range(3, 10):
             self.cache.put(f"key{i}", f"value{i}")
             self.assertEqual(self.cache.size(), 3)
@@ -360,7 +360,7 @@ class TestLFUCacheInterface(unittest.TestCase):
         self.assertTrue(callable(getattr(cache, "clear", None)))
 
         # Check property
-        self.assertEqual(cache.capacity, 5)
+        self.assertEqual(cache.maxsize, 5)
 
 
 class TestLFUCacheStatsLogging(unittest.TestCase):
@@ -475,7 +475,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             self.assertIn("Hit Rate: 0.00%", log_message)
 
     def test_stats_logging_with_full_cache(self):
-        """Test stats logging when cache is at capacity."""
+        """Test stats logging when cache is at maxsize."""
         import logging
         from unittest.mock import patch
 
@@ -642,7 +642,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         )
 
         cache = LFUCache(
-            capacity=cache_config.maxsize,
+            maxsize=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=None,
         )
@@ -662,7 +662,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         )
 
         cache = LFUCache(
-            capacity=cache_config.maxsize,
+            maxsize=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=cache_config.stats.log_interval,
         )
@@ -683,7 +683,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         )
 
         cache = LFUCache(
-            capacity=cache_config.maxsize,
+            maxsize=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=cache_config.stats.log_interval,
         )
@@ -700,7 +700,7 @@ class TestContentSafetyCacheStatsConfig(unittest.TestCase):
         cache_config = ModelCacheConfig(enabled=True)
 
         cache = LFUCache(
-            capacity=cache_config.maxsize,
+            maxsize=cache_config.maxsize,
             track_stats=cache_config.stats.enabled,
             stats_logging_interval=None,
         )
@@ -826,7 +826,7 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
             for future in futures:
                 future.result()
 
-        # Cache should still be at capacity
+        # Cache should still be at maxsize
         self.assertEqual(small_cache.size(), 10)
 
     def test_concurrent_clear_operations(self):
@@ -1005,7 +1005,7 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
                 size = self.cache.size()
                 is_empty = self.cache.is_empty()
 
-                # Size should never be negative or exceed capacity
+                # Size should never be negative or exceed maxsize
                 if size < 0 or size > 100:
                     results.append(f"Invalid size: {size}")
 
@@ -1025,7 +1025,7 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
     def test_concurrent_contains_operations(self):
         """Test thread safety of contains method."""
         # Use a larger cache to avoid evictions during the test
-        # Need capacity for: 50 existing + (5 threads × 100 new keys) = 550+
+        # Need maxsize for: 50 existing + (5 threads × 100 new keys) = 550+
         large_cache = LFUCache(1000, track_stats=True)
 
         # Pre-populate cache
@@ -1149,7 +1149,7 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
         asyncio.run(run_test())
 
     def test_concurrent_operations_with_evictions(self):
-        """Test thread safety when cache is at capacity and evictions occur."""
+        """Test thread safety when cache is at maxsize and evictions occur."""
         # Small cache to force evictions
         small_cache = LFUCache(50, track_stats=True)
         data_integrity_errors = []
@@ -1192,7 +1192,7 @@ class TestLFUCacheThreadSafety(unittest.TestCase):
             f"Data integrity errors: {data_integrity_errors}",
         )
 
-        # Cache should be at capacity
+        # Cache should be at maxsize
         self.assertEqual(small_cache.size(), 50)
 
         # Stats should show many evictions

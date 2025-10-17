@@ -78,13 +78,13 @@ class LFUCache(CacheInterface):
     """
     Least Frequently Used (LFU) Cache implementation.
 
-    When the cache reaches capacity, it evicts the least frequently used item.
+    When the cache reaches maxsize, it evicts the least frequently used item.
     If there are ties in frequency, it evicts the least recently used among them.
     """
 
     def __init__(
         self,
-        capacity: int,
+        maxsize: int,
         track_stats: bool = False,
         stats_logging_interval: Optional[float] = None,
     ) -> None:
@@ -92,14 +92,14 @@ class LFUCache(CacheInterface):
         Initialize the LFU cache.
 
         Args:
-            capacity: Maximum number of items the cache can hold
+            maxsize: Maximum number of items the cache can hold
             track_stats: Enable tracking of cache statistics
             stats_logging_interval: Seconds between periodic stats logging (None disables logging)
         """
-        if capacity < 0:
+        if maxsize < 0:
             raise ValueError("Capacity must be non-negative")
 
-        self._capacity = capacity
+        self._maxsize = maxsize
         self.track_stats = track_stats
         self._lock = threading.RLock()  # Thread-safe access
         self._computing: dict[Any, asyncio.Future] = {}  # Track keys being computed
@@ -187,7 +187,7 @@ class LFUCache(CacheInterface):
             # Check if we should log stats
             self._check_and_log_stats()
 
-            if self._capacity == 0:
+            if self._maxsize == 0:
                 return
 
             if key in self.key_map:
@@ -200,7 +200,7 @@ class LFUCache(CacheInterface):
                     self.stats["updates"] += 1
             else:
                 # Add new key
-                if len(self.key_map) >= self._capacity:
+                if len(self.key_map) >= self._maxsize:
                     # Need to evict least frequently used item
                     self._evict_lfu()
 
@@ -268,7 +268,7 @@ class LFUCache(CacheInterface):
 
             stats = self.stats.copy()
             stats["current_size"] = len(self.key_map)  # Direct access within lock
-            stats["capacity"] = self._capacity
+            stats["maxsize"] = self._maxsize
 
             # Calculate hit rate
             total_requests = stats["hits"] + stats["misses"]
@@ -313,7 +313,7 @@ class LFUCache(CacheInterface):
         # Format the log message
         log_msg = (
             f"LFU Cache Statistics - "
-            f"Size: {stats['current_size']}/{stats['capacity']} | "
+            f"Size: {stats['current_size']}/{stats['maxsize']} | "
             f"Hits: {stats['hits']} | "
             f"Misses: {stats['misses']} | "
             f"Hit Rate: {stats['hit_rate']:.2%} | "
@@ -416,12 +416,12 @@ class LFUCache(CacheInterface):
                     return node.value
 
                 # Now add to cache using internal logic
-                if self._capacity == 0:
+                if self._maxsize == 0:
                     future.set_result(computed_value)
                     return computed_value
 
                 # Add new key
-                if len(self.key_map) >= self._capacity:
+                if len(self.key_map) >= self._maxsize:
                     self._evict_lfu()
 
                 # Create new node and add to cache
@@ -465,6 +465,6 @@ class LFUCache(CacheInterface):
             return key in self.key_map
 
     @property
-    def capacity(self) -> int:
-        """Get the maximum capacity of the cache."""
-        return self._capacity
+    def maxsize(self) -> int:
+        """Get the maximum size of the cache."""
+        return self._maxsize

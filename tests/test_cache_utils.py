@@ -253,7 +253,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
     def test_get_from_cache_and_restore_stats_cache_miss(self):
-        cache = LFUCache(capacity=10)
+        cache = LFUCache(maxsize=10)
         llm_call_info_var.set(None)
         llm_stats_var.set(None)
 
@@ -265,7 +265,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
     def test_get_from_cache_and_restore_stats_cache_hit(self):
-        cache = LFUCache(capacity=10)
+        cache = LFUCache(maxsize=10)
         cache_entry = {
             "result": {"allowed": True, "policy_violations": []},
             "llm_stats": {
@@ -297,7 +297,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
     def test_get_from_cache_and_restore_stats_without_llm_stats(self):
-        cache = LFUCache(capacity=10)
+        cache = LFUCache(maxsize=10)
         cache_entry = {
             "result": {"allowed": False, "policy_violations": ["policy1"]},
             "llm_stats": None,
@@ -316,7 +316,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
     def test_get_from_cache_and_restore_stats_with_processing_log(self):
-        cache = LFUCache(capacity=10)
+        cache = LFUCache(maxsize=10)
         cache_entry = {
             "result": {"allowed": True, "policy_violations": []},
             "llm_stats": {
@@ -351,7 +351,7 @@ class TestCacheUtils:
         processing_log_var.set(None)
 
     def test_get_from_cache_and_restore_stats_without_processing_log(self):
-        cache = LFUCache(capacity=10)
+        cache = LFUCache(maxsize=10)
         cache_entry = {
             "result": {"allowed": True, "policy_violations": []},
             "llm_stats": {

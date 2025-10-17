@@ -542,7 +542,7 @@ class LLMRails:
 
         if model.cache.maxsize <= 0:
             raise ValueError(
-                f"Invalid cache capacity for model '{model.type}': {model.cache.maxsize}. "
+                f"Invalid cache maxsize for model '{model.type}': {model.cache.maxsize}. "
                 "Capacity must be greater than 0. Skipping cache creation."
             )
 
@@ -551,13 +551,13 @@ class LLMRails:
             stats_logging_interval = model.cache.stats.log_interval
 
         cache = LFUCache(
-            capacity=model.cache.maxsize,
+            maxsize=model.cache.maxsize,
             track_stats=model.cache.stats.enabled,
             stats_logging_interval=stats_logging_interval,
         )
 
         log.info(
-            f"Created cache for model '{model.type}' with capacity {model.cache.maxsize}"
+            f"Created cache for model '{model.type}' with maxsize {model.cache.maxsize}"
         )
 
         return cache

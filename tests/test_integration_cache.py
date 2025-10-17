@@ -109,8 +109,8 @@ async def test_cache_isolation_between_models(mock_init_llm_model):
     jailbreak_cache = model_caches["jailbreak_detection"]
 
     assert content_safety_cache is not jailbreak_cache
-    assert content_safety_cache.capacity == 50
-    assert jailbreak_cache.capacity == 100
+    assert content_safety_cache.maxsize == 50
+    assert jailbreak_cache.maxsize == 100
 
     content_safety_cache.put("key1", "value1")
     assert content_safety_cache.get("key1") == "value1"

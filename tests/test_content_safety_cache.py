@@ -46,7 +46,7 @@ def fake_llm_with_stats():
 async def test_content_safety_cache_stores_result_and_stats(
     fake_llm_with_stats, mock_task_manager
 ):
-    cache = LFUCache(capacity=10)
+    cache = LFUCache(maxsize=10)
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
@@ -86,7 +86,7 @@ async def test_content_safety_cache_stores_result_and_stats(
 async def test_content_safety_cache_retrieves_result_and_restores_stats(
     fake_llm_with_stats, mock_task_manager
 ):
-    cache = LFUCache(capacity=10)
+    cache = LFUCache(maxsize=10)
 
     cache_entry = {
         "result": {"allowed": True, "policy_violations": ["policy1"]},
@@ -129,7 +129,7 @@ async def test_content_safety_cache_retrieves_result_and_restores_stats(
 async def test_content_safety_cache_duration_reflects_cache_read_time(
     fake_llm_with_stats, mock_task_manager
 ):
-    cache = LFUCache(capacity=10)
+    cache = LFUCache(maxsize=10)
 
     cache_entry = {
         "result": {"allowed": True, "policy_violations": []},
@@ -186,7 +186,7 @@ async def test_content_safety_without_cache_does_not_store(
 async def test_content_safety_cache_handles_missing_stats_gracefully(
     fake_llm_with_stats, mock_task_manager
 ):
-    cache = LFUCache(capacity=10)
+    cache = LFUCache(maxsize=10)
 
     cache_entry = {
         "result": {"allowed": True, "policy_violations": []},

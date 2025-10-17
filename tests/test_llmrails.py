@@ -1247,7 +1247,7 @@ def test_cache_initialization_with_enabled_cache(mock_init_llm_model):
 
     assert "content_safety" in model_caches
     assert model_caches["content_safety"] is not None
-    assert model_caches["content_safety"].capacity == 1000
+    assert model_caches["content_safety"].maxsize == 1000
 
 
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
@@ -1282,7 +1282,7 @@ def test_cache_not_created_for_main_and_embeddings_models(mock_init_llm_model):
 
 
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
-def test_cache_initialization_with_zero_capacity_raises_error(mock_init_llm_model):
+def test_cache_initialization_with_zero_maxsize_raises_error(mock_init_llm_model):
     from nemoguardrails.rails.llm.config import ModelCacheConfig
 
     mock_llm = FakeLLM(responses=["response"])
@@ -1299,7 +1299,7 @@ def test_cache_initialization_with_zero_capacity_raises_error(mock_init_llm_mode
         ]
     )
 
-    with pytest.raises(ValueError, match="Invalid cache capacity"):
+    with pytest.raises(ValueError, match="Invalid cache maxsize"):
         LLMRails(config=config, verbose=False)
 
 
@@ -1370,5 +1370,5 @@ def test_cache_initialization_with_multiple_models(mock_init_llm_model):
     assert "main" not in model_caches
     assert "content_safety" in model_caches
     assert "jailbreak_detection" in model_caches
-    assert model_caches["content_safety"].capacity == 1000
-    assert model_caches["jailbreak_detection"].capacity == 2000
+    assert model_caches["content_safety"].maxsize == 1000
+    assert model_caches["jailbreak_detection"].maxsize == 2000

@@ -51,7 +51,7 @@ class CacheInterface(ABC):
         """
         Store an item in the cache.
 
-        If the cache is at capacity, this method should evict an item
+        If the cache is at maxsize, this method should evict an item
         according to the cache's eviction policy (e.g., LFU, LRU, etc.).
 
         Args:
@@ -108,9 +108,9 @@ class CacheInterface(ABC):
 
     @property
     @abstractmethod
-    def capacity(self) -> int:
+    def maxsize(self) -> int:
         """
-        Get the maximum capacity of the cache.
+        Get the maximum size of the cache.
 
         Returns:
             The maximum number of items the cache can hold.
@@ -129,7 +129,7 @@ class CacheInterface(ABC):
             - evictions: Number of items evicted
             - hit_rate: Percentage of requests that were hits
             - current_size: Current number of items in cache
-            - capacity: Maximum capacity of the cache
+            - maxsize: Maximum size of the cache
 
         The default implementation returns a message indicating that
         statistics tracking is not supported.
