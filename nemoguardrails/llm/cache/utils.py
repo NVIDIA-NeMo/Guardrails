@@ -182,6 +182,9 @@ def get_from_cache_and_restore_stats(
     if cached_metadata:
         restore_llm_metadata_from_cache(cached_metadata)
 
+    if cached_metadata:
+        restore_llm_metadata_from_cache(cached_metadata)
+
     processing_log = processing_log_var.get()
     if processing_log is not None:
         llm_call_info = llm_call_info_var.get()
