@@ -481,7 +481,7 @@ class LLMRails:
         llms = dict()
 
         for llm_config in self.config.models:
-            if llm_config.type == "embeddings":
+            if llm_config.type in ["embeddings", "jailbreak_detection"]:
                 continue
 
             # If a constructor LLM is provided, skip initializing any 'main' model from config
