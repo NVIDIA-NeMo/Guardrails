@@ -1,0 +1,48 @@
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-content-safety
+    cache:
+      enabled: true
+      maxsize: 10000
+      stats:
+        enabled: true
+
+  - type: topic_control
+    engine: nim
+    model: nvidia/llama-3.1-nemoguard-8b-topic-control
+    cache:
+      enabled: true
+      maxsize: 10000
+      stats:
+        enabled: true
+
+  - type: jailbreak_detection
+    engine: nim
+    model: jailbreak_detect
+    cache:
+      enabled: true
+      maxsize: 10000
+      stats:
+        enabled: true
+
+rails:
+  input:
+    flows:
+      - jailbreak detection model
+      - content safety check input $model=content_safety
+      - topic safety check input $model=topic_control
+
+  output:
+    flows:
+      - content safety check output $model=content_safety
+
+  config:
+    jailbreak_detection:
+      nim_base_url: "https://ai.api.nvidia.com"
+      nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+      api_key_env_var: NVIDIA_API_KEY
