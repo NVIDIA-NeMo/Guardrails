@@ -13,16 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
 
 import pytest
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
 from nemoguardrails.llm.cache.lfu import LFUCache
 from nemoguardrails.llm.cache.utils import (
+    CacheEntry,
+    LLMMetadataDict,
+    LLMStatsDict,
     create_normalized_cache_key,
+    extract_llm_metadata_for_cache,
     extract_llm_stats_for_cache,
     get_from_cache_and_restore_stats,
+    restore_llm_metadata_from_cache,
     restore_llm_stats_from_cache,
 )
 from nemoguardrails.logging.explain import LLMCallInfo
@@ -97,10 +101,10 @@ class TestCacheUtils:
 
     def test_create_normalized_cache_key_invalid_type_raises_error(self):
         with pytest.raises(TypeError, match="Invalid type for prompt: int"):
-            create_normalized_cache_key(123)
+            create_normalized_cache_key(123)  # type: ignore
 
         with pytest.raises(TypeError, match="Invalid type for prompt: dict"):
-            create_normalized_cache_key({"key": "value"})
+            create_normalized_cache_key({"key": "value"})  # type: ignore
 
     def test_create_normalized_cache_key_list_of_dicts(self):
         messages = [
@@ -129,19 +133,19 @@ class TestCacheUtils:
             TypeError,
             match="All elements in prompt list must be dictionaries",
         ):
-            create_normalized_cache_key(["hello", "world"])
+            create_normalized_cache_key(["hello", "world"])  # type: ignore
 
         with pytest.raises(
             TypeError,
             match="All elements in prompt list must be dictionaries",
         ):
-            create_normalized_cache_key([{"key": "value"}, "test"])
+            create_normalized_cache_key([{"key": "value"}, "test"])  # type: ignore
 
         with pytest.raises(
             TypeError,
             match="All elements in prompt list must be dictionaries",
         ):
-            create_normalized_cache_key([123, 456])
+            create_normalized_cache_key([123, 456])  # type: ignore
 
     def test_extract_llm_stats_for_cache_with_llm_call_info(self):
         llm_call_info = LLMCallInfo(task="test_task")
@@ -186,7 +190,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
         llm_call_info_var.set(None)
 
-        cached_stats = {
+        cached_stats: LLMStatsDict = {
             "total_tokens": 100,
             "prompt_tokens": 50,
             "completion_tokens": 50,
@@ -211,7 +215,7 @@ class TestCacheUtils:
         llm_stats.inc("total_tokens", 200)
         llm_stats_var.set(llm_stats)
 
-        cached_stats = {
+        cached_stats: LLMStatsDict = {
             "total_tokens": 100,
             "prompt_tokens": 50,
             "completion_tokens": 50,
@@ -220,6 +224,7 @@ class TestCacheUtils:
         restore_llm_stats_from_cache(cached_stats, cache_read_duration=0.5)
 
         llm_stats = llm_stats_var.get()
+        assert llm_stats is not None
         assert llm_stats.get_stat("total_calls") == 6
         assert llm_stats.get_stat("total_time") == 1.5
         assert llm_stats.get_stat("total_tokens") == 300
@@ -231,7 +236,7 @@ class TestCacheUtils:
         llm_call_info_var.set(llm_call_info)
         llm_stats_var.set(None)
 
-        cached_stats = {
+        cached_stats: LLMStatsDict = {
             "total_tokens": 100,
             "prompt_tokens": 50,
             "completion_tokens": 50,
@@ -273,6 +278,7 @@ class TestCacheUtils:
                 "prompt_tokens": 50,
                 "completion_tokens": 50,
             },
+            "llm_metadata": None,
         }
         cache.put("test_key", cache_entry)
 
@@ -291,6 +297,7 @@ class TestCacheUtils:
         assert llm_stats.get_stat("total_tokens") == 100
 
         updated_info = llm_call_info_var.get()
+        assert updated_info is not None
         assert updated_info.from_cache is True
 
         llm_call_info_var.set(None)
@@ -301,6 +308,7 @@ class TestCacheUtils:
         cache_entry = {
             "result": {"allowed": False, "policy_violations": ["policy1"]},
             "llm_stats": None,
+            "llm_metadata": None,
         }
         cache.put("test_key", cache_entry)
 
@@ -324,6 +332,7 @@ class TestCacheUtils:
                 "prompt_tokens": 60,
                 "completion_tokens": 20,
             },
+            "llm_metadata": None,
         }
         cache.put("test_key", cache_entry)
 
@@ -332,7 +341,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
         processing_log = []
-        processing_log_var.set(processing_log)
+        processing_log_var.set(processing_log)  # type: ignore
 
         result = get_from_cache_and_restore_stats(cache, "test_key")
 
@@ -340,6 +349,7 @@ class TestCacheUtils:
         assert result == {"allowed": True, "policy_violations": []}
 
         retrieved_log = processing_log_var.get()
+        assert retrieved_log is not None
         assert len(retrieved_log) == 1
         assert retrieved_log[0]["type"] == "llm_call_info"
         assert "timestamp" in retrieved_log[0]
@@ -359,6 +369,7 @@ class TestCacheUtils:
                 "prompt_tokens": 30,
                 "completion_tokens": 20,
             },
+            "llm_metadata": None,
         }
         cache.put("test_key", cache_entry)
 
@@ -371,6 +382,94 @@ class TestCacheUtils:
 
         assert result is not None
         assert result == {"allowed": True, "policy_violations": []}
+
+        llm_call_info_var.set(None)
+        llm_stats_var.set(None)
+
+    def test_extract_llm_metadata_for_cache_with_model_info(self):
+        llm_call_info = LLMCallInfo(task="test_task")
+        llm_call_info.llm_model_name = "gpt-4"
+        llm_call_info.llm_provider_name = "openai"
+        llm_call_info_var.set(llm_call_info)
+
+        metadata = extract_llm_metadata_for_cache()
+
+        assert metadata is not None
+        assert metadata["model_name"] == "gpt-4"
+        assert metadata["provider_name"] == "openai"
+
+        llm_call_info_var.set(None)
+
+    def test_extract_llm_metadata_for_cache_without_llm_call_info(self):
+        llm_call_info_var.set(None)
+
+        metadata = extract_llm_metadata_for_cache()
+
+        assert metadata is None
+
+    def test_extract_llm_metadata_for_cache_with_defaults(self):
+        llm_call_info = LLMCallInfo(task="test_task")
+        llm_call_info_var.set(llm_call_info)
+
+        metadata = extract_llm_metadata_for_cache()
+
+        assert metadata is not None
+        assert metadata["model_name"] == "unknown"
+        assert metadata["provider_name"] == "unknown"
+
+        llm_call_info_var.set(None)
+
+    def test_restore_llm_metadata_from_cache(self):
+        llm_call_info = LLMCallInfo(task="test_task")
+        llm_call_info_var.set(llm_call_info)
+
+        cached_metadata: LLMMetadataDict = {
+            "model_name": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+            "provider_name": "nim",
+        }
+
+        restore_llm_metadata_from_cache(cached_metadata)
+
+        updated_info = llm_call_info_var.get()
+        assert updated_info is not None
+        assert (
+            updated_info.llm_model_name
+            == "nvidia/llama-3.1-nemoguard-8b-content-safety"
+        )
+        assert updated_info.llm_provider_name == "nim"
+
+        llm_call_info_var.set(None)
+
+    def test_get_from_cache_and_restore_stats_with_metadata(self):
+        cache = LFUCache(maxsize=10)
+        cache_entry: CacheEntry = {
+            "result": {"allowed": True, "policy_violations": []},
+            "llm_stats": {
+                "total_tokens": 100,
+                "prompt_tokens": 50,
+                "completion_tokens": 50,
+            },
+            "llm_metadata": {
+                "model_name": "gpt-4-turbo",
+                "provider_name": "openai",
+            },
+        }
+        cache.put("test_key", cache_entry)
+
+        llm_call_info = LLMCallInfo(task="test_task")
+        llm_call_info_var.set(llm_call_info)
+        llm_stats_var.set(None)
+
+        result = get_from_cache_and_restore_stats(cache, "test_key")
+
+        assert result is not None
+        assert result == {"allowed": True, "policy_violations": []}
+
+        updated_info = llm_call_info_var.get()
+        assert updated_info is not None
+        assert updated_info.from_cache is True
+        assert updated_info.llm_model_name == "gpt-4-turbo"
+        assert updated_info.llm_provider_name == "openai"
 
         llm_call_info_var.set(None)
         llm_stats_var.set(None)

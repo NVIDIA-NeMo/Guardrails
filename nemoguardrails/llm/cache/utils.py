@@ -35,9 +35,20 @@ class LLMStatsDict(TypedDict):
     completion_tokens: int
 
 
+class LLMMetadataDict(TypedDict):
+    model_name: str
+    provider_name: str
+
+
+class LLMCacheData(TypedDict):
+    stats: Optional[LLMStatsDict]
+    metadata: Optional[LLMMetadataDict]
+
+
 class CacheEntry(TypedDict):
     result: dict
     llm_stats: Optional[LLMStatsDict]
+    llm_metadata: Optional[LLMMetadataDict]
 
 
 def create_normalized_cache_key(
@@ -130,6 +141,25 @@ def extract_llm_stats_for_cache() -> Optional[LLMStatsDict]:
     return None
 
 
+def extract_llm_metadata_for_cache() -> Optional[LLMMetadataDict]:
+    llm_call_info = llm_call_info_var.get()
+    if llm_call_info:
+        return {
+            "model_name": llm_call_info.llm_model_name or "unknown",
+            "provider_name": llm_call_info.llm_provider_name or "unknown",
+        }
+    return None
+
+
+def restore_llm_metadata_from_cache(cached_metadata: LLMMetadataDict) -> None:
+    llm_call_info = llm_call_info_var.get()
+    if llm_call_info:
+        llm_call_info.llm_model_name = cached_metadata.get("model_name", "unknown")
+        llm_call_info.llm_provider_name = cached_metadata.get(
+            "provider_name", "unknown"
+        )
+
+
 def get_from_cache_and_restore_stats(
     cache: "CacheInterface", cache_key: str
 ) -> Optional[dict]:
@@ -140,10 +170,14 @@ def get_from_cache_and_restore_stats(
     cache_read_start = time()
     final_result = cached_entry["result"]
     cached_stats = cached_entry.get("llm_stats")
+    cached_metadata = cached_entry.get("llm_metadata")
     cache_read_duration = time() - cache_read_start
 
     if cached_stats:
         restore_llm_stats_from_cache(cached_stats, cache_read_duration)
+
+    if cached_metadata:
+        restore_llm_metadata_from_cache(cached_metadata)
 
     processing_log = processing_log_var.get()
     if processing_log is not None:
