@@ -146,7 +146,7 @@ def get_from_cache_and_restore_stats(
         restore_llm_stats_from_cache(cached_stats, cache_read_duration)
 
     processing_log = processing_log_var.get()
-    if processing_log:
+    if processing_log is not None:
         llm_call_info = llm_call_info_var.get()
         if llm_call_info:
             processing_log.append(

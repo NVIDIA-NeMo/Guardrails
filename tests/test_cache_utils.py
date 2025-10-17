@@ -26,6 +26,7 @@ from nemoguardrails.llm.cache.utils import (
     restore_llm_stats_from_cache,
 )
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
 
 
@@ -310,6 +311,66 @@ class TestCacheUtils:
 
         assert result is not None
         assert result == {"allowed": False, "policy_violations": ["policy1"]}
+
+        llm_call_info_var.set(None)
+        llm_stats_var.set(None)
+
+    def test_get_from_cache_and_restore_stats_with_processing_log(self):
+        cache = LFUCache(capacity=10)
+        cache_entry = {
+            "result": {"allowed": True, "policy_violations": []},
+            "llm_stats": {
+                "total_tokens": 80,
+                "prompt_tokens": 60,
+                "completion_tokens": 20,
+            },
+        }
+        cache.put("test_key", cache_entry)
+
+        llm_call_info = LLMCallInfo(task="test_task")
+        llm_call_info_var.set(llm_call_info)
+        llm_stats_var.set(None)
+
+        processing_log = []
+        processing_log_var.set(processing_log)
+
+        result = get_from_cache_and_restore_stats(cache, "test_key")
+
+        assert result is not None
+        assert result == {"allowed": True, "policy_violations": []}
+
+        retrieved_log = processing_log_var.get()
+        assert len(retrieved_log) == 1
+        assert retrieved_log[0]["type"] == "llm_call_info"
+        assert "timestamp" in retrieved_log[0]
+        assert "data" in retrieved_log[0]
+        assert retrieved_log[0]["data"] == llm_call_info
+
+        llm_call_info_var.set(None)
+        llm_stats_var.set(None)
+        processing_log_var.set(None)
+
+    def test_get_from_cache_and_restore_stats_without_processing_log(self):
+        cache = LFUCache(capacity=10)
+        cache_entry = {
+            "result": {"allowed": True, "policy_violations": []},
+            "llm_stats": {
+                "total_tokens": 50,
+                "prompt_tokens": 30,
+                "completion_tokens": 20,
+            },
+        }
+        cache.put("test_key", cache_entry)
+
+        llm_call_info = LLMCallInfo(task="test_task")
+        llm_call_info_var.set(llm_call_info)
+        llm_stats_var.set(None)
+        processing_log_var.set(None)
+
+        result = get_from_cache_and_restore_stats(cache, "test_key")
+
+        assert result is not None
+        assert result == {"allowed": True, "policy_violations": []}
 
         llm_call_info_var.set(None)
         llm_stats_var.set(None)
