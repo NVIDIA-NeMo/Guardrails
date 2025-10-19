@@ -35,6 +35,12 @@ from nemoguardrails.logging.stats import LLMStats
 
 
 class TestCacheUtils:
+    @pytest.fixture(autouse=True)
+    def isolated_llm_call_info_var(self):
+        llm_call_info_var.set(None)
+        yield
+        llm_call_info_var.set(None)
+
     def test_create_normalized_cache_key_returns_sha256_hash(self):
         key = create_normalized_cache_key("Hello world")
         assert len(key) == 64
@@ -148,10 +154,9 @@ class TestCacheUtils:
             create_normalized_cache_key([123, 456])  # type: ignore
 
     def test_extract_llm_stats_for_cache_with_llm_call_info(self):
-        llm_call_info = LLMCallInfo(task="test_task")
-        llm_call_info.total_tokens = 100
-        llm_call_info.prompt_tokens = 50
-        llm_call_info.completion_tokens = 50
+        llm_call_info = LLMCallInfo(
+            task="test_task", total_tokens=100, prompt_tokens=50, completion_tokens=50
+        )
         llm_call_info_var.set(llm_call_info)
 
         stats = extract_llm_stats_for_cache()
@@ -171,10 +176,12 @@ class TestCacheUtils:
         assert stats is None
 
     def test_extract_llm_stats_for_cache_with_none_values(self):
-        llm_call_info = LLMCallInfo(task="test_task")
-        llm_call_info.total_tokens = None
-        llm_call_info.prompt_tokens = None
-        llm_call_info.completion_tokens = None
+        llm_call_info = LLMCallInfo(
+            task="test_task",
+            total_tokens=None,
+            prompt_tokens=None,
+            completion_tokens=None,
+        )
         llm_call_info_var.set(llm_call_info)
 
         stats = extract_llm_stats_for_cache()
@@ -196,7 +203,7 @@ class TestCacheUtils:
             "completion_tokens": 50,
         }
 
-        restore_llm_stats_from_cache(cached_stats, cache_read_duration=0.01)
+        restore_llm_stats_from_cache(cached_stats, cache_read_duration_s=0.01)
 
         llm_stats = llm_stats_var.get()
         assert llm_stats is not None
@@ -221,7 +228,7 @@ class TestCacheUtils:
             "completion_tokens": 50,
         }
 
-        restore_llm_stats_from_cache(cached_stats, cache_read_duration=0.5)
+        restore_llm_stats_from_cache(cached_stats, cache_read_duration_s=0.5)
 
         llm_stats = llm_stats_var.get()
         assert llm_stats is not None
@@ -242,7 +249,7 @@ class TestCacheUtils:
             "completion_tokens": 50,
         }
 
-        restore_llm_stats_from_cache(cached_stats, cache_read_duration=0.02)
+        restore_llm_stats_from_cache(cached_stats, cache_read_duration_s=0.02)
 
         updated_info = llm_call_info_var.get()
         assert updated_info is not None
@@ -387,9 +394,9 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
     def test_extract_llm_metadata_for_cache_with_model_info(self):
-        llm_call_info = LLMCallInfo(task="test_task")
-        llm_call_info.llm_model_name = "gpt-4"
-        llm_call_info.llm_provider_name = "openai"
+        llm_call_info = LLMCallInfo(
+            task="test_task", llm_model_name="gpt-4", llm_provider_name="openai"
+        )
         llm_call_info_var.set(llm_call_info)
 
         metadata = extract_llm_metadata_for_cache()

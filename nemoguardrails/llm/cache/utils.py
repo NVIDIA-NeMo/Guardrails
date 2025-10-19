@@ -106,7 +106,7 @@ def create_normalized_cache_key(
 
 
 def restore_llm_stats_from_cache(
-    cached_stats: LLMStatsDict, cache_read_duration: float
+    cached_stats: LLMStatsDict, cache_read_duration_s: float
 ) -> None:
     llm_stats = llm_stats_var.get()
     if llm_stats is None:
@@ -114,19 +114,19 @@ def restore_llm_stats_from_cache(
         llm_stats_var.set(llm_stats)
 
     llm_stats.inc("total_calls")
-    llm_stats.inc("total_time", cache_read_duration)
+    llm_stats.inc("total_time", cache_read_duration_s)
     llm_stats.inc("total_tokens", cached_stats.get("total_tokens", 0))
     llm_stats.inc("total_prompt_tokens", cached_stats.get("prompt_tokens", 0))
     llm_stats.inc("total_completion_tokens", cached_stats.get("completion_tokens", 0))
 
     llm_call_info = llm_call_info_var.get()
     if llm_call_info:
-        llm_call_info.duration = cache_read_duration
+        llm_call_info.duration = cache_read_duration_s
         llm_call_info.total_tokens = cached_stats.get("total_tokens", 0)
         llm_call_info.prompt_tokens = cached_stats.get("prompt_tokens", 0)
         llm_call_info.completion_tokens = cached_stats.get("completion_tokens", 0)
         llm_call_info.from_cache = True
-        llm_call_info.started_at = time() - cache_read_duration
+        llm_call_info.started_at = time() - cache_read_duration_s
         llm_call_info.finished_at = time()
 
 
@@ -167,14 +167,14 @@ def get_from_cache_and_restore_stats(
     if cached_entry is None:
         return None
 
-    cache_read_start = time()
+    cache_read_start_s = time()
     final_result = cached_entry["result"]
     cached_stats = cached_entry.get("llm_stats")
     cached_metadata = cached_entry.get("llm_metadata")
-    cache_read_duration = time() - cache_read_start
+    cache_read_duration_s = time() - cache_read_start_s
 
     if cached_stats:
-        restore_llm_stats_from_cache(cached_stats, cache_read_duration)
+        restore_llm_stats_from_cache(cached_stats, cache_read_duration_s)
 
     if cached_metadata:
         restore_llm_metadata_from_cache(cached_metadata)
