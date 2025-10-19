@@ -109,6 +109,48 @@ async def test_topic_safety_cache_hit(fake_llm_topic, mock_task_manager):
 
 
 @pytest.mark.asyncio
+async def test_topic_safety_cache_miss(fake_llm_topic, mock_task_manager):
+    cache = LFUCache(maxsize=10)
+
+    different_messages = [
+        {"type": "system", "content": "Different prompt"},
+        {"type": "user", "content": "Different question"},
+    ]
+    cache_entry = {
+        "result": {"on_topic": True},
+        "llm_stats": {
+            "total_tokens": 30,
+            "prompt_tokens": 25,
+            "completion_tokens": 5,
+        },
+        "llm_metadata": None,
+    }
+    cache_key = create_normalized_cache_key(different_messages)
+    cache.put(cache_key, cache_entry)
+
+    llm_stats = LLMStats()
+    llm_stats_var.set(llm_stats)
+
+    llm_call_info = LLMCallInfo(task="topic_safety_check_input $model=test_model")
+    llm_call_info_var.set(llm_call_info)
+
+    result = await topic_safety_check_input(
+        llms=fake_llm_topic,
+        llm_task_manager=mock_task_manager,
+        model_name="test_model",
+        context={"user_message": "What is machine learning?"},
+        events=[],
+        model_caches={"test_model": cache},
+    )
+
+    assert result["on_topic"] is True
+    assert cache.size() == 2
+
+    llm_call_info = llm_call_info_var.get()
+    assert llm_call_info.from_cache is False
+
+
+@pytest.mark.asyncio
 async def test_topic_safety_without_cache(fake_llm_topic, mock_task_manager):
     result = await topic_safety_check_input(
         llms=fake_llm_topic,

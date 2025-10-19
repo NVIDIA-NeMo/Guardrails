@@ -279,3 +279,46 @@ async def test_content_safety_check_output_cache_hit(
 
     llm_call_info = llm_call_info_var.get()
     assert llm_call_info.from_cache is True
+
+
+@pytest.mark.asyncio
+async def test_content_safety_check_output_cache_miss(
+    fake_llm_with_stats, mock_task_manager
+):
+    cache = LFUCache(maxsize=10)
+
+    cache_entry = {
+        "result": {"allowed": True, "policy_violations": []},
+        "llm_stats": {
+            "total_tokens": 50,
+            "prompt_tokens": 40,
+            "completion_tokens": 10,
+        },
+        "llm_metadata": None,
+    }
+    cache_key = create_normalized_cache_key("different prompt")
+    cache.put(cache_key, cache_entry)
+
+    mock_task_manager.render_task_prompt.return_value = "new output prompt"
+    mock_task_manager.parse_task_output.return_value = [True, "policy2"]
+
+    llm_stats = LLMStats()
+    llm_stats_var.set(llm_stats)
+
+    llm_call_info = LLMCallInfo(task="content_safety_check_output $model=test_model")
+    llm_call_info_var.set(llm_call_info)
+
+    result = await content_safety_check_output(
+        llms=fake_llm_with_stats,
+        llm_task_manager=mock_task_manager,
+        model_name="test_model",
+        context={"user_message": "new user input", "bot_message": "new bot response"},
+        model_caches={"test_model": cache},
+    )
+
+    assert result["allowed"] is True
+    assert result["policy_violations"] == ["policy2"]
+    assert cache.size() == 2
+
+    llm_call_info = llm_call_info_var.get()
+    assert llm_call_info.from_cache is False
