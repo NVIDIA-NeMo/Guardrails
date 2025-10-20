@@ -18,17 +18,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-try:
-    import nemoguardrails.embeddings.providers.cohere
 
-    COHERE_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    COHERE_AVAILABLE = False
-
-
-@pytest.mark.skipif(
-    not COHERE_AVAILABLE, reason="Cohere provider not available in this branch"
-)
 class TestCohereEmbeddingModelMocked:
     def test_init_with_known_model(self):
         mock_cohere = MagicMock()
