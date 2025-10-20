@@ -553,21 +553,24 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
 
         with patch.object(
             logging.getLogger("nemoguardrails.llm.cache.lfu"), "info"
-        ) as mock_log:
-            # Multiple operations within interval
+        ) as mock_log, patch("time.time") as mock_time:
+            current_time = [0.0]
+
+            def time_side_effect():
+                return current_time[0]
+
+            mock_time.side_effect = time_side_effect
+
             for i in range(10):
                 cache.put(f"key{i}", f"value{i}")
                 cache.get(f"key{i}")
-                time.sleep(0.05)  # Total time < 1.0
+                current_time[0] += 0.05
 
-            # Should not have logged yet
             self.assertEqual(mock_log.call_count, 0)
 
-            # Wait for interval to pass
-            time.sleep(0.6)
-            cache.get("key1")  # Trigger check
+            current_time[0] += 0.6
+            cache.get("key1")
 
-            # Now should have logged once
             self.assertEqual(mock_log.call_count, 1)
 
     def test_stats_logging_with_updates(self):
