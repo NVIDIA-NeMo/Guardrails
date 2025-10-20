@@ -24,6 +24,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+pytest.importorskip("langchain_nvidia_ai_endpoints")
+
 from nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch import ChatNVIDIA
 
 
