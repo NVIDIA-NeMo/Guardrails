@@ -9,7 +9,7 @@ rails:
       server_endpoint: "http://localhost:1337/heuristics"
       lp_threshold: 89.79
       ps_ppl_threshold: 1845.65
-      embedding: "snowflake/snowflake-arctic-embed-m-long"
+      embedding: "Snowflake/snowflake-arctic-embed-m-long"
 
   input:
     flows:

@@ -25,10 +25,10 @@ class SnowflakeEmbed:
 
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(
-            "snowflake/snowflake-arctic-embed-m-long"
+            "Snowflake/snowflake-arctic-embed-m-long"
         )
         self.model = AutoModel.from_pretrained(
-            "snowflake/snowflake-arctic-embed-m-long",
+            "Snowflake/snowflake-arctic-embed-m-long",
             trust_remote_code=True,
             add_pooling_layer=False,
             safe_serialization=True,
