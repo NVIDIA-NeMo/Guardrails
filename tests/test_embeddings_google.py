@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,6 @@ from nemoguardrails import LLMRails, RailsConfig
 try:
     from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
 except ImportError:
-    # Ignore this if running in test environment when langchain-google-genai not installed.
     GoogleEmbeddingModel = None
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
@@ -66,8 +65,7 @@ async def test_live_query():
 
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
-@pytest.mark.asyncio
-def test_live_query(app):
+def test_live_query_sync(app):
     result = app.generate(
         messages=[{"role": "user", "content": "tell me what you can do"}]
     )

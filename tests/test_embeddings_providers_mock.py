@@ -568,3 +568,296 @@ class TestAzureEmbeddingModelMocked:
 
             assert result == [expected_embedding]
             assert len(result) == 1
+
+
+class TestGoogleEmbeddingModelMocked:
+    def test_init_with_known_model(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+
+            assert model.model == "gemini-embedding-001"
+            assert model.embedding_size == 3072
+            assert model.client == mock_client
+            assert model.output_dimensionality is None
+            mock_genai.Client.assert_called_once()
+
+    def test_init_with_unknown_model(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_embedding = Mock()
+        mock_embedding.values = [0.1] * 512
+        mock_response.embeddings = [mock_embedding]
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("custom-unknown-model")
+
+            assert model.model == "custom-unknown-model"
+            assert model.embedding_size == 512
+            mock_client.models.embed_content.assert_called_once_with(
+                model="custom-unknown-model", contents=["test"]
+            )
+
+    def test_import_error_when_google_genai_not_installed(self):
+        with patch.dict("sys.modules", {"google": None, "google.genai": None}):
+            with pytest.raises(ImportError, match="Could not import google-genai"):
+                if "nemoguardrails.embeddings.providers.google" in sys.modules:
+                    del sys.modules["nemoguardrails.embeddings.providers.google"]
+
+                from nemoguardrails.embeddings.providers.google import (
+                    GoogleEmbeddingModel,
+                )
+
+                GoogleEmbeddingModel("gemini-embedding-001")
+
+    def test_encode_success(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_embedding1 = Mock()
+        expected_embedding1 = [0.1, 0.2, 0.3]
+        mock_embedding1.values = expected_embedding1
+        mock_embedding2 = Mock()
+        expected_embedding2 = [0.4, 0.5, 0.6]
+        mock_embedding2.values = expected_embedding2
+        mock_response.embeddings = [mock_embedding1, mock_embedding2]
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+            documents = ["hello world", "test document"]
+            result = model.encode(documents)
+
+            assert result == [expected_embedding1, expected_embedding2]
+            mock_client.models.embed_content.assert_called_with(
+                model="gemini-embedding-001", contents=documents
+            )
+
+    def test_encode_with_output_dimensionality(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_embedding = Mock()
+        expected_embedding = [0.1] * 1536
+        mock_embedding.values = expected_embedding
+        mock_response.embeddings = [mock_embedding]
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel(
+                "gemini-embedding-001", output_dimensionality=1536
+            )
+            documents = ["test with custom dimensions"]
+            result = model.encode(documents)
+
+            assert result == [expected_embedding]
+            assert model.embedding_size == 1536
+            mock_client.models.embed_content.assert_called_with(
+                model="gemini-embedding-001",
+                contents=documents,
+                output_dimensionality=1536,
+            )
+
+    def test_encode_exception_handling(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_client.models.embed_content.side_effect = Exception("API Error")
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+            documents = ["test"]
+
+            with pytest.raises(RuntimeError, match="Failed to retrieve embeddings"):
+                model.encode(documents)
+
+    @pytest.mark.asyncio
+    async def test_encode_async_success(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_embedding = Mock()
+        expected_embedding = [0.1, 0.2, 0.3]
+        mock_embedding.values = expected_embedding
+        mock_response.embeddings = [mock_embedding]
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+            documents = ["async test"]
+            result = await model.encode_async(documents)
+
+            assert result == [expected_embedding]
+            mock_client.models.embed_content.assert_called_once()
+
+    def test_init_with_api_key_kwarg(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001", api_key="test-key-123")
+
+            mock_genai.Client.assert_called_once_with(api_key="test-key-123")
+
+    def test_all_predefined_models(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        models_to_test = {
+            "gemini-embedding-001": 3072,
+        }
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            for model_name, expected_size in models_to_test.items():
+                model = GoogleEmbeddingModel(model_name)
+                assert model.embedding_size == expected_size
+                assert model.model == model_name
+
+    def test_engine_name_attribute(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+
+            assert model.engine_name == "google"
+
+    def test_init_with_custom_output_dimensionality(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel(
+                "gemini-embedding-001", output_dimensionality=3072
+            )
+
+            assert model.model == "gemini-embedding-001"
+            assert model.embedding_size == 3072
+            assert model.output_dimensionality == 3072
+
+    def test_encode_empty_document_list(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_response.embeddings = []
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+            result = model.encode([])
+
+            assert result == []
+            mock_client.models.embed_content.assert_called_with(
+                model="gemini-embedding-001", contents=[]
+            )
+
+    def test_encode_single_document(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_embedding = Mock()
+        expected_embedding = [0.1, 0.2, 0.3]
+        mock_embedding.values = expected_embedding
+        mock_response.embeddings = [mock_embedding]
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("gemini-embedding-001")
+            result = model.encode(["single document"])
+
+            assert result == [expected_embedding]
+            assert len(result) == 1

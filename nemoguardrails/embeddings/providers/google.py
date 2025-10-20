@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,26 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+import asyncio
+from typing import List, Optional
 
 from .base import EmbeddingModel
 
 
 class GoogleEmbeddingModel(EmbeddingModel):
-    """Embedding model google-genai.
+    """Embedding model using Gemini API.
 
-    This class is a wrapper for using embedding models powered by Google AI (hosted in the Google Cloud).
+    This class is a wrapper for using embedding models powered by Gemini API.
 
     To use, you must have either:
 
         1. The ``GOOGLE_API_KEY`` environment variable set with your API key, or
-        2. Pass your API key using the google_api_key kwarg to the genai.Client().
+        2. Pass your API key using the api_key kwarg to the genai.Client().
 
     Args:
         embedding_model (str): The name of the embedding model to be used.
+        **kwargs: Additional keyword arguments. Supports:
+            - output_dimensionality (int, optional): Desired output dimensions (128-3072 for gemini-embedding-001).
+              Recommended values: 768, 1536, or 3072. If not specified, API defaults to 3072.
+            - api_key (str, optional): API key for authentication (or use GOOGLE_API_KEY env var).
+            - Other arguments passed to genai.Client() constructor.
 
     Attributes:
-        model: The name of the embedding model.
+        model (str): The name of the embedding model.
         embedding_size (int): The size of the embeddings.
     """
 
@@ -49,19 +55,21 @@ class GoogleEmbeddingModel(EmbeddingModel):
             )
 
         self.model = embedding_model
+        self.output_dimensionality = kwargs.pop("output_dimensionality", None)
 
         self.client = genai.Client(**kwargs)
 
-        self.embedding_size_dict = {
+        embedding_size_dict = {
             "gemini-embedding-001": 3072,
-            "text-embedding-005": 768,
-            "text-multilingual-embedding-002": 768,
         }
 
-        if self.model in self.embedding_size_dict:
-            self.embedding_size = self.embedding_size_dict[self.model]
+        if self.model in embedding_size_dict:
+            self.embedding_size = (
+                self.output_dimensionality
+                if self.output_dimensionality is not None
+                else embedding_size_dict[self.model]
+            )
         else:
-            # Perform a first encoding to get the embedding size
             self.embedding_size = len(self.encode(["test"])[0])
 
     async def encode_async(self, documents: List[str]) -> List[List[float]]:
@@ -73,11 +81,10 @@ class GoogleEmbeddingModel(EmbeddingModel):
         Returns:
             List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
         """
+        loop = asyncio.get_running_loop()
+        embeddings = await loop.run_in_executor(None, self.encode, documents)
 
-        results = await self.client.aio.models.embed_content(
-            model=self.model, contents=documents
-        )
-        return [emb.values for emb in results.embeddings]
+        return embeddings
 
     def encode(self, documents: List[str]) -> List[List[float]]:
         """Encode a list of documents into their corresponding sentence embeddings.
@@ -87,6 +94,16 @@ class GoogleEmbeddingModel(EmbeddingModel):
 
         Returns:
             List[List[float]]: The list of sentence embeddings, where each embedding is a list of floats.
+
+        Raises:
+            RuntimeError: If the embedding request fails.
         """
-        results = self.client.models.embed_content(model=self.model, contents=documents)
-        return [emb.values for emb in results.embeddings]
+        try:
+            embed_kwargs = {"model": self.model, "contents": documents}
+            if self.output_dimensionality is not None:
+                embed_kwargs["output_dimensionality"] = self.output_dimensionality
+
+            results = self.client.models.embed_content(**embed_kwargs)
+            return [emb.values for emb in results.embeddings]
+        except Exception as e:
+            raise RuntimeError(f"Failed to retrieve embeddings: {e}") from e
