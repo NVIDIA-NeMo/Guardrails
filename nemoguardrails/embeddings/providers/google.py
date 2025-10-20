@@ -64,13 +64,19 @@ class GoogleEmbeddingModel(EmbeddingModel):
         }
 
         if self.model in embedding_size_dict:
-            self.embedding_size = (
+            self._embedding_size = (
                 self.output_dimensionality
                 if self.output_dimensionality is not None
                 else embedding_size_dict[self.model]
             )
         else:
-            self.embedding_size = len(self.encode(["test"])[0])
+            self._embedding_size = None
+
+    @property
+    def embedding_size(self) -> int:
+        if self._embedding_size is None:
+            self._embedding_size = len(self.encode(["test"])[0])
+        return self._embedding_size
 
     async def encode_async(self, documents: List[str]) -> List[List[float]]:
         """Encode a list of documents into their corresponding sentence embeddings.

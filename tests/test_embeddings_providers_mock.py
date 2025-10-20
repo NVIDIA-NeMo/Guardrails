@@ -861,3 +861,35 @@ class TestGoogleEmbeddingModelMocked:
 
             assert result == [expected_embedding]
             assert len(result) == 1
+
+    def test_lazy_embedding_size_initialization(self):
+        mock_genai_module = MagicMock()
+        mock_genai = MagicMock()
+        mock_client = Mock()
+        mock_genai.Client.return_value = mock_client
+        mock_genai_module.genai = mock_genai
+
+        mock_response = Mock()
+        mock_embedding = Mock()
+        mock_embedding.values = [0.1] * 512
+        mock_response.embeddings = [mock_embedding]
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch.dict(
+            "sys.modules", {"google": mock_genai_module, "google.genai": mock_genai}
+        ):
+            from nemoguardrails.embeddings.providers.google import GoogleEmbeddingModel
+
+            model = GoogleEmbeddingModel("unknown-model")
+
+            assert mock_client.models.embed_content.call_count == 0
+
+            embedding_size = model.embedding_size
+
+            assert embedding_size == 512
+            mock_client.models.embed_content.assert_called_once_with(
+                model="unknown-model", contents=["test"]
+            )
+
+            _ = model.embedding_size
+            assert mock_client.models.embed_content.call_count == 1
