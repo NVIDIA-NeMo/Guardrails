@@ -25,10 +25,10 @@ from langchain_core.outputs import ChatResult
 from langchain_nvidia_ai_endpoints import ChatNVIDIA as ChatNVIDIAOriginal
 from pydantic import Field
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(__name__)  # pragma: no cover
 
 
-def stream_decorator(func):
+def stream_decorator(func):  # pragma: no cover
     @wraps(func)
     def wrapper(
         self,
@@ -52,7 +52,7 @@ def stream_decorator(func):
 
 # NOTE: this needs to have the same name as the original class,
 #   otherwise, there's a check inside `langchain-nvidia-ai-endpoints` that will fail.
-class ChatNVIDIA(ChatNVIDIAOriginal):
+class ChatNVIDIA(ChatNVIDIAOriginal):  # pragma: no cover
     streaming: bool = Field(
         default=False, description="Whether to use streaming or not"
     )
