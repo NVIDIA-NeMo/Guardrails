@@ -384,7 +384,7 @@ class RuntimeV1_0(Runtime):
                     # If this flow had a stop event
                     if has_stop:
                         stopped_task_results = task_results[flow_id] + result
-                        stopped_task_processing_log = task_processing_logs[
+                        stopped_task_processing_logs = task_processing_logs[
                             flow_id
                         ].copy()
 
