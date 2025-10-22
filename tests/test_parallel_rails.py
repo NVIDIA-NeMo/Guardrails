@@ -152,3 +152,132 @@ async def test_parallel_rails_output_fail_2():
         and result.response[0]["content"]
         == "I cannot express a term in the bot answer."
     )
+
+
+@pytest.mark.asyncio
+async def test_parallel_rails_input_stop_flag():
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails"))
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "No",
+            "Hi there! How can I assist you with questions about the ABC Company today?",
+            "No",
+        ],
+    )
+
+    chat >> "hi, this is a blocked term."
+    result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
+
+    stopped_rails = [rail for rail in result.log.activated_rails if rail.stop]
+    assert len(stopped_rails) == 1, "Expected exactly one stopped rail"
+    assert (
+        "check blocked input terms" in stopped_rails[0].name
+    ), f"Expected 'check blocked input terms' rail to be stopped, got {stopped_rails[0].name}"
+
+
+@pytest.mark.asyncio
+async def test_parallel_rails_output_stop_flag():
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails"))
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "No",
+            "Hi there! This is a blocked term!",
+            "No",
+        ],
+    )
+
+    chat >> "hi!"
+    result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
+
+    stopped_rails = [rail for rail in result.log.activated_rails if rail.stop]
+    assert len(stopped_rails) == 1, "Expected exactly one stopped rail"
+    assert (
+        "check blocked output terms" in stopped_rails[0].name
+    ), f"Expected 'check blocked output terms' rail to be stopped, got {stopped_rails[0].name}"
+
+
+@pytest.mark.asyncio
+async def test_parallel_rails_client_code_pattern():
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails"))
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "No",
+            "Hi there! This is a blocked term!",
+            "No",
+        ],
+    )
+
+    chat >> "hi!"
+    result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
+
+    activated_rails = result.log.activated_rails if result.log else None
+    assert activated_rails is not None, "Expected activated_rails to be present"
+
+    rails_to_check = [
+        "self check output",
+        "check blocked output terms $duration=1.0",
+    ]
+    rails_set = set(rails_to_check)
+
+    stopping_rails = [rail for rail in activated_rails if rail.stop]
+
+    assert len(stopping_rails) > 0, "Expected at least one stopping rail"
+
+    blocked_rails = []
+    for rail in stopping_rails:
+        if rail.name in rails_set:
+            blocked_rails.append(rail.name)
+
+    assert (
+        len(blocked_rails) == 1
+    ), f"Expected exactly one blocked rail from our check list, got {len(blocked_rails)}: {blocked_rails}"
+    assert (
+        "check blocked output terms $duration=1.0" in blocked_rails
+    ), f"Expected 'check blocked output terms $duration=1.0' to be blocked, got {blocked_rails}"
+
+    for rail in activated_rails:
+        if (
+            rail.name in rails_set
+            and rail.name != "check blocked output terms $duration=1.0"
+        ):
+            assert (
+                not rail.stop
+            ), f"Non-blocked rail {rail.name} should not have stop=True"
+
+
+@pytest.mark.asyncio
+async def test_parallel_rails_multiple_activated_rails():
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails"))
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "No",
+            "Hi there! This is a blocked term!",
+            "No",
+        ],
+    )
+
+    chat >> "hi!"
+    result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
+
+    activated_rails = result.log.activated_rails if result.log else None
+    assert activated_rails is not None, "Expected activated_rails to be present"
+    assert len(activated_rails) > 1, (
+        f"Expected multiple activated_rails, got {len(activated_rails)}: "
+        f"{[rail.name for rail in activated_rails]}"
+    )
+
+    stopped_rails = [rail for rail in activated_rails if rail.stop]
+    assert len(stopped_rails) == 1, (
+        f"Expected exactly one stopped rail, got {len(stopped_rails)}: "
+        f"{[rail.name for rail in stopped_rails]}"
+    )
+
+    rails_with_stop_true = [rail for rail in activated_rails if rail.stop is True]
+    assert len(rails_with_stop_true) == 1, (
+        f"Expected exactly one rail with stop=True, got {len(rails_with_stop_true)}: "
+        f"{[rail.name for rail in rails_with_stop_true]}"
+    )

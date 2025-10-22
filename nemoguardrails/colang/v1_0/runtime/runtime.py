@@ -311,7 +311,13 @@ class RuntimeV1_0(Runtime):
         # Wrapper function to help reverse map the task result to the flow ID
         async def task_call_helper(flow_uid, post_event, func, *args, **kwargs):
             result = await func(*args, **kwargs)
-            if post_event:
+
+            has_stop = any(
+                event["type"] == "BotIntent" and event["intent"] == "stop"
+                for event in result
+            )
+
+            if post_event and not has_stop:
                 result.append(post_event)
                 args[1].append(
                     {"type": "event", "timestamp": time(), "data": post_event}
@@ -361,6 +367,7 @@ class RuntimeV1_0(Runtime):
             unique_flow_ids[flow_uid] = task
 
         stopped_task_results: List[dict] = []
+        stopped_task_processing_log: List[dict] = []
 
         # Process tasks as they complete using as_completed
         try:
@@ -377,6 +384,9 @@ class RuntimeV1_0(Runtime):
                     # If this flow had a stop event
                     if has_stop:
                         stopped_task_results = task_results[flow_id] + result
+                        stopped_task_processing_log = task_processing_logs[
+                            flow_id
+                        ].copy()
 
                         # Cancel all remaining tasks
                         for pending_task in tasks:
@@ -433,6 +443,15 @@ class RuntimeV1_0(Runtime):
             finished_task_processing_logs.extend(task_processing_logs[flow_id])
 
         if processing_log:
+            for plog in stopped_task_processing_log:
+                # Filter out "Listen" and "start_flow" events from task processing log
+                if plog["type"] == "event" and (
+                    plog["data"]["type"] == "Listen"
+                    or plog["data"]["type"] == "start_flow"
+                ):
+                    continue
+                processing_log.append(plog)
+
             for plog in finished_task_processing_logs:
                 # Filter out "Listen" and "start_flow" events from task processing log
                 if plog["type"] == "event" and (
