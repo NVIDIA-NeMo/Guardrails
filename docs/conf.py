@@ -38,6 +38,7 @@ extensions = [
 redirects = {
     "introduction": "index.html",
     "documentation": "index.html",
+    "user-guides/advanced/nemotron-content-safety-multilingual-deployment": "user-guides/advanced/nemotron-safety-guard-deployment.md",
 }
 
 copybutton_exclude = ".linenos, .gp, .go"

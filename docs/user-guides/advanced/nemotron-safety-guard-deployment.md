@@ -3,32 +3,28 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Nemotron Content Safety Multilingual Deployment
+# Nemotron Safety Guard Deployment
 
 ## Adding Multilingual Content Safety Guardrails
 
-The following procedure adds a guardrail to check user input against a multilingual content safety model.
+The following procedure adds a guardrail to check user input against a GPU-accelerated content safety model that can detect harmful content in several languages.
 
 To simplify configuration, the sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com/meta/llama-3_3-70b-instruct) on build.nvidia.com as the application LLM.
 This avoids deploying a NIM for LLMs instance locally for inference.
 
 The sample code relies on starting a local instance of the
-[Llama 3.1 Nemotron Content Safety Multilingual 8B V1](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-multilingual-8b-v1)
+[Llama 3.1 Nemotron Safety Guard 8B V3](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3)
 container that is available from NVIDIA NGC.
 
-The steps guide you to start the content safety container, configure a content safety input raile, and then use NeMo Guardrails interactively to send safe and unsafe requests.
+The steps guide you to start the content safety container, configure a content safety input rails, and then use NeMo Guardrails interactively to send safe and unsafe requests.
 
 ## Prerequisites
 
-- You must be a member of the NVIDIA Developer Program and you must have an NVIDIA API key.
-  For information about the program and getting a key, refer to [NVIDIA NIM FAQ](https://forums.developer.nvidia.com/t/nvidia-nim-faq/300317/1) in the NVIDIA NIM developer forum.
-  The NVIDIA API key enables you to send inference requests to build.nvidia.com.
-
 - You have an NGC API key.
-  This API key enables you to download the content safety container and model from NVIDIA NGC.
+  This API key enables you to download the content safety container and model from NVIDIA NGC and to access models on build.nvidia.com.
   Refer to [Generating Your NGC API Key](https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key) in the _NVIDIA NGC User Guide_ for more information.
 
-  When you create an NGC API personal key, select at least **NGC Catalog** from the **Services Included** menu.
+  When you create a personal API key, select at least **NGC Catalog** and **Public API Endpoints** from the **Services Included** menu.
   You can specify more services to use the key for additional purposes.
 
 - A host with Docker Engine.
@@ -45,7 +41,7 @@ The steps guide you to start the content safety container, configure a content s
   $ pip install langchain-nvidia-ai-endpoints
   ```
 
-- Refer to the [support matrix](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-multilingual-8b-v1/latest/support-matrix.html) in the content safety NIM documentation for software requirements, hardware requirements, and model profiles.
+- Refer to the [support matrix](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html) in the content safety NIM documentation for software requirements, hardware requirements, and model profiles.
 
 ## Starting the Content Safety Container
 
@@ -66,13 +62,13 @@ The steps guide you to start the content safety container, configure a content s
 1. Download the container:
 
    ```console
-   $ docker pull nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-multilingual-8b-v1:1.10.1
+   $ docker pull nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
    ```
 
 1. Create a model cache directory on the host machine:
 
    ```console
-   $ export LOCAL_NIM_CACHE=~/.cache/safetyguardmultilingual
+   $ export LOCAL_NIM_CACHE=~/.cache/safetyguard
    $ mkdir -p "${LOCAL_NIM_CACHE}"
    $ chmod 700 "${LOCAL_NIM_CACHE}"
    ```
@@ -81,7 +77,7 @@ The steps guide you to start the content safety container, configure a content s
 
    ```console
    $ docker run -d \
-     --name safetyguardmultilingual \
+     --name safetyguard \
      --gpus=all --runtime=nvidia \
      --shm-size=64GB \
      -e NGC_API_KEY \
@@ -89,11 +85,11 @@ The steps guide you to start the content safety container, configure a content s
      -u $(id -u) \
      -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
      -p 8000:8000 \
-     nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-multilingual-8b-v1:1.10.1
+     nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
    ```
 
    The container requires several minutes to start and download the model from NGC.
-   You can monitor the progress by running the `docker logs safetyguardmultilingual` command.
+   You can monitor the progress by running the `docker logs safetyguard` command.
 
 1. Confirm the service is ready to respond to inference requests:
 
@@ -104,12 +100,12 @@ The steps guide you to start the content safety container, configure a content s
    _Example Output_
 
    ```output
-   "nvidia/llama-3.1-nemotron-safety-guard-multilingual-8b-v1"
+   "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
    ```
 
 ## Configuring Guardrails and Running Inference
 
-1. Set your NVIDIA API key as an environment variable.
+1. Set your NGC API key as an environment variable.
    Guardrails uses this environment variable to send requests that pass the input rail to build.nvidia.com.
 
    ```console
@@ -118,7 +114,7 @@ The steps guide you to start the content safety container, configure a content s
 
 1. Create a _configuration store_ directory, such as `config`.
 
-1. Copy the following configuration code and save as `config.yml` in the `config` directory.
+1. Copy the following configuration code and save as `config/config.yml`:
 
    ```yaml
    models:
@@ -126,28 +122,28 @@ The steps guide you to start the content safety container, configure a content s
        engine: nvidia_ai_endpoints
        model: meta/llama-3.3-70b-instruct
 
-     - type: "multilingual_content_safety"
+     - type: "content_safety"
        engine: nim
        parameters:
          base_url: "http://localhost:8000/v1"
-         model_name: "nvidia/llama-3.1-nemotron-safety-guard-multilingual-8b-v1"
+         model_name: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
 
    rails:
      input:
        flows:
-         - content safety check input $model=multilingual_content_safety
+         - content safety check input $model=content_safety
      output:
        flows:
-         - content safety check output $model=multilingual_content_safety
+         - content safety check output $model=content_safety
    ```
 
    The `models` key in the `config.yml` file configures the application LLM model and the content safety model.
 
-1. Copy the following prompts code and save as `prompts.yml` in the `config` directory.
+1. Copy the following prompts code and save as `config/prompts.yml`:
 
    ```yaml
    prompts:
-     - task: content_safety_check_input $model=multilingual_content_safety
+     - task: content_safety_check_input $model=content_safety
        content: |
          Task: Check if there is unsafe content in the user or agent messages in the below conversation in accordance with our safety policy with the below categories. Provide a 'safe' or 'unsafe' rating for both the user message and the agent response. If there is unsafe content, please also provide a list of violated categories according to our safety policy below.
 
@@ -191,7 +187,7 @@ The steps guide you to start the content safety container, configure a content s
        output_parser: nemoguard_parse_prompt_safety
        max_tokens: 50
 
-     - task: content_safety_check_output $model=multilingual_content_safety
+     - task: content_safety_check_output $model=content_safety
        content: |
          Task: Check if there is unsafe content in the user or agent messages in the below conversation in accordance with our safety policy with the below categories. Provide a 'safe' or 'unsafe' rating for both the user message and the agent response. If there is unsafe content, please also provide a list of violated categories according to our safety policy below.
 
@@ -288,31 +284,36 @@ The steps guide you to start the content safety container, configure a content s
    _Example Output_
 
    ```output
-   भारत में विभिन्न प्रकार के स्वादिष्ट और विविध खाद्य पदार्थ प्रचलित हैं, और प्रत्येक क्षेत्र में अपनी विशिष्ट विशेषताएं और पारंपरिक व्यंजन हैं। यहाँ तीन प्रमुख खाद्य पदार्थों के बारे में जानकारी दी गई है:
+   भारत में विभिन्न प्रकार के खाद्य पदार्थ प्रचलित हैं, जिनमें से तीन प्रमुख खाद्य पदार्थ हैं:
 
-   1. **बिरयानी**: बिरयानी एक लोकप्रिय भारतीय व्यंजन है, जो चावल, मसालों, और मांस या सब्जियों से बनाया जाता है। यह दक्षिण भारत, खासकर हैदराबाद और लखनऊ में बहुत प्रसिद्ध है। बिरयानी के विभिन्न प्रकार होते हैं, जैसे कि हैदराबादी बिरयानी, लखनवी बिरयानी, और वेजिटेबल बिरयानी।
+   1. **चावल**: चावल भारत में एक मुख्य खाद्य पदार्थ है, जो लगभग हर घर में खाया जाता है। यह एक प्रमुख अनाज है जो कार्बोहाइ रेट से भरपूर होता है और इसे विभिन्न प्रकार के  यंज ों में उपयोग किय
 
-   2. **तंदूरी चिकन**: तंदूरी चिकन एक प्रसिद्ध उत्तर भारतीय व्यंजन है, जो मुर्गे के मांस को दही और विभिन्न मसालों में मैरिनेट करके तंदूर में पकाया जाता है। यह व्यंजन अपने स्वादिष्ट और कोमल स्वाद के लिए जाना जाता है। तंदूरी चिकन को अक्सर नान या रोटी के साथ परोसा जाता है।
+  जाता है, जैसे कि बिरयानी, पुलाव, और सादा चावल।
 
-   3. **पालक पनीर**: पालक पनीर एक लोकप्रिय उत्तर भारतीय सब्जी है, जो पनीर (भारतीय चीज) और पालक के प्यूरी से बनाई जाती है। इसमें विभिन्न मसाले जैसे कि जीरा, धनिया, और लहसुन भी मिलाए जाते हैं। यह व्यंजन अपने स्वादिष्ट और पौष्टिक मूल्य के लिए बहुत पसंद किया जाता है। पालक पनीर को अक्सर रोटी, पराठे, या चावल के साथ परोसा जाता है।
+   2. **रोटी**: रोटी भारतीय आहार का एक अन्य महत्वपूर्ण हिस्सा है। यह गेहूं के आटे से बनाई जाती है और इसे विभिन्न प्रकार की सब्जि ों और दा ों के साथ परोसा जाता है। रोटी को तंदूर में या तवे प
+  पकाया जा सकता है, और यह पूरे भारत में विभिन्न रू ों में पाई जाती है, जैसे कि नान, पराठा, और पूरी。
 
-   इन व्यंजनों के अलावा, भारत में विभिन्न अन्य स्वादिष्ट खाद्य पदार्थ भी प्रचलित हैं, जैसे कि समोसे, गुलाब जामुन, और जलेबी। प्रत्येक क्षेत्र में अपनी विशिष्ट खाद्य संस्कृति और पारंपरिक व्यंजन हैं, जो भारतीय खाद्य विविधता को और भी समृद्ध बनाते हैं।
+   3. **दाल**: दाल भारतीय  यंज ों में एक महत्वपूर्ण स्थान रखती है। यह मुख्य रूप से दा ों जैसे कि मूंग, चना, और तूर दाल से बनाई जाती है। दाल प्रोटीन से भरपूर होती है और इसे विभिन्न प्रकार के मस
+    ों और सब्जि ों के साथ पकाया जाता है। दाल को चावल या रोटी के साथ परोसा जाता है और यह एक स्वस्थ और पौष्टिक विकल्प है।
+
+   इन ती ों खाद्य पदा ों का महत्व भारतीय सं कृति और खान-पान में बहुत अधिक है, और वे लगभग हर भारतीय घर में नियमित रूप से खाए जाते हैं।
+
    ```
 
    Refer to the English translation:
 
    ```text
-   A variety of delicious and varied foods are popular in India, and each region has its own specialties and traditional dishes. Here is information about three major foods:
+   India has a wide variety of foods, three of which are primarily:
 
-   1. **Biryani**: Biryani is a popular Indian dish made from rice, spices, and meat or vegetables. It is very famous in South India, especially Hyderabad and Lucknow. There are different types of biryani, such as Hyderabadi biryani, Lucknowi biryani, and vegetable biryani.
+   1. Rice: Rice is a staple food in India, eaten in almost every household. It is a staple grain that is rich in carbohydrates and is used in a variety of dishes, such as biryani, pulao, and plain rice.
 
-   2. **Tandoori Chicken**: Tandoori chicken is a famous North Indian dish, which is chicken meat marinated in yogurt and various spices and cooked in a tandoor. This dish is known for its delicious and tender taste. Tandoori chicken is often served with naan or roti.
+   2. Roti: Roti is another important part of the Indian diet. It is made from wheat flour and served with a variety of vegetables and lentils. Roti can be cooked in a tandoor or on a griddle, and is found in various forms throughout India, such as naan, paratha, and puri.
 
-   3. **Palak Paneer**: Palak paneer is a popular North Indian dish, which is made from paneer (Indian cheese) and spinach puree. Various spices such as cumin, coriander, and garlic are also added to it. This dish is much loved for its delicious and nutritional value. Palak paneer is often served with roti, paratha, or rice.
+   3. Dal: Dal plays an important role in Indian cuisine. It is made primarily from pulses such as moong, chana, and toor dal. Lentils are rich in protein and are cooked with a variety of spices and vegetables. Served with rice or roti, lentils are a healthy and nutritious option.
 
-   Apart from these dishes, various other delicious foods are also popular in India, such as samosas, gulab jamun, and jalebi. Each region has its own distinct food culture and traditional cuisine, which makes the Indian food diversity even richer.
+   These three foods hold immense significance in Indian culture and cuisine, and are eaten regularly in almost every Indian household.
    ```
 
 ## Next Steps
 
-- Refer to the Llama 3.1 Nemotron Content Safety Multilingual 8B V1 [documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-multilingual-8b-v1/latest).
+- Refer to the Llama 3.1 Nemotron Safety Guard 8B [documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest).
