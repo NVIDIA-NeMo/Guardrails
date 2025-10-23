@@ -1094,16 +1094,7 @@ class LLMRails:
                 res = GenerationResponse(response=[new_message])
 
             if reasoning_trace := extract_bot_thinking_from_events(events):
-                if prompt:
-                    # For prompt mode, response should be a string
-                    if isinstance(res.response, str):
-                        res.response = reasoning_trace + res.response
-                else:
-                    # For message mode, response should be a list
-                    if isinstance(res.response, list) and len(res.response) > 0:
-                        res.response[0]["content"] = (
-                            reasoning_trace + res.response[0]["content"]
-                        )
+                res.reasoning_content = reasoning_trace
 
             if tool_calls:
                 res.tool_calls = tool_calls
@@ -1239,7 +1230,8 @@ class LLMRails:
             # If a prompt is used, we only return the content of the message.
 
             if reasoning_trace := extract_bot_thinking_from_events(events):
-                new_message["content"] = reasoning_trace + new_message["content"]
+                thinking_trace = f"<thinking>{reasoning_trace}</thinking>\n"
+                new_message["content"] = thinking_trace + new_message["content"]
 
             if prompt:
                 return new_message["content"]

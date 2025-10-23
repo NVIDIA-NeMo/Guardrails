@@ -270,12 +270,8 @@ async def test_bot_thinking_usable_in_output_rail_logic():
         )
 
         assert isinstance(result.response, list)
-        # TODO(@Pouyanpi): in llmrails.py appending reasoning traces to the final generation might not be desired anymore
-        # should be fixed in a subsequent PR for 0.18.0 release
-        assert (
-            result.response[0]["content"]
-            == test_reasoning_trace + "I'm sorry, I can't respond to that."
-        )
+        assert result.reasoning_content == test_reasoning_trace
+        assert result.response[0]["content"] == "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.asyncio

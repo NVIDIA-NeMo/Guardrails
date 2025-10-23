@@ -428,6 +428,10 @@ class GenerationResponse(BaseModel):
         default=None,
         description="Tool calls extracted from the LLM response, if any.",
     )
+    reasoning_content: Optional[str] = Field(
+        default=None,
+        description="The reasoning content extracted from the LLM response, if any.",
+    )
     llm_metadata: Optional[dict] = Field(
         default=None,
         description="Metadata from the LLM response (additional_kwargs, response_metadata, usage_metadata, etc.)",

@@ -1372,3 +1372,117 @@ def test_cache_initialization_with_multiple_models(mock_init_llm_model):
     assert "jailbreak_detection" in model_caches
     assert model_caches["content_safety"].maxsize == 1000
     assert model_caches["jailbreak_detection"].maxsize == 2000
+
+
+@pytest.mark.asyncio
+async def test_generate_async_reasoning_content_field_passthrough():
+    from nemoguardrails.rails.llm.options import GenerationOptions
+
+    test_reasoning_trace = "Let me think about this step by step..."
+
+    with patch(
+        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
+    ) as mock_get_reasoning:
+        mock_get_reasoning.return_value = test_reasoning_trace
+
+        config = RailsConfig.from_content(config={"models": []})
+        llm = FakeLLM(responses=["The answer is 42"])
+        llm_rails = LLMRails(config=config, llm=llm)
+
+        result = await llm_rails.generate_async(
+            messages=[{"role": "user", "content": "What is the answer?"}],
+            options=GenerationOptions(),
+        )
+
+        assert result.reasoning_content == test_reasoning_trace
+        assert isinstance(result.response, list)
+        assert result.response[0]["content"] == "The answer is 42"
+
+
+@pytest.mark.asyncio
+async def test_generate_async_reasoning_content_none():
+    from nemoguardrails.rails.llm.options import GenerationOptions
+
+    with patch(
+        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
+    ) as mock_get_reasoning:
+        mock_get_reasoning.return_value = None
+
+        config = RailsConfig.from_content(config={"models": []})
+        llm = FakeLLM(responses=["Regular response"])
+        llm_rails = LLMRails(config=config, llm=llm)
+
+        result = await llm_rails.generate_async(
+            messages=[{"role": "user", "content": "Hello"}],
+            options=GenerationOptions(),
+        )
+
+        assert result.reasoning_content is None
+        assert isinstance(result.response, list)
+        assert result.response[0]["content"] == "Regular response"
+
+
+@pytest.mark.asyncio
+async def test_generate_async_reasoning_not_in_response_content():
+    from nemoguardrails.rails.llm.options import GenerationOptions
+
+    test_reasoning_trace = "Let me analyze this carefully..."
+
+    with patch(
+        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
+    ) as mock_get_reasoning:
+        mock_get_reasoning.return_value = test_reasoning_trace
+
+        config = RailsConfig.from_content(config={"models": []})
+        llm = FakeLLM(responses=["The answer is 42"])
+        llm_rails = LLMRails(config=config, llm=llm)
+
+        result = await llm_rails.generate_async(
+            messages=[{"role": "user", "content": "What is the answer?"}],
+            options=GenerationOptions(),
+        )
+
+        assert result.reasoning_content == test_reasoning_trace
+        assert test_reasoning_trace not in result.response[0]["content"]
+        assert result.response[0]["content"] == "The answer is 42"
+
+
+@pytest.mark.asyncio
+async def test_generate_async_reasoning_with_thinking_tags():
+    test_reasoning_trace = "Step 1: Analyze\nStep 2: Respond"
+
+    with patch(
+        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
+    ) as mock_get_reasoning:
+        mock_get_reasoning.return_value = test_reasoning_trace
+
+        config = RailsConfig.from_content(config={"models": [], "passthrough": True})
+        llm = FakeLLM(responses=["The answer is 42"])
+        llm_rails = LLMRails(config=config, llm=llm)
+
+        result = await llm_rails.generate_async(
+            messages=[{"role": "user", "content": "What is the answer?"}]
+        )
+
+        expected_prefix = f"<thinking>{test_reasoning_trace}</thinking>\n"
+        assert result["content"].startswith(expected_prefix)
+        assert "The answer is 42" in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_generate_async_no_thinking_tags_when_no_reasoning():
+    with patch(
+        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
+    ) as mock_get_reasoning:
+        mock_get_reasoning.return_value = None
+
+        config = RailsConfig.from_content(config={"models": []})
+        llm = FakeLLM(responses=["Regular response"])
+        llm_rails = LLMRails(config=config, llm=llm)
+
+        result = await llm_rails.generate_async(
+            messages=[{"role": "user", "content": "Hello"}]
+        )
+
+        assert not result["content"].startswith("<thinking>")
+        assert result["content"] == "Regular response"
