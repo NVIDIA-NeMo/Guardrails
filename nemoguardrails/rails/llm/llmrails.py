@@ -1084,7 +1084,7 @@ class LLMRails:
 
         tool_calls = extract_tool_calls_from_events(new_events)
         llm_metadata = get_and_clear_response_metadata_contextvar()
-        reasoning_content = extract_bot_thinking_from_events(events)
+        reasoning_content = extract_bot_thinking_from_events(new_events)
         # If we have generation options, we prepare a GenerationResponse instance.
         if gen_options:
             # If a prompt was used, we only need to return the content of the message.
