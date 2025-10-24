@@ -514,7 +514,7 @@ async def test_streaming_with_output_rails_disabled_raises_error():
 
     assert str(exc_info.value) == (
         "stream_async() cannot be used when output rails are configured but "
-        "output.streaming.enabled is False. Either set "
+        "rails.output.streaming.enabled is False. Either set "
         "rails.output.streaming.enabled to True in your configuration, or use "
         "generate_async() instead of stream_async()."
     )
@@ -557,7 +557,7 @@ async def test_streaming_with_output_rails_no_streaming_config_raises_error():
 
     assert str(exc_info.value) == (
         "stream_async() cannot be used when output rails are configured but "
-        "output.streaming.enabled is False. Either set "
+        "rails.output.streaming.enabled is False. Either set "
         "rails.output.streaming.enabled to True in your configuration, or use "
         "generate_async() instead of stream_async()."
     )

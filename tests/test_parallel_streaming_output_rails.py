@@ -619,7 +619,7 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
 
     assert str(exc_info.value) == (
         "stream_async() cannot be used when output rails are configured but "
-        "output.streaming.enabled is False. Either set "
+        "rails.output.streaming.enabled is False. Either set "
         "rails.output.streaming.enabled to True in your configuration, or use "
         "generate_async() instead of stream_async()."
     )
