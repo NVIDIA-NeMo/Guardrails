@@ -63,22 +63,20 @@ class ChatNVIDIA(ChatNVIDIAOriginal):  # pragma: no cover
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         if self.custom_headers:
-            super().__init__(**kwargs)
             custom_headers_error = (
                 "custom_headers requires langchain-nvidia-ai-endpoints >= 0.3.0. "
                 "Your version does not support the required client structure or "
                 "extra_headers parameter. Please upgrade: "
                 "pip install --upgrade langchain-nvidia-ai-endpoints>=0.3.0"
             )
-            if self.custom_headers:
-                if not hasattr(self._client, "get_req"):
-                    raise RuntimeError(custom_headers_error)
+            if not hasattr(self._client, "get_req"):
+                raise RuntimeError(custom_headers_error)
 
-                sig = inspect.signature(self._client.get_req)
-                if "extra_headers" not in sig.parameters:
-                    raise RuntimeError(custom_headers_error)
+            sig = inspect.signature(self._client.get_req)
+            if "extra_headers" not in sig.parameters:
+                raise RuntimeError(custom_headers_error)
 
-                self._wrap_client_methods()
+            self._wrap_client_methods()
 
     def _wrap_client_methods(self):
         original_get_req = self._client.get_req
