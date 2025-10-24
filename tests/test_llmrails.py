@@ -24,6 +24,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.llmrails import get_action_details_from_flow_id
+from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import FakeLLM, clean_events, event_sequence_conforms
 
 
@@ -1380,9 +1381,7 @@ async def test_generate_async_reasoning_content_field_passthrough():
 
     test_reasoning_trace = "Let me think about this step by step..."
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": []})
@@ -1403,9 +1402,7 @@ async def test_generate_async_reasoning_content_field_passthrough():
 async def test_generate_async_reasoning_content_none():
     from nemoguardrails.rails.llm.options import GenerationOptions
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = None
 
         config = RailsConfig.from_content(config={"models": []})
@@ -1428,9 +1425,7 @@ async def test_generate_async_reasoning_not_in_response_content():
 
     test_reasoning_trace = "Let me analyze this carefully..."
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": []})
@@ -1451,9 +1446,7 @@ async def test_generate_async_reasoning_not_in_response_content():
 async def test_generate_async_reasoning_with_thinking_tags():
     test_reasoning_trace = "Step 1: Analyze\nStep 2: Respond"
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -1471,9 +1464,7 @@ async def test_generate_async_reasoning_with_thinking_tags():
 
 @pytest.mark.asyncio
 async def test_generate_async_no_thinking_tags_when_no_reasoning():
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = None
 
         config = RailsConfig.from_content(config={"models": []})

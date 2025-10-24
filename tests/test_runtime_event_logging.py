@@ -19,6 +19,7 @@ from unittest.mock import patch
 import pytest
 
 from nemoguardrails import RailsConfig
+from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import TestChat
 
 
@@ -28,9 +29,7 @@ async def test_bot_thinking_event_logged_in_runtime(caplog):
 
     caplog.set_level(logging.INFO)
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -89,9 +88,7 @@ async def test_all_events_logged_when_multiple_events_generated(caplog):
 
     caplog.set_level(logging.INFO)
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -116,9 +113,7 @@ async def test_bot_thinking_event_logged_before_bot_message(caplog):
 
     caplog.set_level(logging.INFO)
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})

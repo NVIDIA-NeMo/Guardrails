@@ -18,6 +18,7 @@ from unittest.mock import patch
 import pytest
 
 from nemoguardrails import RailsConfig
+from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import TestChat
 
 
@@ -25,9 +26,7 @@ from tests.utils import TestChat
 async def test_bot_thinking_event_creation_passthrough():
     test_reasoning_trace = "Let me think about this step by step..."
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -46,9 +45,7 @@ async def test_bot_thinking_event_creation_passthrough():
 async def test_bot_thinking_event_creation_non_passthrough():
     test_reasoning_trace = "Analyzing the user's request..."
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(
@@ -84,9 +81,7 @@ async def test_bot_thinking_event_creation_non_passthrough():
 
 @pytest.mark.asyncio
 async def test_no_bot_thinking_event_when_no_reasoning_trace():
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = None
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -104,9 +99,7 @@ async def test_no_bot_thinking_event_when_no_reasoning_trace():
 async def test_bot_thinking_before_bot_message():
     test_reasoning_trace = "Step 1: Understand the question\nStep 2: Formulate answer"
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
@@ -134,9 +127,7 @@ async def test_bot_thinking_before_bot_message():
 async def test_bot_thinking_accessible_in_output_rails():
     test_reasoning_trace = "Thinking: This requires careful consideration"
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(
@@ -171,9 +162,7 @@ async def test_bot_thinking_accessible_in_output_rails():
 async def test_bot_thinking_matches_in_output_rails():
     test_reasoning_trace = "Let me analyze: step 1, step 2, step 3"
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(
@@ -203,9 +192,7 @@ async def test_bot_thinking_matches_in_output_rails():
 
 @pytest.mark.asyncio
 async def test_bot_thinking_none_when_no_reasoning():
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = None
 
         config = RailsConfig.from_content(
@@ -240,9 +227,7 @@ async def test_bot_thinking_none_when_no_reasoning():
 async def test_bot_thinking_usable_in_output_rail_logic():
     test_reasoning_trace = "This contains sensitive information"
 
-    with patch(
-        "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-    ) as mock_get_reasoning:
+    with patch(REASONING_TRACE_MOCK_PATH) as mock_get_reasoning:
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(
