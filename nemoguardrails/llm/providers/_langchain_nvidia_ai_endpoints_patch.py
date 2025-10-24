@@ -65,7 +65,7 @@ class ChatNVIDIA(ChatNVIDIAOriginal):  # pragma: no cover
         if self.custom_headers:
             if not hasattr(self._client, "get_req"):
                 raise RuntimeError(
-                    "custom_headers requires langchain-nvidia-ai-endpoints >= 0.2.1. "
+                    "custom_headers requires langchain-nvidia-ai-endpoints >= 0.3.0. "
                     "Your version uses a nested client structure that is not supported. "
                     "Please upgrade: pip install --upgrade langchain-nvidia-ai-endpoints>=0.3.0"
                 )
@@ -84,11 +84,15 @@ class ChatNVIDIA(ChatNVIDIAOriginal):  # pragma: no cover
         original_get_req = self._client.get_req
         original_get_req_stream = self._client.get_req_stream
 
-        def wrapped_get_req(payload: dict = {}, extra_headers: dict = {}):
+        def wrapped_get_req(payload: dict = None, extra_headers: dict = None):
+            payload = payload or {}
+            extra_headers = extra_headers or {}
             merged_headers = {**extra_headers, **self.custom_headers}
             return original_get_req(payload=payload, extra_headers=merged_headers)
 
-        def wrapped_get_req_stream(payload: dict, extra_headers: dict = {}):
+        def wrapped_get_req_stream(payload: dict = None, extra_headers: dict = None):
+            payload = payload or {}
+            extra_headers = extra_headers or {}
             merged_headers = {**extra_headers, **self.custom_headers}
             return original_get_req_stream(
                 payload=payload, extra_headers=merged_headers
