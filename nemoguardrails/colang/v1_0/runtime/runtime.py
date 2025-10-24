@@ -367,7 +367,7 @@ class RuntimeV1_0(Runtime):
             unique_flow_ids[flow_uid] = task
 
         stopped_task_results: List[dict] = []
-        stopped_task_processing_log: List[dict] = []
+        stopped_task_processing_logs: List[dict] = []
 
         # Process tasks as they complete using as_completed
         try:
@@ -454,7 +454,7 @@ class RuntimeV1_0(Runtime):
                         continue
                     target_log.append(plog)
 
-            filter_and_append(stopped_task_processing_log, processing_log)
+            filter_and_append(stopped_task_processing_logs, processing_log)
             filter_and_append(finished_task_processing_logs, processing_log)
 
         # We pack all events into a single event to add it to the event history.
