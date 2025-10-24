@@ -46,7 +46,7 @@ class GoogleEmbeddingModel(EmbeddingModel):
 
     def __init__(self, embedding_model: str, **kwargs):
         try:
-            from google import genai
+            from google import genai  # type: ignore[import]
 
         except ImportError:
             raise ImportError(

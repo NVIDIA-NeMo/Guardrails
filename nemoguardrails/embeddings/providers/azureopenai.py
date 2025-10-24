@@ -56,7 +56,7 @@ class AzureEmbeddingModel(EmbeddingModel):
         self.client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),  # type: ignore[arg-type]  (comes from `$AZURE_OPENAI_ENDPOINT`)
         )
 
         self.embedding_model = embedding_model
