@@ -1084,7 +1084,7 @@ class LLMRails:
 
         tool_calls = extract_tool_calls_from_events(new_events)
         llm_metadata = get_and_clear_response_metadata_contextvar()
-
+        reasoning_content = extract_bot_thinking_from_events(events)
         # If we have generation options, we prepare a GenerationResponse instance.
         if gen_options:
             # If a prompt was used, we only need to return the content of the message.
@@ -1093,8 +1093,8 @@ class LLMRails:
             else:
                 res = GenerationResponse(response=[new_message])
 
-            if reasoning_trace := extract_bot_thinking_from_events(events):
-                res.reasoning_content = reasoning_trace
+            if reasoning_content:
+                res.reasoning_content = reasoning_content
 
             if tool_calls:
                 res.tool_calls = tool_calls
@@ -1229,8 +1229,8 @@ class LLMRails:
         else:
             # If a prompt is used, we only return the content of the message.
 
-            if reasoning_trace := extract_bot_thinking_from_events(events):
-                thinking_trace = f"<thinking>{reasoning_trace}</thinking>\n"
+            if reasoning_content:
+                thinking_trace = f"<think>{reasoning_content}</think>\n"
                 new_message["content"] = thinking_trace + new_message["content"]
 
             if prompt:

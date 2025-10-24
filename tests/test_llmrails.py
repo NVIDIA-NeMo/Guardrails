@@ -1464,7 +1464,7 @@ async def test_generate_async_reasoning_with_thinking_tags():
             messages=[{"role": "user", "content": "What is the answer?"}]
         )
 
-        expected_prefix = f"<thinking>{test_reasoning_trace}</thinking>\n"
+        expected_prefix = f"<think>{test_reasoning_trace}</think>\n"
         assert result["content"].startswith(expected_prefix)
         assert "The answer is 42" in result["content"]
 
@@ -1484,5 +1484,5 @@ async def test_generate_async_no_thinking_tags_when_no_reasoning():
             messages=[{"role": "user", "content": "Hello"}]
         )
 
-        assert not result["content"].startswith("<thinking>")
+        assert not result["content"].startswith("<think>")
         assert result["content"] == "Regular response"
