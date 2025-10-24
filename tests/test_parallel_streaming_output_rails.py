@@ -605,21 +605,21 @@ async def test_parallel_streaming_output_rails_performance_benefits():
 async def test_parallel_streaming_output_rails_default_config_behavior(
     parallel_output_rails_default_config,
 ):
-    """Tests parallel output rails with default streaming configuration"""
+    """Tests that stream_async raises an error with default config (no explicit streaming config)"""
 
-    llm_completions = [
-        '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
-        '  "This is a test message with default streaming config."',
-    ]
+    from nemoguardrails import LLMRails
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_default_config, llm_completions
+    llmrails = LLMRails(parallel_output_rails_default_config)
+
+    with pytest.raises(ValueError) as exc_info:
+        async for chunk in llmrails.stream_async(
+            messages=[{"role": "user", "content": "Hi!"}]
+        ):
+            pass
+
+    assert "stream_async() cannot be used when output rails are configured" in str(
+        exc_info.value
     )
-
-    response = "".join(chunks)
-    assert len(response) > 0
-    assert len(chunks) > 0
-    assert "test message" in response
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 

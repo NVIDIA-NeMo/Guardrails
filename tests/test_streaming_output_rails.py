@@ -89,14 +89,16 @@ def output_rails_streaming_config_default():
 
 @pytest.mark.asyncio
 async def test_stream_async_streaming_disabled(output_rails_streaming_config_default):
-    """Tests if stream_async returns a StreamingHandler instance when streaming is disabled"""
+    """Tests that stream_async raises an error when output rails are configured but streaming is disabled"""
 
     llmrails = LLMRails(output_rails_streaming_config_default)
 
-    result = llmrails.stream_async(prompt="test")
-    assert isinstance(
-        result, StreamingHandler
-    ), "Expected StreamingHandler instance when streaming is disabled"
+    with pytest.raises(ValueError) as exc_info:
+        llmrails.stream_async(prompt="test")
+
+    assert "stream_async() cannot be used when output rails are configured" in str(
+        exc_info.value
+    )
 
 
 @pytest.mark.asyncio
@@ -175,32 +177,19 @@ async def test_streaming_output_rails_blocked_explicit(output_rails_streaming_co
 async def test_streaming_output_rails_blocked_default_config(
     output_rails_streaming_config_default,
 ):
-    """Tests if output rails streaming default config do not block content with BLOCK keyword"""
+    """Tests that stream_async raises an error with default config (output rails without explicit streaming config)"""
 
-    # text with a BLOCK keyword
-    llm_completions = [
-        '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
-        '  "This is a [BLOCK] joke that should be blocked."',
-    ]
+    llmrails = LLMRails(output_rails_streaming_config_default)
 
-    chunks = await run_self_check_test(
-        output_rails_streaming_config_default, llm_completions
+    with pytest.raises(ValueError) as exc_info:
+        async for chunk in llmrails.stream_async(
+            messages=[{"role": "user", "content": "Hi!"}]
+        ):
+            pass
+
+    assert "stream_async() cannot be used when output rails are configured" in str(
+        exc_info.value
     )
-
-    expected_error = {
-        "error": {
-            "message": "Blocked by self check output rails.",
-            "type": "guardrails_violation",
-            "param": "self check output",
-            "code": "content_blocked",
-        }
-    }
-
-    error_chunks = [
-        json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')
-    ]
-    assert len(error_chunks) == 0
-    assert expected_error not in error_chunks
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -235,19 +224,19 @@ async def test_streaming_output_rails_blocked_at_start(output_rails_streaming_co
 async def test_streaming_output_rails_default_config_not_blocked_at_start(
     output_rails_streaming_config_default,
 ):
-    """Tests blocking with BLOCK at the very beginning of the response does not return abort sse"""
+    """Tests that stream_async raises an error with default config (output rails without explicit streaming config)"""
 
-    llm_completions = [
-        '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
-        '  "[BLOCK] This should be blocked immediately at the start."',
-    ]
+    llmrails = LLMRails(output_rails_streaming_config_default)
 
-    chunks = await run_self_check_test(
-        output_rails_streaming_config_default, llm_completions
+    with pytest.raises(ValueError) as exc_info:
+        async for chunk in llmrails.stream_async(
+            messages=[{"role": "user", "content": "Hi!"}]
+        ):
+            pass
+
+    assert "stream_async() cannot be used when output rails are configured" in str(
+        exc_info.value
     )
-
-    with pytest.raises(JSONDecodeError):
-        json.loads(chunks[0])
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 

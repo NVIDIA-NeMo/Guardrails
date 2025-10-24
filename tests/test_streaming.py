@@ -475,6 +475,50 @@ def _calculate_number_of_actions(input_length, chunk_size, context_size):
 
 
 @pytest.mark.asyncio
+async def test_streaming_with_output_rails_disabled_raises_error():
+    config = RailsConfig.from_content(
+        config={
+            "models": [],
+            "rails": {
+                "output": {
+                    "flows": {"self check output"},
+                    "streaming": {
+                        "enabled": False,
+                    },
+                }
+            },
+            "streaming": True,
+            "prompts": [{"task": "self_check_output", "content": "a test template"}],
+        },
+        colang_content="""
+        define user express greeting
+          "hi"
+
+        define flow
+          user express greeting
+          bot tell joke
+        """,
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=[],
+        streaming=True,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        async for chunk in chat.app.stream_async(
+            messages=[{"role": "user", "content": "Hi!"}],
+        ):
+            pass
+
+    assert "stream_async() cannot be used when output rails are configured" in str(
+        exc_info.value
+    )
+    assert "output.streaming.enabled is False" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_streaming_error_handling():
     """Test that errors during streaming are properly formatted and returned."""
     # Create a config with an invalid model to trigger an error
