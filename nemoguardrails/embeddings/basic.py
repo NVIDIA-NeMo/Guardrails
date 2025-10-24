@@ -257,7 +257,10 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._req_idx += 1
         self._req_queue[req_id] = text
 
-        if self._current_batch_finished_event is None:
+        if (
+            self._current_batch_finished_event is None
+            or self._current_batch_full_event is None
+        ):
             self._current_batch_finished_event = asyncio.Event()
             self._current_batch_full_event = asyncio.Event()
             self._current_batch_submitted.clear()

@@ -46,7 +46,9 @@ class AzureEmbeddingModel(EmbeddingModel):
 
     def __init__(self, embedding_model: str):
         try:
-            from openai import AzureOpenAI
+            from openai import (
+                AzureOpenAI,  # type: ignore[attr-defined] (Assume this is installed)
+            )
         except ImportError:
             raise ImportError(
                 "Could not import openai, please install it with "
