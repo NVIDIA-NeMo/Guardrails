@@ -17,20 +17,48 @@
 Module for providing a context manager to temporarily adjust parameters of a language model.
 
 Also allows registration of custom parameter managers for different language model types.
+
+.. deprecated:: 0.17.0
+    This module is deprecated and will be removed in version 0.19.0.
+    Instead of using the context manager approach, pass parameters directly to `llm_call()`
+    using the `llm_params` argument:
+
+    Old way (deprecated):
+        from nemoguardrails.llm.params import llm_params
+        with llm_params(llm, temperature=0.7):
+            result = await llm_call(llm, prompt)
+
+    New way (recommended):
+        result = await llm_call(llm, prompt, llm_params={"temperature": 0.7})
+
+    See: https://github.com/NVIDIA/NeMo-Guardrails/issues/1387
 """
 
 import logging
+import warnings
 from typing import Dict, Type
 
 from langchain.base_language import BaseLanguageModel
 
 log = logging.getLogger(__name__)
 
+_DEPRECATION_MESSAGE = (
+    "The nemoguardrails.llm.params module is deprecated and will be removed in version 0.19.0. "
+    "Instead of using llm_params context manager, pass parameters directly to llm_call() "
+    "using the llm_params argument. "
+    "See: https://github.com/NVIDIA/NeMo-Guardrails/issues/1387"
+)
+
 
 class LLMParams:
-    """Context manager to temporarily modify the parameters of a language model."""
+    """Context manager to temporarily modify the parameters of a language model.
+
+    .. deprecated:: 0.17.0
+        Use llm_call() with llm_params argument instead.
+    """
 
     def __init__(self, llm: BaseLanguageModel, **kwargs):
+        warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
         self.llm = llm
         self.altered_params = kwargs
         self.original_params = {}
@@ -82,13 +110,22 @@ _param_managers: Dict[Type[BaseLanguageModel], Type[LLMParams]] = {}
 
 
 def register_param_manager(llm_type: Type[BaseLanguageModel], manager: Type[LLMParams]):
-    """Register a parameter manager."""
+    """Register a parameter manager.
+
+    .. deprecated:: 0.17.0
+        This function is deprecated and will be removed in version 0.19.0.
+    """
+    warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
     _param_managers[llm_type] = manager
 
 
 def llm_params(llm: BaseLanguageModel, **kwargs):
-    """Returns a parameter manager for the given language model."""
+    """Returns a parameter manager for the given language model.
 
+    .. deprecated:: 0.17.0
+        Use llm_call() with llm_params argument instead.
+    """
+    warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
     _llm_params = _param_managers.get(llm.__class__, LLMParams)
 
     return _llm_params(llm, **kwargs)

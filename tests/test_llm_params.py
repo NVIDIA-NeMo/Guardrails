@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+import warnings
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
 
@@ -222,6 +223,55 @@ class TestLLMParamsFunction(unittest.TestCase):
             pass
 
         self.assertIsInstance(llm_params(UnregisteredLLM()), LLMParams)
+
+
+class TestLLMParamsDeprecation(unittest.TestCase):
+    """Test deprecation warnings for llm_params module."""
+
+    def test_llm_params_function_raises_deprecation_warning(self):
+        """Test that llm_params function raises DeprecationWarning."""
+        llm = FakeLLM(param3="value3", model_kwargs={"param1": "value1"})
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with llm_params(llm, param1="new_value1"):
+                pass
+
+            assert len(w) >= 1
+            assert any(
+                issubclass(warning.category, DeprecationWarning) for warning in w
+            )
+            assert any(
+                "0.19.0" in str(warning.message)
+                and "llm_call()" in str(warning.message)
+                for warning in w
+            )
+
+    def test_llm_params_class_raises_deprecation_warning(self):
+        """Test that LLMParams class raises DeprecationWarning."""
+        llm = FakeLLM(param3="value3", model_kwargs={"param1": "value1"})
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            params = LLMParams(llm, param1="new_value1")
+
+            assert len(w) >= 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "0.19.0" in str(w[0].message)
+
+    def test_register_param_manager_raises_deprecation_warning(self):
+        """Test that register_param_manager function raises DeprecationWarning."""
+
+        class CustomLLMParams(LLMParams):
+            pass
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            register_param_manager(FakeLLM, CustomLLMParams)
+
+            assert len(w) >= 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "0.19.0" in str(w[0].message)
 
 
 class TestLLMParamsMigration(unittest.TestCase):
