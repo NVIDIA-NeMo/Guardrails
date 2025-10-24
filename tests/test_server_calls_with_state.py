@@ -38,8 +38,8 @@ def _test_call(config_id):
     assert response.status_code == 200
     res = response.json()
     print(res)
-    assert len(res["choices"][0]["messages"]) == 2
-    assert res["choices"][0]["messages"]["content"] == "Hello!"
+    assert len(res["choices"][0]["message"]) == 2
+    assert res["choices"][0]["message"]["content"] == "Hello!"
     assert res.get("state")
 
     # When making a second call with the returned state, the conversations should continue
@@ -60,7 +60,7 @@ def _test_call(config_id):
         },
     )
     res = response.json()
-    assert res["choices"][0]["messages"]["content"] == "Hello again!"
+    assert res["choices"][0]["message"]["content"] == "Hello again!"
 
 
 def test_1():
