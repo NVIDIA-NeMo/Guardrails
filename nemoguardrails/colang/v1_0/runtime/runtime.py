@@ -443,23 +443,19 @@ class RuntimeV1_0(Runtime):
             finished_task_processing_logs.extend(task_processing_logs[flow_id])
 
         if processing_log:
-            for plog in stopped_task_processing_log:
-                # Filter out "Listen" and "start_flow" events from task processing log
-                if plog["type"] == "event" and (
-                    plog["data"]["type"] == "Listen"
-                    or plog["data"]["type"] == "start_flow"
-                ):
-                    continue
-                processing_log.append(plog)
 
-            for plog in finished_task_processing_logs:
-                # Filter out "Listen" and "start_flow" events from task processing log
-                if plog["type"] == "event" and (
-                    plog["data"]["type"] == "Listen"
-                    or plog["data"]["type"] == "start_flow"
-                ):
-                    continue
-                processing_log.append(plog)
+            def filter_and_append(logs, target_log):
+                for plog in logs:
+                    # Filter out "Listen" and "start_flow" events from task processing log
+                    if plog["type"] == "event" and (
+                        plog["data"]["type"] == "Listen"
+                        or plog["data"]["type"] == "start_flow"
+                    ):
+                        continue
+                    target_log.append(plog)
+
+            filter_and_append(stopped_task_processing_log, processing_log)
+            filter_and_append(finished_task_processing_logs, processing_log)
 
         # We pack all events into a single event to add it to the event history.
         history_events = new_event_dict(
