@@ -32,7 +32,6 @@ jobs:
       os: ${{ matrix.os }}
       image: ${{ matrix.image }}
       python-version: ${{ matrix.python-version }}
-      upgrade-deps: true
   full-tests-summary:
     name: Full Tests Summary
     needs: full-tests-matrix
