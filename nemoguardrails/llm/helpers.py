@@ -45,7 +45,7 @@ def get_llm_instance_wrapper(llm_instance: LLM, llm_type: str) -> Type[LLM]:
             These are needed to allow changes to the arguments of the LLM calls.
             """
             if hasattr(llm_instance, "model_kwargs"):
-                return getattr(llm_instance, "model_kwargs")
+                return llm_instance.model_kwargs  # type: ignore[attr-defined] (We check in line above)
             return {}
 
         @property

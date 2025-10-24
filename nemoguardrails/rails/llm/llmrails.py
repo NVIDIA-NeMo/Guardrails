@@ -489,16 +489,7 @@ class LLMRails:
                 continue
 
             try:
-                model_name = (
-                    llm_config.model
-                    if llm_config.model
-                    else llm_config.parameters["model"]
-                )
-                if not model_name:
-                    raise ModelInitializationError(
-                        f"No model name provided in {llm_config}"
-                    )
-
+                model_name = llm_config.model
                 provider_name = llm_config.engine
                 kwargs = self._prepare_model_kwargs(llm_config)
                 mode = llm_config.mode

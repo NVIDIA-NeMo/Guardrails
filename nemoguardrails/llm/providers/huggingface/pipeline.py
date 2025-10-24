@@ -72,7 +72,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
                 "Streaming mode not supported for HuggingFacePipeline in NeMo Guardrails!"
             )
 
-        llm_result = getattr(self, "_generate")(
+        llm_result = self._generate(  # type: ignore[attr-defined]
             [prompt],
             stop=stop,
             run_manager=run_manager,

@@ -112,8 +112,7 @@ class Model(BaseModel):
 
     type: str
     engine: str
-    model: Optional[str] = Field(
-        default=None,
+    model: str = Field(
         description="The name of the model. If not specified, it should be specified through the parameters attribute.",
     )
     api_key_env_var: Optional[str] = Field(
