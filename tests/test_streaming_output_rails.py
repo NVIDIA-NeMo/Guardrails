@@ -88,20 +88,6 @@ def output_rails_streaming_config_default():
 
 
 @pytest.mark.asyncio
-async def test_stream_async_streaming_disabled(output_rails_streaming_config_default):
-    """Tests that stream_async raises an error when output rails are configured but streaming is disabled"""
-
-    llmrails = LLMRails(output_rails_streaming_config_default)
-
-    with pytest.raises(ValueError) as exc_info:
-        llmrails.stream_async(prompt="test")
-
-    assert "stream_async() cannot be used when output rails are configured" in str(
-        exc_info.value
-    )
-
-
-@pytest.mark.asyncio
 async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     """Tests if stream_async returns does not return StreamingHandler instance when streaming is enabled"""
 
@@ -187,8 +173,11 @@ async def test_streaming_output_rails_blocked_default_config(
         ):
             pass
 
-    assert "stream_async() cannot be used when output rails are configured" in str(
-        exc_info.value
+    assert str(exc_info.value) == (
+        "stream_async() cannot be used when output rails are configured but "
+        "output.streaming.enabled is False. Either set "
+        "rails.output.streaming.enabled to True in your configuration, or use "
+        "generate_async() instead of stream_async()."
     )
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
@@ -216,27 +205,6 @@ async def test_streaming_output_rails_blocked_at_start(output_rails_streaming_co
 
     assert len(chunks) == 1
     assert json.loads(chunks[0]) == expected_error
-
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
-
-
-@pytest.mark.asyncio
-async def test_streaming_output_rails_default_config_not_blocked_at_start(
-    output_rails_streaming_config_default,
-):
-    """Tests that stream_async raises an error with default config (output rails without explicit streaming config)"""
-
-    llmrails = LLMRails(output_rails_streaming_config_default)
-
-    with pytest.raises(ValueError) as exc_info:
-        async for chunk in llmrails.stream_async(
-            messages=[{"role": "user", "content": "Hi!"}]
-        ):
-            pass
-
-    assert "stream_async() cannot be used when output rails are configured" in str(
-        exc_info.value
-    )
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 

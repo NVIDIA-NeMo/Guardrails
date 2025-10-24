@@ -1248,6 +1248,18 @@ class LLMRails:
                     new_message["tool_calls"] = tool_calls
                 return new_message
 
+    def _validate_streaming_with_output_rails(self) -> None:
+        if len(self.config.rails.output.flows) > 0 and (
+            not self.config.rails.output.streaming
+            or not self.config.rails.output.streaming.enabled
+        ):
+            raise ValueError(
+                "stream_async() cannot be used when output rails are configured but "
+                "output.streaming.enabled is False. Either set "
+                "rails.output.streaming.enabled to True in your configuration, or use "
+                "generate_async() instead of stream_async()."
+            )
+
     def stream_async(
         self,
         prompt: Optional[str] = None,
@@ -1259,16 +1271,7 @@ class LLMRails:
     ) -> AsyncIterator[str]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
 
-        if len(self.config.rails.output.flows) > 0 and (
-            not self.config.rails.output.streaming
-            or not self.config.rails.output.streaming.enabled
-        ):
-            raise ValueError(
-                "stream_async() cannot be used when output rails are configured but "
-                "output.streaming.enabled is False. Either set "
-                "rails.output.streaming.enabled to True in your configuration, or use "
-                "generate_async() instead of stream_async()."
-            )
+        self._validate_streaming_with_output_rails()
         # if an external generator is provided, use it directly
         if generator:
             if (
