@@ -237,14 +237,16 @@ class TestLLMParamsDeprecation(unittest.TestCase):
             with llm_params(llm, param1="new_value1"):
                 pass
 
-            assert len(w) >= 1
-            assert any(
-                issubclass(warning.category, DeprecationWarning) for warning in w
+            self.assertGreaterEqual(len(w), 1)
+            self.assertTrue(
+                any(issubclass(warning.category, DeprecationWarning) for warning in w)
             )
-            assert any(
-                "0.19.0" in str(warning.message)
-                and "llm_call()" in str(warning.message)
-                for warning in w
+            self.assertTrue(
+                any(
+                    "0.19.0" in str(warning.message)
+                    and "llm_call()" in str(warning.message)
+                    for warning in w
+                )
             )
 
     def test_llm_params_class_raises_deprecation_warning(self):
@@ -255,9 +257,9 @@ class TestLLMParamsDeprecation(unittest.TestCase):
             warnings.simplefilter("always")
             params = LLMParams(llm, param1="new_value1")
 
-            assert len(w) >= 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "0.19.0" in str(w[0].message)
+            self.assertGreaterEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("0.19.0", str(w[0].message))
 
     def test_register_param_manager_raises_deprecation_warning(self):
         """Test that register_param_manager function raises DeprecationWarning."""
@@ -269,9 +271,9 @@ class TestLLMParamsDeprecation(unittest.TestCase):
             warnings.simplefilter("always")
             register_param_manager(FakeLLM, CustomLLMParams)
 
-            assert len(w) >= 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "0.19.0" in str(w[0].message)
+            self.assertGreaterEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+            self.assertIn("0.19.0", str(w[0].message))
 
 
 class TestLLMParamsMigration(unittest.TestCase):
