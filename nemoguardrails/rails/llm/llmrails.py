@@ -490,6 +490,9 @@ class LLMRails:
 
             try:
                 model_name = llm_config.model
+                if not model_name:
+                    raise ValueError("LLM Config model field not set")
+
                 provider_name = llm_config.engine
                 kwargs = self._prepare_model_kwargs(llm_config)
                 mode = llm_config.mode
