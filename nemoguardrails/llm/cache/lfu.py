@@ -54,7 +54,8 @@ class DoublyLinkedList:
         """Add node to the end of the list (before tail)."""
         node.prev = self.tail.prev
         node.next = self.tail
-        self.tail.prev.next = node
+        if self.tail.prev:
+            self.tail.prev.next = node
         self.tail.prev = node
         self.size += 1
 
@@ -67,8 +68,10 @@ class DoublyLinkedList:
             node = self.head.next
 
         # Remove node from the list
-        node.prev.next = node.next
-        node.next.prev = node.prev
+        if node and node.prev:
+            node.prev.next = node.next
+        if node and node.next:
+            node.next.prev = node.prev
         self.size -= 1
 
         return node
@@ -121,6 +124,7 @@ class LFUCache(CacheInterface):
                 "evictions": 0,
                 "puts": 0,
                 "updates": 0,
+                "hit_rate": 0.0,
             }
 
     def _update_node_freq(self, node: LFUNode) -> None:
@@ -272,7 +276,7 @@ class LFUCache(CacheInterface):
 
             # Calculate hit rate
             total_requests = stats["hits"] + stats["misses"]
-            stats["hit_rate"] = (
+            stats["hit_rate"] = float(
                 stats["hits"] / total_requests if total_requests > 0 else 0.0
             )
 
@@ -288,6 +292,7 @@ class LFUCache(CacheInterface):
                     "evictions": 0,
                     "puts": 0,
                     "updates": 0,
+                    "hit_rate": 0.0,
                 }
 
     def _check_and_log_stats(self) -> None:
