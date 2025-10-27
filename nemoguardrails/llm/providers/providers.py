@@ -27,10 +27,9 @@ import logging
 import warnings
 from typing import Dict, List, Set, Type
 
-from langchain.chat_models.base import BaseChatModel
 from langchain_community import llms
 from langchain_community.chat_models import _module_lookup
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from .trtllm.llm import TRTLLM
 

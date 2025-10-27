@@ -19,7 +19,7 @@ import re
 from typing import List, Literal, Optional, Tuple, Union
 
 import aiohttp
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseLLM
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call

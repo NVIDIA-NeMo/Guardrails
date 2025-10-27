@@ -16,9 +16,8 @@
 import logging
 from typing import Optional
 
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseLLM
+from langchain_core.prompts import PromptTemplate
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -72,7 +71,7 @@ async def self_check_hallucination(
                 f"Current LLM engine is {type(llm).__name__}, which may not support all features."
             )
 
-            if "n" not in llm.__fields__:
+            if "n" not in llm.model_fields:
                 log.warning(
                     f"LLM engine {type(llm).__name__} does not support the 'n' parameter for generating multiple completion choices. "
                     f"Please use an OpenAI LLM engine or a model that supports the 'n' parameter for optimal performance."
@@ -81,16 +80,16 @@ async def self_check_hallucination(
 
         # Use the "generate" call from langchain to get all completions in the same response.
         last_bot_prompt = PromptTemplate(template="{text}", input_variables=["text"])
-        chain = LLMChain(prompt=last_bot_prompt, llm=llm)
+
+        # Format the prompt manually
+        formatted_prompt = last_bot_prompt.format(text=last_bot_prompt_string)
 
         # Generate multiple responses with temperature 1.
-        # Use chain.with_config for runtime parameters
-        configured_chain = chain.with_config(
-            configurable={"temperature": 1.0, "n": num_responses}
-        )
-        extra_llm_response = await configured_chain.agenerate(
-            [{"text": last_bot_prompt_string}],
-            run_manager=logging_callback_manager_for_chain,
+        # Bind the config parameters to the LLM for this call
+        llm_with_config = llm.bind(temperature=1.0, n=num_responses)
+        extra_llm_response = await llm_with_config.agenerate(
+            [formatted_prompt],
+            callbacks=[logging_callback_manager_for_chain],
         )
 
         extra_llm_completions = []

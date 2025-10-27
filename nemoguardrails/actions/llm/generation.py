@@ -28,8 +28,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Union, cast
 
 from jinja2 import meta
 from jinja2.sandbox import SandboxedEnvironment
-from langchain_core.language_models import BaseChatModel
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.llm.utils import (

@@ -791,7 +791,7 @@ async def test_main_llm_from_config_registered_as_action_param(
     is initialized from the config, it gets properly registered as an action parameter.
     This prevents the regression where actions expecting an 'llm' parameter would receive None.
     """
-    from langchain_core.language_models.llms import BaseLLM
+    from langchain_core.language_models import BaseLLM
 
     from nemoguardrails.actions import action
 

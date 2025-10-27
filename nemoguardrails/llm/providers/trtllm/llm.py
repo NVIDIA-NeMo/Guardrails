@@ -14,14 +14,15 @@
 # limitations under the License.
 
 """A Langchain LLM component for connecting to Triton + TensorRT LLM backend."""
+
 from __future__ import annotations
 
 import queue
 from functools import partial
 from typing import Any, Dict, List, Optional
 
-from langchain.callbacks.manager import CallbackManagerForLLMRun
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+from langchain_core.language_models import BaseLLM
 from pydantic.v1 import Field, root_validator
 
 from nemoguardrails.llm.providers.trtllm.client import TritonClient

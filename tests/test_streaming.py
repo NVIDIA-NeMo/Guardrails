@@ -617,8 +617,7 @@ async def test_streaming_error_handling():
 @pytest.fixture
 def custom_streaming_providers():
     """Fixture that registers both custom chat and LLM providers for testing."""
-    from langchain.chat_models.base import BaseChatModel
-    from langchain_core.language_models.llms import BaseLLM
+    from langchain_core.language_models import BaseChatModel, BaseLLM
 
     from nemoguardrails.llm.providers import (
         register_chat_provider,

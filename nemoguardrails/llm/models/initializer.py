@@ -17,8 +17,7 @@
 
 from typing import Any, Dict, Literal, Optional, Union
 
-from langchain_core.language_models import BaseChatModel
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.llm.models.langchain_initializer import (
     ModelInitializationError,

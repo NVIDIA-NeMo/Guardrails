@@ -24,8 +24,7 @@ import os
 from unittest.mock import patch
 
 import pytest
-from langchain.chat_models.base import BaseChatModel
-from langchain_core.language_models import BaseLLM
+from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.llm.models.langchain_initializer import (
     _PROVIDER_INITIALIZERS,

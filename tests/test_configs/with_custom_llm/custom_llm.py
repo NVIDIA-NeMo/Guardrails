@@ -15,29 +15,58 @@
 
 from typing import List, Optional
 
-from langchain.callbacks.manager import (
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.llms.base import LLM
+from langchain_core.language_models import BaseLLM
+from langchain_core.outputs import Generation, LLMResult
 
 
-class CustomLLM(LLM):
+class CustomLLM(BaseLLM):
     def _call(
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs,
     ) -> str:
-        pass
+        return "Custom LLM response"
 
     async def _acall(
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        **kwargs,
     ) -> str:
-        pass
+        return "Custom LLM response"
+
+    def _generate(
+        self,
+        prompts: List[str],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs,
+    ) -> LLMResult:
+        generations = [
+            [Generation(text=self._call(prompt, stop, run_manager, **kwargs))]
+            for prompt in prompts
+        ]
+        return LLMResult(generations=generations)
+
+    async def _agenerate(
+        self,
+        prompts: List[str],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        **kwargs,
+    ) -> LLMResult:
+        generations = [
+            [Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))]
+            for prompt in prompts
+        ]
+        return LLMResult(generations=generations)
 
     @property
     def _llm_type(self) -> str:

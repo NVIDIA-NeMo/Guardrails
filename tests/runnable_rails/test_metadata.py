@@ -16,17 +16,16 @@
 """Tests for metadata preservation in RunnableRails."""
 
 from typing import List, Optional
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 import pytest
-from langchain.callbacks.manager import (
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.prompts import ChatPromptTemplate
 
 from nemoguardrails import RailsConfig

@@ -18,8 +18,7 @@ import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain.chat_models.base import BaseChatModel
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.llm.providers.providers import (
     _acall,

@@ -15,11 +15,11 @@
 
 from typing import List, Optional, Type
 
-from langchain.callbacks.manager import (
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain_core.language_models.llms import LLM
+from langchain_core.language_models import LLM, BaseLLM
 
 
 def get_llm_instance_wrapper(llm_instance: LLM, llm_type: str) -> Type[LLM]:

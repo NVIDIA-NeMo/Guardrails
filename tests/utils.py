@@ -20,11 +20,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
-from langchain.callbacks.manager import (
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain_core.language_models.llms import LLM
+from langchain_core.language_models import LLM
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.colang import parse_colang_file
@@ -130,7 +130,7 @@ class FakeLLM(LLM):
     def _generate(self, prompts, stop=None, run_manager=None, **kwargs):
         """Override _generate to provide token usage in LLMResult."""
 
-        from langchain.schema import Generation, LLMResult
+        from langchain_core.outputs import Generation, LLMResult
 
         generations = [
             [Generation(text=self._call(prompt, stop, run_manager, **kwargs))]
@@ -142,7 +142,7 @@ class FakeLLM(LLM):
 
     async def _agenerate(self, prompts, stop=None, run_manager=None, **kwargs):
         """Override _agenerate to provide token usage in LLMResult."""
-        from langchain.schema import Generation, LLMResult
+        from langchain_core.outputs import Generation, LLMResult
 
         generations = [
             [Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))]
