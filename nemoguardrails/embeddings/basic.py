@@ -134,11 +134,6 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             embedding_params=self.embedding_params,
         )
 
-        if not self._model:
-            raise ValueError(
-                f"Couldn't create embedding model with model {model} and engine {engine}"
-            )
-
     @cache_embeddings
     async def _get_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Compute embeddings for a list of texts.
