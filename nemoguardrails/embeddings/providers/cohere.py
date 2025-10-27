@@ -124,6 +124,9 @@ class CohereEmbeddingModel(EmbeddingModel):
         """
 
         # Make embedding request to Cohere API
-        return self.client.embed(
+        # Since we don't pass embedding_types parameter, the response should be
+        # EmbeddingsFloatsEmbedResponse with embeddings as List[List[float]]
+        response = self.client.embed(
             texts=documents, model=self.model, input_type=self.input_type
-        ).embeddings
+        )
+        return response.embeddings  # type: ignore[return-value]
