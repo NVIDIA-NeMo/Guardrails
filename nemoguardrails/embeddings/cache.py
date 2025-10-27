@@ -83,7 +83,7 @@ class SHA256KeyGenerator(KeyGenerator):
 class CacheStore(ABC):
     """Abstract class for cache stores."""
 
-    name: str  # Class attribute that should be defined in subclasses
+    name: str
 
     @abstractmethod
     def get(self, key):
