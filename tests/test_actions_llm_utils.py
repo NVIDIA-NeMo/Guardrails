@@ -295,3 +295,12 @@ def test_extract_and_remove_think_tags_no_content_attribute():
     result = _extract_and_remove_think_tags(response)
 
     assert result is None
+
+
+def test_extract_and_remove_think_tags_wrong_order():
+    response = MockResponse(content="</think> text here <think>")
+
+    result = _extract_and_remove_think_tags(response)
+
+    assert result is None
+    assert response.content == "</think> text here <think>"
