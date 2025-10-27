@@ -238,15 +238,64 @@ def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
 
 
 def _store_reasoning_traces(response) -> None:
+    """Store reasoning traces from response in context variable.
+
+    Extracts reasoning content from response.additional_kwargs["reasoning_content"]
+    if available. Otherwise, falls back to extracting from <think> tags in the
+    response content (and removes the tags from content).
+
+    Args:
+        response: The LLM response object
+    """
+
+    reasoning_content = _extract_reasoning_content(response)
+
+    if not reasoning_content:
+        reasoning_content = _extract_and_remove_think_tags(response)
+
+    if reasoning_content:
+        reasoning_trace_var.set(reasoning_content)
+
+
+def _extract_reasoning_content(response):
     if hasattr(response, "additional_kwargs"):
         additional_kwargs = response.additional_kwargs
         if (
             isinstance(additional_kwargs, dict)
             and "reasoning_content" in additional_kwargs
         ):
-            reasoning_content = additional_kwargs["reasoning_content"]
-            if reasoning_content:
-                reasoning_trace_var.set(reasoning_content)
+            return additional_kwargs["reasoning_content"]
+    return None
+
+
+def _extract_and_remove_think_tags(response) -> Optional[str]:
+    """Extract reasoning from <think> tags and remove them from `response.content`.
+
+    This function looks for <think>...</think> tags in the response content,
+    and if found, extracts the reasoning content inside the tags, it has a side-effect
+    it removes the <think> tags and their content from response.content.
+
+    Args:
+        response: The LLM response object
+
+    Returns:
+        The extracted reasoning content, or None if no <think> tags found
+    """
+    if not hasattr(response, "content"):
+        return None
+
+    content = response.content
+    if "<think>" not in content or "</think>" not in content:
+        return None
+
+    match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+    if match:
+        reasoning_content = match.group(1).strip()
+        response.content = re.sub(
+            r"<think>.*?</think>", "", content, flags=re.DOTALL
+        ).strip()
+        return reasoning_content
+    return None
 
 
 def _store_tool_calls(response) -> None:

@@ -304,3 +304,94 @@ class TestReasoningTraceIntegration:
         assert stored_trace == test_reasoning
 
         reasoning_trace_var.set(None)
+
+    @pytest.mark.asyncio
+    async def test_llm_call_extracts_reasoning_from_think_tags(self):
+        test_reasoning = "Let me analyze this step by step"
+
+        mock_llm = AsyncMock()
+        mock_response = AIMessage(
+            content=f"<think>{test_reasoning}</think>The answer is 42",
+            additional_kwargs={},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        from nemoguardrails.actions.llm.utils import llm_call
+
+        reasoning_trace_var.set(None)
+        result = await llm_call(mock_llm, "What is the answer?")
+
+        assert result == "The answer is 42"
+        assert "<think>" not in result
+        stored_trace = reasoning_trace_var.get()
+        assert stored_trace == test_reasoning
+
+        reasoning_trace_var.set(None)
+
+    @pytest.mark.asyncio
+    async def test_llm_call_prefers_additional_kwargs_over_think_tags(self):
+        reasoning_from_kwargs = "This should be used"
+        reasoning_from_tags = "This should be ignored"
+
+        mock_llm = AsyncMock()
+        mock_response = AIMessage(
+            content=f"<think>{reasoning_from_tags}</think>Response",
+            additional_kwargs={"reasoning_content": reasoning_from_kwargs},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        from nemoguardrails.actions.llm.utils import llm_call
+
+        reasoning_trace_var.set(None)
+        result = await llm_call(mock_llm, "Query")
+
+        assert result == f"<think>{reasoning_from_tags}</think>Response"
+        stored_trace = reasoning_trace_var.get()
+        assert stored_trace == reasoning_from_kwargs
+
+        reasoning_trace_var.set(None)
+
+    @pytest.mark.asyncio
+    async def test_llm_call_extracts_multiline_reasoning_from_think_tags(self):
+        multiline_reasoning = """Step 1: Understand the question
+Step 2: Break down the problem
+Step 3: Formulate the answer"""
+
+        mock_llm = AsyncMock()
+        mock_response = AIMessage(
+            content=f"<think>{multiline_reasoning}</think>Final answer",
+            additional_kwargs={},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        from nemoguardrails.actions.llm.utils import llm_call
+
+        reasoning_trace_var.set(None)
+        result = await llm_call(mock_llm, "Question")
+
+        assert result == "Final answer"
+        assert "<think>" not in result
+        stored_trace = reasoning_trace_var.get()
+        assert stored_trace == multiline_reasoning
+
+        reasoning_trace_var.set(None)
+
+    @pytest.mark.asyncio
+    async def test_llm_call_handles_incomplete_think_tags(self):
+        mock_llm = AsyncMock()
+        mock_response = AIMessage(
+            content="<think>This is incomplete",
+            additional_kwargs={},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        from nemoguardrails.actions.llm.utils import llm_call
+
+        reasoning_trace_var.set(None)
+        result = await llm_call(mock_llm, "Query")
+
+        assert result == "<think>This is incomplete"
+        stored_trace = reasoning_trace_var.get()
+        assert stored_trace is None
+
+        reasoning_trace_var.set(None)
