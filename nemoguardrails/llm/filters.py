@@ -50,7 +50,6 @@ def co_v2(
         "retrieve_relevant_chunks",
         "create_event",
         "wolfram alpha request",
-        "summarize_document",
         "apify",
         "bing_search",
         "google_search",
