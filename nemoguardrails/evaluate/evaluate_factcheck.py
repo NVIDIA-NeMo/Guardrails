@@ -20,8 +20,7 @@ import time
 
 import tqdm
 import typer
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
@@ -94,19 +93,23 @@ class FactCheckEvaluation:
             template=create_negatives_template,
             input_variables=["evidence", "answer"],
         )
-        create_negatives_chain = LLMChain(prompt=create_negatives_prompt, llm=self.llm)
+
+        # Bind config parameters to the LLM for generating negative samples
+        llm_with_config = self.llm.bind(temperature=0.8, max_tokens=300)
 
         print("Creating negative samples...")
         for data in tqdm.tqdm(dataset):
             assert "evidence" in data and "question" in data and "answer" in data
             evidence = data["evidence"]
             answer = data["answer"]
-            negative_answer_result = create_negatives_chain.invoke(
-                {"evidence": evidence, "answer": answer},
-                config={"temperature": 0.8, "max_tokens": 300},
+
+            # Format the prompt and invoke the LLM directly
+            formatted_prompt = create_negatives_prompt.format(
+                evidence=evidence, answer=answer
             )
-            negative_answer = negative_answer_result["text"]
-            data["incorrect_answer"] = negative_answer.strip()
+            negative_answer = llm_with_config.invoke(formatted_prompt)
+            negative_answer_content = negative_answer.content
+            data["incorrect_answer"] = negative_answer_content.strip()
 
         return dataset
 
@@ -186,14 +189,16 @@ class FactCheckEvaluation:
             split="negative"
         )
 
-        print(f"Positive Accuracy: {pos_num_correct/len(self.dataset) * 100}")
-        print(f"Negative Accuracy: {neg_num_correct/len(self.dataset) * 100}")
+        print(f"Positive Accuracy: {pos_num_correct / len(self.dataset) * 100}")
+        print(f"Negative Accuracy: {neg_num_correct / len(self.dataset) * 100}")
         print(
-            f"Overall Accuracy: {(pos_num_correct + neg_num_correct)/(2*len(self.dataset))* 100}"
+            f"Overall Accuracy: {(pos_num_correct + neg_num_correct) / (2 * len(self.dataset)) * 100}"
         )
 
         print("---Time taken per sample:---")
-        print(f"Ask LLM:\t{(pos_time+neg_time)*1000/(2*len(self.dataset)):.1f}ms")
+        print(
+            f"Ask LLM:\t{(pos_time + neg_time) * 1000 / (2 * len(self.dataset)):.1f}ms"
+        )
 
         if self.write_outputs:
             dataset_name = os.path.basename(self.dataset_path).split(".")[0]

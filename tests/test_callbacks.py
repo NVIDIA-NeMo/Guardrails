@@ -17,7 +17,6 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from langchain.schema import Generation, LLMResult
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -25,7 +24,7 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.outputs import ChatGeneration
+from langchain_core.outputs import ChatGeneration, Generation, LLMResult
 
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.callbacks import LoggingCallbackHandler

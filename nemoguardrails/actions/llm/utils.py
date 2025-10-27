@@ -17,10 +17,8 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Sequence, Union
 
-logger = logging.getLogger(__name__)
-
-from langchain.base_language import BaseLanguageModel
-from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
+from langchain_core.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
+from langchain_core.language_models import BaseLanguageModel
 from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.base import Runnable
 

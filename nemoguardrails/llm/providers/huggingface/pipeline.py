@@ -16,30 +16,12 @@
 import asyncio
 from typing import Any, List, Optional
 
-from langchain.callbacks.manager import (
+from langchain_community.llms import HuggingFacePipeline
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.schema.output import GenerationChunk
-
-# Import HuggingFacePipeline with fallbacks for different LangChain versions
-HuggingFacePipeline = None  # type: ignore[assignment]
-
-try:
-    from langchain_community.llms import (
-        HuggingFacePipeline,  # type: ignore[attr-defined,no-redef]
-    )
-except ImportError:
-    # Fallback for older versions of langchain
-    try:
-        from langchain.llms import (
-            HuggingFacePipeline,  # type: ignore[attr-defined,no-redef]
-        )
-    except ImportError:
-        # Create a dummy class if HuggingFacePipeline is not available
-        class HuggingFacePipeline:  # type: ignore[misc,no-redef]
-            def __init__(self, *args, **kwargs):
-                raise ImportError("HuggingFacePipeline is not available")
+from langchain_core.outputs import GenerationChunk
 
 
 class HuggingFacePipelineCompatible(HuggingFacePipeline):

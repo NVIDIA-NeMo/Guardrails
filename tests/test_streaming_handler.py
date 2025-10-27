@@ -21,8 +21,8 @@ from typing import List, Optional, Union
 from uuid import UUID
 
 import pytest
-from langchain.schema.messages import AIMessageChunk
-from langchain.schema.output import ChatGenerationChunk, GenerationChunk
+from langchain_core.messages import AIMessageChunk
+from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 

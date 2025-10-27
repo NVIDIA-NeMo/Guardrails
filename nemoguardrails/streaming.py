@@ -18,10 +18,9 @@ import logging
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 from uuid import UUID
 
-from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.schema import BaseMessage
-from langchain.schema.messages import AIMessageChunk
-from langchain.schema.output import ChatGenerationChunk, GenerationChunk, LLMResult
+from langchain_core.callbacks.base import AsyncCallbackHandler
+from langchain_core.messages import AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, LLMResult
 
 from nemoguardrails.utils import new_uuid
 

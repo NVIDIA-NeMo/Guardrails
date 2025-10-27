@@ -18,15 +18,15 @@ from time import time
 from typing import Any, Dict, List, Optional, Union, cast
 from uuid import UUID
 
-from langchain.callbacks import StdOutCallbackHandler
-from langchain.callbacks.base import (
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.callbacks.base import (
     AsyncCallbackHandler,
     BaseCallbackHandler,
     BaseCallbackManager,
 )
-from langchain.callbacks.manager import AsyncCallbackManagerForChainRun
-from langchain.schema import AgentAction, AgentFinish, AIMessage, BaseMessage, LLMResult
-from langchain_core.outputs import ChatGeneration
+from langchain_core.callbacks.manager import AsyncCallbackManagerForChainRun
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, LLMResult
 
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.explain import LLMCallInfo

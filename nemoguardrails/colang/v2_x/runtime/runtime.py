@@ -20,8 +20,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 
 import aiohttp
-import langchain
-from langchain.chains.base import Chain
 
 from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.colang import parse_colang_file
@@ -44,8 +42,6 @@ from nemoguardrails.colang.v2_x.runtime.statemachine import (
 )
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.utils import new_event_dict, new_readable_uuid
-
-langchain.debug = False
 
 log = logging.getLogger(__name__)
 
@@ -202,12 +198,6 @@ class RuntimeV2_x(Runtime):
                 parameters = inspect.signature(fn).parameters
                 action_type = "function"
 
-            elif isinstance(fn, Chain):
-                # If we're dealing with a chain, we list the annotations
-                # TODO: make some additional type checking here
-                parameters = fn.input_keys
-                action_type = "chain"
-
             # For every parameter that start with "__context__", we pass the value
             for parameter_name in parameters:
                 if parameter_name.startswith("__context__"):
@@ -221,11 +211,9 @@ class RuntimeV2_x(Runtime):
                     if var_name in context:
                         kwargs[k] = context[var_name]
 
-            # If we have an action server, we use it for non-system/non-chain actions
-            if (
-                self.config.actions_server_url
-                and not action_meta.get("is_system_action")
-                and action_type != "chain"
+            # If we have an action server, we use it for non-system actions
+            if self.config.actions_server_url and not action_meta.get(
+                "is_system_action"
             ):
                 result, status = await self._get_action_resp(
                     action_meta, action_name, kwargs

@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from unittest.mock import MagicMock
 
 import pytest
-from langchain.llms.base import BaseLLM
+from langchain_core.language_models import BaseLLM
 from pydantic import ValidationError
 
 from nemoguardrails.rails.llm.config import Model, RailsConfig, TaskPrompt
