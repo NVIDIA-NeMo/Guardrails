@@ -23,12 +23,10 @@ from importlib.machinery import ModuleSpec
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
 
-from langchain.chains.base import Chain
 from langchain_core.runnables import Runnable
 
 from nemoguardrails import utils
 from nemoguardrails.actions.llm.utils import LLMCallException
-from nemoguardrails.logging.callbacks import logging_callbacks
 
 log = logging.getLogger(__name__)
 
@@ -228,27 +226,6 @@ class ActionDispatcher:
                                 f"Synchronous action `{action_name}` has been called."
                             )
 
-                    elif isinstance(fn, Chain):
-                        try:
-                            chain = fn
-
-                            # For chains with only one output key, we use the `arun` function
-                            # to return directly the result.
-                            if len(chain.output_keys) == 1:
-                                result = await chain.arun(
-                                    **params, callbacks=logging_callbacks
-                                )
-                            else:
-                                # Otherwise, we return the dict with the output keys.
-                                result = await chain.acall(
-                                    inputs=params,
-                                    return_only_outputs=True,
-                                    callbacks=logging_callbacks,
-                                )
-                        except NotImplementedError:
-                            # Not ideal, but for now we fall back to sync execution
-                            # if the async is not available
-                            result = fn.run(**params)
                     elif isinstance(fn, Runnable):
                         # If it's a Runnable, we invoke it as well
                         runnable = fn

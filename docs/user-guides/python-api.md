@@ -132,6 +132,8 @@ For convenience, this toolkit also includes a selection of LangChain tools, wrap
 
 ### Chains as Actions
 
+> **⚠️ DEPRECATED**: Chain support is deprecated and will be removed in a future release. Please use [Runnable](https://python.langchain.com/docs/expression_language/) instead. See the [Runnable as Action Guide](langchain/runnable-as-action/README.md) for examples.
+
 You can register a Langchain chain as an action using the [LLMRails.register_action](../api/nemoguardrails.rails.llm.llmrails.md#method-llmrailsregister_action) method:
 
 ```python
