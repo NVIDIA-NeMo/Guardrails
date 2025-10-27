@@ -218,8 +218,8 @@ class RedisCacheStore(CacheStore):
 class EmbeddingsCache:
     def __init__(
         self,
-        key_generator: Optional[KeyGenerator] = None,
-        cache_store: Optional[CacheStore] = None,
+        key_generator: KeyGenerator,
+        cache_store: CacheStore,
         store_config: Optional[dict] = None,
     ):
         self._key_generator = key_generator
@@ -244,9 +244,9 @@ class EmbeddingsCache:
 
     def get_config(self):
         return EmbeddingsCacheConfig(
-            key_generator=self._key_generator.name if self._key_generator else None,
-            store=self._cache_store.name if self._cache_store else None,
-            store_config=self._store_config if self._store_config else None,
+            key_generator=self._key_generator.name,
+            store=self._cache_store.name,
+            store_config=self._store_config,
         )
 
     @singledispatchmethod
@@ -255,8 +255,6 @@ class EmbeddingsCache:
 
     @get.register(str)
     def _(self, text: str):
-        if self._key_generator is None or self._cache_store is None:
-            return None
         key = self._key_generator.generate_key(text)
         log.info(f"Fetching key {key} for text '{text[:20]}...' from cache")
 
@@ -284,8 +282,6 @@ class EmbeddingsCache:
 
     @set.register(str)
     def _(self, text: str, value: List[float]):
-        if self._key_generator is None or self._cache_store is None:
-            return
         key = self._key_generator.generate_key(text)
         log.info(f"Cache miss for text '{text}'. Storing key {key} in cache.")
         self._cache_store.set(key, value)
@@ -296,8 +292,7 @@ class EmbeddingsCache:
             self.set(text, value)
 
     def clear(self):
-        if self._cache_store is not None:
-            self._cache_store.clear()
+        self._cache_store.clear()
 
 
 def cache_embeddings(func):

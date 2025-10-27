@@ -49,12 +49,12 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
     def __init__(
         self,
-        embedding_model: Optional[str] = None,
-        embedding_engine: Optional[str] = None,
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_engine: str = "SentenceTransformers",
         embedding_params: Optional[Dict[str, Any]] = None,
         index: Optional[AnnoyIndex] = None,
         cache_config: Optional[Union[EmbeddingsCacheConfig, Dict[str, Any]]] = None,
-        search_threshold: Optional[float] = None,
+        search_threshold: float = float("inf"),
         use_batching: bool = False,
         max_batch_size: int = 10,
         max_batch_hold: float = 0.01,
@@ -62,10 +62,11 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Initialize the BasicEmbeddingsIndex.
 
         Args:
-            embedding_model (str, optional): The model for computing embeddings. Defaults to None.
-            embedding_engine (str, optional): The engine for computing embeddings. Defaults to None.
-            index (AnnoyIndex, optional): The pre-existing index. Defaults to None.
-            cache_config (EmbeddingsCacheConfig | Dict[str, Any], optional): The cache configuration. Defaults to None.
+            embedding_model: The model for computing embeddings.
+            embedding_engine: The engine for computing embeddings.
+            index: The pre-existing index.
+            cache_config: The cache configuration.
+            search_threshold: The threshold for filtering search results.
             use_batching: Whether to batch requests when computing the embeddings.
             max_batch_size: The maximum size of a batch.
             max_batch_hold: The maximum time a batch is held before being processed
@@ -73,17 +74,11 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._model: Optional[EmbeddingModel] = None
         self._items: List[IndexItem] = []
         self._embeddings: List[List[float]] = []
-        self.embedding_model: str = (
-            embedding_model
-            if embedding_model
-            else "sentence-transformers/all-MiniLM-L6-v2"
-        )
-        self.embedding_engine: str = (
-            embedding_engine if embedding_engine else "SentenceTransformers"
-        )
+        self.embedding_model = embedding_model
+        self.embedding_engine = embedding_engine
         self.embedding_params = embedding_params or {}
         self._embedding_size = 0
-        self.search_threshold = search_threshold or float("inf")
+        self.search_threshold = search_threshold
         if isinstance(cache_config, Dict):
             self._cache_config = EmbeddingsCacheConfig(**cache_config)
         else:
@@ -205,10 +200,12 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Runs the current batch of embeddings."""
 
         # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
-        if not self._current_batch_full_event:
-            raise Exception("self._current_batch_full_event not initialized")
+        if (
+            self._current_batch_full_event is None
+            or self._current_batch_finished_event is None
+        ):
+            raise RuntimeError("Batch events not initialized. This should not happen.")
 
-        assert self._current_batch_full_event is not None
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
@@ -220,9 +217,6 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
             task.cancel()
 
         # Reset the batch event
-        if not self._current_batch_finished_event:
-            raise Exception("self._current_batch_finished_event not initialized")
-
         batch_event: asyncio.Event = self._current_batch_finished_event
         self._current_batch_finished_event = None
 
@@ -268,13 +262,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
 
         # We check if we reached the max batch size
         if len(self._req_queue) >= self.max_batch_size:
-            if not self._current_batch_full_event:
-                raise Exception("self._current_batch_full_event not initialized")
             self._current_batch_full_event.set()
 
-            # Wait for the batch to finish
-            if not self._current_batch_finished_event:
-                raise Exception("self._current_batch_finished_event not initialized")
+        # Wait for the batch to finish
         await self._current_batch_finished_event.wait()
 
         # Remove the result and return it
