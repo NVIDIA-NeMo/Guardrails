@@ -37,56 +37,65 @@ def init(app: LLMRails):
 
 ## Custom LLM Provider Registration
 
-To register a custom LLM provider, you need to create a class that inherits from `BaseLanguageModel` and register it using `register_llm_provider`.
+NeMo Guardrails supports two types of custom LLM providers:
+1. **Text Completion Models** (`BaseLLM`) - For models that work with string prompts
+2. **Chat Models** (`BaseChatModel`) - For models that work with message-based conversations
 
-It is important to implement the following methods:
+### Custom Text Completion LLM (BaseLLM)
 
-**Required**:
+To register a custom text completion LLM provider, create a class that inherits from `BaseLLM` and register it using `register_llm_provider`.
 
-- `_call`
-- `_llm_type`
+**Required methods:**
+- `_call` - Synchronous text completion
+- `_llm_type` - Returns the LLM type identifier
 
-**Optional**:
-
-- `_acall`
-- `_astream`
-- `_stream`
-- `_identifying_params`
-
-In other words, to create your custom LLM provider, you need to implement the following interface methods: `_call`, `_llm_type`, and optionally `_acall`, `_astream`, `_stream`, and `_identifying_params`. Here's how you can do it:
+**Optional methods:**
+- `_acall` - Asynchronous text completion (recommended)
+- `_stream` - Streaming text completion
+- `_astream` - Async streaming text completion
+- `_identifying_params` - Returns parameters for model identification
 
 ```python
 from typing import Any, Iterator, List, Optional
 
-from langchain.base_language import BaseLanguageModel
 from langchain_core.callbacks.manager import (
-    CallbackManagerForLLMRun,
     AsyncCallbackManagerForLLMRun,
+    CallbackManagerForLLMRun,
 )
+from langchain_core.language_models import BaseLLM
 from langchain_core.outputs import GenerationChunk
 
 from nemoguardrails.llm.providers import register_llm_provider
 
 
-class MyCustomLLM(BaseLanguageModel):
+class MyCustomTextLLM(BaseLLM):
+    """Custom text completion LLM."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "custom_text_llm"
 
     def _call(
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
-        pass
+        """Synchronous text completion."""
+        # Your implementation here
+        return "Generated text response"
 
     async def _acall(
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
-        pass
+        """Asynchronous text completion (recommended)."""
+        # Your async implementation here
+        return "Generated text response"
 
     def _stream(
         self,
@@ -95,21 +104,121 @@ class MyCustomLLM(BaseLanguageModel):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> Iterator[GenerationChunk]:
-        pass
+        """Optional: Streaming text completion."""
+        # Yield chunks of text
+        yield GenerationChunk(text="chunk1")
+        yield GenerationChunk(text="chunk2")
 
-    # rest of the implementation
-    ...
 
-register_llm_provider("custom_llm", MyCustomLLM)
+register_llm_provider("custom_text_llm", MyCustomTextLLM)
 ```
 
-You can then use the custom LLM provider in your configuration:
+### Custom Chat Model (BaseChatModel)
+
+To register a custom chat model, create a class that inherits from `BaseChatModel` and register it using `register_chat_provider`.
+
+**Required methods:**
+- `_generate` - Synchronous chat completion
+- `_llm_type` - Returns the LLM type identifier
+
+**Optional methods:**
+- `_agenerate` - Asynchronous chat completion (recommended)
+- `_stream` - Streaming chat completion
+- `_astream` - Async streaming chat completion
+
+```python
+from typing import Any, Iterator, List, Optional
+
+from langchain_core.callbacks.manager import (
+    AsyncCallbackManagerForLLMRun,
+    CallbackManagerForLLMRun,
+)
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+
+from nemoguardrails.llm.providers import register_chat_provider
+
+
+class MyCustomChatModel(BaseChatModel):
+    """Custom chat model."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "custom_chat_model"
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Synchronous chat completion."""
+        # Convert messages to your model's format and generate response
+        response_text = "Generated chat response"
+
+        message = AIMessage(content=response_text)
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
+
+    async def _agenerate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Asynchronous chat completion (recommended)."""
+        # Your async implementation
+        response_text = "Generated chat response"
+
+        message = AIMessage(content=response_text)
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
+
+    def _stream(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        """Optional: Streaming chat completion."""
+        # Yield chunks
+        chunk = ChatGenerationChunk(message=AIMessageChunk(content="chunk1"))
+        yield chunk
+
+
+register_chat_provider("custom_chat_model", MyCustomChatModel)
+```
+
+### Using Custom LLM Providers
+
+After registering your custom provider, you can use it in your configuration:
 
 ```yaml
 models:
   - type: main
-    engine: custom_llm
+    engine: custom_text_llm  # or custom_chat_model
 ```
+
+### Important Notes
+
+1. **Import from langchain-core:** Always import base classes from `langchain_core.language_models`:
+   ```python
+   from langchain_core.language_models import BaseLLM, BaseChatModel
+   ```
+
+2. **Implement async methods:** For better performance, always implement `_acall` (for BaseLLM) or `_agenerate` (for BaseChatModel).
+
+3. **Choose the right base class:**
+   - Use `BaseLLM` for text completion models (prompt → text)
+   - Use `BaseChatModel` for chat models (messages → message)
+
+4. **Registration functions:**
+   - Use `register_llm_provider()` for `BaseLLM` subclasses
+   - Use `register_chat_provider()` for `BaseChatModel` subclasses
 
 ## Custom Embedding Provider Registration
 
