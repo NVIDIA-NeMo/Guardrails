@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from langchain.prompts import PromptTemplate
 from langchain_core.language_models.llms import BaseLLM
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
 
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.actions import ActionResult

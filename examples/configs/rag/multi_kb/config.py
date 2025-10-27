@@ -21,10 +21,24 @@ import faiss
 import pandas as pd
 import torch
 from gpt4pandas import GPT4Pandas
-from langchain.chains import RetrievalQA
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import FAISS
+
+try:
+    from langchain.chains import RetrievalQA
+    from langchain.embeddings import HuggingFaceEmbeddings
+    from langchain.text_splitter import CharacterTextSplitter
+    from langchain.vectorstores import FAISS
+except ImportError:
+    try:
+        from langchain_classic.chains import RetrievalQA
+        from langchain_classic.embeddings import HuggingFaceEmbeddings
+        from langchain_classic.text_splitter import CharacterTextSplitter
+        from langchain_classic.vectorstores import FAISS
+    except ImportError as e:
+        raise ImportError(
+            "Failed to import from langchain. If you're using LangChain >= 1.0.0, "
+            "please install langchain-classic: pip install langchain-classic"
+        ) from e
+
 from langchain_core.language_models.llms import BaseLLM
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 

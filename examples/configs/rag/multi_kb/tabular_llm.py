@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from typing import Any, Dict, List, Optional
 
-from langchain.callbacks.manager import (
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.llms.base import LLM
+from langchain_core.language_models.llms import BaseLLM
 
 
 def query_tabular_data(usr_query: str, gpt: any, raw_data_frame: any):
@@ -58,7 +57,7 @@ def query_tabular_data(usr_query: str, gpt: any, raw_data_frame: any):
     return out, d2.to_string()
 
 
-class TabularLLM(LLM):
+class TabularLLM(BaseLLM):
     """LLM wrapping for GPT4Pandas."""
 
     model: str = ""

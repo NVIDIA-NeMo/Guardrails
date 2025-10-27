@@ -18,10 +18,24 @@ from datetime import datetime
 from typing import Optional
 
 import pinecone
-from langchain.chains import RetrievalQA
-from langchain.docstore.document import Document
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone
+
+try:
+    from langchain.chains import RetrievalQA
+    from langchain.docstore.document import Document
+    from langchain.embeddings.openai import OpenAIEmbeddings
+    from langchain.vectorstores import Pinecone
+except ImportError:
+    try:
+        from langchain_classic.chains import RetrievalQA
+        from langchain_classic.docstore.document import Document
+        from langchain_classic.embeddings.openai import OpenAIEmbeddings
+        from langchain_classic.vectorstores import Pinecone
+    except ImportError as e:
+        raise ImportError(
+            "Failed to import from langchain. If you're using LangChain >= 1.0.0, "
+            "please install langchain-classic: pip install langchain-classic"
+        ) from e
+
 from langchain_core.language_models.llms import BaseLLM
 
 from nemoguardrails import LLMRails
