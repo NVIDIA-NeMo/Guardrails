@@ -44,11 +44,11 @@ class KeyGenerator(ABC):
     @classmethod
     def from_name(cls, name):
         for subclass in cls.__subclasses__():
-            if hasattr(subclass, "name") and subclass.name == name:
+            if subclass.name == name:
                 return subclass
         raise ValueError(
             f"Unknown {cls.__name__}: {name}. Available {cls.__name__}s are: "
-            f"{', '.join([subclass.name for subclass in cls.__subclasses__() if hasattr(subclass, 'name')])}"
+            f"{', '.join([subclass.name for subclass in cls.__subclasses__()])}"
             ". Make sure to import the derived class before using it."
         )
 
@@ -103,11 +103,11 @@ class CacheStore(ABC):
     @classmethod
     def from_name(cls, name):
         for subclass in cls.__subclasses__():
-            if hasattr(subclass, "name") and subclass.name == name:
+            if subclass.name == name:
                 return subclass
         raise ValueError(
             f"Unknown {cls.__name__}: {name}. Available {cls.__name__}s are: "
-            f"{', '.join([subclass.name for subclass in cls.__subclasses__() if hasattr(subclass, 'name')])}"
+            f"{', '.join([subclass.name for subclass in cls.__subclasses__()])}"
             ". Make sure to import the derived class before using it."
         )
 
