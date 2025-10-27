@@ -52,9 +52,9 @@ fastapi = ">=0.103.0,"
 fastembed = [{ version = ">=0.2.2, <=0.6.0", python = ">=3.10,<3.14" }]
 httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
-langchain = ">=0.2.14,<0.4.0"
-langchain-core = ">=0.2.14,<0.4.0"
-langchain-community = ">=0.2.5,<0.4.0"
+langchain = ">=0.2.14,<2.0.0"
+langchain-core = ">=0.2.14,<2.0.0"
+langchain-community = ">=0.2.5,<2.0.0"
 lark = ">=1.1.7"
 nest-asyncio = ">=1.5.6,"
 # NOTE:
@@ -97,7 +97,6 @@ presidio-analyzer = { version = ">=2.2", optional = true, python = "<3.13" }
 presidio-anonymizer = { version = ">=2.2", optional = true, python = "<3.13" }
 
 # nim
-langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
 
 # gpc
 google-cloud-language = { version = ">=2.14.0", optional = true }
@@ -111,7 +110,6 @@ eval = ["tqdm", "numpy", "streamlit", "tornado"]
 openai = ["langchain-openai"]
 gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "aiofiles"]
-nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
@@ -126,7 +124,6 @@ all = [
   "google-cloud-language",
   "opentelemetry-api",
   "aiofiles",
-  "langchain-nvidia-ai-endpoints",
   "yara-python",
 ]
 

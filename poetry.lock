@@ -1092,17 +1092,6 @@ files = [
 ]
 
 [[package]]
-name = "filetype"
-version = "1.2.0"
-description = "Infer file type and MIME type of any file/buffer. No external dependencies."
-optional = true
-python-versions = "*"
-files = [
-    {file = "filetype-1.2.0-py2.py3-none-any.whl", hash = "sha256:7ce71b6880181241cf7ac8697a2f1eb6a8bd9b429f7ad6d27b8db9ba5f1c2d25"},
-    {file = "filetype-1.2.0.tar.gz", hash = "sha256:66b56cd6474bf41d8c54660347d37afcc3f7d1970648de365c102ef77548aadb"},
-]
-
-[[package]]
 name = "flatbuffers"
 version = "25.2.10"
 description = "The FlatBuffers serialization format for Python"
@@ -2029,22 +2018,6 @@ pydantic = ">=2.7.4"
 PyYAML = ">=5.3"
 tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10.0.0"
 typing-extensions = ">=4.7"
-
-[[package]]
-name = "langchain-nvidia-ai-endpoints"
-version = "0.3.16"
-description = "An integration package connecting NVIDIA AI Endpoints and LangChain"
-optional = true
-python-versions = "<4.0,>=3.9"
-files = [
-    {file = "langchain_nvidia_ai_endpoints-0.3.16-py3-none-any.whl", hash = "sha256:a8c1c8a316668ff8402b89a97ace5f978ee71e351a487abbc5aa8c47f576e7d0"},
-    {file = "langchain_nvidia_ai_endpoints-0.3.16.tar.gz", hash = "sha256:8c4aafd125284ef12668e5428e18b83864fb44a4677dcf8b456454e45cb1e7b0"},
-]
-
-[package.dependencies]
-aiohttp = ">=3.9.1,<4.0.0"
-filetype = ">=1.2.0,<2.0.0"
-langchain-core = ">=0.3.51,<0.4"
 
 [[package]]
 name = "langchain-openai"
@@ -6366,11 +6339,10 @@ files = [
 cffi = ["cffi (>=1.17)"]
 
 [extras]
-all = ["aiofiles", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
+all = ["aiofiles", "google-cloud-language", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
 eval = ["numpy", "numpy", "numpy", "numpy", "streamlit", "tornado", "tqdm"]
 gcp = ["google-cloud-language"]
 jailbreak = ["yara-python"]
-nvidia = ["langchain-nvidia-ai-endpoints"]
 openai = ["langchain-openai"]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
 tracing = ["aiofiles", "opentelemetry-api"]
@@ -6378,4 +6350,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "64c8714671cb7f73952e4c8bfd53291a5e1ae13eac7c993286aca1409a13bf76"
+content-hash = "78a21bb370edca0c78773b627cc9a2f7fd9e0cca87e876a5c75e950f7cd0f100"
