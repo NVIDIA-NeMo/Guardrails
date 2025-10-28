@@ -45,8 +45,6 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         max_batch_hold: The maximum time a batch is held before being processed
     """
 
-    # Instance attributes are defined in __init__ and accessed via properties
-
     def __init__(
         self,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
