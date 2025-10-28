@@ -385,18 +385,16 @@ async def chat_completion(body: RequestBody, request: Request):
     # Save the request headers in a context variable.
     api_request_headers.set(request.headers)
 
+    # Use Request config_ids if set, otherwise use the FastAPI default config.
+    # If neither is available we can't generate any completions as we have no config_id
     config_ids = body.config_ids
-    if not config_ids and app.default_config_id:
-        config_ids = [app.default_config_id]
-    elif not config_ids and not app.default_config_id:
-        raise GuardrailsConfigurationError(
-            "No 'config_id' provided and no default configuration is set for the server. "
-            "You must set a 'config_id' in your request or set use --default-config-id when . "
-        )
-
-    # Ensure config_ids is not None before passing to _get_rails
-    if config_ids is None:
-        raise GuardrailsConfigurationError("No valid configuration IDs available.")
+    if not config_ids:
+        if app.default_config_id:
+            config_ids = [app.default_config_id]
+        else:
+            raise GuardrailsConfigurationError(
+                "No request config_ids provided and server has no default configuration"
+            )
 
     try:
         llm_rails = _get_rails(config_ids)
