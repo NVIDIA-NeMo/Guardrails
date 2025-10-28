@@ -22,5 +22,15 @@ REASONING_TRACE_MOCK_PATH = (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_reasoning_trace_var():
+    """Reset reasoning_trace_var before each test to prevent state leakage."""
+    from nemoguardrails.context import reasoning_trace_var
+
+    reasoning_trace_var.set(None)
+    yield
+    reasoning_trace_var.set(None)
+
+
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()

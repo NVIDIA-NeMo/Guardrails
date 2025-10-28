@@ -13,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import re
 from typing import Any, Dict, List, Optional, Sequence, Union
+
+logger = logging.getLogger(__name__)
 
 from langchain.base_language import BaseLanguageModel
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
@@ -238,15 +241,78 @@ def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
 
 
 def _store_reasoning_traces(response) -> None:
+    """Store reasoning traces from response in context variable.
+
+    Extracts reasoning content from response.additional_kwargs["reasoning_content"]
+    if available. Otherwise, falls back to extracting from <think> tags in the
+    response content (and removes the tags from content).
+
+    Args:
+        response: The LLM response object
+    """
+
+    reasoning_content = _extract_reasoning_content(response)
+
+    if not reasoning_content:
+        # Some LLM providers (e.g., certain NVIDIA models) embed reasoning in <think> tags
+        # instead of properly populating reasoning_content in additional_kwargs, so we need
+        # both extraction methods to support different provider implementations.
+        reasoning_content = _extract_and_remove_think_tags(response)
+
+    if reasoning_content:
+        reasoning_trace_var.set(reasoning_content)
+
+
+def _extract_reasoning_content(response):
     if hasattr(response, "additional_kwargs"):
         additional_kwargs = response.additional_kwargs
         if (
             isinstance(additional_kwargs, dict)
             and "reasoning_content" in additional_kwargs
         ):
-            reasoning_content = additional_kwargs["reasoning_content"]
-            if reasoning_content:
-                reasoning_trace_var.set(reasoning_content)
+            return additional_kwargs["reasoning_content"]
+    return None
+
+
+def _extract_and_remove_think_tags(response) -> Optional[str]:
+    """Extract reasoning from <think> tags and remove them from `response.content`.
+
+    This function looks for <think>...</think> tags in the response content,
+    and if found, extracts the reasoning content inside the tags. It has a side-effect:
+    it removes the full reasoning trace and tags from response.content.
+
+    Args:
+        response: The LLM response object
+
+    Returns:
+        The extracted reasoning content, or None if no <think> tags found
+    """
+    if not hasattr(response, "content"):
+        return None
+
+    content = response.content
+    has_opening_tag = "<think>" in content
+    has_closing_tag = "</think>" in content
+
+    if not has_opening_tag and not has_closing_tag:
+        return None
+
+    if has_opening_tag != has_closing_tag:
+        logger.warning(
+            "Malformed <think> tags detected: missing %s tag. "
+            "Skipping reasoning extraction to prevent corrupted content.",
+            "closing" if has_opening_tag else "opening",
+        )
+        return None
+
+    match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+    if match:
+        reasoning_content = match.group(1).strip()
+        response.content = re.sub(
+            r"<think>.*?</think>", "", content, flags=re.DOTALL
+        ).strip()
+        return reasoning_content
+    return None
 
 
 def _store_tool_calls(response) -> None:
