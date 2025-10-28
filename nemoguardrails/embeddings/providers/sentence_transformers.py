@@ -43,7 +43,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
 
     def __init__(self, embedding_model: str, **kwargs):
         try:
-            from sentence_transformers import SentenceTransformer
+            from sentence_transformers import SentenceTransformer  # type: ignore
         except ImportError:
             raise ImportError(
                 "Could not import sentence-transformers, please install it with "
@@ -51,7 +51,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
             )
 
         try:
-            from torch import cuda
+            from torch import cuda  # type: ignore
         except ImportError:
             raise ImportError(
                 "Could not import torch, please install it with `pip install torch`."

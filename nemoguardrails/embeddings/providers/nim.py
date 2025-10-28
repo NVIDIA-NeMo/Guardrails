@@ -35,7 +35,7 @@ class NIMEmbeddingModel(EmbeddingModel):
 
     def __init__(self, embedding_model: str, **kwargs):
         try:
-            from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
+            from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings  # type: ignore
 
             self.model = embedding_model
             self.document_embedder = NVIDIAEmbeddings(model=embedding_model, **kwargs)

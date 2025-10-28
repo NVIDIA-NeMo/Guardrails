@@ -15,9 +15,9 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
-from annoy import AnnoyIndex
+from annoy import AnnoyIndex  # type: ignore
 
 from nemoguardrails.embeddings.cache import cache_embeddings
 from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
@@ -45,26 +45,14 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         max_batch_hold: The maximum time a batch is held before being processed
     """
 
-    embedding_model: str
-    embedding_engine: str
-    embedding_params: Dict[str, Any]
-    index: AnnoyIndex
-    embedding_size: int
-    cache_config: EmbeddingsCacheConfig
-    embeddings: List[List[float]]
-    search_threshold: float
-    use_batching: bool
-    max_batch_size: int
-    max_batch_hold: float
-
     def __init__(
         self,
-        embedding_model=None,
-        embedding_engine=None,
-        embedding_params=None,
-        index=None,
-        cache_config: Union[EmbeddingsCacheConfig, Dict[str, Any]] = None,
-        search_threshold: float = None,
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_engine: str = "SentenceTransformers",
+        embedding_params: Optional[Dict[str, Any]] = None,
+        index: Optional[AnnoyIndex] = None,
+        cache_config: Optional[Union[EmbeddingsCacheConfig, Dict[str, Any]]] = None,
+        search_threshold: float = float("inf"),
         use_batching: bool = False,
         max_batch_size: int = 10,
         max_batch_hold: float = 0.01,
@@ -72,22 +60,23 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Initialize the BasicEmbeddingsIndex.
 
         Args:
-            embedding_model (str, optional): The model for computing embeddings. Defaults to None.
-            embedding_engine (str, optional): The engine for computing embeddings. Defaults to None.
-            index (AnnoyIndex, optional): The pre-existing index. Defaults to None.
-            cache_config (EmbeddingsCacheConfig | Dict[str, Any], optional): The cache configuration. Defaults to None.
+            embedding_model: The model for computing embeddings.
+            embedding_engine: The engine for computing embeddings.
+            index: The pre-existing index.
+            cache_config: The cache configuration.
+            search_threshold: The threshold for filtering search results.
             use_batching: Whether to batch requests when computing the embeddings.
             max_batch_size: The maximum size of a batch.
             max_batch_hold: The maximum time a batch is held before being processed
         """
         self._model: Optional[EmbeddingModel] = None
-        self._items = []
-        self._embeddings = []
+        self._items: List[IndexItem] = []
+        self._embeddings: List[List[float]] = []
         self.embedding_model = embedding_model
         self.embedding_engine = embedding_engine
         self.embedding_params = embedding_params or {}
         self._embedding_size = 0
-        self.search_threshold = search_threshold or float("inf")
+        self.search_threshold = search_threshold
         if isinstance(cache_config, Dict):
             self._cache_config = EmbeddingsCacheConfig(**cache_config)
         else:
@@ -95,12 +84,12 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._index = index
 
         # Data structures for batching embedding requests
-        self._req_queue = {}
-        self._req_results = {}
-        self._req_idx = 0
-        self._current_batch_finished_event = None
-        self._current_batch_full_event = None
-        self._current_batch_submitted = asyncio.Event()
+        self._req_queue: Dict[int, str] = {}
+        self._req_results: Dict[int, List[float]] = {}
+        self._req_idx: int = 0
+        self._current_batch_finished_event: Optional[asyncio.Event] = None
+        self._current_batch_full_event: Optional[asyncio.Event] = None
+        self._current_batch_submitted: asyncio.Event = asyncio.Event()
 
         # Initialize the batching configuration
         self.use_batching = use_batching
@@ -111,6 +100,11 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
     def embeddings_index(self):
         """Get the current embedding index"""
         return self._index
+
+    @embeddings_index.setter
+    def embeddings_index(self, index):
+        """Setter to allow replacing the index dynamically."""
+        self._index = index
 
     @property
     def cache_config(self):
@@ -127,16 +121,14 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Get the computed embeddings."""
         return self._embeddings
 
-    @embeddings_index.setter
-    def embeddings_index(self, index):
-        """Setter to allow replacing the index dynamically."""
-        self._index = index
-
     def _init_model(self):
         """Initialize the model used for computing the embeddings."""
+        model = self.embedding_model
+        engine = self.embedding_engine
+
         self._model = init_embedding_model(
-            embedding_model=self.embedding_model,
-            embedding_engine=self.embedding_engine,
+            embedding_model=model,
+            embedding_engine=engine,
             embedding_params=self.embedding_params,
         )
 
@@ -153,7 +145,9 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         if self._model is None:
             self._init_model()
 
-        embeddings = await self._model.encode_async(texts)
+        # self._model can't be None here, or self._init_model() would throw a ValueError
+        model: EmbeddingModel = cast(EmbeddingModel, self._model)
+        embeddings = await model.encode_async(texts)
         return embeddings
 
     async def add_item(self, item: IndexItem):
@@ -199,6 +193,12 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         """Runs the current batch of embeddings."""
 
         # Wait up to `max_batch_hold` time or until `max_batch_size` is reached.
+        if (
+            self._current_batch_full_event is None
+            or self._current_batch_finished_event is None
+        ):
+            raise RuntimeError("Batch events not initialized. This should not happen.")
+
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(asyncio.sleep(self.max_batch_hold)),
@@ -244,7 +244,10 @@ class BasicEmbeddingsIndex(EmbeddingsIndex):
         self._req_idx += 1
         self._req_queue[req_id] = text
 
-        if self._current_batch_finished_event is None:
+        if (
+            self._current_batch_finished_event is None
+            or self._current_batch_full_event is None
+        ):
             self._current_batch_finished_event = asyncio.Event()
             self._current_batch_full_event = asyncio.Event()
             self._current_batch_submitted.clear()

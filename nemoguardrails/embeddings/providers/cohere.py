@@ -14,7 +14,7 @@
 # limitations under the License.
 import asyncio
 from contextvars import ContextVar
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from .base import EmbeddingModel
 
@@ -22,6 +22,10 @@ from .base import EmbeddingModel
 # to be scoped at the asyncio loop level. The client caches it somewhere, and if the loop
 # is changed, it will fail.
 async_client_var: ContextVar = ContextVar("async_client", default=None)
+
+if TYPE_CHECKING:
+    import cohere
+    from cohere import AsyncClient, Client
 
 
 class CohereEmbeddingModel(EmbeddingModel):
@@ -64,7 +68,7 @@ class CohereEmbeddingModel(EmbeddingModel):
 
         self.model = embedding_model
         self.input_type = input_type
-        self.client = cohere.Client(**kwargs)
+        self.client = cohere.Client(**kwargs)  # type: ignore[reportCallIssue]
 
         self.embedding_size_dict = {
             "embed-v4.0": 1536,
@@ -120,6 +124,9 @@ class CohereEmbeddingModel(EmbeddingModel):
         """
 
         # Make embedding request to Cohere API
-        return self.client.embed(
+        # Since we don't pass embedding_types parameter, the response should be
+        # EmbeddingsFloatsEmbedResponse with embeddings as List[List[float]]
+        response = self.client.embed(
             texts=documents, model=self.model, input_type=self.input_type
-        ).embeddings
+        )
+        return response.embeddings  # type: ignore[return-value]
