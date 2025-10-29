@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-import random
 import uuid
 from typing import Optional
 

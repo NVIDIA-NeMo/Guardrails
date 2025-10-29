@@ -26,14 +26,8 @@ import os
 import sys
 
 import uvicorn
-import yaml
-from uvicorn.logging import AccessFormatter
 
-from nemoguardrails.benchmark.mock_llm_server.config import (
-    CONFIG_FILE_ENV_VAR,
-    ModelSettings,
-    get_settings,
-)
+from nemoguardrails.benchmark.mock_llm_server.config import CONFIG_FILE_ENV_VAR
 
 # 1. Get a logger instance
 log = logging.getLogger(__name__)

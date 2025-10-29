@@ -16,15 +16,9 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional, Union
 
-import yaml
-from pydantic import BaseModel, Field
-from pydantic_settings import (
-    BaseSettings,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONFIG_FILE_ENV_VAR = "MOCK_LLM_CONFIG_FILE"
 config_file_path = os.getenv(CONFIG_FILE_ENV_VAR, "model_settings.yml")
@@ -61,8 +55,8 @@ class ModelSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=CONFIG_FILE)
 
 
+@lru_cache()
 def get_settings() -> ModelSettings:
     """Singleton-pattern to get settings once via lru_cache"""
     settings = ModelSettings()  # type: ignore (These are filled in by loading from CONFIG_FILE)
-    print("Returning ModelSettings: %s", settings)
     return settings

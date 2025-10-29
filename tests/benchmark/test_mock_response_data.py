@@ -129,7 +129,7 @@ def test_is_unsafe_mocks_no_seed(
 
     response = is_unsafe(model_settings)
 
-    assert response == True
+    assert response
     assert mock_seed.call_count == 0
     assert mock_binomial.call_count == 1
     mock_binomial.assert_called_once_with(
@@ -147,7 +147,7 @@ def test_is_unsafe_mocks_with_seed(
 
     response = is_unsafe(model_settings, random_seed)
 
-    assert response == False
+    assert not response
     assert mock_seed.call_count == 1
     assert mock_binomial.call_count == 1
     mock_binomial.assert_called_once_with(
@@ -160,15 +160,15 @@ def test_is_unsafe_prob_one(model_settings: ModelSettings):
 
     model_settings.unsafe_probability = 1.0
     response = is_unsafe(model_settings)
-    assert response == True
+    assert response
 
 
 def test_is_unsafe_prob_zero(model_settings: ModelSettings):
-    """Check `is_unsafe()` with probability of 1 returns True"""
+    """Check `is_unsafe()` with probability of 0 returns False"""
 
     model_settings.unsafe_probability = 0.0
     response = is_unsafe(model_settings)
-    assert response == False
+    assert not response
 
 
 def test_get_response_safe(model_settings: ModelSettings):

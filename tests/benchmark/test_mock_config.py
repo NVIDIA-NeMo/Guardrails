@@ -13,11 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tempfile
 
 import pytest
-import yaml
+from pydantic import ValidationError
 
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings
 
@@ -41,7 +39,7 @@ class TestAppModelConfig:
 
     def test_app_model_config_missing_required_field(self):
         """Test that missing required fields raise validation error."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             ModelSettings(  # type: ignore (Test is meant to check missing mandatory field)
                 model="test-model",
                 unsafe_text="Unsafe",

@@ -17,14 +17,11 @@
 import asyncio
 import logging
 import time
-from typing import Annotated, Optional, Union
+from typing import Annotated, Union
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request
 
-from nemoguardrails.benchmark.mock_llm_server.config import (  # get_config,
-    ModelSettings,
-    get_settings,
-)
+from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings, get_settings
 from nemoguardrails.benchmark.mock_llm_server.models import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -140,7 +137,7 @@ async def chat_completions(
 
     # Generate dummy response
     response_content = get_response(config)
-    response_latency_seconds = get_latency_seconds(config, seed=12345)
+    response_latency_seconds = get_latency_seconds(config)
 
     # Calculate token usage
     prompt_text = " ".join([msg.content for msg in request.messages])
@@ -196,7 +193,7 @@ async def completions(
 
     # Generate dummy response
     response_text = get_response(config)
-    response_latency_seconds = get_latency_seconds(config, seed=12345)
+    response_latency_seconds = get_latency_seconds(config)
 
     # Calculate token usage
     prompt_tokens = calculate_tokens(prompt_text)

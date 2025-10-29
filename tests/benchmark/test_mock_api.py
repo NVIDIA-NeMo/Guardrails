@@ -13,17 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tempfile
 import time
 
 import pytest
-import yaml
 from fastapi.testclient import TestClient
 
 from nemoguardrails.benchmark.mock_llm_server.api import app
-
-# from nemoguardrails.benchmark.mock_llm_server.api import app
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings, get_settings
 
 
