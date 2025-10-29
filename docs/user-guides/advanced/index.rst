@@ -22,3 +22,4 @@ Advanced
    nemoguard-contentsafety-deployment
    nemoguard-topiccontrol-deployment
    safeguarding-ai-virtual-assistant-blueprint
+   model-memory-cache
