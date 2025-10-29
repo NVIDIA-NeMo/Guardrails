@@ -4,6 +4,10 @@ Modern reasoning-capable LLMs expose their internal thought process as reasoning
 
 NeMo Guardrails allows you to inspect and control these reasoning traces by extracting them and making them available throughout your guardrails configuration. This enables you to write guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
 
+```{note}
+This guide uses Colang 1.0 syntax. Bot reasoning guardrails are currently supported in Colang 1.0 only.
+```
+
 ```{important}
 The examples in this guide range from minimal toy examples (for understanding concepts) to complete reference implementations. They are designed to teach you how to access and work with `bot_thinking` in different contexts, not as production-ready code to copy-paste. Adapt these patterns to your specific use case with appropriate validation, error handling, and business logic for your application.
 ```
@@ -114,7 +118,7 @@ async def check_reasoning_quality(context: Optional[dict] = None):
     return True
 ```
 
-**config/rails/reasoning_check.co**:
+**config/rails.co**:
 
 ```colang
 define bot refuse to respond
