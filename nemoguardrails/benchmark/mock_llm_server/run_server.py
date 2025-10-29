@@ -69,7 +69,7 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--config-file", help="YAML file to configure model", required=True
+        "--config-file", help=".env file to configure model", required=True
     )
 
     return parser.parse_args()

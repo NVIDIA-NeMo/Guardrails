@@ -218,20 +218,6 @@ class TestChatCompletionsEndpoint:
         # Let's check it doesn't crash
         assert response.status_code in [200, 422]
 
-    def test_chat_completions_latency(self, client):
-        """Test that chat completions have some latency."""
-        payload = {
-            "model": "gpt-3.5-turbo",
-            "messages": [{"role": "user", "content": "Hello"}],
-        }
-        start = time.time()
-        response = client.post("/v1/chat/completions", json=payload)
-        duration = time.time() - start
-
-        assert response.status_code == 200
-        # Should have some latency (at least minimal)
-        assert duration >= 0.0
-
 
 class TestCompletionsEndpoint:
     """Test the /v1/completions endpoint."""
