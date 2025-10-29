@@ -191,7 +191,7 @@ prompts:
 
 The `{% if bot_thinking %}` conditional ensures the prompt works with both reasoning and non-reasoning models. When reasoning is available, the self-check LLM can evaluate both the final response and the reasoning process.
 
-**Explore the complete implementation**: You can find the full working configuration in [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/bc799fbb05e1f12f1ba79461f7f7378b3af50c22/examples/configs/self_check_thinking) with all files ready to use as a reference for your own implementation.
+**Explore the complete implementation**: You can find the full working configuration in [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) with all files ready to use as a reference for your own implementation.
 
 ## See Also
 
