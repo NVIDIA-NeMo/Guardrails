@@ -114,16 +114,19 @@ For more detailed examples of guardrailing reasoning traces, see [Guardrailing B
 
 ##### With GenerationOptions (Structured Access)
 
-When using the Python API with `GenerationOptions`, reasoning is available in the separate `reasoning_content` field:
+When you pass `GenerationOptions` to the API, the function returns a `GenerationResponse` object with structured fields, including `reasoning_content` for accessing reasoning traces separately from the main response:
 
 ```python
 from nemoguardrails import RailsConfig, LLMRails
+from nemoguardrails.rails.llm.options import GenerationOptions
 
 config = RailsConfig.from_path("./config")
 rails = LLMRails(config)
 
-result = rails.generate_async(
-    messages=[{"role": "user", "content": "What is 2+2?"}]
+options = GenerationOptions()
+result = await rails.generate_async(
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+    options=options
 )
 
 if result.reasoning_content:
@@ -150,6 +153,18 @@ Output:
 <think>Let me calculate: 2 plus 2 equals 4.</think>
 The answer is 4.
 ```
+
+**Which pattern should you use?**
+
+Use **Pattern 1 (With GenerationOptions)** when:
+- You need structured access to reasoning and response separately
+- You're building a new application
+- You need access to other structured fields (state, output_data, llm_metadata, etc.)
+
+Use **Pattern 2 (Without GenerationOptions)** when:
+- You need backward compatibility with existing code
+- You want the raw response with inline reasoning tags
+- You're integrating with systems that expect tagged strings
 
 ### NIM for LLMs
 
