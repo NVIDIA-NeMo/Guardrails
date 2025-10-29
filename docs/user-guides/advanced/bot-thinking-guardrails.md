@@ -143,7 +143,7 @@ rails:
 
 ## Using Reasoning in Self-Check Output
 
-This is the **complete reference implementation** from [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/bc799fbb05e1f12f1ba79461f7f7378b3af50c22/examples/configs/self_check_thinking), showing how `bot_thinking` is used in practice. This pattern provides reasoning traces to your self-check output rail, allowing the moderation LLM to make more informed decisions.
+This is the **complete reference implementation** from [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking), showing how `bot_thinking` is used in practice. This pattern provides reasoning traces to your self-check output rail, allowing the moderation LLM to make more informed decisions.
 
 ### Configuration
 
@@ -197,5 +197,5 @@ The `{% if bot_thinking %}` conditional ensures the prompt works with both reaso
 
 - [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces) - API response handling and breaking changes
 - [Output Rails](../../getting-started/5-output-rails/README.md) - General guide on output rails
-- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/bc799fbb05e1f12f1ba79461f7f7378b3af50c22/examples/configs/self_check_thinking) - Complete working configuration
+- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) - Complete working configuration
 - [Custom Actions](../../colang-language-syntax-guide.md#actions) - Guide on writing custom actions
