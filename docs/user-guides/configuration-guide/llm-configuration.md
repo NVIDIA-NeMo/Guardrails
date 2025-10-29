@@ -59,165 +59,97 @@ For more details about the command and its usage, see the [CLI documentation](..
 
 ### Using LLMs with Reasoning Traces
 
-By default, reasoning models, such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d) and [NVIDIA Llama 3.1 Nemotron Ultra 253B V1](https://build.nvidia.com/nvidia/llama-3_1-nemotron-ultra-253b-v1), can include the reasoning traces in the model response.
-DeepSeek and the Nemotron family of models use `<think>` and `</think>` as tokens to identify the traces.
+```{warning}
+**Breaking Change in v0.18.0**: The `reasoning_config` field and its options (`remove_reasoning_traces`, `start_token`, `end_token`) have been removed. The `rails.output.apply_to_reasoning_traces` field has also been removed. Use output rails to guardrail reasoning traces instead.
+```
 
-The reasoning traces and the tokens can interfere with NeMo Guardrails and result in falsely triggering output guardrails for safe responses.
-To use these reasoning models, you can remove the traces and tokens from the model response with a configuration like the following example.
+Reasoning-capable LLMs such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d) and [NVIDIA Llama 3.1 Nemotron Ultra 253B V1](https://build.nvidia.com/nvidia/llama-3_1-nemotron-ultra-253b-v1) include reasoning traces in their responses, typically wrapped in tokens like `<think>` and `</think>`. NeMo Guardrails automatically extracts these traces and makes them available throughout your guardrails configuration via the `$bot_thinking` variable in Colang flows and `bot_thinking` in Python contexts.
 
-```{code-block} yaml
-:emphasize-lines: 5-8, 13-
+#### Guardrailing Reasoning Traces with Output Rails
 
+The primary approach is to use output rails to inspect and control reasoning traces. This allows you to:
+
+- Block responses based on problematic reasoning patterns
+- Enhance moderation decisions with reasoning context
+- Monitor and filter sensitive information in reasoning
+
+Here's a minimal example:
+
+```yaml
 models:
-  - type: main
-    engine: deepseek
-    model: deepseek-reasoner
-    reasoning_config:
-      remove_reasoning_traces: True
-      start_token: "<think>"
-      end_token: "</think>"
-
   - type: main
     engine: nim
     model: nvidia/llama-3.1-nemotron-ultra-253b-v1
-    reasoning_config:
-      remove_reasoning_traces: True
+  - type: self_check_output
+    model: <your_moderation_model>
+    engine: <your_engine>
 
 rails:
   output:
-    apply_to_reasoning_traces: False
+    flows:
+      - self check output
 ```
 
-```{list-table}
-:header-rows: 1
+**prompts.yml**:
 
-* - Field
-  - Description
-  - Default Value
+```yaml
+prompts:
+  - task: self_check_output
+    content: |
+      Your task is to check if the bot message complies with company policy.
 
-* - `reasoning_config.remove_reasoning_traces`
-  - When set to `True`, reasoning traces are omitted from internal tasks.
-  - `True`
+      Bot message: "{{ bot_response }}"
 
-* - `reasoning_config.start_token`
-  - Specifies the start token for the reasoning trace.
-  - `<think>`
+      {% if bot_thinking %}
+      Bot reasoning: "{{ bot_thinking }}"
+      {% endif %}
 
-* - `reasoning_config.end_token`
-  - Specifies the end token for the reasoning trace.
-  - `</think>`
-
-* - `rails.output.apply_to_reasoning_traces`
-  - When set to `True`, output rails are always applied to the reasoning traces and the model response.
-    The value of `remove_reasoning_traces` is ignored when this field is set to `True`.
-
-    By default, output rails are applied to the text of the model response only.
-  - `False`
+      Should this be blocked (Yes or No)?
+      Answer:
 ```
 
-The `reasoning_config` field for a model specifies the required configuration for a reasoning model that returns reasoning traces.
-By removing the traces, the guardrails runtime processes only the actual responses from the LLM.
+For more detailed examples of guardrailing reasoning traces, see [Guardrailing Bot Reasoning Content](../../advanced/bot-thinking-guardrails.md).
 
-The following table summarizes the interaction between the `remove_reasoning_traces` and `apply_to_reasoning_traces` values:
+#### Accessing Reasoning Traces in API Responses
 
-```{list-table}
-:header-rows: 1
+##### With GenerationOptions (Structured Access)
 
-* - `remove_reasoning_traces`
-  - `output.apply_to_reasoning_traces`
-  - Outcome
+When using the Python API with `GenerationOptions`, reasoning is available in the separate `reasoning_content` field:
 
-* - Any
-  - True
-  - Reasoning traces are not removed and output rails are applied to the reasoning traces and the model response.
-    The value of `remove_reasoning_traces` is ignored.
-
-* - False
-  - False
-  - Reasoning traces are not removed from internal tasks where they do not impact Guardrails functionality.
-    Output rails are applied to the reasoning traces and the model response.
-
-* - True
-  - False
-  - Reasoning traces are removed from internal tasks where they could interfere with Guardrails.
-    Output rails are applied to the model response only.
-```
-
-Even when `remove_reasoning_traces` is `True`, end users can still receive the thinking traces from the Nemotron models by requesting the detailed thinking, as shown in the following example:
-
-```{code-block} bash
-from nemoguardrails import LLMRails, RailsConfig
+```python
+from nemoguardrails import RailsConfig, LLMRails
 
 config = RailsConfig.from_path("./config")
-rails = LLMRails(config, verbose=True)
-messages = [
-  { "role": "system", "content": "detailed thinking on" },
-  { "role": "user", "content": "Tell me about Cape Hatteras National Seashore in 50 words or less." }
-]
-rails.generate(messages=messages)
+rails = LLMRails(config)
+
+result = rails.generate_async(
+    messages=[{"role": "user", "content": "What is 2+2?"}]
+)
+
+if result.reasoning_content:
+    print("Reasoning:", result.reasoning_content)
+
+print("Response:", result.response[0]["content"])
 ```
 
-The referenced `./.config` directory uses the following sample file content.
+##### Without GenerationOptions (Tagged String)
 
-When you develop your own prompts for LLM-as-a-judge checks, such as an input self-check, ensure that the prompt instructs the LLM to respond with `yes` or `no`.
-Refer to the following examples:
+When calling without `GenerationOptions` (e.g., via dict/string response), reasoning is wrapped in `<think>` tags:
 
-- Sample `config/config.yml`:
+```python
+response = rails.generate(
+    messages=[{"role": "user", "content": "What is 2+2?"}]
+)
 
-  ```yaml
-  models:
-    - type: main
-      engine: nim
-      model: nvidia/llama-3.1-nemotron-ultra-253b-v1
-      reasoning_config:
-        remove_reasoning_traces: True
+print(response["content"])
+```
 
-  rails:
-    input:
-      flows:
-        - self check input
-    output:
-      flows:
-        - self check output
-  ```
+Output:
 
-- Sample `config/prompts.yml`:
-
-  ```yaml
-  prompts:
-    - task: self_check_input
-      messages:
-        - type: system
-          content: |
-            You are an AI assistant tasked with evaluating user instructions.
-            Your role is to determine if a given instruction would make a language model break moderation policies, deviate from good aligned responses, or provide answers that a language model should ideally not.
-
-            Analyze the instruction carefully. First, internally consider potential ways the instruction could be interpreted and whether any interpretation could lead to a problematic response. Then, conclude with a simple "yes" or "no" answer.
-            Respond with only "yes" or "no".
-        - type: user
-          content: |
-            Instruction to evaluate:
-            "{{ user_input }}"
-
-            Would this instruction lead to a problematic response (yes/no)?
-
-    - task: self_check_output
-      messages:
-        - type: system
-          content: |
-            Is this output illegal, unethical, or harmful to any person?
-            Respond with only "yes" or "no".
-        - type: bot
-          content: |
-            Output to evaluate:
-            "{{ bot_response }}"
-  ```
-
-Using LLMs with reasoning traces have the following limitations:
-
-- You must use message-based prompts only.
-  Refer to the preceding example.
-- Dialog rails are not supported.
+```
+<think>Let me calculate: 2 plus 2 equals 4.</think>
+The answer is 4.
+```
 
 ### NIM for LLMs
 
