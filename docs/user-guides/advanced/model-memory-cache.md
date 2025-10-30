@@ -1,6 +1,6 @@
 (model-memory-cache)=
 
-# In-Memory Model Cache
+# Memory Model Cache
 
 Guardrails supports an in-memory cache which avoids making LLM calls for repeated prompts. It stores user-prompts and the corresponding LLM response. Prior to making an LLM call, Guardrails first checks if the prompt matches one already in the cache. If the prompt is found in the cache, the stored response is returned from the cache, rather than prompting the LLM. This improves latency.
 In-memory caches are supported for all Nemoguard models ([Content-Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic-Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect)). Each model can be configured independently.
@@ -124,19 +124,18 @@ The LFU algorithm ensures that the most frequently accessed cache entries remain
 Guardrails supports OTEL telemetry to trace client requests through Guardrails and any calls to LLMs or APIs. The cache operation is reflected in these traces, with cache hits having a far shorter duration and no LLM call and cache misses having an LLM call. This OTEL telemetry is a good fit for operational dashboards.
 The cache statistics are also logged on a configurable cadence if `cache.stats.enabled` is set to `true`. Every `log_interval` seconds, the cache statistics are logged with the format below.
 The most important metric below is the "Hit Rate", which is the proportion of LLM calls returned from the cache. If this value remains low, the exact-match may not be a good fit for your usecase.
-**TODO! Do these reset on every measurement period, or increment forever (rollover concerns?)**
+These statistics accumulate for the time Guardrails is running.
 
 
 ```
-# TODO! Replace with measured values
 "LFU Cache Statistics - "
-"Size: {stats['current_size']}/{stats['maxsize']} | "
-"Hits: {stats['hits']} | "
-"Misses: {stats['misses']} | "
-"Hit Rate: {stats['hit_rate']:.2%} | "
-"Evictions: {stats['evictions']} | "
-"Puts: {stats['puts']} | "
-"Updates: {stats['updates']}"
+"Size: 0.23453 | "
+"Hits: 20 | "
+"Misses: 3 | "
+"Hit Rate: 87% | "
+"Evictions: 0 | "
+"Puts: 20 | "
+"Updates: 0"
 ```
 
 These metrics are detailed below:
