@@ -1,8 +1,8 @@
 # Guardrailing Bot Reasoning Content
 
-Modern reasoning-capable large language models (LLMs) expose their internal thought process as reasoning traces. These traces reveal how the model arrives at its conclusions, providing transparency into the decision-making process. However, they may also contain sensitive information or problematic reasoning patterns.
+Reasoning-capable large language models (LLMs) expose their internal thought process as reasoning traces. These traces reveal how the model arrives at its conclusions, providing transparency into the decision-making process. However, they may also contain sensitive information or problematic reasoning patterns that need to be monitored and controlled.
 
-The NeMo Guardrails toolkit allows you to inspect and control these reasoning traces by extracting them and making them available throughout your guardrails configuration. This enables you to write guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
+The NeMo Guardrails toolkit helps you set up guardrails to inspect and control these reasoning traces by extracting them. With this feature, you can configure guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
 
 ```{note}
 This guide uses Colang 1.0 syntax. Colang 1.0 currently supports bot reasoning guardrails only.
@@ -16,15 +16,13 @@ The examples in this guide range from minimal toy examples (for understanding co
 
 ## Accessing Reasoning Content
 
-When an LLM generates a response with reasoning traces, the NeMo Guardrails toolkit automatically extracts the reasoning and makes it available through the `bot_thinking` variable. You can access this variable in the following ways.
+When an LLM generates a response with reasoning traces, the NeMo Guardrails toolkit extracts the reasoning and makes it available through the `bot_thinking` variable. You can use this variable in the following ways.
 
 ### In Colang Flows
 
-The reasoning content is available as a context variable in Colang output rails. Set up a flow to capture the reasoning content by the `$captured_reasoning` variable set to the value of `$bot_thinking`.
+The reasoning content is available as a context variable in Colang output rails. For example, in `config/rails.co`, you can set up a flow to capture the reasoning content by setting the `$captured_reasoning` variable to `$bot_thinking`.
 
 ```{code-block}
-:caption: In `config/rails.co`
-
 define flow check_reasoning
   if $bot_thinking
     $captured_reasoning = $bot_thinking
@@ -32,12 +30,9 @@ define flow check_reasoning
 
 ### In Custom Actions
 
-When you write Python actions, you can access the reasoning through the context dictionary. For example, the following action checks if the reasoning retrieved through `context.get("bot_thinking")` contains the word "sensitive" and returns `False` if it does.
+When you write Python action functions in  `config/actions.py`, you can access the reasoning through the context dictionary. For example, the following is an example action function that checks if the reasoning retrieved through `context.get("bot_thinking")` contains the word `"sensitive"`. It returns `False` if the bot reasoning contains the word `"sensitive"`.
 
-```{code-block}
-:language: python
-:caption: In `config/actions.py`
-
+```{code-block} python
 @action(is_system_action=True)
 async def check_reasoning(context: Optional[dict] = None):
     bot_thinking = context.get("bot_thinking")
@@ -48,7 +43,7 @@ async def check_reasoning(context: Optional[dict] = None):
 
 ### In Prompt Templates
 
-When you render prompts for LLM tasks such as `self check output`, the reasoning is available as a Jinja2 template variable.
+When you render prompts for LLM tasks such as `self check output`, the reasoning is available as a Jinja2 template variable. For example, in `prompts.yml`, you can set up a prompt to check if the reasoning contains the word `"sensitive"` and block the response if it does.
 
 ```yaml
 prompts:
@@ -108,11 +103,9 @@ This demonstrates basic pattern matching for learning purposes. Real implementat
 For complex validation logic or reusable checks across multiple flows, you can write custom Python actions.
 This approach provides better code organization and makes it easier to share validation logic across different guardrails.
 
-1. Write the custom action.
+1. Write the custom action function in `config/actions.py` as follows:
 
-    ```{code-block}
-    :caption: In `config/actions.py`
-
+    ```{code-block} python
     from typing import Optional
     from nemoguardrails.actions import action
 
@@ -136,11 +129,9 @@ This approach provides better code organization and makes it easier to share val
         return True
     ```
 
-1. Write the flow that uses the custom action.
+2. Write the flow that uses the custom action function in `config/rails.co` as follows:
 
     ```{code-block}
-    :caption: In `config/rails.co`
-
     define bot refuse to respond
       "I'm sorry, I can't respond to that."
 
@@ -152,11 +143,9 @@ This approach provides better code organization and makes it easier to share val
         stop
     ```
 
-1. Add the flow to your output rails in `config.yml`.
+3. Add the flow to your output rails in `config.yml`.
 
     ```{code-block}
-    :caption: In `config.yml`
-
     rails:
       output:
         flows:
