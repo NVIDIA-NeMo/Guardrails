@@ -68,32 +68,30 @@ Always check if reasoning exists before using it, as not all models provide reas
 
 You can use the `$bot_thinking` variable in output rails to inspect and control responses based on reasoning content.
 
-```{code-block}
-:caption: Basic Pattern Matching
+1. Write a basic pattern matching flow that uses the `$bot_thinking` variable in `config/rails.co` as follows:
 
-define bot refuse to respond
-  "I'm sorry, I can't respond to that."
+    ```{code-block}
+    define bot refuse to respond
+      "I'm sorry, I can't respond to that."
 
-define flow block_sensitive_reasoning
-  if $bot_thinking
-    if "confidential" in $bot_thinking or "internal only" in $bot_thinking
-      bot refuse to respond
-      stop
-```
+    define flow block_sensitive_reasoning
+      if $bot_thinking
+        if "confidential" in $bot_thinking or "internal only" in $bot_thinking
+          bot refuse to respond
+          stop
+    ```
 
-Add this flow to your output rails in `config.yml`:
+2. Add the flow to your output rails in `config.yml` as follows:
 
-```{code-block}
-:caption: In `config.yml`
-
-rails:
-  output:
-    flows:
-      - block_sensitive_reasoning
-```
+    ```{code-block}
+    rails:
+      output:
+        flows:
+          - block_sensitive_reasoning
+    ```
 
 ```{note}
-This demonstrates basic pattern matching for learning purposes. Real implementations should use more comprehensive validation and consider edge cases.
+This demonstrates how to set up a basic pattern matching flow for learning purposes. Production implementations must use more comprehensive validation and consider edge cases.
 ```
 
 ---
