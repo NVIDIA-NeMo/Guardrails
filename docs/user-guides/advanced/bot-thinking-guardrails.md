@@ -156,11 +156,9 @@ This approach provides better code organization and makes it easier to share val
 
 ## Using Reasoning in Self-Check Output
 
-The following example shows how to use `bot_thinking` in a self-check output rail. This pattern provides reasoning traces to your moderation LLM, allowing it to make more informed decisions by evaluating both the response and the reasoning process.
+The following steps show how to use `bot_thinking` in a self-check output rail. This pattern provides reasoning traces to your moderation LLM, allowing it to make more informed decisions by evaluating both the response and the reasoning process.
 
-This is the *complete reference implementation* from [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails toolkit repository.
-
-### Configuration Steps
+This extends the [self check thinking configuration examples](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails toolkit repository.
 
 1. Write the `config.yml` file as follows:
 
@@ -179,7 +177,7 @@ This is the *complete reference implementation* from [examples/configs/self_chec
           - self check output
     ```
 
-1. Write the `prompts.yml` file as follows:
+2. Write the `prompts.yml` file as follows:
 
     ```yaml
     prompts:
@@ -206,7 +204,7 @@ This is the *complete reference implementation* from [examples/configs/self_chec
 
 The `{% if bot_thinking %}` conditional ensures that the prompt works with both reasoning and non-reasoning models. When reasoning is available, the self-check LLM can evaluate both the final response and the reasoning process.
 
-You can find the complete working configuration with all files in [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking). Use it as a reference for your own implementation.
+---
 
 ## Related Guides
 
@@ -214,5 +212,5 @@ Use the following guides to learn more about the features used in this guide.
 
 - [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces): API response handling and breaking changes.
 - [Output Rails](../../getting-started/5-output-rails/README.md): General guide on output rails.
-- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration.
+- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration example in the NeMo Guardrails toolkit repository.
 - [Custom Actions](../../colang-language-syntax-guide.md#actions): Guide on writing custom actions.
