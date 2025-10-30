@@ -1,36 +1,43 @@
 # Guardrailing Bot Reasoning Content
 
-Modern reasoning-capable LLMs expose their internal thought process as reasoning traces. These traces reveal how the model arrives at its conclusions, which can be valuable for transparency but may also contain sensitive information or problematic reasoning patterns.
+Modern reasoning-capable large language models (LLMs) expose their internal thought process as reasoning traces. These traces reveal how the model arrives at its conclusions, providing transparency into the decision-making process. However, they may also contain sensitive information or problematic reasoning patterns.
 
-NeMo Guardrails allows you to inspect and control these reasoning traces by extracting them and making them available throughout your guardrails configuration. This enables you to write guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
+The NeMo Guardrails toolkit allows you to inspect and control these reasoning traces by extracting them and making them available throughout your guardrails configuration. This enables you to write guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
 
 ```{note}
-This guide uses Colang 1.0 syntax. Bot reasoning guardrails are currently supported in Colang 1.0 only.
+This guide uses Colang 1.0 syntax. Colang 1.0 currently supports bot reasoning guardrails only.
 ```
 
 ```{important}
-The examples in this guide range from minimal toy examples (for understanding concepts) to complete reference implementations. They are designed to teach you how to access and work with `bot_thinking` in different contexts, not as production-ready code to copy-paste. Adapt these patterns to your specific use case with appropriate validation, error handling, and business logic for your application.
+The examples in this guide range from minimal toy examples (for understanding concepts) to complete reference implementations. These examples teach you how to access and work with `bot_thinking` in different contexts, not as production-ready code to copy-paste. Adapt these patterns to your specific use case with appropriate validation, error handling, and business logic for your application.
 ```
+
+---
 
 ## Accessing Reasoning Content
 
-When an LLM generates a response with reasoning traces, NeMo Guardrails automatically extracts the reasoning and makes it available in three ways:
+When an LLM generates a response with reasoning traces, the NeMo Guardrails toolkit automatically extracts the reasoning and makes it available through the `bot_thinking` variable. You can access this variable in the following ways.
 
-### In Colang Flows: `$bot_thinking` Variable
+### In Colang Flows
 
-The reasoning content is available as a context variable in Colang output rails:
+The reasoning content is available as a context variable in Colang output rails. Set up a flow to capture the reasoning content by the `$captured_reasoning` variable set to the value of `$bot_thinking`.
 
-```colang
+```{code-block}
+:caption: In `config/rails.co`
+
 define flow check_reasoning
   if $bot_thinking
     $captured_reasoning = $bot_thinking
 ```
 
-### In Custom Actions: `context.get("bot_thinking")`
+### In Custom Actions
 
-When writing Python actions, you can access the reasoning via the context dictionary:
+When you write Python actions, you can access the reasoning through the context dictionary. For example, the following action checks if the reasoning retrieved through `context.get("bot_thinking")` contains the word "sensitive" and returns `False` if it does.
 
-```python
+```{code-block}
+:language: python
+:caption: In `config/actions.py`
+
 @action(is_system_action=True)
 async def check_reasoning(context: Optional[dict] = None):
     bot_thinking = context.get("bot_thinking")
@@ -39,9 +46,9 @@ async def check_reasoning(context: Optional[dict] = None):
     return True
 ```
 
-### In Prompt Templates: `{{ bot_thinking }}`
+### In Prompt Templates
 
-When rendering prompts for LLM tasks (like `self check output`), the reasoning is available as a Jinja2 template variable:
+When you render prompts for LLM tasks such as `self check output`, the reasoning is available as a Jinja2 template variable.
 
 ```yaml
 prompts:
@@ -56,15 +63,19 @@ prompts:
       Should this be blocked (Yes or No)?
 ```
 
-**Important**: Always check if reasoning exists before using it, as not all models provide reasoning traces.
+```{important}
+Always check if reasoning exists before using it, as not all models provide reasoning traces.
+```
+
+---
 
 ## Guardrailing with Output Rails
 
-Output rails can use the `$bot_thinking` variable to inspect and control responses based on reasoning content.
+You can use the `$bot_thinking` variable in output rails to inspect and control responses based on reasoning content.
 
-### Basic Pattern Matching
+```{code-block}
+:caption: Basic Pattern Matching
 
-```colang
 define bot refuse to respond
   "I'm sorry, I can't respond to that."
 
@@ -77,7 +88,9 @@ define flow block_sensitive_reasoning
 
 Add this flow to your output rails in `config.yml`:
 
-```yaml
+```{code-block}
+:caption: In `config.yml`
+
 rails:
   output:
     flows:
@@ -88,66 +101,79 @@ rails:
 This demonstrates basic pattern matching for learning purposes. Real implementations should use more comprehensive validation and consider edge cases.
 ```
 
+---
+
 ## Guardrailing with Custom Actions
 
-For complex validation logic or reusable checks across multiple flows, write custom Python actions:
+For complex validation logic or reusable checks across multiple flows, you can write custom Python actions.
+This approach provides better code organization and makes it easier to share validation logic across different guardrails.
 
-**config/actions.py**:
+1. Write the custom action.
 
-```python
-from typing import Optional
-from nemoguardrails.actions import action
+    ```{code-block}
+    :caption: In `config/actions.py`
 
-@action(is_system_action=True)
-async def check_reasoning_quality(context: Optional[dict] = None):
-    bot_thinking = context.get("bot_thinking")
+    from typing import Optional
+    from nemoguardrails.actions import action
 
-    if not bot_thinking:
+    @action(is_system_action=True)
+    async def check_reasoning_quality(context: Optional[dict] = None):
+        bot_thinking = context.get("bot_thinking")
+
+        if not bot_thinking:
+            return True
+
+        forbidden_patterns = [
+            "proprietary information",
+            "trade secret",
+            "confidential data"
+        ]
+
+        for pattern in forbidden_patterns:
+            if pattern.lower() in bot_thinking.lower():
+                return False
+
         return True
+    ```
 
-    forbidden_patterns = [
-        "proprietary information",
-        "trade secret",
-        "confidential data"
-    ]
+1. Write the flow that uses the custom action.
 
-    for pattern in forbidden_patterns:
-        if pattern.lower() in bot_thinking.lower():
-            return False
+    ```{code-block}
+    :caption: In `config/rails.co`
 
-    return True
-```
+    define bot refuse to respond
+      "I'm sorry, I can't respond to that."
 
-**config/rails.co**:
+    define flow quality_check_reasoning
+      $is_safe = execute check_reasoning_quality
 
-```colang
-define bot refuse to respond
-  "I'm sorry, I can't respond to that."
+      if not $is_safe
+        bot refuse to respond
+        stop
+    ```
 
-define flow quality_check_reasoning
-  $is_safe = execute check_reasoning_quality
+1. Add the flow to your output rails in `config.yml`.
 
-  if not $is_safe
-    bot refuse to respond
-    stop
-```
+    ```{code-block}
+    :caption: In `config.yml`
 
-Add to your output rails:
+    rails:
+      output:
+        flows:
+          - quality_check_reasoning
+    ```
 
-```yaml
-rails:
-  output:
-    flows:
-      - quality_check_reasoning
-```
+---
 
 ## Using Reasoning in Self-Check Output
 
-This is the **complete reference implementation** from [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking), showing how `bot_thinking` is used in practice. This pattern provides reasoning traces to your self-check output rail, allowing the moderation LLM to make more informed decisions.
+The following example shows how to use `bot_thinking` in a self-check output rail. This pattern provides reasoning traces to your moderation LLM, allowing it to make more informed decisions by evaluating both the response and the reasoning process.
+
+This is the *complete reference implementation* from [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails toolkit repository.
 
 ### Configuration
 
-**config.yml**:
+Write the `config.yml` file as follows:
 
 ```yaml
 models:
@@ -164,7 +190,7 @@ rails:
       - self check output
 ```
 
-**prompts.yml**:
+Write the `prompts.yml` file as follows:
 
 ```yaml
 prompts:
@@ -189,11 +215,13 @@ prompts:
       Answer:
 ```
 
-The `{% if bot_thinking %}` conditional ensures the prompt works with both reasoning and non-reasoning models. When reasoning is available, the self-check LLM can evaluate both the final response and the reasoning process.
+The `{% if bot_thinking %}` conditional ensures that the prompt works with both reasoning and non-reasoning models. When reasoning is available, the self-check LLM can evaluate both the final response and the reasoning process.
 
-**Explore the complete implementation**: You can find the full working configuration in [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) with all files ready to use as a reference for your own implementation.
+You can find the complete working configuration with all files in [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking). Use it as a reference for your own implementation.
 
-## See Also
+## Related Guides
+
+The following guides are related to this topic.
 
 - [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces) - API response handling and breaking changes
 - [Output Rails](../../getting-started/5-output-rails/README.md) - General guide on output rails
