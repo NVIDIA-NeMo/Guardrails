@@ -160,49 +160,49 @@ The following example shows how to use `bot_thinking` in a self-check output rai
 
 This is the *complete reference implementation* from [examples/configs/self_check_thinking/](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails toolkit repository.
 
-### Configuration
+### Configuration Steps
 
-Write the `config.yml` file as follows:
+1. Write the `config.yml` file as follows:
 
-```yaml
-models:
-  - type: main
-    engine: <your_engine>
-    model: <your_reasoning_model>
-  - type: self_check_output
-    model: <your_moderation_model>
-    engine: <your_engine>
+    ```yaml
+    models:
+      - type: main
+        engine: <your_engine>
+        model: <your_reasoning_model>
+      - type: self_check_output
+        model: <your_moderation_model>
+        engine: <your_engine>
 
-rails:
-  output:
-    flows:
-      - self check output
-```
+    rails:
+      output:
+        flows:
+          - self check output
+    ```
 
-Write the `prompts.yml` file as follows:
+1. Write the `prompts.yml` file as follows:
 
-```yaml
-prompts:
-  - task: self_check_output
-    content: |
-      Your task is to check if the bot message below complies with the company policy.
+    ```yaml
+    prompts:
+      - task: self_check_output
+        content: |
+          Your task is to check if the bot message below complies with the company policy.
 
-      Company policy for the bot:
-      - messages should not contain any explicit content
-      - messages should not contain abusive language or offensive content
-      - messages should not contain any harmful content
-      - messages should not contain racially insensitive content
-      - if a message is a refusal, should be polite
+          Company policy for the bot:
+          - messages should not contain any explicit content
+          - messages should not contain abusive language or offensive content
+          - messages should not contain any harmful content
+          - messages should not contain racially insensitive content
+          - if a message is a refusal, should be polite
 
-      Bot message: "{{ bot_response }}"
+          Bot message: "{{ bot_response }}"
 
-      {% if bot_thinking %}
-      Bot thinking/reasoning: "{{ bot_thinking }}"
-      {% endif %}
+          {% if bot_thinking %}
+          Bot thinking/reasoning: "{{ bot_thinking }}"
+          {% endif %}
 
-      Question: Should the message be blocked (Yes or No)?
-      Answer:
-```
+          Question: Should the message be blocked (Yes or No)?
+          Answer:
+    ```
 
 The `{% if bot_thinking %}` conditional ensures that the prompt works with both reasoning and non-reasoning models. When reasoning is available, the self-check LLM can evaluate both the final response and the reasoning process.
 
@@ -210,9 +210,9 @@ You can find the complete working configuration with all files in [examples/conf
 
 ## Related Guides
 
-The following guides are related to this topic.
+Use the following guides to learn more about the features used in this guide.
 
-- [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces) - API response handling and breaking changes
-- [Output Rails](../../getting-started/5-output-rails/README.md) - General guide on output rails
-- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) - Complete working configuration
-- [Custom Actions](../../colang-language-syntax-guide.md#actions) - Guide on writing custom actions
+- [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces): API response handling and breaking changes.
+- [Output Rails](../../getting-started/5-output-rails/README.md): General guide on output rails.
+- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration.
+- [Custom Actions](../../colang-language-syntax-guide.md#actions): Guide on writing custom actions.
