@@ -154,4 +154,4 @@ These metrics are detailed below:
 This cache is implemented in-memory on each Guardrails node. When operating as a horizontally-scaled backend-service, there are many Guardrails nodes running behind an API Gateway and load-balancer to distribute traffic and meet availability and performance targets.
 The current cache implementation has a separate cache on each node, with no sharing of cache entries between nodes.
 Because the load balancer spreads traffic over all Guardrails nodes, requests have to both be stored in cache, with the load balancer directing the same request to the same node.
-In practice, frequently-requested user prompts will likely be spread over Guardrails nodes by the load balancer, so the performance impact may ne less significant.
+In practice, frequently-requested user prompts will likely be spread over Guardrails nodes by the load balancer, so the performance impact may be less significant.
