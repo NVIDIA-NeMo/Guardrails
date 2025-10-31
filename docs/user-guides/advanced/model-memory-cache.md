@@ -153,13 +153,13 @@ These statistics accumulate while Guardrails is running.
 
 ```text
 "LFU Cache Statistics - "
-"Size: 0.23453 | "
+"Size: 23/10000 | "
 "Hits: 20 | "
 "Misses: 3 | "
 "Hit Rate: 87% | "
 "Evictions: 0 | "
-"Puts: 20 | "
-"Updates: 0"
+"Puts: 21 | "
+"Updates: 4"
 ```
 
 The following list describes the metrics included in the cache statistics:
