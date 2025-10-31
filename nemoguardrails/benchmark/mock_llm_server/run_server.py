@@ -104,7 +104,7 @@ def main():  # pragma: no cover
 
     try:
         uvicorn.run(
-            "api:app",
+            "nemoguardrails.benchmark.mock_llm_server.api:app",
             host=args.host,
             port=args.port,
             reload=args.reload,
