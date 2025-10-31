@@ -84,38 +84,38 @@ The following configuration files show a minimal configuration for guardrailing 
 
 1. Configure output rails in `config.yml`:
 
-```yaml
-models:
-  - type: main
-    engine: nim
-    model: nvidia/llama-3.1-nemotron-ultra-253b-v1
-  - type: self_check_output
-    model: <your_moderation_model>
-    engine: <your_engine>
+    ```yaml
+    models:
+      - type: main
+        engine: nim
+        model: nvidia/llama-3.1-nemotron-ultra-253b-v1
+      - type: self_check_output
+        model: <your_moderation_model>
+        engine: <your_engine>
 
-rails:
-  output:
-    flows:
-      - self check output
-```
+    rails:
+      output:
+        flows:
+          - self check output
+    ```
 
 1. Configure the prompt to access the reasoning traces in `prompts.yml`:
 
-```yaml
-prompts:
-  - task: self_check_output
-    content: |
-      Your task is to check if the bot message complies with company policy.
+    ```yaml
+    prompts:
+      - task: self_check_output
+        content: |
+          Your task is to check if the bot message complies with company policy.
 
-      Bot message: "{{ bot_response }}"
+          Bot message: "{{ bot_response }}"
 
-      {% if bot_thinking %}
-      Bot reasoning: "{{ bot_thinking }}"
-      {% endif %}
+          {% if bot_thinking %}
+          Bot reasoning: "{{ bot_thinking }}"
+          {% endif %}
 
-      Should this be blocked (Yes or No)?
-      Answer:
-```
+          Should this be blocked (Yes or No)?
+          Answer:
+    ```
 
 For more detailed examples of guardrailing reasoning traces, refer to [Guardrailing Bot Reasoning Content](../../advanced/bot-thinking-guardrails.md).
 
