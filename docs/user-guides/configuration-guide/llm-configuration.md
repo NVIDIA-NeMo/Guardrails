@@ -59,9 +59,9 @@ For more details about the command and its usage, see the [CLI documentation](..
 
 ### Using LLMs with Reasoning Traces
 
-:::{deprecated} 0.18.0
-**Breaking Change in v0.18.0**: The `reasoning_config` field and its options `remove_reasoning_traces`, `start_token`, and `end_token` are deprecated. The `rails.output.apply_to_reasoning_traces` field has also been deprecated. Use output rails to guardrail reasoning traces instead.
-:::
+```{deprecated} 0.18.0
+The `reasoning_config` field and its options `remove_reasoning_traces`, `start_token`, and `end_token` are deprecated. The `rails.output.apply_to_reasoning_traces` field has also been deprecated. Instead, use output rails to guardrail reasoning traces, as introduced in this section.
+```
 
 Reasoning-capable LLMs such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d) and [NVIDIA Llama 3.1 Nemotron Ultra 253B V1](https://build.nvidia.com/nvidia/llama-3_1-nemotron-ultra-253b-v1) include reasoning traces in their responses, typically wrapped in tokens such as `<think>` and `</think>`.
 
