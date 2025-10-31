@@ -59,21 +59,30 @@ For more details about the command and its usage, see the [CLI documentation](..
 
 ### Using LLMs with Reasoning Traces
 
-```{warning}
-**Breaking Change in v0.18.0**: The `reasoning_config` field and its options (`remove_reasoning_traces`, `start_token`, `end_token`) have been removed. The `rails.output.apply_to_reasoning_traces` field has also been removed. Use output rails to guardrail reasoning traces instead.
-```
+:::{deprecated} 0.18.0
+**Breaking Change in v0.18.0**: The `reasoning_config` field and its options `remove_reasoning_traces`, `start_token`, and `end_token` are deprecated. The `rails.output.apply_to_reasoning_traces` field has also been deprecated. Use output rails to guardrail reasoning traces instead.
+:::
 
-Reasoning-capable LLMs such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d) and [NVIDIA Llama 3.1 Nemotron Ultra 253B V1](https://build.nvidia.com/nvidia/llama-3_1-nemotron-ultra-253b-v1) include reasoning traces in their responses, typically wrapped in tokens like `<think>` and `</think>`. NeMo Guardrails automatically extracts these traces and makes them available throughout your guardrails configuration via the `$bot_thinking` variable in Colang flows and `bot_thinking` in Python contexts.
+Reasoning-capable LLMs such as [DeepSeek-R1](https://huggingface.co/collections/deepseek-ai/deepseek-r1-678e1e131c0169c0bc89728d) and [NVIDIA Llama 3.1 Nemotron Ultra 253B V1](https://build.nvidia.com/nvidia/llama-3_1-nemotron-ultra-253b-v1) include reasoning traces in their responses, typically wrapped in tokens such as `<think>` and `</think>`.
+
+The NeMo Guardrails toolkit automatically extracts these traces and makes them available to set up in your guardrails configuration through the following variables:
+
+- In Colang flows, use the `$bot_thinking` variable.
+- In Python contexts, use the `bot_thinking` variable.
 
 #### Guardrailing Reasoning Traces with Output Rails
 
-The primary approach is to use output rails to inspect and control reasoning traces. This allows you to:
+Use output rails to inspect and control reasoning traces. This allows you to:
 
-- Block responses based on problematic reasoning patterns
-- Enhance moderation decisions with reasoning context
-- Monitor and filter sensitive information in reasoning
+- Block responses based on problematic reasoning patterns.
+- Enhance moderation decisions with reasoning context.
+- Monitor and filter sensitive information in reasoning.
 
-Here's a minimal example:
+##### Prepare Configuration Files
+
+The following configuration files show a minimal configuration for guardrailing reasoning traces with output rails.
+
+1. Configure output rails in `config.yml`:
 
 ```yaml
 models:
@@ -90,7 +99,7 @@ rails:
       - self check output
 ```
 
-**prompts.yml**:
+1. Configure the prompt to access the reasoning traces in `prompts.yml`:
 
 ```yaml
 prompts:
@@ -108,36 +117,69 @@ prompts:
       Answer:
 ```
 
-For more detailed examples of guardrailing reasoning traces, see [Guardrailing Bot Reasoning Content](../../advanced/bot-thinking-guardrails.md).
+For more detailed examples of guardrailing reasoning traces, refer to [Guardrailing Bot Reasoning Content](../../advanced/bot-thinking-guardrails.md).
 
 #### Accessing Reasoning Traces in API Responses
 
-##### With GenerationOptions (Structured Access)
+There are two ways to access reasoning traces in API responses: with generation options and without generation options.
 
-When you pass `GenerationOptions` to the API, the function returns a `GenerationResponse` object with structured fields, including `reasoning_content` for accessing reasoning traces separately from the main response:
+Read the option **With GenerationOptions** when you:
+
+- Need structured access to reasoning and response separately.
+- Are building a new application.
+- Need access to other structured fields such as state, output_data, or llm_metadata.
+
+Read the option **Without GenerationOptions** when you:
+
+- Need backward compatibility with existing code.
+- Want the raw response with inline reasoning tags.
+- Are integrating with systems that expect tagged strings.
+
+##### With GenerationOptions for Structured Access
+
+When you pass `GenerationOptions` to the API, the function returns a `GenerationResponse` object with structured fields. This approach provides clean separation between the reasoning traces and the final response content, making it easier to process each component independently.
+
+The `reasoning_content` field contains the extracted reasoning traces, while `response` contains the main LLM response. This structured access pattern is recommended for new applications as it provides type safety and clear access to all response metadata.
+
+The following example demonstrates how to use `GenerationOptions` in an guardrails async generation call `rails.generate_async` to access reasoning traces.
 
 ```python
 from nemoguardrails import RailsConfig, LLMRails
 from nemoguardrails.rails.llm.options import GenerationOptions
 
+# Load the guardrails configuration
 config = RailsConfig.from_path("./config")
 rails = LLMRails(config)
 
+# Create a GenerationOptions object to enable structured responses
 options = GenerationOptions()
+
+# Make an async call with GenerationOptions
 result = await rails.generate_async(
     messages=[{"role": "user", "content": "What is 2+2?"}],
     options=options
 )
 
+# Access reasoning traces separately from the response
 if result.reasoning_content:
     print("Reasoning:", result.reasoning_content)
 
+# Access the main response content
 print("Response:", result.response[0]["content"])
 ```
 
-##### Without GenerationOptions (Tagged String)
+The following example output shows the reasoning traces and the main response content from the guardrailed generation result.
 
-When calling without `GenerationOptions` (e.g., via dict/string response), reasoning is wrapped in `<think>` tags:
+```
+Reasoning: Let me calculate: 2 plus 2 equals 4.
+Response: The answer is 4.
+```
+
+##### Without GenerationOptions for Tagged String
+
+When calling without `GenerationOptions`, such as by using a dict or string response, reasoning is wrapped in `<think>` tags.
+
+The following example demonstrates how to access reasoning traces without using `GenerationOptions`.
 
 ```python
 response = rails.generate(
@@ -147,24 +189,12 @@ response = rails.generate(
 print(response["content"])
 ```
 
-Output:
+The response is wrapped in `<think>` tags as shown in the following example output.
 
 ```
 <think>Let me calculate: 2 plus 2 equals 4.</think>
 The answer is 4.
 ```
-
-**Which pattern should you use?**
-
-Use **Pattern 1 (With GenerationOptions)** when:
-- You need structured access to reasoning and response separately
-- You're building a new application
-- You need access to other structured fields (state, output_data, llm_metadata, etc.)
-
-Use **Pattern 2 (Without GenerationOptions)** when:
-- You need backward compatibility with existing code
-- You want the raw response with inline reasoning tags
-- You're integrating with systems that expect tagged strings
 
 ### NIM for LLMs
 
