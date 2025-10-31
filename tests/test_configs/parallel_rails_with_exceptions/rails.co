@@ -1,0 +1,34 @@
+define flow check safety with exception
+  $is_safe = execute check_safety_action
+
+  if not $is_safe
+    create event SafetyCheckException(message="Input blocked by safety check")
+    stop
+
+define flow check topic with exception
+  $is_on_topic = execute check_topic_action
+
+  if not $is_on_topic
+    create event TopicCheckException(message="Input blocked by topic check")
+    stop
+
+define flow check with context update
+  $is_allowed = execute check_with_context_update
+
+  if not $is_allowed
+    create event ContextUpdateException(message="Input blocked with context update")
+    stop
+
+define flow check output safety with exception
+  $is_safe = execute check_output_safety_action
+
+  if not $is_safe
+    create event OutputSafetyException(message="Output blocked by safety check")
+    stop
+
+define flow check output length with exception
+  $is_valid_length = execute check_output_length_action
+
+  if not $is_valid_length
+    create event OutputLengthException(message="Output blocked due to length")
+    stop

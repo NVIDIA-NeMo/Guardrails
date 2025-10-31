@@ -313,7 +313,8 @@ class RuntimeV1_0(Runtime):
             result = await func(*args, **kwargs)
 
             has_stop = any(
-                event["type"] == "BotIntent" and event["intent"] == "stop"
+                (event["type"] == "BotIntent" and event["intent"] == "stop")
+                or event["type"].endswith("Exception")
                 for event in result
             )
 
@@ -377,7 +378,8 @@ class RuntimeV1_0(Runtime):
 
                     # Check if this rail requested to stop
                     has_stop = any(
-                        event["type"] == "BotIntent" and event["intent"] == "stop"
+                        (event["type"] == "BotIntent" and event["intent"] == "stop")
+                        or event["type"].endswith("Exception")
                         for event in result
                     )
 
@@ -402,6 +404,7 @@ class RuntimeV1_0(Runtime):
                                     if v == pending_task:
                                         del unique_flow_ids[k]
                                         break
+                        # Remove the stopped flow from unique_flow_ids so it's not in finished_task_results
                         del unique_flow_ids[flow_id]
                         break
                     else:
@@ -448,13 +451,13 @@ class RuntimeV1_0(Runtime):
                 for plog in logs:
                     # Filter out "Listen" and "start_flow" events from task processing log
                     if plog["type"] == "event" and (
-                        plog["data"]["type"] == "Listen"
-                        or plog["data"]["type"] == "start_flow"
+                        plog["data"]["type"] == "start_flow"
                     ):
                         continue
                     target_log.append(plog)
 
-            filter_and_append(stopped_task_processing_logs, processing_log)
+            # Only append finished rails logs. Stopped rail logs should not be appended
+            # again since they're already in the processing log from when they started
             filter_and_append(finished_task_processing_logs, processing_log)
 
         # We pack all events into a single event to add it to the event history.
@@ -463,6 +466,7 @@ class RuntimeV1_0(Runtime):
             data={"events": finished_task_results},
         )
 
+        # Return stopped_task_results separately so the caller knows to stop processing
         return ActionResult(
             events=[history_events] + stopped_task_results,
             context_updates=context_updates,

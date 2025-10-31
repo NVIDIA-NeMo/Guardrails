@@ -1,0 +1,19 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  input:
+    flows:
+      - check safety with exception
+      - check topic with exception
+    parallel: True
+
+  output:
+    flows:
+      - check output safety with exception
+      - check output length with exception
+    parallel: True
+
+enable_rails_exceptions: True

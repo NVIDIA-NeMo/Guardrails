@@ -191,6 +191,15 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
             elif event_type == "OutputRailsFinished":
                 output_rails_finished_at = event["timestamp"]
 
+            elif event_type.endswith("Exception"):
+                if activated_rail is not None and activated_rail.type in [
+                    "input",
+                    "output",
+                ]:
+                    activated_rail.stop = True
+                    if "stop" not in activated_rail.decisions:
+                        activated_rail.decisions.append("stop")
+
         elif event["type"] == "llm_call_info":
             if executed_action is not None:
                 executed_action.llm_calls.append(event["data"])
@@ -210,7 +219,8 @@ def compute_generation_log(processing_log: List[dict]) -> GenerationLog:
 
         if activated_rail.type in ["input", "output"]:
             activated_rail.stop = True
-            activated_rail.decisions.append("stop")
+            if "stop" not in activated_rail.decisions:
+                activated_rail.decisions.append("stop")
 
     # If we have input rails, we also record the general stats
     if input_rails_started_at:
