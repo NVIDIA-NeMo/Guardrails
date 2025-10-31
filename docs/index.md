@@ -69,6 +69,7 @@ user-guides/advanced/kv-cache-reuse
 user-guides/advanced/safeguarding-ai-virtual-assistant-blueprint
 user-guides/advanced/tools-integration
 user-guides/advanced/model-memory-cache
+user-guides/advanced/bot-thinking-guardrails
 ```
 
 ```{toctree}
