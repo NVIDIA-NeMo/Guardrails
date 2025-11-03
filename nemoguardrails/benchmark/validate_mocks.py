@@ -39,16 +39,16 @@ def check_endpoint(port: int, expected_model: str):
     base_url = f"http://localhost:{port}"
     all_ok = True
 
-    logging.info(f"\n--- Checking Port: {port} ---")
+    logging.info("\n--- Checking Port: %s ---", port)
 
     # --- 1. Health Check ---
     health_url = f"{base_url}/health"
-    logging.info(f"Checking {health_url} ...")
+    logging.info("Checking %s ...", health_url)
     try:
         response = requests.get(health_url, timeout=3)
 
         if response.status_code != 200:
-            logging.error(f"Health Check FAILED: Status code {response.status_code}")
+            logging.error("Health Check FAILED: Status code %s", response.status_code)
             all_ok = False
         else:
             try:
@@ -58,7 +58,7 @@ def check_endpoint(port: int, expected_model: str):
                     logging.info("Health Check PASSED: Status is 'healthy'.")
                 else:
                     logging.warning(
-                        f"Health Check FAILED: Expected 'healthy', got '{status}'."
+                        "Health Check FAILED: Expected 'healthy', got '%s'.", status
                     )
                     all_ok = False
             except requests.exceptions.JSONDecodeError:
@@ -66,22 +66,25 @@ def check_endpoint(port: int, expected_model: str):
                 all_ok = False
 
     except requests.exceptions.ConnectionError:
-        logging.error(f"Health Check FAILED: No response from server on port {port}.")
-        logging.error(f"--- Port {port}: CHECKS FAILED ---")
-        return False, f"Port {port} ({expected_model}): FAILED (Connection Error)"
+        logging.error("Health Check FAILED: No response from server on port %s.", port)
+        logging.error("--- Port %s: CHECKS FAILED ---", port)
+        return False, "Port %s (%s): FAILED (Connection Error)" % (port, expected_model)
     except requests.exceptions.Timeout:
-        logging.error(f"Health Check FAILED: Connection timed out for port {port}.")
-        logging.error(f"--- Port {port}: CHECKS FAILED ---")
-        return False, f"Port {port} ({expected_model}): FAILED (Connection Timeout)"
+        logging.error("Health Check FAILED: Connection timed out for port %s.", port)
+        logging.error("--- Port %s: CHECKS FAILED ---", port)
+        return False, "Port %s (%s): FAILED (Connection Timeout)" % (
+            port,
+            expected_model,
+        )
 
     # --- 2. Model Check ---
     models_url = f"{base_url}/v1/models"
-    logging.info(f"Checking {models_url} for '{expected_model}'...")
+    logging.info("Checking %s for '%s'...", models_url, expected_model)
     try:
         response = requests.get(models_url, timeout=3)
 
         if response.status_code != 200:
-            logging.error(f"Model Check FAILED: Status code {response.status_code}")
+            logging.error("Model Check FAILED: Status code %s", response.status_code)
             all_ok = False
         else:
             try:
@@ -91,39 +94,41 @@ def check_endpoint(port: int, expected_model: str):
 
                 if expected_model in model_ids:
                     logging.info(
-                        f"Model Check PASSED: Found '{expected_model}' in model list."
+                        "Model Check PASSED: Found '%s' in model list.", expected_model
                     )
                 else:
                     logging.warning(
-                        f"Model Check FAILED: Expected '{expected_model}', but it was NOT found."
+                        "Model Check FAILED: Expected '%s', but it was NOT found.",
+                        expected_model,
                     )
                     logging.warning("Available models:")
                     for model_id in model_ids:
-                        logging.warning(f"  - {model_id}")
+                        logging.warning("  - %s", model_id)
                     all_ok = False
             except requests.exceptions.JSONDecodeError:
                 logging.error("Model Check FAILED: Could not decode JSON response.")
                 all_ok = False
             except AttributeError:
                 logging.error(
-                    f"Model Check FAILED: Unexpected JSON structure in response from {models_url}."
+                    "Model Check FAILED: Unexpected JSON structure in response from %s.",
+                    models_url,
                 )
                 all_ok = False
 
     except requests.exceptions.ConnectionError:
-        logging.error(f"Model Check FAILED: No response from server on port {port}.")
+        logging.error("Model Check FAILED: No response from server on port %s.", port)
         all_ok = False
     except requests.exceptions.Timeout:
-        logging.error(f"Model Check FAILED: Connection timed out for port {port}.")
+        logging.error("Model Check FAILED: Connection timed out for port %s.", port)
         all_ok = False
 
     # --- Final Status ---
     if all_ok:
-        logging.info(f"--- Port {port}: ALL CHECKS PASSED ---")
-        return True, f"Port {port} ({expected_model}): PASSED"
+        logging.info("--- Port %s: ALL CHECKS PASSED ---", port)
+        return True, "Port %s (%s): PASSED" % (port, expected_model)
     else:
-        logging.error(f"--- Port {port}: CHECKS FAILED ---")
-        return False, f"Port {port} ({expected_model}): FAILED"
+        logging.error("--- Port %s: CHECKS FAILED ---", port)
+        return False, "Port %s (%s): FAILED" % (port, expected_model)
 
 
 def check_rails_endpoint(port: int):
@@ -136,18 +141,18 @@ def check_rails_endpoint(port: int):
     endpoint = f"{base_url}/v1/rails/configs"
     all_ok = True
 
-    logging.info(f"\n--- Checking Port: {port} (Rails Config) ---")
-    logging.info(f"Checking {endpoint} ...")
+    logging.info("\n--- Checking Port: %s (Rails Config) ---", port)
+    logging.info("Checking %s ...", endpoint)
 
     try:
         response = requests.get(endpoint, timeout=3)
 
         # --- 1. HTTP Status Check ---
         if response.status_code == 200:
-            logging.info(f"HTTP Status PASSED: Got {response.status_code}.")
+            logging.info("HTTP Status PASSED: Got %s.", response.status_code)
         else:
             logging.warning(
-                f"HTTP Status FAILED: Expected 200, got '{response.status_code}'."
+                "HTTP Status FAILED: Expected 200, got '%s'.", response.status_code
             )
             all_ok = False
 
@@ -163,30 +168,30 @@ def check_rails_endpoint(port: int):
                     "Body Check FAILED: Response is not an array or is empty."
                 )
                 logging.debug(
-                    f"Response body (first 200 chars): {str(response.text)[:200]}"
+                    "Response body (first 200 chars): %s", str(response.text)[:200]
                 )
                 all_ok = False
         except requests.exceptions.JSONDecodeError:
             logging.error("Body Check FAILED: Could not decode JSON response.")
             logging.debug(
-                f"Response body (first 200 chars): {str(response.text)[:200]}"
+                "Response body (first 200 chars): %s", str(response.text)[:200]
             )
             all_ok = False
 
     except requests.exceptions.ConnectionError:
-        logging.error(f"Rails Check FAILED: No response from server on port {port}.")
+        logging.error("Rails Check FAILED: No response from server on port %s.", port)
         all_ok = False
     except requests.exceptions.Timeout:
-        logging.error(f"Rails Check FAILED: Connection timed out for port {port}.")
+        logging.error("Rails Check FAILED: Connection timed out for port %s.", port)
         all_ok = False
 
     # --- Final Status ---
     if all_ok:
-        logging.info(f"--- Port {port}: ALL CHECKS PASSED ---")
-        return True, f"Port {port} (Rails Config): PASSED"
+        logging.info("--- Port %s: ALL CHECKS PASSED ---", port)
+        return True, "Port %s (Rails Config): PASSED" % port
     else:
-        logging.error(f"--- Port {port}: CHECKS FAILED ---")
-        return False, f"Port {port} (Rails Config): FAILED"
+        logging.error("--- Port %s: CHECKS FAILED ---", port)
+        return False, "Port %s (Rails Config): FAILED" % port
 
 
 def main():
