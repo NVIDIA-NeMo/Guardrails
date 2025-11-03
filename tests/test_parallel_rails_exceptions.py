@@ -181,10 +181,15 @@ async def test_parallel_rails_exception_consistency_with_sequential():
     assert len(parallel_stopped) > 0, "Parallel mode should have stopped rails"
     assert len(sequential_stopped) > 0, "Sequential mode should have stopped rails"
 
+    assert len(parallel_stopped) == len(sequential_stopped), (
+        f"Parallel and sequential modes should stop the same number of rails. "
+        f"Parallel: {len(parallel_stopped)}, Sequential: {len(sequential_stopped)}"
+    )
+
     parallel_stopped_names = {r.name for r in parallel_stopped}
     sequential_stopped_names = {r.name for r in sequential_stopped}
 
-    assert len(parallel_stopped_names.intersection(sequential_stopped_names)) > 0, (
+    assert parallel_stopped_names == sequential_stopped_names, (
         f"Parallel and sequential modes should stop the same rails. "
         f"Parallel stopped: {parallel_stopped_names}, Sequential stopped: {sequential_stopped_names}"
     )
@@ -213,6 +218,16 @@ async def test_parallel_rails_exception_with_passing_rails():
 
     assert len(stopped_rails) > 0, "Should have at least one stopped rail"
     assert len(passed_rails) > 0, "Should have at least one passed rail"
+
+    safety_rail = next(
+        (r for r in result.log.activated_rails if "safety" in r.name.lower()), None
+    )
+    assert safety_rail is not None, "Safety rail should have executed"
+    assert safety_rail.stop, "Safety rail should have stopped"
+    assert any(
+        "check_safety_action" in action.action_name
+        for action in safety_rail.executed_actions
+    ), "check_safety_action should have fired"
 
     # stopped rails should have "stop" in decisions
     for rail in stopped_rails:
@@ -252,6 +267,12 @@ async def test_parallel_rails_multiple_simultaneous_violations():
     assert (
         len(stopped_rails) > 0
     ), "Expected at least one stopped rail when multiple violations occur"
+
+    stopped_rail_names = {r.name for r in stopped_rails}
+    assert (
+        "check safety with exception" in stopped_rail_names
+        or "check topic with exception" in stopped_rail_names
+    ), f"Expected safety or topic rail to stop, got: {stopped_rail_names}"
 
     for rail in stopped_rails:
         assert rail.stop is True, f"Stopped rail '{rail.name}' should have stop=True"
@@ -295,6 +316,16 @@ async def test_parallel_output_rails_exception_stop_flag():
     assert (
         len(stopped_output_rails) > 0
     ), "Expected at least one stopped output rail when output is blocked"
+
+    output_safety_rail = next(
+        (r for r in output_rails if "output safety" in r.name.lower()), None
+    )
+    assert output_safety_rail is not None, "Output safety rail should have executed"
+    assert output_safety_rail.stop, "Output safety rail should have stopped"
+    assert any(
+        "check_output_safety_action" in action.action_name
+        for action in output_safety_rail.executed_actions
+    ), "check_output_safety_action should have fired"
 
     for rail in stopped_output_rails:
         assert (
