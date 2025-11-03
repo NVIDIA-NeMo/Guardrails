@@ -449,7 +449,6 @@ class RuntimeV1_0(Runtime):
 
             def filter_and_append(logs, target_log):
                 for plog in logs:
-                    # Filter out "Listen" and "start_flow" events from task processing log
                     if plog["type"] == "event" and (
                         plog["data"]["type"] == "start_flow"
                     ):

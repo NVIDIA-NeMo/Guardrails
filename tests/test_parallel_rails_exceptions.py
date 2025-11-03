@@ -150,7 +150,6 @@ async def test_parallel_rails_exception_consistency_with_sequential():
     config_parallel = RailsConfig.from_path(
         os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
     )
-    config_parallel.rails.input.parallel = True
 
     chat_parallel = TestChat(
         config_parallel,
@@ -165,6 +164,7 @@ async def test_parallel_rails_exception_consistency_with_sequential():
         os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
     )
     config_sequential.rails.input.parallel = False
+    config_sequential.rails.output.parallel = False
 
     chat_sequential = TestChat(
         config_sequential,
