@@ -243,15 +243,18 @@ def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
 def _store_reasoning_traces(response) -> None:
     """Store reasoning traces from response in context variable.
 
-    Extracts reasoning content from response.additional_kwargs["reasoning_content"]
-    if available. Otherwise, falls back to extracting from <think> tags in the
-    response content (and removes the tags from content).
+    Tries multiple extraction methods in order of preference:
+    1. content_blocks with type="reasoning" (LangChain v1 standard)
+    2. additional_kwargs["reasoning_content"] (provider-specific)
+    3. <think> tags in content (legacy fallback)
 
     Args:
         response: The LLM response object
     """
+    reasoning_content = _extract_reasoning_from_content_blocks(response)
 
-    reasoning_content = _extract_reasoning_content(response)
+    if not reasoning_content:
+        reasoning_content = _extract_reasoning_from_additional_kwargs(response)
 
     if not reasoning_content:
         # Some LLM providers (e.g., certain NVIDIA models) embed reasoning in <think> tags
@@ -263,14 +266,27 @@ def _store_reasoning_traces(response) -> None:
         reasoning_trace_var.set(reasoning_content)
 
 
-def _extract_reasoning_content(response):
+def _extract_reasoning_from_content_blocks(response) -> Optional[str]:
+    """Extract reasoning from content_blocks with type='reasoning'.
+
+    This is the LangChain v1 standard for structured content blocks.
+    """
+    if hasattr(response, "content_blocks"):
+        for block in response.content_blocks:
+            if block.get("type") == "reasoning":
+                return block.get("reasoning")
+    return None
+
+
+def _extract_reasoning_from_additional_kwargs(response) -> Optional[str]:
+    """Extract reasoning from additional_kwargs['reasoning_content'].
+
+    This is used by some providers for backward compatibility.
+    """
     if hasattr(response, "additional_kwargs"):
         additional_kwargs = response.additional_kwargs
-        if (
-            isinstance(additional_kwargs, dict)
-            and "reasoning_content" in additional_kwargs
-        ):
-            return additional_kwargs["reasoning_content"]
+        if isinstance(additional_kwargs, dict):
+            return additional_kwargs.get("reasoning_content")
     return None
 
 
@@ -317,8 +333,24 @@ def _extract_and_remove_think_tags(response) -> Optional[str]:
 
 def _store_tool_calls(response) -> None:
     """Extract and store tool calls from response in context."""
-    tool_calls = getattr(response, "tool_calls", None)
+    tool_calls = _extract_tool_calls_from_content_blocks(response)
+    if not tool_calls:
+        tool_calls = _extract_tool_calls_from_attribute(response)
     tool_calls_var.set(tool_calls)
+
+
+def _extract_tool_calls_from_content_blocks(response) -> List | None:
+    if hasattr(response, "content_blocks"):
+        tool_calls = []
+        for block in response.content_blocks:
+            if block.get("type") == "tool_call":
+                tool_calls.append(block)
+        return tool_calls if tool_calls else None
+    return None
+
+
+def _extract_tool_calls_from_attribute(response) -> List | None:
+    return getattr(response, "tool_calls", None)
 
 
 def _store_response_metadata(response) -> None:
