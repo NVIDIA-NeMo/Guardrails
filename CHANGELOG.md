@@ -44,7 +44,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 📚 Documentation
 
-- Release notes for v0.17.0 ([#1438](https://github.com/NVIDIA/NeMo-Guardrails/issues/1438)) 
 - More detail for release notes ([#1447](https://github.com/NVIDIA/NeMo-Guardrails/issues/1447)) 
 - *(examples)* Add nemoguards cache configuration example ([#1459](https://github.com/NVIDIA/NeMo-Guardrails/issues/1459)) 
 - Add guide for bot reasoning guardrails ([#1479](https://github.com/NVIDIA/NeMo-Guardrails/issues/1479)) 
