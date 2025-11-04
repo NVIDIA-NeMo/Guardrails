@@ -22,7 +22,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(cache)* Add LLM metadata caching for model and provider information ([#1456](https://github.com/NVIDIA/NeMo-Guardrails/issues/1456)) 
 - *(cache)* Add caching support for topic safety and content safety output checks ([#1457](https://github.com/NVIDIA/NeMo-Guardrails/issues/1457)) 
 - *(cache)* Add caching support for jailbreak detection ([#1458](https://github.com/NVIDIA/NeMo-Guardrails/issues/1458)) 
-- Add Cohere embedding integration ([#1305](https://github.com/NVIDIA/NeMo-Guardrails/issues/1305)) 
+- *(embeddings)* Add Cohere embedding integration ([#1305](https://github.com/NVIDIA/NeMo-Guardrails/issues/1305)) 
 - *(embeddings)* Add Google embedding integration ([#1304](https://github.com/NVIDIA/NeMo-Guardrails/issues/1304)) 
 - *(llm)* Add automatic provider inference for LangChain LLMs ([#1460](https://github.com/NVIDIA/NeMo-Guardrails/issues/1460)) 
 - *(llm)* Add custom HTTP headers support to ChatNVIDIA provider ([#1461](https://github.com/NVIDIA/NeMo-Guardrails/issues/1461)) 
