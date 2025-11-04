@@ -51,13 +51,15 @@ def extract_model_name_and_base_url(
     if "repr" in serialized and isinstance(serialized["repr"], str):
         repr_str = serialized["repr"]
 
-        # Extract model name. We expect the property to be formatted like model='...' or model_name='...'
+        # Extract model name. We expect the property to be formatted like model='...' or model_name='...',
+        # and check for single and double quotes.
         if not model_name:
             match = re.search(r"model(?:_name)?=['\"]([^'\"]+)['\"]", repr_str)
             if match:
                 model_name = match.group(1)
 
         # Extract base URL. The propety name may vary between providers, so try common attribute patterns.
+        # We expect the property to be formatted like property_name='...', and check for single and double quotes.
         if not base_url:
             url_attrs = [
                 "api_base",
