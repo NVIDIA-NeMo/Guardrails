@@ -16,7 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(bot-thinking)* Add reasoning trace extraction from llm calls ([#1431](https://github.com/NVIDIA/NeMo-Guardrails/issues/1431)) 
 - *(bot-thinking)* Emit BotThinking events with reasoning traces ([#1432](https://github.com/NVIDIA/NeMo-Guardrails/issues/1432)) 
 - *(bot-thinking)* Improve event logging and add bot thinking display ([#1434](https://github.com/NVIDIA/NeMo-Guardrails/issues/1434)) 
-- Add Azure OpenAI embedding provider ([#702](https://github.com/NVIDIA/NeMo-Guardrails/issues/702)) 
+- *(embeddings)* Add Azure OpenAI embedding provider ([#702](https://github.com/NVIDIA/NeMo-Guardrails/issues/702)) 
 - *(library)* Add Cisco AI Defense integration ([#1433](https://github.com/NVIDIA/NeMo-Guardrails/issues/1433)) 
 - *(cache)* Add LFU caching system for models (currently applied to content safety checks) ([#1436](https://github.com/NVIDIA/NeMo-Guardrails/issues/1436)) 
 - *(cache)* Add LLM metadata caching for model and provider information ([#1456](https://github.com/NVIDIA/NeMo-Guardrails/issues/1456)) 
