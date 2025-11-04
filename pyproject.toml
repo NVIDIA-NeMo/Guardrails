@@ -4,7 +4,7 @@ description = "NeMo Guardrails is an open-source toolkit for easily adding progr
 authors = ["NVIDIA <nemoguardrails@nvidia.com>"]
 license = "LICENSE.md"
 readme = "README.md"
-version = "0.17.0"
+version = "0.18.0"
 packages = [{ include = "nemoguardrails" }]
 
 
