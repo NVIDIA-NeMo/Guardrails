@@ -211,37 +211,6 @@ def _prepare_callbacks(
     return logging_callbacks
 
 
-def _log_model_and_base_url(llm: Union[BaseLanguageModel, Runnable]) -> None:
-    """Extract and log the model and base URL from an LLM instance."""
-    model_name = _infer_model_name(llm)
-    base_url = None
-
-    # If llm is a `ChatNIM` instance, we expect its `client` to be an `OpenAI` client with a `base_url` attribute.
-    if hasattr(llm, "client"):
-        client = getattr(llm, "client")
-        if hasattr(client, "base_url"):
-            base_url = str(client.base_url)
-    else:
-        # If llm is a `ChatNVIDIA` instance or other provider, check common attribute names that store the base URL.
-        for attr in [
-            "base_url",
-            "openai_api_base",
-            "azure_endpoint",
-            "api_base",
-            "endpoint",
-        ]:
-            if hasattr(llm, attr):
-                value = getattr(llm, attr, None)
-                if value:
-                    base_url = str(value)
-                    break
-
-    if base_url:
-        log.info(f"Invoking LLM: model={model_name}, url={base_url}")
-    else:
-        log.info(f"Invoking LLM: model={model_name}")
-
-
 async def _invoke_with_string_prompt(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: str,
@@ -249,7 +218,6 @@ async def _invoke_with_string_prompt(
 ):
     """Invoke LLM with string prompt."""
     try:
-        _log_model_and_base_url(llm)
         return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks))
     except Exception as e:
         raise LLMCallException(e)
@@ -264,7 +232,6 @@ async def _invoke_with_message_list(
     messages = _convert_messages_to_langchain_format(prompt)
 
     try:
-        _log_model_and_base_url(llm)
         return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks))
     except Exception as e:
         raise LLMCallException(e)

@@ -31,6 +31,7 @@ from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stat
 from nemoguardrails.logging.callbacks import LoggingCallbackHandler
 from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats
+from nemoguardrails.logging.utils import extract_model_name_and_base_url
 
 
 @pytest.mark.asyncio
@@ -261,3 +262,122 @@ async def test_unknown_message_type_labeling():
         assert logged_prompt is not None
         assert "[cyan]Custom[/]" in logged_prompt
         assert "[cyan]Function[/]" in logged_prompt
+
+
+def test_extract_model_and_url_from_kwargs():
+    """Test extracting model_name and openai_api_base from kwargs (ChatOpenAI case)."""
+    serialized = {
+        "kwargs": {
+            "model_name": "gpt-4",
+            "openai_api_base": "https://api.openai.com/v1",
+            "temperature": 0.7,
+        }
+    }
+
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+
+    assert model_name == "gpt-4"
+    assert base_url == "https://api.openai.com/v1"
+
+
+def test_extract_model_and_url_from_repr():
+    """Test extracting from repr string (ChatNIM case)."""
+    # Property values in single-quotes
+    serialized = {
+        "kwargs": {"temperature": 0.1},
+        "repr": "ChatNIM(model='meta/llama-3.3-70b-instruct', client=<openai.OpenAI object at 0x10d8e4e90>, endpoint_url='https://nim.int.aire.nvidia.com/v1')",
+    }
+
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+
+    assert model_name == "meta/llama-3.3-70b-instruct"
+    assert base_url == "https://nim.int.aire.nvidia.com/v1"
+
+    # Property values in double-quotes
+    serialized = {
+        "repr": 'ChatOpenAI(model="gpt-3.5-turbo", base_url="https://custom.api.com/v1")'
+    }
+
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+
+    assert model_name == "gpt-3.5-turbo"
+    assert base_url == "https://custom.api.com/v1"
+
+    # Model is stored in the `model_name` property
+    serialized = {
+        "repr": "SomeProvider(model_name='custom-model-v2', api_base='https://example.com')"
+    }
+
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+
+    assert model_name == "custom-model-v2"
+    assert base_url == "https://example.com"
+
+
+def test_extract_model_and_url_from_various_url_properties():
+    """Test extracting various URL property names."""
+    test_cases = [
+        ("api_base='https://api1.com'", "https://api1.com"),
+        ("api_host='https://api2.com'", "https://api2.com"),
+        ("azure_endpoint='https://azure.com'", "https://azure.com"),
+        ("endpoint='https://endpoint.com'", "https://endpoint.com"),
+        ("openai_api_base='https://openai.com'", "https://openai.com"),
+    ]
+
+    for url_pattern, expected_url in test_cases:
+        serialized = {"repr": f"Provider(model='test-model', {url_pattern})"}
+        model_name, base_url = extract_model_name_and_base_url(serialized)
+        assert base_url == expected_url, f"Failed for pattern: {url_pattern}"
+
+
+def test_extract_model_and_url_kwargs_priority_over_repr():
+    """Test that kwargs values, if present, take priority over repr values."""
+    serialized = {
+        "kwargs": {
+            "model_name": "gpt-4-from-kwargs",
+            "openai_api_base": "https://kwargs.api.com",
+        },
+        "repr": "ChatOpenAI(model='gpt-3.5-from-repr', base_url='https://repr.api.com')",
+    }
+
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+
+    assert model_name == "gpt-4-from-kwargs"
+    assert base_url == "https://kwargs.api.com"
+
+
+def test_extract_model_and_url_with_missing_values():
+    """Test extraction when values are missing."""
+    # No model or URL
+    serialized = {"kwargs": {"temperature": 0.7}}
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+    assert model_name is None
+    assert base_url is None
+
+    # Only model, no URL
+    serialized = {"kwargs": {"model_name": "gpt-4"}}
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+    assert model_name == "gpt-4"
+    assert base_url is None
+
+    # Only URL, no model
+    serialized = {"repr": "Provider(endpoint_url='https://example.com')"}
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+    assert model_name is None
+    assert base_url == "https://example.com"
+
+
+def test_extract_model_and_url_with_empty_values():
+    """Test extraction when values are empty strings."""
+    serialized = {"kwargs": {"model_name": "", "openai_api_base": ""}}
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+    assert model_name is None
+    assert base_url is None
+
+
+def test_extract_model_and_url_with_empty_serialized_data():
+    """Test extraction with empty or minimal serialized dict."""
+    serialized = {}
+    model_name, base_url = extract_model_name_and_base_url(serialized)
+    assert model_name is None
+    assert base_url is None

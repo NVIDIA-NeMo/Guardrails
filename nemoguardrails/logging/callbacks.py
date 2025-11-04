@@ -32,6 +32,7 @@ from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stat
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
+from nemoguardrails.logging.utils import extract_model_name_and_base_url
 from nemoguardrails.utils import new_uuid
 
 log = logging.getLogger(__name__)
@@ -63,6 +64,15 @@ class LoggingCallbackHandler(AsyncCallbackHandler):
         explain_info = explain_info_var.get()
         if explain_info:
             explain_info.llm_calls.append(llm_call_info)
+
+        # Log model name and base URL
+        model_name, base_url = extract_model_name_and_base_url(serialized)
+        if base_url:
+            log.info(f"Invoking LLM: model={model_name}, url={base_url}")
+        elif model_name:
+            log.info(f"Invoking LLM: model={model_name}")
+        else:
+            log.info("Invoking LLM")
 
         log.info("Invocation Params :: %s", kwargs.get("invocation_params", {}))
         log.info(
@@ -104,6 +114,15 @@ class LoggingCallbackHandler(AsyncCallbackHandler):
         explain_info = explain_info_var.get()
         if explain_info:
             explain_info.llm_calls.append(llm_call_info)
+
+        # Log model name and base URL
+        model_name, base_url = extract_model_name_and_base_url(serialized)
+        if base_url:
+            log.info(f"Invoking LLM: model={model_name}, url={base_url}")
+        elif model_name:
+            log.info(f"Invoking LLM: model={model_name}")
+        else:
+            log.info("Invoking LLM")
 
         type_map = {
             "human": "User",
