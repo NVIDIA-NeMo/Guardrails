@@ -12,6 +12,31 @@ The following sections summarize and highlight the changes for each release.
 For a complete record of changes in a release, refer to the
 [CHANGELOG.md](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
 
+---
+
+(v0-18-0)=
+
+## 0.18.0
+
+(v0-18-0-features)=
+
+### Key Features
+
+- In-memory caching of guardrail model calls for reduced latency and cost savings.
+  NeMo Guardrails now supports per-model caching of guardrail responses using an LFU (Least Frequently Used) cache.
+  This feature is particularly effective for safety models such as [Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) where identical inputs are common.
+  For more information, refer to [](model-memory-cache).
+- NeMo Guardrails extracts the reasoning traces from the LLM response and emits them as `BotThinking` events before the final `BotMessage` event.
+  For more information, refer to [](bot-thinking-guardrails).
+
+(v0-18-0-fixed-issues)=
+
+### Fixed Issues
+
+- Implemented validation of content safety and topic control guardrail configurations at creation time, providing prompt error reporting if required prompt templates or parameters are missing.
+
+---
+
 (v0-17-0)=
 
 ## 0.17.0

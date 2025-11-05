@@ -1,3 +1,5 @@
+(bot-thinking-guardrails)=
+
 # Guardrailing Bot Reasoning Content
 
 Reasoning-capable large language models (LLMs) expose their internal thought process as reasoning traces. These traces reveal how the model arrives at its conclusions, providing transparency into the decision-making process. However, they may also contain sensitive information or problematic reasoning patterns that need to be monitored and controlled.
