@@ -28,6 +28,8 @@ For a complete record of changes in a release, refer to the
   For more information, refer to [](model-memory-cache).
 - NeMo Guardrails extracts the reasoning traces from the LLM response and emits them as `BotThinking` events before the final `BotMessage` event.
   For more information, refer to [](bot-thinking-guardrails).
+- New community integration with [Cisco AI Defense](https://www.cisco.com/site/ca/en/products/security/ai-defense/index.html).
+- New embedding integrations with Azure OpenAI, Google, and Cohere.
 
 (v0-18-0-fixed-issues)=
 
