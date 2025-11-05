@@ -9,7 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
-## [0.18.0] - 2025-11-04
+## [0.18.0] - 2025-11-05
 
 ### 🚀 Features
 
@@ -77,7 +77,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(types)* Type-clean embeddings/ (25 errors) ([#1383](https://github.com/NVIDIA/NeMo-Guardrails/issues/1383))
 - *(types)* Type-clean server/ (20 errors) ([#1397](https://github.com/NVIDIA/NeMo-Guardrails/issues/1397))
 - *(types)* Type-clean llm/ (27 errors) ([#1394](https://github.com/NVIDIA/NeMo-Guardrails/issues/1394))
-
 
 ## [0.17.0] - 2025-10-09
 
