@@ -46,8 +46,8 @@ def extract_model_name_and_base_url(
         if "openai_api_base" in kwargs and kwargs["openai_api_base"]:
             base_url = str(kwargs["openai_api_base"])
 
-    # Case 2: For other providers, parse `repr`, a string representation of the provider class. We don't have
-    # a reference to the actual class, so we need to parse the string representation.
+    # Case 2: For other providers, parse `repr`, a string representation of the provider class. Since we don't
+    # have a reference to the actual class, we need to parse the string representation.
     if "repr" in serialized and isinstance(serialized["repr"], str):
         repr_str = serialized["repr"]
 
@@ -58,7 +58,7 @@ def extract_model_name_and_base_url(
             if match:
                 model_name = match.group(1)
 
-        # Extract base URL. The propety name may vary between providers, so try common attribute patterns.
+        # Extract base URL. The property name may vary between providers, so try common names.
         # We expect the property to be formatted like property_name='...', and check for single and double quotes.
         if not base_url:
             url_attrs = [
