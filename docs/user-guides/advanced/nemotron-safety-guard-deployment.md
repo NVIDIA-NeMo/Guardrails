@@ -16,7 +16,7 @@ The sample code relies on starting a local instance of the
 [Llama 3.1 Nemotron Safety Guard 8B V3](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3)
 container that is available from NVIDIA NGC.
 
-The steps guide you to start the content safety container, configure a content safety input rails, and then use NeMo Guardrails interactively to send safe and unsafe requests.
+The steps guide you to start the content safety container, configure input and output content safety rails, and then use NeMo Guardrails interactively to send safe and unsafe requests.
 
 ## Prerequisites
 

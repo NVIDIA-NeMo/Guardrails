@@ -19,6 +19,6 @@ Advanced
    streaming
    using-docker
    vertexai-setup
-   nemoguard-contentsafety-deployment
+   nemotron-content-safety-multilingual-deployment
    nemoguard-topiccontrol-deployment
    safeguarding-ai-virtual-assistant-blueprint
