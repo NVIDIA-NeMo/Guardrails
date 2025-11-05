@@ -24,7 +24,7 @@ For a complete record of changes in a release, refer to the
 
 - In-memory caching of guardrail model calls for reduced latency and cost savings.
   NeMo Guardrails now supports per-model caching of guardrail responses using an LFU (Least Frequently Used) cache.
-  This feature is particularly effective for safety models such as [Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) where identical inputs are common.
+  This feature is particularly effective for safety models such as NVIDIA NemoGuard [Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) where identical inputs are common.
   For more information, refer to [](model-memory-cache).
 - NeMo Guardrails extracts the reasoning traces from the LLM response and emits them as `BotThinking` events before the final `BotMessage` event.
   For more information, refer to [](bot-thinking-guardrails).
