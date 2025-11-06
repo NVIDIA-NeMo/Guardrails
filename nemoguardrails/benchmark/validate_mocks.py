@@ -17,13 +17,14 @@
 
 """
 A script to check the health and model IDs of local OpenAI-compatible endpoints.
-Requires the 'requests' library: pip install requests
+Requires the 'httpx' library: pip install httpx
 """
 
+import json
 import logging
 import sys
 
-import requests
+import httpx
 
 # --- Logging Setup ---
 # Configure basic logging to print info-level messages
@@ -45,7 +46,7 @@ def check_endpoint(port: int, expected_model: str):
     health_url = f"{base_url}/health"
     logging.info("Checking %s ...", health_url)
     try:
-        response = requests.get(health_url, timeout=3)
+        response = httpx.get(health_url, timeout=3)
 
         if response.status_code != 200:
             logging.error("Health Check FAILED: Status code %s", response.status_code)
@@ -61,15 +62,15 @@ def check_endpoint(port: int, expected_model: str):
                         "Health Check FAILED: Expected 'healthy', got '%s'.", status
                     )
                     all_ok = False
-            except requests.exceptions.JSONDecodeError:
+            except json.JSONDecodeError:
                 logging.error("Health Check FAILED: Could not decode JSON response.")
                 all_ok = False
 
-    except requests.exceptions.ConnectionError:
+    except httpx.ConnectError:
         logging.error("Health Check FAILED: No response from server on port %s.", port)
         logging.error("--- Port %s: CHECKS FAILED ---", port)
         return False, "Port %s (%s): FAILED (Connection Error)" % (port, expected_model)
-    except requests.exceptions.Timeout:
+    except httpx.TimeoutException:
         logging.error("Health Check FAILED: Connection timed out for port %s.", port)
         logging.error("--- Port %s: CHECKS FAILED ---", port)
         return False, "Port %s (%s): FAILED (Connection Timeout)" % (
@@ -81,7 +82,7 @@ def check_endpoint(port: int, expected_model: str):
     models_url = f"{base_url}/v1/models"
     logging.info("Checking %s for '%s'...", models_url, expected_model)
     try:
-        response = requests.get(models_url, timeout=3)
+        response = httpx.get(models_url, timeout=3)
 
         if response.status_code != 200:
             logging.error("Model Check FAILED: Status code %s", response.status_code)
@@ -105,7 +106,7 @@ def check_endpoint(port: int, expected_model: str):
                     for model_id in model_ids:
                         logging.warning("  - %s", model_id)
                     all_ok = False
-            except requests.exceptions.JSONDecodeError:
+            except json.JSONDecodeError:
                 logging.error("Model Check FAILED: Could not decode JSON response.")
                 all_ok = False
             except AttributeError:
@@ -115,10 +116,10 @@ def check_endpoint(port: int, expected_model: str):
                 )
                 all_ok = False
 
-    except requests.exceptions.ConnectionError:
+    except httpx.ConnectError:
         logging.error("Model Check FAILED: No response from server on port %s.", port)
         all_ok = False
-    except requests.exceptions.Timeout:
+    except httpx.TimeoutException:
         logging.error("Model Check FAILED: Connection timed out for port %s.", port)
         all_ok = False
 
@@ -145,7 +146,7 @@ def check_rails_endpoint(port: int):
     logging.info("Checking %s ...", endpoint)
 
     try:
-        response = requests.get(endpoint, timeout=3)
+        response = httpx.get(endpoint, timeout=3)
 
         # --- 1. HTTP Status Check ---
         if response.status_code == 200:
@@ -171,17 +172,17 @@ def check_rails_endpoint(port: int):
                     "Response body (first 200 chars): %s", str(response.text)[:200]
                 )
                 all_ok = False
-        except requests.exceptions.JSONDecodeError:
+        except json.JSONDecodeError:
             logging.error("Body Check FAILED: Could not decode JSON response.")
             logging.debug(
                 "Response body (first 200 chars): %s", str(response.text)[:200]
             )
             all_ok = False
 
-    except requests.exceptions.ConnectionError:
+    except httpx.ConnectError:
         logging.error("Rails Check FAILED: No response from server on port %s.", port)
         all_ok = False
-    except requests.exceptions.Timeout:
+    except httpx.TimeoutException:
         logging.error("Rails Check FAILED: Connection timed out for port %s.", port)
         all_ok = False
 

@@ -19,10 +19,11 @@
 Tests for validate_mocks.py script.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
-import requests
 
 from nemoguardrails.benchmark.validate_mocks import (
     check_endpoint,
@@ -34,7 +35,7 @@ from nemoguardrails.benchmark.validate_mocks import (
 class TestCheckEndpoint:
     """Tests for check_endpoint function."""
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_success(self, mock_get):
         """Test successful health and model checks."""
         # Mock health check response
@@ -61,7 +62,7 @@ class TestCheckEndpoint:
         assert "8000" in summary
         assert mock_get.call_count == 2
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_health_check_failed_status(self, mock_get):
         """Test health check with non-200 status code."""
         health_response = MagicMock()
@@ -74,7 +75,7 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_health_check_unhealthy_status(self, mock_get):
         """Test health check with unhealthy status."""
         health_response = MagicMock()
@@ -92,12 +93,12 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_health_check_json_decode_error(self, mock_get):
         """Test health check with invalid JSON."""
         health_response = MagicMock()
         health_response.status_code = 200
-        health_response.json.side_effect = requests.exceptions.JSONDecodeError(
+        health_response.json.side_effect = json.JSONDecodeError(
             "Expecting value", "", 0
         )
 
@@ -108,10 +109,10 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_health_connection_error(self, mock_get):
         """Test health check with connection error."""
-        mock_get.side_effect = requests.exceptions.ConnectionError()
+        mock_get.side_effect = httpx.ConnectError("Connection failed")
 
         success, summary = check_endpoint(8000, "test-model")
 
@@ -119,10 +120,10 @@ class TestCheckEndpoint:
         assert "FAILED" in summary
         assert "Connection Error" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_health_timeout(self, mock_get):
         """Test health check with timeout."""
-        mock_get.side_effect = requests.exceptions.Timeout()
+        mock_get.side_effect = httpx.TimeoutException("Request timed out")
 
         success, summary = check_endpoint(8000, "test-model")
 
@@ -130,7 +131,7 @@ class TestCheckEndpoint:
         assert "FAILED" in summary
         assert "Connection Timeout" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_model_check_failed_status(self, mock_get):
         """Test model check with non-200 status code."""
         health_response = MagicMock()
@@ -147,7 +148,7 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_model_not_found(self, mock_get):
         """Test model check when expected model is not in the list."""
         health_response = MagicMock()
@@ -170,7 +171,7 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_model_check_json_decode_error(self, mock_get):
         """Test model check with invalid JSON."""
         health_response = MagicMock()
@@ -179,7 +180,7 @@ class TestCheckEndpoint:
 
         models_response = MagicMock()
         models_response.status_code = 200
-        models_response.json.side_effect = requests.exceptions.JSONDecodeError(
+        models_response.json.side_effect = json.JSONDecodeError(
             "Expecting value", "", 0
         )
 
@@ -190,7 +191,7 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_model_check_unexpected_json_structure(self, mock_get):
         """Test model check with unexpected JSON structure."""
         health_response = MagicMock()
@@ -209,28 +210,34 @@ class TestCheckEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_model_check_connection_error(self, mock_get):
         """Test model check with connection error."""
         health_response = MagicMock()
         health_response.status_code = 200
         health_response.json.return_value = {"status": "healthy"}
 
-        mock_get.side_effect = [health_response, requests.exceptions.ConnectionError()]
+        mock_get.side_effect = [
+            health_response,
+            httpx.ConnectError("Connection failed"),
+        ]
 
         success, summary = check_endpoint(8000, "test-model")
 
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_endpoint_model_check_timeout(self, mock_get):
         """Test model check with timeout."""
         health_response = MagicMock()
         health_response.status_code = 200
         health_response.json.return_value = {"status": "healthy"}
 
-        mock_get.side_effect = [health_response, requests.exceptions.Timeout()]
+        mock_get.side_effect = [
+            health_response,
+            httpx.TimeoutException("Request timed out"),
+        ]
 
         success, summary = check_endpoint(8000, "test-model")
 
@@ -241,7 +248,7 @@ class TestCheckEndpoint:
 class TestCheckRailsEndpoint:
     """Tests for check_rails_endpoint function."""
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_success(self, mock_get):
         """Test successful rails config check."""
         response = MagicMock()
@@ -259,7 +266,7 @@ class TestCheckRailsEndpoint:
         assert "PASSED" in summary
         assert "9000" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_non_200_status(self, mock_get):
         """Test rails config check with non-200 status."""
         response = MagicMock()
@@ -273,7 +280,7 @@ class TestCheckRailsEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_empty_list(self, mock_get):
         """Test rails config check with empty list response."""
         response = MagicMock()
@@ -287,7 +294,7 @@ class TestCheckRailsEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_not_a_list(self, mock_get):
         """Test rails config check with non-list response."""
         response = MagicMock()
@@ -301,15 +308,13 @@ class TestCheckRailsEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_json_decode_error(self, mock_get):
         """Test rails config check with invalid JSON."""
         response = MagicMock()
         response.status_code = 200
         response.text = "invalid json"
-        response.json.side_effect = requests.exceptions.JSONDecodeError(
-            "Expecting value", "", 0
-        )
+        response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
         mock_get.return_value = response
 
@@ -318,20 +323,20 @@ class TestCheckRailsEndpoint:
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_connection_error(self, mock_get):
         """Test rails config check with connection error."""
-        mock_get.side_effect = requests.exceptions.ConnectionError()
+        mock_get.side_effect = httpx.ConnectError("Connection failed")
 
         success, summary = check_rails_endpoint(9000)
 
         assert not success
         assert "FAILED" in summary
 
-    @patch("nemoguardrails.benchmark.validate_mocks.requests.get")
+    @patch("nemoguardrails.benchmark.validate_mocks.httpx.get")
     def test_check_rails_endpoint_timeout(self, mock_get):
         """Test rails config check with timeout."""
-        mock_get.side_effect = requests.exceptions.Timeout()
+        mock_get.side_effect = httpx.TimeoutException("Request timed out")
 
         success, summary = check_rails_endpoint(9000)
 
