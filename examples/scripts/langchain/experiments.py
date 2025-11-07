@@ -20,11 +20,12 @@ try:
 except ImportError:
     try:
         from langchain_classic.chains import LLMMathChain
-    except ImportError as e:
+    except ImportError as second_error:
         raise ImportError(
-            "Failed to import LLMMathChain. If you're using LangChain >= 1.0.0, "
-            "please install langchain-classic: pip install langchain-classic"
-        ) from e
+            f"Failed to import required LangChain modules. "
+            f"If you're using LangChain >= 1.0.0, ensure langchain-classic is installed. "
+            f"Original error: {second_error}"
+        ) from second_error
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import Tool

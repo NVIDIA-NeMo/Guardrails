@@ -21,22 +21,21 @@ import pinecone
 
 try:
     from langchain.chains import RetrievalQA
-    from langchain.docstore.document import Document
     from langchain.embeddings.openai import OpenAIEmbeddings
     from langchain.vectorstores import Pinecone
 except ImportError:
     try:
         from langchain_classic.chains import RetrievalQA
-        from langchain_classic.docstore.document import Document
         from langchain_classic.embeddings.openai import OpenAIEmbeddings
         from langchain_classic.vectorstores import Pinecone
-    except ImportError as e:
+    except ImportError as second_error:
         raise ImportError(
-            "Failed to import from langchain. If you're using LangChain >= 1.0.0, "
-            "please install langchain-classic: pip install langchain-classic"
-        ) from e
+            f"Failed to import required LangChain modules. "
+            f"If you're using LangChain >= 1.0.0, ensure langchain-classic is installed. "
+            f"Original error: {second_error}"
+        ) from second_error
 
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseLLM
 
 from nemoguardrails import LLMRails
 from nemoguardrails.actions import action

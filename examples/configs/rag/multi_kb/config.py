@@ -33,11 +33,12 @@ except ImportError:
         from langchain_classic.embeddings import HuggingFaceEmbeddings
         from langchain_classic.text_splitter import CharacterTextSplitter
         from langchain_classic.vectorstores import FAISS
-    except ImportError as e:
+    except ImportError as second_error:
         raise ImportError(
-            "Failed to import from langchain. If you're using LangChain >= 1.0.0, "
-            "please install langchain-classic: pip install langchain-classic"
-        ) from e
+            f"Failed to import required LangChain modules. "
+            f"If you're using LangChain >= 1.0.0, ensure langchain-classic and langchain-text-splitters is installed. "
+            f"Original error: {second_error}"
+        ) from second_error
 
 from langchain_core.language_models.llms import BaseLLM
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
