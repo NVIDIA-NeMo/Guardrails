@@ -4,6 +4,8 @@ NeMo Guardrails includes benchmarking tools to help users capacity-test their Gu
 Adding guardrails to an LLM-based application improves safety and security, while adding some latency. These benchmarks allow users to quantify the tradeoff between security and latency, to make data-driven decisions.
 We currently have a simple testbench, which runs the Guardrails server with mocks as Guardrail and Application models. This can be used for performance-testing on a laptop without any GPUs, and run in a few minutes.
 
+-----
+
 ## Guardrails Core Benchmarking
 
 This benchmark measures the performance of the Guardrails application, running on CPU-only laptop or instance.
@@ -12,7 +14,9 @@ All models use the [Mock LLM Server](mock_llm_server), which is a simplified mod
 The aim of this benchmark is to detect performance-regressions as quickly as running unit-tests.
 
 ## Quickstart: Running Guardrails with Mock LLMs
-To run Guardrails with mocks for both the content-safety and main LLM, follow the steps below. All commands must be run in the `nemoguardrails/benchmark` directory. These assume you already have a working environment after following the [contribution guidelines](../CONTRIBUTING.md).
+To run Guardrails with mocks for both the content-safety and main LLM, follow the steps below.
+All commands must be run in the `nemoguardrails/benchmark` directory.
+These assume you already have a working environment after following the steps in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 First, we need to install the honcho and langchain-nvidia-ai-endpoints packages.
 The `honcho` package is used to run Procfile-based applications, and is a Python port of [Foreman](https://github.com/ddollar/foreman).
@@ -110,6 +114,8 @@ curl -s -X POST http://0.0.0.0:9000/v1/chat/completions \
 }
 
 ```
+
+------
 
 ## Deep-Dive: Configuration
 
