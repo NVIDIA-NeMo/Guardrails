@@ -1,7 +1,6 @@
 # Procfile
 
 # NeMo Guardrails server
-# main: uvicorn nemoguardrails.server.api:app --workers 4 --port 9000
 gr: poetry run nemoguardrails server --config configs/guardrail_configs --default-config-id content_safety_colang1 --port 9000
 
 # Guardrails NIMs for inference
