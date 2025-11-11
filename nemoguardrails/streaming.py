@@ -166,17 +166,38 @@ class StreamingHandler(AsyncIterator):
 
     async def _process(
         self,
-        chunk: Union[str, object],
+        chunk: Union[str, dict, object],
         generation_info: Optional[Dict[str, Any]] = None,
     ):
-        """Process a chunk of text.
+        """Process a chunk of text or dict.
 
         If we're in buffering mode, record the text.
         Otherwise, update the full completion, check for stop tokens, and enqueue the chunk.
+        Dict chunks bypass completion tracking and go directly to the queue.
         """
 
         if self.include_generation_metadata and generation_info:
             self.current_generation_info = generation_info
+
+        # Dict chunks bypass buffering and completion tracking
+        if isinstance(chunk, dict):
+            if self.pipe_to:
+                asyncio.create_task(self.pipe_to.push_chunk(chunk))
+            else:
+                if self.include_generation_metadata:
+                    await self.queue.put(
+                        {
+                            "text": chunk,
+                            "generation_info": (
+                                self.current_generation_info.copy()
+                                if self.current_generation_info
+                                else {}
+                            ),
+                        }
+                    )
+                else:
+                    await self.queue.put(chunk)
+            return
 
         if self.enable_buffer:
             if chunk is not END_OF_STREAM:
@@ -264,6 +285,9 @@ class StreamingHandler(AsyncIterator):
         elif isinstance(chunk, str):
             # empty string is a valid chunk and should be processed normally
             pass
+        elif isinstance(chunk, dict):
+            # plain dict chunks are allowed (e.g., for OpenAI-compatible streaming)
+            pass
         else:
             raise TypeError(f"StreamingHandler.push_chunk() expects str, got {type(chunk).__name__}")
 
@@ -273,6 +297,11 @@ class StreamingHandler(AsyncIterator):
 
         if self.include_generation_metadata and generation_info:
             self.current_generation_info = generation_info
+
+        # Dict chunks bypass prefix/suffix processing and go directly to _process
+        if isinstance(chunk, dict):
+            await self._process(chunk, generation_info)
+            return
 
         # Process prefix: accumulate until the expected prefix is received, then remove it.
         if self.prefix:

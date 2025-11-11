@@ -24,11 +24,13 @@ import time
 import uuid
 import warnings
 from contextlib import asynccontextmanager
-from typing import Any, Callable, List, Optional
+from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import Field, root_validator, validator
+from openai.types.chat.chat_completion import ChatCompletion, Choice
+from openai.types.model import Model
+from pydantic import BaseModel, Field, root_validator, validator
 from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
@@ -194,7 +196,7 @@ app.single_config_mode = False
 app.single_config_id = None
 
 
-class RequestBody(OpenAIRequestFields):
+class RequestBody(ChatCompletion):
     config_id: Optional[str] = Field(
         default=os.getenv("DEFAULT_CONFIG_ID", None),
         description="The id of the configuration to be used. If not set, the default configuration will be used.",
@@ -210,6 +212,50 @@ class RequestBody(OpenAIRequestFields):
         min_length=16,
         max_length=255,
         description="The id of an existing thread to which the messages should be added.",
+    )
+    model: Optional[str] = Field(
+        default=None,
+        description="The model used for the chat completion.",
+    )
+    id: Optional[str] = Field(
+        default=None,
+        description="The id of the chat completion.",
+    )
+    object: Optional[str] = Field(
+        default="chat.completion",
+        description="The object type, which is always chat.completion",
+    )
+    created: Optional[int] = Field(
+        default=None,
+        description="The Unix timestamp (in seconds) of when the chat completion was created.",
+    )
+    choices: Optional[List[Choice]] = Field(
+        default=None,
+        description="The list of choices for the chat completion.",
+    )
+    max_tokens: Optional[int] = Field(
+        default=None,
+        description="The maximum number of tokens to generate.",
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        description="The temperature to use for the chat completion.",
+    )
+    top_p: Optional[float] = Field(
+        default=None,
+        description="The top p to use for the chat completion.",
+    )
+    stop: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="The stop sequences to use for the chat completion.",
+    )
+    presence_penalty: Optional[float] = Field(
+        default=None,
+        description="The presence penalty to use for the chat completion.",
+    )
+    frequency_penalty: Optional[float] = Field(
+        default=None,
+        description="The frequency penalty to use for the chat completion.",
     )
     messages: Optional[List[dict]] = Field(
         default=None, description="The list of messages in the current conversation."
@@ -390,6 +436,73 @@ def _get_rails(config_ids: List[str]) -> LLMRails:
     return llm_rails
 
 
+async def _format_streaming_response(
+    streaming_handler: StreamingHandler, model_name: Optional[str]
+) -> AsyncIterator[str]:
+    while True:
+        try:
+            chunk = await streaming_handler.__anext__()
+        except StopAsyncIteration:
+            # When the stream ends, yield the [DONE] message
+            yield "data: [DONE]\n\n"
+            break
+
+        # Determine the payload format based on chunk type
+        if isinstance(chunk, dict):
+            # If chunk is a dict, wrap it in OpenAI chunk format with delta
+            payload = {
+                "id": None,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "delta": chunk,
+                        "index": None,
+                        "finish_reason": None,
+                    }
+                ],
+            }
+        elif isinstance(chunk, str):
+            try:
+                # Try parsing as JSON - if it parses, it might be a pre-formed payload
+                payload = json.loads(chunk)
+            except Exception:
+                # treat as plain text content token
+                payload = {
+                    "id": None,
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "delta": {"content": chunk},
+                            "index": None,
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+        else:
+            # For any other type, treat as plain content
+            payload = {
+                "id": None,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "delta": {"content": str(chunk)},
+                        "index": None,
+                        "finish_reason": None,
+                    }
+                ],
+            }
+
+        # Send the payload as JSON
+        data = json.dumps(payload, ensure_ascii=False)
+        yield f"data: {data}\n\n"
+
+
 @app.post(
     "/v1/chat/completions",
     response_model=ResponseBody,
@@ -511,7 +624,12 @@ async def chat_completion(body: RequestBody, request: Request):
                 state=body.state,
             )
 
-            return StreamingResponse(streaming_handler)
+            return StreamingResponse(
+                _format_streaming_response(
+                    streaming_handler, model_name=config_ids[0] if config_ids else None
+                ),
+                media_type="text/event-stream",
+            )
         else:
             res = await llm_rails.generate_async(
                 messages=messages, options=generation_options, state=body.state

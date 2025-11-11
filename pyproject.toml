@@ -77,6 +77,7 @@ opentelemetry-api = { version = ">=1.27.0,<2.0.0", optional = true }
 aiofiles = { version = ">=24.1.0", optional = true }
 
 # openai
+openai = { version = ">=1.0.0, <2.0.0", optional = true }
 langchain-openai = { version = ">=0.1.0", optional = true }
 
 # eval

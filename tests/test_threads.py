@@ -51,7 +51,8 @@ def test_1():
     )
     assert response.status_code == 200
     res = response.json()
-    assert len(res["choices"][0]["message"]) == 2
+    assert "choices" in res
+    assert "message" in res["choices"][0]
     assert res["choices"][0]["message"]["content"] == "Hello!"
 
     # When making a second call with the same thread_id, the conversations should continue

@@ -13,13 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import json
 import os
 
 import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails.server import api
-from nemoguardrails.server.api import RequestBody
+from nemoguardrails.server.api import RequestBody, _format_streaming_response
+from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 
 client = TestClient(api.app)
 
@@ -199,3 +202,301 @@ def test_request_body_messages():
     }
     request_body = RequestBody.model_validate(data)
     assert len(request_body.messages) == 1
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_basic_chunks():
+    """Test basic string chunks are properly formatted as SSE events."""
+    handler = StreamingHandler()
+
+    # Collect yielded SSE messages
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name=None):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    # Push a couple of chunks and then signal completion
+    await handler.push_chunk("Hello ")
+    await handler.push_chunk("world")
+    await handler.push_chunk(END_OF_STREAM)
+
+    # Wait for the collector task to finish
+    await task
+
+    # We expect three messages: two data: {json}\n\n events and final data: [DONE]\n\n
+    assert len(collected) == 3
+    # First two are JSON SSE events
+    evt1 = collected[0]
+    evt2 = collected[1]
+    done = collected[2]
+
+    assert evt1.startswith("data: ")
+    j1 = json.loads(evt1[len("data: ") :].strip())
+    assert j1["object"] == "chat.completion.chunk"
+    assert j1["choices"][0]["delta"]["content"] == "Hello "
+
+    assert evt2.startswith("data: ")
+    j2 = json.loads(evt2[len("data: ") :].strip())
+    assert j2["choices"][0]["delta"]["content"] == "world"
+
+    assert done == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_with_model_name():
+    """Test that model name is properly included in the response."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name="gpt-4"):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    await handler.push_chunk("Test")
+    await handler.push_chunk(END_OF_STREAM)
+
+    await task
+
+    assert len(collected) == 2
+    evt = collected[0]
+    j = json.loads(evt[len("data: ") :].strip())
+    assert j["model"] == "gpt-4"
+    assert j["choices"][0]["delta"]["content"] == "Test"
+    assert collected[1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_with_dict_chunk():
+    """Test that dict chunks with role and content are properly formatted."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name=None):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    # Push a dict chunk that includes role and content
+    await handler.push_chunk({"role": "assistant", "content": "Hi!"})
+    await handler.push_chunk(None)
+
+    await task
+
+    # We expect two messages: one data chunk and final data: [DONE]
+    assert len(collected) == 2
+    evt = collected[0]
+    j = json.loads(evt[len("data: ") :].strip())
+    assert j["object"] == "chat.completion.chunk"
+    assert j["choices"][0]["delta"]["role"] == "assistant"
+    assert j["choices"][0]["delta"]["content"] == "Hi!"
+    assert collected[1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_empty_string():
+    """Test that empty strings are handled correctly."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name=None):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    await handler.push_chunk("")
+    await handler.push_chunk(END_OF_STREAM)
+
+    await task
+
+    assert len(collected) == 2
+    evt = collected[0]
+    j = json.loads(evt[len("data: ") :].strip())
+    assert j["choices"][0]["delta"]["content"] == ""
+    assert collected[1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_none_triggers_done():
+    """Test that None (converted to END_OF_STREAM) triggers [DONE]."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name=None):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    await handler.push_chunk("Content")
+    await handler.push_chunk(None)  # None converts to END_OF_STREAM
+
+    await task
+
+    assert len(collected) == 2
+    evt = collected[0]
+    j = json.loads(evt[len("data: ") :].strip())
+    assert j["choices"][0]["delta"]["content"] == "Content"
+    assert collected[1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_multiple_dict_chunks():
+    """Test multiple dict chunks with different fields."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name="test-model"):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    # Push multiple dict chunks
+    await handler.push_chunk({"role": "assistant"})
+    await handler.push_chunk({"content": "Hello"})
+    await handler.push_chunk({"content": " world"})
+    await handler.push_chunk(END_OF_STREAM)
+
+    await task
+
+    assert len(collected) == 4
+
+    # Check first chunk (role only)
+    j1 = json.loads(collected[0][len("data: ") :].strip())
+    assert j1["choices"][0]["delta"]["role"] == "assistant"
+    assert "content" not in j1["choices"][0]["delta"]
+
+    # Check second chunk (content only)
+    j2 = json.loads(collected[1][len("data: ") :].strip())
+    assert j2["choices"][0]["delta"]["content"] == "Hello"
+
+    # Check third chunk (content only)
+    j3 = json.loads(collected[2][len("data: ") :].strip())
+    assert j3["choices"][0]["delta"]["content"] == " world"
+
+    # Check [DONE] message
+    assert collected[3] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_special_characters():
+    """Test that special characters are properly escaped in JSON."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name=None):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    # Push chunks with special characters
+    await handler.push_chunk("Line 1\nLine 2")
+    await handler.push_chunk('Quote: "test"')
+    await handler.push_chunk(END_OF_STREAM)
+
+    await task
+
+    assert len(collected) == 3
+
+    # Verify first chunk with newline
+    j1 = json.loads(collected[0][len("data: ") :].strip())
+    assert j1["choices"][0]["delta"]["content"] == "Line 1\nLine 2"
+
+    # Verify second chunk with quotes
+    j2 = json.loads(collected[1][len("data: ") :].strip())
+    assert j2["choices"][0]["delta"]["content"] == 'Quote: "test"'
+
+    assert collected[2] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_events():
+    """Test that all events follow proper SSE format."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name=None):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    await handler.push_chunk("Test")
+    await handler.push_chunk(END_OF_STREAM)
+
+    await task
+
+    # All events except [DONE] should be valid JSON with proper SSE format
+    for event in collected[:-1]:
+        assert event.startswith("data: ")
+        assert event.endswith("\n\n")
+        # Verify it's valid JSON
+        json_str = event[len("data: ") :].strip()
+        j = json.loads(json_str)
+        assert "object" in j
+        assert "choices" in j
+        assert isinstance(j["choices"], list)
+        assert len(j["choices"]) > 0
+
+    # Last event should be [DONE]
+    assert collected[-1] == "data: [DONE]\n\n"
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_format_chunk_metadata():
+    """Test that chunk metadata is properly formatted."""
+    handler = StreamingHandler()
+    collected = []
+
+    async def collector():
+        async for b in _format_streaming_response(handler, model_name="test-model"):
+            collected.append(b)
+
+    task = asyncio.create_task(collector())
+
+    await handler.push_chunk("Test")
+    await handler.push_chunk(END_OF_STREAM)
+
+    await task
+
+    evt = collected[0]
+    j = json.loads(evt[len("data: ") :].strip())
+
+    # Verify all required fields are present
+    assert j["id"] is None  # id can be None for chunks
+    assert j["object"] == "chat.completion.chunk"
+    assert isinstance(j["created"], int)
+    assert j["model"] == "test-model"
+    assert isinstance(j["choices"], list)
+    assert len(j["choices"]) == 1
+
+    choice = j["choices"][0]
+    assert "delta" in choice
+    assert choice["index"] is None
+    assert choice["finish_reason"] is None
+
+
+@pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
+def test_chat_completion_with_streaming():
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "config_id": "general",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "text/event-stream"
+    for chunk in response.iter_lines():
+        assert chunk.startswith("data: ")
+        assert chunk.endswith("\n\n")
+    assert "data: [DONE]\n\n" in response.text
