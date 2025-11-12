@@ -28,7 +28,8 @@ from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from openai.types.chat.chat_completion import ChatCompletion, Choice
+from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.model import Model
 from pydantic import BaseModel, Field, root_validator, validator
 from starlette.responses import StreamingResponse
@@ -196,7 +197,7 @@ app.single_config_mode = False
 app.single_config_id = None
 
 
-class RequestBody(ChatCompletion):
+class RequestBody(BaseModel):
     config_id: Optional[str] = Field(
         default=os.getenv("DEFAULT_CONFIG_ID", None),
         description="The id of the configuration to be used. If not set, the default configuration will be used.",
@@ -212,50 +213,6 @@ class RequestBody(ChatCompletion):
         min_length=16,
         max_length=255,
         description="The id of an existing thread to which the messages should be added.",
-    )
-    model: Optional[str] = Field(
-        default=None,
-        description="The model used for the chat completion.",
-    )
-    id: Optional[str] = Field(
-        default=None,
-        description="The id of the chat completion.",
-    )
-    object: Optional[str] = Field(
-        default="chat.completion",
-        description="The object type, which is always chat.completion",
-    )
-    created: Optional[int] = Field(
-        default=None,
-        description="The Unix timestamp (in seconds) of when the chat completion was created.",
-    )
-    choices: Optional[List[Choice]] = Field(
-        default=None,
-        description="The list of choices for the chat completion.",
-    )
-    max_tokens: Optional[int] = Field(
-        default=None,
-        description="The maximum number of tokens to generate.",
-    )
-    temperature: Optional[float] = Field(
-        default=None,
-        description="The temperature to use for the chat completion.",
-    )
-    top_p: Optional[float] = Field(
-        default=None,
-        description="The top p to use for the chat completion.",
-    )
-    stop: Optional[Union[str, List[str]]] = Field(
-        default=None,
-        description="The stop sequences to use for the chat completion.",
-    )
-    presence_penalty: Optional[float] = Field(
-        default=None,
-        description="The presence penalty to use for the chat completion.",
-    )
-    frequency_penalty: Optional[float] = Field(
-        default=None,
-        description="The frequency penalty to use for the chat completion.",
     )
     messages: Optional[List[dict]] = Field(
         default=None, description="The list of messages in the current conversation."
@@ -277,6 +234,47 @@ class RequestBody(ChatCompletion):
     state: Optional[dict] = Field(
         default=None,
         description="A state object that should be used to continue the interaction.",
+    )
+    # Standard OpenAI completion parameters
+    model: Optional[str] = Field(
+        default=None,
+        description="The model to use for chat completion. Maps to config_id for backward compatibility.",
+    )
+    max_tokens: Optional[int] = Field(
+        default=None,
+        description="The maximum number of tokens to generate.",
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        description="Sampling temperature to use.",
+    )
+    top_p: Optional[float] = Field(
+        default=None,
+        description="Top-p sampling parameter.",
+    )
+    stop: Optional[str] = Field(
+        default=None,
+        description="Stop sequences.",
+    )
+    presence_penalty: Optional[float] = Field(
+        default=None,
+        description="Presence penalty parameter.",
+    )
+    frequency_penalty: Optional[float] = Field(
+        default=None,
+        description="Frequency penalty parameter.",
+    )
+    function_call: Optional[dict] = Field(
+        default=None,
+        description="Function call parameter.",
+    )
+    logit_bias: Optional[dict] = Field(
+        default=None,
+        description="Logit bias parameter.",
+    )
+    log_probs: Optional[bool] = Field(
+        default=None,
+        description="Log probabilities parameter.",
     )
 
     @root_validator(pre=True)
@@ -458,7 +456,7 @@ async def _format_streaming_response(
                 "choices": [
                     {
                         "delta": chunk,
-                        "index": None,
+                        "index": 0,
                         "finish_reason": None,
                     }
                 ],
@@ -477,7 +475,7 @@ async def _format_streaming_response(
                     "choices": [
                         {
                             "delta": {"content": chunk},
-                            "index": None,
+                            "index": 0,
                             "finish_reason": None,
                         }
                     ],
@@ -492,7 +490,7 @@ async def _format_streaming_response(
                 "choices": [
                     {
                         "delta": {"content": str(chunk)},
-                        "index": None,
+                        "index": 0,
                         "finish_reason": None,
                     }
                 ],
@@ -541,16 +539,16 @@ async def chat_completion(body: RequestBody, request: Request):
             id=f"chatcmpl-{uuid.uuid4()}",
             object="chat.completion",
             created=int(time.time()),
-            model=config_ids[0] if config_ids else None,
+            model=config_ids[0] if config_ids else "unknown",
             choices=[
                 Choice(
                     index=0,
-                    message={
-                        "content": f"Could not load the {config_ids} guardrails configuration. "
+                    message=ChatCompletionMessage(
+                        content=f"Could not load the {config_ids} guardrails configuration. "
                         f"An internal error has occurred.",
-                        "role": "assistant",
-                    },
-                    finish_reason="error",
+                        role="assistant",
+                    ),
+                    finish_reason="stop",
                     logprobs=None,
                 )
             ],
@@ -574,15 +572,15 @@ async def chat_completion(body: RequestBody, request: Request):
                     id=f"chatcmpl-{uuid.uuid4()}",
                     object="chat.completion",
                     created=int(time.time()),
-                    model=None,
+                    model=config_ids[0] if config_ids else "unknown",
                     choices=[
                         Choice(
                             index=0,
-                            message={
-                                "content": "The `thread_id` must have a minimum length of 16 characters.",
-                                "role": "assistant",
-                            },
-                            finish_reason="error",
+                            message=ChatCompletionMessage(
+                                content="The `thread_id` must have a minimum length of 16 characters.",
+                                role="assistant",
+                            ),
+                            finish_reason="stop",
                             logprobs=None,
                         )
                     ],
@@ -656,11 +654,14 @@ async def chat_completion(body: RequestBody, request: Request):
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion",
                 "created": int(time.time()),
-                "model": config_ids[0] if config_ids else None,
+                "model": config_ids[0] if config_ids else "unknown",
                 "choices": [
                     Choice(
                         index=0,
-                        message=bot_message,
+                        message=ChatCompletionMessage(
+                            role="assistant",
+                            content=bot_message["content"],
+                        ),
                         finish_reason="stop",
                         logprobs=None,
                     )
@@ -682,15 +683,15 @@ async def chat_completion(body: RequestBody, request: Request):
             id=f"chatcmpl-{uuid.uuid4()}",
             object="chat.completion",
             created=int(time.time()),
-            model=None,
+            model="unknown",
             choices=[
                 Choice(
                     index=0,
-                    message={
-                        "content": "Internal server error",
-                        "role": "assistant",
-                    },
-                    finish_reason="error",
+                    message=ChatCompletionMessage(
+                        content="Internal server error",
+                        role="assistant",
+                    ),
+                    finish_reason="stop",
                     logprobs=None,
                 )
             ],

@@ -480,7 +480,7 @@ async def test_openai_sse_format_chunk_metadata():
 
     choice = j["choices"][0]
     assert "delta" in choice
-    assert choice["index"] is None
+    assert choice["index"] == 0
     assert choice["finish_reason"] is None
 
 

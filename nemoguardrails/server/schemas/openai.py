@@ -17,7 +17,7 @@
 
 from typing import List, Optional
 
-from openai.types.chat.chat_completion import ChatCompletion, Choice
+from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.model import Model
 from pydantic import BaseModel, Field
 
