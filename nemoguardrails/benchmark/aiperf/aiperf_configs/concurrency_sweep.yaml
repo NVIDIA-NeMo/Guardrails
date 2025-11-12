@@ -1,0 +1,38 @@
+# Concurrency sweep. One-minute tests at log-spaced concurrencies
+
+# Name for this batch of benchmarks (will be part of output directory name)
+batch_name: simple_regression_benchmark
+
+# Base directory where all benchmark results will be stored.
+# Actual name is <output_base_dir>/<batch_name>/<sweep value>
+output_base_dir: aiperf_results
+
+# Base configuration applied to all benchmark runs
+# These parameters can be overridden by sweep parameters
+base_config:
+  # Model details
+  model: meta/llama-3.3-70b-instruct
+  url: "http://localhost:9000"
+  endpoint: "/v1/chat/completions"
+  endpoint_type: chat
+
+  # Load generation settings.
+  # Ramp-up time = concurrency / request-rate (https://github.com/ai-dynamo/aiperf/blob/b91408d3df0df78236748017b46292cd74e65dc6/docs/tutorials/request-rate-concurrency.md)
+  # So request_rate = concurrency / rampup_seconds
+  rampup_seconds: 10
+  benchmark_seconds: 60
+  concurrency: 16
+  request_rate_mode: "constant"
+
+  # Synthetic data generation
+  random_seed: 12345
+  prompt_input_tokens_mean: 100
+  prompt_input_tokens_stddev: 10
+  prompt_output_tokens_mean: 50
+  prompt_output_tokens_stddev: 5
+
+# Parameter sweeps. Each parameter can have multiple values
+# The script will run all combinations (Cartesian product)
+sweeps:
+  # Sweep over the following concurrency values
+  concurrency: [1, 10, 100, 1000]
