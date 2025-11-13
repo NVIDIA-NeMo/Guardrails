@@ -18,9 +18,9 @@ Pydantic models for AIPerf configuration validation.
 """
 
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BaseConfig(BaseModel):
@@ -38,9 +38,15 @@ class BaseConfig(BaseModel):
     )
 
     # Load generation settings
-    warmup_request_count: int = Field(description="Number of warmup requests")
+    warmup_request_count: int = Field(
+        description="Requests to send before beginning performance-test"
+    )
     benchmark_seconds: int = Field(description="Benchmark duration in seconds")
     concurrency: int = Field(description="Number of concurrent requests")
+    request_rate: Optional[float] = Field(
+        default=None,
+        description="Request rate (requests per second, auto-calculated if not provided)",
+    )
     request_rate_mode: Optional[Literal["constant", "poisson"]] = Field(
         default="constant",
         description="Request rate mode (constant, poisson, etc.)",
@@ -67,15 +73,6 @@ class BaseConfig(BaseModel):
         description="Standard deviation of output tokens",
     )
 
-    # TODO! Come up with better ways to set these
-    tokenizer: str = Field(
-        default="/Users/tgasser/projects/aiperf/tokenizers/llama-3.3-70b",
-        description="Path to tokenizer",
-    )
-    ui_type: Literal["dashboard", "simple", "none"] = Field(
-        default="none", description="UI to use while running regression"
-    )
-
 
 class AIPerfConfig(BaseModel):
     """Main configuration model for AIPerf benchmark runner."""
@@ -95,50 +92,41 @@ class AIPerfConfig(BaseModel):
         description="Parameter sweeps. Key is the parameter to change, value is a list of values to use",
     )
 
-    # TODO! Add validation for sweeps
+    @field_validator("sweeps")
+    @classmethod
+    def validate_sweeps(
+        cls, v: Optional[Dict[str, List[Any]]]
+    ) -> Optional[Dict[str, List[Any]]]:
+        """Validate that sweep values are lists of ints or strings."""
+        if v is None:
+            return v
 
-    # @field_validator("sweeps")
-    # @classmethod
-    # def validate_sweeps(
-    #     cls, v: Optional[Dict[str, List[Any]]]
-    # ) -> Optional[Dict[str, List[Any]]]:
-    #     """Validate that sweep values are lists."""
-    #     if v is None:
-    #         return v
+        for param_name, values in v.items():
+            if len(values) == 0:
+                raise ValueError(f"Sweep parameter '{param_name}' cannot be empty")
 
-    #     for param_name, values in v.items():
-    #         if not isinstance(values, list):
-    #             raise ValueError(
-    #                 f"Sweep parameter '{param_name}' must be a list, got {type(values)}"
-    #             )
-    #         if len(values) == 0:
-    #             raise ValueError(f"Sweep parameter '{param_name}' cannot be empty")
+        return v
 
-    #     return v
+    @model_validator(mode="after")
+    def validate_sweep_keys(self):
+        """Validate that sweep keys exist in base_config."""
+        sweeps = self.sweeps
+        if sweeps is None:
+            return self
 
-    # @model_validator(mode="after")
-    # def validate_sweep_keys(self):
-    #     """Validate that sweep keys exist in base_config."""
-    #     if self.sweeps is None:
-    #         return self
+        # Get all valid field names from BaseConfig
+        valid_keys = set(BaseConfig.model_fields.keys())
 
-    #     # Get all valid field names from BaseConfig (using hyphenated versions)
-    #     valid_keys = set()
-    #     for field_name, field_info in BaseConfig.model_fields.items():
-    #         # Use alias if available, otherwise convert underscores to hyphens
-    #         if field_info.alias:
-    #             valid_keys.add(field_info.alias)
+        # Check each sweep parameter
+        for param_name in sweeps:
+            if param_name not in valid_keys:
+                valid_fields = sorted(valid_keys)
+                raise ValueError(
+                    f"Sweep parameter '{param_name}' is not a valid BaseConfig field. "
+                    f"Valid fields are: {', '.join(valid_fields)}"
+                )
 
-    #     # Check each sweep parameter
-    #     for param_name in self.sweeps.keys():
-    #         if param_name not in valid_keys:
-    #             valid_fields = sorted(valid_keys)
-    #             raise ValueError(
-    #                 f"Sweep parameter '{param_name}' is not a valid BaseConfig field. "
-    #                 f"Valid fields are: {', '.join(valid_fields)}"
-    #             )
-
-    #     return self
+        return self
 
     def get_output_base_path(self) -> Path:
         """Get the base output directory as a Path object."""
