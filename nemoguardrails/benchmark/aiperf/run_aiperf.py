@@ -26,8 +26,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import typer
 import yaml
-from aiperf_models import AIPerfConfig
 from pydantic import ValidationError
+
+from nemoguardrails.benchmark.aiperf.aiperf_models import AIPerfConfig
 
 # Set up logging
 log = logging.getLogger(__name__)
@@ -272,13 +273,13 @@ class AIPerfRunner:
 
 # Create typer app
 app = typer.Typer(
-    help="Run aiperf benchmarks with configurable parameters and sweeps",
+    help="AIPerf application to run, analyze, and compare benchmarks",
     add_completion=False,
 )
 
 
 @app.command()
-def main(
+def run(
     config_file: Path = typer.Argument(
         ...,
         help="Path to YAML configuration file",
@@ -292,42 +293,10 @@ def main(
         "--dry-run",
         help="Print commands without executing them",
     ),
-    no_progress: bool = typer.Option(
-        False,
-        "--no-progress",
-        help="Disable progress bar display",
-    ),
 ):
-    """
-    Run aiperf benchmarks with configurable parameters and sweeps.
-
-    Example configuration file (config.yaml):
-
-      batch_name: my_benchmark
-      output_base_dir: ./benchmark_results
-
-      base_config:
-        model-names: gpt-3.5-turbo
-        url: localhost:8000
-        request-count: 100
-        random-seed: 42
-        prompt-input-tokens-mean: 100
-        prompt-input-tokens-stddev: 10
-        prompt-output-tokens-mean: 50
-        prompt-output-tokens-stddev: 5
-
-      sweeps:
-        request-rate: [10, 20, 50]
-        concurrency: [1, 5, 10]
-
-    This configuration will run 9 benchmark tests (3 request rates × 3 concurrency levels).
-    """
+    """Run AIPerf benchmark using the provided YAML config file"""
     # Create and run the benchmark runner
     runner = AIPerfRunner(config_file)
     exit_code = runner.run(dry_run=dry_run)
 
     raise typer.Exit(code=exit_code)
-
-
-if __name__ == "__main__":
-    app()
