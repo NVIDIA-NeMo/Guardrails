@@ -14,13 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AIPerf Benchmark Runner
-
-This script orchestrates multiple aiperf benchmark runs based on a YAML configuration file.
-It supports parameter sweeps and organizes results in a structured directory hierarchy.
-"""
-
 import itertools
 import json
 import logging
@@ -28,19 +21,18 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from subprocess import CompletedProcess
+from typing import Any, Dict, List, Optional, Union
 
 import typer
 import yaml
 from aiperf_models import AIPerfConfig
 from pydantic import ValidationError
-from tqdm import tqdm
 
-# 1. Get a logger instance
+# Set up logging
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)  # Set the lowest level to capture all messages
+log.setLevel(logging.INFO)  # Set the lowest level to capture all messages
 
-# Set up formatter and direct it to the console
 formatter = logging.Formatter(
     "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
@@ -53,15 +45,9 @@ log.addHandler(console_handler)
 
 
 class AIPerfRunner:
-    """Manages execution of aiperf benchmark runs with configurable parameters."""
+    """Run batches of AIPerf benchmarks using YAML config and optional parameter sweeps"""
 
     def __init__(self, config_path: Path):
-        """
-        Initialize the runner with a configuration file.
-
-        Args:
-            config_path: Path to the YAML configuration file
-        """
         self.config_path = config_path
         self.config = self._load_config()
 
@@ -89,48 +75,36 @@ class AIPerfRunner:
             sys.exit(1)
 
     def _get_sweep_combinations(self) -> List[Dict[str, Any]]:
-        """
-        Generate all parameter combinations from sweep configurations.
+        """Create cartesian-product of parameter sweep values for benchmarks"""
 
-        Returns:
-            List of dictionaries, each representing one parameter combination
-        """
-        sweeps = self.config.sweeps
-
-        if not sweeps:
+        if not self.config.sweeps:
             # No sweeps, return single empty combination
             return [{}]
 
         # Extract parameter names and their values
-        param_names = list(sweeps.keys())
-        param_values = [sweeps[name] for name in param_names]
+        param_names = list(self.config.sweeps.keys())
+        param_values = [self.config.sweeps[name] for name in param_names]
 
         # Generate all combinations
         combinations = []
-        for combo in itertools.product(*param_values):
-            combinations.append(dict(zip(param_names, combo)))
+        for combination in itertools.product(*param_values):
+            combinations.append(dict(zip(param_names, combination)))
 
         return combinations
 
     def _build_command(
-        self, sweep_params: Dict[str, Any], output_dir: Path
+        self, sweep_params: Optional[Dict[str, Union[str, int]]], output_dir: Path
     ) -> List[str]:
-        """
-        Build the aiperf command with given parameters.
+        """Build the aiperf command with given parameters."""
 
-        Args:
-            sweep_params: Parameter overrides from sweep
-            output_dir: Directory to store output artifacts
-
-        Returns:
-            Command as list of strings
-        """
+        # Run aiperf in profile mode: `aiperf profile`
         cmd = ["aiperf", "profile"]
 
-        # Get base config as dictionary with hyphenated keys
+        # Get base config as dictionary
         base_params = self.config.base_config.model_dump()
+
         # Merge base config with sweep params (sweep params override base)
-        params = {**base_params, **sweep_params}
+        params = base_params if not sweep_params else {**base_params, **sweep_params}
 
         # Add output directory
         params["output-artifact-dir"] = str(output_dir)
@@ -140,8 +114,8 @@ class AIPerfRunner:
             item_key = key
             # Rampup seconds is used to derive `request_rate` in the BaseConfig model, don't pass
             # it to the aiperf invocation
-            if key == "rampup_seconds":
-                continue
+            # if key == "rampup_seconds":
+            #     continue
 
             # Convert the `benchmark_seconds` in config file to `benchmark_duration` key
             if key == "benchmark_seconds":
@@ -163,35 +137,22 @@ class AIPerfRunner:
 
         return cmd
 
+    @staticmethod
     def _create_output_dir(
-        self, base_dir: Path, sweep_params: Dict[str, Any], run_index: int
+        base_dir: Path,
+        sweep_params: Optional[Dict[str, Union[str, int]]],
     ) -> Path:
-        """
-        Create a descriptive output directory for this run.
+        """Create directory in which to place AIPerf outputs."""
 
-        Args:
-            base_dir: Base output directory
-            sweep_params: Parameters for this run
-            run_index: Index of this run in the sequence
+        # Early-out if we're not sweeping anything
+        if not sweep_params:
+            return base_dir
 
-        Returns:
-            Path to the created output directory
-        """
-        # Create descriptive directory name
-        if sweep_params:
-            # Create name from sweep parameters
-            param_parts = []
-            for key, value in sorted(sweep_params.items()):
-                # Shorten common parameter names
-                short_key = key.replace("prompt-", "").replace("tokens-", "")
-                param_parts.append(f"{short_key}={value}")
-            dir_name = f"run_{run_index:03d}_" + "_".join(param_parts)
-        else:
-            dir_name = f"run_{run_index:03d}"
+        param_parts = [f"{key}{value}" for key, value in sorted(sweep_params.items())]
+        param_dir = "_".join(param_parts)
 
-        output_dir = base_dir / dir_name
+        output_dir = base_dir / param_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-
         return output_dir
 
     def _save_run_metadata(
@@ -223,16 +184,18 @@ class AIPerfRunner:
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
-    def run(self, dry_run: bool = False, show_progress: bool = True) -> int:
+    def _save_subprocess_result_json(
+        self, output_dir: Path, result: CompletedProcess
+    ) -> None:
+        """Save the subprocess result to the given filename"""
+
+        process_result_file = output_dir / "process_result.json"
+        with open(process_result_file, "w", encoding="utf-8") as f:
+            json.dump(result.__dict__, f, indent=2)
+
+    def run(self, dry_run: bool = False) -> int:
         """
-        Execute all benchmark runs based on configuration.
-
-        Args:
-            dry_run: If True, print commands without executing
-            show_progress: If True, show progress bar with tqdm
-
-        Returns:
-            Exit code (0 for success, non-zero for failure)
+        Run benchmarks with AIPerf
         """
         # Get base output directory
         base_output_dir = self.config.get_output_base_path()
@@ -240,18 +203,15 @@ class AIPerfRunner:
         # Create timestamped batch directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         batch_name = self.config.batch_name
-        batch_dir = base_output_dir / f"{batch_name}_{timestamp}"
+        batch_dir = base_output_dir / batch_name / timestamp
 
         # Generate all sweep combinations
         combinations = self._get_sweep_combinations()
 
-        log.info("=" * 80)
-        log.info("AIPerf Benchmark Runner")
-        log.info("=" * 80)
-        log.info("Configuration: %s", self.config_path)
+        log.info("Running AIPerf with configuration: %s", self.config_path)
         log.info("Batch directory: %s", batch_dir)
+        log.info("Sweep parameters: %s", combinations)
         log.info("Number of runs: %s", len(combinations))
-        log.info("=" * 80)
 
         if dry_run:
             log.info("DRY RUN MODE - Commands will not be executed")
@@ -259,30 +219,10 @@ class AIPerfRunner:
         # Execute each combination
         failed_runs = []
 
-        # Setup progress bar
-        progress_bar = tqdm(
-            enumerate(combinations, start=1),
-            total=len(combinations),
-            desc="Benchmark Progress",
-            unit="run",
-            disable=not show_progress,
-            ncols=100,
-        )
-
-        for i, sweep_params in progress_bar:
-            # Update progress bar description with current run info
-            if show_progress:
-                params_desc = (
-                    ", ".join(f"{k}={v}" for k, v in sorted(sweep_params.items()))
-                    if sweep_params
-                    else "base config"
-                )
-                progress_bar.set_description(
-                    f"Run {i}/{len(combinations)}: {params_desc[:40]}"
-                )
-
+        for i, sweep_params in enumerate(combinations):
+            run_num = i + 1
             # Create output directory for this run
-            run_output_dir = self._create_output_dir(batch_dir, sweep_params, i)
+            run_output_dir = self._create_output_dir(batch_dir, sweep_params)
 
             # Build command
             command = self._build_command(sweep_params, run_output_dir)
@@ -290,42 +230,32 @@ class AIPerfRunner:
             # Save metadata
             self._save_run_metadata(run_output_dir, sweep_params, command, i)
 
-            log.info("Run %s/%s", i, len(combinations))
+            log.info("Run %s/%s", run_num, len(combinations))
             log.info(
                 "Parameters: %s", sweep_params if sweep_params else "base config only"
             )
-            log.info("Output directory: %s", run_output_dir)
-            log.info("Command: %s", " ".join(command))
+            log.debug("Output directory: %s", run_output_dir)
+            log.debug("Command: %s", " ".join(command))
 
             if not dry_run:
                 try:
                     # Execute the command
-                    subprocess.run(
-                        command,
-                        check=True,
-                        capture_output=False,  # Let output stream to console
-                        text=True,
+                    result = subprocess.run(
+                        command, check=True, capture_output=True, text=True
                     )
-                    log.info("✓ Run %s completed successfully", i)
-                    if show_progress:
-                        progress_bar.set_postfix_str("✓ Success")
+                    log.info("Run %s completed successfully", run_num)
+
+                    self._save_subprocess_result_json(run_output_dir, result)
+
                 except subprocess.CalledProcessError as e:
-                    log.error("✗ Run %s failed with exit code %s", i, e.returncode)
+                    log.error("Run %s failed with exit code %s", i, e.returncode)
                     failed_runs.append((i, sweep_params))
-                    if show_progress:
-                        progress_bar.set_postfix_str("✗ Failed")
                 except KeyboardInterrupt:
                     log.warning("Interrupted by user")
-                    progress_bar.close()
                     return 130
 
-        # Close progress bar
-        progress_bar.close()
-
         # Log summary
-        log.info("=" * 80)
-        log.info("Benchmark Run Summary")
-        log.info("=" * 80)
+        log.info("SUMMARY")
         log.info("Total runs: %s", len(combinations))
         log.info("Successful: %s", len(combinations) - len(failed_runs))
         log.info("Failed: %s", len(failed_runs))
@@ -336,9 +266,8 @@ class AIPerfRunner:
                 log.warning("  - Run %s: %s", run_index, params)
 
         log.info("Results stored in: %s", batch_dir)
-        log.info("=" * 80)
 
-        return 0 if not failed_runs else 1
+        return 1 if failed_runs else 0
 
 
 # Create typer app
@@ -395,7 +324,7 @@ def main(
     """
     # Create and run the benchmark runner
     runner = AIPerfRunner(config_file)
-    exit_code = runner.run(dry_run=dry_run, show_progress=not no_progress)
+    exit_code = runner.run(dry_run=dry_run)
 
     raise typer.Exit(code=exit_code)
 

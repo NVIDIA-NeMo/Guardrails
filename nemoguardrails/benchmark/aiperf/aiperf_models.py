@@ -38,13 +38,9 @@ class BaseConfig(BaseModel):
     )
 
     # Load generation settings
-    rampup_seconds: int = Field(description="Ramp-up time in seconds")
+    warmup_request_count: int = Field(description="Number of warmup requests")
     benchmark_seconds: int = Field(description="Benchmark duration in seconds")
     concurrency: int = Field(description="Number of concurrent requests")
-    request_rate: Optional[float] = Field(
-        default=None,
-        description="Request rate (requests per second, auto-calculated if not provided)",
-    )
     request_rate_mode: Optional[Literal["constant", "poisson"]] = Field(
         default="constant",
         description="Request rate mode (constant, poisson, etc.)",
@@ -80,13 +76,6 @@ class BaseConfig(BaseModel):
         default="none", description="UI to use while running regression"
     )
 
-    @model_validator(mode="after")
-    def calculate_request_rate(self):
-        """Calculate request_rate if not provided."""
-        if self.request_rate is None:
-            self.request_rate = int(self.concurrency / self.rampup_seconds)
-        return self
-
 
 class AIPerfConfig(BaseModel):
     """Main configuration model for AIPerf benchmark runner."""
@@ -101,7 +90,7 @@ class AIPerfConfig(BaseModel):
     base_config: BaseConfig = Field(
         ..., description="Base configuration applied to all benchmark runs"
     )
-    sweeps: Optional[Dict[str, List[Union[int, float, str]]]] = Field(
+    sweeps: Optional[Dict[str, List[Union[int, str]]]] = Field(
         default=None,
         description="Parameter sweeps. Key is the parameter to change, value is a list of values to use",
     )
