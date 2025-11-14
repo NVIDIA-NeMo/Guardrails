@@ -11,15 +11,16 @@ output_base_dir: aiperf_results
 # These parameters can be overridden by sweep parameters
 base_config:
   # Model details
-  model: meta-llama/Llama-3.3-70B-Instruct
+  model: meta/llama-3.3-70b-instruct
+  tokenizer: meta-llama/Llama-3.3-70B-Instruct
   url: "http://localhost:9000"
   endpoint: "/v1/chat/completions"
   endpoint_type: chat
 
   # Load generation settings.
-  warmup_request_count: 10
-  benchmark_seconds: 60
-  concurrency: 100
+  warmup_request_count: 20
+  benchmark_duration: 60
+  concurrency: 10
   request_rate_mode: "constant"
 
   # Synthetic data generation

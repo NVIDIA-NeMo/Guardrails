@@ -12,13 +12,14 @@ output_base_dir: aiperf_results
 base_config:
   # Model details
   model: meta/llama-3.3-70b-instruct
+  tokenizer: meta-llama/Llama-3.3-70B-Instruct
   url: "http://localhost:9000"
   endpoint: "/v1/chat/completions"
   endpoint_type: chat
 
   # Load generation settings.
   warmup_request_count: 10
-  benchmark_seconds: 60
+  benchmark_duration: 60
   concurrency: 0  # Overridden by the concurrency sweep below
   request_rate_mode: "constant"
 
