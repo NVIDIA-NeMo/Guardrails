@@ -40,6 +40,10 @@ class BaseConfig(BaseModel):
         default="chat",
         description="Type of endpoint (chat or completions)",
     )
+    api_key_env_var: Optional[str] = Field(
+        default=None, description="API key environment variable"
+    )
+    streaming: Optional[bool] = Field(default=False, description="Streaming mode")
 
     # Load generation settings
     warmup_request_count: int = Field(

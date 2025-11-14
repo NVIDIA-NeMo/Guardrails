@@ -1,7 +1,7 @@
 # Concurrency sweep. One-minute tests at log-spaced concurrencies
 
 # Name for this batch of benchmarks (will be part of output directory name)
-batch_name: simple_regression
+batch_name: single_concurrency
 
 # Base directory where all benchmark results will be stored.
 # Actual name is <output_base_dir>/<batch_name>/<sweep value>
@@ -13,14 +13,16 @@ base_config:
   # Model details
   model: meta/llama-3.3-70b-instruct
   tokenizer: meta-llama/Llama-3.3-70B-Instruct
-  url: "http://localhost:9000"
+  url: "https://integrate.api.nvidia.com"
   endpoint: "/v1/chat/completions"
   endpoint_type: chat
+  api_key_env_var: NVIDIA_API_KEY
+  streaming: True
 
   # Load generation settings.
   warmup_request_count: 20
   benchmark_duration: 60
-  concurrency: 10
+  concurrency: 1
   request_rate_mode: "constant"
 
   # Synthetic data generation

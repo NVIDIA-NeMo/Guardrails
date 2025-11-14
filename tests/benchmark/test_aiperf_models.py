@@ -56,6 +56,7 @@ class TestBaseConfig:
             url="http://localhost:8000",
             endpoint="/v1/completions",
             endpoint_type="completions",
+            api_key_env_var="AIPERF_API_KEY",
             warmup_request_count=10,
             benchmark_duration=60,
             concurrency=5,
@@ -71,6 +72,7 @@ class TestBaseConfig:
         assert config.tokenizer == "test-tokenizer"
         assert config.endpoint == "/v1/completions"
         assert config.endpoint_type == "completions"
+        assert config.api_key_env_var == "AIPERF_API_KEY"
         assert config.request_rate == 2.5
         assert config.request_rate_mode == "poisson"
         assert config.random_seed == 42
