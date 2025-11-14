@@ -17,13 +17,15 @@
 import itertools
 import json
 import logging
+import os
 import subprocess
 import sys
 import urllib.parse
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from subprocess import CompletedProcess
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import httpx
 import typer
@@ -45,6 +47,13 @@ console_handler.setFormatter(formatter)
 
 # Add the console handler for logging
 log.addHandler(console_handler)
+
+
+@dataclass
+class AIPerfSummary:
+    total: int
+    completed: int
+    failed: int
 
 
 class AIPerfRunner:
@@ -77,12 +86,12 @@ class AIPerfRunner:
             log.error("Unexpected error loading configuration: %s", e)
             sys.exit(1)
 
-    def _get_sweep_combinations(self) -> List[Dict[str, Any]]:
+    def _get_sweep_combinations(self) -> Optional[List[Dict[str, Union[int, str]]]]:
         """Create cartesian-product of parameter sweep values for benchmarks"""
 
         if not self.config.sweeps:
             # No sweeps, return single empty combination
-            return [{}]
+            return None
 
         # Extract parameter names and their values
         param_names = list(self.config.sweeps.keys())
@@ -108,20 +117,33 @@ class AIPerfRunner:
 
         # Merge base config with sweep params (sweep params override base)
         params = base_params if not sweep_params else {**base_params, **sweep_params}
+        log.debug("Building command-line with params: %s", params)
 
         # Add output directory
         params["output-artifact-dir"] = str(output_dir)
 
+        # Use the --verbose CLI option (which changes log.level to debug) to enable more debugging
+        params["ui_type"] = "simple" if log.level == logging.DEBUG else "none"
+
         # Convert parameters to command line arguments
         for key, value in params.items():
-            item_key = key
+            # If an optional field isn't provided, don't pass that argument to aiperf
+            if value is None:
+                continue
 
-            # Convert the `benchmark_seconds` in config file to `benchmark_duration` key
-            if key == "benchmark_seconds":
-                item_key = "benchmark_duration"
+            # If `api_key_env_var` is provided, get the value of the env var and add it
+            # to the command
+            if key == "api_key_env_var":
+                api_key = os.environ.get(value)
+                if not api_key:
+                    raise RuntimeError(
+                        f"Environment variable {value} not set. Please store the API Key in {value}"
+                    )
+                cmd.extend([f"--api-key", str(api_key)])
+                continue
 
             # Convert underscores to hyphens for CLI arguments
-            arg_name = item_key.replace("_", "-")
+            arg_name = key.replace("_", "-")
 
             # Handle different value types
             if isinstance(value, bool):
@@ -134,6 +156,7 @@ class AIPerfRunner:
             elif value is not None:
                 cmd.extend([f"--{arg_name}", str(value)])
 
+        log.debug("Final command-line: %s", cmd)
         return cmd
 
     @staticmethod
@@ -145,6 +168,7 @@ class AIPerfRunner:
 
         # Early-out if we're not sweeping anything
         if not sweep_params:
+            base_dir.mkdir(parents=True, exist_ok=True)
             return base_dir
 
         param_parts = [f"{key}{value}" for key, value in sorted(sweep_params.items())]
@@ -157,7 +181,7 @@ class AIPerfRunner:
     def _save_run_metadata(
         self,
         output_dir: Path,
-        sweep_params: Dict[str, Any],
+        sweep_params: Optional[Dict[str, Any]],
         command: List[str],
         run_index: int,
     ):
@@ -182,12 +206,28 @@ class AIPerfRunner:
         """Save the subprocess result to the given filename"""
 
         process_result_file = output_dir / "process_result.json"
-        with open(process_result_file, "w", encoding="utf-8") as f:
-            json.dump(result.__dict__, f, indent=2)
+        save_data = result.__dict__
 
-    @staticmethod
-    def _check_service_endpoint(url: str) -> None:
+        try:
+            with open(process_result_file, "w", encoding="utf-8") as f:
+                json.dump(save_data, f, indent=2)
+
+        except (IOError, OSError) as e:
+            log.error(
+                f"Could not write %s to file %s: %s", save_data, process_result_file, e
+            )
+            raise
+
+        except TypeError as e:
+            log.error(
+                f"Couldn't serialize %s to %s: %s", save_data, process_result_file, e
+            )
+            raise
+
+    def _check_service(self, endpoint: Optional[str] = "/v1/models") -> None:
         """Check if the service is up before we run the benchmarks"""
+        url = urllib.parse.urljoin(self.config.base_config.url, endpoint)
+        log.debug("Checking service is up using endpoint %s", url)
 
         try:
             response = httpx.get(url, timeout=5)
@@ -201,81 +241,166 @@ class AIPerfRunner:
         """Run benchmarks with AIPerf"""
 
         # Check the service is up before running anything
-        service_url = urllib.parse.urljoin(self.config.base_config.url, "v1/models")
-        log.info("Checking service is up using %s", service_url)
-        self._check_service_endpoint(service_url)
+        self._check_service()
 
-        # Get base output directory
-        base_output_dir = self.config.get_output_base_path()
-
-        # Create timestamped batch directory
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        batch_name = self.config.batch_name
-        batch_dir = base_output_dir / batch_name / timestamp
-
-        # Generate all sweep combinations
-        combinations = self._get_sweep_combinations()
+        # Get the directory under which all benchmarks will store results
+        batch_dir = self._get_batch_dir()
 
         log.info("Running AIPerf with configuration: %s", self.config_path)
-        log.info("Batch directory: %s", batch_dir)
-        log.info("Sweep parameters: %s", combinations)
-        log.info("Number of runs: %s", len(combinations))
+        log.info("Results root directory: %s", batch_dir)
+        log.info("Sweeping parameters: %s", self.config.sweeps)
 
-        if dry_run:
-            log.info("DRY RUN MODE - Commands will not be executed")
-
-        # Execute each combination
-        failed_runs = []
-
-        for i, sweep_params in enumerate(combinations):
-            run_num = i + 1
-            # Create output directory for this run
-            run_output_dir = self._create_output_dir(batch_dir, sweep_params)
-
-            # Build command
-            command = self._build_command(sweep_params, run_output_dir)
-
-            # Save metadata
-            self._save_run_metadata(run_output_dir, sweep_params, command, i)
-
-            log.info("Run %s/%s", run_num, len(combinations))
-            log.info(
-                "Parameters: %s", sweep_params if sweep_params else "base config only"
-            )
-            log.debug("Output directory: %s", run_output_dir)
-            log.debug("Command: %s", " ".join(command))
-
-            if not dry_run:
-                try:
-                    # Execute the command
-                    result = subprocess.run(
-                        command, check=True, capture_output=True, text=True
-                    )
-                    log.info("Run %s completed successfully", run_num)
-
-                    self._save_subprocess_result_json(run_output_dir, result)
-
-                except subprocess.CalledProcessError as e:
-                    log.error("Run %s failed with exit code %s", i, e.returncode)
-                    failed_runs.append((i, sweep_params))
-                except KeyboardInterrupt:
-                    log.warning("Interrupted by user")
-                    return 130
+        benchmark_result: AIPerfSummary = (
+            self.run_batch_benchmarks(batch_dir, dry_run)
+            if self.config.sweeps
+            else self.run_single_benchmark(batch_dir, dry_run)
+        )
 
         # Log summary
         log.info("SUMMARY")
-        log.info("Total runs: %s", len(combinations))
-        log.info("Successful: %s", len(combinations) - len(failed_runs))
-        log.info("Failed: %s", len(failed_runs))
+        log.info("Total runs : %s", benchmark_result.total)
+        log.info("Completed  : %s", benchmark_result.completed)
+        log.info("Failed     : %s", benchmark_result.failed)
 
-        if failed_runs:
-            log.warning("Failed runs:")
-            for run_index, params in failed_runs:
-                log.warning("  - Run %s: %s", run_index, params)
+        return 1 if benchmark_result.failed > 0 else 0
 
-        log.info("Results stored in: %s", batch_dir)
+    def _get_batch_dir(self) -> Path:
+        # Get base output directory
+        base_output_dir = self.config.get_output_base_path()
+        batch_name = self.config.batch_name
 
-        return 1 if failed_runs else 0
+        # Create timestamped batch directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        batch_dir = base_output_dir / batch_name / timestamp
+        return batch_dir
+
+    def run_single_benchmark(
+        self,
+        run_directory: Path,
+        dry_run: bool,
+    ) -> AIPerfSummary:
+        """Run a single benchmark. Return OS exit code."""
+
+        run_output_dir = self._create_output_dir(run_directory, sweep_params=None)
+
+        log.info("Running AIPerf with configuration: %s", self.config_path)
+        log.info("Output directory: %s", run_output_dir)
+
+        # Build command
+        command = self._build_command(sweep_params=None, output_dir=run_output_dir)
+
+        # Save metadata
+        self._save_run_metadata(run_output_dir, None, command, 0)
+
+        log.info("Single Run")
+        log.debug("Output directory: %s", run_output_dir)
+        log.debug("Command: %s", " ".join(command))
+        if dry_run:
+            log.info("Dry-run mode. Commands will not be executed")
+            return AIPerfSummary(total=0, completed=0, failed=0)
+
+        try:
+            capture_output = log.level != logging.DEBUG
+            # Execute the command
+            result = subprocess.run(
+                command,
+                check=True,
+                capture_output=capture_output,
+                text=True,
+            )
+            log.info("Run completed successfully")
+            self._save_subprocess_result_json(run_output_dir, result)
+            run_completed = 1 if result.returncode == 0 else 0
+            return AIPerfSummary(
+                total=1, completed=run_completed, failed=1 - run_completed
+            )
+
+        except subprocess.CalledProcessError as e:
+            log.error("Run failed with exit code %s", e.returncode)
+            return AIPerfSummary(total=1, completed=0, failed=1)
+
+        except KeyboardInterrupt:
+            log.warning("Interrupted by user")
+            raise
+
+    def run_batch_benchmarks(
+        self,
+        run_directory: Path,
+        dry_run: bool,
+    ) -> AIPerfSummary:
+        """Run a batch of benchmarks using sweeps values. Return OS exit code."""
+
+        # Generate all sweep combinations
+        combinations = self._get_sweep_combinations()
+        if not combinations:
+            raise RuntimeError(
+                f"Can't generate sweep combinations from {self.config.sweeps}"
+            )
+
+        num_combinations = len(combinations)
+        log.info("Running %s benchmarks", num_combinations)
+
+        # Early-out if it's a dry-run
+        if dry_run:
+            log.info("Dry-run mode. Commands will not be executed")
+            return AIPerfSummary(total=0, completed=0, failed=0)
+
+        # If logging isn't set to DEBUG, we'll capture the AIPerf stdout and stderr to a file
+        capture_output = log.level != logging.DEBUG
+
+        # Execute each combination
+        failed_runs = 0
+
+        # Iterate over the sweep combinations, saving out results in separate directories
+        for i, sweep_params in enumerate(combinations):
+            run_num = i + 1  # 1-indexed for run status printouts
+
+            # Create output directory for this run
+            run_output_dir = self._create_output_dir(run_directory, sweep_params)
+
+            # Create the command-line for this sweep param
+            command = self._build_command(sweep_params, run_output_dir)
+
+            # Save metadata to reproduce benchmark results later if needed
+            self._save_run_metadata(run_output_dir, sweep_params, command, i)
+
+            log.info("Run %s/%s", run_num, num_combinations)
+            log.info("Sweep parameters: %s", sweep_params)
+            log.debug("Output directory: %s", run_output_dir)
+            log.debug("Command: %s", " ".join(command))
+
+            try:
+                # Execute the command
+                result = subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=capture_output,
+                    text=True,
+                )
+                log.info("Run %s completed successfully", run_num)
+
+                self._save_subprocess_result_json(run_output_dir, result)
+                if result.returncode != 0:
+                    failed_runs += 1
+
+            except subprocess.CalledProcessError as e:
+                log.error(
+                    "Run %s with sweep params %s failed with exit code %s",
+                    i,
+                    sweep_params,
+                    e.returncode,
+                )
+                failed_runs += 1
+
+            except KeyboardInterrupt:
+                log.warning("Interrupted by user")
+                raise
+
+        return AIPerfSummary(
+            total=num_combinations,
+            completed=num_combinations - failed_runs,
+            failed=failed_runs,
+        )
 
 
 # Create typer app
@@ -301,8 +426,17 @@ def run(
         "--dry-run",
         help="Print commands without executing them",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Print additional debugging information during run",
+    ),
 ):
     """Run AIPerf benchmark using the provided YAML config file"""
+
+    if verbose:
+        log.setLevel(logging.DEBUG)
+
     # Create and run the benchmark runner
     runner = AIPerfRunner(config_file)
     exit_code = runner.run(dry_run=dry_run)
