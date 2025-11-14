@@ -1,4 +1,4 @@
-# Concurrency sweep. One-minute tests at log-spaced concurrencies
+# Single-run AIPerf benchmark configuration
 
 # Name for this batch of benchmarks (will be part of output directory name)
 batch_name: single_concurrency

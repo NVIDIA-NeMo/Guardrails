@@ -214,13 +214,13 @@ class AIPerfRunner:
 
         except (IOError, OSError) as e:
             log.error(
-                f"Could not write %s to file %s: %s", save_data, process_result_file, e
+                "Could not write %s to file %s: %s", save_data, process_result_file, e
             )
             raise
 
         except TypeError as e:
             log.error(
-                f"Couldn't serialize %s to %s: %s", save_data, process_result_file, e
+                "Couldn't serialize %s to %s: %s", save_data, process_result_file, e
             )
             raise
 
