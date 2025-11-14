@@ -28,6 +28,10 @@ class BaseConfig(BaseModel):
 
     # Model details
     model: str = Field(..., description="Model name")
+    tokenizer: Optional[str] = Field(
+        default=None,
+        description="Optional tokenizer Huggingface name, or local directory",
+    )
     url: str = Field(..., description="Model base URL")
     endpoint: str = Field(
         default="/v1/chat/completions", description="API endpoint path"
@@ -41,7 +45,7 @@ class BaseConfig(BaseModel):
     warmup_request_count: int = Field(
         description="Requests to send before beginning performance-test"
     )
-    benchmark_seconds: int = Field(description="Benchmark duration in seconds")
+    benchmark_duration: int = Field(description="Benchmark duration in seconds")
     concurrency: int = Field(description="Number of concurrent requests")
     request_rate: Optional[float] = Field(
         default=None,

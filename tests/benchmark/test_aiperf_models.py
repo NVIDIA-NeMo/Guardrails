@@ -32,17 +32,19 @@ class TestBaseConfig:
         """Test creating BaseConfig with minimal required fields."""
         config = BaseConfig(
             model="test-model",
+            tokenizer="test-tokenizer",
             url="http://localhost:8000",
             warmup_request_count=10,
-            benchmark_seconds=60,
+            benchmark_duration=60,
             concurrency=5,
         )
         assert config.model == "test-model"
+        assert config.tokenizer == "test-tokenizer"
         assert config.url == "http://localhost:8000"
         assert config.endpoint == "/v1/chat/completions"  # Default
         assert config.endpoint_type == "chat"  # Default
         assert config.warmup_request_count == 10
-        assert config.benchmark_seconds == 60
+        assert config.benchmark_duration == 60
         assert config.concurrency == 5
         assert config.request_rate_mode == "constant"  # Default
 
@@ -50,11 +52,12 @@ class TestBaseConfig:
         """Test creating BaseConfig with all fields specified."""
         config = BaseConfig(
             model="test-model",
+            tokenizer="test-tokenizer",
             url="http://localhost:8000",
             endpoint="/v1/completions",
             endpoint_type="completions",
             warmup_request_count=10,
-            benchmark_seconds=60,
+            benchmark_duration=60,
             concurrency=5,
             request_rate=2.5,
             request_rate_mode="poisson",
@@ -65,6 +68,7 @@ class TestBaseConfig:
             prompt_output_tokens_stddev=5,
         )
         assert config.model == "test-model"
+        assert config.tokenizer == "test-tokenizer"
         assert config.endpoint == "/v1/completions"
         assert config.endpoint_type == "completions"
         assert config.request_rate == 2.5
@@ -81,12 +85,12 @@ class TestBaseConfig:
             BaseConfig(
                 model="test-model",
                 url="http://localhost:8000",
-                # Missing warmup_request_count, benchmark_seconds, concurrency
+                # Missing warmup_request_count, benchmark_duration, concurrency
             )
         errors = exc_info.value.errors()
         error_fields = {err["loc"][0] for err in errors}
         assert "warmup_request_count" in error_fields
-        assert "benchmark_seconds" in error_fields
+        assert "benchmark_duration" in error_fields
         assert "concurrency" in error_fields
 
     def test_base_config_invalid_endpoint_type(self):
@@ -97,7 +101,7 @@ class TestBaseConfig:
                 url="http://localhost:8000",
                 endpoint_type="invalid",  # Must be "chat" or "completions"
                 warmup_request_count=10,
-                benchmark_seconds=60,
+                benchmark_duration=60,
                 concurrency=5,
             )
         errors = exc_info.value.errors()
@@ -111,7 +115,7 @@ class TestBaseConfig:
                 url="http://localhost:8000",
                 request_rate_mode="invalid",  # Must be "constant" or "poisson"
                 warmup_request_count=10,
-                benchmark_seconds=60,
+                benchmark_duration=60,
                 concurrency=5,
             )
         errors = exc_info.value.errors()
@@ -128,7 +132,7 @@ class TestAIPerfConfig:
             model="test-model",
             url="http://localhost:8000",
             warmup_request_count=10,
-            benchmark_seconds=60,
+            benchmark_duration=60,
             concurrency=5,
         )
 
@@ -337,7 +341,7 @@ class TestAIPerfConfig:
                 "endpoint": ["/v1/chat", "/v1/completions"],
                 "endpoint_type": ["chat", "completions"],
                 "warmup_request_count": [5, 10],
-                "benchmark_seconds": [30, 60],
+                "benchmark_duration": [30, 60],
                 "concurrency": [5, 10],
                 "request_rate_mode": ["constant", "poisson"],
                 "random_seed": [42, 123],
@@ -362,7 +366,7 @@ class TestAIPerfConfig:
         with pytest.raises(ValueError, match="Input should be a valid list"):
             config = AIPerfConfig(
                 base_config=valid_base_config,
-                sweeps={"benchmark_seconds": 1},
+                sweeps={"benchmark_duration": 1},
             )
 
     def test_sweeps_empty_list_raises(self, valid_base_config):
