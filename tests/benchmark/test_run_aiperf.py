@@ -418,7 +418,7 @@ class TestCreateOutputDir:
         result = AIPerfRunner._create_output_dir(base_dir, sweep_params)
 
         # Directory should contain sweep parameter values
-        assert str(result) == f"{base_dir}/benchmark_duration30_concurrency10"
+        assert str(result) == base_dir / "benchmark_duration30_concurrency10"
         assert result.exists()
         assert result.is_dir()
 
