@@ -17,15 +17,12 @@ import os
 
 try:
     from langchain.chains import LLMMathChain
-except ImportError:
-    try:
-        from langchain_classic.chains import LLMMathChain
-    except ImportError as second_error:
-        raise ImportError(
-            f"Failed to import required LangChain modules. "
-            f"If you're using LangChain >= 1.0.0, ensure langchain-classic is installed. "
-            f"Original error: {second_error}"
-        ) from second_error
+except ImportError as e:
+    raise ImportError(
+        "Failed to import required LangChain modules. "
+        "If you're using LangChain >= 1.0.0, ensure langchain-classic is installed. "
+        f"Original error: {e}"
+    ) from e
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import Tool

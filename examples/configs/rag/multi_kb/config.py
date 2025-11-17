@@ -27,18 +27,12 @@ try:
     from langchain.embeddings import HuggingFaceEmbeddings
     from langchain.text_splitter import CharacterTextSplitter
     from langchain.vectorstores import FAISS
-except ImportError:
-    try:
-        from langchain_classic.chains import RetrievalQA
-        from langchain_classic.embeddings import HuggingFaceEmbeddings
-        from langchain_classic.text_splitter import CharacterTextSplitter
-        from langchain_classic.vectorstores import FAISS
-    except ImportError as second_error:
-        raise ImportError(
-            f"Failed to import required LangChain modules. "
-            f"If you're using LangChain >= 1.0.0, ensure langchain-classic and langchain-text-splitters is installed. "
-            f"Original error: {second_error}"
-        ) from second_error
+except ImportError as e:
+    raise ImportError(
+        "Failed to import required LangChain modules. "
+        "Ensure you have installed the correct version of langchain and its dependencies. "
+        f"Original error: {e}"
+    ) from e
 
 from langchain_core.language_models.llms import BaseLLM
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline

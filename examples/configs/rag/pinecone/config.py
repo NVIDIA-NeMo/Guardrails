@@ -23,17 +23,12 @@ try:
     from langchain.chains import RetrievalQA
     from langchain.embeddings.openai import OpenAIEmbeddings
     from langchain.vectorstores import Pinecone
-except ImportError:
-    try:
-        from langchain_classic.chains import RetrievalQA
-        from langchain_classic.embeddings.openai import OpenAIEmbeddings
-        from langchain_classic.vectorstores import Pinecone
-    except ImportError as second_error:
-        raise ImportError(
-            f"Failed to import required LangChain modules. "
-            f"If you're using LangChain >= 1.0.0, ensure langchain-classic is installed. "
-            f"Original error: {second_error}"
-        ) from second_error
+except ImportError as e:
+    raise ImportError(
+        "Failed to import required LangChain modules. "
+        "Ensure you have installed the correct version of langchain and its dependencies. "
+        f"Original error: {e}"
+    ) from e
 
 from langchain_core.language_models import BaseLLM
 
@@ -44,7 +39,6 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
-PINECONE_ENVIRONMENT = os.environ.get("PINECONE_ENVIRONMENT")
 index_name = "nemoguardrailsindex"
 
 LOG_FILENAME = datetime.now().strftime("logs/mylogfile_%H_%M_%d_%m_%Y.log")
