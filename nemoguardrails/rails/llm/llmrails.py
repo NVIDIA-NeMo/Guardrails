@@ -70,6 +70,10 @@ from nemoguardrails.context import (
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers import register_embedding_provider
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
+from nemoguardrails.exceptions import (
+    InvalidModelConfigurationError,
+    InvalidRailsConfigurationError,
+)
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
 from nemoguardrails.llm.models.initializer import (
@@ -225,13 +229,19 @@ class LLMRails:
                         spec.loader.exec_module(config_module)
                         config_modules.append(config_module)
 
+        colang_version_to_runtime: Dict[str, Type[Runtime]] = {
+            "1.0": RuntimeV1_0,
+            "2.x": RuntimeV2_x,
+        }
+        if config.colang_version not in colang_version_to_runtime:
+            raise InvalidRailsConfigurationError(
+                f"Unsupported colang version: {config.colang_version}. Supported versions: {list(colang_version_to_runtime.keys())}"
+            )
+
         # First, we initialize the runtime.
-        if config.colang_version == "1.0":
-            self.runtime = RuntimeV1_0(config=config, verbose=verbose)
-        elif config.colang_version == "2.x":
-            self.runtime = RuntimeV2_x(config=config, verbose=verbose)
-        else:
-            raise ValueError(f"Unsupported colang version: {config.colang_version}.")
+        self.runtime = colang_version_to_runtime[config.colang_version](
+            config=config, verbose=verbose
+        )
 
         # If we have a config_modules with an `init` function, we call it.
         # We need to call this here because the `init` might register additional
@@ -317,20 +327,26 @@ class LLMRails:
             # content safety check input/output flows are special as they have parameters
             flow_name = _normalize_flow_id(flow_name)
             if flow_name not in existing_flows_names:
-                raise ValueError(f"The provided input rail flow `{flow_name}` does not exist")
+                raise InvalidRailsConfigurationError(
+                    f"The provided input rail flow `{flow_name}` does not exist"
+                )
 
         for flow_name in self.config.rails.output.flows:
             flow_name = _normalize_flow_id(flow_name)
             if flow_name not in existing_flows_names:
-                raise ValueError(f"The provided output rail flow `{flow_name}` does not exist")
+                raise InvalidRailsConfigurationError(
+                    f"The provided output rail flow `{flow_name}` does not exist"
+                )
 
         for flow_name in self.config.rails.retrieval.flows:
             if flow_name not in existing_flows_names:
-                raise ValueError(f"The provided retrieval rail flow `{flow_name}` does not exist")
+                raise InvalidRailsConfigurationError(
+                    f"The provided retrieval rail flow `{flow_name}` does not exist"
+                )
 
         # If both passthrough mode and single call mode are specified, we raise an exception.
         if self.config.passthrough and self.config.rails.dialog.single_call.enabled:
-            raise ValueError(
+            raise InvalidRailsConfigurationError(
                 "The passthrough mode and the single call dialog rails mode can't be used at the same time. "
                 "The single call mode needs to use an altered prompt when prompting the LLM. "
             )
@@ -470,7 +486,9 @@ class LLMRails:
             try:
                 model_name = llm_config.model
                 if not model_name:
-                    raise ValueError("LLM Config model field not set")
+                    raise InvalidModelConfigurationError(
+                        message=f"`model` field must be set in model configuration: {llm_config.model_dump_json()}"
+                    )
 
                 provider_name = llm_config.engine
                 kwargs = self._prepare_model_kwargs(llm_config)
@@ -1179,11 +1197,11 @@ class LLMRails:
         if len(self.config.rails.output.flows) > 0 and (
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):
-            raise ValueError(
-                "stream_async() cannot be used when output rails are configured but "
-                "rails.output.streaming.enabled is False. Either set "
-                "rails.output.streaming.enabled to True in your configuration, or use "
-                "generate_async() instead of stream_async()."
+            raise InvalidRailsConfigurationError(
+                message=f"stream_async() cannot be used when output rails are configured but "
+                f"rails.output.streaming.enabled is False. Either set "
+                f"rails.output.streaming.enabled to True in your configuration, or use "
+                f"generate_async() instead of stream_async()."
             )
 
     @overload

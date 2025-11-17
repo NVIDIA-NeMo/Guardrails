@@ -37,6 +37,11 @@ from nemoguardrails.colang import parse_colang_file, parse_flow_elements
 from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id
 from nemoguardrails.colang.v2_x.lang.utils import format_colang_parsing_error_message
 from nemoguardrails.colang.v2_x.runtime.errors import ColangParsingError
+from nemoguardrails.exceptions import (
+    InvalidModelConfigurationError,
+    InvalidRailsConfigurationError,
+)
+from nemoguardrails.llm.types import Task
 
 log = logging.getLogger(__name__)
 
@@ -136,8 +141,12 @@ class Model(BaseModel):
             model_from_params = parameters.get("model_name") or parameters.get("model")
 
             if model_field and model_from_params:
-                raise ValueError(
-                    "Model name must be specified in exactly one place: either in the 'model' field or in parameters, not both."
+                raise InvalidModelConfigurationError(
+                    message=f"Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`).",
+                    context={
+                        "model": model_field,
+                        "parameters": parameters,
+                    },
                 )
             if not model_field and model_from_params:
                 data["model"] = model_from_params
@@ -151,8 +160,8 @@ class Model(BaseModel):
     def model_must_be_none_empty(self) -> "Model":
         """Validate that a model name is present either directly or in parameters."""
         if not self.model or not self.model.strip():
-            raise ValueError(
-                "Model name must be specified either directly in the 'model' field or through 'model_name'/'model' in parameters"
+            raise InvalidModelConfigurationError(
+                message=f"Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`).",
             )
         return self
 
@@ -334,10 +343,15 @@ class TaskPrompt(BaseModel):
     @root_validator(pre=True, allow_reuse=True)
     def check_fields(cls, values):
         if not values.get("content") and not values.get("messages"):
-            raise ValueError("One of `content` or `messages` must be provided.")
+            raise InvalidRailsConfigurationError(
+                message="One of `content` or `messages` must be provided."
+            )
+            # raise ValueError("One of `content` or `messages` must be provided.")
 
         if values.get("content") and values.get("messages"):
-            raise ValueError("Only one of `content` or `messages` must be provided.")
+            raise InvalidRailsConfigurationError(
+                message="Only one of `content` or `messages` must be provided."
+            )
 
         return values
 
@@ -1414,7 +1428,15 @@ class RailsConfig(BaseModel):
             if not flow_model:
                 continue
             if flow_model not in model_types:
-                raise ValueError(f"No `{flow_model}` model provided for input flow `{_normalize_flow_id(flow)}`")
+                flow_id = _normalize_flow_id(flow)
+                available_types = (
+                    ", ".join(f"'{str(t)}'" for t in sorted(model_types))
+                    if model_types
+                    else "none"
+                )
+                raise InvalidRailsConfigurationError(
+                    message=f"Input flow '{flow_id}' references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}.",
+                )
         return values
 
     @root_validator(pre=True)
@@ -1436,7 +1458,15 @@ class RailsConfig(BaseModel):
             if not flow_model:
                 continue
             if flow_model not in model_types:
-                raise ValueError(f"No `{flow_model}` model provided for output flow `{_normalize_flow_id(flow)}`")
+                flow_id = _normalize_flow_id(flow)
+                available_types = (
+                    ", ".join(f"'{str(t)}'" for t in sorted(model_types))
+                    if model_types
+                    else "none"
+                )
+                raise InvalidRailsConfigurationError(
+                    message=f"Output flow {flow_id} references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}.",
+                )
         return values
 
     @root_validator(pre=True)
@@ -1449,10 +1479,23 @@ class RailsConfig(BaseModel):
         provided_task_prompts = [prompt.task if hasattr(prompt, "task") else prompt.get("task") for prompt in prompts]
 
         # Input moderation prompt verification
-        if "self check input" in enabled_input_rails and "self_check_input" not in provided_task_prompts:
-            raise ValueError("You must provide a `self_check_input` prompt template.")
-        if "llama guard check input" in enabled_input_rails and "llama_guard_check_input" not in provided_task_prompts:
-            raise ValueError("You must provide a `llama_guard_check_input` prompt template.")
+        if (
+            "self check input" in enabled_input_rails
+            and "self_check_input" not in provided_task_prompts
+        ):
+            raise InvalidRailsConfigurationError(
+                f"Missing a `self_check_input` prompt, which is required for the `self check input` rail."
+            )
+        if (
+            "llama guard check input" in enabled_input_rails
+            and "llama_guard_check_input" not in provided_task_prompts
+        ):
+            raise InvalidRailsConfigurationError(
+                f"Missing a `llama_guard_check_input` prompt, which is required for the `llama guard check input` rail."
+            )
+            # raise ValueError(
+            #     "You must provide a `llama_guard_check_input` prompt template."
+            # )
 
         # Only content-safety and topic-safety include a $model reference in the rail flow text
         # Need to match rails with flow_id (excluding $model reference) and match prompts
@@ -1461,21 +1504,43 @@ class RailsConfig(BaseModel):
         _validate_rail_prompts(enabled_input_rails, provided_task_prompts, "topic safety check input")
 
         # Output moderation prompt verification
-        if "self check output" in enabled_output_rails and "self_check_output" not in provided_task_prompts:
-            raise ValueError("You must provide a `self_check_output` prompt template.")
+        if (
+            "self check output" in enabled_output_rails
+            and "self_check_output" not in provided_task_prompts
+        ):
+            raise InvalidRailsConfigurationError(
+                f"Missing a `self_check_output` prompt, which is required for the `self check output` rail."
+            )
+            # raise ValueError("You must provide a `self_check_output` prompt template.")
         if (
             "llama guard check output" in enabled_output_rails
             and "llama_guard_check_output" not in provided_task_prompts
         ):
-            raise ValueError("You must provide a `llama_guard_check_output` prompt template.")
+            raise InvalidRailsConfigurationError(
+                f"Missing a `llama_guard_check_output` prompt, which is required for the `llama guard check output` rail."
+            )
+            # raise ValueError(
+            #     "You must provide a `llama_guard_check_output` prompt template."
+            # )
         if (
             "patronus lynx check output hallucination" in enabled_output_rails
             and "patronus_lynx_check_output_hallucination" not in provided_task_prompts
         ):
-            raise ValueError("You must provide a `patronus_lynx_check_output_hallucination` prompt template.")
+            raise InvalidRailsConfigurationError(
+                f"Missing a `patronus_lynx_check_output_hallucination` prompt, which is required for the `patronus lynx check output hallucination` rail."
+            )
+            # raise ValueError(
+            #     "You must provide a `patronus_lynx_check_output_hallucination` prompt template."
+            # )
 
-        if "self check facts" in enabled_output_rails and "self_check_facts" not in provided_task_prompts:
-            raise ValueError("You must provide a `self_check_facts` prompt template.")
+        if (
+            "self check facts" in enabled_output_rails
+            and "self_check_facts" not in provided_task_prompts
+        ):
+            raise InvalidRailsConfigurationError(
+                f"Missing a `self_check_facts` prompt, which is required for the `self check facts` rail."
+            )
+            # raise ValueError("You must provide a `self_check_facts` prompt template.")
 
         # Only content-safety and topic-safety include a $model reference in the rail flow text
         # Need to match rails with flow_id (excluding $model reference) and match prompts
@@ -1801,4 +1866,6 @@ def _validate_rail_prompts(rails: list[str], prompts: list[Any], validation_rail
             prompt_flow_id = flow_id.replace(" ", "_")
             expected_prompt = f"{prompt_flow_id} $model={flow_model}"
             if expected_prompt not in prompts:
-                raise ValueError(f"You must provide a `{expected_prompt}` prompt template.")
+                raise InvalidRailsConfigurationError(
+                    f"Missing a `{expected_prompt}` prompt, which is required for the `{validation_rail}` rail."
+                )

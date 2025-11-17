@@ -36,6 +36,18 @@ from nemoguardrails.logging.explain import LLMCallInfo
 
 logger = logging.getLogger(__name__)
 
+# Since different providers have different attributes for the base URL we'll use this list as a best-effort way
+# to extract the base URL from a `BaseLanguageModel` instance.
+BASE_URL_ATTRIBUTES = [
+    "api_base",
+    "api_host",
+    "azure_endpoint",
+    "base_url",
+    "endpoint",
+    "endpoint_url",
+    "openai_api_base",
+]
+
 
 class LLMCallException(Exception):
     """A wrapper around the LLM call invocation exception.
@@ -44,9 +56,18 @@ class LLMCallException(Exception):
     catch it and return an "Internal server error." message.
     """
 
-    def __init__(self, inner_exception: Any):
-        super().__init__(f"LLM Call Exception: {str(inner_exception)}")
+    def __init__(self, inner_exception: Any, context_message: Optional[str] = None):
+        """Initialize LLMCallException.
+
+        Args:
+            inner_exception: The original exception that occurred
+            context_message: Optional context to prepend (for example, the model name or endpoint)
+        """
+        message = f"{context_message or 'LLM Call Exception'}: {str(inner_exception)}"
+        super().__init__(message)
+
         self.inner_exception = inner_exception
+        self.context_message = context_message
 
 
 def _infer_provider_from_module(llm: BaseLanguageModel) -> Optional[str]:
@@ -200,6 +221,59 @@ def _prepare_callbacks(
     return logging_callbacks
 
 
+def _raise_llm_call_exception(
+    exception: Exception,
+    llm: Union[BaseLanguageModel, Runnable],
+) -> None:
+    """Raise an LLMCallException with enriched context about the failed invocation.
+
+    Args:
+        exception: The original exception that occurred
+        llm: The LLM instance that was being invoked
+
+    Raises:
+        LLMCallException with context message including model name and endpoint
+    """
+    # Extract model info from context (set by _setup_llm_call_info)
+    llm_call_info = llm_call_info_var.get()
+    logger.info(llm_call_info)
+    model_name = (
+        llm_call_info.llm_model_name
+        if llm_call_info
+        else _infer_model_name(llm)
+        if isinstance(llm, BaseLanguageModel)
+        else ""
+    )
+
+    # Extract endpoint URL from the LLM instance
+    endpoint_url = None
+    for attr in BASE_URL_ATTRIBUTES:
+        if hasattr(llm, attr):
+            value = getattr(llm, attr, None)
+            if value:
+                endpoint_url = str(value)
+                break
+
+    # If we didn't find endpoint URL, check the nested client object
+    if not endpoint_url and hasattr(llm, "client"):
+        client = getattr(llm, "client", None)
+        if client and hasattr(client, "base_url"):
+            endpoint_url = str(client.base_url)
+
+    # Build context message with model and endpoint info
+    context_parts = []
+    if model_name:
+        context_parts.append(f"model={model_name}")
+    if endpoint_url:
+        context_parts.append(f"endpoint={endpoint_url}")
+
+    if context_parts:
+        context_message = f"Error invoking LLM ({', '.join(context_parts)})"
+        raise LLMCallException(exception, context_message=context_message)
+    else:
+        raise LLMCallException(exception)
+
+
 async def _invoke_with_string_prompt(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: str,
@@ -210,7 +284,7 @@ async def _invoke_with_string_prompt(
     try:
         return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks), stop=stop)
     except Exception as e:
-        raise LLMCallException(e)
+        _raise_llm_call_exception(e, llm)
 
 
 async def _invoke_with_message_list(
@@ -225,7 +299,7 @@ async def _invoke_with_message_list(
     try:
         return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks), stop=stop)
     except Exception as e:
-        raise LLMCallException(e)
+        _raise_llm_call_exception(e, llm)
 
 
 def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
