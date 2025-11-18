@@ -19,12 +19,13 @@ import time
 from unittest.mock import patch
 
 import pytest
+
+langchain_nvidia_ai_endpoints = pytest.importorskip("langchain_nvidia_ai_endpoints")
+
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
 from nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch import ChatNVIDIA
-
-langchain_nvidia_ai_endpoints = pytest.importorskip("langchain_nvidia_ai_endpoints")
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE")
 
