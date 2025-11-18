@@ -487,7 +487,7 @@ class LLMRails:
                 model_name = llm_config.model
                 if not model_name:
                     raise InvalidModelConfigurationError(
-                        message=f"`model` field must be set in model configuration: {llm_config.model_dump_json()}"
+                        f"`model` field must be set in model configuration: {llm_config.model_dump_json()}"
                     )
 
                 provider_name = llm_config.engine

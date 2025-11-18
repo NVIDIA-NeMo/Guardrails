@@ -26,7 +26,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
 from langchain_core.runnables import Runnable
 
 from nemoguardrails import utils
-from nemoguardrails.actions.llm.utils import LLMCallException
+from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.logging.callbacks import logging_callbacks
 
 log = logging.getLogger(__name__)
 

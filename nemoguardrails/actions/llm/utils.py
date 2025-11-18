@@ -30,13 +30,14 @@ from nemoguardrails.context import (
     reasoning_trace_var,
     tool_calls_var,
 )
+from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
 logger = logging.getLogger(__name__)
 
-# Since different providers have different attributes for the base URL we'll use this list as a best-effort way
+# Since different providers have different attributes for the base URL, we'll use this list as a best-effort way
 # to extract the base URL from a `BaseLanguageModel` instance.
 BASE_URL_ATTRIBUTES = [
     "api_base",
@@ -47,27 +48,6 @@ BASE_URL_ATTRIBUTES = [
     "endpoint_url",
     "openai_api_base",
 ]
-
-
-class LLMCallException(Exception):
-    """A wrapper around the LLM call invocation exception.
-
-    This is used to propagate the exception out of the `generate_async` call (the default behavior is to
-    catch it and return an "Internal server error." message.
-    """
-
-    def __init__(self, inner_exception: Any, context_message: Optional[str] = None):
-        """Initialize LLMCallException.
-
-        Args:
-            inner_exception: The original exception that occurred
-            context_message: Optional context to prepend (for example, the model name or endpoint)
-        """
-        message = f"{context_message or 'LLM Call Exception'}: {str(inner_exception)}"
-        super().__init__(message)
-
-        self.inner_exception = inner_exception
-        self.context_message = context_message
 
 
 def _infer_provider_from_module(llm: BaseLanguageModel) -> Optional[str]:

@@ -138,13 +138,13 @@ def init_langchain_model(
     initializers: list[ModelInitializer] = [
         # Try special case handlers first (handles both chat and text)
         ModelInitializer(_handle_model_special_cases, ["chat", "text"]),
+        # FIXME: is text and chat a good idea?
+        # For text mode, use text completion, we are using both text and chat as the last resort
+        ModelInitializer(_init_text_completion_model, ["text", "chat"]),
         # For chat mode, first try the standard chat completion API
         ModelInitializer(_init_chat_completion_model, ["chat"]),
         # For chat mode, fall back to community chat models
         ModelInitializer(_init_community_chat_models, ["chat"]),
-        # FIXME: is text and chat a good idea?
-        # For text mode, use text completion, we are using both text and chat as the last resort
-        ModelInitializer(_init_text_completion_model, ["text", "chat"]),
     ]
 
     # Track the last exception for better error reporting
@@ -168,10 +168,10 @@ def init_langchain_model(
             if first_import_error is None:
                 first_import_error = e
             last_exception = e
-            log.debug(f"Initialization import‐failure in {initializer}: {e}")
+            log.error(f"Initialization import‐failure in {initializer}: {e}")
         except Exception as e:
             last_exception = e
-            log.debug(f"Initialization failed with {initializer}: {e}")
+            log.error(f"Initialization failed with {initializer}: {e}")
     # build the final message, preferring that first ImportError if we saw one
     base = f"Failed to initialize model {model_name!r} with provider {provider_name!r} in {mode!r} mode"
 
@@ -222,6 +222,9 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
             **kwargs,
         )
     except ValueError:
+        raise
+    except Exception as e:
+        log.error(e, exc_info=True)
         raise
 
 
