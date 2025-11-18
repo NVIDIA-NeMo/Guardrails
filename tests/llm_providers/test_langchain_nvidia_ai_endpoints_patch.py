@@ -386,9 +386,9 @@ streaming: True
         total_time = chunk_times[-1] - chunk_times[0]
 
         assert len(chunks) > 0, "Should receive at least one chunk"
-        assert ttft < (total_time / 2), (
-            f"TTFT ({ttft:.3f}s) should be less than half of total time ({total_time:.3f}s)"
-        )
+        assert ttft < (
+            total_time / 2
+        ), f"TTFT ({ttft:.3f}s) should be less than half of total time ({total_time:.3f}s)"
         assert len(chunk_times) > 2, "Should receive multiple chunks for streaming"
 
         full_response = "".join(chunks)
