@@ -19,7 +19,6 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from nemoguardrails.actions.llm.utils import (
-    LLMCallException,
     _convert_messages_to_langchain_format,
     _extract_content,
     _store_tool_calls,
@@ -27,6 +26,7 @@ from nemoguardrails.actions.llm.utils import (
     llm_call,
 )
 from nemoguardrails.context import tool_calls_var
+from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.rails.llm.llmrails import GenerationResponse
 
 

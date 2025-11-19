@@ -17,7 +17,7 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.actions.llm.utils import LLMCallException
+from nemoguardrails.exceptions import LLMCallException
 from tests.utils import TestChat
 
 
