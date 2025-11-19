@@ -45,6 +45,7 @@ BASE_URL_ATTRIBUTES = [
     "endpoint",
     "endpoint_url",
     "openai_api_base",
+    "server_url",
 ]
 
 

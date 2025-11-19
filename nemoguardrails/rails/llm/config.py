@@ -1460,7 +1460,7 @@ class RailsConfig(BaseModel):
                     else "none"
                 )
                 raise InvalidRailsConfigurationError(
-                    "Output flow {flow_id} references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
+                    f"Output flow '{flow_id}' references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
                 )
         return values
 

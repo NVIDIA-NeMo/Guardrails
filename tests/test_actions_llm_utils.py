@@ -89,6 +89,24 @@ class MockPatchedNVIDIA(MockNVIDIAOriginal):
     __module__ = "nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch"
 
 
+class MockTRTLLM:
+    __module__ = "nemoguardrails.llm.providers.trtllm.llm"
+
+
+class MockAzureLLM:
+    __module__ = "langchain_openai.chat_models"
+
+
+class MockLLMWithClient:
+    __module__ = "langchain_openai.chat_models"
+
+    class _MockClient:
+        base_url = "https://custom.endpoint.com/v1"
+
+    def __init__(self):
+        self.client = self._MockClient()
+
+
 def test_infer_provider_openai():
     llm = MockOpenAILLM()
     provider = _infer_provider_from_module(llm)
