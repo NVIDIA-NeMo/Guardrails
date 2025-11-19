@@ -91,7 +91,9 @@ def test_check_prompt_exist_for_self_check_rails():
             # missings self_check_output prompt
         ],
     }
-    with pytest.raises(ValueError, match="You must provide a `self_check_output` prompt template"):
+    with pytest.raises(
+        ValueError, match="Missing a `self_check_output` prompt template"
+    ):
         RailsConfig.check_prompt_exist_for_self_check_rails(values)
 
 
@@ -340,7 +342,7 @@ class TestConfigHelpers:
 
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+            match="Missing a `content_safety_check_input \$model=content_safety` prompt template",
         ):
             _validate_rail_prompts(
                 ["content safety check input $model=content_safety"],
@@ -353,7 +355,7 @@ class TestConfigHelpers:
 
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+            match="Missing a `content_safety_check_input \$model=content_safety` prompt template",
         ):
             _validate_rail_prompts(
                 ["content safety check input $model=content_safety"],
@@ -366,7 +368,7 @@ class TestConfigHelpers:
 
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+            match="Missing a `content_safety_check_input \$model=content_safety` prompt template",
         ):
             _validate_rail_prompts(
                 ["content safety check input $model=content_safety"],
@@ -382,7 +384,7 @@ class TestContentSafetyConfig:
         """Check Content Safety output rail raises ValueError if we don't have a prompt"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template.",
+            match="Missing a `content_safety_check_input \$model=content_safety` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -402,7 +404,7 @@ class TestContentSafetyConfig:
         """Check Content Safety output rail raises ValueError if we don't have a prompt"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_output \$model=content_safety` prompt template.",
+            match="Missing a `content_safety_check_output \$model=content_safety` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -506,7 +508,7 @@ class TestContentSafetyConfig:
 
         with pytest.raises(
             ValueError,
-            match="No `content_safety` model provided for input flow `content safety check input`",
+            match="Input flow 'content safety check input' references model type 'content_safety' that is not defined",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -531,7 +533,7 @@ class TestContentSafetyConfig:
 
         with pytest.raises(
             ValueError,
-            match="No `content_safety` model provided for input flow `content safety check input",
+            match="Input flow 'content safety check input' references model type 'content_safety' that is not defined",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -556,7 +558,7 @@ class TestContentSafetyConfig:
 
         with pytest.raises(
             ValueError,
-            match="No `content_safety` model provided for output flow `content safety check output`",
+            match="Output flow 'content safety check output' references model type 'content_safety' that is not defined",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -581,7 +583,7 @@ class TestContentSafetyConfig:
 
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_output \$model=content_safety` prompt template",
+            match="Missing a `content_safety_check_output \$model=content_safety` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -636,7 +638,7 @@ class TestTopicSafetyConfig:
 
         with pytest.raises(
             ValueError,
-            match="You must provide a `topic_safety_check_input \$model=topic_control` prompt template",
+            match="Missing a `topic_safety_check_input \$model=topic_control` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -660,7 +662,7 @@ class TestTopicSafetyConfig:
         """Check if we don't provide a topic-safety model we raise a ValueError"""
         with pytest.raises(
             ValueError,
-            match="No `topic_control` model provided for input flow `topic safety check input`",
+            match="Input flow 'topic safety check input' references model type 'topic_control' that is not defined",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -684,7 +686,7 @@ class TestTopicSafetyConfig:
         """Check a missing model and prompt raises ValueError"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `topic_safety_check_input \$model=topic_control` prompt template",
+            match="Missing a `topic_safety_check_input \$model=topic_control` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -713,7 +715,7 @@ class TestCombinedConfig:
 
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=my_content_safety` prompt template",
+            match="Missing a `content_safety_check_input \$model=my_content_safety` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -846,7 +848,7 @@ class TestCombinedConfig:
         """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template",
+            match="Missing a `content_safety_check_input \$model=content_safety` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -886,7 +888,7 @@ class TestCombinedConfig:
         """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `topic_safety_check_input \$model=your_topic_control` prompt template",
+            match="Missing a `topic_safety_check_input \$model=your_topic_control` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -930,7 +932,7 @@ class TestCombinedConfig:
         """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `topic_safety_check_input \$model=your_topic_control` prompt template",
+            match="Missing a `topic_safety_check_input \$model=your_topic_control` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
@@ -976,7 +978,7 @@ class TestCombinedConfig:
         """Create hero workflow with no prompts. Expect Content Safety input prompt check to fail"""
         with pytest.raises(
             ValueError,
-            match="You must provide a `content_safety_check_input \$model=content_safety` prompt template",
+            match="Missing a `content_safety_check_input \$model=content_safety` prompt template",
         ):
             _ = RailsConfig.from_content(
                 yaml_content="""
