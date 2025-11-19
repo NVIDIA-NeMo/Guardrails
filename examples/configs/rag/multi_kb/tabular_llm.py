@@ -19,7 +19,7 @@ from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain_core.language_models.llms import BaseLLM
+from langchain_core.language_models import BaseLLM
 
 
 def query_tabular_data(usr_query: str, gpt: any, raw_data_frame: any):
