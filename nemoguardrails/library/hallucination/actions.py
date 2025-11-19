@@ -89,7 +89,7 @@ async def self_check_hallucination(
         llm_with_config = llm.bind(temperature=1.0, n=num_responses)
         extra_llm_response = await llm_with_config.agenerate(
             [formatted_prompt],
-            callbacks=[logging_callback_manager_for_chain],
+            callbacks=logging_callback_manager_for_chain.handlers,
         )
 
         extra_llm_completions = []
