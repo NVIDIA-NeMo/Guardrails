@@ -57,7 +57,7 @@ def stream_decorator(func):  # pragma: no cover
     return wrapper
 
 
-def async_stream_decorator(func):
+def async_stream_decorator(func):  # pragma: no cover
     @wraps(func)
     async def wrapper(
         self,
