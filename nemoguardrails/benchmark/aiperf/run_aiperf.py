@@ -104,6 +104,37 @@ class AIPerfRunner:
 
         return combinations
 
+    @staticmethod
+    def _sanitize_command_for_logging(cmd: List[str]) -> str:
+        """Convert command list to string with API key redacted.
+
+        Args:
+            cmd: List of command-line arguments
+
+        Returns:
+            String representation with --api-key value replaced with <removed>
+        """
+        last_n_chars = 6  # Show the last 6 characters
+
+        sanitized = []
+        i = 0
+        while i < len(cmd):
+            current = cmd[i]
+            sanitized.append(current)
+
+            # If this is --api-key, replace the next value with <removed>
+            if current == "--api-key" and i + 1 < len(cmd):
+                api_key = cmd[i + 1]
+                len_api_key = len(api_key)
+                sanitized_api_key = "*" * (len_api_key - last_n_chars)
+                sanitized_api_key += api_key[-last_n_chars:]
+                sanitized.append(sanitized_api_key)
+                i += 2  # Skip the actual API key value
+            else:
+                i += 1
+
+        return " ".join(sanitized)
+
     def _build_command(
         self, sweep_params: Optional[Dict[str, Union[str, int]]], output_dir: Path
     ) -> List[str]:
@@ -156,7 +187,7 @@ class AIPerfRunner:
             elif value is not None:
                 cmd.extend([f"--{arg_name}", str(value)])
 
-        log.debug("Final command-line: %s", cmd)
+        log.debug("Final command-line: %s", self._sanitize_command_for_logging(cmd))
         return cmd
 
     @staticmethod
@@ -192,7 +223,7 @@ class AIPerfRunner:
             "config_file": str(self.config_path),
             "sweep_params": sweep_params,
             "base_config": self.config.base_config.model_dump(),
-            "command": " ".join(command),
+            "command": self._sanitize_command_for_logging(command),
         }
 
         metadata_file = output_dir / "run_metadata.json"
@@ -294,7 +325,7 @@ class AIPerfRunner:
 
         log.info("Single Run")
         log.debug("Output directory: %s", run_output_dir)
-        log.debug("Command: %s", " ".join(command))
+        log.debug("Command: %s", self._sanitize_command_for_logging(command))
         if dry_run:
             log.info("Dry-run mode. Commands will not be executed")
             return AIPerfSummary(total=0, completed=0, failed=0)

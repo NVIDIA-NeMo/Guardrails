@@ -223,6 +223,134 @@ class TestGetSweepCombinations:
         assert {"concurrency": 2, "benchmark_duration": 60} in combinations
 
 
+class TestSanitizeCommandForLogging:
+    """Test the _sanitize_command_for_logging static method."""
+
+    def test_sanitize_command_with_api_key(self):
+        """Test sanitizing command with API key showing last 6 chars."""
+        cmd = [
+            "aiperf",
+            "profile",
+            "--model",
+            "test-model",
+            "--api-key",
+            "secret-key-123",
+            "--url",
+            "http://localhost:8000",
+        ]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        # "secret-key-123" has 14 chars, so 8 asterisks + last 6 chars "ey-123"
+        assert result == (
+            "aiperf profile --model test-model --api-key ********ey-123 "
+            "--url http://localhost:8000"
+        )
+
+    def test_sanitize_command_without_api_key(self):
+        """Test sanitizing command without API key."""
+        cmd = [
+            "aiperf",
+            "profile",
+            "--model",
+            "test-model",
+            "--url",
+            "http://localhost:8000",
+        ]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        assert result == " ".join(cmd)
+
+    def test_sanitize_command_api_key_at_end_no_value(self):
+        """Test sanitizing command where --api-key is at the end with no value."""
+        cmd = ["aiperf", "profile", "--model", "test-model", "--api-key"]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        # Should just include --api-key without sanitizing since there's no value
+        assert result == "aiperf profile --model test-model --api-key"
+
+    def test_sanitize_command_empty_list(self):
+        """Test sanitizing an empty command list."""
+        cmd = []
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        assert result == ""
+
+    def test_sanitize_command_single_element(self):
+        """Test sanitizing command with a single element."""
+        cmd = ["aiperf"]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        assert result == "aiperf"
+
+    def test_sanitize_command_multiple_api_keys(self):
+        """Test sanitizing command with multiple API key occurrences."""
+        cmd = [
+            "aiperf",
+            "profile",
+            "--api-key",
+            "first-key",
+            "--model",
+            "test-model",
+            "--api-key",
+            "second-key",
+        ]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+        assert result == (
+            "aiperf profile --api-key ***st-key --model test-model --api-key ****nd-key"
+        )
+
+    def test_sanitize_command_preserves_other_values(self):
+        """Test that other command values are preserved exactly."""
+        cmd = [
+            "aiperf",
+            "profile",
+            "--api-key",
+            "my-secret-key",
+            "--concurrency",
+            "10",
+            "--benchmark-duration",
+            "60",
+            "--streaming",
+        ]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        # "my-secret-key" has 13 chars, so 7 asterisks + "et-key" (last 6 chars)
+        assert result == (
+            "aiperf profile --api-key *******et-key --concurrency 10 "
+            "--benchmark-duration 60 --streaming"
+        )
+
+    def test_sanitize_command_short_api_key(self):
+        """Test sanitizing command with API key shorter than or equal to 6 chars."""
+        cmd = ["aiperf", "profile", "--api-key", "abc123"]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        # "abc123" has exactly 6 chars, so 0 asterisks + all 6 chars
+        assert result == "aiperf profile --api-key abc123"
+
+    def test_sanitize_command_very_short_api_key(self):
+        """Test sanitizing command with API key shorter than 6 chars."""
+        cmd = ["aiperf", "profile", "--api-key", "abc"]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        # "abc" has 3 chars, so shows all of them (no asterisks due to negative masking)
+        assert result == "aiperf profile --api-key abc"
+
+    def test_sanitize_command_long_api_key(self):
+        """Test sanitizing command with a long API key."""
+        cmd = [
+            "aiperf",
+            "profile",
+            "--api-key",
+            "sk-proj-1234567890abcdefghijklmnopqrstuvwxyz",
+        ]
+        result = AIPerfRunner._sanitize_command_for_logging(cmd)
+
+        # API key has 44 chars, so 38 asterisks + last 6 chars "uvwxyz"
+        expected_masked = "*" * 38 + "uvwxyz"
+        assert result == f"aiperf profile --api-key {expected_masked}"
+
+
 class TestBuildCommand:
     """Test the _build_command method."""
 
