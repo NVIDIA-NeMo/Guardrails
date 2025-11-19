@@ -34,6 +34,8 @@ from nemoguardrails.integrations.langchain.message_utils import dicts_to_message
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
+logger = logging.getLogger(__name__)
+
 
 class LLMCallException(Exception):
     """A wrapper around the LLM call invocation exception.
