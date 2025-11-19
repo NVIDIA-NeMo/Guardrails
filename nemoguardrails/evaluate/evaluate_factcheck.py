@@ -108,8 +108,10 @@ class FactCheckEvaluation:
                 evidence=evidence, answer=answer
             )
             negative_answer = llm_with_config.invoke(formatted_prompt)
-            negative_answer_content = negative_answer.content
-            data["incorrect_answer"] = negative_answer_content.strip()
+            if isinstance(negative_answer, str):
+                data["incorrect_answer"] = negative_answer.strip()
+            else:
+                data["incorrect_answer"] = negative_answer.content.strip()
 
         return dataset
 
