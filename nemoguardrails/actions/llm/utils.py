@@ -35,10 +35,8 @@ from nemoguardrails.integrations.langchain.message_utils import dicts_to_message
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
-logger = logging.getLogger(__name__)
-
-# Since different providers have different attributes for the base URL, we'll use this list as a best-effort way
-# to extract the base URL from a `BaseLanguageModel` instance.
+# Since different providers have different attributes for the base URL, we'll use this list
+# to attempt to extract the base URL from a `BaseLanguageModel` instance.
 BASE_URL_ATTRIBUTES = [
     "api_base",
     "api_host",
@@ -214,9 +212,8 @@ def _raise_llm_call_exception(
     Raises:
         LLMCallException with context message including model name and endpoint
     """
-    # Extract model info from context (set by _setup_llm_call_info)
+    # Extract model name from context
     llm_call_info = llm_call_info_var.get()
-    logger.info(llm_call_info)
     model_name = (
         llm_call_info.llm_model_name
         if llm_call_info
@@ -234,7 +231,7 @@ def _raise_llm_call_exception(
                 endpoint_url = str(value)
                 break
 
-    # If we didn't find endpoint URL, check the nested client object
+    # If we didn't find endpoint URL, check the nested client object.
     if not endpoint_url and hasattr(llm, "client"):
         client = getattr(llm, "client", None)
         if client and hasattr(client, "base_url"):

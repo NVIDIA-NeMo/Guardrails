@@ -14,7 +14,10 @@
 # limitations under the License.
 
 import pytest
+from typing import cast
+from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import AIMessage
+from unittest.mock import AsyncMock
 
 from nemoguardrails.actions.llm.utils import (
     _extract_reasoning_from_additional_kwargs,
@@ -26,6 +29,7 @@ from nemoguardrails.actions.llm.utils import (
     _store_tool_calls,
 )
 from nemoguardrails.context import reasoning_trace_var, tool_calls_var
+from nemoguardrails.exceptions import LLMCallException
 
 
 @pytest.fixture(autouse=True)
@@ -61,6 +65,24 @@ class MockUnknownLLM:
 
 class MockNVIDIAOriginal:
     __module__ = "langchain_nvidia_ai_endpoints.chat_models"
+
+
+class MockTRTLLM:
+    __module__ = "nemoguardrails.llm.providers.trtllm.llm"
+
+
+class MockAzureLLM:
+    __module__ = "langchain_openai.chat_models"
+
+
+class MockLLMWithClient:
+    __module__ = "langchain_openai.chat_models"
+
+    class _MockClient:
+        base_url = "https://custom.endpoint.com/v1"
+
+    def __init__(self):
+        self.client = self._MockClient()
 
 
 class MockPatchedNVIDIA(MockNVIDIAOriginal):
@@ -548,3 +570,87 @@ async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
     await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=llm_params)
 
     assert mock_llm.ainvoke.call_args[1]["stop"] == ["User:"]
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_enrichment_with_model_and_endpoint():
+    """Test that LLM invocation errors include model and endpoint context."""
+    mock_llm = MockOpenAILLM()
+    mock_llm.model_name = "gpt-4"
+    mock_llm.base_url = "https://api.openai.com/v1"
+    mock_llm.ainvoke = AsyncMock(side_effect=ConnectionError("Connection refused"))
+
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "gpt-4" in exc_str
+    assert "https://api.openai.com/v1" in exc_str
+    assert "Connection refused" in exc_str
+    assert isinstance(exc_info.value.inner_exception, ConnectionError)
+
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_without_endpoint():
+    """Test exception enrichment when endpoint URL is not available."""
+    mock_llm = AsyncMock()
+    mock_llm.__module__ = "langchain_openai.chat_models"
+    mock_llm.model_name = "custom-model"
+    # No base_url attribute
+    mock_llm.ainvoke = AsyncMock(side_effect=ValueError("Invalid request"))
+
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(mock_llm, "test prompt")
+
+    # Should still have model name but no endpoint
+    assert "custom-model" in str(exc_info.value)
+    assert "Invalid request" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_extracts_azure_endpoint():
+    """Test that Azure-style endpoint URLs are extracted."""
+    mock_llm = MockAzureLLM()
+    mock_llm.model_name = "gpt-4"
+    mock_llm.azure_endpoint = "https://example.openai.azure.com"
+    mock_llm.ainvoke = AsyncMock(side_effect=Exception("Azure error"))
+
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "https://example.openai.azure.com" in exc_str
+    assert "gpt-4" in exc_str
+    assert "Azure error" in exc_str
+
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_extracts_server_url():
+    """Test that TRT-style server_url is extracted."""
+    mock_llm = MockTRTLLM()
+    mock_llm.model_name = "llama-2-70b"
+    mock_llm.server_url = "https://triton.example.com:8000"
+    mock_llm.ainvoke = AsyncMock(side_effect=Exception("Triton server error"))
+
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "https://triton.example.com:8000" in exc_str
+    assert "llama-2-70b" in exc_str
+    assert "Triton server error" in exc_str
+
+
+@pytest.mark.asyncio
+async def test_llm_call_exception_extracts_nested_client_base_url():
+    """Test that nested client.base_url is extracted."""
+    mock_llm = MockLLMWithClient()
+    mock_llm.model_name = "gpt-4-turbo"
+    mock_llm.ainvoke = AsyncMock(side_effect=Exception("Client error"))
+
+    with pytest.raises(LLMCallException) as exc_info:
+        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
+
+    exc_str = str(exc_info.value)
+    assert "https://custom.endpoint.com/v1" in exc_str
+    assert "gpt-4-turbo" in exc_str
+    assert "Client error" in exc_str

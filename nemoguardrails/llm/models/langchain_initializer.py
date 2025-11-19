@@ -168,10 +168,10 @@ def init_langchain_model(
             if first_import_error is None:
                 first_import_error = e
             last_exception = e
-            log.error(f"Initialization import‐failure in {initializer}: {e}")
+            log.debug(f"Initialization import‐failure in {initializer}: {e}")
         except Exception as e:
             last_exception = e
-            log.error(f"Initialization failed with {initializer}: {e}")
+            log.debug(f"Initialization failed with {initializer}: {e}")
     # build the final message, preferring that first ImportError if we saw one
     base = f"Failed to initialize model {model_name!r} with provider {provider_name!r} in {mode!r} mode"
 
@@ -222,9 +222,6 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
             **kwargs,
         )
     except ValueError:
-        raise
-    except Exception as e:
-        log.error(e, exc_info=True)
         raise
 
 

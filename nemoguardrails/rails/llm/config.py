@@ -342,7 +342,6 @@ class TaskPrompt(BaseModel):
             raise InvalidRailsConfigurationError(
                 "One of `content` or `messages` must be provided."
             )
-            # raise ValueError("One of `content` or `messages` must be provided.")
 
         if values.get("content") and values.get("messages"):
             raise InvalidRailsConfigurationError(
@@ -1578,7 +1577,9 @@ class RailsConfig(BaseModel):
         api_keys = [m.api_key_env_var for m in models]
         for api_key in api_keys:
             if api_key and not os.environ.get(api_key):
-                raise ValueError(f"Model API Key environment variable '{api_key}' not set.")
+                raise InvalidRailsConfigurationError(
+                    f"Model API Key environment variable '{api_key}' not set."
+                )
         return models
 
     raw_llm_call_action: Optional[str] = Field(
