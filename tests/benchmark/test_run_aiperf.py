@@ -756,6 +756,73 @@ class TestCheckService:
             call_args = mock_get.call_args
             assert "/custom/endpoint" in call_args[0][0]
 
+    def test_check_service_no_api_key_env_var(self, create_config_file):
+        """Test checking service when api_key_env_var is not configured (None)."""
+        config_file = create_config_file()
+
+        runner = AIPerfRunner(config_file)
+
+        # Mock httpx.get
+        with patch("httpx.get") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_get.return_value = mock_response
+
+            runner._check_service()
+
+            # Verify headers=None was passed
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert call_args[1]["headers"] is None
+
+    def test_check_service_api_key_env_var_not_set(self, create_config_file):
+        """Test checking service when api_key_env_var is configured but env var doesn't exist."""
+        config_file = create_config_file(
+            extra_base_config={"api_key_env_var": "NONEXISTENT_API_KEY"}
+        )
+
+        runner = AIPerfRunner(config_file)
+
+        # Mock httpx.get
+        with patch("httpx.get") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_get.return_value = mock_response
+
+            runner._check_service()
+
+            # Verify headers=None was passed (since env var doesn't exist)
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert call_args[1]["headers"] is None
+
+    def test_check_service_api_key_env_var_set(self, create_config_file, monkeypatch):
+        """Test checking service when api_key_env_var is configured and env var exists."""
+        config_file = create_config_file(
+            extra_base_config={"api_key_env_var": "TEST_API_KEY"}
+        )
+
+        # Set the environment variable
+        monkeypatch.setenv("TEST_API_KEY", "test-secret-key-123")
+
+        runner = AIPerfRunner(config_file)
+
+        # Mock httpx.get
+        with patch("httpx.get") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_get.return_value = mock_response
+
+            runner._check_service()
+
+            # Verify headers with Authorization Bearer token was passed
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert call_args[1]["headers"] is not None
+            assert (
+                call_args[1]["headers"]["Authorization"] == "Bearer test-secret-key-123"
+            )
+
 
 class TestGetBatchDir:
     """Test the _get_batch_dir method."""

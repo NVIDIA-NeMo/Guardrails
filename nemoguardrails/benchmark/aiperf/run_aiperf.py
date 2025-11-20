@@ -112,7 +112,7 @@ class AIPerfRunner:
             cmd: List of command-line arguments
 
         Returns:
-            String representation with --api-key value replaced with <removed>
+            String with --api-key value replaced with * apart from last N chars
         """
         last_n_chars = 6  # Show the last 6 characters
 
@@ -260,8 +260,15 @@ class AIPerfRunner:
         url = urllib.parse.urljoin(self.config.base_config.url, endpoint)
         log.debug("Checking service is up using endpoint %s", url)
 
+        # If the user has an API Key stored in an env var, use that in the /v1/models call
+        api_key_env_var = self.config.base_config.api_key_env_var
+        api_key = None
+        if api_key_env_var:
+            api_key = os.environ.get(api_key_env_var)
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
+
         try:
-            response = httpx.get(url, timeout=5)
+            response = httpx.get(url, timeout=5, headers=headers)
         except httpx.ConnectError as e:
             raise RuntimeError(f"Can't connect to {url}: {e}")
 
