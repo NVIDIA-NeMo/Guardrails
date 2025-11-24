@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 from langchain_core.messages import AIMessage
 
 from nemoguardrails.actions.llm.utils import (
@@ -25,6 +26,17 @@ from nemoguardrails.actions.llm.utils import (
     _store_tool_calls,
 )
 from nemoguardrails.context import reasoning_trace_var, tool_calls_var
+
+
+@pytest.fixture(autouse=True)
+def reset_context_vars():
+    reasoning_token = reasoning_trace_var.set(None)
+    tool_calls_token = tool_calls_var.set(None)
+
+    yield
+
+    reasoning_trace_var.reset(reasoning_token)
+    tool_calls_var.reset(tool_calls_token)
 
 
 class MockOpenAILLM:
@@ -222,18 +234,17 @@ def test_extract_reasoning_from_additional_kwargs_not_dict():
 
 
 def test_extract_tool_calls_from_content_blocks_single_tool_call():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}
-        ]
-    )
+    expected_tool_call = {
+        "type": "tool_call",
+        "name": "foo",
+        "args": {"a": "b"},
+        "id": "abc_123",
+    }
+    response = MockResponse(content_blocks=[expected_tool_call])
     tool_calls = _extract_tool_calls_from_content_blocks(response)
     assert tool_calls is not None
     assert len(tool_calls) == 1
-    assert tool_calls[0]["type"] == "tool_call"
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[0]["args"] == {"a": "b"}
-    assert tool_calls[0]["id"] == "abc_123"
+    assert tool_calls[0] == expected_tool_call
 
 
 def test_extract_tool_calls_from_content_blocks_multiple_tool_calls():
@@ -304,8 +315,6 @@ def test_extract_tool_calls_from_attribute_no_attribute():
 
 
 def test_store_reasoning_traces_from_content_blocks():
-    reasoning_trace_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "text", "text": "The answer is 42."},
@@ -317,12 +326,8 @@ def test_store_reasoning_traces_from_content_blocks():
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Let me think about this problem..."
 
-    reasoning_trace_var.set(None)
-
 
 def test_store_reasoning_traces_from_additional_kwargs():
-    reasoning_trace_var.set(None)
-
     response = MockResponse(
         additional_kwargs={"reasoning_content": "Provider specific reasoning"}
     )
@@ -331,12 +336,8 @@ def test_store_reasoning_traces_from_additional_kwargs():
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Provider specific reasoning"
 
-    reasoning_trace_var.set(None)
-
 
 def test_store_reasoning_traces_prefers_content_blocks_over_additional_kwargs():
-    reasoning_trace_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "reasoning", "reasoning": "Content blocks reasoning"},
@@ -348,12 +349,8 @@ def test_store_reasoning_traces_prefers_content_blocks_over_additional_kwargs():
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Content blocks reasoning"
 
-    reasoning_trace_var.set(None)
-
 
 def test_store_reasoning_traces_fallback_to_additional_kwargs():
-    reasoning_trace_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "text", "text": "No reasoning here"},
@@ -365,12 +362,8 @@ def test_store_reasoning_traces_fallback_to_additional_kwargs():
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Fallback reasoning"
 
-    reasoning_trace_var.set(None)
-
 
 def test_store_reasoning_traces_no_reasoning():
-    reasoning_trace_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "text", "text": "Just text"},
@@ -383,8 +376,6 @@ def test_store_reasoning_traces_no_reasoning():
 
 
 def test_store_tool_calls_from_content_blocks():
-    tool_calls_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "text", "text": "Hello"},
@@ -410,12 +401,8 @@ def test_store_tool_calls_from_content_blocks():
     assert tool_calls[0]["name"] == "search"
     assert tool_calls[1]["name"] == "calculator"
 
-    tool_calls_var.set(None)
-
 
 def test_store_tool_calls_from_attribute():
-    tool_calls_var.set(None)
-
     response = MockResponse(
         tool_calls=[
             {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
@@ -430,12 +417,8 @@ def test_store_tool_calls_from_attribute():
     assert tool_calls[0]["name"] == "foo"
     assert tool_calls[1]["name"] == "bar"
 
-    tool_calls_var.set(None)
-
 
 def test_store_tool_calls_prefers_content_blocks_over_attribute():
-    tool_calls_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "tool_call", "name": "from_blocks", "args": {}, "id": "1"},
@@ -451,12 +434,8 @@ def test_store_tool_calls_prefers_content_blocks_over_attribute():
     assert len(tool_calls) == 1
     assert tool_calls[0]["name"] == "from_blocks"
 
-    tool_calls_var.set(None)
-
 
 def test_store_tool_calls_fallback_to_attribute():
-    tool_calls_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "text", "text": "No tool calls here"},
@@ -472,12 +451,8 @@ def test_store_tool_calls_fallback_to_attribute():
     assert len(tool_calls) == 1
     assert tool_calls[0]["name"] == "fallback_tool"
 
-    tool_calls_var.set(None)
-
 
 def test_store_tool_calls_no_tool_calls():
-    tool_calls_var.set(None)
-
     response = MockResponse(
         content_blocks=[
             {"type": "text", "text": "Just text"},
@@ -490,8 +465,6 @@ def test_store_tool_calls_no_tool_calls():
 
 
 def test_store_reasoning_traces_with_real_aimessage_from_content_blocks():
-    reasoning_trace_var.set(None)
-
     message = AIMessage(
         content="The answer is 42.",
         additional_kwargs={"reasoning_content": "Let me think about this problem..."},
@@ -502,12 +475,8 @@ def test_store_reasoning_traces_with_real_aimessage_from_content_blocks():
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Let me think about this problem..."
 
-    reasoning_trace_var.set(None)
-
 
 def test_store_reasoning_traces_with_real_aimessage_no_reasoning():
-    reasoning_trace_var.set(None)
-
     message = AIMessage(
         content="The answer is 42.",
         additional_kwargs={"other_field": "some value"},
@@ -520,8 +489,6 @@ def test_store_reasoning_traces_with_real_aimessage_no_reasoning():
 
 
 def test_store_tool_calls_with_real_aimessage_from_content_blocks():
-    tool_calls_var.set(None)
-
     message = AIMessage(
         "",
         tool_calls=[
@@ -539,12 +506,8 @@ def test_store_tool_calls_with_real_aimessage_from_content_blocks():
     assert tool_calls[0]["args"] == {"a": "b"}
     assert tool_calls[0]["id"] == "abc_123"
 
-    tool_calls_var.set(None)
-
 
 def test_store_tool_calls_with_real_aimessage_mixed_content():
-    tool_calls_var.set(None)
-
     message = AIMessage(
         "foo",
         tool_calls=[
@@ -560,12 +523,8 @@ def test_store_tool_calls_with_real_aimessage_mixed_content():
     assert tool_calls[0]["type"] == "tool_call"
     assert tool_calls[0]["name"] == "foo"
 
-    tool_calls_var.set(None)
-
 
 def test_store_tool_calls_with_real_aimessage_multiple_tool_calls():
-    tool_calls_var.set(None)
-
     message = AIMessage(
         "",
         tool_calls=[
@@ -581,5 +540,3 @@ def test_store_tool_calls_with_real_aimessage_multiple_tool_calls():
     assert len(tool_calls) == 2
     assert tool_calls[0]["name"] == "foo"
     assert tool_calls[1]["name"] == "bar"
-
-    tool_calls_var.set(None)
