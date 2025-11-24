@@ -30,11 +30,13 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Tuple,
     Type,
     Union,
     cast,
+    overload,
 )
 
 from langchain_core.language_models import BaseChatModel
@@ -1255,6 +1257,30 @@ class LLMRails:
                 "generate_async() instead of stream_async()."
             )
 
+    @overload
+    def stream_async(
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[List[dict]] = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        state: Optional[Union[dict, State]] = None,
+        include_generation_metadata: Literal[False] = False,
+        generator: Optional[AsyncIterator[str]] = None,
+    ) -> AsyncIterator[str]:
+        ...
+
+    @overload
+    def stream_async(
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[List[dict]] = None,
+        options: Optional[Union[dict, GenerationOptions]] = None,
+        state: Optional[Union[dict, State]] = None,
+        include_generation_metadata: Literal[True] = ...,
+        generator: Optional[AsyncIterator[str]] = None,
+    ) -> AsyncIterator[Union[str, dict]]:
+        ...
+
     def stream_async(
         self,
         prompt: Optional[str] = None,
@@ -1263,7 +1289,7 @@ class LLMRails:
         state: Optional[Union[dict, State]] = None,
         include_generation_metadata: Optional[bool] = False,
         generator: Optional[AsyncIterator[str]] = None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[Union[str, dict]]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
 
         self._validate_streaming_with_output_rails()
@@ -1328,15 +1354,24 @@ class LLMRails:
             self.config.rails.output.streaming
             and self.config.rails.output.streaming.enabled
         ):
-            # returns an async generator
-            return self._run_output_rails_in_streaming(
+            base_iterator = self._run_output_rails_in_streaming(
                 streaming_handler=streaming_handler,
                 output_rails_streaming_config=self.config.rails.output.streaming,
                 messages=messages,
                 prompt=prompt,
             )
         else:
-            return streaming_handler
+            base_iterator = streaming_handler
+
+        async def wrapped_iterator():
+            try:
+                async for chunk in base_iterator:
+                    if chunk is not None:
+                        yield chunk
+            finally:
+                await task
+
+        return wrapped_iterator()
 
     def generate(
         self,
