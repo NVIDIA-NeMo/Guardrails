@@ -20,6 +20,7 @@ import pytest
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST") or os.environ.get("LIVE_TEST_MODE")
 
 
+@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 class TestProcessEventsAsyncV2x:
     """Integration tests for LLMRails.process_events_async with v2.x runtime.
 
@@ -140,13 +141,13 @@ class TestProcessEventsAsyncV2x:
         ), "Second call should also return State object when passing State as input"
 
 
+@pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 class TestChatV2xE2E:
     """End-to-end tests for chat CLI with v2.x runtime.
 
     These tests exercise the actual chat.py code paths that were broken by PR #1380.
     """
 
-    @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
     @pytest.mark.asyncio
     async def test_chat_v2x_with_real_llm(self):
         """E2E test of v2.x chat with real LLM.
