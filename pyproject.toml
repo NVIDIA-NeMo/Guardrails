@@ -97,6 +97,7 @@ presidio-analyzer = { version = ">=2.2", optional = true, python = "<3.13" }
 presidio-anonymizer = { version = ">=2.2", optional = true, python = "<3.13" }
 
 # nim
+langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
 
 # gpc
 google-cloud-language = { version = ">=2.14.0", optional = true }
@@ -110,6 +111,7 @@ eval = ["tqdm", "numpy", "streamlit", "tornado"]
 openai = ["langchain-openai"]
 gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "aiofiles"]
+nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
@@ -124,6 +126,7 @@ all = [
   "google-cloud-language",
   "opentelemetry-api",
   "aiofiles",
+  "langchain-nvidia-ai-endpoints",
   "yara-python",
 ]
 
