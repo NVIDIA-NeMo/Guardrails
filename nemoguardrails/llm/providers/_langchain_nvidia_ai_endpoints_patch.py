@@ -18,7 +18,6 @@ import logging
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
-from langchain_core.callbacks import Callbacks
 from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
@@ -134,14 +133,12 @@ class ChatNVIDIA(ChatNVIDIAOriginal):  # pragma: no cover
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        callbacks: Callbacks = None,
         **kwargs: Any,
     ) -> ChatResult:
         return super()._generate(
             messages=messages,
             stop=stop,
             run_manager=run_manager,
-            callbacks=callbacks,
             **kwargs,
         )
 
