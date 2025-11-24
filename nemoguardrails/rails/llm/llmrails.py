@@ -1463,9 +1463,9 @@ class LLMRails:
     async def process_events_async(
         self,
         events: List[dict],
-        state: Optional[dict] = None,
+        state: Union[Optional[dict], State] = None,
         blocking: bool = False,
-    ) -> Tuple[List[dict], dict]:
+    ) -> Tuple[List[dict], Union[dict, State]]:
         """Process a sequence of events in a given state.
 
         The events will be processed one by one, in the input order.
@@ -1502,9 +1502,9 @@ class LLMRails:
     def process_events(
         self,
         events: List[dict],
-        state: Optional[dict] = None,
+        state: Union[Optional[dict], State] = None,
         blocking: bool = False,
-    ) -> Tuple[List[dict], dict]:
+    ) -> Tuple[List[dict], Union[dict, State]]:
         """Synchronous version of `LLMRails.process_events_async`."""
 
         if check_sync_call_from_async_loop():

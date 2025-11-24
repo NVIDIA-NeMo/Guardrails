@@ -15,7 +15,7 @@
 import asyncio
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union, cast
 
 import aiohttp
@@ -498,13 +498,12 @@ async def _run_chat_v2_x(rails_app: LLMRails):
 
             output_events, output_state = await rails_app.process_events_async(
                 input_events_copy,
-                asdict(chat_state.state) if chat_state.state else None,
+                chat_state.state,
             )
             chat_state.output_events = output_events
 
-            # process_events_async returns a Dict `state`, need to convert to dataclass for ChatState object
             if output_state:
-                chat_state.output_state = cast(State, State(**output_state))
+                chat_state.output_state = cast(State, output_state)
 
             # Process output_events and potentially generate new input_events
             _process_output()
@@ -535,12 +534,11 @@ async def _run_chat_v2_x(rails_app: LLMRails):
             chat_state.input_events = []
             output_events, output_state = await rails_app.process_events_async(
                 input_events_copy,
-                asdict(chat_state.state) if chat_state.state else None,
+                chat_state.state,
             )
             chat_state.output_events = output_events
             if output_state:
-                # process_events_async returns a Dict `state`, need to convert to dataclass for ChatState object
-                output_state_typed: State = cast(State, State(**output_state))
+                output_state_typed: State = cast(State, output_state)
                 chat_state.output_state = output_state_typed
                 debugger.set_output_state(output_state_typed)
 
