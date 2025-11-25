@@ -67,7 +67,7 @@ async def test_live_query():
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 @pytest.mark.asyncio
-def test_live_query(app):
+def test_live_query_sync(app):
     result = app.generate(
         messages=[{"role": "user", "content": "tell me what you can do"}]
     )

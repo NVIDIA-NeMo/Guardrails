@@ -21,7 +21,6 @@ from unittest import mock
 
 import pytest
 
-from nemoguardrails import RailsConfig
 from nemoguardrails.llm.prompts import TaskPrompt
 from nemoguardrails.rails.llm.config import (
     Model,

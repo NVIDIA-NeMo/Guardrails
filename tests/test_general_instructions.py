@@ -17,7 +17,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nemoguardrails import RailsConfig
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import Instruction, Model, RailsConfig

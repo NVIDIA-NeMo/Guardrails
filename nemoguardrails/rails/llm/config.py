@@ -31,7 +31,6 @@ from pydantic import (
     root_validator,
     validator,
 )
-from pydantic.fields import Field
 
 from nemoguardrails import utils
 from nemoguardrails.colang import parse_colang_file, parse_flow_elements

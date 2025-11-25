@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import asyncio
-import time
 from time import time
 
 import pytest
