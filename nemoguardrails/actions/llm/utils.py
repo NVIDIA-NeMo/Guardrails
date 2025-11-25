@@ -35,6 +35,8 @@ from nemoguardrails.integrations.langchain.message_utils import dicts_to_message
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
 
+logger = logging.getLogger(__name__)
+
 # Since different providers have different attributes for the base URL, we'll use this list
 # to attempt to extract the base URL from a `BaseLanguageModel` instance.
 BASE_URL_ATTRIBUTES = [
