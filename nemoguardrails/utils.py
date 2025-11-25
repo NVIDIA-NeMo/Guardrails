@@ -74,7 +74,7 @@ Validator = namedtuple("Validator", ["description", "function"])
 
 
 def _has_property(e: Dict[str, Any], p: Property) -> bool:
-    return p.name in e and type(e[p.name]) == p.type
+    return p.name in e and isinstance(e[p.name], p.type)
 
 
 _event_validators = [

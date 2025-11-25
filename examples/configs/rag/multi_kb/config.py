@@ -206,7 +206,7 @@ def _get_titanic_raw_data_frame(csv_path: str):
     ls = []
     for i in range(n):
         temp = df.iloc[i, idx]
-        if type(temp) == str:
+        if isinstance(temp, str):
             out = Embarked_d[temp]
             ls.append(out)
         else:
