@@ -141,32 +141,20 @@ def test_langchain_provider_imports():
 
 def _is_langchain_installed():
     """Check if LangChain is installed."""
-    try:
-        import langchain
-
-        return True
-    except ImportError:
-        return False
+    from nemoguardrails.imports import check_optional_dependency
+    return check_optional_dependency("langchain")
 
 
 def _is_langchain_community_installed():
     """Check if LangChain Community is installed."""
-    try:
-        import langchain_community
-
-        return True
-    except ImportError:
-        return False
+    from nemoguardrails.imports import check_optional_dependency
+    return check_optional_dependency("langchain_community")
 
 
 def _has_openai():
     """Check if OpenAI package is installed."""
-    try:
-        import langchain_openai
-
-        return True
-    except ImportError:
-        return False
+    from nemoguardrails.imports import check_optional_dependency
+    return check_optional_dependency("langchain_openai")
 
 
 class TestLangChainIntegration:

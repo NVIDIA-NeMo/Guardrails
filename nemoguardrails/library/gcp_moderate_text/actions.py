@@ -16,13 +16,6 @@
 import logging
 from typing import Optional
 
-try:
-    from google.cloud import language_v2
-except ImportError:
-    # The exception about installing google-cloud-language will be on the first call to the moderation api
-    pass
-
-
 from nemoguardrails.actions import action
 
 log = logging.getLogger(__name__)

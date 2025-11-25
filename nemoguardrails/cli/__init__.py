@@ -17,7 +17,7 @@
 import logging
 import os
 from enum import Enum
-from typing import Any, List, Literal, Optional
+from typing import List, Literal, Optional
 
 import typer
 import uvicorn

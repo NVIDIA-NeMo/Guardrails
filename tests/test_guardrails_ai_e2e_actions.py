@@ -21,43 +21,17 @@ They can be skipped in CI/environments where validators aren't available.
 
 import pytest
 
-GUARDRAILS_AVAILABLE = False
+from nemoguardrails.imports import check_optional_dependency
+
+GUARDRAILS_AVAILABLE = check_optional_dependency("guardrails")
 VALIDATORS_AVAILABLE = {}
 
-try:
-    from guardrails import Guard
-
-    GUARDRAILS_AVAILABLE = True
-
-    try:
-        from guardrails.hub import ToxicLanguage
-
-        VALIDATORS_AVAILABLE["toxic_language"] = True
-    except ImportError:
-        VALIDATORS_AVAILABLE["toxic_language"] = False
-
-    try:
-        from guardrails.hub import RegexMatch
-
-        VALIDATORS_AVAILABLE["regex_match"] = True
-    except ImportError:
-        VALIDATORS_AVAILABLE["regex_match"] = False
-
-    try:
-        from guardrails.hub import ValidLength
-
-        VALIDATORS_AVAILABLE["valid_length"] = True
-    except ImportError:
-        VALIDATORS_AVAILABLE["valid_length"] = False
-
-    try:
-        from guardrails.hub import CompetitorCheck
-
-        VALIDATORS_AVAILABLE["competitor_check"] = True
-    except ImportError:
-        VALIDATORS_AVAILABLE["competitor_check"] = False
-
-except ImportError:
+if GUARDRAILS_AVAILABLE:
+    VALIDATORS_AVAILABLE["toxic_language"] = check_optional_dependency("guardrails.hub")
+    VALIDATORS_AVAILABLE["regex_match"] = check_optional_dependency("guardrails.hub")
+    VALIDATORS_AVAILABLE["valid_length"] = check_optional_dependency("guardrails.hub")
+    VALIDATORS_AVAILABLE["competitor_check"] = check_optional_dependency("guardrails.hub")
+else:
     GUARDRAILS_AVAILABLE = False
 
 

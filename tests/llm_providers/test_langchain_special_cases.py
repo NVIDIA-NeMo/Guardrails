@@ -38,22 +38,14 @@ from nemoguardrails.llm.models.langchain_initializer import (
 
 def has_openai():
     """Check if OpenAI package is installed."""
-    try:
-        import langchain_openai
-
-        return True
-    except ImportError:
-        return False
+    from nemoguardrails.imports import check_optional_dependency
+    return check_optional_dependency("langchain_openai")
 
 
 def has_nvidia_ai_endpoints():
     """Check if NVIDIA AI Endpoints package is installed."""
-    try:
-        import langchain_nvidia_ai_endpoints
-
-        return True
-    except ImportError:
-        return False
+    from nemoguardrails.imports import check_optional_dependency
+    return check_optional_dependency("langchain_nvidia_ai_endpoints")
 
 
 class TestSpecialCaseHandlers:

@@ -24,16 +24,14 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails.imports import check_optional_dependency
 from tests.utils import TestChat
 
-try:
-    import presidio_analyzer
-    import presidio_anonymizer
-    import spacy
-
-    SDD_SETUP_PRESENT = True
-except ImportError:
-    SDD_SETUP_PRESENT = False
+SDD_SETUP_PRESENT = (
+    check_optional_dependency("presidio_analyzer")
+    and check_optional_dependency("presidio_anonymizer")
+    and check_optional_dependency("spacy")
+)
 
 
 def setup_module(module):

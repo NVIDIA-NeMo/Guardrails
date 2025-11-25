@@ -47,7 +47,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
     ):
         try:
             import openai  # type: ignore
-            from openai import AsyncOpenAI, OpenAI  # type: ignore
+            from openai import OpenAI  # type: ignore
         except ImportError:
             raise ImportError(
                 "Could not import openai, please install it with "

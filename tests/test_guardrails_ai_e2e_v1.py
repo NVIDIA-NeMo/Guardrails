@@ -16,28 +16,17 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.imports import check_optional_dependency
 from tests.utils import FakeLLM, TestChat
 
-try:
-    from guardrails import Guard
+GUARDRAILS_AVAILABLE = check_optional_dependency("guardrails")
+REGEX_MATCH_AVAILABLE = False
+VALID_LENGTH_AVAILABLE = False
 
-    GUARDRAILS_AVAILABLE = True
-
-    try:
-        from guardrails.hub import RegexMatch
-
-        REGEX_MATCH_AVAILABLE = True
-    except ImportError:
-        REGEX_MATCH_AVAILABLE = False
-
-    try:
-        from guardrails.hub import ValidLength
-
-        VALID_LENGTH_AVAILABLE = True
-    except ImportError:
-        VALID_LENGTH_AVAILABLE = False
-
-except ImportError:
+if GUARDRAILS_AVAILABLE:
+    REGEX_MATCH_AVAILABLE = check_optional_dependency("guardrails.hub")
+    VALID_LENGTH_AVAILABLE = check_optional_dependency("guardrails.hub")
+else:
     GUARDRAILS_AVAILABLE = False
     REGEX_MATCH_AVAILABLE = False
     VALID_LENGTH_AVAILABLE = False

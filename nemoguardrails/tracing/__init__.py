@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .interaction_types import InteractionLog, InteractionOutput
+from .interaction_types import InteractionLog as InteractionLog
+from .interaction_types import InteractionOutput as InteractionOutput
 from .span_extractors import (
     SpanExtractor,
     SpanExtractorV1,

@@ -58,7 +58,6 @@ class CohereEmbeddingModel(EmbeddingModel):
     ):
         try:
             import cohere
-            from cohere import AsyncClient, Client
         except ImportError:
             raise ImportError(
                 "Could not import cohere, please install it with "

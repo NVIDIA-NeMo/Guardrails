@@ -19,15 +19,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.imports import check_optional_dependency
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.utils import TestChat
 
-try:
-    import langchain_openai
-
-    _has_langchain_openai = True
-except ImportError:
-    _has_langchain_openai = False
+_has_langchain_openai = check_optional_dependency("langchain_openai")
 
 _has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
 

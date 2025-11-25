@@ -19,21 +19,16 @@ from time import time
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.imports import check_optional_dependency
 from tests.utils import TestChat
 
-try:
-    import torch
-    import transformers
-
+torch_available = check_optional_dependency("torch") and check_optional_dependency("transformers")
+if torch_available:
     from nemoguardrails.library.jailbreak_detection.heuristics.checks import (
         check_jailbreak_length_per_perplexity,
         check_jailbreak_prefix_suffix_perplexity,
         get_perplexity,
     )
-
-    torch_available = True
-except ImportError:
-    torch_available = False
 
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
