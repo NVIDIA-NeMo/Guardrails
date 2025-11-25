@@ -18,35 +18,35 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository for tag detection
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect version tag and extract info
+      - name: Detect version tag from workflow event
         id: version
         run: |
-          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
-          TAG_NAME=$(git tag --points-at "$COMMIT_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "Workflow triggered by: $HEAD_BRANCH"
 
-          if [ -z "$TAG_NAME" ]; then
-            echo "❌ No version tag found at commit $COMMIT_SHA"
-            echo "Available tags at this commit:"
-            git tag --points-at "$COMMIT_SHA" || echo "  (none)"
+          if [[ "$HEAD_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            TAG_NAME="$HEAD_BRANCH"
+            VERSION="${TAG_NAME#v}"
+
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+            echo "artifact_name=${TAG_NAME}-build" >> $GITHUB_OUTPUT
+
+            echo "✅ Detected version tag: $TAG_NAME"
+            echo "   Version: $VERSION"
+            echo "   Artifact: ${TAG_NAME}-build"
+          else
+            echo "❌ Not triggered by a version tag: $HEAD_BRANCH"
+            echo "This workflow should only run for version tags (vX.Y.Z)"
             exit 1
           fi
-
-          VERSION="${TAG_NAME#v}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
-          echo "artifact_name=${TAG_NAME}-build" >> $GITHUB_OUTPUT
-          echo "✅ Detected version tag: $TAG_NAME"
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.version.outputs.tag }}
+          fetch-depth: 0
 
       - name: Validate version matches tag
         run: |
