@@ -17,7 +17,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.tracing import SpanOpentelemetry, create_span_extractor
+from nemoguardrails.tracing import create_span_extractor
 from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
 from tests.utils import FakeLLM
 

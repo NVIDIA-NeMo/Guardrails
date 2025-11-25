@@ -81,7 +81,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, root_validator
 
-from nemoguardrails.logging.explain import LLMCallInfo, LLMCallSummary
+from nemoguardrails.logging.explain import LLMCallInfo
 
 
 class GenerationLogOptions(BaseModel):

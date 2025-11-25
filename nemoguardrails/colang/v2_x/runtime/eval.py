@@ -17,7 +17,7 @@ import json
 import logging
 import re
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, List, Optional, Set
 
 import simpleeval
 from simpleeval import EvalWithCompoundTypes

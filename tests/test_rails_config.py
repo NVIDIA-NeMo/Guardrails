@@ -280,7 +280,7 @@ def test_model_api_key_value_multiple_strings_one_missing():
     """Check if we have multiple models and one references an invalid api_key_env_var we throw error"""
     with pytest.raises(
         ValueError,
-        match=f"Model API Key environment variable 'DUMMY_NVIDIA_API_KEY' not set.",
+        match="Model API Key environment variable 'DUMMY_NVIDIA_API_KEY' not set.",
     ):
         _ = RailsConfig(
             models=[
@@ -307,7 +307,7 @@ def test_model_api_key_value_multiple_strings_one_empty():
     """Check if we have multiple models and one references an invalid api_key_env_var we throw error"""
     with pytest.raises(
         ValueError,
-        match=f"Model API Key environment variable 'DUMMY_NVIDIA_API_KEY' not set.",
+        match="Model API Key environment variable 'DUMMY_NVIDIA_API_KEY' not set.",
     ):
         _ = RailsConfig(
             models=[

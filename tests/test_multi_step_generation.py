@@ -19,7 +19,6 @@ import textwrap
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.logging.verbose import set_verbose
 from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")

@@ -16,7 +16,7 @@
 """Tests for RunnableRails output formatting methods."""
 
 import pytest
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompt_values import ChatPromptValue, StringPromptValue
 from langchain_core.runnables import RunnableLambda
 

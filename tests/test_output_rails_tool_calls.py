@@ -15,7 +15,6 @@
 
 """Integration tests for tool calls with output rails."""
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 

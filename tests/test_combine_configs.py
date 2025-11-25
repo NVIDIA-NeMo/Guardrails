@@ -17,7 +17,7 @@ import os
 
 import pytest
 
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import RailsConfig
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 

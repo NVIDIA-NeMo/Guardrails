@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import pytest
-from pydantic import ValidationError
 
 from nemoguardrails.rails.llm.config import Model
 

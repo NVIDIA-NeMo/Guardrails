@@ -15,7 +15,7 @@
 
 """Module for initializing LLM models with proper error handling and type checking."""
 
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Union
 
 from langchain_core.language_models import BaseChatModel, BaseLLM
 

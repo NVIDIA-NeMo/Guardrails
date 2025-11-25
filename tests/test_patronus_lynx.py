@@ -15,7 +15,7 @@
 
 import pytest
 
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
 from tests.utils import FakeLLM, TestChat
 

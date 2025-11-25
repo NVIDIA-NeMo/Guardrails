@@ -36,7 +36,7 @@ from nemoguardrails.actions.llm.utils import (
     llm_call,
     remove_action_intent_identifiers,
 )
-from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, Spec, SpecOp
+from nemoguardrails.colang.v2_x.lang.colang_ast import Flow, SpecOp
 from nemoguardrails.colang.v2_x.runtime.errors import LlmResponseError
 from nemoguardrails.colang.v2_x.runtime.flows import ActionEvent, InternalEvent
 from nemoguardrails.colang.v2_x.runtime.statemachine import (

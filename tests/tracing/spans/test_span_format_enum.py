@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import json
-from typing import Any
 
 import pytest
 

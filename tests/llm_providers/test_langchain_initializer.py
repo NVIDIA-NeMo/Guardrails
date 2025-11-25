@@ -13,16 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from nemoguardrails.llm.models.langchain_initializer import (
     ModelInitializationError,
-    _handle_model_special_cases,
-    _init_chat_completion_model,
-    _init_community_chat_models,
-    _init_text_completion_model,
     init_langchain_model,
 )
 

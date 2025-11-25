@@ -29,7 +29,6 @@
 # limitations under the License.
 
 import logging
-import os
 from time import time
 from typing import Dict, Optional
 
@@ -140,7 +139,6 @@ async def jailbreak_detection_model(
     if not jailbreak_api_url and not nim_base_url:
         from nemoguardrails.library.jailbreak_detection.model_based.checks import (
             check_jailbreak,
-            initialize_model,
         )
 
         log.warning(
@@ -155,7 +153,7 @@ async def jailbreak_detection_model(
             jailbreak_result = False
         except ImportError as e:
             log.error(
-                f"Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
+                "Failed to import required dependencies for local model. Install scikit-learn and torch, or use NIM-based approach",
                 exc_info=e,
             )
             jailbreak_result = False

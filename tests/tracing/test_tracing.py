@@ -28,7 +28,6 @@ from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationLogOptions,
     GenerationOptions,
-    GenerationRailsOptions,
     GenerationResponse,
 )
 from nemoguardrails.tracing.adapters.base import InteractionLogAdapter

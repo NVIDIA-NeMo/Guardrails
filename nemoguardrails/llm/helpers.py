@@ -19,7 +19,7 @@ from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain_core.language_models import LLM, BaseLLM
+from langchain_core.language_models import LLM
 
 
 def get_llm_instance_wrapper(llm_instance: LLM, llm_type: str) -> Type[LLM]:

@@ -21,7 +21,6 @@ from nemoguardrails.cli.providers import (
     _get_provider_completions,
     _list_providers,
     find_providers,
-    select_provider,
     select_provider_type,
     select_provider_with_type,
 )

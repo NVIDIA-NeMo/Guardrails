@@ -13,13 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.llm.utils import LLMCallException
-from nemoguardrails.llm.filters import colang
 from tests.utils import TestChat
 
 

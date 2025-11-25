@@ -278,7 +278,6 @@ class TestChatNVIDIAPatch:
 class TestIntegrationWithLLMRails:
     @pytest.mark.asyncio
     async def test_chatnvidia_with_llmrails_async(self):
-        from unittest.mock import AsyncMock
 
         from nemoguardrails import LLMRails, RailsConfig
 
@@ -365,7 +364,6 @@ class TestChatNVIDIAStreamingE2E:
     @pytest.mark.asyncio
     async def test_stream_async_ttft_with_nim(self):
         from nemoguardrails import LLMRails, RailsConfig
-        from nemoguardrails.actions.llm.utils import LLMCallException
 
         yaml_content = """
 models:

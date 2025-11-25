@@ -24,8 +24,7 @@ from .base import EmbeddingModel
 async_client_var: ContextVar = ContextVar("async_client", default=None)
 
 if TYPE_CHECKING:
-    import cohere
-    from cohere import AsyncClient, Client
+    pass
 
 
 class CohereEmbeddingModel(EmbeddingModel):

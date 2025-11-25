@@ -21,7 +21,7 @@ that can be used interchangeably throughout the guardrails system.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 
 class CacheInterface(ABC):

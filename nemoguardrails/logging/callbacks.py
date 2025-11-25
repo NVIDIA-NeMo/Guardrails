@@ -15,7 +15,7 @@
 import logging
 import uuid
 from time import time
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, cast
 from uuid import UUID
 
 from langchain_core.agents import AgentAction, AgentFinish

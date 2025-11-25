@@ -14,13 +14,10 @@
 # limitations under the License.
 
 import os
-from unittest.mock import Mock, patch
 
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.llm.types import Task
 
 try:
     import langchain_openai

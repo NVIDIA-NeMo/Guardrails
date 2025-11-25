@@ -21,9 +21,7 @@ from typing import List, Optional
 import yaml
 
 from .utils import (
-    char_split,
     extract_main_token,
-    extract_topic_object,
     get_first_key,
     get_numbered_lines,
     get_stripped_tokens,
@@ -623,7 +621,7 @@ class ColangParser:
 
                         # If we're left with nothing, we just set a simple "True" expression
                         if len(all_expressions) == 0:
-                            self.md_content.append(f">   _context: True")
+                            self.md_content.append(">   _context: True")
                         else:
                             self.md_content.append(
                                 f">   _context: {' and '.join(all_expressions)}"
@@ -750,7 +748,7 @@ class ColangParser:
                     self.lines.insert(
                         self.current_line_idx + 1,
                         {
-                            "text": f"meta",
+                            "text": "meta",
                             # We keep the line mapping the same
                             "number": self.current_line["number"],
                             # We take the indentation of the flow elements that follow
@@ -1043,7 +1041,7 @@ class ColangParser:
                 self.lines.insert(
                     self.current_line_idx + 1,
                     {
-                        "text": f"continue",
+                        "text": "continue",
                         # We keep the line mapping the same
                         "number": self.current_line["number"],
                         "indentation": self.next_line["indentation"],
@@ -1052,7 +1050,7 @@ class ColangParser:
                 self.lines.insert(
                     self.current_line_idx + 2,
                     {
-                        "text": f"else",
+                        "text": "else",
                         # We keep the line mapping the same
                         "number": self.current_line["number"],
                         "indentation": self.current_indentation,
@@ -1085,7 +1083,7 @@ class ColangParser:
                 self.lines.insert(
                     p,
                     {
-                        "text": f"any",
+                        "text": "any",
                         # We keep the line mapping the same
                         "number": self.current_line["number"],
                         "indentation": self.current_indentation,

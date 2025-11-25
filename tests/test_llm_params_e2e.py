@@ -17,7 +17,6 @@
 
 import os
 import tempfile
-import warnings
 from pathlib import Path
 
 import pytest

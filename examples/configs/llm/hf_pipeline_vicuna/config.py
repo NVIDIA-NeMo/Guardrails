@@ -15,7 +15,7 @@
 from functools import lru_cache
 
 from torch import float16
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from nemoguardrails.llm.helpers import get_llm_instance_wrapper
 from nemoguardrails.llm.providers import register_llm_provider

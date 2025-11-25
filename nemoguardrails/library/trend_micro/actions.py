@@ -17,9 +17,8 @@ import logging
 from typing import Literal, Optional
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic import field_validator as validator
-from pydantic import model_validator
 from pydantic_core import to_json
 from typing_extensions import cast
 

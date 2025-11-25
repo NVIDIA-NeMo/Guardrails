@@ -17,7 +17,6 @@
 
 import asyncio
 import json
-from json.decoder import JSONDecodeError
 from typing import AsyncIterator
 
 import pytest

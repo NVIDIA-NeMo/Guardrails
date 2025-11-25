@@ -14,9 +14,6 @@
 # limitations under the License.
 
 import textwrap
-from typing import List, Tuple, Union
-
-import pytest
 
 from nemoguardrails.llm.filters import (
     first_turns,

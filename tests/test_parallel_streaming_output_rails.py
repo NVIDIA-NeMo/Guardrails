@@ -942,7 +942,7 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
     )
 
     # log timing comparison (parallel should be faster or similar for single rail)
-    print(f"\nTiming Comparison:")
+    print("\nTiming Comparison:")
     print(f"Sequential: {sequential_time:.4f}s")
     print(f"Parallel: {parallel_time:.4f}s")
     print(f"Speedup: {sequential_time / parallel_time:.2f}x")
@@ -1182,9 +1182,9 @@ async def test_parallel_vs_sequential_with_slow_actions():
     parallel_chat.app.register_action(slow_compliance_check)
     parallel_chat.app.register_action(slow_quality_check)
 
-    print(f"\n=== SLOW ACTIONS PERFORMANCE TEST ===")
-    print(f"Each action takes 100ms, 3 actions total")
-    print(f"Expected: Sequential ~300ms per chunk, Parallel ~100ms per chunk")
+    print("\n=== SLOW ACTIONS PERFORMANCE TEST ===")
+    print("Each action takes 100ms, 3 actions total")
+    print("Expected: Sequential ~300ms per chunk, Parallel ~100ms per chunk")
 
     start_time = time.time()
     sequential_chunks = []
@@ -1224,7 +1224,7 @@ async def test_parallel_vs_sequential_with_slow_actions():
 
     speedup = sequential_time / parallel_time
 
-    print(f"\nSlow Actions Timing Results:")
+    print("\nSlow Actions Timing Results:")
     print(f"Sequential: {sequential_time:.4f}s")
     print(f"Parallel: {parallel_time:.4f}s")
     print(f"Speedup: {speedup:.2f}x")

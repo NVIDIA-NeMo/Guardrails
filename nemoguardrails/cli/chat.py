@@ -31,8 +31,6 @@ from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
-    GenerationLog,
-    GenerationOptions,
     GenerationResponse,
 )
 from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid

@@ -16,7 +16,6 @@
 """Tests for Guardrails AI integration - updated to match current implementation."""
 
 import inspect
-from typing import Any, Dict
 from unittest.mock import Mock, patch
 
 import pytest
@@ -28,7 +27,6 @@ class TestGuardrailsAIIntegration:
     def test_module_imports_without_guardrails(self):
         """Test that modules can be imported even without guardrails package."""
         from nemoguardrails.library.guardrails_ai.actions import (
-            _get_guard,
             guardrails_ai_validation_mapping,
             validate_guardrails_ai,
         )

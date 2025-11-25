@@ -14,10 +14,9 @@
 # limitations under the License.
 
 
-import pytest
 
 from nemoguardrails.tracing import SpanEvent, SpanLegacy
-from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
+from nemoguardrails.tracing.spans import LLMSpan
 
 
 class TestSpanModels:

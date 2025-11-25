@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import nemoguardrails.rails.llm.llmrails
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import LLMRails
 from nemoguardrails.cli.chat import extract_scene_text_content, parse_events_inputs
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.utils import new_event_dict, new_uuid

@@ -24,7 +24,6 @@ from nemoguardrails.tracing import (
     SpanExtractorV1,
     SpanExtractorV2,
     SpanLegacy,
-    SpanOpentelemetry,
     create_span_extractor,
 )
 from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span

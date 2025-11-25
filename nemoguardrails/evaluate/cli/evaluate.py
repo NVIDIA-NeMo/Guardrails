@@ -92,7 +92,7 @@ def topical(
         set_verbose(True)
 
     if len(config) > 1:
-        typer.secho(f"Multiple configurations are not supported.", fg=typer.colors.RED)
+        typer.secho("Multiple configurations are not supported.", fg=typer.colors.RED)
         typer.echo("Please provide a single config path (folder or config file).")
         raise typer.Exit(1)
 

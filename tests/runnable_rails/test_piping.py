@@ -18,7 +18,6 @@ Tests for the RunnableRails pipe operator and passthrough behavior.
 These tests specifically address the issues reported with complex chains.
 """
 
-import pytest
 from langchain_core.runnables import RunnableLambda
 
 from nemoguardrails import RailsConfig

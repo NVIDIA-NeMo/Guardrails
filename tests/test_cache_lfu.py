@@ -21,13 +21,11 @@ maxsize management, and edge cases.
 """
 
 import asyncio
-import os
 import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from nemoguardrails.llm.cache.lfu import LFUCache
 
@@ -384,7 +382,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_log_stats_now(self):
         """Test immediate stats logging."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=60.0)
 
@@ -416,7 +413,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_periodic_stats_logging(self):
         """Test automatic periodic stats logging."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.5)
 
@@ -450,7 +446,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_logging_with_empty_cache(self):
         """Test stats logging with empty cache."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
 
@@ -477,7 +472,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_logging_with_full_cache(self):
         """Test stats logging when cache is at maxsize."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(3, track_stats=True, stats_logging_interval=0.1)
 
@@ -503,7 +497,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_logging_high_hit_rate(self):
         """Test stats logging with high hit rate."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
 
@@ -529,7 +522,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_logging_without_tracking(self):
         """Test that log_stats_now does nothing when tracking is disabled."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=False)
 
@@ -547,7 +539,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_logging_interval_timing(self):
         """Test that stats logging respects the interval timing."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=1.0)
 
@@ -576,7 +567,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_logging_with_updates(self):
         """Test stats logging includes update counts."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
 
@@ -596,7 +586,6 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
     def test_stats_log_format_percentages(self):
         """Test that percentages in stats log are formatted correctly."""
         import logging
-        from unittest.mock import patch
 
         cache = LFUCache(5, track_stats=True, stats_logging_interval=0.1)
 

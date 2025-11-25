@@ -37,8 +37,6 @@ import yara
 from pydantic import ValidationError
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.actions import action
-from nemoguardrails.actions.actions import ActionResult
 from nemoguardrails.library.injection_detection.actions import (
     _check_yara_available,
     _extract_injection_config,

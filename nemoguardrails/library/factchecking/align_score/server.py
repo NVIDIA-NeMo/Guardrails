@@ -64,11 +64,11 @@ class AlignScoreRequest(BaseModel):
 @app.get("/")
 def hello_world():
     welcome_str = (
-        f"This is a development server to host AlignScore models.\n"
-        + f"<br>Hit the /alignscore_base or alignscore_large endpoints with "
-        f"a POST request containing evidence and claim.\n"
-        + f"<br>Example: curl -X POST -d 'evidence=This is an evidence "
-        f"passage&claim=This is a claim.' http://localhost:8000/alignscore_base\n"
+        "This is a development server to host AlignScore models.\n"
+        + "<br>Hit the /alignscore_base or alignscore_large endpoints with "
+        "a POST request containing evidence and claim.\n"
+        + "<br>Example: curl -X POST -d 'evidence=This is an evidence "
+        "passage&claim=This is a claim.' http://localhost:8000/alignscore_base\n"
     )
     return welcome_str
 

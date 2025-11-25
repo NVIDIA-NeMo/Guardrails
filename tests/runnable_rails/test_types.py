@@ -17,12 +17,10 @@
 
 from typing import Any, Dict, Union
 
-import pytest
 from pydantic import BaseModel, ConfigDict
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
-from tests.utils import FakeLLM
 
 
 def test_input_type_property():

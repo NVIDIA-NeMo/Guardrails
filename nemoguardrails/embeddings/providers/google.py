@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import asyncio
-from typing import List, Optional
+from typing import List
 
 from .base import EmbeddingModel
 

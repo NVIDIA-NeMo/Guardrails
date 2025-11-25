@@ -13,11 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import logging
 import re
 from ast import literal_eval
-from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from jinja2 import meta
@@ -48,7 +46,7 @@ from nemoguardrails.llm.output_parsers import (
     user_intent_parser,
     verbose_v1_parser,
 )
-from nemoguardrails.llm.prompts import get_prompt, get_task_model
+from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig
 

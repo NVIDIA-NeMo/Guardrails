@@ -16,7 +16,6 @@
 import contextvars
 from typing import List
 
-from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import (
     ActivatedRail,
     ExecutedAction,

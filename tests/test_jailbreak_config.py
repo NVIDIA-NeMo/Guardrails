@@ -15,8 +15,6 @@
 import os
 from unittest.mock import patch
 
-from pydantic import SecretStr
-
 from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
 
 

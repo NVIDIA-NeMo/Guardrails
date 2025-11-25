@@ -19,7 +19,6 @@ from unittest.mock import patch
 import pytest
 
 from nemoguardrails.llm.providers.providers import (
-    _discover_langchain_community_llm_providers,
     discover_langchain_providers,
 )
 

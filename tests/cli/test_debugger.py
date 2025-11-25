@@ -15,7 +15,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from nemoguardrails.cli import debugger

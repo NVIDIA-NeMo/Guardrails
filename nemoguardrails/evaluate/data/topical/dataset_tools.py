@@ -89,7 +89,7 @@ class DatasetConnector:
         Args:
             dataset_path (str): The path to the conversation dataset.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     def get_intent_sample(self, intent_name: str, num_samples: int = 10) -> List[str]:
         """Generates a random sample of `num_samples` texts for the `intent_name`.

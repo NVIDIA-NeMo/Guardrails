@@ -1513,7 +1513,7 @@ class LLMGenerationActions:
                 + (bot_intent if bot_intent else "None")
             )
             log.info(
-                f"Generated bot message: " + (bot_message if bot_message else "None")
+                "Generated bot message: " + (bot_message if bot_message else "None")
             )
 
             additional_info = {

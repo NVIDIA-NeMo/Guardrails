@@ -20,7 +20,6 @@ from nemoguardrails.tracing import (
     InteractionLog,
     SpanEvent,
     SpanLegacy,
-    SpanOpentelemetry,
 )
 from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
 from nemoguardrails.tracing.spans import InteractionSpan, LLMSpan
@@ -345,7 +344,6 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
         )
 
         # Use a fixed base time for predictable results
-        import time
 
         with unittest.mock.patch("time.time_ns", return_value=1700000000_000_000_000):
             self.adapter.transform(interaction_log)
@@ -406,7 +404,6 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
         log2 = InteractionLog(id="log2", activated_rails=[], events=[], trace=[span2])
 
         # First interaction
-        import time
 
         with unittest.mock.patch("time.time_ns", return_value=1000000000_000_000_000):
             self.adapter.transform(log1)

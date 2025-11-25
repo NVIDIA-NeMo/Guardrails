@@ -158,7 +158,6 @@ class TestChatV2xE2E:
 
         from nemoguardrails import LLMRails, RailsConfig
         from nemoguardrails.cli.chat import _run_chat_v2_x
-        from nemoguardrails.colang.v2_x.runtime.flows import State
 
         config = RailsConfig.from_content(
             """

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,7 +23,6 @@ from langchain_core.language_models import BaseChatModel
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
-from nemoguardrails.rails.llm.llmrails import get_action_details_from_flow_id
 from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import FakeLLM, clean_events, event_sequence_conforms
 

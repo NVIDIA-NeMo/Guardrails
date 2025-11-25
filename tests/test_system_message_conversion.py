@@ -16,7 +16,7 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from tests.utils import FakeLLM, TestChat
+from tests.utils import FakeLLM
 
 
 @pytest.mark.asyncio

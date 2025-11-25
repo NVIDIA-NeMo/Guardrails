@@ -14,15 +14,11 @@
 # limitations under the License.
 
 import re
-import tempfile
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
-import yaml
 
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings
-from nemoguardrails.benchmark.mock_llm_server.models import Model
 from nemoguardrails.benchmark.mock_llm_server.response_data import (
     calculate_tokens,
     generate_id,

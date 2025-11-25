@@ -16,7 +16,6 @@
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from nemoguardrails import __version__

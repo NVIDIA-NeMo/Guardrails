@@ -17,12 +17,8 @@
 # isort: skip_file
 
 # start-prerequisites
-import base64
-import io
 import json
-import urllib.request
 
-import requests
 # end-prerequisites
 
 # start-config

@@ -24,9 +24,7 @@ from opentelemetry.trace import NoOpTracerProvider
 
 from nemoguardrails.tracing import (
     InteractionLog,
-    SpanEvent,
     SpanLegacy,
-    SpanOpentelemetry,
 )
 from nemoguardrails.tracing.adapters.opentelemetry import OpenTelemetryAdapter
 
@@ -430,7 +428,6 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         )
 
         # Use fixed time for predictable results
-        import time
 
         with patch("time.time_ns", return_value=8000000000_000_000_000):
             self.adapter.transform(interaction_log)

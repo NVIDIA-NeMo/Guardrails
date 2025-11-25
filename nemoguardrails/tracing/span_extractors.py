@@ -36,7 +36,6 @@ from nemoguardrails.tracing.spans import (
     SpanEvent,
     SpanLegacy,
     SpanOpentelemetry,
-    TypedSpan,
 )
 from nemoguardrails.utils import new_uuid
 

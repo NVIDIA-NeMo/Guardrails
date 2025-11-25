@@ -15,8 +15,7 @@
 
 import re
 import textwrap
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List
 
 from nemoguardrails.actions.llm.utils import (
     get_colang_history,

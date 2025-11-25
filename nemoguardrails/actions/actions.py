@@ -19,7 +19,6 @@ from typing import (
     Callable,
     List,
     Optional,
-    Protocol,
     Type,
     TypedDict,
     TypeVar,

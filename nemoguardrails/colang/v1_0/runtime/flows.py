@@ -15,7 +15,6 @@
 
 """A simplified modeling of the CoFlows engine."""
 
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from time import time
