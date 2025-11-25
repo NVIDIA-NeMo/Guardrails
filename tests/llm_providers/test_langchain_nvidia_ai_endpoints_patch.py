@@ -22,10 +22,10 @@ import pytest
 
 langchain_nvidia_ai_endpoints = pytest.importorskip("langchain_nvidia_ai_endpoints")
 
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
-from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage  # noqa: E402
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult  # noqa: E402
 
-from nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch import ChatNVIDIA
+from nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch import ChatNVIDIA  # noqa: E402
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE")
 

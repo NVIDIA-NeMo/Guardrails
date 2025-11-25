@@ -38,9 +38,9 @@ try:
 except ImportError:
     pass
 
-from nemoguardrails import RailsConfig
-from nemoguardrails.actions import action
-from nemoguardrails.library.injection_detection.yara_config import ActionOptions, Rules
+from nemoguardrails import RailsConfig  # noqa: E402
+from nemoguardrails.actions import action  # noqa: E402
+from nemoguardrails.library.injection_detection.yara_config import ActionOptions, Rules  # noqa: E402
 
 YARA_DIR = Path(__file__).resolve().parent.joinpath("yara_rules")
 

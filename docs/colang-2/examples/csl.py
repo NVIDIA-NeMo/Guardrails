@@ -22,7 +22,7 @@ pathlib.Path(__file__).parent.parent.parent.resolve()
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.parent.resolve()))
 print(sys.path)
 
-from utils import compare_interaction_with_test_script
+from utils import compare_interaction_with_test_script  # noqa: E402
 
 ########################################################################################################################
 # CORE

@@ -443,7 +443,7 @@ class SpanExtractorV2(SpanExtractor):
         return finish_reasons if finish_reasons else None
 
 
-from nemoguardrails.tracing.span_format import SpanFormat, validate_span_format
+from nemoguardrails.tracing.span_format import SpanFormat, validate_span_format  # noqa: E402
 
 
 def create_span_extractor(
