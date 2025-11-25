@@ -138,13 +138,12 @@ def init_langchain_model(
     initializers: list[ModelInitializer] = [
         # Try special case handlers first (handles both chat and text)
         ModelInitializer(_handle_model_special_cases, ["chat", "text"]),
-        # FIXME: is text and chat a good idea?
-        # For text mode, use text completion, we are using both text and chat as the last resort
-        ModelInitializer(_init_text_completion_model, ["text", "chat"]),
         # For chat mode, first try the standard chat completion API
         ModelInitializer(_init_chat_completion_model, ["chat"]),
         # For chat mode, fall back to community chat models
         ModelInitializer(_init_community_chat_models, ["chat"]),
+        # For text mode, use text completion
+        ModelInitializer(_init_text_completion_model, ["text"]),
     ]
 
     # Track the last exception for better error reporting

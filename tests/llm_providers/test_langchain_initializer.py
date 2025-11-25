@@ -58,27 +58,25 @@ def test_special_case_called_first(mock_initializers):
 
 def test_chat_completion_called(mock_initializers):
     mock_initializers["special"].return_value = None
-    mock_initializers["text"].return_value = None
     mock_initializers["chat"].return_value = "chat_model"
     result = init_langchain_model("chat-model", "provider", "chat", {})
     assert result == "chat_model"
     mock_initializers["special"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_not_called()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_community_chat_called(mock_initializers):
     mock_initializers["special"].return_value = None
-    mock_initializers["text"].return_value = None
     mock_initializers["chat"].return_value = None
     mock_initializers["community"].return_value = "community_model"
     result = init_langchain_model("community-chat", "provider", "chat", {})
     assert result == "community_model"
     mock_initializers["special"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_text_completion_called(mock_initializers):
@@ -98,13 +96,12 @@ def test_all_initializers_fail(mock_initializers):
     mock_initializers["special"].return_value = None
     mock_initializers["chat"].return_value = None
     mock_initializers["community"].return_value = None
-    mock_initializers["text"].return_value = None
     with pytest.raises(ModelInitializationError):
         init_langchain_model("unknown-model", "provider", "chat", {})
     mock_initializers["special"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_unsupported_mode(mock_initializers):
@@ -135,44 +132,41 @@ def test_all_initializers_raise_exceptions(mock_initializers):
     mock_initializers["special"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_duplicate_modes_in_initializer(mock_initializers):
     mock_initializers["special"].return_value = None
-    mock_initializers["text"].return_value = None
     mock_initializers["chat"].return_value = "chat_model"
     result = init_langchain_model("chat-model", "provider", "chat", {})
     assert result == "chat_model"
     mock_initializers["special"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_not_called()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_chat_completion_called_when_special_returns_none(mock_initializers):
     mock_initializers["special"].return_value = None
-    mock_initializers["text"].return_value = None
     mock_initializers["chat"].return_value = "chat_model"
     result = init_langchain_model("chat-model", "provider", "chat", {})
     assert result == "chat_model"
     mock_initializers["special"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_not_called()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_community_chat_called_when_previous_fail(mock_initializers):
     mock_initializers["special"].return_value = None
-    mock_initializers["text"].return_value = None
     mock_initializers["chat"].return_value = None
     mock_initializers["community"].return_value = "community_model"
     result = init_langchain_model("community-chat", "provider", "chat", {})
     assert result == "community_model"
     mock_initializers["special"].assert_called_once()
-    mock_initializers["text"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
+    mock_initializers["text"].assert_not_called()
 
 
 def test_text_completion_called_when_previous_fail(mock_initializers):
@@ -188,10 +182,11 @@ def test_text_completion_called_when_previous_fail(mock_initializers):
     mock_initializers["text"].assert_called_once()
 
 
-def test_text_completion_supports_chat_mode(mock_initializers):
+def test_text_mode_only_calls_text_initializers(mock_initializers):
+    """Test that text mode only tries initializers that support text mode."""
     mock_initializers["special"].return_value = None
     mock_initializers["text"].return_value = "text_model"
-    result = init_langchain_model("text-model", "provider", "chat", {})
+    result = init_langchain_model("text-model", "provider", "text", {})
     assert result == "text_model"
     mock_initializers["special"].assert_called_once()
     mock_initializers["text"].assert_called_once()
