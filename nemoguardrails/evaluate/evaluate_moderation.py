@@ -109,7 +109,7 @@ class ModerationRailsEvaluation:
                 if results["label"] in jailbreak:
                     results["correct"] += 1
                 completed = True
-            except:
+            except Exception:
                 print("Error. Going to retry...")
                 num_tries += 1
 
@@ -160,7 +160,7 @@ class ModerationRailsEvaluation:
 
             if results["label"] in check_output:
                 results["correct"] += 1
-        except:
+        except Exception:
             bot_response = None
             check_output = None
             results["error"] += 1
