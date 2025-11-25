@@ -13,5 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .llm.config import RailsConfig as RailsConfig
-from .llm.llmrails import LLMRails as LLMRails
+from .llm.config import RailsConfig
+from .llm.llmrails import LLMRails
+
+__all__ = ["RailsConfig", "LLMRails"]

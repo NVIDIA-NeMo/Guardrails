@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .interaction_types import InteractionLog as InteractionLog
-from .interaction_types import InteractionOutput as InteractionOutput
+from .interaction_types import InteractionLog, InteractionOutput
 from .span_extractors import (
     SpanExtractor,
     SpanExtractorV1,
@@ -24,14 +23,16 @@ from .span_extractors import (
 from .spans import SpanEvent, SpanLegacy, SpanOpentelemetry
 from .tracer import Tracer, create_log_adapters
 
-___all__ = [
-    SpanExtractor,
-    SpanExtractorV1,
-    SpanExtractorV2,
-    create_span_extractor,
-    Tracer,
-    create_log_adapters,
-    SpanEvent,
-    SpanLegacy,
-    SpanOpentelemetry,
+__all__ = [
+    "InteractionLog",
+    "InteractionOutput",
+    "SpanExtractor",
+    "SpanExtractorV1",
+    "SpanExtractorV2",
+    "create_span_extractor",
+    "Tracer",
+    "create_log_adapters",
+    "SpanEvent",
+    "SpanLegacy",
+    "SpanOpentelemetry",
 ]
