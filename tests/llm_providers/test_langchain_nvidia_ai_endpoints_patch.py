@@ -207,14 +207,14 @@ class TestChatNVIDIAPatch:
         )
 
         assert hasattr(chat, "streaming")
-        assert chat.streaming == False
+        assert not chat.streaming
 
         chat_with_streaming = ChatNVIDIA(
             model="meta/llama-3.3-70b-instruct",
             base_url="http://localhost:8000/v1",
             streaming=True,
         )
-        assert chat_with_streaming.streaming == True
+        assert chat_with_streaming.streaming
 
     @pytest.mark.asyncio
     async def test_backward_compatibility_sync_generate(self):
@@ -337,7 +337,7 @@ class TestIntegrationWithLLMRails:
         chat_model = rails.llm
 
         assert hasattr(chat_model, "streaming")
-        assert chat_model.streaming == True
+        assert chat_model.streaming
 
 
 class AsyncIteratorMock:

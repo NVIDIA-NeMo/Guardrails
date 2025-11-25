@@ -237,8 +237,8 @@ async def test_tracing_enable_no_crash_issue_1093(mockTracer):
             {"role": "user", "content": "hi!"},
         ]
     )
-    assert mockTracer.called == True
-    assert res.response != None
+    assert mockTracer.called
+    assert res.response is not None
 
 
 @pytest.mark.asyncio
@@ -429,9 +429,9 @@ async def test_tracing_aggressive_override_when_all_disabled():
         assert user_options.log.activated_rails == original_activated_rails
         assert user_options.log.llm_calls == original_llm_calls
         assert user_options.log.internal_events == original_internal_events
-        assert user_options.log.activated_rails == False
-        assert user_options.log.llm_calls == False
-        assert user_options.log.internal_events == False
+        assert not user_options.log.activated_rails
+        assert not user_options.log.llm_calls
+        assert not user_options.log.internal_events
 
 
 @pytest.mark.asyncio

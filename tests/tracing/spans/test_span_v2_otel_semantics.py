@@ -570,7 +570,7 @@ class TestContentPrivacy:
         )
         assert bot_event is not None
         assert bot_event.body["type"] == "UtteranceBotActionFinished"
-        assert bot_event.body["is_success"] == True
+        assert bot_event.body["is_success"]
         assert "content" not in bot_event.body  # Content excluded
 
         extractor_with_content = SpanExtractorV2(
@@ -597,7 +597,7 @@ class TestContentPrivacy:
         assert bot_event is not None
         assert bot_event.body.get("content") == "Private response"
         assert bot_event.body.get("type") == "UtteranceBotActionFinished"
-        assert bot_event.body.get("is_success") == True
+        assert bot_event.body.get("is_success")
 
 
 if __name__ == "__main__":

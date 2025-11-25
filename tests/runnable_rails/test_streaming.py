@@ -295,12 +295,12 @@ def test_auto_streaming_without_streaming_flag():
     """Test that streaming works without explicitly setting streaming=True on the LLM."""
     llm = StreamingFakeLLM(responses=["Auto-streaming test response"])
 
-    assert llm.streaming == True
+    assert llm.streaming
 
     from tests.utils import FakeLLM
 
     non_streaming_llm = FakeLLM(responses=["Auto-streaming test response"])
-    assert getattr(non_streaming_llm, "streaming", False) == False
+    assert not getattr(non_streaming_llm, "streaming", False)
 
     config = RailsConfig.from_content(config={"models": []})
     rails = RunnableRails(config, llm=non_streaming_llm)
@@ -329,7 +329,7 @@ async def test_streaming_state_restoration():
     rails = RunnableRails(config, llm=llm)
 
     original_streaming = llm.streaming
-    assert original_streaming == False
+    assert not original_streaming
 
     chunks = []
     async for chunk in rails.astream("Test state restoration"):
@@ -338,7 +338,7 @@ async def test_streaming_state_restoration():
     assert len(chunks) > 0
 
     assert llm.streaming == original_streaming
-    assert llm.streaming == False
+    assert not llm.streaming
 
 
 def test_langchain_parity_ux():
@@ -347,7 +347,7 @@ def test_langchain_parity_ux():
 
     llm = FakeLLM(responses=["LangChain parity test"])
 
-    assert getattr(llm, "streaming", False) == False
+    assert not getattr(llm, "streaming", False)
 
     config = RailsConfig.from_content(config={"models": []})
     rails = RunnableRails(config, llm=llm)
@@ -383,18 +383,18 @@ def test_mixed_streaming_and_non_streaming_calls():
 
     response1 = rails.invoke("First call")
     assert "Mixed call test" in str(response1)
-    assert llm.streaming == False
+    assert not llm.streaming
 
     chunks = []
     for chunk in rails.stream("Second call"):
         chunks.append(chunk)
 
     assert len(chunks) > 1
-    assert llm.streaming == False
+    assert not llm.streaming
 
     response2 = rails.invoke("Third call")
     assert "Mixed call test" in str(response2)
-    assert llm.streaming == False
+    assert not llm.streaming
 
 
 def test_streaming_with_different_input_types():
@@ -447,7 +447,7 @@ def test_streaming_with_different_input_types():
             "Input type test" in full_content
         ), f"Failed for {input_type}: {full_content}"
 
-    assert llm.streaming == False
+    assert not llm.streaming
 
 
 def test_streaming_metadata_preservation():
