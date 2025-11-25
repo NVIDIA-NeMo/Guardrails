@@ -293,28 +293,24 @@ async def test_tracing_does_not_mutate_user_options():
 
     # mock file operations to focus on the mutation issue
     with patch.object(Tracer, "export_async", return_value=None):
-        response = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "hello"}], options=user_options
-        )
+        response = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}], options=user_options)
 
         # main fix: no mutation
-        assert (
-            user_options.log.activated_rails == original_activated_rails
-        ), "User's original options were modified! This causes instability."
-        assert (
-            user_options.log.llm_calls == original_llm_calls
-        ), "User's original options were modified! This causes instability."
-        assert (
-            user_options.log.internal_events == original_internal_events
-        ), "User's original options were modified! This causes instability."
-        assert (
-            user_options.log.colang_history == original_colang_history
-        ), "User's original options were modified! This causes instability."
+        assert user_options.log.activated_rails == original_activated_rails, (
+            "User's original options were modified! This causes instability."
+        )
+        assert user_options.log.llm_calls == original_llm_calls, (
+            "User's original options were modified! This causes instability."
+        )
+        assert user_options.log.internal_events == original_internal_events, (
+            "User's original options were modified! This causes instability."
+        )
+        assert user_options.log.colang_history == original_colang_history, (
+            "User's original options were modified! This causes instability."
+        )
 
         # verify that tracing still works
-        assert (
-            response.log is None
-        ), "Tracing should still work correctly, without affecting returned log"
+        assert response.log is None, "Tracing should still work correctly, without affecting returned log"
 
 
 @pytest.mark.asyncio
@@ -353,9 +349,7 @@ async def test_tracing_with_none_options():
     )
 
     with patch.object(Tracer, "export_async", return_value=None):
-        response = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "hello"}], options=None
-        )
+        response = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}], options=None)
 
         assert response.log is None
 
@@ -412,9 +406,7 @@ async def test_tracing_aggressive_override_when_all_disabled():
     original_colang_history = user_options.log.colang_history
 
     with patch.object(Tracer, "export_async", return_value=None):
-        response = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "hello"}], options=user_options
-        )
+        response = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}], options=user_options)
 
         assert user_options.log.activated_rails == original_activated_rails
         assert user_options.log.llm_calls == original_llm_calls
@@ -439,9 +431,7 @@ async def test_tracing_aggressive_override_when_all_disabled():
     "activated_rails,llm_calls,internal_events,colang_history",
     list(itertools.product([False, True], repeat=4)),
 )
-async def test_tracing_preserves_specific_log_fields(
-    activated_rails, llm_calls, internal_events, colang_history
-):
+async def test_tracing_preserves_specific_log_fields(activated_rails, llm_calls, internal_events, colang_history):
     """Test that adding tracing respects the original user logging options in the response object"""
 
     config = RailsConfig.from_content(
@@ -487,9 +477,7 @@ async def test_tracing_preserves_specific_log_fields(
     original_colang_history = user_options.log.colang_history
 
     with patch.object(Tracer, "export_async", return_value=None):
-        response = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "hello"}], options=user_options
-        )
+        response = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}], options=user_options)
 
         assert user_options.log.activated_rails == original_activated_rails
         assert user_options.log.llm_calls == original_llm_calls
@@ -594,10 +582,7 @@ async def test_tracing_aggressive_override_with_dict_options():
         assert user_options_dict == original_dict
 
         assert response.log is not None
-        assert (
-            response.log.activated_rails == []
-            and len(response.log.activated_rails) == 0
-        )
+        assert response.log.activated_rails == [] and len(response.log.activated_rails) == 0
         assert response.log.llm_calls == []
         assert response.log.internal_events == []
 

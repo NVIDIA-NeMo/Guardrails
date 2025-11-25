@@ -100,9 +100,7 @@ async def ai_defense_inspect(
 
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(
-                api_endpoint, headers=headers, json=payload, timeout=timeout
-            )
+            resp = await client.post(api_endpoint, headers=headers, json=payload, timeout=timeout)
             resp.raise_for_status()
             data = resp.json()
         except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.RequestError) as e:
@@ -110,18 +108,14 @@ async def ai_defense_inspect(
             log.error(msg)
             if fail_open:
                 # Fail open: allow content when API call fails
-                log.warning(
-                    "AI Defense API call failed, but fail_open=True, allowing content."
-                )
+                log.warning("AI Defense API call failed, but fail_open=True, allowing content.")
                 result: Dict[str, Any] = {
                     "is_blocked": False,
                 }
                 return result
             else:
                 # Fail closed: block content when API call fails
-                log.warning(
-                    "AI Defense API call failed, fail_open=False, blocking content."
-                )
+                log.warning("AI Defense API call failed, fail_open=False, blocking content.")
                 result: Dict[str, Any] = {
                     "is_blocked": True,
                 }
@@ -146,11 +140,7 @@ async def ai_defense_inspect(
 
         rules = data.get("rules") or []
         if is_blocked and rules:
-            entries = [
-                f"{r.get('rule_name')} ({r.get('classification')})"
-                for r in rules
-                if isinstance(r, dict)
-            ]
+            entries = [f"{r.get('rule_name')} ({r.get('classification')})" for r in rules if isinstance(r, dict)]
             if entries:
                 log.debug("AI Defense matched rules: %s", ", ".join(entries))
 

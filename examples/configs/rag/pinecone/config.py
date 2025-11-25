@@ -57,11 +57,7 @@ async def answer_question_with_sources(
 
     # use any model, right now its fixed to OpenAI models
     embed = OpenAIEmbeddings(
-        model=[
-            model.model
-            for model in llm_task_manager.config.models
-            if model.type == "embeddings"
-        ][0],
+        model=[model.model for model in llm_task_manager.config.models if model.type == "embeddings"][0],
         openai_api_key=OPENAI_API_KEY,
     )
     vectorstore = Pinecone(pinecone.Index(index_name), embed.embed_query, "text")
@@ -69,9 +65,7 @@ async def answer_question_with_sources(
     qa_with_sources = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
-        retriever=vectorstore.as_retriever(
-            search_type="mmr", search_kwargs={"fetch_k": 30}
-        ),
+        retriever=vectorstore.as_retriever(search_type="mmr", search_kwargs={"fetch_k": 30}),
         return_source_documents=True,
     )
 
@@ -103,9 +97,7 @@ async def answer_question_with_sources(
     }
 
     return ActionResult(
-        return_value=str(
-            context_updates["bot_response"] + context_updates["citations"]
-        ),
+        return_value=str(context_updates["bot_response"] + context_updates["citations"]),
         context_updates=context_updates,
     )
 

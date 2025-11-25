@@ -52,7 +52,4 @@ def test_1():
     )
 
     chat >> "Hello!"
-    (
-        chat
-        << "Hello there!\nDid you know that today is a great day?\nHow can I help you today?"
-    )
+    (chat << "Hello there!\nDid you know that today is a great day?\nHow can I help you today?")

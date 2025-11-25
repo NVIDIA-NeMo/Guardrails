@@ -36,17 +36,13 @@ async def test_bot_tool_call_event_creation():
         }
     ]
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
         chat = TestChat(config, llm_completions=[""])
 
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Test"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Test"}])
 
         assert result["tool_calls"] is not None
         assert len(result["tool_calls"]) == 1
@@ -59,20 +55,14 @@ async def test_bot_message_vs_bot_tool_call_event():
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = None
 
         chat_text = TestChat(config, llm_completions=["Regular text response"])
-        result_text = await chat_text.app.generate_async(
-            messages=[{"role": "user", "content": "Hello"}]
-        )
+        result_text = await chat_text.app.generate_async(messages=[{"role": "user", "content": "Hello"}])
 
         assert result_text["content"] == "Regular text response"
-        assert (
-            result_text.get("tool_calls") is None or result_text.get("tool_calls") == []
-        )
+        assert result_text.get("tool_calls") is None or result_text.get("tool_calls") == []
 
     test_tool_calls = [
         {
@@ -83,15 +73,11 @@ async def test_bot_message_vs_bot_tool_call_event():
         }
     ]
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat_tools = TestChat(config, llm_completions=[""])
-        result_tools = await chat_tools.app.generate_async(
-            messages=[{"role": "user", "content": "Use tool"}]
-        )
+        result_tools = await chat_tools.app.generate_async(messages=[{"role": "user", "content": "Use tool"}])
 
         assert result_tools["tool_calls"] is not None
         assert result_tools["tool_calls"][0]["name"] == "toggle_tool"
@@ -127,15 +113,11 @@ async def test_tool_calls_bypass_output_rails():
         """,
     )
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Execute"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Execute"}])
 
         assert result["tool_calls"] is not None
         assert result["tool_calls"][0]["name"] == "critical_tool"
@@ -156,18 +138,14 @@ async def test_mixed_content_and_tool_calls():
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(
             config,
             llm_completions=["I found the information and will now transmit it."],
         )
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Process data"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Process data"}])
 
         assert result["tool_calls"] is not None
         assert result["tool_calls"][0]["name"] == "transmit_data"
@@ -194,15 +172,11 @@ async def test_multiple_tool_calls():
 
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Execute multiple tools"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Execute multiple tools"}])
 
         assert result["tool_calls"] is not None
         assert len(result["tool_calls"]) == 2
@@ -227,15 +201,11 @@ async def test_regular_text_still_goes_through_output_rails():
         """,
     )
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = None
 
         chat = TestChat(config, llm_completions=["This is a regular response"])
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Say something"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Say something"}])
 
         assert "PREFIX: This is a regular response" in result["content"]
         assert result.get("tool_calls") is None or result.get("tool_calls") == []
@@ -260,15 +230,11 @@ async def test_empty_text_without_tool_calls_still_blocked():
         """,
     )
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = None
 
         chat = TestChat(config, llm_completions=[""])
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Say something"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Say something"}])
 
         assert "I'm sorry, I can't respond to that." in result["content"]
         assert result.get("tool_calls") is None or result.get("tool_calls") == []

@@ -49,10 +49,7 @@ class CustomLLM(BaseLLM):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs,
     ) -> LLMResult:
-        generations = [
-            [Generation(text=self._call(prompt, stop, run_manager, **kwargs))]
-            for prompt in prompts
-        ]
+        generations = [[Generation(text=self._call(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
         return LLMResult(generations=generations)
 
     async def _agenerate(
@@ -62,10 +59,7 @@ class CustomLLM(BaseLLM):
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
         **kwargs,
     ) -> LLMResult:
-        generations = [
-            [Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))]
-            for prompt in prompts
-        ]
+        generations = [[Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
         return LLMResult(generations=generations)
 
     @property

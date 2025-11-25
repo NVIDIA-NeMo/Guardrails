@@ -65,13 +65,9 @@ class TestProcessEventsAsyncV2x:
 
         events = [{"type": "UtteranceUserActionFinished", "final_transcript": "hi"}]
 
-        output_events, output_state = await rails.process_events_async(
-            events, state=None
-        )
+        output_events, output_state = await rails.process_events_async(events, state=None)
 
-        assert isinstance(
-            output_state, State
-        ), f"Expected State object, got {type(output_state)}"
+        assert isinstance(output_state, State), f"Expected State object, got {type(output_state)}"
         assert isinstance(output_events, list)
         assert len(output_events) > 0
 
@@ -110,9 +106,7 @@ class TestProcessEventsAsyncV2x:
 
         events = [{"type": "UtteranceUserActionFinished", "final_transcript": "hi"}]
 
-        output_events_1, output_state_1 = await rails.process_events_async(
-            events, state=None
-        )
+        output_events_1, output_state_1 = await rails.process_events_async(events, state=None)
 
         assert isinstance(output_state_1, State)
 
@@ -128,17 +122,13 @@ class TestProcessEventsAsyncV2x:
                     )
                 )
 
-        events_2.append(
-            {"type": "UtteranceUserActionFinished", "final_transcript": "bye"}
-        )
+        events_2.append({"type": "UtteranceUserActionFinished", "final_transcript": "bye"})
 
-        output_events_2, output_state_2 = await rails.process_events_async(
-            events_2, state=output_state_1
-        )
+        output_events_2, output_state_2 = await rails.process_events_async(events_2, state=output_state_1)
 
-        assert isinstance(
-            output_state_2, State
-        ), "Second call should also return State object when passing State as input"
+        assert isinstance(output_state_2, State), (
+            "Second call should also return State object when passing State as input"
+        )
 
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
@@ -232,9 +222,7 @@ class TestChatV2xE2E:
         rails = LLMRails(config)
         chat_state = ChatState()
 
-        chat_state.input_events = [
-            {"type": "UtteranceUserActionFinished", "final_transcript": "hi"}
-        ]
+        chat_state.input_events = [{"type": "UtteranceUserActionFinished", "final_transcript": "hi"}]
 
         input_events_copy = chat_state.input_events.copy()
         chat_state.input_events = []

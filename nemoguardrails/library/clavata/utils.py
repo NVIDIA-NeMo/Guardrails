@@ -32,9 +32,7 @@ class AttemptsExceededError(Exception):
     max_attempts: int
     last_exception: Optional[Exception]
 
-    def __init__(
-        self, attempts: int, max_attempts: int, last_exception: Optional[Exception]
-    ):
+    def __init__(self, attempts: int, max_attempts: int, last_exception: Optional[Exception]):
         self.attempts = attempts
         self.max_attempts = max_attempts
         self.last_exception = last_exception
@@ -91,19 +89,11 @@ def exponential_backoff(
     """Exponential backoff retry mechanism."""
 
     # Ensure retry_exceptions is a tuple of exceptions
-    retry_exceptions = (
-        (retry_exceptions,)
-        if isinstance(retry_exceptions, type)
-        else tuple(retry_exceptions)
-    )
+    retry_exceptions = (retry_exceptions,) if isinstance(retry_exceptions, type) else tuple(retry_exceptions)
 
     # Sanity check, make sure the types in the retry_exceptions are all exceptions
-    if not all(
-        isinstance(e, type) and issubclass(e, Exception) for e in retry_exceptions
-    ):
-        raise ClavataPluginTypeError(
-            "retry_exceptions must be a tuple of exception types"
-        )
+    if not all(isinstance(e, type) and issubclass(e, Exception) for e in retry_exceptions):
+        raise ClavataPluginTypeError("retry_exceptions must be a tuple of exception types")
 
     def decorator(
         func: Callable[P, Awaitable[ReturnT]],
@@ -129,9 +119,7 @@ def exponential_backoff(
 
                     # We want to calculate the delay before incrementing because we want the first
                     # delay to be exactly the initial delay
-                    delay = calculate_exp_delay(
-                        attempts, initial_delay, max_delay, jitter
-                    )
+                    delay = calculate_exp_delay(attempts, initial_delay, max_delay, jitter)
                     await asyncio.sleep(delay)
                     attempts += 1
 

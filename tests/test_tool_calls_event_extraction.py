@@ -35,10 +35,7 @@ async def validate_tool_parameters(tool_calls, context=None, **kwargs):
         args = tool_call.get("args", {})
         for param_value in args.values():
             if isinstance(param_value, str):
-                if any(
-                    pattern.lower() in param_value.lower()
-                    for pattern in dangerous_patterns
-                ):
+                if any(pattern.lower() in param_value.lower() for pattern in dangerous_patterns):
                     return False
     return True
 
@@ -48,10 +45,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
     """Test implementation of tool call validation."""
     tool_calls = tool_calls or (context.get("tool_calls", []) if context else [])
 
-    return all(
-        isinstance(call, dict) and "name" in call and "id" in call
-        for call in tool_calls
-    )
+    return all(isinstance(call, dict) and "name" in call and "id" in call for call in tool_calls)
 
 
 @pytest.mark.asyncio
@@ -96,17 +90,11 @@ async def test_tool_calls_preserved_when_rails_block():
 
     rails = RunnableRails(config, llm=MockLLMWithDangerousTools())
 
-    rails.rails.runtime.register_action(
-        validate_tool_parameters, name="validate_tool_parameters"
-    )
-    rails.rails.runtime.register_action(
-        self_check_tool_calls, name="self_check_tool_calls"
-    )
+    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
     result = await rails.ainvoke(HumanMessage(content="Execute dangerous tool"))
 
-    assert (
-        result.tool_calls is not None
-    ), "tool_calls should be preserved in final response"
+    assert result.tool_calls is not None, "tool_calls should be preserved in final response"
     assert len(result.tool_calls) == 1
     assert result.tool_calls[0]["name"] == "dangerous_tool"
     assert "cannot execute this tool request" in result.content
@@ -142,9 +130,7 @@ async def test_generation_action_pops_tool_calls_once():
     ):
         chat = TestChat(config, llm_completions=[""])
 
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Test"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Test"}])
 
         assert call_count >= 1, "get_and_clear_tool_calls_contextvar should be called"
         assert result["tool_calls"] is not None
@@ -164,9 +150,7 @@ async def test_llmrails_extracts_tool_calls_from_events():
         }
     ]
 
-    mock_events = [
-        {"type": "BotToolCalls", "tool_calls": test_tool_calls, "uid": "test_uid"}
-    ]
+    mock_events = [{"type": "BotToolCalls", "tool_calls": test_tool_calls, "uid": "test_uid"}]
 
     from nemoguardrails.actions.llm.utils import extract_tool_calls_from_events
 
@@ -196,9 +180,7 @@ async def test_tool_rails_cannot_clear_context_variable():
     result = await validate_tool_parameters(test_tool_calls, context=context)
 
     assert result is False
-    assert (
-        tool_calls_var.get() is not None
-    ), "Context variable should not be cleared by tool rails"
+    assert tool_calls_var.get() is not None, "Context variable should not be cleared by tool rails"
     assert tool_calls_var.get()[0]["name"] == "blocked_tool"
 
 
@@ -246,12 +228,8 @@ async def test_complete_fix_integration():
 
     rails = RunnableRails(config, llm=MockLLMReturningDangerousTools())
 
-    rails.rails.runtime.register_action(
-        validate_tool_parameters, name="validate_tool_parameters"
-    )
-    rails.rails.runtime.register_action(
-        self_check_tool_calls, name="self_check_tool_calls"
-    )
+    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
     result = await rails.ainvoke(HumanMessage(content="Run dangerous code"))
 
     assert "security concerns" in result.content
@@ -291,9 +269,7 @@ async def test_passthrough_mode_with_multiple_tool_calls():
             return self.invoke(messages, **kwargs)
 
     rails = RunnableRails(config, llm=MockLLMWithMultipleTools())
-    result = await rails.ainvoke(
-        HumanMessage(content="What's the weather in NYC and what's 2+2?")
-    )
+    result = await rails.ainvoke(HumanMessage(content="What's the weather in NYC and what's 2+2?"))
 
     assert result.tool_calls is not None
     assert len(result.tool_calls) == 2
@@ -382,9 +358,7 @@ async def test_tool_calls_preserve_metadata():
 
     class MockLLMWithMetadata:
         def invoke(self, messages, **kwargs):
-            msg = AIMessage(
-                content="Processing with metadata.", tool_calls=test_tool_calls
-            )
+            msg = AIMessage(content="Processing with metadata.", tool_calls=test_tool_calls)
             msg.response_metadata = {"model": "test-model", "usage": {"tokens": 50}}
             return msg
 
@@ -442,12 +416,8 @@ async def test_tool_output_rails_blocking_behavior():
 
     rails = RunnableRails(config, llm=MockLLMDangerousExec())
 
-    rails.rails.runtime.register_action(
-        validate_tool_parameters, name="validate_tool_parameters"
-    )
-    rails.rails.runtime.register_action(
-        self_check_tool_calls, name="self_check_tool_calls"
-    )
+    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
     result = await rails.ainvoke(HumanMessage(content="Execute dangerous command"))
 
     assert "security reasons" in result.content
@@ -486,9 +456,7 @@ async def test_complex_tool_calls_integration():
             return self.invoke(messages, **kwargs)
 
     rails = RunnableRails(config, llm=MockLLMComplexTools())
-    result = await rails.ainvoke(
-        HumanMessage(content="Find active users and format as JSON")
-    )
+    result = await rails.ainvoke(HumanMessage(content="Find active users and format as JSON"))
 
     assert result.tool_calls is not None
     assert len(result.tool_calls) == 2

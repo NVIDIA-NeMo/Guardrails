@@ -112,9 +112,7 @@ class FakeLLM(LLM):
 
         return response
 
-    def _get_token_usage_for_response(
-        self, response_index: int, kwargs: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _get_token_usage_for_response(self, response_index: int, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Get token usage data for the given response index if conditions are met."""
 
         llm_output = {}
@@ -132,10 +130,7 @@ class FakeLLM(LLM):
 
         from langchain_core.outputs import Generation, LLMResult
 
-        generations = [
-            [Generation(text=self._call(prompt, stop, run_manager, **kwargs))]
-            for prompt in prompts
-        ]
+        generations = [[Generation(text=self._call(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
 
         llm_output = self._get_token_usage_for_response(self.i - 1, kwargs)
         return LLMResult(generations=generations, llm_output=llm_output)
@@ -144,10 +139,7 @@ class FakeLLM(LLM):
         """Override _agenerate to provide token usage in LLMResult."""
         from langchain_core.outputs import Generation, LLMResult
 
-        generations = [
-            [Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))]
-            for prompt in prompts
-        ]
+        generations = [[Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
 
         llm_output = self._get_token_usage_for_response(self.i - 1, kwargs)
         return LLMResult(generations=generations, llm_output=llm_output)
@@ -200,13 +192,8 @@ class TestChat:
             # this mirrors the logic in LLMRails._prepare_model_kwargs
             should_enable_stream_usage = False
             if config.streaming:
-                main_model = next(
-                    (model for model in config.models if model.type == "main"), None
-                )
-                if (
-                    main_model
-                    and main_model.engine in _TEST_PROVIDERS_WITH_TOKEN_USAGE_SUPPORT
-                ):
+                main_model = next((model for model in config.models if model.type == "main"), None)
+                if main_model and main_model.engine in _TEST_PROVIDERS_WITH_TOKEN_USAGE_SUPPORT:
                     should_enable_stream_usage = True
 
             self.llm = FakeLLM(
@@ -251,21 +238,15 @@ class TestChat:
                             final_transcript=msg,
                             action_uid=uid,
                             is_success=True,
-                            event_created_at=(
-                                datetime.now(timezone.utc) + timedelta(milliseconds=1)
-                            ).isoformat(),
-                            action_finished_at=(
-                                datetime.now(timezone.utc) + timedelta(milliseconds=1)
-                            ).isoformat(),
+                            event_created_at=(datetime.now(timezone.utc) + timedelta(milliseconds=1)).isoformat(),
+                            action_finished_at=(datetime.now(timezone.utc) + timedelta(milliseconds=1)).isoformat(),
                         ),
                     ]
                 )
             elif "type" in msg:
                 self.input_events.append(msg)
             else:
-                raise ValueError(
-                    f"Invalid user message: {msg}. Must be either str or event"
-                )
+                raise ValueError(f"Invalid user message: {msg}. Must be either str or event")
         else:
             raise Exception(f"Invalid colang version: {self.config.colang_version}")
 
@@ -273,9 +254,7 @@ class TestChat:
         if self.config.colang_version == "1.0":
             result = self.app.generate(messages=self.history)
             assert result, "Did not receive any result"
-            assert (
-                result["content"] == expected
-            ), f"Expected `{expected}` and received `{result['content']}`"
+            assert result["content"] == expected, f"Expected `{expected}` and received `{result['content']}`"
             self.history.append(result)
 
         elif self.config.colang_version == "2.x":
@@ -316,9 +295,7 @@ class TestChat:
 
             output_msg = "\n".join(output_msgs)
             if isinstance(expected, str):
-                assert (
-                    output_msg == expected
-                ), f"Expected `{expected}` and received `{output_msg}`"
+                assert output_msg == expected, f"Expected `{expected}` and received `{output_msg}`"
             else:
                 if isinstance(expected, dict):
                     expected = [expected]
@@ -330,9 +307,7 @@ class TestChat:
     async def bot_async(self, msg: str):
         result = await self.app.generate_async(messages=self.history)
         assert result, "Did not receive any result"
-        assert (
-            result["content"] == msg
-        ), f"Expected `{msg}` and received `{result['content']}`"
+        assert result["content"] == msg, f"Expected `{msg}` and received `{result['content']}`"
         self.history.append(result)
 
     def __rshift__(self, msg: Union[str, dict]):
@@ -371,22 +346,16 @@ def event_conforms(event_subset: Dict[str, Any], event_to_test: Dict[str, Any]) 
             if not event_conforms(value, event_to_test[key]):
                 return False
         elif isinstance(value, list) and isinstance(event_to_test[key], list):
-            return all(
-                [event_conforms(s, e) for s, e in zip(value, event_to_test[key])]
-            )
+            return all([event_conforms(s, e) for s, e in zip(value, event_to_test[key])])
         elif value != event_to_test[key]:
             return False
 
     return True
 
 
-def event_sequence_conforms(
-    event_subset_list: Iterable[Dict[str, Any]], event_list: Iterable[Dict[str, Any]]
-) -> bool:
+def event_sequence_conforms(event_subset_list: Iterable[Dict[str, Any]], event_list: Iterable[Dict[str, Any]]) -> bool:
     if len(event_subset_list) != len(event_list):
-        raise Exception(
-            f"Different lengths: {len(event_subset_list)} vs {len(event_list)}"
-        )
+        raise Exception(f"Different lengths: {len(event_subset_list)} vs {len(event_list)}")
 
     for subset, event in zip(event_subset_list, event_list):
         if not event_conforms(subset, event):
@@ -395,25 +364,18 @@ def event_sequence_conforms(
     return True
 
 
-def any_event_conforms(
-    event_subset: Dict[str, Any], event_list: Iterable[Dict[str, Any]]
-) -> bool:
+def any_event_conforms(event_subset: Dict[str, Any], event_list: Iterable[Dict[str, Any]]) -> bool:
     """Returns true iff one of the events in the list conform to the event_subset provided."""
     return any([event_conforms(event_subset, e) for e in event_list])
 
 
-def is_data_in_events(
-    events: List[Dict[str, Any]], event_data: List[Dict[str, Any]]
-) -> bool:
+def is_data_in_events(events: List[Dict[str, Any]], event_data: List[Dict[str, Any]]) -> bool:
     """Returns 'True' if provided data is contained in event."""
     if len(events) != len(event_data):
         return False
 
     for event, data in zip(events, event_data):
-        if not (
-            all(key in event for key in data)
-            and all(data[key] == event[key] for key in data)
-        ):
+        if not (all(key in event for key in data) and all(data[key] == event[key] for key in data)):
             return False
     return True
 

@@ -106,9 +106,7 @@ def experiment_1():
 
 def experiment_2():
     """Basic setup invoking LLM rails directly."""
-    rails_config = RailsConfig.from_content(
-        yaml_content=YAML_CONTENT, colang_content=COLANG_CONTENT
-    )
+    rails_config = RailsConfig.from_content(yaml_content=YAML_CONTENT, colang_content=COLANG_CONTENT)
     rails = LLMRails(config=rails_config, llm=model)
 
     # print(rails.generate(messages=[{"role": "user", "content": "Hello!"}]))
@@ -120,9 +118,7 @@ def experiment_3():
 
     Wraps the model with a rails configuration
     """
-    rails_config = RailsConfig.from_content(
-        yaml_content=YAML_CONTENT, colang_content=COLANG_CONTENT
-    )
+    rails_config = RailsConfig.from_content(yaml_content=YAML_CONTENT, colang_content=COLANG_CONTENT)
     guardrails = RunnableRails(config=rails_config)
     model_with_rails = guardrails | model
 

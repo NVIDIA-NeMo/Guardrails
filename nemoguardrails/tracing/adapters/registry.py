@@ -48,9 +48,7 @@ def register_log_adapter(model: Type, name: Optional[str] = None):
         name = model.name
 
     if not name:
-        raise ValueError(
-            "The engine name must be provided either in the model or as an argument."
-        )
+        raise ValueError("The engine name must be provided either in the model or as an argument.")
 
     registry = LogAdapterRegistry()
     registry.add(name, model)

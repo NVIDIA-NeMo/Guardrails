@@ -39,10 +39,7 @@ def format_span_for_filesystem(span) -> Dict[str, Any]:
         Dictionary with all span data for JSON serialization
     """
     if not isinstance(span, SpanLegacy) and not is_opentelemetry_span(span):
-        raise ValueError(
-            f"Unknown span type: {type(span).__name__}. "
-            f"Only SpanLegacy and typed spans are supported."
-        )
+        raise ValueError(f"Unknown span type: {type(span).__name__}. Only SpanLegacy and typed spans are supported.")
 
     result = {
         "name": span.name,
@@ -101,7 +98,4 @@ def extract_span_attributes(span) -> Dict[str, Any]:
         return span.to_otel_attributes()
 
     else:
-        raise ValueError(
-            f"Unknown span type: {type(span).__name__}. "
-            f"Only SpanLegacy and typed spans are supported."
-        )
+        raise ValueError(f"Unknown span type: {type(span).__name__}. Only SpanLegacy and typed spans are supported.")

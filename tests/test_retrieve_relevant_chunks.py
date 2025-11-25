@@ -48,9 +48,7 @@ flow greeting
 def test_relevant_chunk_inserted_in_prompt():
     mock_kb = MagicMock(spec=KnowledgeBase)
 
-    mock_kb.search_relevant_chunks.return_value = [
-        {"title": "Test Title", "body": "Test Body"}
-    ]
+    mock_kb.search_relevant_chunks.return_value = [{"title": "Test Title", "body": "Test Body"}]
 
     chat = TestChat(
         RAILS_CONFIG,

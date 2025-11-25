@@ -79,27 +79,19 @@ def hello_world():
 
 @app.post("/jailbreak_lp_heuristic")
 def lp_heuristic_check(request: JailbreakHeuristicRequest):
-    return hc.check_jailbreak_length_per_perplexity(
-        request.prompt, request.lp_threshold
-    )
+    return hc.check_jailbreak_length_per_perplexity(request.prompt, request.lp_threshold)
 
 
 @app.post("/jailbreak_ps_heuristic")
 def ps_ppl_heuristic_check(request: JailbreakHeuristicRequest):
-    return hc.check_jailbreak_prefix_suffix_perplexity(
-        request.prompt, request.ps_ppl_threshold
-    )
+    return hc.check_jailbreak_prefix_suffix_perplexity(request.prompt, request.ps_ppl_threshold)
 
 
 @app.post("/heuristics")
 def run_all_heuristics(request: JailbreakHeuristicRequest):
     # Will add other heuristics as they become available
-    lp_check = hc.check_jailbreak_length_per_perplexity(
-        request.prompt, request.lp_threshold
-    )
-    ps_ppl_check = hc.check_jailbreak_prefix_suffix_perplexity(
-        request.prompt, request.ps_ppl_threshold
-    )
+    lp_check = hc.check_jailbreak_length_per_perplexity(request.prompt, request.lp_threshold)
+    ps_ppl_check = hc.check_jailbreak_prefix_suffix_perplexity(request.prompt, request.ps_ppl_threshold)
     jailbreak = any([lp_check["jailbreak"], ps_ppl_check["jailbreak"]])
     heuristic_checks = {
         "jailbreak": jailbreak,
@@ -120,9 +112,7 @@ def run_model_check(request: JailbreakModelRequest):
 
 @cli_app.command()
 def start(
-    port: int = typer.Option(
-        default=1337, help="The port that the server should listen on."
-    ),
+    port: int = typer.Option(default=1337, help="The port that the server should listen on."),
     host: str = typer.Option(default="0.0.0.0", help="IP address of the host"),
 ):
     _ = mc.initialize_model()

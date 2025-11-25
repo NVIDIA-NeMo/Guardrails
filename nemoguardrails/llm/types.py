@@ -29,9 +29,7 @@ class Task(Enum):
     GENERATE_VALUE = "generate_value"
     GENERATE_VALUE_FROM_INSTRUCTION = "generate_value_from_instruction"
     GENERATE_USER_INTENT_FROM_USER_ACTION = "generate_user_intent_from_user_action"
-    GENERATE_USER_INTENT_AND_BOT_ACTION_FROM_USER_ACTION = (
-        "generate_user_intent_and_bot_action_from_user_action"
-    )
+    GENERATE_USER_INTENT_AND_BOT_ACTION_FROM_USER_ACTION = "generate_user_intent_and_bot_action_from_user_action"
     GENERATE_FLOW_FROM_INSTRUCTIONS = "generate_flow_from_instructions"
     GENERATE_FLOW_FROM_NAME = "generate_flow_from_name"
     GENERATE_FLOW_CONTINUATION = "generate_flow_continuation"
@@ -42,9 +40,7 @@ class Task(Enum):
     SELF_CHECK_OUTPUT = "self_check_output"
     LLAMA_GUARD_CHECK_INPUT = "llama_guard_check_input"
     LLAMA_GUARD_CHECK_OUTPUT = "llama_guard_check_output"
-    PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION = (
-        "patronus_lynx_check_output_hallucination"
-    )
+    PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION = "patronus_lynx_check_output_hallucination"
 
     SELF_CHECK_FACTS = "self_check_facts"
     SELF_CHECK_HALLUCINATION = "self_check_hallucination"

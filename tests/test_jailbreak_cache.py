@@ -119,9 +119,7 @@ async def test_jailbreak_cache_hit(mock_nim_request, mock_task_manager):
     "nemoguardrails.library.jailbreak_detection.actions.jailbreak_nim_request",
     new_callable=AsyncMock,
 )
-async def test_jailbreak_cache_miss_sets_from_cache_false(
-    mock_nim_request, mock_task_manager
-):
+async def test_jailbreak_cache_miss_sets_from_cache_false(mock_nim_request, mock_task_manager):
     mock_nim_request.return_value = False
     cache = LFUCache(maxsize=10)
 
@@ -167,9 +165,7 @@ async def test_jailbreak_without_cache(mock_nim_request, mock_task_manager):
 @patch(
     "nemoguardrails.library.jailbreak_detection.model_based.checks.check_jailbreak",
 )
-async def test_jailbreak_cache_stores_result_local(
-    mock_check_jailbreak, mock_task_manager_local
-):
+async def test_jailbreak_cache_stores_result_local(mock_check_jailbreak, mock_task_manager_local):
     mock_check_jailbreak.return_value = {"jailbreak": True}
     cache = LFUCache(maxsize=10)
 
@@ -222,9 +218,7 @@ async def test_jailbreak_cache_hit_local(mock_check_jailbreak, mock_task_manager
 @patch(
     "nemoguardrails.library.jailbreak_detection.model_based.checks.check_jailbreak",
 )
-async def test_jailbreak_cache_miss_sets_from_cache_false_local(
-    mock_check_jailbreak, mock_task_manager_local
-):
+async def test_jailbreak_cache_miss_sets_from_cache_false_local(mock_check_jailbreak, mock_task_manager_local):
     mock_check_jailbreak.return_value = {"jailbreak": False}
     cache = LFUCache(maxsize=10)
 
@@ -248,9 +242,7 @@ async def test_jailbreak_cache_miss_sets_from_cache_false_local(
 @patch(
     "nemoguardrails.library.jailbreak_detection.model_based.checks.check_jailbreak",
 )
-async def test_jailbreak_without_cache_local(
-    mock_check_jailbreak, mock_task_manager_local
-):
+async def test_jailbreak_without_cache_local(mock_check_jailbreak, mock_task_manager_local):
     mock_check_jailbreak.return_value = {"jailbreak": True}
 
     result = await jailbreak_detection_model(

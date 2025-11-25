@@ -58,9 +58,7 @@ def check_endpoint(port: int, expected_model: str):
                 if status == "healthy":
                     logging.info("Health Check PASSED: Status is 'healthy'.")
                 else:
-                    logging.warning(
-                        "Health Check FAILED: Expected 'healthy', got '%s'.", status
-                    )
+                    logging.warning("Health Check FAILED: Expected 'healthy', got '%s'.", status)
                     all_ok = False
             except json.JSONDecodeError:
                 logging.error("Health Check FAILED: Could not decode JSON response.")
@@ -94,9 +92,7 @@ def check_endpoint(port: int, expected_model: str):
                 model_ids = [model.get("id") for model in models]
 
                 if expected_model in model_ids:
-                    logging.info(
-                        "Model Check PASSED: Found '%s' in model list.", expected_model
-                    )
+                    logging.info("Model Check PASSED: Found '%s' in model list.", expected_model)
                 else:
                     logging.warning(
                         "Model Check FAILED: Expected '%s', but it was NOT found.",
@@ -152,31 +148,21 @@ def check_rails_endpoint(port: int):
         if response.status_code == 200:
             logging.info("HTTP Status PASSED: Got %s.", response.status_code)
         else:
-            logging.warning(
-                "HTTP Status FAILED: Expected 200, got '%s'.", response.status_code
-            )
+            logging.warning("HTTP Status FAILED: Expected 200, got '%s'.", response.status_code)
             all_ok = False
 
         # --- 2. Body Content Check ---
         try:
             data = response.json()
             if isinstance(data, list) and len(data) > 0:
-                logging.info(
-                    "Body Check PASSED: Response is an array with at least one entry."
-                )
+                logging.info("Body Check PASSED: Response is an array with at least one entry.")
             else:
-                logging.warning(
-                    "Body Check FAILED: Response is not an array or is empty."
-                )
-                logging.debug(
-                    "Response body (first 200 chars): %s", str(response.text)[:200]
-                )
+                logging.warning("Body Check FAILED: Response is not an array or is empty.")
+                logging.debug("Response body (first 200 chars): %s", str(response.text)[:200])
                 all_ok = False
         except json.JSONDecodeError:
             logging.error("Body Check FAILED: Could not decode JSON response.")
-            logging.debug(
-                "Response body (first 200 chars): %s", str(response.text)[:200]
-            )
+            logging.debug("Response body (first 200 chars): %s", str(response.text)[:200])
             all_ok = False
 
     except httpx.ConnectError:

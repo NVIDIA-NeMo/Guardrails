@@ -64,9 +64,7 @@ async def detect_pii(
 
     parsed_url = urlparse(server_endpoint)
     if parsed_url.hostname == "api.private-ai.com" and not pai_api_key:
-        raise ValueError(
-            "PAI_API_KEY environment variable required for Private AI cloud API."
-        )
+        raise ValueError("PAI_API_KEY environment variable required for Private AI cloud API.")
 
     valid_sources = ["input", "output", "retrieval"]
     if source not in valid_sources:
@@ -111,9 +109,7 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
 
     parsed_url = urlparse(server_endpoint)
     if parsed_url.hostname == "api.private-ai.com" and not pai_api_key:
-        raise ValueError(
-            "PAI_API_KEY environment variable required for Private AI cloud API."
-        )
+        raise ValueError("PAI_API_KEY environment variable required for Private AI cloud API.")
 
     valid_sources = ["input", "output", "retrieval"]
     if source not in valid_sources:
@@ -130,9 +126,7 @@ async def mask_pii(source: str, text: str, config: RailsConfig):
     )
 
     if not private_ai_response or not isinstance(private_ai_response, list):
-        raise ValueError(
-            "Invalid response received from Private AI service. The response is not a list."
-        )
+        raise ValueError("Invalid response received from Private AI service. The response is not a list.")
 
     try:
         return private_ai_response[0]["processed_text"]

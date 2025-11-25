@@ -31,8 +31,7 @@ models_path = os.environ.get("ALIGN_SCORE_PATH")
 
 if models_path is None:
     raise ValueError(
-        "Please set the ALIGN_SCORE_PATH environment variable "
-        "to point to the AlignScore checkpoints folder. "
+        "Please set the ALIGN_SCORE_PATH environment variable to point to the AlignScore checkpoints folder. "
     )
 
 app = FastAPI()
@@ -94,16 +93,12 @@ cli_app = typer.Typer()
 
 @cli_app.command()
 def start(
-    port: int = typer.Option(
-        default=5000, help="The port that the server should listen on. "
-    ),
+    port: int = typer.Option(default=5000, help="The port that the server should listen on. "),
     models: List[str] = typer.Option(
         default=["base"],
         help="The list of models to be loaded on startup",
     ),
-    initialize_only: bool = typer.Option(
-        default=False, help="Whether to run only the initialization for the models."
-    ),
+    initialize_only: bool = typer.Option(default=False, help="Whether to run only the initialization for the models."),
 ):
     # Preload the models
     for model in models:

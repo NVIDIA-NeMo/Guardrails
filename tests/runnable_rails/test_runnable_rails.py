@@ -38,12 +38,14 @@ from tests.utils import FakeLLM
 def has_nvidia_ai_endpoints():
     """Check if NVIDIA AI Endpoints package is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_nvidia_ai_endpoints")
 
 
 def has_openai():
     """Check if OpenAI package is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_openai")
 
 
@@ -159,9 +161,7 @@ def test_dict_messages_in_dict_messages_out():
     config = RailsConfig.from_content(config={"models": []})
     model_with_rails = RunnableRails(config, llm=llm)
 
-    result = model_with_rails.invoke(
-        input={"input": [{"role": "user", "content": "The capital of France is "}]}
-    )
+    result = model_with_rails.invoke(input={"input": [{"role": "user", "content": "The capital of France is "}]})
 
     assert isinstance(result, dict)
     assert result["output"] == {"role": "assistant", "content": "Paris."}
@@ -385,9 +385,7 @@ class MockRunnable(Runnable):
 def test_string_passthrough_mode_with_chain():
     config = RailsConfig.from_content(config={"models": []})
 
-    runnable_with_rails = RunnableRails(
-        config, passthrough=True, runnable=MockRunnable()
-    )
+    runnable_with_rails = RunnableRails(config, passthrough=True, runnable=MockRunnable())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -410,9 +408,7 @@ def test_string_passthrough_mode_with_chain_and_dialog_rails():
               bot respond
             """,
     )
-    runnable_with_rails = RunnableRails(
-        config, llm=llm, passthrough=True, runnable=MockRunnable()
-    )
+    runnable_with_rails = RunnableRails(config, llm=llm, passthrough=True, runnable=MockRunnable())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -447,9 +443,7 @@ def test_string_passthrough_mode_with_chain_and_dialog_rails_2():
             """,
     )
 
-    runnable_with_rails = RunnableRails(
-        config, llm=llm, passthrough=True, runnable=MockRunnable()
-    )
+    runnable_with_rails = RunnableRails(config, llm=llm, passthrough=True, runnable=MockRunnable())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
 
@@ -504,9 +498,7 @@ class MockRunnable2(Runnable):
 
 def test_string_passthrough_mode_with_chain_and_string_output():
     config = RailsConfig.from_content(config={"models": []})
-    runnable_with_rails = RunnableRails(
-        config, passthrough=True, runnable=MockRunnable2()
-    )
+    runnable_with_rails = RunnableRails(config, passthrough=True, runnable=MockRunnable2())
 
     chain = {"input": RunnablePassthrough()} | runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -518,9 +510,7 @@ def test_string_passthrough_mode_with_chain_and_string_output():
 
 def test_string_passthrough_mode_with_chain_and_string_input_and_output():
     config = RailsConfig.from_content(config={"models": []})
-    runnable_with_rails = RunnableRails(
-        config, passthrough=True, runnable=MockRunnable2()
-    )
+    runnable_with_rails = RunnableRails(config, passthrough=True, runnable=MockRunnable2())
 
     chain = runnable_with_rails
     result = chain.invoke("The capital of France is ")
@@ -555,9 +545,7 @@ def test_mocked_rag_with_fact_checking():
     )
 
     class MockRAGChain(Runnable):
-        def invoke(
-            self, input: Input, config: Optional[RunnableConfig] = None
-        ) -> Output:
+        def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
             return "The price is $45."
 
     def mock_retriever(user_input):

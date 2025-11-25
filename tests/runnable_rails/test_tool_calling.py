@@ -25,6 +25,7 @@ from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 def has_nvidia_ai_endpoints():
     """Check if NVIDIA AI Endpoints package is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_nvidia_ai_endpoints")
 
 
@@ -392,9 +393,7 @@ def test_complex_chain_with_tool_calls():
         """,
     )
 
-    guardrails = RunnableRails(
-        config=config, llm=MockPatientIntakeLLM(), passthrough=True
-    )
+    guardrails = RunnableRails(config=config, llm=MockPatientIntakeLLM(), passthrough=True)
 
     chain = prompt | guardrails
 

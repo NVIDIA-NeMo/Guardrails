@@ -49,10 +49,7 @@ class SpanFormat(str, Enum):
             return cls(value.lower())
         except ValueError:
             valid_formats = [f.value for f in cls]
-            raise ValueError(
-                f"Invalid span format: '{value}'. "
-                f"Valid formats are: {', '.join(valid_formats)}"
-            )
+            raise ValueError(f"Invalid span format: '{value}'. Valid formats are: {', '.join(valid_formats)}")
 
     def __str__(self) -> str:
         """Return string value for use in configs."""
@@ -80,6 +77,4 @@ def validate_span_format(value: SpanFormatType) -> SpanFormat:
     elif isinstance(value, str):
         return SpanFormat.from_string(value)
     else:
-        raise TypeError(
-            f"Span format must be a string or SpanFormat enum, got {type(value)}"
-        )
+        raise TypeError(f"Span format must be a string or SpanFormat enum, got {type(value)}")

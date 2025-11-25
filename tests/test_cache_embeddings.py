@@ -114,9 +114,7 @@ def test_redis_cache_store():
 
 class TestEmbeddingsCache(unittest.TestCase):
     def setUp(self):
-        self.cache_embeddings = EmbeddingsCache(
-            key_generator=MD5KeyGenerator(), cache_store=FilesystemCacheStore()
-        )
+        self.cache_embeddings = EmbeddingsCache(key_generator=MD5KeyGenerator(), cache_store=FilesystemCacheStore())
 
     @patch.object(FilesystemCacheStore, "set")
     @patch.object(MD5KeyGenerator, "generate_key", return_value="key")
@@ -148,9 +146,7 @@ class MyClass:
 
 @pytest.mark.asyncio
 async def test_cache_embeddings():
-    with patch(
-        "nemoguardrails.embeddings.cache.EmbeddingsCache.from_config"
-    ) as mock_from_config:
+    with patch("nemoguardrails.embeddings.cache.EmbeddingsCache.from_config") as mock_from_config:
         mock_cache = Mock()
         mock_from_config.return_value = mock_cache
 
@@ -203,9 +199,7 @@ async def test_cache_embeddings():
                 [119.0, 111.0, 114.0, 108.0, 100.0],
             ]
             assert mock_cache.get.call_count == 2
-            mock_cache.set.assert_called_once_with(
-                ["world"], [[119.0, 111.0, 114.0, 108.0, 100.0]]
-            )
+            mock_cache.set.assert_called_once_with(["world"], [[119.0, 111.0, 114.0, 108.0, 100.0]])
 
         # Test when cache is enabled and no texts are cached
         mock_cache.reset_mock()
@@ -278,9 +272,7 @@ async def test_cache_dir_not_created():
 
         test_class = StubCacheEmbedding(cache_config)
 
-        test_class.cache_config.store_config["cache_dir"] = os.path.join(
-            temp_dir, "nonexistent"
-        )
+        test_class.cache_config.store_config["cache_dir"] = os.path.join(temp_dir, "nonexistent")
 
         await test_class.get_embeddings(["test"])
 

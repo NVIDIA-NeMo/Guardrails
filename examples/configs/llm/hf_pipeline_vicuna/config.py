@@ -87,9 +87,7 @@ def _load_model(model_name, device, num_gpus, debug=False):
         raise ValueError(f"Invalid device: {device}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, low_cpu_mem_usage=True, **kwargs
-    )
+    model = AutoModelForCausalLM.from_pretrained(model_name, low_cpu_mem_usage=True, **kwargs)
 
     if device == "cuda" and num_gpus == 1:
         model.to(device)
@@ -120,8 +118,6 @@ def get_vicuna_13b_llm_from_path(model_path: str = "/workspace/ckpt/"):
 
 
 # On the next line, change the Vicuna LLM instance depending on your needs
-HFPipelineVicuna = get_llm_instance_wrapper(
-    llm_instance=get_vicuna_7b_llm(), llm_type="hf_pipeline_vicuna"
-)
+HFPipelineVicuna = get_llm_instance_wrapper(llm_instance=get_vicuna_7b_llm(), llm_type="hf_pipeline_vicuna")
 
 register_llm_provider("hf_pipeline_vicuna", HFPipelineVicuna)

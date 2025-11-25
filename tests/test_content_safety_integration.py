@@ -235,9 +235,7 @@ class TestIterableUnpackingIntegration:
             ("no", True, []),
         ],
     )
-    def test_iterable_unpacking_with_is_content_safe_outputs(
-        self, response, expected_safe, expected_violations
-    ):
+    def test_iterable_unpacking_with_is_content_safe_outputs(self, response, expected_safe, expected_violations):
         """Test iterable unpacking directly with is_content_safe parser outputs."""
         result = is_content_safe(response)
         is_safe, *violated_policies = result
@@ -262,9 +260,7 @@ class TestIterableUnpackingIntegration:
             ("invalid json", False, ["JSON parsing failed"]),
         ],
     )
-    def test_iterable_unpacking_with_nemoguard_outputs(
-        self, json_response, expected_safe, expected_violations
-    ):
+    def test_iterable_unpacking_with_nemoguard_outputs(self, json_response, expected_safe, expected_violations):
         """Test iterable unpacking directly with real NemoGuard parser outputs."""
         if "User Safety" in json_response or json_response == "invalid json":
             result = nemoguard_parse_prompt_safety(json_response)

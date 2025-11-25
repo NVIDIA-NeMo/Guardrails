@@ -76,7 +76,5 @@ async def test_simple_context_update_from_action(rails_config):
     new_events = await llm_rails.runtime.generate_events(events)
 
     # The last event before listen should be a context update for the counter to "2"
-    assert any_event_conforms(
-        {"type": "ContextUpdate", "data": {"counter": 2}}, new_events
-    )
+    assert any_event_conforms({"type": "ContextUpdate", "data": {"counter": 2}}, new_events)
     assert event_conforms({"type": "Listen"}, new_events[-1])

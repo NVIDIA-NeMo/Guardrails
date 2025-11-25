@@ -43,9 +43,7 @@ class MockLangChainChatModel:
 def mock_langchain_llms():
     with patch("nemoguardrails.llm.providers.providers.llms") as mock_llms:
         # mock  get_type_to_cls_dict method
-        mock_llms.get_type_to_cls_dict.return_value = {
-            "mock_provider": MockLangChainLLM
-        }
+        mock_llms.get_type_to_cls_dict.return_value = {"mock_provider": MockLangChainLLM}
         yield mock_llms
 
 
@@ -59,9 +57,7 @@ def mock_langchain_chat_models():
                 "langchain_community.chat_models.mock_provider",
             )
         ]
-        with patch(
-            "nemoguardrails.llm.providers.providers.importlib.import_module"
-        ) as mock_import:
+        with patch("nemoguardrails.llm.providers.providers.importlib.import_module") as mock_import:
             # mock the import_module function
             mock_module = MagicMock()
             mock_module.MockLangChainChatModel = MockLangChainChatModel
@@ -97,16 +93,13 @@ def test_langchain_provider_has_acall():
     # it checks that at least one provider has the _acall method
     has_acall_method = False
     for provider_cls in _llm_providers.values():
-        if hasattr(provider_cls, "_acall") and callable(
-            getattr(provider_cls, "_acall")
-        ):
+        if hasattr(provider_cls, "_acall") and callable(getattr(provider_cls, "_acall")):
             has_acall_method = True
             break
 
     if not has_acall_method:
         warnings.warn(
-            "No LLM provider with _acall method found. "
-            "This might be due to a version mismatch with LangChain."
+            "No LLM provider with _acall method found. This might be due to a version mismatch with LangChain."
         )
 
 
@@ -123,18 +116,14 @@ def test_langchain_provider_imports():
     for provider_name in llm_provider_names:
         try:
             provider_cls = _llm_providers[provider_name]
-            assert (
-                provider_cls is not None
-            ), f"Provider class for '{provider_name}' is None"
+            assert provider_cls is not None, f"Provider class for '{provider_name}' is None"
         except Exception as e:
             warnings.warn(f"Failed to import LLM provider '{provider_name}': {str(e)}")
 
     for provider_name in chat_provider_names:
         try:
             provider_cls = _chat_providers[provider_name]
-            assert (
-                provider_cls is not None
-            ), f"Provider class for '{provider_name}' is None"
+            assert provider_cls is not None, f"Provider class for '{provider_name}' is None"
         except Exception as e:
             warnings.warn(f"Failed to import chat provider '{provider_name}': {str(e)}")
 
@@ -142,35 +131,34 @@ def test_langchain_provider_imports():
 def _is_langchain_installed():
     """Check if LangChain is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain")
 
 
 def _is_langchain_community_installed():
     """Check if LangChain Community is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_community")
 
 
 def _has_openai():
     """Check if OpenAI package is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_openai")
 
 
 class TestLangChainIntegration:
     """Integration tests for LangChain model initialization."""
 
-    @pytest.mark.skipif(
-        not _is_langchain_installed(), reason="LangChain is not installed"
-    )
+    @pytest.mark.skipif(not _is_langchain_installed(), reason="LangChain is not installed")
     def test_init_openai_chat_model(self):
         """Test initializing an OpenAI chat model with real implementation."""
         if not os.environ.get("OPENAI_API_KEY"):
             pytest.skip("OpenAI API key not set")
 
-        model = init_langchain_model(
-            "gpt-3.5-turbo", "openai", "chat", {"temperature": 0.1}
-        )
+        model = init_langchain_model("gpt-3.5-turbo", "openai", "chat", {"temperature": 0.1})
         assert model is not None
         assert hasattr(model, "invoke")
         assert isinstance(model, BaseChatModel)
@@ -183,18 +171,14 @@ class TestLangChainIntegration:
         assert response is not None
         assert hasattr(response, "content")
 
-    @pytest.mark.skipif(
-        not _has_openai(), reason="langchain_openai package is not installed"
-    )
+    @pytest.mark.skipif(not _has_openai(), reason="langchain_openai package is not installed")
     def test_init_openai_text_model(self):
         """Test initializing an OpenAI text model with real implementation."""
         # skip if OpenAI API key is not set
         if not os.environ.get("OPENAI_API_KEY"):
             pytest.skip("OpenAI API key not set")
 
-        model = init_langchain_model(
-            "davinci-002", "openai", "text", {"temperature": 0.1}
-        )
+        model = init_langchain_model("davinci-002", "openai", "text", {"temperature": 0.1})
         assert model is not None
         assert hasattr(model, "invoke")
         assert isinstance(model, BaseLLM)
@@ -203,18 +187,14 @@ class TestLangChainIntegration:
         response = model.invoke("Hello, world!")
         assert response is not None
 
-    @pytest.mark.skipif(
-        not _is_langchain_installed(), reason="LangChain is not installed"
-    )
+    @pytest.mark.skipif(not _is_langchain_installed(), reason="LangChain is not installed")
     def test_init_gpt35_turbo_instruct(self):
         """Test initializing a GPT-3.5 Turbo Instruct model with real implementation."""
         # skip if OpenAI API key is not set
         if not os.environ.get("OPENAI_API_KEY"):
             pytest.skip("OpenAI API key not set")
 
-        model = init_langchain_model(
-            "gpt-3.5-turbo-instruct", "openai", "text", {"temperature": 0.1}
-        )
+        model = init_langchain_model("gpt-3.5-turbo-instruct", "openai", "text", {"temperature": 0.1})
         assert model is not None
         # verify it's a text model
         assert hasattr(model, "invoke")
@@ -224,25 +204,19 @@ class TestLangChainIntegration:
         response = model.invoke("Hello, world!")
         assert response is not None
 
-    @pytest.mark.skipif(
-        not _is_langchain_installed(), reason="LangChain is not installed"
-    )
+    @pytest.mark.skipif(not _is_langchain_installed(), reason="LangChain is not installed")
     def test_init_with_different_modes(self):
         """Test initializing the same model with different modes."""
         # Skip if OpenAI API key is not set
         if not os.environ.get("OPENAI_API_KEY"):
             pytest.skip("OpenAI API key not set")
 
-        chat_model = init_langchain_model(
-            "gpt-3.5-turbo", "openai", "chat", {"temperature": 0.1}
-        )
+        chat_model = init_langchain_model("gpt-3.5-turbo", "openai", "chat", {"temperature": 0.1})
         assert chat_model is not None
         assert hasattr(chat_model, "invoke")
 
         # initialize as text model (should still work for some models)
-        text_model = init_langchain_model(
-            "gpt-3.5-turbo", "openai", "text", {"temperature": 0.1}
-        )
+        text_model = init_langchain_model("gpt-3.5-turbo", "openai", "text", {"temperature": 0.1})
         assert text_model is not None
         assert hasattr(text_model, "invoke")
 

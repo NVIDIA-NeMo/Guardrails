@@ -34,9 +34,7 @@ def retrieve_relevant_chunks():
     )
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_detection_no_active_pii_detection():
     config = RailsConfig.from_content(
@@ -73,9 +71,7 @@ def test_privateai_pii_detection_no_active_pii_detection():
     chat << "Hi! My name is John as well."
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_detection_input():
     config = RailsConfig.from_content(
@@ -119,9 +115,7 @@ def test_privateai_pii_detection_input():
     chat << "I can't answer that."
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_detection_output():
     config = RailsConfig.from_content(
@@ -216,9 +210,7 @@ def test_privateai_pii_detection_retrieval_with_pii():
         chat << "I can't answer that."
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_detection_retrieval_with_no_pii():
     config = RailsConfig.from_content(
@@ -263,9 +255,7 @@ def test_privateai_pii_detection_retrieval_with_no_pii():
     chat << "Hi! My name is John as well."
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_masking_on_output():
     config = RailsConfig.from_content(
@@ -310,9 +300,7 @@ def test_privateai_pii_masking_on_output():
     chat << "Hi! I am [NAME_1]."
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_masking_on_input():
     config = RailsConfig.from_content(
@@ -367,9 +355,7 @@ def test_privateai_pii_masking_on_input():
     chat << "Hi! I am John."
 
 
-@pytest.mark.skipif(
-    not PAI_API_KEY_PRESENT, reason="Private AI API key is not present."
-)
+@pytest.mark.skipif(not PAI_API_KEY_PRESENT, reason="Private AI API key is not present.")
 @pytest.mark.unit
 def test_privateai_pii_masking_on_retrieval():
     config = RailsConfig.from_content(
@@ -426,9 +412,7 @@ def test_privateai_pii_masking_on_retrieval():
             context_updates=context_updates,
         )
 
-    chat.app.register_action(
-        retrieve_relevant_chunk_for_masking, "retrieve_relevant_chunks"
-    )
+    chat.app.register_action(retrieve_relevant_chunk_for_masking, "retrieve_relevant_chunks")
     chat.app.register_action(check_relevant_chunks)
 
     chat >> "Hey! Can you help me get John's email?"

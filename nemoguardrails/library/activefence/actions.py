@@ -91,8 +91,7 @@ async def call_activefence_api(text: Optional[str] = None, **kwargs):
         ) as response:
             if response.status != 200:
                 raise ValueError(
-                    f"ActiveFence call failed with status code {response.status}.\n"
-                    f"Details: {await response.text()}"
+                    f"ActiveFence call failed with status code {response.status}.\nDetails: {await response.text()}"
                 )
             response_json = await response.json()
             log.info(json.dumps(response_json, indent=True))

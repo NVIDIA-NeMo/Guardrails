@@ -57,9 +57,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             metrics={"metric1": 42},
         )
 
-        interaction_log = InteractionLog(
-            id="test_v1_log", activated_rails=[], events=[], trace=[v1_span]
-        )
+        interaction_log = InteractionLog(id="test_v1_log", activated_rails=[], events=[], trace=[v1_span])
 
         self.adapter.transform(interaction_log)
 
@@ -95,9 +93,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             },
         )
 
-        interaction_log = InteractionLog(
-            id="test_v2_log", activated_rails=[], events=[], trace=[v2_span]
-        )
+        interaction_log = InteractionLog(id="test_v2_log", activated_rails=[], events=[], trace=[v2_span])
 
         self.adapter.transform(interaction_log)
 
@@ -146,9 +142,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             events=events,
         )
 
-        interaction_log = InteractionLog(
-            id="test_events", activated_rails=[], events=[], trace=[v2_span]
-        )
+        interaction_log = InteractionLog(id="test_events", activated_rails=[], events=[], trace=[v2_span])
 
         self.adapter.transform(interaction_log)
 
@@ -189,9 +183,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             usage_total_tokens=150,
         )
 
-        interaction_log = InteractionLog(
-            id="test_metrics", activated_rails=[], events=[], trace=[v2_span]
-        )
+        interaction_log = InteractionLog(id="test_metrics", activated_rails=[], events=[], trace=[v2_span])
 
         self.adapter.transform(interaction_log)
 
@@ -236,9 +228,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             ],
         )
 
-        interaction_log = InteractionLog(
-            id="test_mixed", activated_rails=[], events=[], trace=[v1_span, v2_span]
-        )
+        interaction_log = InteractionLog(id="test_mixed", activated_rails=[], events=[], trace=[v1_span, v2_span])
 
         self.adapter.transform(interaction_log)
 
@@ -274,9 +264,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             ],
         )
 
-        interaction_log = InteractionLog(
-            id="test_truncate", activated_rails=[], events=[], trace=[v2_span]
-        )
+        interaction_log = InteractionLog(id="test_truncate", activated_rails=[], events=[], trace=[v2_span])
 
         self.adapter.transform(interaction_log)
 
@@ -421,9 +409,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
 
         # The two interactions should have different base times
         self.assertNotEqual(first_start, second_start)
-        self.assertEqual(
-            second_start - first_start, 100_000_000_000
-        )  # 100ms difference
+        self.assertEqual(second_start - first_start, 100_000_000_000)  # 100ms difference
 
     def test_uses_actual_interaction_start_time_from_rails(self):
         """Test that adapter uses the actual start time from activated rails, not current time."""
@@ -451,9 +437,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             service_name="test_service",
         )
 
-        interaction_log = InteractionLog(
-            id="test_actual_time", activated_rails=[rail], events=[], trace=[span]
-        )
+        interaction_log = InteractionLog(id="test_actual_time", activated_rails=[rail], events=[], trace=[span])
 
         mock_span = MagicMock()
         self.mock_tracer.start_span.return_value = mock_span
@@ -492,9 +476,7 @@ class TestOpenTelemetryAdapterV2(unittest.TestCase):
             service_name="test_service",
         )
 
-        interaction_log = InteractionLog(
-            id="test_no_rails", activated_rails=[], events=[], trace=[span]
-        )
+        interaction_log = InteractionLog(id="test_no_rails", activated_rails=[], events=[], trace=[span])
 
         mock_span = MagicMock()
         self.mock_tracer.start_span.return_value = mock_span

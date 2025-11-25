@@ -32,9 +32,7 @@ async def test_bot_thinking_event_creation_passthrough():
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
         chat = TestChat(config, llm_completions=["The answer is 42"])
 
-        events = await chat.app.generate_events_async(
-            [{"type": "UserMessage", "text": "What is the answer?"}]
-        )
+        events = await chat.app.generate_events_async([{"type": "UserMessage", "text": "What is the answer?"}])
 
         bot_thinking_events = [e for e in events if e["type"] == "BotThinking"]
         assert len(bot_thinking_events) == 1
@@ -70,9 +68,7 @@ async def test_bot_thinking_event_creation_non_passthrough():
             ],
         )
 
-        events = await chat.app.generate_events_async(
-            [{"type": "UserMessage", "text": "what is the answer"}]
-        )
+        events = await chat.app.generate_events_async([{"type": "UserMessage", "text": "what is the answer"}])
 
         bot_thinking_events = [e for e in events if e["type"] == "BotThinking"]
         assert len(bot_thinking_events) == 1
@@ -87,9 +83,7 @@ async def test_no_bot_thinking_event_when_no_reasoning_trace():
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
         chat = TestChat(config, llm_completions=["Regular response"])
 
-        events = await chat.app.generate_events_async(
-            [{"type": "UserMessage", "text": "Hello"}]
-        )
+        events = await chat.app.generate_events_async([{"type": "UserMessage", "text": "Hello"}])
 
         bot_thinking_events = [e for e in events if e["type"] == "BotThinking"]
         assert len(bot_thinking_events) == 0
@@ -105,9 +99,7 @@ async def test_bot_thinking_before_bot_message():
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
         chat = TestChat(config, llm_completions=["Response"])
 
-        events = await chat.app.generate_events_async(
-            [{"type": "UserMessage", "text": "Test"}]
-        )
+        events = await chat.app.generate_events_async([{"type": "UserMessage", "text": "Test"}])
 
         bot_thinking_idx = None
         bot_message_idx = None

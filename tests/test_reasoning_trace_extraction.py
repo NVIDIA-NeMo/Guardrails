@@ -39,9 +39,7 @@ class TestStoreReasoningTracesUnit:
         reasoning_trace_var.set(None)
 
     def test_store_reasoning_traces_with_empty_reasoning_content(self):
-        response = AIMessage(
-            content="Response", additional_kwargs={"reasoning_content": ""}
-        )
+        response = AIMessage(content="Response", additional_kwargs={"reasoning_content": ""})
 
         reasoning_trace_var.set(None)
         _store_reasoning_traces(response)
@@ -52,9 +50,7 @@ class TestStoreReasoningTracesUnit:
         reasoning_trace_var.set(None)
 
     def test_store_reasoning_traces_with_none_reasoning_content(self):
-        response = AIMessage(
-            content="Response", additional_kwargs={"reasoning_content": None}
-        )
+        response = AIMessage(content="Response", additional_kwargs={"reasoning_content": None})
 
         reasoning_trace_var.set(None)
         _store_reasoning_traces(response)
@@ -65,9 +61,7 @@ class TestStoreReasoningTracesUnit:
         reasoning_trace_var.set(None)
 
     def test_store_reasoning_traces_without_reasoning_content_key(self):
-        response = AIMessage(
-            content="Response", additional_kwargs={"other_key": "other_value"}
-        )
+        response = AIMessage(content="Response", additional_kwargs={"other_key": "other_value"})
 
         reasoning_trace_var.set(None)
         _store_reasoning_traces(response)
@@ -125,9 +119,7 @@ class TestStoreReasoningTracesUnit:
 
         reasoning_trace_var.set(initial_trace)
 
-        response = AIMessage(
-            content="Response", additional_kwargs={"reasoning_content": new_trace}
-        )
+        response = AIMessage(content="Response", additional_kwargs={"reasoning_content": new_trace})
 
         _store_reasoning_traces(response)
 

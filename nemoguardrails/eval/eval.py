@@ -45,10 +45,7 @@ def _extract_interaction_outputs(eval_config: EvalConfig) -> List[InteractionOut
     Creates the output objects with no data.
     """
     results = []
-    compliance_dict = {
-        policy.id: None if policy.apply_to_all else "n/a"
-        for policy in eval_config.policies
-    }
+    compliance_dict = {policy.id: None if policy.apply_to_all else "n/a" for policy in eval_config.policies}
 
     for interaction_set in eval_config.interactions:
         for i, interaction_input in enumerate(interaction_set.inputs):
@@ -117,9 +114,7 @@ def _load_eval_output(output_path: str, eval_config: EvalConfig) -> EvalOutput:
     return eval_output
 
 
-def _extract_interaction_log(
-    interaction_output: InteractionOutput, generation_log: GenerationLog
-) -> InteractionLog:
+def _extract_interaction_log(interaction_output: InteractionOutput, generation_log: GenerationLog) -> InteractionLog:
     """Extracts an `InteractionLog` object from an `GenerationLog` object."""
     return InteractionLog(
         id=interaction_output.id,
@@ -242,13 +237,9 @@ async def run_eval(
     eval_config = EvalConfig.from_path(eval_config_path)
     interactions = _extract_interaction_outputs(eval_config)
 
-    console.print(
-        f"Loaded {len(eval_config.policies)} policies and {len(interactions)} interactions."
-    )
+    console.print(f"Loaded {len(eval_config.policies)} policies and {len(interactions)} interactions.")
 
-    console.print(
-        f"Loading guardrail configuration [bold]{guardrail_config_path}[/] ..."
-    )
+    console.print(f"Loading guardrail configuration [bold]{guardrail_config_path}[/] ...")
     if parallel > 1:
         console.print(f"[bold]Parallelism set to {parallel}[/]")
     rails_config = RailsConfig.from_path(guardrail_config_path)
@@ -265,9 +256,7 @@ async def run_eval(
 
     progress = Progress()
     with progress:
-        task_id = progress.add_task(
-            f"Running {len(interactions)} interactions ...", total=len(interactions)
-        )
+        task_id = progress.add_task(f"Running {len(interactions)} interactions ...", total=len(interactions))
         i = 0
 
         async def _worker():
@@ -299,12 +288,8 @@ async def run_eval(
                 eval_output.logs[idx] = interaction_log
 
                 metrics = _collect_span_metrics(interaction_log.trace)
-                interaction.resource_usage = {
-                    k: v for k, v in metrics.items() if "_seconds" not in k
-                }
-                interaction.latencies = {
-                    k: v for k, v in metrics.items() if "_seconds" in k
-                }
+                interaction.resource_usage = {k: v for k, v in metrics.items() if "_seconds" not in k}
+                interaction.latencies = {k: v for k, v in metrics.items() if "_seconds" in k}
 
                 save_eval_output(eval_output, output_path, output_format)
 

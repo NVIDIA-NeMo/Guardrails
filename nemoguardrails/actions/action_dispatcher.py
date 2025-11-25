@@ -117,13 +117,9 @@ class ActionDispatcher:
 
         actions_py_path = os.path.join(path, "actions.py")
         if os.path.exists(actions_py_path):
-            self._registered_actions.update(
-                self._load_actions_from_module(actions_py_path)
-            )
+            self._registered_actions.update(self._load_actions_from_module(actions_py_path))
 
-    def register_action(
-        self, action: Callable, name: Optional[str] = None, override: bool = True
-    ):
+    def register_action(self, action: Callable, name: Optional[str] = None, override: bool = True):
         """Registers an action with the given name.
 
         Args:
@@ -200,9 +196,7 @@ class ActionDispatcher:
 
         if action_name in self._registered_actions:
             log.info("Executing registered action: %s", action_name)
-            maybe_fn: Optional[Callable] = self._registered_actions.get(
-                action_name, None
-            )
+            maybe_fn: Optional[Callable] = self._registered_actions.get(action_name, None)
             if not maybe_fn:
                 raise Exception(f"Action '{action_name}' is not registered.")
 
@@ -222,9 +216,7 @@ class ActionDispatcher:
                         if inspect.iscoroutine(result):
                             result = await result
                         else:
-                            log.warning(
-                                f"Synchronous action `{action_name}` has been called."
-                            )
+                            log.warning(f"Synchronous action `{action_name}` has been called.")
 
                     elif isinstance(fn, Runnable):
                         # If it's a Runnable, we invoke it as well
@@ -235,9 +227,7 @@ class ActionDispatcher:
                         # TODO: there should be a common base class here
                         fn_run_func = getattr(fn, "run", None)
                         if not callable(fn_run_func):
-                            raise Exception(
-                                f"No 'run' method defined for action '{action_name}'."
-                            )
+                            raise Exception(f"No 'run' method defined for action '{action_name}'.")
 
                         fn_run_func_with_signature = cast(
                             Callable[[], Union[Optional[str], Dict[str, Any]]],
@@ -251,11 +241,7 @@ class ActionDispatcher:
                     raise e
 
                 except Exception as e:
-                    filtered_params = {
-                        k: v
-                        for k, v in params.items()
-                        if k not in ["state", "events", "llm"]
-                    }
+                    filtered_params = {k: v for k, v in params.items() if k not in ["state", "events", "llm"]}
                     log.warning(
                         "Error while execution '%s' with parameters '%s': %s",
                         action_name,
@@ -297,9 +283,7 @@ class ActionDispatcher:
             log.debug(f"Analyzing file {filename}")
             # Import the module from the file
 
-            spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(
-                filename, filepath
-            )
+            spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(filename, filepath)
             if not spec:
                 log.error(f"Failed to create a module spec from {filepath}.")
                 return action_objects
@@ -311,17 +295,13 @@ class ActionDispatcher:
             # Loop through all members in the module and check for the `@action` decorator
             # If class has action decorator is_action class member is true
             for name, obj in inspect.getmembers(module):
-                if (inspect.isfunction(obj) or inspect.isclass(obj)) and hasattr(
-                    obj, "action_meta"
-                ):
+                if (inspect.isfunction(obj) or inspect.isclass(obj)) and hasattr(obj, "action_meta"):
                     try:
                         actionable_name: str = getattr(obj, "action_meta").get("name")
                         action_objects[actionable_name] = obj
                         log.info(f"Added {actionable_name} to actions")
                     except Exception as e:
-                        log.error(
-                            f"Failed to register {name} in action dispatcher due to exception {e}"
-                        )
+                        log.error(f"Failed to register {name} in action dispatcher due to exception {e}")
         except Exception as e:
             if module is None:
                 raise RuntimeError(f"Failed to load actions from module at {filepath}.")
@@ -332,9 +312,7 @@ class ActionDispatcher:
                 relative_filepath = Path(module.__file__).relative_to(Path.cwd())
             except ValueError:
                 relative_filepath = Path(module.__file__).resolve()
-            log.error(
-                f"Failed to register {filename} in action dispatcher due to exception: {e}"
-            )
+            log.error(f"Failed to register {filename} in action dispatcher due to exception: {e}")
 
         return action_objects
 
@@ -360,9 +338,7 @@ class ActionDispatcher:
                 if filename.endswith(".py"):
                     filepath = os.path.join(root, filename)
                     if is_action_file(filepath):
-                        action_objects.update(
-                            ActionDispatcher._load_actions_from_module(filepath)
-                        )
+                        action_objects.update(ActionDispatcher._load_actions_from_module(filepath))
         if not action_objects:
             log.debug(f"No actions found in {directory}")
             log.exception(f"No actions found in the directory {directory}.")

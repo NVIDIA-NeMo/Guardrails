@@ -31,9 +31,7 @@ from nemoguardrails.library.clavata.request import (
 class TestLabelResult:
     def test_from_section_report_matched(self):
         """Test LabelResult creation from a SectionReport with a match"""
-        section_report = SectionReport(
-            name="TestLabel", message="Test message", result="OUTCOME_TRUE"
-        )
+        section_report = SectionReport(name="TestLabel", message="Test message", result="OUTCOME_TRUE")
 
         label_result = LabelResult.from_section_report(section_report)
 
@@ -43,9 +41,7 @@ class TestLabelResult:
 
     def test_from_section_report_not_matched(self):
         """Test LabelResult creation from a SectionReport without a match"""
-        section_report = SectionReport(
-            name="TestLabel", message="Test message", result="OUTCOME_FALSE"
-        )
+        section_report = SectionReport(name="TestLabel", message="Test message", result="OUTCOME_FALSE")
 
         label_result = LabelResult.from_section_report(section_report)
 
@@ -55,9 +51,7 @@ class TestLabelResult:
 
     def test_from_section_report_failed(self):
         """Test LabelResult creation from a SectionReport that failed"""
-        section_report = SectionReport(
-            name="TestLabel", message="Test message", result="OUTCOME_FAILED"
-        )
+        section_report = SectionReport(name="TestLabel", message="Test message", result="OUTCOME_FAILED")
 
         label_result = LabelResult.from_section_report(section_report)
 
@@ -73,12 +67,8 @@ class TestPolicyResult:
         report = Report(
             result="OUTCOME_TRUE",
             sectionEvaluationReports=[
-                SectionReport(
-                    name="Label1", message="Message 1", result="OUTCOME_TRUE"
-                ),
-                SectionReport(
-                    name="Label2", message="Message 2", result="OUTCOME_FALSE"
-                ),
+                SectionReport(name="Label1", message="Message 1", result="OUTCOME_TRUE"),
+                SectionReport(name="Label2", message="Message 2", result="OUTCOME_FALSE"),
             ],
         )
 
@@ -101,12 +91,8 @@ class TestPolicyResult:
         report = Report(
             result="OUTCOME_FALSE",
             sectionEvaluationReports=[
-                SectionReport(
-                    name="Label1", message="Message 1", result="OUTCOME_FALSE"
-                ),
-                SectionReport(
-                    name="Label2", message="Message 2", result="OUTCOME_FALSE"
-                ),
+                SectionReport(name="Label1", message="Message 1", result="OUTCOME_FALSE"),
+                SectionReport(name="Label2", message="Message 2", result="OUTCOME_FALSE"),
             ],
         )
 
@@ -164,11 +150,7 @@ class TestPolicyResult:
         """Test PolicyResult creation from a completed Job without matches"""
         job = Job(
             status="JOB_STATUS_COMPLETED",
-            results=[
-                Result(
-                    report=Report(result="OUTCOME_FALSE", sectionEvaluationReports=[])
-                )
-            ],
+            results=[Result(report=Report(result="OUTCOME_FALSE", sectionEvaluationReports=[]))],
         )
 
         policy_result = PolicyResult.from_job(job)
@@ -220,12 +202,8 @@ class TestPolicyResult:
         job = Job(
             status="JOB_STATUS_COMPLETED",
             results=[
-                Result(
-                    report=Report(result="OUTCOME_TRUE", sectionEvaluationReports=[])
-                ),
-                Result(
-                    report=Report(result="OUTCOME_FALSE", sectionEvaluationReports=[])
-                ),
+                Result(report=Report(result="OUTCOME_TRUE", sectionEvaluationReports=[])),
+                Result(report=Report(result="OUTCOME_FALSE", sectionEvaluationReports=[])),
             ],
         )
 

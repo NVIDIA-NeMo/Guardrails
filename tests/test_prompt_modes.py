@@ -19,9 +19,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.types import Task
 
-CONFIGS_FOLDER = os.path.join(
-    os.path.dirname(__file__), ".", "test_configs", "with_prompt_modes"
-)
+CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs", "with_prompt_modes")
 TEST_CASES = [
     (
         "task1_openai_compact",

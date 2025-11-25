@@ -189,17 +189,11 @@ class TestSpanOpentelemetryOTelAttributes:
 
         assert len(llm_span.events) >= 2  # at least user and assistant messages
 
-        user_event = next(
-            e for e in llm_span.events if e.name == EventNames.GEN_AI_CONTENT_PROMPT
-        )
+        user_event = next(e for e in llm_span.events if e.name == EventNames.GEN_AI_CONTENT_PROMPT)
         assert user_event.body["content"] == "What is the weather?"
 
-        assistant_event = next(
-            e for e in llm_span.events if e.name == EventNames.GEN_AI_CONTENT_COMPLETION
-        )
-        assert (
-            assistant_event.body["content"] == "I cannot access real-time weather data."
-        )
+        assistant_event = next(e for e in llm_span.events if e.name == EventNames.GEN_AI_CONTENT_COMPLETION)
+        assert assistant_event.body["content"] == "I cannot access real-time weather data."
 
         finish_events = [e for e in llm_span.events if e.name == "gen_ai.choice.finish"]
         if finish_events:
@@ -288,9 +282,7 @@ class TestSpanOpentelemetryOTelAttributes:
                 assert span.name in expected_patterns
 
         rail_spans = [s for s in all_spans if s.name == SpanNames.GUARDRAILS_RAIL]
-        rail_names = {
-            s.to_otel_attributes()[GuardrailsAttributes.RAIL_NAME] for s in rail_spans
-        }
+        rail_names = {s.to_otel_attributes()[GuardrailsAttributes.RAIL_NAME] for s in rail_spans}
         assert len(rail_names) == 3
 
     def test_no_semantic_logic_in_adapter(self):
@@ -519,15 +511,11 @@ class TestContentPrivacy:
         llm_span = next((s for s in spans if isinstance(s, LLMSpan)), None)
         assert llm_span is not None
 
-        prompt_event = next(
-            (e for e in llm_span.events if e.name == "gen_ai.content.prompt"), None
-        )
+        prompt_event = next((e for e in llm_span.events if e.name == "gen_ai.content.prompt"), None)
         assert prompt_event is not None
         assert prompt_event.body.get("content") == "Test prompt"
 
-        completion_event = next(
-            (e for e in llm_span.events if e.name == "gen_ai.content.completion"), None
-        )
+        completion_event = next((e for e in llm_span.events if e.name == "gen_ai.content.completion"), None)
         assert completion_event is not None
         assert completion_event.body.get("content") == "Test response"
 
@@ -542,12 +530,8 @@ class TestContentPrivacy:
             },
         ]
 
-        extractor_no_content = SpanExtractorV2(
-            events=events, enable_content_capture=False
-        )
-        activated_rail = ActivatedRail(
-            type="dialog", name="main", started_at=0.0, finished_at=1.0, duration=1.0
-        )
+        extractor_no_content = SpanExtractorV2(events=events, enable_content_capture=False)
+        activated_rail = ActivatedRail(type="dialog", name="main", started_at=0.0, finished_at=1.0, duration=1.0)
 
         spans = extractor_no_content.extract_spans([activated_rail])
         interaction_span = spans[0]  # First span is the interaction span
@@ -561,11 +545,7 @@ class TestContentPrivacy:
         assert "content" not in user_event.body
 
         bot_event = next(
-            (
-                e
-                for e in interaction_span.events
-                if e.name == "guardrails.utterance.bot.finished"
-            ),
+            (e for e in interaction_span.events if e.name == "guardrails.utterance.bot.finished"),
             None,
         )
         assert bot_event is not None
@@ -573,9 +553,7 @@ class TestContentPrivacy:
         assert bot_event.body["is_success"]
         assert "content" not in bot_event.body  # Content excluded
 
-        extractor_with_content = SpanExtractorV2(
-            events=events, enable_content_capture=True
-        )
+        extractor_with_content = SpanExtractorV2(events=events, enable_content_capture=True)
         spans = extractor_with_content.extract_spans([activated_rail])
         interaction_span = spans[0]
 
@@ -587,11 +565,7 @@ class TestContentPrivacy:
         assert user_event.body.get("content") == "Private message"
 
         bot_event = next(
-            (
-                e
-                for e in interaction_span.events
-                if e.name == "guardrails.utterance.bot.finished"
-            ),
+            (e for e in interaction_span.events if e.name == "guardrails.utterance.bot.finished"),
             None,
         )
         assert bot_event is not None

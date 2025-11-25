@@ -60,8 +60,6 @@ def get_dolly_v2_3b_llm(streaming: bool = True):
     return llm
 
 
-HFPipelineDolly = get_llm_instance_wrapper(
-    llm_instance=get_dolly_v2_3b_llm(), llm_type="hf_pipeline_dolly"
-)
+HFPipelineDolly = get_llm_instance_wrapper(llm_instance=get_dolly_v2_3b_llm(), llm_type="hf_pipeline_dolly")
 
 register_llm_provider("hf_pipeline_dolly", HFPipelineDolly)

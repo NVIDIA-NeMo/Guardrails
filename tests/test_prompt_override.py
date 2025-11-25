@@ -27,7 +27,4 @@ def test_custom_llm_registration():
 
     prompt = get_prompt(config, Task.GENERATE_USER_INTENT)
 
-    assert (
-        prompt.content
-        == "<<This is a placeholder for a custom prompt for generating the user intent>>"
-    )
+    assert prompt.content == "<<This is a placeholder for a custom prompt for generating the user intent>>"

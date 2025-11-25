@@ -32,9 +32,7 @@ from .rails import LLMRails, RailsConfig
 patch_asyncio.apply()
 
 # Ignore a warning message from torch.
-warnings.filterwarnings(
-    "ignore", category=UserWarning, message="TypedStorage is deprecated"
-)
+warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
 
 __version__ = version("nemoguardrails")
 __all__ = ["LLMRails", "RailsConfig"]

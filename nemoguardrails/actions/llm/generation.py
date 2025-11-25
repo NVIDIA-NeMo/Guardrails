@@ -84,9 +84,7 @@ class LLMGenerationActions:
         config: RailsConfig,
         llm: Optional[Union[BaseLLM, BaseChatModel]],
         llm_task_manager: LLMTaskManager,
-        get_embedding_search_provider_instance: Callable[
-            [Optional[EmbeddingSearchProvider]], EmbeddingsIndex
-        ],
+        get_embedding_search_provider_instance: Callable[[Optional[EmbeddingSearchProvider]], EmbeddingsIndex],
         verbose: bool = False,
     ):
         self.config = config
@@ -102,9 +100,7 @@ class LLMGenerationActions:
         self.bot_message_index = None
         self.flows_index = None
 
-        self.get_embedding_search_provider_instance = (
-            get_embedding_search_provider_instance
-        )
+        self.get_embedding_search_provider_instance = get_embedding_search_provider_instance
 
         # There are still some edge cases not covered by nest_asyncio.
         # Using a separate thread always for now.
@@ -136,11 +132,7 @@ class LLMGenerationActions:
 
     def _extract_user_message_example(self, flow: Flow) -> None:
         """Heuristic to extract user message examples from a flow."""
-        elements = [
-            item
-            for item in flow.elements
-            if item["_type"] != "doc_string_stmt" and item["_type"] != "stmt"
-        ]
+        elements = [item for item in flow.elements if item["_type"] != "doc_string_stmt" and item["_type"] != "stmt"]
         if len(elements) != 2:
             return
 
@@ -150,16 +142,9 @@ class LLMGenerationActions:
 
             if spec_op.op == "match":
                 # The SpecOp.spec type is Union[Spec, dict]. Convert Dict to Spec if it's provided
-                match_spec: Spec = (
-                    spec_op.spec
-                    if isinstance(spec_op.spec, Spec)
-                    else Spec(**cast(Dict, spec_op.spec))
-                )
+                match_spec: Spec = spec_op.spec if isinstance(spec_op.spec, Spec) else Spec(**cast(Dict, spec_op.spec))
 
-                if (
-                    not match_spec.name
-                    or match_spec.name != "UtteranceUserActionFinished"
-                ):
+                if not match_spec.name or match_spec.name != "UtteranceUserActionFinished":
                     return
 
                 if "final_transcript" not in match_spec.arguments:
@@ -174,26 +159,17 @@ class LLMGenerationActions:
                 # The SpecOp.spec type is Union[Spec, dict]. Need to convert to Dict to have `elements` field
                 # which isn't in the Spec definition
                 await_spec_dict: Dict[str, Any] = (
-                    asdict(spec_op.spec)
-                    if isinstance(spec_op.spec, Spec)
-                    else cast(Dict, spec_op.spec)
+                    asdict(spec_op.spec) if isinstance(spec_op.spec, Spec) else cast(Dict, spec_op.spec)
                 )
 
-                if (
-                    isinstance(await_spec_dict, dict)
-                    and await_spec_dict.get("_type") == "spec_or"
-                ):
+                if isinstance(await_spec_dict, dict) and await_spec_dict.get("_type") == "spec_or":
                     specs = await_spec_dict.get("elements", None)
                 else:
                     specs = [await_spec_dict]
 
                 if specs:
                     for spec in specs:
-                        if (
-                            not spec["name"].startswith("user ")
-                            or not spec["arguments"]
-                            or not spec["arguments"]["$0"]
-                        ):
+                        if not spec["name"].startswith("user ") or not spec["arguments"] or not spec["arguments"]["$0"]:
                             continue
 
                         message = eval_expression(spec["arguments"]["$0"], {})
@@ -214,18 +190,12 @@ class LLMGenerationActions:
 
         spec_op: SpecOp = cast(SpecOp, el)
         spec: Dict[str, Any] = (
-            asdict(
-                spec_op.spec
-            )  # TODO! Refactor this function as it's duplicated in many places
+            asdict(spec_op.spec)  # TODO! Refactor this function as it's duplicated in many places
             if isinstance(spec_op.spec, Spec)
             else cast(Dict, spec_op.spec)
         )
 
-        if (
-            not spec["name"]
-            or spec["name"] != "UtteranceUserActionFinished"
-            or "script" not in spec["arguments"]
-        ):
+        if not spec["name"] or spec["name"] != "UtteranceUserActionFinished" or "script" not in spec["arguments"]:
             return
 
         # Extract the message and remove the double quotes
@@ -237,8 +207,7 @@ class LLMGenerationActions:
         """Process the provided flows to extract the user utterance examples."""
         # Flows can be either Flow or Dict. Convert them all to Flow for following code
         flows: List[Flow] = [
-            cast(Flow, flow) if isinstance(flow, Flow) else Flow(**cast(Dict, flow))
-            for flow in self.config.flows
+            cast(Flow, flow) if isinstance(flow, Flow) else Flow(**cast(Dict, flow)) for flow in self.config.flows
         ]
 
         for flow in flows:
@@ -287,9 +256,7 @@ class LLMGenerationActions:
         if len(items) == 0:
             return
 
-        self.bot_message_index = self.get_embedding_search_provider_instance(
-            self.config.core.embedding_search_provider
-        )
+        self.bot_message_index = self.get_embedding_search_provider_instance(self.config.core.embedding_search_provider)
         await self.bot_message_index.add_items(items)
 
         # NOTE: this should be very fast, otherwise needs to be moved to separate thread.
@@ -324,9 +291,7 @@ class LLMGenerationActions:
         if len(items) == 0:
             return
 
-        self.flows_index = self.get_embedding_search_provider_instance(
-            self.config.core.embedding_search_provider
-        )
+        self.flows_index = self.get_embedding_search_provider_instance(self.config.core.embedding_search_provider)
         await self.flows_index.add_items(items)
 
         # NOTE: this should be very fast, otherwise needs to be moved to separate thread.
@@ -388,15 +353,11 @@ class LLMGenerationActions:
         """Generate the canonical form for what the user said i.e. user intent."""
         # If using a single LLM call, use the specific action defined for this task.
         if self.config.rails.dialog.single_call.enabled:
-            return await self.generate_intent_steps_message(
-                events=events, llm=llm, kb=kb
-            )
+            return await self.generate_intent_steps_message(events=events, llm=llm, kb=kb)
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
         if not event:
-            raise ValueError(
-                "No user message found in event stream. Unable to generate user intent."
-            )
+            raise ValueError("No user message found in event stream. Unable to generate user intent.")
         if event["type"] != "UserMessage":
             raise ValueError(
                 f"Expected UserMessage event, but found {event['type']}. "
@@ -405,9 +366,7 @@ class LLMGenerationActions:
 
         # Use action specific llm if registered else fallback to main llm
         # This can be None as some code-paths use embedding lookups rather than LLM generation
-        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
-            llm if llm else self.llm
-        )
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         streaming_handler = streaming_handler_var.get()
 
@@ -424,9 +383,7 @@ class LLMGenerationActions:
             examples = ""
             potential_user_intents = []
             if isinstance(event["text"], list):
-                text = " ".join(
-                    [item["text"] for item in event["text"] if item["type"] == "text"]
-                )
+                text = " ".join([item["text"] for item in event["text"] if item["type"] == "text"])
             else:
                 text = event["text"]
 
@@ -434,38 +391,26 @@ class LLMGenerationActions:
                 threshold = None
 
                 if config.rails.dialog.user_messages:
-                    threshold = (
-                        config.rails.dialog.user_messages.embeddings_only_similarity_threshold
-                    )
+                    threshold = config.rails.dialog.user_messages.embeddings_only_similarity_threshold
 
-                results = await self.user_message_index.search(
-                    text=text, max_results=5, threshold=threshold
-                )
+                results = await self.user_message_index.search(text=text, max_results=5, threshold=threshold)
 
                 # If the option to use only the embeddings is activated, we take the first
                 # canonical form.
                 if results and config.rails.dialog.user_messages.embeddings_only:
                     intent = results[0].meta["intent"]
 
-                    return ActionResult(
-                        events=[new_event_dict("UserIntent", intent=intent)]
-                    )
+                    return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
 
                 elif (
                     config.rails.dialog.user_messages.embeddings_only
                     and config.rails.dialog.user_messages.embeddings_only_fallback_intent
                 ):
-                    intent = (
-                        config.rails.dialog.user_messages.embeddings_only_fallback_intent
-                    )
+                    intent = config.rails.dialog.user_messages.embeddings_only_fallback_intent
 
-                    return ActionResult(
-                        events=[new_event_dict("UserIntent", intent=intent)]
-                    )
+                    return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
                 else:
-                    results = await self.user_message_index.search(
-                        text=text, max_results=5, threshold=None
-                    )
+                    results = await self.user_message_index.search(text=text, max_results=5, threshold=None)
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
                     examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
@@ -492,9 +437,7 @@ class LLMGenerationActions:
             )
 
             # Parse the output using the associated parser
-            result = self.llm_task_manager.parse_task_output(
-                Task.GENERATE_USER_INTENT, output=result
-            )
+            result = self.llm_task_manager.parse_task_output(Task.GENERATE_USER_INTENT, output=result)
 
             user_intent = get_first_nonempty_line(result)
             if user_intent is None:
@@ -503,19 +446,12 @@ class LLMGenerationActions:
             if user_intent and user_intent.startswith("user "):
                 user_intent = user_intent[5:]
 
-            log.info(
-                "Canonical form for user intent: "
-                + (user_intent if user_intent else "None")
-            )
+            log.info("Canonical form for user intent: " + (user_intent if user_intent else "None"))
 
             if user_intent is None:
-                return ActionResult(
-                    events=[new_event_dict("UserIntent", intent="unknown message")]
-                )
+                return ActionResult(events=[new_event_dict("UserIntent", intent="unknown message")])
             else:
-                return ActionResult(
-                    events=[new_event_dict("UserIntent", intent=user_intent)]
-                )
+                return ActionResult(events=[new_event_dict("UserIntent", intent=user_intent)])
         else:
             output_events = []
             context_updates = {}
@@ -541,14 +477,10 @@ class LLMGenerationActions:
                         if prompt[-1]["role"] == "user":
                             raw_prompt[-1]["content"] = event["text"]
                     else:
-                        raise ValueError(
-                            f"Unsupported type for raw prompt: {type(raw_prompt)}"
-                        )
+                        raise ValueError(f"Unsupported type for raw prompt: {type(raw_prompt)}")
 
                 if self.passthrough_fn:
-                    raw_output = await self.passthrough_fn(
-                        context=context, events=events
-                    )
+                    raw_output = await self.passthrough_fn(context=context, events=events)
 
                     # If the passthrough action returns a single value, we consider that
                     # to be the text output
@@ -569,19 +501,13 @@ class LLMGenerationActions:
                     # Initialize the LLMCallInfo object
                     llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
 
-                    gen_options: Optional[
-                        GenerationOptions
-                    ] = generation_options_var.get()
+                    gen_options: Optional[GenerationOptions] = generation_options_var.get()
 
                     llm_params = (gen_options and gen_options.llm_params) or {}
 
-                    streaming_handler: Optional[
-                        StreamingHandler
-                    ] = streaming_handler_var.get()
+                    streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
 
-                    custom_callback_handlers = (
-                        [streaming_handler] if streaming_handler else None
-                    )
+                    custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                     text = await llm_call(
                         generation_llm,
@@ -589,9 +515,7 @@ class LLMGenerationActions:
                         custom_callback_handlers=custom_callback_handlers,
                         llm_params=llm_params,
                     )
-                    text = self.llm_task_manager.parse_task_output(
-                        Task.GENERAL, output=text
-                    )
+                    text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
 
             else:
                 # Initialize the LLMCallInfo object
@@ -602,9 +526,7 @@ class LLMGenerationActions:
                     relevant_chunks = "\n".join([chunk["body"] for chunk in chunks])
                 else:
                     # in case there is  no user flow (user message) then we need the context update to work for relevant_chunks
-                    relevant_chunks = get_retrieved_relevant_chunks(
-                        events, skip_user_message=True
-                    )
+                    relevant_chunks = get_retrieved_relevant_chunks(events, skip_user_message=True)
 
                 # Otherwise, we still create an altered prompt.
                 prompt = self.llm_task_manager.render_task_prompt(
@@ -613,15 +535,9 @@ class LLMGenerationActions:
                     context={"relevant_chunks": relevant_chunks},
                 )
 
-                generation_options: Optional[
-                    GenerationOptions
-                ] = generation_options_var.get()
-                llm_params = (
-                    generation_options and generation_options.llm_params
-                ) or {}
-                custom_callback_handlers = (
-                    [streaming_handler] if streaming_handler else None
-                )
+                generation_options: Optional[GenerationOptions] = generation_options_var.get()
+                llm_params = (generation_options and generation_options.llm_params) or {}
+                custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                 result = await llm_call(
                     generation_llm,
@@ -631,9 +547,7 @@ class LLMGenerationActions:
                     llm_params=llm_params,
                 )
 
-                text = self.llm_task_manager.parse_task_output(
-                    Task.GENERAL, output=result
-                )
+                text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
                 text = text.strip()
                 if text.startswith('"'):
                     text = text[1:-1]
@@ -645,9 +559,7 @@ class LLMGenerationActions:
             reasoning_trace = get_and_clear_reasoning_trace_contextvar()
             if reasoning_trace:
                 context_updates["bot_thinking"] = reasoning_trace
-                output_events.append(
-                    new_event_dict("BotThinking", content=reasoning_trace)
-                )
+                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
 
             if self.config.passthrough:
                 from nemoguardrails.actions.llm.utils import (
@@ -657,9 +569,7 @@ class LLMGenerationActions:
                 tool_calls = get_and_clear_tool_calls_contextvar()
 
                 if tool_calls:
-                    output_events.append(
-                        new_event_dict("BotToolCalls", tool_calls=tool_calls)
-                    )
+                    output_events.append(new_event_dict("BotToolCalls", tool_calls=tool_calls))
                 else:
                     output_events.append(new_event_dict("BotMessage", text=text))
             else:
@@ -672,9 +582,7 @@ class LLMGenerationActions:
         if self.flows_index is None:
             raise RuntimeError("No flows index found to search")
 
-        results = await self.flows_index.search(
-            text=text, max_results=10, threshold=None
-        )
+        results = await self.flows_index.search(text=text, max_results=10, threshold=None)
 
         # we filter the results to keep only unique flows
         flows = set()
@@ -689,9 +597,7 @@ class LLMGenerationActions:
         return final_results[0:max_results]
 
     @action(is_system_action=True)
-    async def generate_next_step(
-        self, events: List[dict], llm: Optional[BaseLLM] = None
-    ):
+    async def generate_next_step(self, events: List[dict], llm: Optional[BaseLLM] = None):
         """Generate the next step in the current conversation flow.
 
         Currently, only generates a next step after a user intent.
@@ -699,16 +605,12 @@ class LLMGenerationActions:
         log.info("Phase 2 :: Generating next step ...")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
-            llm if llm else self.llm
-        )
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "UserIntent".
         event = get_last_user_intent_event(events)
         if event is None:
-            raise RuntimeError(
-                "No last user intent found from which to generate next step"
-            )
+            raise RuntimeError("No last user intent found from which to generate next step")
 
         # Currently, we only predict next step after a user intent using LLM
         if event["type"] == "UserIntent":
@@ -722,9 +624,7 @@ class LLMGenerationActions:
             # We search for the most relevant similar flows
             examples = ""
             if self.flows_index:
-                results = await self._search_flows_index(
-                    text=user_intent, max_results=5
-                )
+                results = await self._search_flows_index(text=user_intent, max_results=5)
 
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
@@ -747,9 +647,7 @@ class LLMGenerationActions:
             )
 
             # Parse the output using the associated parser
-            result = self.llm_task_manager.parse_task_output(
-                Task.GENERATE_NEXT_STEPS, output=result
-            )
+            result = self.llm_task_manager.parse_task_output(Task.GENERATE_NEXT_STEPS, output=result)
 
             # If we don't have multi-step generation enabled, we only look at the first line.
             if not self.config.enable_multi_step_generation:
@@ -784,9 +682,7 @@ class LLMGenerationActions:
                 else:
                     bot_intent = next_step.get("bot")
 
-                    return ActionResult(
-                        events=[new_event_dict("BotIntent", intent=bot_intent)]
-                    )
+                    return ActionResult(events=[new_event_dict("BotIntent", intent=bot_intent)])
             else:
                 # Otherwise, we parse the output as a single flow.
                 # If we have a parsing error, we try to reduce size of the flow, potentially
@@ -800,13 +696,7 @@ class LLMGenerationActions:
                         # If we could not parse the flow on the last line, we return a general response
                         if len(lines) == 1:
                             log.info("Exception while parsing single line: %s", e)
-                            return ActionResult(
-                                events=[
-                                    new_event_dict(
-                                        "BotIntent", intent="general response"
-                                    )
-                                ]
-                            )
+                            return ActionResult(events=[new_event_dict("BotIntent", intent="general response")])
 
                         log.info("Could not parse %s lines, reducing size", len(lines))
                         lines = lines[:-1]
@@ -860,16 +750,12 @@ class LLMGenerationActions:
         return template.render(render_context)
 
     @action(is_system_action=True)
-    async def generate_bot_message(
-        self, events: List[dict], context: dict, llm: Optional[BaseLLM] = None
-    ):
+    async def generate_bot_message(self, events: List[dict], context: dict, llm: Optional[BaseLLM] = None):
         """Generate a bot message based on the desired bot intent."""
         log.info("Phase 3 :: Generating bot message ...")
 
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
-            llm if llm else self.llm
-        )
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         # The last event should be the "StartInternalSystemAction" and the one before it the "BotIntent".
         event = get_last_bot_intent_event(events)
@@ -918,9 +804,7 @@ class LLMGenerationActions:
                 event = get_last_user_intent_event(events)
 
                 if not event:
-                    raise RuntimeError(
-                        "No last user intent found to generate bot message"
-                    )
+                    raise RuntimeError("No last user intent found to generate bot message")
                 if event["type"] == "UserIntent":
                     bot_message_event = event["additional_info"]["bot_message_event"]
 
@@ -928,23 +812,16 @@ class LLMGenerationActions:
                     # generate bot intent as well.
                     last_bot_intent = get_last_bot_intent_event(events)
                     if not last_bot_intent:
-                        raise RuntimeError(
-                            "No last bot intent found to generate bot message"
-                        )
+                        raise RuntimeError("No last bot intent found to generate bot message")
 
-                    if (
-                        last_bot_intent["intent"]
-                        == event["additional_info"]["bot_intent_event"]["intent"]
-                    ):
+                    if last_bot_intent["intent"] == event["additional_info"]["bot_intent_event"]["intent"]:
                         text = bot_message_event["text"]
                         # If the bot message is being generated in streaming mode
                         if text.startswith('Bot message: "<<STREAMING['):
                             # Format: `Bot message: "<<STREAMING[...]>>"`
                             # Extract the streaming handler uid and get a reference.
                             streaming_handler_uid = text[26:-4]
-                            _streaming_handler = local_streaming_handlers[
-                                streaming_handler_uid
-                            ]
+                            _streaming_handler = local_streaming_handlers[streaming_handler_uid]
 
                             # We pipe the content from this handler to the main one.
                             _streaming_handler.set_pipe_to(streaming_handler)
@@ -960,30 +837,18 @@ class LLMGenerationActions:
                             output_events = []
                             reasoning_trace = get_and_clear_reasoning_trace_contextvar()
                             if reasoning_trace:
-                                output_events.append(
-                                    new_event_dict(
-                                        "BotThinking", content=reasoning_trace
-                                    )
-                                )
-                            output_events.append(
-                                new_event_dict("BotMessage", text=text)
-                            )
+                                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
+                            output_events.append(new_event_dict("BotMessage", text=text))
 
                             return ActionResult(events=output_events)
                         else:
                             if streaming_handler:
-                                await streaming_handler.push_chunk(
-                                    bot_message_event["text"]
-                                )
+                                await streaming_handler.push_chunk(bot_message_event["text"])
 
                             output_events = []
                             reasoning_trace = get_and_clear_reasoning_trace_contextvar()
                             if reasoning_trace:
-                                output_events.append(
-                                    new_event_dict(
-                                        "BotThinking", content=reasoning_trace
-                                    )
-                                )
+                                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
                             output_events.append(bot_message_event)
 
                             return ActionResult(events=output_events)
@@ -993,9 +858,7 @@ class LLMGenerationActions:
                 # If we have a passthrough function, we use that.
                 if self.passthrough_fn:
                     prompt = None
-                    raw_output = await self.passthrough_fn(
-                        context=context, events=events
-                    )
+                    raw_output = await self.passthrough_fn(context=context, events=events)
 
                     # If the passthrough action returns a single value, we consider that
                     # to be the text output
@@ -1013,9 +876,7 @@ class LLMGenerationActions:
                     t0 = time()
 
                     # Initialize the LLMCallInfo object
-                    llm_call_info_var.set(
-                        LLMCallInfo(task=Task.GENERATE_BOT_MESSAGE.value)
-                    )
+                    llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_BOT_MESSAGE.value))
 
                     # In passthrough mode, we should use the full conversation history
                     # instead of just the last user message to preserve tool message context
@@ -1035,13 +896,9 @@ class LLMGenerationActions:
                     else:
                         prompt = context.get("user_message")
 
-                    gen_options: Optional[
-                        GenerationOptions
-                    ] = generation_options_var.get()
+                    gen_options: Optional[GenerationOptions] = generation_options_var.get()
                     llm_params = (gen_options and gen_options.llm_params) or {}
-                    custom_callback_handlers = (
-                        [streaming_handler] if streaming_handler else None
-                    )
+                    custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                     if not prompt:
                         raise RuntimeError("No prompt found to generate bot message")
@@ -1052,9 +909,7 @@ class LLMGenerationActions:
                         llm_params=llm_params,
                     )
 
-                    result = self.llm_task_manager.parse_task_output(
-                        Task.GENERAL, output=result
-                    )
+                    result = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
 
                     log.info(
                         "--- :: LLM Bot Message Generation passthrough call took %.2f seconds",
@@ -1068,9 +923,7 @@ class LLMGenerationActions:
                 examples = ""
                 # NOTE: disabling bot message index when there are no user messages
                 if self.config.user_messages and self.bot_message_index:
-                    results = await self.bot_message_index.search(
-                        text=event["intent"], max_results=5, threshold=None
-                    )
+                    results = await self.bot_message_index.search(text=event["intent"], max_results=5, threshold=None)
 
                     # We add these in reverse order so the most relevant is towards the end.
                     for result in reversed(results):
@@ -1091,24 +944,16 @@ class LLMGenerationActions:
                 if streaming_handler:
                     # TODO: Figure out a more generic way to deal with this
                     if prompt_config.output_parser in ["verbose_v1", "bot_message"]:
-                        streaming_handler.set_pattern(
-                            prefix='Bot message: "', suffix='"'
-                        )
+                        streaming_handler.set_pattern(prefix='Bot message: "', suffix='"')
                     else:
                         streaming_handler.set_pattern(prefix='  "', suffix='"')
 
                 # Initialize the LLMCallInfo object
                 llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_BOT_MESSAGE.value))
 
-                generation_options: Optional[
-                    GenerationOptions
-                ] = generation_options_var.get()
-                llm_params = (
-                    generation_options and generation_options.llm_params
-                ) or {}
-                custom_callback_handlers = (
-                    [streaming_handler] if streaming_handler else None
-                )
+                generation_options: Optional[GenerationOptions] = generation_options_var.get()
+                llm_params = (generation_options and generation_options.llm_params) or {}
+                custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                 result = await llm_call(
                     generation_llm,
@@ -1123,9 +968,7 @@ class LLMGenerationActions:
                 )
 
                 # Parse the output using the associated parser
-                result = self.llm_task_manager.parse_task_output(
-                    Task.GENERATE_BOT_MESSAGE, output=result
-                )
+                result = self.llm_task_manager.parse_task_output(Task.GENERATE_BOT_MESSAGE, output=result)
 
                 # TODO: catch openai.error.InvalidRequestError from exceeding max token length
 
@@ -1149,9 +992,7 @@ class LLMGenerationActions:
             reasoning_trace = get_and_clear_reasoning_trace_contextvar()
             if reasoning_trace:
                 context_updates["bot_thinking"] = reasoning_trace
-                output_events.append(
-                    new_event_dict("BotThinking", content=reasoning_trace)
-                )
+                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
             output_events.append(new_event_dict("BotMessage", text=bot_utterance))
 
             return ActionResult(
@@ -1168,9 +1009,7 @@ class LLMGenerationActions:
             reasoning_trace = get_and_clear_reasoning_trace_contextvar()
             if reasoning_trace:
                 context_updates["bot_thinking"] = reasoning_trace
-                output_events.append(
-                    new_event_dict("BotThinking", content=reasoning_trace)
-                )
+                output_events.append(new_event_dict("BotThinking", content=reasoning_trace))
             output_events.append(new_event_dict("BotMessage", text=bot_utterance))
 
             return ActionResult(
@@ -1195,9 +1034,7 @@ class LLMGenerationActions:
         :param llm: Custom llm model to generate_value
         """
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
-            llm if llm else self.llm
-        )
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         last_event = events[-1]
         assert last_event["type"] == "StartInternalSystemAction"
@@ -1208,9 +1045,7 @@ class LLMGenerationActions:
         # We search for the most relevant flows.
         examples = ""
         if self.flows_index:
-            results = await self._search_flows_index(
-                text=f"${var_name} = ", max_results=5
-            )
+            results = await self._search_flows_index(text=f"${var_name} = ", max_results=5)
 
             # We add these in reverse order so the most relevant is towards the end.
             for result in reversed(results):
@@ -1239,9 +1074,7 @@ class LLMGenerationActions:
         )
 
         # Parse the output using the associated parser
-        result = self.llm_task_manager.parse_task_output(
-            Task.GENERATE_VALUE, output=result
-        )
+        result = self.llm_task_manager.parse_task_output(Task.GENERATE_VALUE, output=result)
 
         # We only use the first line for now
         # TODO: support multi-line values?
@@ -1275,18 +1108,14 @@ class LLMGenerationActions:
         # The last event should be the "StartInternalSystemAction" and the one before it the "UtteranceUserActionFinished".
         event = get_last_user_utterance_event(events)
         if not event:
-            raise ValueError(
-                "No user message found in event stream. Unable to generate user intent."
-            )
+            raise ValueError("No user message found in event stream. Unable to generate user intent.")
         if event["type"] != "UserMessage":
             raise ValueError(
                 f"Expected UserMessage event, but found {event['type']}. "
                 "Cannot generate user intent from this event type."
             )
         # Use action specific llm if registered else fallback to main llm
-        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = (
-            llm if llm else self.llm
-        )
+        generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         streaming_handler = streaming_handler_var.get()
 
@@ -1318,9 +1147,7 @@ class LLMGenerationActions:
 
             if self.flows_index:
                 for intent in potential_user_intents:
-                    flow_results_intent = await self._search_flows_index(
-                        text=intent, max_results=2
-                    )
+                    flow_results_intent = await self._search_flows_index(text=intent, max_results=2)
                     flow_results[intent] = flow_results_intent
 
             # We add the intent to the examples in reverse order
@@ -1341,9 +1168,7 @@ class LLMGenerationActions:
                     # Just in case there are some flows with only one line
                     if "\n" not in result_flow.text:
                         continue
-                    (flow_user_intent, flow_continuation) = result_flow.text.split(
-                        "\n", 1
-                    )
+                    (flow_user_intent, flow_continuation) = result_flow.text.split("\n", 1)
                     flow_user_intent = flow_user_intent[5:]
                     if flow_user_intent == intent:
                         found_flow_for_intent = True
@@ -1358,20 +1183,16 @@ class LLMGenerationActions:
 
                             found_bot_message = False
                             if self.bot_message_index:
-                                bot_messages_results = (
-                                    await self.bot_message_index.search(
-                                        text=bot_canonical_form,
-                                        max_results=1,
-                                        threshold=None,
-                                    )
+                                bot_messages_results = await self.bot_message_index.search(
+                                    text=bot_canonical_form,
+                                    max_results=1,
+                                    threshold=None,
                                 )
 
                                 for bot_message_result in bot_messages_results:
                                     if bot_message_result.text == bot_canonical_form:
                                         found_bot_message = True
-                                        example += (
-                                            f'  "{bot_message_result.meta["text"]}"\n'
-                                        )
+                                        example += f'  "{bot_message_result.meta["text"]}"\n'
                                         # Only use the first bot message for now
                                         break
 
@@ -1379,7 +1200,9 @@ class LLMGenerationActions:
                                 # This is for canonical forms that do not have an associated message.
                                 # Create a simple message for the bot canonical form.
                                 # In a later version we could generate a message with the LLM at app initialization.
-                                example += f"  # On the next line generate a bot message related to {bot_canonical_form}\n"
+                                example += (
+                                    f"  # On the next line generate a bot message related to {bot_canonical_form}\n"
+                                )
 
                         # For now, only use the first flow for each intent.
                         break
@@ -1444,9 +1267,7 @@ class LLMGenerationActions:
                     _streaming_handler.set_pattern(prefix='  "', suffix='"')
             else:
                 # Initialize the LLMCallInfo object
-                llm_call_info_var.set(
-                    LLMCallInfo(task=Task.GENERATE_INTENT_STEPS_MESSAGE.value)
-                )
+                llm_call_info_var.set(LLMCallInfo(task=Task.GENERATE_INTENT_STEPS_MESSAGE.value))
 
                 gen_options: Optional[GenerationOptions] = generation_options_var.get()
                 llm_params = (gen_options and gen_options.llm_params) or {}
@@ -1454,14 +1275,10 @@ class LLMGenerationActions:
                     **llm_params,
                     "temperature": self.config.lowest_temperature,
                 }
-                result = await llm_call(
-                    generation_llm, prompt, llm_params=additional_params
-                )
+                result = await llm_call(generation_llm, prompt, llm_params=additional_params)
 
             # Parse the output using the associated parser
-            result = self.llm_task_manager.parse_task_output(
-                Task.GENERATE_INTENT_STEPS_MESSAGE, output=result
-            )
+            result = self.llm_task_manager.parse_task_output(Task.GENERATE_INTENT_STEPS_MESSAGE, output=result)
 
             # TODO: Implement logic for generating more complex Colang next steps (multi-step),
             #  not just a single bot intent.
@@ -1504,34 +1321,20 @@ class LLMGenerationActions:
             if not bot_message:
                 bot_message = "I'm not sure what to say."
 
-            log.info(
-                "Canonical form for user intent: "
-                + (user_intent if user_intent else "None")
-            )
-            log.info(
-                "Canonical form for bot intent: "
-                + (bot_intent if bot_intent else "None")
-            )
-            log.info(
-                "Generated bot message: " + (bot_message if bot_message else "None")
-            )
+            log.info("Canonical form for user intent: " + (user_intent if user_intent else "None"))
+            log.info("Canonical form for bot intent: " + (bot_intent if bot_intent else "None"))
+            log.info("Generated bot message: " + (bot_message if bot_message else "None"))
 
             additional_info = {
                 "bot_intent_event": new_event_dict("BotIntent", intent=bot_intent),
                 "bot_message_event": new_event_dict("BotMessage", text=bot_message),
             }
-            events = [
-                new_event_dict(
-                    "UserIntent", intent=user_intent, additional_info=additional_info
-                )
-            ]
+            events = [new_event_dict("UserIntent", intent=user_intent, additional_info=additional_info)]
 
             return ActionResult(events=events)
 
         else:
-            prompt = self.llm_task_manager.render_task_prompt(
-                task=Task.GENERAL, events=events
-            )
+            prompt = self.llm_task_manager.render_task_prompt(task=Task.GENERAL, events=events)
 
             # Initialize the LLMCallInfo object
             llm_call_info_var.set(LLMCallInfo(task=Task.GENERAL.value))
@@ -1541,9 +1344,7 @@ class LLMGenerationActions:
             llm_params = (gen_options and gen_options.llm_params) or {}
             result = await llm_call(generation_llm, prompt, llm_params=llm_params)
 
-            result = self.llm_task_manager.parse_task_output(
-                Task.GENERAL, output=result
-            )
+            result = self.llm_task_manager.parse_task_output(Task.GENERAL, output=result)
             text = result.strip()
             if text.startswith('"'):
                 text = text[1:-1]

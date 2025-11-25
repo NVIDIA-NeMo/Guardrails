@@ -64,17 +64,11 @@ def test_operator_associativity():
     llm = FakeLLM(responses=["Response from LLM"])
 
     config = RailsConfig.from_content(config={"models": []})
-    guardrails = RunnableRails(
-        config, llm=llm, input_key="custom_input", output_key="custom_output"
-    )
+    guardrails = RunnableRails(config, llm=llm, input_key="custom_input", output_key="custom_output")
 
     # test associativity: (A | B) | C should be equivalent to A | (B | C)
-    chain1 = ({"custom_input": lambda x: x} | guardrails) | RunnableLambda(
-        lambda x: f"Processed: {x}"
-    )
-    chain2 = {"custom_input": lambda x: x} | (
-        guardrails | RunnableLambda(lambda x: f"Processed: {x}")
-    )
+    chain1 = ({"custom_input": lambda x: x} | guardrails) | RunnableLambda(lambda x: f"Processed: {x}")
+    chain2 = {"custom_input": lambda x: x} | (guardrails | RunnableLambda(lambda x: f"Processed: {x}"))
 
     result1 = chain1.invoke("Hello")
     result2 = chain2.invoke("Hello")
@@ -95,9 +89,7 @@ def test_user_reported_chain_pattern():
     )
 
     config = RailsConfig.from_content(config={"models": []})
-    guardrails = RunnableRails(
-        config, llm=llm, input_key="question", output_key="response"
-    )
+    guardrails = RunnableRails(config, llm=llm, input_key="question", output_key="response")
 
     chain = RunnableLambda(lambda x: {"question": x}) | guardrails
 
@@ -107,9 +99,7 @@ def test_user_reported_chain_pattern():
     assert isinstance(result, dict)
     assert "response" in result
 
-    chain_with_parentheses = RunnableLambda(lambda x: {"question": x}) | (
-        guardrails | llm
-    )
+    chain_with_parentheses = RunnableLambda(lambda x: {"question": x}) | (guardrails | llm)
     result2 = chain_with_parentheses.invoke("What is Paris?")
 
     assert result2 is not None

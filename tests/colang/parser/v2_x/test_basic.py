@@ -22,9 +22,7 @@ from nemoguardrails.utils import CustomDumper
 
 def _flows(content):
     """Quick helper."""
-    result = parse_colang_file(
-        filename="", content=content, include_source_mapping=False, version="2.x"
-    )
+    result = parse_colang_file(filename="", content=content, include_source_mapping=False, version="2.x")
     flows = [flow.to_dict() for flow in result["flows"]]
 
     print(yaml.dump(flows, sort_keys=False, Dumper=CustomDumper, width=1000))
@@ -174,7 +172,7 @@ def test_2():
                                 "_type": "spec",
                                 "arguments": {},
                                 "members": None,
-                                "name": "bot express good " "afternoon",
+                                "name": "bot express good afternoon",
                                 "spec_type": SpecType.FLOW,
                                 "var_name": None,
                                 "ref": None,
@@ -521,55 +519,43 @@ def test_4():
 
 
 def test_flow_param_defs():
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
             flow test $name $price=2
                 user express greeting
             """
-        )[0]["parameters"]
-        == [
-            {"default_value_expr": None, "name": "name"},
-            {"default_value_expr": "2", "name": "price"},
-        ]
-    )
+    )[0]["parameters"] == [
+        {"default_value_expr": None, "name": "name"},
+        {"default_value_expr": "2", "name": "price"},
+    ]
 
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
             flow test $name
                 user express greeting
             """
-        )[0]["parameters"]
-        == [
-            {"default_value_expr": None, "name": "name"},
-        ]
-    )
+    )[0]["parameters"] == [
+        {"default_value_expr": None, "name": "name"},
+    ]
 
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
             flow test($name)
                 user express greeting
             """
-        )[0]["parameters"]
-        == [
-            {"default_value_expr": None, "name": "name"},
-        ]
-    )
+    )[0]["parameters"] == [
+        {"default_value_expr": None, "name": "name"},
+    ]
 
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
             flow test($name="John", $age)
                 user express greeting
             """
-        )[0]["parameters"]
-        == [
-            {"default_value_expr": '"John"', "name": "name"},
-            {"default_value_expr": None, "name": "age"},
-        ]
-    )
+    )[0]["parameters"] == [
+        {"default_value_expr": '"John"', "name": "name"},
+        {"default_value_expr": None, "name": "age"},
+    ]
 
 
 def test_flow_def():
@@ -587,123 +573,113 @@ flow main
 
 
 def test_flow_assignment_1():
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
                 flow main
                   $name = "John"
             """
-        )[0]["elements"][1]
-        == {
-            "_source": None,
-            "_type": "assignment",
-            "expression": '"John"',
-            "key": "name",
-        }
-    )
+    )[0]["elements"][1] == {
+        "_source": None,
+        "_type": "assignment",
+        "expression": '"John"',
+        "key": "name",
+    }
 
 
 def test_flow_assignment_2():
-    assert (
-        _flows(
-            """flow main
+    assert _flows(
+        """flow main
                   $name = $full_name"""
-        )[0]["elements"][1]
-        == {
-            "_source": None,
-            "_type": "assignment",
-            "expression": "$full_name",
-            "key": "name",
-        }
-    )
+    )[0]["elements"][1] == {
+        "_source": None,
+        "_type": "assignment",
+        "expression": "$full_name",
+        "key": "name",
+    }
 
 
 def test_flow_if_1():
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
                 flow main
                   $name = $full_name
                   if $name == "John"
                     bot say "Hi, John!"
                   else
                     bot say "Hello!" """
-        )[0]["elements"]
-        == [
-            {
+    )[0]["elements"] == [
+        {
+            "_source": None,
+            "_type": "spec_op",
+            "op": "match",
+            "info": {},
+            "return_var_name": None,
+            "spec": {
                 "_source": None,
-                "_type": "spec_op",
-                "op": "match",
-                "info": {},
-                "return_var_name": None,
-                "spec": {
+                "_type": "spec",
+                "arguments": {"flow_id": '"main"'},
+                "members": None,
+                "name": "StartFlow",
+                "spec_type": SpecType.EVENT,
+                "var_name": None,
+                "ref": None,
+            },
+        },
+        {
+            "_source": None,
+            "_type": "assignment",
+            "expression": "$full_name",
+            "key": "name",
+        },
+        {
+            "_source": None,
+            "_type": "if",
+            "else_elements": [
+                {
                     "_source": None,
-                    "_type": "spec",
-                    "arguments": {"flow_id": '"main"'},
-                    "members": None,
-                    "name": "StartFlow",
-                    "spec_type": SpecType.EVENT,
-                    "var_name": None,
-                    "ref": None,
-                },
-            },
-            {
-                "_source": None,
-                "_type": "assignment",
-                "expression": "$full_name",
-                "key": "name",
-            },
-            {
-                "_source": None,
-                "_type": "if",
-                "else_elements": [
-                    {
+                    "_type": "spec_op",
+                    "op": "await",
+                    "info": {},
+                    "return_var_name": None,
+                    "spec": {
                         "_source": None,
-                        "_type": "spec_op",
-                        "op": "await",
-                        "info": {},
-                        "return_var_name": None,
-                        "spec": {
-                            "_source": None,
-                            "_type": "spec",
-                            "arguments": {"$0": '"Hello!"'},
-                            "members": None,
-                            "name": "bot say",
-                            "spec_type": SpecType.FLOW,
-                            "var_name": None,
-                            "ref": None,
-                        },
-                    }
-                ],
-                "expression": '$name == "John"',
-                "then_elements": [
-                    {
+                        "_type": "spec",
+                        "arguments": {"$0": '"Hello!"'},
+                        "members": None,
+                        "name": "bot say",
+                        "spec_type": SpecType.FLOW,
+                        "var_name": None,
+                        "ref": None,
+                    },
+                }
+            ],
+            "expression": '$name == "John"',
+            "then_elements": [
+                {
+                    "_source": None,
+                    "_type": "spec_op",
+                    "op": "await",
+                    "info": {},
+                    "return_var_name": None,
+                    "spec": {
                         "_source": None,
-                        "_type": "spec_op",
-                        "op": "await",
-                        "info": {},
-                        "return_var_name": None,
-                        "spec": {
-                            "_source": None,
-                            "_type": "spec",
-                            "arguments": {"$0": '"Hi, John!"'},
-                            "members": None,
-                            "name": "bot say",
-                            "spec_type": SpecType.FLOW,
-                            "var_name": None,
-                            "ref": None,
-                        },
-                    }
-                ],
-            },
-        ]
-    )
+                        "_type": "spec",
+                        "arguments": {"$0": '"Hi, John!"'},
+                        "members": None,
+                        "name": "bot say",
+                        "spec_type": SpecType.FLOW,
+                        "var_name": None,
+                        "ref": None,
+                    },
+                }
+            ],
+        },
+    ]
 
 
 def test_flow_if_2():
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
                 flow main
                   $name = $full_name
                   if $name == "John"
@@ -714,164 +690,159 @@ def test_flow_if_2():
                     bot say "Hi, Mike"
                   else
                     bot say "Hello!" """
-        )[0]["elements"]
-        == [
-            {
+    )[0]["elements"] == [
+        {
+            "_source": None,
+            "_type": "spec_op",
+            "op": "match",
+            "info": {},
+            "return_var_name": None,
+            "spec": {
                 "_source": None,
-                "_type": "spec_op",
-                "op": "match",
-                "info": {},
-                "return_var_name": None,
-                "spec": {
+                "_type": "spec",
+                "arguments": {"flow_id": '"main"'},
+                "members": None,
+                "name": "StartFlow",
+                "spec_type": SpecType.EVENT,
+                "var_name": None,
+                "ref": None,
+            },
+        },
+        {
+            "_source": None,
+            "_type": "assignment",
+            "expression": "$full_name",
+            "key": "name",
+        },
+        {
+            "_source": None,
+            "_type": "if",
+            "else_elements": [
+                {
                     "_source": None,
-                    "_type": "spec",
-                    "arguments": {"flow_id": '"main"'},
-                    "members": None,
-                    "name": "StartFlow",
-                    "spec_type": SpecType.EVENT,
-                    "var_name": None,
-                    "ref": None,
-                },
-            },
-            {
-                "_source": None,
-                "_type": "assignment",
-                "expression": "$full_name",
-                "key": "name",
-            },
-            {
-                "_source": None,
-                "_type": "if",
-                "else_elements": [
-                    {
-                        "_source": None,
-                        "_type": "if",
-                        "else_elements": [
-                            {
-                                "_source": None,
-                                "_type": "if",
-                                "else_elements": [
-                                    {
-                                        "_source": None,
-                                        "_type": "spec_op",
-                                        "op": "await",
-                                        "info": {},
-                                        "return_var_name": None,
-                                        "spec": {
-                                            "_source": None,
-                                            "_type": "spec",
-                                            "arguments": {"$0": '"Hello!"'},
-                                            "members": None,
-                                            "name": "bot " "say",
-                                            "spec_type": SpecType.FLOW,
-                                            "var_name": None,
-                                            "ref": None,
-                                        },
-                                    }
-                                ],
-                                "expression": '$name == "Mike"',
-                                "then_elements": [
-                                    {
-                                        "_source": None,
-                                        "_type": "spec_op",
-                                        "op": "await",
-                                        "info": {},
-                                        "return_var_name": None,
-                                        "spec": {
-                                            "_source": None,
-                                            "_type": "spec",
-                                            "arguments": {"$0": '"Hi, ' 'Mike"'},
-                                            "members": None,
-                                            "name": "bot " "say",
-                                            "spec_type": SpecType.FLOW,
-                                            "var_name": None,
-                                            "ref": None,
-                                        },
-                                    }
-                                ],
-                            }
-                        ],
-                        "expression": '$name == "Michael"',
-                        "then_elements": [
-                            {
-                                "_source": None,
-                                "_type": "spec_op",
-                                "op": "await",
-                                "info": {},
-                                "return_var_name": None,
-                                "spec": {
-                                    "_source": None,
-                                    "_type": "spec",
-                                    "arguments": {"$0": '"Hi, ' 'Michael"'},
-                                    "members": None,
-                                    "name": "bot say",
-                                    "spec_type": SpecType.FLOW,
-                                    "var_name": None,
-                                    "ref": None,
-                                },
-                            }
-                        ],
-                    }
-                ],
-                "expression": '$name == "John"',
-                "then_elements": [
-                    {
-                        "_source": None,
-                        "_type": "spec_op",
-                        "op": "await",
-                        "info": {},
-                        "return_var_name": None,
-                        "spec": {
+                    "_type": "if",
+                    "else_elements": [
+                        {
                             "_source": None,
-                            "_type": "spec",
-                            "arguments": {"$0": '"Hi, John!"'},
-                            "members": None,
-                            "name": "bot say",
-                            "spec_type": SpecType.FLOW,
-                            "var_name": None,
-                            "ref": None,
-                        },
-                    }
-                ],
-            },
-        ]
-    )
+                            "_type": "if",
+                            "else_elements": [
+                                {
+                                    "_source": None,
+                                    "_type": "spec_op",
+                                    "op": "await",
+                                    "info": {},
+                                    "return_var_name": None,
+                                    "spec": {
+                                        "_source": None,
+                                        "_type": "spec",
+                                        "arguments": {"$0": '"Hello!"'},
+                                        "members": None,
+                                        "name": "bot say",
+                                        "spec_type": SpecType.FLOW,
+                                        "var_name": None,
+                                        "ref": None,
+                                    },
+                                }
+                            ],
+                            "expression": '$name == "Mike"',
+                            "then_elements": [
+                                {
+                                    "_source": None,
+                                    "_type": "spec_op",
+                                    "op": "await",
+                                    "info": {},
+                                    "return_var_name": None,
+                                    "spec": {
+                                        "_source": None,
+                                        "_type": "spec",
+                                        "arguments": {"$0": '"Hi, Mike"'},
+                                        "members": None,
+                                        "name": "bot say",
+                                        "spec_type": SpecType.FLOW,
+                                        "var_name": None,
+                                        "ref": None,
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                    "expression": '$name == "Michael"',
+                    "then_elements": [
+                        {
+                            "_source": None,
+                            "_type": "spec_op",
+                            "op": "await",
+                            "info": {},
+                            "return_var_name": None,
+                            "spec": {
+                                "_source": None,
+                                "_type": "spec",
+                                "arguments": {"$0": '"Hi, Michael"'},
+                                "members": None,
+                                "name": "bot say",
+                                "spec_type": SpecType.FLOW,
+                                "var_name": None,
+                                "ref": None,
+                            },
+                        }
+                    ],
+                }
+            ],
+            "expression": '$name == "John"',
+            "then_elements": [
+                {
+                    "_source": None,
+                    "_type": "spec_op",
+                    "op": "await",
+                    "info": {},
+                    "return_var_name": None,
+                    "spec": {
+                        "_source": None,
+                        "_type": "spec",
+                        "arguments": {"$0": '"Hi, John!"'},
+                        "members": None,
+                        "name": "bot say",
+                        "spec_type": SpecType.FLOW,
+                        "var_name": None,
+                        "ref": None,
+                    },
+                }
+            ],
+        },
+    ]
 
 
 def test_flow_assignment_3():
-    assert (
-        _flows(
-            """
+    assert _flows(
+        """
 flow main
   $user_message = $event_ref.arguments
 """
-        )[0]["elements"]
-        == [
-            {
+    )[0]["elements"] == [
+        {
+            "_source": None,
+            "_type": "spec_op",
+            "op": "match",
+            "info": {},
+            "return_var_name": None,
+            "spec": {
                 "_source": None,
-                "_type": "spec_op",
-                "op": "match",
-                "info": {},
-                "return_var_name": None,
-                "spec": {
-                    "_source": None,
-                    "_type": "spec",
-                    "arguments": {"flow_id": '"main"'},
-                    "members": None,
-                    "name": "StartFlow",
-                    "spec_type": SpecType.EVENT,
-                    "var_name": None,
-                    "ref": None,
-                },
+                "_type": "spec",
+                "arguments": {"flow_id": '"main"'},
+                "members": None,
+                "name": "StartFlow",
+                "spec_type": SpecType.EVENT,
+                "var_name": None,
+                "ref": None,
             },
-            {
-                "_source": None,
-                "_type": "assignment",
-                "expression": "$event_ref.arguments",
-                "key": "user_message",
-            },
-        ]
-    )
+        },
+        {
+            "_source": None,
+            "_type": "assignment",
+            "expression": "$event_ref.arguments",
+            "key": "user_message",
+        },
+    ]
 
 
 def test_flow_return_values():

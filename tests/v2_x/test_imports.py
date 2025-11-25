@@ -58,9 +58,7 @@ def test_2():
 def test_3():
     # This config just imports another one, to check that actions are correctly
     # loaded.
-    colang_path_dirs.append(
-        os.path.join(os.path.dirname(__file__), "..", "test_configs")
-    )
+    colang_path_dirs.append(os.path.join(os.path.dirname(__file__), "..", "test_configs"))
 
     config = RailsConfig.from_content(
         colang_content="""

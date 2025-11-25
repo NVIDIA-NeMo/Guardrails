@@ -83,9 +83,7 @@ class TestCacheUtils:
             ("   leading", "leading"),
         ],
     )
-    def test_create_normalized_cache_key_consistent_for_same_input(
-        self, prompt1, prompt2
-    ):
+    def test_create_normalized_cache_key_consistent_for_same_input(self, prompt1, prompt2):
         key1 = create_normalized_cache_key(prompt1, normalize_whitespace=True)
         key2 = create_normalized_cache_key(prompt2, normalize_whitespace=True)
         assert key1 == key2
@@ -98,9 +96,7 @@ class TestCacheUtils:
             ("case", "Case"),
         ],
     )
-    def test_create_normalized_cache_key_different_for_different_input(
-        self, prompt1, prompt2
-    ):
+    def test_create_normalized_cache_key_different_for_different_input(self, prompt1, prompt2):
         key1 = create_normalized_cache_key(prompt1)
         key2 = create_normalized_cache_key(prompt2)
         assert key1 != key2
@@ -154,9 +150,7 @@ class TestCacheUtils:
             create_normalized_cache_key([123, 456])  # type: ignore
 
     def test_extract_llm_stats_for_cache_with_llm_call_info(self):
-        llm_call_info = LLMCallInfo(
-            task="test_task", total_tokens=100, prompt_tokens=50, completion_tokens=50
-        )
+        llm_call_info = LLMCallInfo(task="test_task", total_tokens=100, prompt_tokens=50, completion_tokens=50)
         llm_call_info_var.set(llm_call_info)
 
         stats = extract_llm_stats_for_cache()
@@ -394,9 +388,7 @@ class TestCacheUtils:
         llm_stats_var.set(None)
 
     def test_extract_llm_metadata_for_cache_with_model_info(self):
-        llm_call_info = LLMCallInfo(
-            task="test_task", llm_model_name="gpt-4", llm_provider_name="openai"
-        )
+        llm_call_info = LLMCallInfo(task="test_task", llm_model_name="gpt-4", llm_provider_name="openai")
         llm_call_info_var.set(llm_call_info)
 
         metadata = extract_llm_metadata_for_cache()
@@ -439,10 +431,7 @@ class TestCacheUtils:
 
         updated_info = llm_call_info_var.get()
         assert updated_info is not None
-        assert (
-            updated_info.llm_model_name
-            == "nvidia/llama-3.1-nemoguard-8b-content-safety"
-        )
+        assert updated_info.llm_model_name == "nvidia/llama-3.1-nemoguard-8b-content-safety"
         assert updated_info.llm_provider_name == "nim"
 
         llm_call_info_var.set(None)

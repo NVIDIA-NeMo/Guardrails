@@ -88,13 +88,9 @@ async def test_v2_spans_generated_with_events(v2_config):
 
     rails = LLMRails(config=v2_config, llm=llm)
 
-    options = GenerationOptions(
-        log={"activated_rails": True, "internal_events": True, "llm_calls": True}
-    )
+    options = GenerationOptions(log={"activated_rails": True, "internal_events": True, "llm_calls": True})
 
-    response = await rails.generate_async(
-        messages=[{"role": "user", "content": "Hello!"}], options=options
-    )
+    response = await rails.generate_async(messages=[{"role": "user", "content": "Hello!"}], options=options)
 
     assert response.response is not None
     assert response.log is not None
@@ -104,9 +100,7 @@ async def test_v2_spans_generated_with_events(v2_config):
         extract_interaction_log,
     )
 
-    interaction_output = InteractionOutput(
-        id="test", input="Hello!", output=response.response
-    )
+    interaction_output = InteractionOutput(id="test", input="Hello!", output=response.response)
 
     interaction_log = extract_interaction_log(interaction_output, response.log)
 
@@ -115,9 +109,7 @@ async def test_v2_spans_generated_with_events(v2_config):
     for span in interaction_log.trace:
         assert is_opentelemetry_span(span)
 
-    interaction_span = next(
-        (s for s in interaction_log.trace if s.name == "guardrails.request"), None
-    )
+    interaction_span = next((s for s in interaction_log.trace if s.name == "guardrails.request"), None)
     assert interaction_span is not None
 
     llm_spans = [s for s in interaction_log.trace if isinstance(s, LLMSpan)]

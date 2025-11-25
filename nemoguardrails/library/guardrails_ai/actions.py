@@ -266,9 +266,7 @@ def _get_guard(validator_name: str, **validator_params) -> Guard:
         try:
             validator_instance = validator_class(**validator_params)
         except TypeError as e:
-            log.error(
-                f"Failed to instantiate {validator_name} with params {validator_params}: {str(e)}"
-            )
+            log.error(f"Failed to instantiate {validator_name} with params {validator_params}: {str(e)}")
             raise
 
         guard = Guard().use(validator_instance)

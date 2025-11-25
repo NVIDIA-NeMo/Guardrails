@@ -92,6 +92,6 @@ async def compare_interaction_with_test_script(
     )
     clean_test_script = cleanup(test_script)
     clean_result = cleanup(result)
-    assert (
-        clean_test_script == clean_result
-    ), f"\n----\n{clean_result}\n----\n\ndoes not match test script\n\n----\n{clean_test_script}\n----"
+    assert clean_test_script == clean_result, (
+        f"\n----\n{clean_result}\n----\n\ndoes not match test script\n\n----\n{clean_test_script}\n----"
+    )

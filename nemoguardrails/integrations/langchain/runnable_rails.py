@@ -117,9 +117,7 @@ class RunnableRails(Runnable[Input, Output]):
             # First, we fetch the input from the context
             _input = context.get("passthrough_input")
             if hasattr(self.passthrough_runnable, "ainvoke"):
-                _output = await self.passthrough_runnable.ainvoke(
-                    _input, self.config, **self.kwargs
-                )
+                _output = await self.passthrough_runnable.ainvoke(_input, self.config, **self.kwargs)
             else:
                 async_wrapped_invoke = async_wrap(self.passthrough_runnable.invoke)
                 _output = await async_wrapped_invoke(_input, self.config, **self.kwargs)
@@ -136,9 +134,7 @@ class RunnableRails(Runnable[Input, Output]):
 
         self.rails.llm_generation_actions.passthrough_fn = passthrough_fn
 
-    def __or__(
-        self, other: Union[BaseLanguageModel, Runnable[Any, Any]]
-    ) -> Union["RunnableRails", Runnable[Any, Any]]:
+    def __or__(self, other: Union[BaseLanguageModel, Runnable[Any, Any]]) -> Union["RunnableRails", Runnable[Any, Any]]:
         """Chain this runnable with another, returning a new runnable.
 
         This method handles two different cases:
@@ -227,9 +223,7 @@ class RunnableRails(Runnable[Input, Output]):
             },
         ]
 
-    def _transform_chat_prompt_value(
-        self, _input: ChatPromptValue
-    ) -> List[Dict[str, Any]]:
+    def _transform_chat_prompt_value(self, _input: ChatPromptValue) -> List[Dict[str, Any]]:
         """Transform ChatPromptValue to messages list."""
         return [message_to_dict(msg) for msg in _input.messages]
 
@@ -256,12 +250,8 @@ class RunnableRails(Runnable[Input, Output]):
             # Handle dict-style messages
             for msg in user_input:
                 if "role" not in msg or "content" not in msg:
-                    raise ValueError(
-                        "Message missing 'role' or 'content': {}".format(msg)
-                    )
-            return [
-                {"role": msg["role"], "content": msg["content"]} for msg in user_input
-            ]
+                    raise ValueError("Message missing 'role' or 'content': {}".format(msg))
+            return [{"role": msg["role"], "content": msg["content"]} for msg in user_input]
         else:
             raise ValueError("Cannot handle list input with mixed types")
 
@@ -274,9 +264,7 @@ class RunnableRails(Runnable[Input, Output]):
         elif isinstance(user_input, list):
             return self._transform_dict_message_list(user_input)
         else:
-            raise ValueError(
-                "Cannot handle input of type {}".format(type(user_input).__name__)
-            )
+            raise ValueError("Cannot handle input of type {}".format(type(user_input).__name__))
 
     def _transform_dict_input(self, _input: dict) -> List[Dict[str, Any]]:
         """Transform dictionary input to messages list."""
@@ -285,9 +273,7 @@ class RunnableRails(Runnable[Input, Output]):
 
         if "context" in _input:
             if not isinstance(_input["context"], dict):
-                raise ValueError(
-                    "The input `context` key for `RunnableRails` must be a dict."
-                )
+                raise ValueError("The input `context` key for `RunnableRails` must be a dict.")
             messages = [{"role": "context", "content": _input["context"]}] + messages
 
         return messages
@@ -324,9 +310,7 @@ class RunnableRails(Runnable[Input, Output]):
                 input_type = type(_input).__name__
                 raise ValueError(
                     "Unsupported input type '{}'. Supported formats: str, dict with 'input' key, "
-                    "BaseMessage, List[BaseMessage], ChatPromptValue, StringPromptValue".format(
-                        input_type
-                    )
+                    "BaseMessage, List[BaseMessage], ChatPromptValue, StringPromptValue".format(input_type)
                 )
         except Exception as e:
             # Re-raise known ValueError exceptions
@@ -334,9 +318,7 @@ class RunnableRails(Runnable[Input, Output]):
                 raise
             # Wrap other exceptions with helpful context
             raise ValueError(
-                "Input transformation error: {}. Input type: {}".format(
-                    str(e), type(_input).__name__
-                )
+                "Input transformation error: {}. Input type: {}".format(str(e), type(_input).__name__)
             ) from e
 
     def _extract_content_from_result(self, result: Any) -> str:
@@ -347,9 +329,7 @@ class RunnableRails(Runnable[Input, Output]):
 
     def _get_bot_message(self, result: Any, context: Dict[str, Any]) -> str:
         """Extract the bot message from context or result."""
-        return context.get(
-            "bot_message", result.get("content") if isinstance(result, dict) else result
-        )
+        return context.get("bot_message", result.get("content") if isinstance(result, dict) else result)
 
     def _format_passthrough_output(self, result: Any, context: Dict[str, Any]) -> Any:
         """Format output for passthrough mode."""
@@ -414,16 +394,12 @@ class RunnableRails(Runnable[Input, Output]):
             return create_ai_message(content=content, tool_calls=tool_calls)
         return create_ai_message(content=content)
 
-    def _format_dict_output_for_string_input(
-        self, result: Any, output_key: str
-    ) -> Dict[str, Any]:
+    def _format_dict_output_for_string_input(self, result: Any, output_key: str) -> Dict[str, Any]:
         """Format dict output when the user input was a string."""
         content = self._extract_content_from_result(result)
         return {output_key: content}
 
-    def _format_dict_output_for_dict_message_list(
-        self, result: Any, output_key: str
-    ) -> Dict[str, Any]:
+    def _format_dict_output_for_dict_message_list(self, result: Any, output_key: str) -> Dict[str, Any]:
         """Format dict output when user input was a list of dict messages."""
         content = self._extract_content_from_result(result)
         return {
@@ -450,9 +426,7 @@ class RunnableRails(Runnable[Input, Output]):
                 metadata_copy["tool_calls"] = tool_calls
             return {output_key: create_ai_message(content=content, **metadata_copy)}
         elif tool_calls:
-            return {
-                output_key: create_ai_message(content=content, tool_calls=tool_calls)
-            }
+            return {output_key: create_ai_message(content=content, tool_calls=tool_calls)}
         return {output_key: create_ai_message(content=content)}
 
     def _format_dict_output_for_base_message(
@@ -471,9 +445,7 @@ class RunnableRails(Runnable[Input, Output]):
                 metadata_copy["tool_calls"] = tool_calls
             return {output_key: create_ai_message(content=content, **metadata_copy)}
         elif tool_calls:
-            return {
-                output_key: create_ai_message(content=content, tool_calls=tool_calls)
-            }
+            return {output_key: create_ai_message(content=content, tool_calls=tool_calls)}
         return {output_key: create_ai_message(content=content)}
 
     def _format_dict_output(
@@ -488,26 +460,18 @@ class RunnableRails(Runnable[Input, Output]):
 
         # Get the correct output based on input type
         if self.passthrough_user_input_key in input_dict or "input" in input_dict:
-            user_input = input_dict.get(
-                self.passthrough_user_input_key, input_dict.get("input")
-            )
+            user_input = input_dict.get(self.passthrough_user_input_key, input_dict.get("input"))
             if isinstance(user_input, str):
                 return self._format_dict_output_for_string_input(result, output_key)
             elif isinstance(user_input, list):
                 if all(isinstance(msg, dict) and "role" in msg for msg in user_input):
-                    return self._format_dict_output_for_dict_message_list(
-                        result, output_key
-                    )
+                    return self._format_dict_output_for_dict_message_list(result, output_key)
                 elif all_base_messages(user_input):
-                    return self._format_dict_output_for_base_message_list(
-                        result, output_key, tool_calls, metadata
-                    )
+                    return self._format_dict_output_for_base_message_list(result, output_key, tool_calls, metadata)
                 else:
                     return {output_key: result}
             elif is_base_message(user_input):
-                return self._format_dict_output_for_base_message(
-                    result, output_key, tool_calls, metadata
-                )
+                return self._format_dict_output_for_base_message(result, output_key, tool_calls, metadata)
 
         # Generic fallback for dictionaries
         content = self._extract_content_from_result(result)
@@ -596,11 +560,7 @@ class RunnableRails(Runnable[Input, Output]):
 
             # For other exceptions, provide a generic helpful message
             else:
-                raise ValueError(
-                    "Guardrails error: {}. Input type: {} ".format(
-                        str(e), type(input).__name__
-                    )
-                ) from e
+                raise ValueError("Guardrails error: {}. Input type: {} ".format(str(e), type(input).__name__)) from e
 
     def _input_to_rails_messages(self, input: Input) -> List[dict]:
         """Convert various input formats to rails message format."""
@@ -630,11 +590,7 @@ class RunnableRails(Runnable[Input, Output]):
                 # LangChain message format
                 rails_messages.append(
                     {
-                        "role": (
-                            msg.role
-                            if msg.role in ["user", "assistant", "system"]
-                            else "user"
-                        ),
+                        "role": (msg.role if msg.role in ["user", "assistant", "system"] else "user"),
                         "content": str(msg.content),
                     }
                 )
@@ -642,11 +598,7 @@ class RunnableRails(Runnable[Input, Output]):
                 # Already in rails format
                 rails_messages.append(
                     {
-                        "role": (
-                            msg["role"]
-                            if msg["role"] in ["user", "assistant", "system"]
-                            else "user"
-                        ),
+                        "role": (msg["role"] if msg["role"] in ["user", "assistant", "system"] else "user"),
                         "content": str(msg["content"]),
                     }
                 )
@@ -684,9 +636,7 @@ class RunnableRails(Runnable[Input, Output]):
         run_manager = kwargs.get("run_manager", None)
 
         # Generate response from rails
-        res = self.rails.generate(
-            messages=input_messages, options=GenerationOptions(output_vars=True)
-        )
+        res = self.rails.generate(messages=input_messages, options=GenerationOptions(output_vars=True))
         context = res.output_data
         result = res.response
 
@@ -697,9 +647,7 @@ class RunnableRails(Runnable[Input, Output]):
             result = result[0]
 
         # Format and return the output based in input type
-        return self._format_output(
-            input, result, context, res.tool_calls, res.llm_metadata
-        )
+        return self._format_output(input, result, context, res.tool_calls, res.llm_metadata)
 
     async def ainvoke(
         self,
@@ -736,9 +684,7 @@ class RunnableRails(Runnable[Input, Output]):
             # For other exceptions, provide a generic helpful message
             else:
                 raise ValueError(
-                    "Async guardrails error: {}. Input type: {}".format(
-                        str(e), type(input).__name__
-                    )
+                    "Async guardrails error: {}. Input type: {}".format(str(e), type(input).__name__)
                 ) from e
 
     async def _full_rails_ainvoke(
@@ -754,16 +700,12 @@ class RunnableRails(Runnable[Input, Output]):
         run_manager = kwargs.get("run_manager", None)
 
         # Generate response from rails asynchronously
-        res = await self.rails.generate_async(
-            messages=input_messages, options=GenerationOptions(output_vars=True)
-        )
+        res = await self.rails.generate_async(messages=input_messages, options=GenerationOptions(output_vars=True))
         context = res.output_data
         result = res.response
 
         # Format and return the output based on input type
-        return self._format_output(
-            input, result, context, res.tool_calls, res.llm_metadata
-        )
+        return self._format_output(input, result, context, res.tool_calls, res.llm_metadata)
 
     def stream(
         self,
@@ -780,9 +722,7 @@ class RunnableRails(Runnable[Input, Output]):
         from nemoguardrails.utils import get_or_create_event_loop
 
         if check_sync_call_from_async_loop():
-            raise RuntimeError(
-                "Cannot use sync stream() inside async code. Use astream() instead."
-            )
+            raise RuntimeError("Cannot use sync stream() inside async code. Use astream() instead.")
 
         async def _collect_all_chunks():
             chunks = []
@@ -822,15 +762,9 @@ class RunnableRails(Runnable[Input, Output]):
         try:
             from nemoguardrails.streaming import END_OF_STREAM
 
-            async for chunk in self.rails.stream_async(
-                messages=input_messages, include_generation_metadata=True
-            ):
+            async for chunk in self.rails.stream_async(messages=input_messages, include_generation_metadata=True):
                 # Skip END_OF_STREAM markers
-                chunk_text = (
-                    chunk["text"]
-                    if isinstance(chunk, dict) and "text" in chunk
-                    else chunk
-                )
+                chunk_text = chunk["text"] if isinstance(chunk, dict) and "text" in chunk else chunk
                 if chunk_text is END_OF_STREAM:
                     continue
 
@@ -871,31 +805,17 @@ class RunnableRails(Runnable[Input, Output]):
         elif isinstance(input, dict):
             output_key = self.passthrough_bot_output_key
             if self.passthrough_user_input_key in input or "input" in input:
-                user_input = input.get(
-                    self.passthrough_user_input_key, input.get("input")
-                )
+                user_input = input.get(self.passthrough_user_input_key, input.get("input"))
                 if isinstance(user_input, str):
                     return {output_key: text_content}
                 elif isinstance(user_input, list):
-                    if all(
-                        isinstance(msg, dict) and "role" in msg for msg in user_input
-                    ):
-                        return {
-                            output_key: {"role": "assistant", "content": text_content}
-                        }
+                    if all(isinstance(msg, dict) and "role" in msg for msg in user_input):
+                        return {output_key: {"role": "assistant", "content": text_content}}
                     elif all_base_messages(user_input):
-                        return {
-                            output_key: create_ai_message_chunk(
-                                content=text_content, **metadata
-                            )
-                        }
+                        return {output_key: create_ai_message_chunk(content=text_content, **metadata)}
                     return {output_key: text_content}
                 elif is_base_message(user_input):
-                    return {
-                        output_key: create_ai_message_chunk(
-                            content=text_content, **metadata
-                        )
-                    }
+                    return {output_key: create_ai_message_chunk(content=text_content, **metadata)}
             return {output_key: text_content}
         elif isinstance(input, str):
             return create_ai_message_chunk(content=text_content, **metadata)

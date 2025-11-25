@@ -49,9 +49,7 @@ def test_output_vars_1():
         ],
     )
 
-    res = chat.app.generate(
-        "hi", options={"output_vars": ["user_greeted", "something_else"]}
-    )
+    res = chat.app.generate("hi", options={"output_vars": ["user_greeted", "something_else"]})
     output_data = res.dict().get("output_data", {})
 
     # We check also that a non-existent variable returns None.
@@ -174,14 +172,10 @@ def test_triggered_rails_info_2():
 
 @pytest.mark.skip(reason="Run manually.")
 def test_triggered_abc_bot():
-    config = RailsConfig.from_path(
-        os.path.join(os.path.dirname(__file__), "..", "examples/bots/abc")
-    )
+    config = RailsConfig.from_path(os.path.join(os.path.dirname(__file__), "..", "examples/bots/abc"))
 
     rails = LLMRails(config)
-    res: GenerationResponse = rails.generate(
-        "Hello!", options={"log": {"activated_rails": True}, "output_vars": True}
-    )
+    res: GenerationResponse = rails.generate("Hello!", options={"log": {"activated_rails": True}, "output_vars": True})
 
     print("############################")
     print(json.dumps(res.log.dict(), indent=True))
@@ -314,9 +308,7 @@ def test_only_input_output_validation():
         },
     )
 
-    assert res.response == [
-        {"content": "I'm sorry, I can't respond to that.", "role": "assistant"}
-    ]
+    assert res.response == [{"content": "I'm sorry, I can't respond to that.", "role": "assistant"}]
 
 
 def test_generation_log_print_summary(capsys):

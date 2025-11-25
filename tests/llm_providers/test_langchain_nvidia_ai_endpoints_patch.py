@@ -72,13 +72,9 @@ class TestAsyncStreamDecorator:
 
         messages = [HumanMessage(content="Hello")]
 
-        with patch(
-            "langchain_nvidia_ai_endpoints.ChatNVIDIA._agenerate"
-        ) as mock_parent_agenerate:
+        with patch("langchain_nvidia_ai_endpoints.ChatNVIDIA._agenerate") as mock_parent_agenerate:
             expected_result = ChatResult(
-                generations=[
-                    ChatGeneration(message=AIMessage(content="Response from parent"))
-                ]
+                generations=[ChatGeneration(message=AIMessage(content="Response from parent"))]
             )
             mock_parent_agenerate.return_value = expected_result
 
@@ -158,12 +154,8 @@ class TestChatNVIDIAPatch:
 
         messages = [[HumanMessage(content="Hello")], [HumanMessage(content="Hi")]]
 
-        with patch(
-            "langchain_nvidia_ai_endpoints.ChatNVIDIA._agenerate"
-        ) as mock_parent:
-            mock_parent.return_value = ChatResult(
-                generations=[ChatGeneration(message=AIMessage(content="Response"))]
-            )
+        with patch("langchain_nvidia_ai_endpoints.ChatNVIDIA._agenerate") as mock_parent:
+            mock_parent.return_value = ChatResult(generations=[ChatGeneration(message=AIMessage(content="Response"))])
 
             result = await chat.agenerate(messages)
 
@@ -227,9 +219,7 @@ class TestChatNVIDIAPatch:
         messages = [[HumanMessage(content="Hello")]]
 
         with patch("langchain_nvidia_ai_endpoints.ChatNVIDIA._generate") as mock_parent:
-            mock_parent.return_value = ChatResult(
-                generations=[ChatGeneration(message=AIMessage(content="Response"))]
-            )
+            mock_parent.return_value = ChatResult(generations=[ChatGeneration(message=AIMessage(content="Response"))])
 
             result = chat.generate(messages)
 
@@ -278,7 +268,6 @@ class TestChatNVIDIAPatch:
 class TestIntegrationWithLLMRails:
     @pytest.mark.asyncio
     async def test_chatnvidia_with_llmrails_async(self):
-
         from nemoguardrails import LLMRails, RailsConfig
 
         config = RailsConfig.from_content(
@@ -293,12 +282,8 @@ class TestIntegrationWithLLMRails:
             }
         )
 
-        async def mock_agenerate_func(
-            self, messages, stop=None, run_manager=None, **kwargs
-        ):
-            return ChatResult(
-                generations=[ChatGeneration(message=AIMessage(content="Test response"))]
-            )
+        async def mock_agenerate_func(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Test response"))])
 
         with patch(
             "langchain_nvidia_ai_endpoints.ChatNVIDIA._agenerate",
@@ -306,9 +291,7 @@ class TestIntegrationWithLLMRails:
         ):
             rails = LLMRails(config)
 
-            result = await rails.generate_async(
-                messages=[{"role": "user", "content": "Hello"}]
-            )
+            result = await rails.generate_async(messages=[{"role": "user", "content": "Hello"}])
 
             assert result is not None
             assert "content" in result
@@ -380,9 +363,7 @@ streaming: True
         chunks = []
 
         async for chunk in rails.stream_async(
-            messages=[
-                {"role": "user", "content": "Count to 20 by 2s, e.g. 2 4 6 8 ..."}
-            ]
+            messages=[{"role": "user", "content": "Count to 20 by 2s, e.g. 2 4 6 8 ..."}]
         ):
             chunks.append(chunk)
             chunk_times.append(time.time())
@@ -391,9 +372,7 @@ streaming: True
         total_time = chunk_times[-1] - chunk_times[0]
 
         assert len(chunks) > 0, "Should receive at least one chunk"
-        assert ttft < (
-            total_time / 2
-        ), f"TTFT ({ttft:.3f}s) should be less than half of total time ({total_time:.3f}s)"
+        assert ttft < (total_time / 2), f"TTFT ({ttft:.3f}s) should be less than half of total time ({total_time:.3f}s)"
         assert len(chunk_times) > 2, "Should receive multiple chunks for streaming"
 
         full_response = "".join(chunks)

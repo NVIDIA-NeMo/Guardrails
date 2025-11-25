@@ -34,9 +34,7 @@ for idx, row in tqdm.tqdm(df.iterrows()):
     sample["question"] = row["query"]
     sample["answer"] = row["answers"][0]
     if row["passages"]["is_selected"].count(1) == 1:
-        sample["evidence"] = row["passages"]["passage_text"][
-            row["passages"]["is_selected"].index(1)
-        ]
+        sample["evidence"] = row["passages"]["passage_text"][row["passages"]["is_selected"].index(1)]
         fact_check_data.append(sample)
 
 # Save the json file

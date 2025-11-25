@@ -20,6 +20,4 @@ from nemoguardrails.llm.providers.providers import _llm_providers
 def test_acall_method_added():
     for provider_name, provider_cls in _llm_providers.items():
         assert hasattr(provider_cls, "_acall"), f"_acall not added to {provider_name}"
-        assert callable(
-            getattr(provider_cls, "_acall")
-        ), f"_acall is not callable in {provider_name}"
+        assert callable(getattr(provider_cls, "_acall")), f"_acall is not callable in {provider_name}"

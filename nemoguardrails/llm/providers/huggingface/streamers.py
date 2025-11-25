@@ -42,9 +42,7 @@ class AsyncTextIteratorStreamer(TextStreamer):  # type: ignore[misc]
     with minor modifications to make it async.
     """
 
-    def __init__(
-        self, tokenizer: "AutoTokenizer", skip_prompt: bool = False, **decode_kwargs
-    ):
+    def __init__(self, tokenizer: "AutoTokenizer", skip_prompt: bool = False, **decode_kwargs):
         super().__init__(tokenizer, skip_prompt, **decode_kwargs)
         self.text_queue: asyncio.Queue[str] = asyncio.Queue()
         self.stop_signal = None

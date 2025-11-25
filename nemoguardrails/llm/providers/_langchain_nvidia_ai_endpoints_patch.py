@@ -45,9 +45,7 @@ def stream_decorator(func):
     ) -> ChatResult:
         should_stream = stream if stream is not None else self.streaming
         if should_stream:
-            stream_iter = self._stream(
-                messages, stop=stop, run_manager=run_manager, **kwargs
-            )
+            stream_iter = self._stream(messages, stop=stop, run_manager=run_manager, **kwargs)
             return generate_from_stream(stream_iter)
         else:
             return func(self, messages, stop, run_manager, **kwargs)
@@ -67,9 +65,7 @@ def async_stream_decorator(func):  # pragma: no cover
     ) -> ChatResult:
         should_stream = stream if stream is not None else self.streaming
         if should_stream:
-            stream_iter = self._astream(
-                messages, stop=stop, run_manager=run_manager, **kwargs
-            )
+            stream_iter = self._astream(messages, stop=stop, run_manager=run_manager, **kwargs)
             return await agenerate_from_stream(stream_iter)
         else:
             return await func(self, messages, stop, run_manager, **kwargs)
@@ -80,9 +76,7 @@ def async_stream_decorator(func):  # pragma: no cover
 # NOTE: this needs to have the same name as the original class,
 #   otherwise, there's a check inside `langchain-nvidia-ai-endpoints` that will fail.
 class ChatNVIDIA(ChatNVIDIAOriginal):
-    streaming: bool = Field(
-        default=False, description="Whether to use streaming or not"
-    )
+    streaming: bool = Field(default=False, description="Whether to use streaming or not")
 
     @stream_decorator
     def _generate(
@@ -107,9 +101,7 @@ class ChatNVIDIA(ChatNVIDIAOriginal):
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        return await super()._agenerate(
-            messages=messages, stop=stop, run_manager=run_manager, **kwargs
-        )
+        return await super()._agenerate(messages=messages, stop=stop, run_manager=run_manager, **kwargs)
 
 
 __all__ = ["ChatNVIDIA"]

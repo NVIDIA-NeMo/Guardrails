@@ -50,9 +50,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
         # Streaming for NeMo Guardrails is not supported in sync calls.
         model_kwargs = getattr(self, "model_kwargs", {})
         if model_kwargs and model_kwargs.get("streaming"):
-            raise NotImplementedError(
-                "Streaming mode not supported for HuggingFacePipeline in NeMo Guardrails!"
-            )
+            raise NotImplementedError("Streaming mode not supported for HuggingFacePipeline in NeMo Guardrails!")
 
         llm_result = self._generate(  # type: ignore[attr-defined]
             [prompt],
@@ -85,9 +83,7 @@ class HuggingFacePipelineCompatible(HuggingFacePipeline):
             # Retrieve the streamer object, needs to be set in model_kwargs
             streamer = model_kwargs.get("streamer")
             if not streamer:
-                raise ValueError(
-                    "Cannot stream, please add HuggingFace streamer object to model_kwargs!"
-                )
+                raise ValueError("Cannot stream, please add HuggingFace streamer object to model_kwargs!")
 
             loop = asyncio.get_running_loop()
 

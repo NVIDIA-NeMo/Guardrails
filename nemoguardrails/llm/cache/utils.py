@@ -51,9 +51,7 @@ class CacheEntry(TypedDict):
     llm_metadata: Optional[LLMMetadataDict]
 
 
-def create_normalized_cache_key(
-    prompt: Union[str, List[dict]], normalize_whitespace: bool = True
-) -> str:
+def create_normalized_cache_key(prompt: Union[str, List[dict]], normalize_whitespace: bool = True) -> str:
     """
     Create a normalized, hashed cache key from a prompt.
 
@@ -94,10 +92,7 @@ def create_normalized_cache_key(
             )
         prompt_str = json.dumps(prompt, sort_keys=True)
     else:
-        raise TypeError(
-            f"Invalid type for prompt: {type(prompt).__name__}. "
-            f"Expected str or List[dict]."
-        )
+        raise TypeError(f"Invalid type for prompt: {type(prompt).__name__}. Expected str or List[dict].")
 
     if normalize_whitespace:
         prompt_str = PROMPT_PATTERN_WHITESPACES.sub(" ", prompt_str).strip()
@@ -105,9 +100,7 @@ def create_normalized_cache_key(
     return hashlib.sha256(prompt_str.encode("utf-8")).hexdigest()
 
 
-def restore_llm_stats_from_cache(
-    cached_stats: LLMStatsDict, cache_read_duration_s: float
-) -> None:
+def restore_llm_stats_from_cache(cached_stats: LLMStatsDict, cache_read_duration_s: float) -> None:
     llm_stats = llm_stats_var.get()
     if llm_stats is None:
         llm_stats = LLMStats()
@@ -155,14 +148,10 @@ def restore_llm_metadata_from_cache(cached_metadata: LLMMetadataDict) -> None:
     llm_call_info = llm_call_info_var.get()
     if llm_call_info:
         llm_call_info.llm_model_name = cached_metadata.get("model_name", "unknown")
-        llm_call_info.llm_provider_name = cached_metadata.get(
-            "provider_name", "unknown"
-        )
+        llm_call_info.llm_provider_name = cached_metadata.get("provider_name", "unknown")
 
 
-def get_from_cache_and_restore_stats(
-    cache: "CacheInterface", cache_key: str
-) -> Optional[dict]:
+def get_from_cache_and_restore_stats(cache: "CacheInterface", cache_key: str) -> Optional[dict]:
     cached_entry = cache.get(cache_key)
     if cached_entry is None:
         return None

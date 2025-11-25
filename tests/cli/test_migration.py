@@ -213,9 +213,7 @@ class TestColang1SyntaxConversion:
 
     def test_config_variable_replacement(self):
         input_lines = ["$config.setting = true"]
-        expected_output = [
-            "global $system.config.setting\n$system.config.setting = true"
-        ]
+        expected_output = ["global $system.config.setting\n$system.config.setting = true"]
         assert convert_colang_1_syntax(input_lines) == expected_output
 
     def test_flow_with_special_characters(self):
@@ -321,9 +319,7 @@ class TestMigrateFunction:
         mock_console.print.assert_any_call(
             "Starting migration for path: /test/path from version 1.0 to latest version."
         )
-        mock_process_co.assert_called_once_with(
-            ["file1.co", "file2.co"], "1.0", False, True, True
-        )
+        mock_process_co.assert_called_once_with(["file1.co", "file2.co"], "1.0", False, True, True)
         mock_process_config.assert_called_once_with(["config.yml"])
 
     @patch("nemoguardrails.cli.migration._process_config_files")
@@ -426,9 +422,7 @@ class TestWriteFunctions:
             original_file.write_text("original content")
 
             new_lines = ["new line 1\n", "new line 2\n"]
-            result = _write_transformed_content_and_rename_original(
-                str(original_file), new_lines
-            )
+            result = _write_transformed_content_and_rename_original(str(original_file), new_lines)
 
             assert result is True
             assert original_file.exists()
@@ -491,9 +485,7 @@ class TestHelperFunctions:
 
 
 class TestProcessFiles:
-    @patch(
-        "nemoguardrails.cli.migration._write_transformed_content_and_rename_original"
-    )
+    @patch("nemoguardrails.cli.migration._write_transformed_content_and_rename_original")
     @patch("builtins.open", new_callable=mock_open, read_data="flow test\n")
     @patch("nemoguardrails.cli.migration.console")
     def test_process_co_files_v1_to_v2(self, mock_console, mock_file, mock_write):
@@ -505,14 +497,10 @@ class TestProcessFiles:
         assert result == 1
         mock_write.assert_called_once()
 
-    @patch(
-        "nemoguardrails.cli.migration._write_transformed_content_and_rename_original"
-    )
+    @patch("nemoguardrails.cli.migration._write_transformed_content_and_rename_original")
     @patch("builtins.open", new_callable=mock_open, read_data="orwhen test\n")
     @patch("nemoguardrails.cli.migration.console")
-    def test_process_co_files_v2_alpha_to_v2_beta(
-        self, mock_console, mock_file, mock_write
-    ):
+    def test_process_co_files_v2_alpha_to_v2_beta(self, mock_console, mock_file, mock_write):
         mock_write.return_value = True
 
         files = [Path("test.co")]
@@ -521,14 +509,10 @@ class TestProcessFiles:
         assert result >= 0
 
     @patch("nemoguardrails.cli.migration.parse_colang_file")
-    @patch(
-        "nemoguardrails.cli.migration._write_transformed_content_and_rename_original"
-    )
+    @patch("nemoguardrails.cli.migration._write_transformed_content_and_rename_original")
     @patch("builtins.open", new_callable=mock_open, read_data="flow test")
     @patch("nemoguardrails.cli.migration.console")
-    def test_process_co_files_with_validation(
-        self, mock_console, mock_file, mock_write, mock_parse
-    ):
+    def test_process_co_files_with_validation(self, mock_console, mock_file, mock_write, mock_parse):
         mock_write.return_value = True
         mock_parse.return_value = {"flows": []}
 

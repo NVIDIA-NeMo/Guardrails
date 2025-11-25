@@ -198,9 +198,7 @@ class TestCompletionChoice:
 
     def test_completion_choice_creation(self):
         """Test creating a CompletionChoice."""
-        choice = CompletionChoice(
-            text="Generated text", index=0, logprobs=None, finish_reason="length"
-        )
+        choice = CompletionChoice(text="Generated text", index=0, logprobs=None, finish_reason="length")
         assert choice.text == "Generated text"
         assert choice.index == 0
         assert choice.logprobs is None
@@ -280,11 +278,7 @@ class TestCompletionResponse:
             object="text_completion",
             created=1234567890,
             model="text-davinci-003",
-            choices=[
-                CompletionChoice(
-                    text="Completed text", index=0, logprobs=None, finish_reason="stop"
-                )
-            ],
+            choices=[CompletionChoice(text="Completed text", index=0, logprobs=None, finish_reason="stop")],
             usage=Usage(prompt_tokens=15, completion_tokens=10, total_tokens=25),
         )
         assert response.id == "cmpl-789"
@@ -300,9 +294,7 @@ class TestModel:
 
     def test_model_creation(self):
         """Test creating a Model."""
-        model = Model(
-            id="gpt-3.5-turbo", object="model", created=1677610602, owned_by="openai"
-        )
+        model = Model(id="gpt-3.5-turbo", object="model", created=1677610602, owned_by="openai")
         assert model.id == "gpt-3.5-turbo"
         assert model.object == "model"
         assert model.created == 1677610602
@@ -323,9 +315,7 @@ class TestModelsResponse:
                     created=1677610602,
                     owned_by="openai",
                 ),
-                Model(
-                    id="gpt-4", object="model", created=1687882410, owned_by="openai"
-                ),
+                Model(id="gpt-4", object="model", created=1687882410, owned_by="openai"),
             ],
         )
         assert response.object == "list"

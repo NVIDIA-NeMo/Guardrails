@@ -43,9 +43,7 @@ _COLANG_VERSIONS = [version.value for version in ColangVersions]
 
 app = typer.Typer()
 
-app.add_typer(
-    eval_cli.app, name="eval", short_help="Evaluation a guardrail configuration."
-)
+app.add_typer(eval_cli.app, name="eval", short_help="Evaluation a guardrail configuration.")
 app.pretty_exceptions_enable = False
 
 logging.getLogger().setLevel(logging.WARNING)
@@ -124,9 +122,7 @@ def chat(
 
 @app.command()
 def server(
-    port: int = typer.Option(
-        default=8000, help="The port that the server should listen on. "
-    ),
+    port: int = typer.Option(default=8000, help="The port that the server should listen on. "),
     config: List[str] = typer.Option(
         default=[],
         exists=True,
@@ -193,9 +189,7 @@ def server(
 
 @app.command()
 def convert(
-    path: str = typer.Argument(
-        ..., help="The path to the file or directory to migrate."
-    ),
+    path: str = typer.Argument(..., help="The path to the file or directory to migrate."),
     from_version: ColangVersions = typer.Option(
         default=ColangVersions.one,
         help=f"The version of the colang files to migrate from. Available options: {_COLANG_VERSIONS}.",
@@ -238,9 +232,7 @@ def convert(
 
 @app.command("actions-server")
 def action_server(
-    port: int = typer.Option(
-        default=8001, help="The port that the server should listen on. "
-    ),
+    port: int = typer.Option(default=8001, help="The port that the server should listen on. "),
 ):
     """Start a NeMo Guardrails actions server."""
 
@@ -249,9 +241,7 @@ def action_server(
 
 @app.command()
 def find_providers(
-    list_only: bool = typer.Option(
-        False, "--list", "-l", help="Just list all available providers"
-    ),
+    list_only: bool = typer.Option(False, "--list", "-l", help="Just list all available providers"),
 ):
     """List and select LLM providers interactively.
 
@@ -295,8 +285,6 @@ def version_callback(value: bool):
 
 @app.callback()
 def cli(
-    _: Optional[bool] = typer.Option(
-        None, "-v", "--version", callback=version_callback, is_eager=True
-    ),
+    _: Optional[bool] = typer.Option(None, "-v", "--version", callback=version_callback, is_eager=True),
 ):
     pass

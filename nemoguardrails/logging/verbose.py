@@ -112,13 +112,9 @@ class VerboseHandler(logging.StreamHandler):
 
                             # We're adding a new line before action events, to
                             # make it more readable.
-                            if event_type.startswith("Start") and event_type.endswith(
-                                "Action"
-                            ):
+                            if event_type.startswith("Start") and event_type.endswith("Action"):
                                 title = f"[magenta][bold]Start[/]{event_type[5:]}[/]"
-                            elif event_type.startswith("Stop") and event_type.endswith(
-                                "Action"
-                            ):
+                            elif event_type.startswith("Stop") and event_type.endswith("Action"):
                                 title = f"[magenta][bold]Stop[/]{event_type[4:]}[/]"
                             elif event_type.endswith("ActionUpdated"):
                                 title = f"[magenta]{event_type[:-7]}[bold]Updated[/][/]"

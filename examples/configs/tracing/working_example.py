@@ -123,9 +123,7 @@ def main():
     print("-" * 50)
 
     # this will create spans that get exported to the console
-    response = rails.generate(
-        messages=[{"role": "user", "content": "What can you do?"}]
-    )
+    response = rails.generate(messages=[{"role": "user", "content": "What can you do?"}])
 
     print("User: What can you do?")
     print(f"Bot: {response.response}")

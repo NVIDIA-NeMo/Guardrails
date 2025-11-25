@@ -83,9 +83,7 @@ def check_equal_objects(o1: Any, o2: Any, path: str):
         return
     else:
         if o1 != o2:
-            print(
-                f"Found different values ({str(o1)[0:10]} vs {str(o2)[0:10]}) for: {path}"
-            )
+            print(f"Found different values ({str(o1)[0:10]} vs {str(o2)[0:10]}) for: {path}")
             raise ValueError(f"Found different values in path: {path}")
 
 
@@ -100,9 +98,7 @@ async def test_serialization():
         }
     ]
 
-    output_events, state = await rails.runtime.process_events(
-        events=input_events, state={}, blocking=True
-    )
+    output_events, state = await rails.runtime.process_events(events=input_events, state={}, blocking=True)
 
     assert isinstance(state, State)
     assert output_events[0]["script"] == "Hello!"
@@ -147,9 +143,7 @@ async def test_serialization():
         }
     )
 
-    output_events, state_3 = await rails.runtime.process_events(
-        events=input_events, state=state_2, blocking=True
-    )
+    output_events, state_3 = await rails.runtime.process_events(events=input_events, state=state_2, blocking=True)
 
     assert output_events[0]["script"] == "Hello again!"
 

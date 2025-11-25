@@ -31,9 +31,7 @@ from nemoguardrails.rails.llm.llmrails import GenerationResponse
 
 
 def test_get_and_clear_tool_calls_contextvar():
-    test_tool_calls = [
-        {"name": "test_func", "args": {}, "id": "call_123", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "test_func", "args": {}, "id": "call_123", "type": "tool_call"}]
     tool_calls_var.set(test_tool_calls)
 
     result = get_and_clear_tool_calls_contextvar()
@@ -149,9 +147,7 @@ def test_convert_messages_to_langchain_format_unknown_type():
 def test_store_tool_calls():
     """Test storing tool calls from response."""
     mock_response = MagicMock()
-    test_tool_calls = [
-        {"name": "another_func", "args": {}, "id": "call_789", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "another_func", "args": {}, "id": "call_789", "type": "tool_call"}]
     mock_response.tool_calls = test_tool_calls
 
     _store_tool_calls(mock_response)
@@ -228,9 +224,7 @@ async def test_llm_call_stores_tool_calls():
     mock_llm = AsyncMock()
     mock_response = MagicMock()
     mock_response.content = "Response with tools"
-    test_tool_calls = [
-        {"name": "test", "args": {}, "id": "call_test", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "test", "args": {}, "id": "call_test", "type": "tool_call"}]
     mock_response.tool_calls = test_tool_calls
     mock_llm.ainvoke.return_value = mock_response
 
@@ -317,12 +311,8 @@ async def test_llm_call_with_none_llm_and_params():
 
 def test_generation_response_tool_calls_field():
     """Test that GenerationResponse can store tool calls."""
-    test_tool_calls = [
-        {"name": "test_function", "args": {}, "id": "call_test", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "test_function", "args": {}, "id": "call_test", "type": "tool_call"}]
 
-    response = GenerationResponse(
-        response=[{"role": "assistant", "content": "Hello"}], tool_calls=test_tool_calls
-    )
+    response = GenerationResponse(response=[{"role": "assistant", "content": "Hello"}], tool_calls=test_tool_calls)
 
     assert response.tool_calls == test_tool_calls

@@ -62,9 +62,7 @@ async def retrieve_relevant_chunks(
 
         context_updates["retrieved_for"] = user_message
 
-        chunks = [
-            chunk["body"] for chunk in await kb.search_relevant_chunks(user_message)
-        ]
+        chunks = [chunk["body"] for chunk in await kb.search_relevant_chunks(user_message)]
 
         context_updates["relevant_chunks"] = "\n".join(chunks)
         context_updates["relevant_chunks_sep"] = chunks
@@ -72,18 +70,12 @@ async def retrieve_relevant_chunks(
     else:
         # No KB is set up, we keep the existing relevant_chunks if we have them.
         if is_colang_2:
-            context_updates["relevant_chunks"] = (
-                context.get("relevant_chunks", "") if context else None
-            )
+            context_updates["relevant_chunks"] = context.get("relevant_chunks", "") if context else None
             if context_updates["relevant_chunks"]:
                 context_updates["relevant_chunks"] += "\n"
         else:
-            context_updates["relevant_chunks"] = (
-                (context.get("relevant_chunks", "") + "\n") if context else None
-            )
-        context_updates["relevant_chunks_sep"] = (
-            context.get("relevant_chunks_sep", []) if context else None
-        )
+            context_updates["relevant_chunks"] = (context.get("relevant_chunks", "") + "\n") if context else None
+        context_updates["relevant_chunks_sep"] = context.get("relevant_chunks_sep", []) if context else None
         context_updates["retrieved_for"] = None
 
     return ActionResult(

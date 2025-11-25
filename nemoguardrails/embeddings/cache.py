@@ -200,9 +200,7 @@ class RedisCacheStore(CacheStore):
 
     def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0):
         if redis is None:
-            raise ImportError(
-                "Could not import redis, please install it with `pip install redis`."
-            )
+            raise ImportError("Could not import redis, please install it with `pip install redis`.")
         self._redis = redis.Redis(host=host, port=port, db=db)
 
     def get(self, key):
@@ -230,9 +228,7 @@ class EmbeddingsCache:
     def from_dict(cls, d: Dict[str, str]):
         key_generator = KeyGenerator.from_name(d.get("key_generator"))()
         store_config_raw = d.get("store_config")
-        store_config: dict = (
-            store_config_raw if isinstance(store_config_raw, dict) else {}
-        )
+        store_config: dict = store_config_raw if isinstance(store_config_raw, dict) else {}
         cache_store = CacheStore.from_name(d.get("store"))(**store_config)
 
         return cls(key_generator=key_generator, cache_store=cache_store)

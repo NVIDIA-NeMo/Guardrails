@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 from nemoguardrails.actions import action
 from nemoguardrails.actions.output_mapping import (
     default_output_mapping,

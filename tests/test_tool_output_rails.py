@@ -35,10 +35,7 @@ async def validate_tool_parameters(tool_calls, context=None, **kwargs):
         args = tool_call.get("args", {})
         for param_value in args.values():
             if isinstance(param_value, str):
-                if any(
-                    pattern.lower() in param_value.lower()
-                    for pattern in dangerous_patterns
-                ):
+                if any(pattern.lower() in param_value.lower() for pattern in dangerous_patterns):
                     return False
     return True
 
@@ -48,10 +45,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
     """Test implementation of tool call validation."""
     tool_calls = tool_calls or (context.get("tool_calls", []) if context else [])
 
-    return all(
-        isinstance(call, dict) and "name" in call and "id" in call
-        for call in tool_calls
-    )
+    return all(isinstance(call, dict) and "name" in call and "id" in call for call in tool_calls)
 
 
 @pytest.mark.asyncio
@@ -90,23 +84,15 @@ async def test_tool_output_rails_basic():
         """,
     )
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
 
-        chat.app.runtime.register_action(
-            validate_tool_parameters, name="validate_tool_parameters"
-        )
-        chat.app.runtime.register_action(
-            self_check_tool_calls, name="self_check_tool_calls"
-        )
+        chat.app.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+        chat.app.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
 
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Use allowed tool"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use allowed tool"}])
 
         # Tool should be allowed through
         assert result["tool_calls"] is not None
@@ -165,12 +151,8 @@ async def test_tool_output_rails_blocking():
 
     rails = RunnableRails(config, llm=MockLLMWithDangerousTool())
 
-    rails.rails.runtime.register_action(
-        validate_tool_parameters, name="validate_tool_parameters"
-    )
-    rails.rails.runtime.register_action(
-        self_check_tool_calls, name="self_check_tool_calls"
-    )
+    rails.rails.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+    rails.rails.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
 
     result = await rails.ainvoke(HumanMessage(content="Use dangerous tool"))
 
@@ -221,23 +203,15 @@ async def test_multiple_tool_output_rails():
         """,
     )
 
-    with patch(
-        "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-    ) as mock_get_clear:
+    with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
         mock_get_clear.return_value = test_tool_calls
 
         chat = TestChat(config, llm_completions=[""])
 
-        chat.app.runtime.register_action(
-            validate_tool_parameters, name="validate_tool_parameters"
-        )
-        chat.app.runtime.register_action(
-            self_check_tool_calls, name="self_check_tool_calls"
-        )
+        chat.app.runtime.register_action(validate_tool_parameters, name="validate_tool_parameters")
+        chat.app.runtime.register_action(self_check_tool_calls, name="self_check_tool_calls")
 
-        result = await chat.app.generate_async(
-            messages=[{"role": "user", "content": "Use test tool"}]
-        )
+        result = await chat.app.generate_async(messages=[{"role": "user", "content": "Use test tool"}])
 
         assert result["tool_calls"] is not None
         assert result["tool_calls"][0]["name"] == "test_tool"

@@ -49,13 +49,9 @@ class GuardResult(BaseModel):
         reason (str): Explanation for the chosen action. Must be a non-empty string.
     """
 
-    action: Literal["Block", "Allow"] = Field(
-        ..., description="Action to take based on " "guard analysis"
-    )
+    action: Literal["Block", "Allow"] = Field(..., description="Action to take based on guard analysis")
     reason: str = Field(..., min_length=1, description="Explanation for the action")
-    blocked: bool = Field(
-        default=False, description="True if action is 'Block', else False"
-    )
+    blocked: bool = Field(default=False, description="True if action is 'Block', else False")
 
     @validator("action")
     def validate_action(cls, v):
@@ -83,10 +79,7 @@ def get_config(config: RailsConfig) -> TrendMicroRailConfig:
         TrendMicroRailConfig: The Trend Micro configuration, either from the provided
         config or a default instance.
     """
-    if (
-        not hasattr(config.rails.config, "trend_micro")
-        or config.rails.config.trend_micro is None
-    ):
+    if not hasattr(config.rails.config, "trend_micro") or config.rails.config.trend_micro is None:
         return TrendMicroRailConfig()
 
     return cast(TrendMicroRailConfig, config.rails.config.trend_micro)

@@ -477,11 +477,7 @@ def create_clavata_response(
             results=[
                 Result(
                     report=Report(
-                        result=(
-                            "OUTCOME_FAILED"
-                            if failed
-                            else ("OUTCOME_TRUE" if labels else "OUTCOME_FALSE")
-                        ),
+                        result=("OUTCOME_FAILED" if failed else ("OUTCOME_TRUE" if labels else "OUTCOME_FALSE")),
                         sectionEvaluationReports=[
                             SectionReport(
                                 name=lbl,

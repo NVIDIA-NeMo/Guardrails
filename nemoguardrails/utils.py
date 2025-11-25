@@ -79,9 +79,7 @@ def _has_property(e: Dict[str, Any], p: Property) -> bool:
 
 _event_validators = [
     Validator("Events need to provide 'type'", lambda e: "type" in e),
-    Validator(
-        "Events need to provide 'uid'", lambda e: _has_property(e, Property("uid", str))
-    ),
+    Validator("Events need to provide 'uid'", lambda e: _has_property(e, Property("uid", str))),
     Validator(
         "Events need to provide 'event_created_at' of type 'str'",
         lambda e: _has_property(e, Property("event_created_at", str)),
@@ -92,38 +90,31 @@ _event_validators = [
     ),
     Validator(
         "***Action events need to provide an 'action_uid' of type 'str'",
-        lambda e: "Action" not in e["type"]
-        or _has_property(e, Property("action_uid", str)),
+        lambda e: "Action" not in e["type"] or _has_property(e, Property("action_uid", str)),
     ),
     Validator(
         "***ActionFinished events require 'action_finished_at' field of type 'str'",
-        lambda e: "ActionFinished" not in e["type"]
-        or _has_property(e, Property("action_finished_at", str)),
+        lambda e: "ActionFinished" not in e["type"] or _has_property(e, Property("action_finished_at", str)),
     ),
     Validator(
         "***ActionFinished events require 'is_success' field of type 'bool'",
-        lambda e: "ActionFinished" not in e["type"]
-        or _has_property(e, Property("is_success", bool)),
+        lambda e: "ActionFinished" not in e["type"] or _has_property(e, Property("is_success", bool)),
     ),
     Validator(
         "Unsuccessful ***ActionFinished events need to provide 'failure_reason'.",
-        lambda e: "ActionFinished" not in e["type"]
-        or (e["is_success"] or "failure_reason" in e),
+        lambda e: "ActionFinished" not in e["type"] or (e["is_success"] or "failure_reason" in e),
     ),
     Validator(
         "***StartUtteranceBotAction events need to provide 'script' of type 'str'",
-        lambda e: e["type"] != "StartUtteranceBotAction"
-        or _has_property(e, Property("script", str)),
+        lambda e: e["type"] != "StartUtteranceBotAction" or _has_property(e, Property("script", str)),
     ),
     Validator(
         "***UtteranceBotActionScriptUpdated events need to provide 'interim_script' of type 'str'",
-        lambda e: e["type"] != "UtteranceBotActionScriptUpdated "
-        or _has_property(e, Property("interim_script", str)),
+        lambda e: e["type"] != "UtteranceBotActionScriptUpdated " or _has_property(e, Property("interim_script", str)),
     ),
     Validator(
         "***UtteranceBotActionFinished events need to provide 'final_script' of type 'str'",
-        lambda e: e["type"] != "UtteranceBotActionFinished"
-        or _has_property(e, Property("final_script", str)),
+        lambda e: e["type"] != "UtteranceBotActionFinished" or _has_property(e, Property("final_script", str)),
     ),
     Validator(
         "***UtteranceUserActionTranscriptUpdated events need to provide 'interim_transcript' of type 'str'",
@@ -132,8 +123,7 @@ _event_validators = [
     ),
     Validator(
         "***UtteranceUserActionFinished events need to provide 'final_transcript' of type 'str'",
-        lambda e: e["type"] != "UtteranceUserActionFinished"
-        or _has_property(e, Property("final_transcript", str)),
+        lambda e: e["type"] != "UtteranceUserActionFinished" or _has_property(e, Property("final_transcript", str)),
     ),
 ]
 
@@ -174,11 +164,7 @@ def _update_action_properties(event_dict: Dict[str, Any]) -> None:
         event_dict.setdefault("action_updated_at", now)
     elif "Finished" in event_dict["type"]:
         event_dict.setdefault("action_finished_at", now)
-        if (
-            "is_success" in event_dict
-            and event_dict["is_success"]
-            and "failure_reason" in event_dict
-        ):
+        if "is_success" in event_dict and event_dict["is_success"] and "failure_reason" in event_dict:
             del event_dict["failure_reason"]
 
 
@@ -362,9 +348,7 @@ def get_railsignore_patterns(railsignore_path: Path) -> Set[str]:
 
         # Remove comments and empty lines, and strip out any extra spaces/newlines
         railsignore_entries = [
-            line.strip()
-            for line in railsignore_entries
-            if line.strip() and not line.startswith("#")
+            line.strip() for line in railsignore_entries if line.strip() and not line.startswith("#")
         ]
 
         ignored_patterns.update(railsignore_entries)

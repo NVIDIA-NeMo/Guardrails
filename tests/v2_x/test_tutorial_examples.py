@@ -22,9 +22,7 @@ ROOT_FOLDER = os.path.join(os.path.dirname(__file__), "..", "..")
 
 
 def test_hello_world_1():
-    config = RailsConfig.from_path(
-        os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "hello_world_1")
-    )
+    config = RailsConfig.from_path(os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "hello_world_1"))
     chat = TestChat(
         config,
         llm_completions=[],
@@ -35,9 +33,7 @@ def test_hello_world_1():
 
 
 def test_hello_world_2():
-    config = RailsConfig.from_path(
-        os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "hello_world_2")
-    )
+    config = RailsConfig.from_path(os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "hello_world_2"))
     chat = TestChat(
         config,
         llm_completions=[],
@@ -48,9 +44,7 @@ def test_hello_world_2():
 
 
 def test_hello_world_3():
-    config = RailsConfig.from_path(
-        os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "hello_world_3")
-    )
+    config = RailsConfig.from_path(os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "hello_world_3"))
     chat = TestChat(
         config,
         llm_completions=[" user expressed greeting"],
@@ -61,9 +55,7 @@ def test_hello_world_3():
 
 
 def test_guardrails_1():
-    config = RailsConfig.from_path(
-        os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "guardrails_1")
-    )
+    config = RailsConfig.from_path(os.path.join(ROOT_FOLDER, "examples", "v2_x", "tutorial", "guardrails_1"))
     chat = TestChat(
         config,
         llm_completions=["True", "False"],

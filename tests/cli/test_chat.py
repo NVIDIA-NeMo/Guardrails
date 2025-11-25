@@ -109,13 +109,11 @@ class TestChatState:
 
 class TestRunChat:
     def test_run_chat_v1_0(self):
-        with patch.object(
-            chat_module, "RailsConfig"
-        ) as mock_rails_config, patch.object(
-            chat_module, "LLMRails"
-        ) as mock_llm_rails, patch(
-            "asyncio.run"
-        ) as mock_asyncio_run:
+        with (
+            patch.object(chat_module, "RailsConfig") as mock_rails_config,
+            patch.object(chat_module, "LLMRails") as mock_llm_rails,
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
             mock_config = MagicMock()
             mock_config.colang_version = "1.0"
             mock_rails_config.from_path.return_value = mock_config
@@ -126,13 +124,11 @@ class TestRunChat:
             mock_asyncio_run.assert_called_once()
 
     def test_run_chat_v2_x(self):
-        with patch.object(
-            chat_module, "RailsConfig"
-        ) as mock_rails_config, patch.object(
-            chat_module, "LLMRails"
-        ) as mock_llm_rails, patch.object(
-            chat_module, "get_or_create_event_loop"
-        ) as mock_get_loop:
+        with (
+            patch.object(chat_module, "RailsConfig") as mock_rails_config,
+            patch.object(chat_module, "LLMRails") as mock_llm_rails,
+            patch.object(chat_module, "get_or_create_event_loop") as mock_get_loop,
+        ):
             mock_config = MagicMock()
             mock_config.colang_version = "2.x"
             mock_rails_config.from_path.return_value = mock_config
@@ -156,9 +152,11 @@ class TestRunChat:
                 run_chat(config_path="test_config")
 
     def test_run_chat_verbose_with_llm_calls(self):
-        with patch.object(chat_module, "RailsConfig") as mock_rails_config, patch(
-            "asyncio.run"
-        ) as mock_asyncio_run, patch.object(chat_module, "console") as mock_console:
+        with (
+            patch.object(chat_module, "RailsConfig") as mock_rails_config,
+            patch("asyncio.run") as mock_asyncio_run,
+            patch.object(chat_module, "console") as mock_console,
+        ):
             mock_config = MagicMock()
             mock_config.colang_version = "1.0"
             mock_rails_config.from_path.return_value = mock_config
@@ -166,8 +164,7 @@ class TestRunChat:
             run_chat(config_path="test_config", verbose=True, verbose_llm_calls=True)
 
             mock_console.print.assert_any_call(
-                "NOTE: use the `--verbose-no-llm` option to exclude the LLM prompts "
-                "and completions from the log.\n"
+                "NOTE: use the `--verbose-no-llm` option to exclude the LLM prompts and completions from the log.\n"
             )
 
 
@@ -183,9 +180,7 @@ class TestRunChatV1Async:
     @patch("builtins.input")
     @patch.object(chat_module, "LLMRails")
     @patch.object(chat_module, "RailsConfig")
-    async def test_run_chat_v1_local_config(
-        self, mock_rails_config, mock_llm_rails, mock_input
-    ):
+    async def test_run_chat_v1_local_config(self, mock_rails_config, mock_llm_rails, mock_input):
         from nemoguardrails.cli.chat import _run_chat_v1_0
 
         mock_config = MagicMock()
@@ -193,9 +188,7 @@ class TestRunChatV1Async:
         mock_rails_config.from_path.return_value = mock_config
 
         mock_rails = AsyncMock()
-        mock_rails.generate_async = AsyncMock(
-            return_value={"role": "assistant", "content": "Hello!"}
-        )
+        mock_rails.generate_async = AsyncMock(return_value={"role": "assistant", "content": "Hello!"})
         mock_rails.main_llm_supports_streaming = False
         mock_llm_rails.return_value = mock_rails
 
@@ -233,8 +226,7 @@ class TestRunChatV1Async:
             pass
 
         mock_console.print.assert_any_call(
-            "WARNING: The config `test_config` does not support streaming. "
-            "Falling back to normal mode."
+            "WARNING: The config `test_config` does not support streaming. Falling back to normal mode."
         )
 
     @pytest.mark.asyncio
@@ -246,11 +238,7 @@ class TestRunChatV1Async:
         mock_session = AsyncMock()
         mock_response = AsyncMock()
         mock_response.headers = {}
-        mock_response.json = AsyncMock(
-            return_value={
-                "messages": [{"role": "assistant", "content": "Server response"}]
-            }
-        )
+        mock_response.json = AsyncMock(return_value={"messages": [{"role": "assistant", "content": "Server response"}]})
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.__aexit__ = AsyncMock()
 
@@ -259,17 +247,13 @@ class TestRunChatV1Async:
         mock_post_context.__aexit__ = AsyncMock()
         mock_session.post = MagicMock(return_value=mock_post_context)
 
-        mock_client_session.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
-        )
+        mock_client_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_client_session.return_value.__aexit__ = AsyncMock()
 
         mock_input.side_effect = ["test message", KeyboardInterrupt()]
 
         try:
-            await _run_chat_v1_0(
-                server_url="http://localhost:8000", config_id="test_id"
-            )
+            await _run_chat_v1_0(server_url="http://localhost:8000", config_id="test_id")
         except KeyboardInterrupt:
             pass
 
@@ -303,17 +287,13 @@ class TestRunChatV1Async:
         mock_post_context.__aexit__ = AsyncMock()
         mock_session.post = MagicMock(return_value=mock_post_context)
 
-        mock_client_session.return_value.__aenter__ = AsyncMock(
-            return_value=mock_session
-        )
+        mock_client_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_client_session.return_value.__aexit__ = AsyncMock()
 
         mock_input.side_effect = ["test message", KeyboardInterrupt()]
 
         try:
-            await _run_chat_v1_0(
-                server_url="http://localhost:8000", config_id="test_id", streaming=True
-            )
+            await _run_chat_v1_0(server_url="http://localhost:8000", config_id="test_id", streaming=True)
         except KeyboardInterrupt:
             pass
 

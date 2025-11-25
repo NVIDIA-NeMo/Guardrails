@@ -96,9 +96,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         # Verify start_time is a reasonable absolute timestamp in nanoseconds
         start_time_ns = call_args[1]["start_time"]
         self.assertIsInstance(start_time_ns, int)
-        self.assertGreater(
-            start_time_ns, 1e15
-        )  # Should be realistic Unix timestamp in ns
+        self.assertGreater(start_time_ns, 1e15)  # Should be realistic Unix timestamp in ns
 
         # V1 span metrics are set directly without prefix
         mock_span.set_attribute.assert_any_call("key", 123)
@@ -113,9 +111,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
         # Verify duration is approximately correct (allowing for conversion precision)
         duration_ns = end_time_ns - start_time_ns
         expected_duration_ns = int(1.0 * 1_000_000_000)  # 1 second
-        self.assertAlmostEqual(
-            duration_ns, expected_duration_ns, delta=1000000
-        )  # 1ms tolerance
+        self.assertAlmostEqual(duration_ns, expected_duration_ns, delta=1000000)  # 1ms tolerance
 
     def test_transform_span_attributes_various_types(self):
         """Test that different attribute types are handled correctly."""
@@ -229,9 +225,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             ],
         )
 
-        with patch(
-            "opentelemetry.trace.set_span_in_context"
-        ) as mock_set_span_in_context:
+        with patch("opentelemetry.trace.set_span_in_context") as mock_set_span_in_context:
             mock_set_span_in_context.return_value = "parent_context"
 
             self.adapter.transform(interaction_log)
@@ -244,22 +238,16 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
             # Verify start_time is a reasonable absolute timestamp
             start_time_ns = first_call[1]["start_time"]
             self.assertIsInstance(start_time_ns, int)
-            self.assertGreater(
-                start_time_ns, 1e15
-            )  # Should be realistic Unix timestamp in ns
+            self.assertGreater(start_time_ns, 1e15)  # Should be realistic Unix timestamp in ns
 
             # verify child span created with parent context
             second_call = self.mock_tracer.start_span.call_args_list[1]
             self.assertEqual(second_call[0][0], "child_span")  # name
-            self.assertEqual(
-                second_call[1]["context"], "parent_context"
-            )  # parent context
+            self.assertEqual(second_call[1]["context"], "parent_context")  # parent context
             # Verify child start_time is also a reasonable absolute timestamp
             child_start_time_ns = second_call[1]["start_time"]
             self.assertIsInstance(child_start_time_ns, int)
-            self.assertGreater(
-                child_start_time_ns, 1e15
-            )  # Should be realistic Unix timestamp in ns
+            self.assertGreater(child_start_time_ns, 1e15)  # Should be realistic Unix timestamp in ns
 
             # verify parent context was set correctly
             mock_set_span_in_context.assert_called_once_with(parent_mock_span)
@@ -375,9 +363,7 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
                 self.assertEqual(len(w), 1)
                 self.assertTrue(issubclass(w[0].category, UserWarning))
-                self.assertIn(
-                    "No OpenTelemetry TracerProvider configured", str(w[0].message)
-                )
+                self.assertIn("No OpenTelemetry TracerProvider configured", str(w[0].message))
                 self.assertIn("Traces will not be exported", str(w[0].message))
 
     def test_no_warnings_with_proper_configuration(self):

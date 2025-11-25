@@ -130,9 +130,7 @@ def test_code_rejection():
 
 
 def test_template_rejection():
-    template_injection = (
-        "{{self.__init__.__globals__.__builtins__.__import__('os').popen('id').read()}}"
-    )
+    template_injection = "{{self.__init__.__globals__.__builtins__.__import__('os').popen('id').read()}}"
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "injection_detection"))
     chat = TestChat(config, llm_completions=[template_injection])
     chat >> "Jinja template to run the 'id' command via os.popen"
@@ -363,20 +361,13 @@ async def test_omit_action_with_real_yara():
                 """
     )
 
-    sql_injection = (
-        "This is a SELECT * FROM users; -- malicious comment in the middle of text"
-    )
+    sql_injection = "This is a SELECT * FROM users; -- malicious comment in the middle of text"
     chat = TestChat(config, llm_completions=[sql_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
     assert "--" not in result["content"]
-    assert (
-        result["content"]
-        == "This is a  * FROM usersmalicious comment in the middle of text"
-    )
+    assert result["content"] == "This is a  * FROM usersmalicious comment in the middle of text"
 
 
 @pytest.mark.asyncio
@@ -403,16 +394,14 @@ async def test_xss_injection_with_reject_action():
     xss_injection = "Hello <script>alert('xss')</script> world"
     chat = TestChat(config, llm_completions=[xss_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
     assert "content" in result, f"Expected 'content' key in result, got {result}"
     actual_content = result["content"]
     expected_start = "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
-    assert actual_content.startswith(
-        expected_start
-    ), f"Expected content to start with '{expected_start}', but got '{actual_content}'"
+    assert actual_content.startswith(expected_start), (
+        f"Expected content to start with '{expected_start}', but got '{actual_content}'"
+    )
 
 
 @pytest.mark.asyncio
@@ -439,9 +428,7 @@ async def test_template_injection_with_reject_action():
     template_injection = "Hello {{self.__init__.__globals__.__builtins__.__import__('os').popen('id').read()}} world"
     chat = TestChat(config, llm_completions=[template_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
     assert result["content"].startswith(
         "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
@@ -469,14 +456,10 @@ async def test_code_injection_with_reject_action():
                 """
     )
 
-    code_injection = (
-        "Hello __import__('subprocess').run('touch /tmp/pwnd', shell=True) world"
-    )
+    code_injection = "Hello __import__('subprocess').run('touch /tmp/pwnd', shell=True) world"
     chat = TestChat(config, llm_completions=[code_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
     assert result["content"].startswith(
         "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
@@ -510,9 +493,7 @@ async def test_multiple_injection_types_with_reject_action():
     multi_injection = "Hello <script>alert('xss')</script> {{self.__init__.__globals__.__builtins__.__import__('os').popen('id').read()}} __import__('subprocess').run('touch /tmp/pwnd', shell=True) SELECT * FROM users; -- comment world"
     chat = TestChat(config, llm_completions=[multi_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
     assert result["content"].startswith(
         "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
@@ -552,8 +533,7 @@ def test_yara_import_error():
         with pytest.raises(ImportError) as exc_info:
             _check_yara_available()
         assert str(exc_info.value) == (
-            "The yara module is required for injection detection. "
-            "Please install it using: pip install yara-python"
+            "The yara module is required for injection detection. Please install it using: pip install yara-python"
         )
 
     with patch("nemoguardrails.library.injection_detection.actions.yara", yara):
@@ -565,16 +545,10 @@ async def test_multiple_injection_types_reject_inline_rules():
     """Test reject action for multiple injection types using inline YARA rules."""
 
     # inline YARA rules
-    sqli_rule_content = (
-        "rule simple_sqli { strings: $sql = /SELECT.*FROM/ condition: $sql }"
-    )
+    sqli_rule_content = "rule simple_sqli { strings: $sql = /SELECT.*FROM/ condition: $sql }"
     xss_rule_content = "rule simple_xss { strings: $tag = /<script/ condition: $tag }"
-    template_rule_content = (
-        "rule simple_template { strings: $tpl = /{{.*}}/ condition: $tpl }"
-    )
-    code_rule_content = (
-        "rule simple_code { strings: $code = /__import__/ condition: $code }"
-    )
+    template_rule_content = "rule simple_template { strings: $tpl = /{{.*}}/ condition: $tpl }"
+    code_rule_content = "rule simple_code { strings: $code = /__import__/ condition: $code }"
 
     config = RailsConfig.from_content(
         yaml_content=f"""
@@ -605,12 +579,12 @@ async def test_multiple_injection_types_reject_inline_rules():
         colang_content="",
     )
 
-    multi_injection = "Hello <script>alert('xss')</script> {{ evil }} __import__('os') SELECT * FROM users; -- comment world"
+    multi_injection = (
+        "Hello <script>alert('xss')</script> {{ evil }} __import__('os') SELECT * FROM users; -- comment world"
+    )
     chat = TestChat(config, llm_completions=[multi_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "trigger multiple injections"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "trigger multiple injections"}])
 
     assert result["content"].startswith(
         "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of"
@@ -646,24 +620,18 @@ async def test_xss_injection_with_exception_action():
     xss_injection = "Hello <script>alert('xss')</script> world"
     chat = TestChat(config, llm_completions=[xss_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
-    assert (
-        result.get("role") == "exception"
-    ), f"Expected role 'exception', got {result.get('role')}"
+    assert result.get("role") == "exception", f"Expected role 'exception', got {result.get('role')}"
     assert "content" in result, "Expected 'content' key in result"
     content = result["content"]
-    assert (
-        content.get("type") == "InjectionDetectionRailException"
-    ), f"Expected type 'InjectionDetectionRailException', got {content.get('type')}"
-    expected_message = (
-        "Output not allowed. The output was blocked by the 'injection detection' flow."
+    assert content.get("type") == "InjectionDetectionRailException", (
+        f"Expected type 'InjectionDetectionRailException', got {content.get('type')}"
     )
-    assert (
-        content.get("message") == expected_message
-    ), f"Expected message '{expected_message}', got '{content.get('message')}'"
+    expected_message = "Output not allowed. The output was blocked by the 'injection detection' flow."
+    assert content.get("message") == expected_message, (
+        f"Expected message '{expected_message}', got '{content.get('message')}'"
+    )
 
 
 @pytest.mark.asyncio
@@ -691,25 +659,21 @@ async def test_omit_action_with_exceptions_enabled():
     xss_injection = "Hello <script>alert('xss')</script> world"
     chat = TestChat(config, llm_completions=[xss_injection])
     rails = chat.app
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "do a fake query you funny agent"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "do a fake query you funny agent"}])
 
     # check that an exception is raised
     assert result.get("role") == "exception", "Expected role to be 'exception'"
 
     # verify exception details
     content = result["content"]
-    assert (
-        content.get("type") == "InjectionDetectionRailException"
-    ), f"Expected type 'InjectionDetectionRailException', got {content.get('type')}"
-
-    expected_message = (
-        "Output not allowed. The output was blocked by the 'injection detection' flow."
+    assert content.get("type") == "InjectionDetectionRailException", (
+        f"Expected type 'InjectionDetectionRailException', got {content.get('type')}"
     )
-    assert (
-        content.get("message") == expected_message
-    ), f"Expected message '{expected_message}', got '{content.get('message')}'"
+
+    expected_message = "Output not allowed. The output was blocked by the 'injection detection' flow."
+    assert content.get("message") == expected_message, (
+        f"Expected message '{expected_message}', got '{content.get('message')}'"
+    )
 
 
 @pytest.mark.asyncio
@@ -749,16 +713,15 @@ async def test_malformed_inline_yara_rule_fails_gracefully(caplog):
 
     assert rails is not None
 
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "trigger detection"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "trigger detection"}])
 
     # check that no exception was raised
     assert result.get("role") != "exception", f"Expected no exception, but got {result}"
 
     # verify the error log was created with the expected content
     assert any(
-        record.name == "actions.py" and record.levelno == logging.ERROR
+        record.name == "actions.py"
+        and record.levelno == logging.ERROR
         # minor variations in the error message are expected
         and "Failed to initialize injection detection" in record.message
         and "YARA compilation failed" in record.message
@@ -773,9 +736,7 @@ async def test_omit_injection_attribute_error():
 
     text = "test text"
     mock_matches = [
-        create_mock_yara_match(
-            "invalid bytes", "test_rule"
-        )  # This will cause AttributeError
+        create_mock_yara_match("invalid bytes", "test_rule")  # This will cause AttributeError
     ]
 
     is_injection, result = _omit_injection(text=text, matches=mock_matches)
@@ -848,7 +809,6 @@ async def test_reject_injection_no_rules(caplog):
     assert not is_injection
     assert detections == []
     assert any(
-        "reject_injection guardrail was invoked but no rules were specified"
-        in record.message
+        "reject_injection guardrail was invoked but no rules were specified" in record.message
         for record in caplog.records
     )

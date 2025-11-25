@@ -126,12 +126,8 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         spans: Dict[str, Any] = {}
 
         for span_data in interaction_log.trace:
-            parent_span = (
-                spans.get(span_data.parent_id) if span_data.parent_id else None
-            )
-            parent_context = (
-                trace.set_span_in_context(parent_span) if parent_span else None
-            )
+            parent_span = spans.get(span_data.parent_id) if span_data.parent_id else None
+            parent_context = trace.set_span_in_context(parent_span) if parent_span else None
 
             self._create_span(
                 span_data,
@@ -149,12 +145,8 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
         spans: Dict[str, Any] = {}
 
         for span_data in interaction_log.trace:
-            parent_span = (
-                spans.get(span_data.parent_id) if span_data.parent_id else None
-            )
-            parent_context = (
-                trace.set_span_in_context(parent_span) if parent_span else None
-            )
+            parent_span = spans.get(span_data.parent_id) if span_data.parent_id else None
+            parent_context = trace.set_span_in_context(parent_span) if parent_span else None
             self._create_span(
                 span_data,
                 parent_context,
@@ -227,9 +219,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
                         if body_key not in event_attrs:
                             event_attrs[body_key] = body_value
 
-                span.add_event(
-                    name=event.name, attributes=event_attrs, timestamp=event_time_ns
-                )
+                span.add_event(name=event.name, attributes=event_attrs, timestamp=event_time_ns)
 
         spans[span_data.span_id] = span
 
@@ -245,10 +235,7 @@ def _get_base_time_ns(interaction_log: InteractionLog) -> int:
     Returns:
         Base time in nanoseconds, either from the first activated rail or current time
     """
-    if (
-        interaction_log.activated_rails
-        and interaction_log.activated_rails[0].started_at
-    ):
+    if interaction_log.activated_rails and interaction_log.activated_rails[0].started_at:
         return int(interaction_log.activated_rails[0].started_at * 1_000_000_000)
     else:
         # This shouldn't happen in normal operation, but provide a fallback

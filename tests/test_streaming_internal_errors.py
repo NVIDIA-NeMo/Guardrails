@@ -45,10 +45,7 @@ def find_internal_error_chunks(chunks):
     for chunk in chunks:
         try:
             parsed = json.loads(chunk)
-            if (
-                "error" in parsed
-                and parsed["error"].get("code") == "rail_execution_failure"
-            ):
+            if "error" in parsed and parsed["error"].get("code") == "rail_execution_failure":
                 error_chunks.append(parsed)
         except JSONDecodeError:
             continue
@@ -96,24 +93,19 @@ async def test_streaming_action_execution_failure():
     chat = TestChat(config, llm_completions=llm_completions, streaming=True)
     chat.app.register_action(failing_rail_action)
 
-    chunks = await collect_streaming_chunks(
-        chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}])
-    )
+    chunks = await collect_streaming_chunks(chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]))
 
     internal_error_chunks = find_internal_error_chunks(chunks)
-    assert (
-        len(internal_error_chunks) == 1
-    ), f"Expected exactly one internal error chunk, got {len(internal_error_chunks)}"
+    assert len(internal_error_chunks) == 1, (
+        f"Expected exactly one internal error chunk, got {len(internal_error_chunks)}"
+    )
 
     error = internal_error_chunks[0]
     assert error["error"]["type"] == "internal_error"
     assert error["error"]["code"] == "rail_execution_failure"
     assert "Internal error" in error["error"]["message"]
     assert "failing safety check" in error["error"]["message"]
-    assert (
-        "Action failing_rail_action failed with status: failed"
-        in error["error"]["message"]
-    )
+    assert "Action failing_rail_action failed with status: failed" in error["error"]["message"]
     assert error["error"]["param"] == "failing safety check"
 
 
@@ -158,9 +150,7 @@ async def test_streaming_internal_error_format():
     chat = TestChat(config, llm_completions=llm_completions, streaming=True)
     chat.app.register_action(test_failing_action)
 
-    chunks = await collect_streaming_chunks(
-        chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}])
-    )
+    chunks = await collect_streaming_chunks(chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]))
 
     internal_error_chunks = find_internal_error_chunks(chunks)
     assert len(internal_error_chunks) == 1

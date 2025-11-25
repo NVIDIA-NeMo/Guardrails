@@ -81,9 +81,7 @@ async def self_check_facts(
     if llm_task_manager.has_output_parser(task):
         result = llm_task_manager.parse_task_output(task, output=response)
     else:
-        result = llm_task_manager.parse_task_output(
-            task, output=response, forced_output_parser="is_content_safe"
-        )
+        result = llm_task_manager.parse_task_output(task, output=response, forced_output_parser="is_content_safe")
 
     is_not_safe = result[0]
 

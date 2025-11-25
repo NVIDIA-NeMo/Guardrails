@@ -68,9 +68,7 @@ def test_chat_prompt_with_history():
 
     chain = prompt | model_with_rails
 
-    result = chain.invoke(
-        {"history": history, "question": "What's the capital of France?"}
-    )
+    result = chain.invoke({"history": history, "question": "What's the capital of France?"})
 
     assert isinstance(result, AIMessage)
     assert result.content == "Paris."

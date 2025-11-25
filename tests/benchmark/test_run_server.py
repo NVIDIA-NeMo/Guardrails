@@ -51,9 +51,7 @@ class TestParseArguments:
             assert args.port == 9000
 
     def test_parse_arguments_reload_flag(self):
-        with patch(
-            "sys.argv", ["run_server.py", "--config-file", "test.yaml", "--reload"]
-        ):
+        with patch("sys.argv", ["run_server.py", "--config-file", "test.yaml", "--reload"]):
             args = parse_arguments()
             assert args.reload is True
 

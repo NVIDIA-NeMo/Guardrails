@@ -86,7 +86,9 @@ class TestLLMParamsOpenAI:
         config = RailsConfig.from_path(openai_config_path)
         rails = LLMRails(config, verbose=False)
 
-        prompt = "Say exactly 'Hello World' and nothing else and try to use a random word as a name, e.g Hello NVIDIAN!."
+        prompt = (
+            "Say exactly 'Hello World' and nothing else and try to use a random word as a name, e.g Hello NVIDIAN!."
+        )
 
         response1 = await rails.generate_async(
             messages=[{"role": "user", "content": prompt}],
@@ -168,9 +170,7 @@ class TestLLMParamsOpenAI:
         llm = rails.llm
         prompt = "Say 'test' and nothing else."
 
-        response = await llm_call(
-            llm, prompt, llm_params={"temperature": 0.0, "max_tokens": 5}
-        )
+        response = await llm_call(llm, prompt, llm_params={"temperature": 0.0, "max_tokens": 5})
 
         assert response is not None
         assert len(response) > 0
@@ -281,9 +281,7 @@ class TestLLMParamsNIM:
         llm = rails.llm
         prompt = "Say 'test'."
 
-        response = await llm_call(
-            llm, prompt, llm_params={"temperature": 0.2, "max_tokens": 10}
-        )
+        response = await llm_call(llm, prompt, llm_params={"temperature": 0.2, "max_tokens": 10})
 
         assert response is not None
         assert len(response) > 0
@@ -364,9 +362,7 @@ class TestLLMParamsIntegration:
 
         prompt = "Generate a response."
 
-        response_no_params = await rails.generate_async(
-            messages=[{"role": "user", "content": prompt}]
-        )
+        response_no_params = await rails.generate_async(messages=[{"role": "user", "content": prompt}])
 
         response_with_params = await rails.generate_async(
             messages=[{"role": "user", "content": prompt}],
@@ -414,7 +410,4 @@ class TestLLMParamsIntegration:
 
             error_message = str(exc_info.value)
             assert "temperature" in error_message.lower()
-            assert (
-                "unsupported" in error_message.lower()
-                or "not support" in error_message.lower()
-            )
+            assert "unsupported" in error_message.lower() or "not support" in error_message.lower()

@@ -42,9 +42,7 @@ class FileSystemAdapter(InteractionLogAdapter):
 
     def transform(self, interaction_log: "InteractionLog"):
         """Transforms the InteractionLog into a JSON string."""
-        spans = [
-            format_span_for_filesystem(span_data) for span_data in interaction_log.trace
-        ]
+        spans = [format_span_for_filesystem(span_data) for span_data in interaction_log.trace]
 
         if not interaction_log.trace:
             schema_version = None
@@ -68,9 +66,7 @@ class FileSystemAdapter(InteractionLogAdapter):
                 "aiofiles is required for async file writing. Please install it using `pip install aiofiles`"
             )
 
-        spans = [
-            format_span_for_filesystem(span_data) for span_data in interaction_log.trace
-        ]
+        spans = [format_span_for_filesystem(span_data) for span_data in interaction_log.trace]
 
         if not interaction_log.trace:
             schema_version = None

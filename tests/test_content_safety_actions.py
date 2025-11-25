@@ -107,9 +107,7 @@ async def test_content_safety_check_input_missing_model_name():
     mock_task_manager = MagicMock()
 
     with pytest.raises(ValueError, match="Model name is required"):
-        await content_safety_check_input(
-            llms=llms, llm_task_manager=mock_task_manager, model_name=None, context={}
-        )
+        await content_safety_check_input(llms=llms, llm_task_manager=mock_task_manager, model_name=None, context={})
 
 
 @pytest.mark.asyncio

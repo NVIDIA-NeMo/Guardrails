@@ -104,9 +104,7 @@ class LLMJudgeComplianceChecker:
                 break
 
         if model_config is None:
-            console.print(
-                f"The model `{self.llm_judge_model}` is not defined in the evaluation configuration."
-            )
+            console.print(f"The model `{self.llm_judge_model}` is not defined in the evaluation configuration.")
             exit(1)
 
         model_cls, kwargs = LLMRails.get_model_cls_and_kwargs(model_config)
@@ -211,9 +209,7 @@ class LLMJudgeComplianceChecker:
                         f"[{progress_idx}] [orange][b]Warning[/][/] Policy {policy_id} should not be applicable. "
                         f"However, found compliance value of: {interaction_output.compliance[policy_id]}"
                     )
-                self.print_progress_detail(
-                    f"[{progress_idx}] Policy [bold]{policy_id}[/] not applicable."
-                )
+                self.print_progress_detail(f"[{progress_idx}] Policy [bold]{policy_id}[/] not applicable.")
                 continue
 
             # If it's already been rated, and we're not in force mode, we skip.
@@ -226,9 +222,7 @@ class LLMJudgeComplianceChecker:
                     continue
 
             task_name = "llm_judge_check_single_policy_compliance"
-            task_name_for_policy = (
-                f"llm_judge_check_single_policy_compliance/{policy_id}"
-            )
+            task_name_for_policy = f"llm_judge_check_single_policy_compliance/{policy_id}"
 
             # If we have a specific prompt for the policy, we use that.
             for prompt in self.eval_config.prompts:
@@ -242,15 +236,9 @@ class LLMJudgeComplianceChecker:
             llm_call_info_var.set(llm_call_info)
 
             # Extract the expected output according to this policy, if any
-            expected_output = "\n".join(
-                [" - " + str(item) for item in interaction_set.expected_output]
-            )
+            expected_output = "\n".join([" - " + str(item) for item in interaction_set.expected_output])
             expected_output_for_policy = "\n".join(
-                [
-                    " - " + str(item)
-                    for item in interaction_set.expected_output
-                    if item.policy == policy_id
-                ]
+                [" - " + str(item) for item in interaction_set.expected_output if item.policy == policy_id]
             )
 
             render_context = {
@@ -258,8 +246,7 @@ class LLMJudgeComplianceChecker:
                 "expected_output": expected_output or None,
                 "expected_output_for_policy": expected_output_for_policy or None,
                 "allow_not_applicable": not (
-                    policy_id in implicitly_include_policies
-                    or policy_id in interaction_set.include_policies
+                    policy_id in implicitly_include_policies or policy_id in interaction_set.include_policies
                 ),
             }
 
@@ -271,9 +258,7 @@ class LLMJudgeComplianceChecker:
                 events=interaction_log.events,
                 context=render_context,
             )
-            self.print_progress_detail(
-                f"[{progress_idx}] Checking compliance for [bold]{policy_id}[/]..."
-            )
+            self.print_progress_detail(f"[{progress_idx}] Checking compliance for [bold]{policy_id}[/]...")
 
             if self.verbose:
                 # Only print the prompt before the LLM call when concurrency is 1.
@@ -290,9 +275,7 @@ class LLMJudgeComplianceChecker:
 
                 self.print_completion(result)
 
-                self.print_progress_detail(
-                    f"[{progress_idx}] LLM judge call took {time.time() - t0:.2f} seconds\n"
-                )
+                self.print_progress_detail(f"[{progress_idx}] LLM judge call took {time.time() - t0:.2f} seconds\n")
 
             re_result_compliance = r'\s*Reason: "?([^"]*)"?\nCompliance: "?([^"]*)"?\s*'
             match = re.match(re_result_compliance, result)
@@ -304,9 +287,7 @@ class LLMJudgeComplianceChecker:
                     self.print_prompt(prompt)
                     self.print_completion(result)
 
-                self.progress.print(
-                    "[{progress_idx}] [red]Invalid LLM response. Ignoring.[/]"
-                )
+                self.progress.print("[{progress_idx}] [red]Invalid LLM response. Ignoring.[/]")
             else:
                 reason = match.group(1)
                 compliance = match.group(2)
@@ -319,15 +300,9 @@ class LLMJudgeComplianceChecker:
 
                     # If the interaction was targeting the policy, we don't consider
                     # "n/a" to be a valid evaluation.
-                    if (
-                        policy_id in implicitly_include_policies
-                        or policy_id in interaction_set.include_policies
-                    ):
+                    if policy_id in implicitly_include_policies or policy_id in interaction_set.include_policies:
                         compliance_val = False
-                        reason = (
-                            "!! Judge predicted 'n/a' which is not acceptable. \n"
-                            + reason
-                        )
+                        reason = "!! Judge predicted 'n/a' which is not acceptable. \n" + reason
                 else:
                     # If we're not in verbose mode, we still print the prompt/completion
                     # to provide enough info.
@@ -335,14 +310,10 @@ class LLMJudgeComplianceChecker:
                         self.print_prompt(prompt)
                         self.print_completion(result)
 
-                    self.progress.print(
-                        f"[{progress_idx}] [red]Invalid compliance value '{compliance}'. Ignoring.[/]"
-                    )
+                    self.progress.print(f"[{progress_idx}] [red]Invalid compliance value '{compliance}'. Ignoring.[/]")
                     continue
 
-                self.print_progress_detail(
-                    f"[{progress_idx}] Compliance: {compliance_val}"
-                )
+                self.print_progress_detail(f"[{progress_idx}] Compliance: {compliance_val}")
 
                 compliance_check_id = new_uuid()
 
@@ -360,10 +331,7 @@ class LLMJudgeComplianceChecker:
 
                 # By default, we override any existing value with the new one.
                 # And if there is a difference, we print a warning as well.
-                if (
-                    compliance_val is not None
-                    and compliance_val != interaction_output.compliance.get(policy_id)
-                ):
+                if compliance_val is not None and compliance_val != interaction_output.compliance.get(policy_id):
                     if interaction_output.compliance.get(policy_id) is not None:
                         self.print_progress_detail(
                             f"[{progress_idx}] [red][b]WARNING[/][/] The compliance value for policy {policy_id} "
@@ -374,9 +342,7 @@ class LLMJudgeComplianceChecker:
                     interaction_output.compliance[policy_id] = compliance_val
 
                 interaction_log.compliance_checks.append(
-                    ComplianceCheckLog(
-                        id=compliance_check_id, llm_calls=[llm_call_info]
-                    )
+                    ComplianceCheckLog(id=compliance_check_id, llm_calls=[llm_call_info])
                 )
 
                 has_changed = True
@@ -427,9 +393,7 @@ class LLMJudgeComplianceChecker:
                         has_changed = await self.check_interaction_compliance(
                             interaction_output=interaction_output,
                             interaction_log=id_to_log[interaction_output.id],
-                            interaction_set=id_to_interaction_set[
-                                interaction_output.id.split("/")[0]
-                            ],
+                            interaction_set=id_to_interaction_set[interaction_output.id.split("/")[0]],
                             progress_idx=self.progress_idx,
                         )
 
@@ -447,6 +411,4 @@ class LLMJudgeComplianceChecker:
 
             # We also do one final save at the end
             self.eval_data.update_results_and_logs(output_path)
-            console.print(
-                f"The evaluation for {output_path} took {time.time() - t0:.2f} seconds."
-            )
+            console.print(f"The evaluation for {output_path} took {time.time() - t0:.2f} seconds.")

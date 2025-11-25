@@ -28,6 +28,7 @@ if os.getenv("EMBEDDING_CLASSIFIER_PATH"):
             from nemoguardrails.library.jailbreak_detection.model_based.checks import (
                 check_jailbreak,
             )
+
             JAILBREAK_SETUP_PRESENT = True
         except ImportError:
             JAILBREAK_SETUP_PRESENT = False

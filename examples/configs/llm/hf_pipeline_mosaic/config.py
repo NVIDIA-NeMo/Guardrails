@@ -59,8 +59,6 @@ def get_mpt_7b_instruct_llm():
     return llm
 
 
-HFPipelineMosaic = get_llm_instance_wrapper(
-    llm_instance=get_mpt_7b_instruct_llm(), llm_type="hf_pipeline_mosaic"
-)
+HFPipelineMosaic = get_llm_instance_wrapper(llm_instance=get_mpt_7b_instruct_llm(), llm_type="hf_pipeline_mosaic")
 
 register_llm_provider("hf_pipeline_mosaic", HFPipelineMosaic)

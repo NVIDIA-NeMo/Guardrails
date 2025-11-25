@@ -56,8 +56,7 @@ class InjectionDetectionResult(TypedDict):
 def _check_yara_available():
     if yara is None:
         raise ImportError(
-            "The yara module is required for injection detection. "
-            "Please install it using: pip install yara-python"
+            "The yara module is required for injection detection. Please install it using: pip install yara-python"
         )
 
 
@@ -75,19 +74,14 @@ def _validate_injection_config(config: RailsConfig) -> None:
     command_injection_config = config.rails.config.injection_detection
 
     if command_injection_config is None:
-        msg = (
-            "Injection detection configuration is missing in the provided RailsConfig."
-        )
+        msg = "Injection detection configuration is missing in the provided RailsConfig."
         log.error(msg)
         raise ValueError(msg)
 
     # Validate action option
     action_option = command_injection_config.action
     if action_option not in ActionOptions:
-        msg = (
-            "Expected 'reject', 'omit', or 'sanitize' action in injection config but got %s"
-            % action_option
-        )
+        msg = "Expected 'reject', 'omit', or 'sanitize' action in injection config but got %s" % action_option
         log.error(msg)
         raise ValueError(msg)
 
@@ -97,16 +91,11 @@ def _validate_injection_config(config: RailsConfig) -> None:
         if yara_path and isinstance(yara_path, str):
             yara_path = Path(yara_path)
             if not yara_path.exists() or not yara_path.is_dir():
-                msg = (
-                    "Provided `yara_path` value in injection config %s is not a directory."
-                    % yara_path
-                )
+                msg = "Provided `yara_path` value in injection config %s is not a directory." % yara_path
                 log.error(msg)
                 raise FileNotFoundError(msg)
         elif yara_path and not isinstance(yara_path, str):
-            msg = "Expected a string value for `yara_path` but got %r instead." % type(
-                yara_path
-            )
+            msg = "Expected a string value for `yara_path` but got %r instead." % type(yara_path)
             log.error(msg)
             raise ValueError(msg)
 
@@ -143,12 +132,7 @@ def _extract_injection_config(
 
     # only validate rule names against available rules if using yara_path
     if not yara_rules and not set(injection_rules) <= Rules:
-        if not all(
-            [
-                yara_path.joinpath(f"{module_name}.yara").is_file()
-                for module_name in injection_rules
-            ]
-        ):
+        if not all([yara_path.joinpath(f"{module_name}.yara").is_file() for module_name in injection_rules]):
             default_rule_names = ", ".join([member.value for member in Rules])
             msg = (
                 "Provided set of `injections` in injection config %r contains elements not in available rules. "
@@ -181,24 +165,15 @@ def _load_rules(
     """
 
     if len(rule_names) == 0:
-        log.warning(
-            "Injection config was provided but no modules were specified. Returning None."
-        )
+        log.warning("Injection config was provided but no modules were specified. Returning None.")
         return None
 
     try:
         if yara_rules:
-            rules_source = {
-                name: rule for name, rule in yara_rules.items() if name in rule_names
-            }
-            rules = yara.compile(
-                sources={rule_name: rules_source[rule_name] for rule_name in rule_names}
-            )
+            rules_source = {name: rule for name, rule in yara_rules.items() if name in rule_names}
+            rules = yara.compile(sources={rule_name: rules_source[rule_name] for rule_name in rule_names})
         else:
-            rules_to_load = {
-                rule_name: str(yara_path.joinpath(f"{rule_name}.yara"))
-                for rule_name in rule_names
-            }
+            rules_to_load = {rule_name: str(yara_path.joinpath(f"{rule_name}.yara")) for rule_name in rule_names}
             rules = yara.compile(filepaths=rules_to_load)
     except yara.SyntaxError as e:
         msg = f"Failed to initialize injection detection due to configuration or YARA rule error: YARA compilation failed: {e}"
@@ -276,9 +251,7 @@ def _sanitize_injection(text: str, matches: list["yara.Match"]) -> Tuple[bool, s
         NotImplementedError: If the sanitization logic is not implemented.
         ImportError: If the yara module is not installed.
     """
-    raise NotImplementedError(
-        "Injection sanitization is not yet implemented. Please use 'reject' or 'omit'"
-    )
+    raise NotImplementedError("Injection sanitization is not yet implemented. Please use 'reject' or 'omit'")
     # Hypothetical logic if implemented, to match existing behavior in injection_detection:
     # sanitized_text_attempt = "..." # result of sanitization
     # if sanitized_text_attempt != text:
@@ -323,9 +296,7 @@ def _reject_injection(text: str, rules: "yara.Rules") -> Tuple[bool, List[str]]:
 
 
 @action()
-async def injection_detection(
-    text: str, config: RailsConfig
-) -> InjectionDetectionResult:
+async def injection_detection(text: str, config: RailsConfig) -> InjectionDetectionResult:
     """
     Detects and mitigates potential injection attempts in the provided text.
 
@@ -366,9 +337,7 @@ async def injection_detection(
 
     if action_option == "reject":
         is_injection, detected_rules = _reject_injection(text, rules)
-        return InjectionDetectionResult(
-            is_injection=is_injection, text=text, detections=detected_rules
-        )
+        return InjectionDetectionResult(is_injection=is_injection, text=text, detections=detected_rules)
     else:
         matches = rules.match(data=text)
         if matches:
@@ -397,6 +366,4 @@ async def injection_detection(
                 )
         # no matches found
         else:
-            return InjectionDetectionResult(
-                is_injection=False, text=text, detections=[]
-            )
+            return InjectionDetectionResult(is_injection=False, text=text, detections=[])

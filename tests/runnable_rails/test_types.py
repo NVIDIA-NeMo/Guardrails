@@ -77,11 +77,7 @@ def test_schema_methods_exist():
     output_schema = rails.output_schema
 
     assert hasattr(input_schema, "__fields__") or hasattr(input_schema, "model_fields")
-    assert hasattr(output_schema, "__fields__") or hasattr(
-        output_schema, "model_fields"
-    )
+    assert hasattr(output_schema, "__fields__") or hasattr(output_schema, "model_fields")
 
     config_schema = rails.config_schema()
-    assert hasattr(config_schema, "__fields__") or hasattr(
-        config_schema, "model_fields"
-    )
+    assert hasattr(config_schema, "__fields__") or hasattr(config_schema, "model_fields")

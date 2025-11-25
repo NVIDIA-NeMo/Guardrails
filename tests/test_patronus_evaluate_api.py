@@ -79,9 +79,7 @@ def test_patronus_evaluate_api_success_strategy_all_pass(monkeypatch):
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -148,9 +146,7 @@ def test_patronus_evaluate_api_success_strategy_all_pass_fails_when_one_failure(
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -216,9 +212,7 @@ def test_patronus_evaluate_api_success_strategy_any_pass_passes_when_one_failure
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -284,9 +278,7 @@ def test_patronus_evaluate_api_success_strategy_any_pass_fails_when_all_fail(
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -349,9 +341,7 @@ def test_patronus_evaluate_api_internal_error_when_no_env_set():
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -407,9 +397,7 @@ def test_patronus_evaluate_api_internal_error_when_no_evaluators_provided():
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -472,9 +460,7 @@ def test_patronus_evaluate_api_internal_error_when_evaluator_dict_does_not_have_
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -541,9 +527,7 @@ def test_patronus_evaluate_api_default_success_strategy_is_all_pass_happy_case(
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -610,9 +594,7 @@ def test_patronus_evaluate_api_default_success_strategy_all_pass_fails_when_one_
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -679,9 +661,7 @@ def test_patronus_evaluate_api_internal_error_when_400_status_code(
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -729,9 +709,7 @@ def test_patronus_evaluate_api_default_response_when_500_status_code(
                 tags: { "hello": "world" },
               }
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_PREFIX + yaml_evaluate_config)
     chat = TestChat(
         config,
         llm_completions=[
@@ -808,9 +786,7 @@ def test_check_guardrail_pass_any_pass_strategy_failure():
 
 def test_check_guardrail_pass_malformed_evaluation_results():
     """Test that malformed evaluation results return False"""
-    response = {
-        "results": [{"evaluation_result": "not_a_dict"}, {"no_evaluation_result": {}}]
-    }
+    response = {"results": [{"evaluation_result": "not_a_dict"}, {"no_evaluation_result": {}}]}
     assert check_guardrail_pass(response, "all_pass") is False
 
 
@@ -869,9 +845,7 @@ async def test_patronus_evaluate_request_400_error(monkeypatch):
                 bot_response="test",
                 provided_context="test",
             )
-        assert "The Patronus Evaluate API call failed with status code 400." in str(
-            exc_info.value
-        )
+        assert "The Patronus Evaluate API call failed with status code 400." in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -921,10 +895,7 @@ async def test_patronus_evaluate_request_missing_evaluators(monkeypatch):
             bot_response="test",
             provided_context="test",
         )
-    assert (
-        "The Patronus Evaluate API parameters must contain an 'evaluators' field"
-        in str(exc_info.value)
-    )
+    assert "The Patronus Evaluate API parameters must contain an 'evaluators' field" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -939,9 +910,7 @@ async def test_patronus_evaluate_request_evaluators_not_list(monkeypatch):
             bot_response="test",
             provided_context="test",
         )
-    assert "The Patronus Evaluate API parameter 'evaluators' must be a list" in str(
-        exc_info.value
-    )
+    assert "The Patronus Evaluate API parameter 'evaluators' must be a list" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -956,9 +925,7 @@ async def test_patronus_evaluate_request_evaluator_not_dict(monkeypatch):
             bot_response="test",
             provided_context="test",
         )
-    assert "Each object in the 'evaluators' list must be a dictionary" in str(
-        exc_info.value
-    )
+    assert "Each object in the 'evaluators' list must be a dictionary" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -973,7 +940,4 @@ async def test_patronus_evaluate_request_evaluator_missing_field(monkeypatch):
             bot_response="test",
             provided_context="test",
         )
-    assert (
-        "Each dictionary in the 'evaluators' list must contain the 'evaluator' field"
-        in str(exc_info.value)
-    )
+    assert "Each dictionary in the 'evaluators' list must contain the 'evaluator' field" in str(exc_info.value)

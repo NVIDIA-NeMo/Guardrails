@@ -84,9 +84,7 @@ class TestGuardrailsAIE2EIntegration:
         """E2E test: ValidLength validator."""
         from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai
 
-        result_pass = validate_guardrails_ai(
-            validator_name="valid_length", text="Hello", min=1, max=10, on_fail="noop"
-        )
+        result_pass = validate_guardrails_ai(validator_name="valid_length", text="Hello", min=1, max=10, on_fail="noop")
 
         assert result_pass["validation_result"].validation_passed is True
 
@@ -101,8 +99,7 @@ class TestGuardrailsAIE2EIntegration:
         assert result_fail["validation_result"].validation_passed is False
 
     @pytest.mark.skipif(
-        not GUARDRAILS_AVAILABLE
-        or not VALIDATORS_AVAILABLE.get("toxic_language", False),
+        not GUARDRAILS_AVAILABLE or not VALIDATORS_AVAILABLE.get("toxic_language", False),
         reason="Guardrails or ToxicLanguage validator not installed. Install with: guardrails hub install hub://guardrails/toxic_language",
     )
     def test_toxic_language_e2e(self):
@@ -121,8 +118,7 @@ class TestGuardrailsAIE2EIntegration:
         assert result_safe["validation_result"].validation_passed is True
 
     @pytest.mark.skipif(
-        not GUARDRAILS_AVAILABLE
-        or not VALIDATORS_AVAILABLE.get("competitor_check", False),
+        not GUARDRAILS_AVAILABLE or not VALIDATORS_AVAILABLE.get("competitor_check", False),
         reason="Guardrails or CompetitorCheck validator not installed",
     )
     def test_competitor_check_e2e(self):
@@ -226,9 +222,7 @@ class TestGuardrailsAIE2EIntegration:
 
         # Test with completely unknown validator
         with pytest.raises(GuardrailsAIValidationError) as exc_info:
-            validate_guardrails_ai(
-                validator_name="completely_unknown_validator", text="Test text"
-            )
+            validate_guardrails_ai(validator_name="completely_unknown_validator", text="Test text")
 
         assert "Validation failed" in str(exc_info.value)
 
@@ -247,9 +241,7 @@ class TestGuardrailsAIE2EIntegration:
 
         # run each available validator
         for validator_name, params in available_validators:
-            result = validate_guardrails_ai(
-                validator_name=validator_name, text=test_text, on_fail="noop", **params
-            )
+            result = validate_guardrails_ai(validator_name=validator_name, text=test_text, on_fail="noop", **params)
 
             assert "validation_result" in result
             assert hasattr(result["validation_result"], "validation_passed")

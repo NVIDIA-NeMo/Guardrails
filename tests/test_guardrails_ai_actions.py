@@ -102,9 +102,7 @@ class TestGuardrailsAIIntegration:
 
         assert "validation_result" in result
         assert result["validation_result"] == mock_validation_result
-        mock_guard.validate.assert_called_once_with(
-            "Hello, this is a safe message", metadata={}
-        )
+        mock_guard.validate.assert_called_once_with("Hello, this is a safe message", metadata={})
         mock_get_guard.assert_called_once_with("toxic_language", threshold=0.5)
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
@@ -197,9 +195,7 @@ class TestGuardrailsAIIntegration:
         from nemoguardrails.library.guardrails_ai.actions import _load_validator_class
         from nemoguardrails.library.guardrails_ai.errors import GuardrailsAIConfigError
 
-        mock_get_info.side_effect = GuardrailsAIConfigError(
-            "Unknown validator: unknown_validator"
-        )
+        mock_get_info.side_effect = GuardrailsAIConfigError("Unknown validator: unknown_validator")
 
         with pytest.raises(ImportError) as exc_info:
             _load_validator_class("unknown_validator")

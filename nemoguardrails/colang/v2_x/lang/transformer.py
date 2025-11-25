@@ -55,9 +55,7 @@ class ColangTransformer(Transformer):
     2. Imports (TODO)
     """
 
-    def __init__(
-        self, source: str, include_source_mapping=True, expand_await: bool = False
-    ) -> None:
+    def __init__(self, source: str, include_source_mapping=True, expand_await: bool = False) -> None:
         """Constructor.
 
         Args:
@@ -138,15 +136,11 @@ class ColangTransformer(Transformer):
             if len(decorator["elements"]) > 1:
                 arg_elements = decorator["elements"][1]
                 if arg_elements:
-                    decorator_parameters = self.__parse_classical_arguments(
-                        arg_elements["elements"]
-                    )
+                    decorator_parameters = self.__parse_classical_arguments(arg_elements["elements"])
                     for k in decorator_parameters:
                         decorator_parameters[k] = literal_eval(decorator_parameters[k])
 
-            decorator_defs.append(
-                Decorator(name=decorator_name, parameters=decorator_parameters)
-            )
+            decorator_defs.append(Decorator(name=decorator_name, parameters=decorator_parameters))
 
         param_defs = []
         if parameters:
@@ -195,9 +189,7 @@ class ColangTransformer(Transformer):
             )
         ]
 
-        source = self._remove_source_code_comments(
-            self.source[meta.start_pos : meta.end_pos]
-        )
+        source = self._remove_source_code_comments(self.source[meta.start_pos : meta.end_pos])
 
         return Flow(
             name=name,
@@ -285,9 +277,7 @@ class ColangTransformer(Transformer):
                     arg_elements = children[1]["elements"]
                     for arg_element in arg_elements:
                         if arg_element["_type"] == "expr":
-                            arguments[f"${positional_index}"] = arg_element["elements"][
-                                0
-                            ]
+                            arguments[f"${positional_index}"] = arg_element["elements"][0]
                             positional_index += 1
                         else:
                             assert arg_element["_type"] == "simple_argvalue"
@@ -422,9 +412,7 @@ class ColangTransformer(Transformer):
                 assert _el["_type"] == "elif_"
                 expr_el = _el["elements"][0]
                 suite_el = _el["elements"][1]
-                elif_elements.append(
-                    {"expr": expr_el["elements"][0], "body": suite_el["elements"]}
-                )
+                elif_elements.append({"expr": expr_el["elements"][0], "body": suite_el["elements"]})
         else_elements = children[3]["elements"] if children[3] else None
 
         main_if_element = if_element = If(
@@ -569,11 +557,7 @@ class ColangTransformer(Transformer):
 
         # Transform tokens to dicts
         children = [
-            (
-                child
-                if not isinstance(child, Token)
-                else {"_type": child.type, "elements": [child.value]}
-            )
+            (child if not isinstance(child, Token) else {"_type": child.type, "elements": [child.value]})
             for child in children
         ]
 

@@ -49,9 +49,7 @@ async def retrieve_relevant_chunks():
 async def test_fact_checking_greeting(httpx_mock):
     # Test 1 - Greeting - No fact-checking invocation should happen
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "fact_checking"))
-    chat = TestChat(
-        config, llm_completions=["  express greeting", "Hi! How can I assist today?"]
-    )
+    chat = TestChat(config, llm_completions=["  express greeting", "Hi! How can I assist today?"])
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     chat >> "hi"

@@ -30,27 +30,17 @@ class ModelSettings(BaseSettings):
 
     # Mandatory fields
     model: str = Field(..., description="Model name served by mock server")
-    unsafe_probability: float = Field(
-        default=0.1, description="Probability of unsafe response (between 0 and 1)"
-    )
+    unsafe_probability: float = Field(default=0.1, description="Probability of unsafe response (between 0 and 1)")
     unsafe_text: str = Field(..., description="Refusal response to unsafe prompt")
     safe_text: str = Field(..., description="Safe response")
 
     # Config with default values
     # Latency sampled from a truncated-normal distribution.
     # Plain Normal distributions have infinite support, and can be negative
-    latency_min_seconds: float = Field(
-        default=0.1, description="Minimum latency in seconds"
-    )
-    latency_max_seconds: float = Field(
-        default=5, description="Maximum latency in seconds"
-    )
-    latency_mean_seconds: float = Field(
-        default=0.5, description="The average response time in seconds"
-    )
-    latency_std_seconds: float = Field(
-        default=0.1, description="Standard deviation of response time"
-    )
+    latency_min_seconds: float = Field(default=0.1, description="Minimum latency in seconds")
+    latency_max_seconds: float = Field(default=5, description="Maximum latency in seconds")
+    latency_mean_seconds: float = Field(default=0.5, description="The average response time in seconds")
+    latency_std_seconds: float = Field(default=0.1, description="Standard deviation of response time")
 
     model_config = SettingsConfigDict(env_file=CONFIG_FILE)
 

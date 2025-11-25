@@ -50,9 +50,7 @@ def test_tool_calls_var_set_and_get():
 
 def test_tool_calls_var_clear():
     """Test clearing tool calls from context."""
-    test_tool_calls = [
-        {"name": "test", "args": {}, "id": "call_test", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "test", "args": {}, "id": "call_test", "type": "tool_call"}]
 
     tool_calls_var.set(test_tool_calls)
     assert tool_calls_var.get() == test_tool_calls

@@ -26,9 +26,7 @@ def test_lazy_import_does_not_require_heavy_deps():
     """
     Importing the checks module should not require torch, transformers, or sklearn unless model-based classifier is used.
     """
-    with mock.patch.dict(
-        sys.modules, {"torch": None, "transformers": None, "sklearn": None}
-    ):
+    with mock.patch.dict(sys.modules, {"torch": None, "transformers": None, "sklearn": None}):
         import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
         # Just importing and calling unrelated functions should not raise ImportError
@@ -147,9 +145,7 @@ def test_snowflake_embed_torch_imports(monkeypatch):
     # the code does self.model(**tokens)[0][:, 0]
     # so we need to mock this properly
     mock_tensor_output = mock.MagicMock()
-    mock_tensor_output.detach.return_value.cpu.return_value.squeeze.return_value.numpy.return_value = (
-        fake_embedding
-    )
+    mock_tensor_output.detach.return_value.cpu.return_value.squeeze.return_value.numpy.return_value = fake_embedding
 
     mock_first_index = mock.MagicMock()
     mock_first_index.__getitem__.return_value = mock_tensor_output  # for [:, 0]

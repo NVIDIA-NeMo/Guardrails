@@ -158,9 +158,7 @@ def test_complex_chain_with_tool_calls():
         """,
     )
 
-    guardrails = RunnableRails(
-        config=config, llm=MockPatientIntakeLLM(), passthrough=True
-    )
+    guardrails = RunnableRails(config=config, llm=MockPatientIntakeLLM(), passthrough=True)
 
     chain = prompt | guardrails
 

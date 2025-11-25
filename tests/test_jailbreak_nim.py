@@ -57,18 +57,14 @@ def check_jailbreak_nim_availability():
             )
 
         # Check if NIM endpoint is configured correctly
-        nim_endpoint = (
-            llm_task_manager.config.rails.config.jailbreak_detection.nim_server_endpoint
-        )
+        nim_endpoint = llm_task_manager.config.rails.config.jailbreak_detection.nim_server_endpoint
         if not isinstance(nim_endpoint, str):
             return False, f"Invalid JailbreakDetect NIM server endpoint: {nim_endpoint}"
 
         # Check that NIM api_key_env_var is set up correctly
         test_key = "test_key"
         os.environ["JB_NIM_TEST"] = test_key
-        api_key_env_var = (
-            llm_task_manager.config.rails.config.jailbreak_detection.api_key_env_var
-        )
+        api_key_env_var = llm_task_manager.config.rails.config.jailbreak_detection.api_key_env_var
         if not os.getenv(api_key_env_var) == test_key:
             return (
                 False,
@@ -100,9 +96,7 @@ def test_jailbreak_nim_deprecated():
     )
     llm_task_manager = LLMTaskManager(config=config)
     nim_url = llm_task_manager.config.rails.config.jailbreak_detection.nim_base_url
-    assert (
-        nim_url == "http://0.0.0.0:8000/v1"
-    ), "NIM deprecated url/port setup not loaded!"
+    assert nim_url == "http://0.0.0.0:8000/v1", "NIM deprecated url/port setup not loaded!"
 
 
 JAILBREAK_SETUP_PRESENT, JAILBREAK_SKIP_REASON = check_jailbreak_nim_availability()
@@ -110,8 +104,7 @@ JAILBREAK_SETUP_PRESENT, JAILBREAK_SKIP_REASON = check_jailbreak_nim_availabilit
 
 @pytest.mark.skipif(
     not JAILBREAK_SETUP_PRESENT,
-    reason=JAILBREAK_SKIP_REASON
-    or "JailbreakDetect NIM not running or endpoint is not in config.",
+    reason=JAILBREAK_SKIP_REASON or "JailbreakDetect NIM not running or endpoint is not in config.",
 )
 @patch("nemoguardrails.library.jailbreak_detection.request.jailbreak_nim_request")
 def test_jb_detect_nim_unsafe(mock_jailbreak_nim):
@@ -141,8 +134,7 @@ def test_jb_detect_nim_unsafe(mock_jailbreak_nim):
 
 @pytest.mark.skipif(
     not JAILBREAK_SETUP_PRESENT,
-    reason=JAILBREAK_SKIP_REASON
-    or "JailbreakDetect NIM not running or endpoint is not in config.",
+    reason=JAILBREAK_SKIP_REASON or "JailbreakDetect NIM not running or endpoint is not in config.",
 )
 @patch("nemoguardrails.library.jailbreak_detection.request.jailbreak_nim_request")
 def test_jb_detect_nim_safe(mock_jailbreak_nim):

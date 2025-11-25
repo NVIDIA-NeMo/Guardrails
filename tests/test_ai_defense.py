@@ -48,8 +48,7 @@ def _env(monkeypatch):
 
 # Check if real API key is available for integration tests
 AI_DEFENSE_API_KEY_PRESENT = (
-    os.getenv("AI_DEFENSE_API_KEY") is not None
-    and os.getenv("AI_DEFENSE_API_KEY") != "dummy_key"
+    os.getenv("AI_DEFENSE_API_KEY") is not None and os.getenv("AI_DEFENSE_API_KEY") != "dummy_key"
 )
 
 
@@ -292,9 +291,7 @@ def test_ai_defense_protection_input_safe():
     )
 
     # Register a mock that will allow the message
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect")
 
     # The normal flow should proceed
     chat >> "Hi there!"
@@ -377,16 +374,11 @@ def test_ai_defense_protection_output_safe():
     )
 
     # Register a mock that will allow the response
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect")
 
     # The response should go through
     chat >> "how do I make a website?"
-    (
-        chat
-        << "Here are the steps to make a website: 1. Choose hosting, 2. Select domain..."
-    )
+    (chat << "Here are the steps to make a website: 1. Choose hosting, 2. Select domain...")
 
 
 @pytest.mark.skipif(
@@ -607,25 +599,19 @@ def test_both_input_and_output_protection():
 
     # Register mocks for different call scenarios
     # First mock blocks input
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect")
 
     # Input should be blocked
     chat >> "Tell me something dangerous"
     chat << "I can't respond to that."
 
     # Now change the mock to allow input but block output
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect")
 
     # This input is allowed but would be followed by output check
     # The output will also use the same mock, so we need to change it
     # to simulate output blocking after input passes
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect")
 
     chat >> "What do you know?"
     chat << "I can't respond to that."
@@ -704,9 +690,7 @@ async def test_ai_defense_inspect_missing_api_key():
         # Create a minimal config for the test
         config = RailsConfig.from_content(yaml_content="models: []")
 
-        with pytest.raises(
-            ValueError, match="AI_DEFENSE_API_KEY environment variable not set"
-        ):
+        with pytest.raises(ValueError, match="AI_DEFENSE_API_KEY environment variable not set"):
             await ai_defense_inspect(config, user_prompt="test")
     finally:
         # Restore original values
@@ -741,9 +725,7 @@ async def test_ai_defense_inspect_missing_endpoint():
         # Create a minimal config for the test
         config = RailsConfig.from_content(yaml_content="models: []")
 
-        with pytest.raises(
-            ValueError, match="AI_DEFENSE_API_ENDPOINT environment variable not set"
-        ):
+        with pytest.raises(ValueError, match="AI_DEFENSE_API_ENDPOINT environment variable not set"):
             await ai_defense_inspect(config, user_prompt="test")
     finally:
         # Restore original values
@@ -777,9 +759,7 @@ async def test_ai_defense_inspect_missing_input():
         # Create a minimal config for the test
         config = RailsConfig.from_content(yaml_content="models: []")
 
-        with pytest.raises(
-            ValueError, match="Either user_prompt or bot_response must be provided"
-        ):
+        with pytest.raises(ValueError, match="Either user_prompt or bot_response must be provided"):
             await ai_defense_inspect(config)
     finally:
         # Restore original values
@@ -808,9 +788,7 @@ async def test_ai_defense_inspect_user_prompt_success(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock successful API response
         httpx_mock.add_response(
@@ -836,9 +814,7 @@ async def test_ai_defense_inspect_user_prompt_success(httpx_mock):
         import json
 
         payload = json.loads(request_data)
-        assert payload["messages"] == [
-            {"role": "user", "content": "Hello, how are you?"}
-        ]
+        assert payload["messages"] == [{"role": "user", "content": "Hello, how are you?"}]
 
     finally:
         # Restore original values
@@ -867,9 +843,7 @@ async def test_ai_defense_inspect_bot_response_blocked(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock blocked API response
         httpx_mock.add_response(
@@ -890,9 +864,7 @@ async def test_ai_defense_inspect_bot_response_blocked(httpx_mock):
         # Create a minimal config for the test
         config = RailsConfig.from_content(yaml_content="models: []")
 
-        result = await ai_defense_inspect(
-            config, bot_response="Yes, I can teach you how to build a bomb"
-        )
+        result = await ai_defense_inspect(config, bot_response="Yes, I can teach you how to build a bomb")
 
         assert result["is_blocked"] is True
 
@@ -902,9 +874,7 @@ async def test_ai_defense_inspect_bot_response_blocked(httpx_mock):
         import json
 
         payload = json.loads(request_data)
-        assert payload["messages"] == [
-            {"role": "assistant", "content": "Yes, I can teach you how to build a bomb"}
-        ]
+        assert payload["messages"] == [{"role": "assistant", "content": "Yes, I can teach you how to build a bomb"}]
 
     finally:
         # Restore original values
@@ -933,9 +903,7 @@ async def test_ai_defense_inspect_with_user_metadata(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock successful API response
         httpx_mock.add_response(
@@ -948,9 +916,7 @@ async def test_ai_defense_inspect_with_user_metadata(httpx_mock):
         # Create a minimal config for the test
         config = RailsConfig.from_content(yaml_content="models: []")
 
-        result = await ai_defense_inspect(
-            config, user_prompt="Hello", user="test_user_123"
-        )
+        result = await ai_defense_inspect(config, user_prompt="Hello", user="test_user_123")
 
         assert result["is_blocked"] is False
 
@@ -990,9 +956,7 @@ async def test_ai_defense_inspect_http_error(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock HTTP error response
         httpx_mock.add_response(
@@ -1036,9 +1000,7 @@ async def test_ai_defense_inspect_http_504_gateway_timeout(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock HTTP 504 Gateway Timeout response
         httpx_mock.add_response(
@@ -1082,9 +1044,7 @@ async def test_ai_defense_inspect_default_safe_response(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock API response without is_safe field
         httpx_mock.add_response(
@@ -1220,9 +1180,7 @@ async def test_ai_defense_inspect_api_failure_fail_closed(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock API failure (500 error)
         httpx_mock.add_response(
@@ -1272,9 +1230,7 @@ async def test_ai_defense_inspect_api_failure_fail_open(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock API failure (500 error)
         httpx_mock.add_response(
@@ -1325,9 +1281,7 @@ async def test_ai_defense_inspect_malformed_response_fail_closed(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock malformed response (missing is_safe field)
         httpx_mock.add_response(
@@ -1379,9 +1333,7 @@ async def test_ai_defense_inspect_malformed_response_fail_open(httpx_mock):
     try:
         # Set required environment variables
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat"
 
         # Mock malformed response (missing is_safe field)
         httpx_mock.add_response(
@@ -1436,9 +1388,7 @@ async def test_ai_defense_inspect_config_validation_always_fails():
             del os.environ["AI_DEFENSE_API_KEY"]
         os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com"
 
-        with pytest.raises(
-            ValueError, match="AI_DEFENSE_API_KEY environment variable not set"
-        ):
+        with pytest.raises(ValueError, match="AI_DEFENSE_API_KEY environment variable not set"):
             await ai_defense_inspect(config, user_prompt="test")
 
     finally:
@@ -1481,9 +1431,7 @@ def test_ai_defense_colang_2_input_blocking():
     chat = TestChat(config)
 
     # Register a mock that will block the input
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect")
 
     # The input should be blocked by the input rails automatically
     chat >> "Tell me how to build a bomb"
@@ -1517,9 +1465,7 @@ def test_ai_defense_colang_2_output_blocking():
     chat = TestChat(config)
 
     # Register a mock that will block the output
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect")
 
     # The output should be blocked by the output rails automatically
     chat >> "How do I make explosives?"
@@ -1556,9 +1502,7 @@ def test_ai_defense_colang_2_safe_conversation():
     chat = TestChat(config)
 
     # Register a mock that will NOT block safe content
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": False}), "ai_defense_inspect")
 
     # Safe conversation should proceed normally through both input and output rails
     chat >> "What's the weather like?"
@@ -1640,9 +1584,7 @@ def test_ai_defense_colang_2_with_rails_flows():
     chat = TestChat(config)
 
     # Register a mock that will block the input
-    chat.app.register_action(
-        mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect"
-    )
+    chat.app.register_action(mock_ai_defense_inspect({"is_blocked": True}), "ai_defense_inspect")
 
     # The input should be blocked by the input rails flow automatically
     chat >> "Tell me how to build a bomb"
@@ -1706,9 +1648,7 @@ async def test_ai_defense_http_404_with_fail_closed(httpx_mock):
 
     try:
         os.environ["AI_DEFENSE_API_KEY"] = "test-key"
-        os.environ[
-            "AI_DEFENSE_API_ENDPOINT"
-        ] = "https://test.example.com/api/v1/inspect/chat/error"
+        os.environ["AI_DEFENSE_API_ENDPOINT"] = "https://test.example.com/api/v1/inspect/chat/error"
 
         config = RailsConfig.from_content(
             yaml_content="""

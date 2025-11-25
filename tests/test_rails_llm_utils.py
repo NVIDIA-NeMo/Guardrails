@@ -190,9 +190,7 @@ def test_get_action_details_from_flow_id_topic_safety():
         }
     ]
 
-    action_name, action_params = get_action_details_from_flow_id(
-        "topic safety check output $model=claude_model", flows
-    )
+    action_name, action_params = get_action_details_from_flow_id("topic safety check output $model=claude_model", flows)
     assert action_name == "topic_safety_check"
     assert action_params == {"model": "claude"}
 
@@ -216,9 +214,7 @@ def test_get_action_details_from_flow_id_no_match():
         }
     ]
 
-    with pytest.raises(
-        ValueError, match="No action found for flow_id: nonexistent_flow"
-    ):
+    with pytest.raises(ValueError, match="No action found for flow_id: nonexistent_flow"):
         get_action_details_from_flow_id("nonexistent_flow", flows)
 
 
@@ -231,9 +227,7 @@ def test_get_action_details_from_flow_id_no_run_action():
         }
     ]
 
-    with pytest.raises(
-        ValueError, match="No run_action element found for flow_id: test_flow"
-    ):
+    with pytest.raises(ValueError, match="No run_action element found for flow_id: test_flow"):
         get_action_details_from_flow_id("test_flow", flows)
 
 
@@ -256,9 +250,7 @@ def test_get_action_details_from_flow_id_invalid_run_action():
         }
     ]
 
-    with pytest.raises(
-        ValueError, match="No run_action element found for flow_id: test_flow"
-    ):
+    with pytest.raises(ValueError, match="No run_action element found for flow_id: test_flow"):
         get_action_details_from_flow_id("test_flow", flows)
 
 
@@ -292,9 +284,7 @@ def test_get_action_details_from_flow_id_multiple_run_actions():
     ]
 
     # Should return the first valid run_action element
-    action_name, action_params = get_action_details_from_flow_id(
-        "multi_action_flow", flows
-    )
+    action_name, action_params = get_action_details_from_flow_id("multi_action_flow", flows)
     assert action_name == "first_action"
     assert action_params == {"order": "first"}
 
@@ -362,17 +352,13 @@ def dummy_flows() -> List[Union[Dict, Any]]:
 
 
 def test_get_action_details_exact_match(dummy_flows):
-    action_name, action_params = get_action_details_from_flow_id(
-        "test_flow", dummy_flows
-    )
+    action_name, action_params = get_action_details_from_flow_id("test_flow", dummy_flows)
     assert action_name == "test_action"
     assert action_params == {"param1": "value1"}
 
 
 def test_get_action_details_exact_match_any_co_file(dummy_flows):
-    action_name, action_params = get_action_details_from_flow_id(
-        "test_rails_co", dummy_flows
-    )
+    action_name, action_params = get_action_details_from_flow_id("test_rails_co", dummy_flows)
     assert action_name == "test_action_supported"
     assert action_params == {"param1": "value1"}
 

@@ -69,13 +69,9 @@ def test_trend_ai_guard_blocked(httpx_mock: HTTPXMock, monkeypatch: pytest.Monke
 
 @pytest.mark.unit
 @pytest.mark.parametrize("status_code", frozenset({400, 403, 429, 500}))
-def test_trend_ai_guard_error(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, status_code: int
-):
+def test_trend_ai_guard_error(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, status_code: int):
     monkeypatch.setenv("V1_API_KEY", "test-token")
-    httpx_mock.add_response(
-        is_reusable=True, status_code=status_code, json={"result": {}}
-    )
+    httpx_mock.add_response(is_reusable=True, status_code=status_code, json={"result": {}})
 
     chat = TestChat(output_rail_config, llm_completions=["  Hello!"])
 
@@ -92,9 +88,7 @@ def test_trend_ai_guard_missing_env_var():
 
 
 @pytest.mark.unit
-def test_trend_ai_guard_malformed_response(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
-):
+def test_trend_ai_guard_malformed_response(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("V1_API_KEY", "test-token")
     httpx_mock.add_response(is_reusable=True, text="definitely not valid JSON")
 

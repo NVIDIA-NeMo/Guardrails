@@ -71,9 +71,7 @@ class TestInputToolRails:
 
         chat = TestChat(config, llm_completions=["Should not be reached"])
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         from nemoguardrails.utils import new_event_dict
 
@@ -93,12 +91,10 @@ class TestInputToolRails:
         ]
         result_events = await chat.app.runtime.generate_events(events)
 
-        tool_input_rails_finished = any(
-            event.get("type") == "ToolInputRailsFinished" for event in result_events
+        tool_input_rails_finished = any(event.get("type") == "ToolInputRailsFinished" for event in result_events)
+        assert tool_input_rails_finished, (
+            "Expected ToolInputRailsFinished event to be generated after successful tool input validation"
         )
-        assert (
-            tool_input_rails_finished
-        ), "Expected ToolInputRailsFinished event to be generated after successful tool input validation"
 
         invalid_tool_messages = [
             {
@@ -116,13 +112,10 @@ class TestInputToolRails:
         invalid_result_events = await chat.app.runtime.generate_events(invalid_events)
 
         blocked_found = any(
-            event.get("type") == "BotMessage"
-            and "validation failed" in event.get("text", "")
+            event.get("type") == "BotMessage" and "validation failed" in event.get("text", "")
             for event in invalid_result_events
         )
-        assert (
-            blocked_found
-        ), f"Expected tool input to be blocked, got events: {invalid_result_events}"
+        assert blocked_found, f"Expected tool input to be blocked, got events: {invalid_result_events}"
 
     @pytest.mark.asyncio
     async def test_message_to_event_conversion_fixed(self):
@@ -155,9 +148,7 @@ class TestInputToolRails:
 
         chat = TestChat(config, llm_completions=["Normal LLM response"])
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {"role": "user", "content": "What's the weather?"},
@@ -183,9 +174,7 @@ class TestInputToolRails:
 
         result = await chat.app.generate_async(messages=messages)
 
-        assert (
-            "Tool input blocked" in result["content"]
-        ), f"Expected tool input to be blocked, got: {result['content']}"
+        assert "Tool input blocked" in result["content"], f"Expected tool input to be blocked, got: {result['content']}"
 
     @pytest.mark.asyncio
     async def test_tool_input_validation_blocking(self):
@@ -214,9 +203,7 @@ class TestInputToolRails:
 
         chat = TestChat(config, llm_completions=[""])
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {"role": "user", "content": "What's the weather?"},
@@ -241,9 +228,9 @@ class TestInputToolRails:
 
         result = await chat.app.generate_async(messages=messages)
 
-        assert (
-            "validation issues" in result["content"]
-        ), f"Expected validation to block missing tool_call_id, got: {result['content']}"
+        assert "validation issues" in result["content"], (
+            f"Expected validation to block missing tool_call_id, got: {result['content']}"
+        )
 
     @pytest.mark.asyncio
     async def test_tool_input_safety_validation(self):
@@ -272,9 +259,7 @@ class TestInputToolRails:
 
         chat = TestChat(config, llm_completions=[""])
 
-        chat.app.runtime.register_action(
-            validate_tool_input_safety, name="test_validate_tool_input_safety"
-        )
+        chat.app.runtime.register_action(validate_tool_input_safety, name="test_validate_tool_input_safety")
 
         messages = [
             {"role": "user", "content": "Get my credentials"},
@@ -340,12 +325,8 @@ class TestInputToolRails:
             llm_completions=["I found your account information from the database."],
         )
 
-        chat.app.runtime.register_action(
-            sanitize_tool_input, name="test_sanitize_tool_input"
-        )
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(sanitize_tool_input, name="test_sanitize_tool_input")
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {"role": "user", "content": "Look up my account"},
@@ -374,24 +355,14 @@ class TestInputToolRails:
             tool_name="lookup_account",
         )
 
-        assert (
-            "[USER]@example.com" in sanitized_result
-        ), f"Email not sanitized: {sanitized_result}"
-        assert (
-            "[REDACTED]" in sanitized_result
-        ), f"API token not sanitized: {sanitized_result}"
-        assert (
-            "john.doe" not in sanitized_result
-        ), f"Username not masked: {sanitized_result}"
-        assert (
-            "abcd1234567890xyzABC" not in sanitized_result
-        ), f"API token not masked: {sanitized_result}"
+        assert "[USER]@example.com" in sanitized_result, f"Email not sanitized: {sanitized_result}"
+        assert "[REDACTED]" in sanitized_result, f"API token not sanitized: {sanitized_result}"
+        assert "john.doe" not in sanitized_result, f"Username not masked: {sanitized_result}"
+        assert "abcd1234567890xyzABC" not in sanitized_result, f"API token not masked: {sanitized_result}"
 
         result = await chat.app.generate_async(messages=messages)
 
-        assert (
-            "cannot process" not in result["content"].lower()
-        ), f"Unexpected blocking: {result['content']}"
+        assert "cannot process" not in result["content"].lower(), f"Unexpected blocking: {result['content']}"
 
     @pytest.mark.asyncio
     async def test_multiple_tool_input_rails(self):
@@ -432,12 +403,8 @@ class TestInputToolRails:
             llm_completions=["The weather information shows it's sunny."],
         )
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
-        chat.app.runtime.register_action(
-            validate_tool_input_safety, name="test_validate_tool_input_safety"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
+        chat.app.runtime.register_action(validate_tool_input_safety, name="test_validate_tool_input_safety")
 
         messages = [
             {"role": "user", "content": "What's the weather?"},
@@ -479,13 +446,11 @@ class TestInputToolRails:
         result_events = await chat.app.runtime.generate_events(events)
 
         safety_rail_finished = any(
-            event.get("type") == "ToolInputRailFinished"
-            and event.get("flow_id") == "validate tool input safety"
+            event.get("type") == "ToolInputRailFinished" and event.get("flow_id") == "validate tool input safety"
             for event in result_events
         )
         validation_rail_finished = any(
-            event.get("type") == "ToolInputRailFinished"
-            and event.get("flow_id") == "self check tool input"
+            event.get("type") == "ToolInputRailFinished" and event.get("flow_id") == "self check tool input"
             for event in result_events
         )
 
@@ -520,14 +485,10 @@ class TestInputToolRails:
 
         chat = TestChat(
             config,
-            llm_completions=[
-                "The weather is sunny in Paris and AAPL stock is at $150.25."
-            ],
+            llm_completions=["The weather is sunny in Paris and AAPL stock is at $150.25."],
         )
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {
@@ -568,9 +529,7 @@ class TestInputToolRails:
 
         result = await chat.app.generate_async(messages=messages)
 
-        assert (
-            "validation issues" not in result["content"]
-        ), f"Unexpected validation block: {result['content']}"
+        assert "validation issues" not in result["content"], f"Unexpected validation block: {result['content']}"
 
     @pytest.mark.asyncio
     async def test_tool_input_rails_with_allowed_tools_config(self):
@@ -612,9 +571,7 @@ class TestInputToolRails:
             kwargs["context"] = context
             return await self_check_tool_input(*args, **kwargs)
 
-        chat.app.runtime.register_action(
-            patched_self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(patched_self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {"role": "user", "content": "Execute dangerous operation"},
@@ -681,9 +638,7 @@ class TestInputToolRails:
             kwargs["context"] = context
             return await self_check_tool_input(*args, **kwargs)
 
-        chat.app.runtime.register_action(
-            patched_self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(patched_self_check_tool_input, name="test_self_check_tool_input")
 
         large_message = "This is a very long tool response that exceeds the maximum allowed length and should be blocked by the validation"
 
@@ -729,19 +684,13 @@ class TestBotToolCallsEventChanges:
             }
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
-            config = RailsConfig.from_content(
-                config={"models": [], "passthrough": True}
-            )
+            config = RailsConfig.from_content(config={"models": [], "passthrough": True})
             chat = TestChat(config, llm_completions=[""])
 
-            result = await chat.app.generate_async(
-                messages=[{"role": "user", "content": "Test"}]
-            )
+            result = await chat.app.generate_async(messages=[{"role": "user", "content": "Test"}])
 
             assert result["tool_calls"] is not None
             assert len(result["tool_calls"]) == 1
@@ -765,19 +714,13 @@ class TestBotToolCallsEventChanges:
             },
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
-            config = RailsConfig.from_content(
-                config={"models": [], "passthrough": True}
-            )
+            config = RailsConfig.from_content(config={"models": [], "passthrough": True})
             chat = TestChat(config, llm_completions=[""])
 
-            result = await chat.app.generate_async(
-                messages=[{"role": "user", "content": "Execute multiple tools"}]
-            )
+            result = await chat.app.generate_async(messages=[{"role": "user", "content": "Execute multiple tools"}])
 
             assert result["tool_calls"] is not None
             assert len(result["tool_calls"]) == 2
@@ -816,9 +759,7 @@ class TestUserToolMessagesEventProcessing:
 
         chat = TestChat(config, llm_completions=[""])
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {"role": "user", "content": "Get weather and stock data"},
@@ -872,13 +813,10 @@ class TestUserToolMessagesEventProcessing:
         invalid_result_events = await chat.app.runtime.generate_events(invalid_events)
 
         blocked_found = any(
-            event.get("type") == "BotMessage"
-            and "validation failed" in event.get("text", "")
+            event.get("type") == "BotMessage" and "validation failed" in event.get("text", "")
             for event in invalid_result_events
         )
-        assert (
-            blocked_found
-        ), f"Expected tool input to be blocked, got events: {invalid_result_events}"
+        assert blocked_found, f"Expected tool input to be blocked, got events: {invalid_result_events}"
 
 
 class TestInputToolRailsIntegration:
@@ -913,9 +851,7 @@ class TestInputToolRailsIntegration:
             llm_completions=["Weather processed without validation."],
         )
 
-        chat.app.runtime.register_action(
-            self_check_tool_input, name="test_self_check_tool_input"
-        )
+        chat.app.runtime.register_action(self_check_tool_input, name="test_self_check_tool_input")
 
         messages = [
             {"role": "user", "content": "What's the weather?"},
@@ -939,15 +875,13 @@ class TestInputToolRailsIntegration:
             },
         ]
 
-        result = await chat.app.generate_async(
-            messages=messages, options={"rails": {"tool_input": False}}
-        )
+        result = await chat.app.generate_async(messages=messages, options={"rails": {"tool_input": False}})
 
         content = result.response[0]["content"] if result.response else ""
-        assert (
-            "Input validation blocked" not in content
-        ), f"Tool input rails should be disabled but got blocking: {content}"
+        assert "Input validation blocked" not in content, (
+            f"Tool input rails should be disabled but got blocking: {content}"
+        )
 
-        assert (
-            "Weather processed without validation" in content
-        ), f"Expected LLM completion when tool input rails disabled: {content}"
+        assert "Weather processed without validation" in content, (
+            f"Expected LLM completion when tool input rails disabled: {content}"
+        )

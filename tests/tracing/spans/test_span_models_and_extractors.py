@@ -53,9 +53,7 @@ class TestSpanModels:
         """Test creating a v2 span - typed spans with explicit fields."""
         from nemoguardrails.tracing.spans import LLMSpan
 
-        event = SpanEvent(
-            name="gen_ai.content.prompt", timestamp=0.5, body={"content": "test prompt"}
-        )
+        event = SpanEvent(name="gen_ai.content.prompt", timestamp=0.5, body={"content": "test prompt"})
 
         # V2 spans are typed with explicit fields
         span = LLMSpan(
@@ -196,9 +194,7 @@ class TestSpanExtractors:
         assert "gen_ai.content.completion" in event_names
 
         # Check user message event content (only present when content capture is enabled)
-        user_message_event = next(
-            e for e in llm_span.events if e.name == "gen_ai.content.prompt"
-        )
+        user_message_event = next(e for e in llm_span.events if e.name == "gen_ai.content.prompt")
         assert user_message_event.body["content"] == "What is the weather?"
 
     def test_span_extractor_v2_metrics(self, test_data):
@@ -239,11 +235,7 @@ class TestSpanExtractors:
         assert "guardrails.utterance.user.finished" in event_names
         assert "guardrails.utterance.bot.started" in event_names
 
-        user_event = next(
-            e
-            for e in interaction_span.events
-            if e.name == "guardrails.utterance.user.finished"
-        )
+        user_event = next(e for e in interaction_span.events if e.name == "guardrails.utterance.user.finished")
         # By default, content is NOT included (privacy compliant)
         assert "type" in user_event.body
         assert "final_transcript" not in user_event.body
@@ -264,9 +256,7 @@ class TestSpanVersionConfiguration:
 
     def test_opentelemetry_extractor_with_events(self):
         events = [{"type": "UserMessage", "text": "test"}]
-        extractor = create_span_extractor(
-            span_format="opentelemetry", events=events, enable_content_capture=False
-        )
+        extractor = create_span_extractor(span_format="opentelemetry", events=events, enable_content_capture=False)
 
         assert isinstance(extractor, SpanExtractorV2)
         assert extractor.internal_events == events

@@ -363,9 +363,7 @@ def test_get_task_model_with_main_model():
 
 def test_get_task_model_fallback_to_main():
     """Test that get_task_model falls back to main model when specific task model not found."""
-    config = RailsConfig.parse_object(
-        {"models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}]}
-    )
+    config = RailsConfig.parse_object({"models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo"}]})
 
     result = get_task_model(config, "some_other_task")
     assert result is not None

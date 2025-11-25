@@ -71,8 +71,7 @@ class TRTLLM(BaseLLM):
 
         except ImportError as err:
             raise ImportError(
-                "Could not import triton client python package. "
-                "Please install it with `pip install tritonclient[all]`."
+                "Could not import triton client python package. Please install it with `pip install tritonclient[all]`."
             ) from err
         return values
 
@@ -137,18 +136,14 @@ class TRTLLM(BaseLLM):
 
         result_queue: queue.Queue[Dict[str, str]] = queue.Queue()
         self.client.load_model(model_params["model_name"])
-        self.client.request_streaming(
-            model_params["model_name"], result_queue, **invocation_params
-        )
+        self.client.request_streaming(model_params["model_name"], result_queue, **invocation_params)
 
         response = ""
         send_tokens = True
         while True:
             response_streaming = result_queue.get()
 
-            if response_streaming is None or isinstance(
-                response_streaming, InferenceServerException
-            ):
+            if response_streaming is None or isinstance(response_streaming, InferenceServerException):
                 self.client.close_streaming()
                 break
             token = response_streaming["OUTPUT_0"]

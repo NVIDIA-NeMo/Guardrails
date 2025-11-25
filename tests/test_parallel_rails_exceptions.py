@@ -33,9 +33,7 @@ OPTIONS = {
 async def test_parallel_rails_exception_stop_flag():
     """Test that stop flag is set when a rail raises an exception in parallel mode."""
 
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -59,23 +57,15 @@ async def test_parallel_rails_exception_stop_flag():
             f"This indicates inconsistency between stop flag and decisions list."
         )
 
-    has_exception = any(
-        msg.get("role") == "exception"
-        for msg in result.response
-        if isinstance(msg, dict)
-    )
-    assert (
-        has_exception
-    ), "Expected response to contain exception when rail blocks with exception"
+    has_exception = any(msg.get("role") == "exception" for msg in result.response if isinstance(msg, dict))
+    assert has_exception, "Expected response to contain exception when rail blocks with exception"
 
 
 @pytest.mark.asyncio
 async def test_parallel_rails_exception_no_duplicates():
     """Test that exception-based rails don't create duplicate activated_rails entries."""
 
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -87,9 +77,7 @@ async def test_parallel_rails_exception_no_duplicates():
     result = await chat.app.generate_async(messages=chat.history, options=OPTIONS)
 
     stopped_rails = [rail for rail in result.log.activated_rails if rail.stop]
-    assert (
-        len(stopped_rails) > 0
-    ), "Expected at least one stopped rail. Cannot test for duplicates if no rails stopped."
+    assert len(stopped_rails) > 0, "Expected at least one stopped rail. Cannot test for duplicates if no rails stopped."
 
     rail_names_with_actions = {}
     for rail in result.log.activated_rails:
@@ -114,9 +102,7 @@ async def test_parallel_rails_exception_single_stop_in_decisions():
     This test would have FAILED before the final fix because both the exception
     handler and end-of-processing logic were adding 'stop' without checking.
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -129,9 +115,7 @@ async def test_parallel_rails_exception_single_stop_in_decisions():
 
     stopped_rails = [rail for rail in result.log.activated_rails if rail.stop]
 
-    assert (
-        len(stopped_rails) > 0
-    ), "Expected at least one stopped rail. Cannot test 'stop' count if no rails stopped."
+    assert len(stopped_rails) > 0, "Expected at least one stopped rail. Cannot test 'stop' count if no rails stopped."
 
     for rail in stopped_rails:
         stop_count = rail.decisions.count("stop")
@@ -147,22 +131,16 @@ async def test_parallel_rails_exception_consistency_with_sequential():
 
     This test verifies that the fix makes parallel and sequential modes consistent.
     """
-    config_parallel = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config_parallel = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
 
     chat_parallel = TestChat(
         config_parallel,
         llm_completions=["Hi there!"],
     )
     chat_parallel >> "This message has an unsafe word"
-    result_parallel = await chat_parallel.app.generate_async(
-        messages=chat_parallel.history, options=OPTIONS
-    )
+    result_parallel = await chat_parallel.app.generate_async(messages=chat_parallel.history, options=OPTIONS)
 
-    config_sequential = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config_sequential = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     config_sequential.rails.input.parallel = False
     config_sequential.rails.output.parallel = False
 
@@ -171,9 +149,7 @@ async def test_parallel_rails_exception_consistency_with_sequential():
         llm_completions=["Hi there!"],
     )
     chat_sequential >> "This message has an unsafe word"
-    result_sequential = await chat_sequential.app.generate_async(
-        messages=chat_sequential.history, options=OPTIONS
-    )
+    result_sequential = await chat_sequential.app.generate_async(messages=chat_sequential.history, options=OPTIONS)
 
     parallel_stopped = [r for r in result_parallel.log.activated_rails if r.stop]
     sequential_stopped = [r for r in result_sequential.log.activated_rails if r.stop]
@@ -201,9 +177,7 @@ async def test_parallel_rails_exception_with_passing_rails():
 
     This ensures that only the blocking rail has stop=True, not all rails.
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     chat = TestChat(
         config,
         llm_completions=["Hi there!"],
@@ -219,27 +193,20 @@ async def test_parallel_rails_exception_with_passing_rails():
     assert len(stopped_rails) > 0, "Should have at least one stopped rail"
     assert len(passed_rails) > 0, "Should have at least one passed rail"
 
-    safety_rail = next(
-        (r for r in result.log.activated_rails if "safety" in r.name.lower()), None
-    )
+    safety_rail = next((r for r in result.log.activated_rails if "safety" in r.name.lower()), None)
     assert safety_rail is not None, "Safety rail should have executed"
     assert safety_rail.stop, "Safety rail should have stopped"
-    assert any(
-        "check_safety_action" in action.action_name
-        for action in safety_rail.executed_actions
-    ), "check_safety_action should have fired"
+    assert any("check_safety_action" in action.action_name for action in safety_rail.executed_actions), (
+        "check_safety_action should have fired"
+    )
 
     # stopped rails should have "stop" in decisions
     for rail in stopped_rails:
-        assert (
-            "stop" in rail.decisions
-        ), f"Stopped rail {rail.name} missing 'stop' in decisions"
+        assert "stop" in rail.decisions, f"Stopped rail {rail.name} missing 'stop' in decisions"
 
     # passed rails should NOT have "stop" in decisions
     for rail in passed_rails:
-        assert (
-            "stop" not in rail.decisions
-        ), f"Passed rail {rail.name} incorrectly has 'stop' in decisions"
+        assert "stop" not in rail.decisions, f"Passed rail {rail.name} incorrectly has 'stop' in decisions"
 
 
 @pytest.mark.asyncio
@@ -250,9 +217,7 @@ async def test_parallel_rails_multiple_simultaneous_violations():
     both detect violations at nearly the same time, our exception detection
     should handle whichever completes first.
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     chat = TestChat(
         config,
         llm_completions=["Hi there!"],
@@ -264,27 +229,18 @@ async def test_parallel_rails_multiple_simultaneous_violations():
 
     stopped_rails = [r for r in result.log.activated_rails if r.stop]
 
-    assert (
-        len(stopped_rails) > 0
-    ), "Expected at least one stopped rail when multiple violations occur"
+    assert len(stopped_rails) > 0, "Expected at least one stopped rail when multiple violations occur"
 
     stopped_rail_names = {r.name for r in stopped_rails}
-    assert (
-        "check safety with exception" in stopped_rail_names
-        or "check topic with exception" in stopped_rail_names
-    ), f"Expected safety or topic rail to stop, got: {stopped_rail_names}"
+    assert "check safety with exception" in stopped_rail_names or "check topic with exception" in stopped_rail_names, (
+        f"Expected safety or topic rail to stop, got: {stopped_rail_names}"
+    )
 
     for rail in stopped_rails:
         assert rail.stop is True, f"Stopped rail '{rail.name}' should have stop=True"
-        assert (
-            "stop" in rail.decisions
-        ), f"Stopped rail '{rail.name}' should have 'stop' in decisions"
+        assert "stop" in rail.decisions, f"Stopped rail '{rail.name}' should have 'stop' in decisions"
 
-    has_exception = any(
-        msg.get("role") == "exception"
-        for msg in result.response
-        if isinstance(msg, dict)
-    )
+    has_exception = any(msg.get("role") == "exception" for msg in result.response if isinstance(msg, dict))
     assert has_exception, "Expected exception in response when rails block"
 
 
@@ -295,9 +251,7 @@ async def test_parallel_output_rails_exception_stop_flag():
     This verifies that our fix works for output rails, not just input rails,
     since both use the same _run_flows_in_parallel mechanism.
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -313,30 +267,19 @@ async def test_parallel_output_rails_exception_stop_flag():
 
     stopped_output_rails = [r for r in output_rails if r.stop]
 
-    assert (
-        len(stopped_output_rails) > 0
-    ), "Expected at least one stopped output rail when output is blocked"
+    assert len(stopped_output_rails) > 0, "Expected at least one stopped output rail when output is blocked"
 
-    output_safety_rail = next(
-        (r for r in output_rails if "output safety" in r.name.lower()), None
-    )
+    output_safety_rail = next((r for r in output_rails if "output safety" in r.name.lower()), None)
     assert output_safety_rail is not None, "Output safety rail should have executed"
     assert output_safety_rail.stop, "Output safety rail should have stopped"
-    assert any(
-        "check_output_safety_action" in action.action_name
-        for action in output_safety_rail.executed_actions
-    ), "check_output_safety_action should have fired"
+    assert any("check_output_safety_action" in action.action_name for action in output_safety_rail.executed_actions), (
+        "check_output_safety_action should have fired"
+    )
 
     for rail in stopped_output_rails:
-        assert (
-            "stop" in rail.decisions
-        ), f"Stopped output rail '{rail.name}' should have 'stop' in decisions"
+        assert "stop" in rail.decisions, f"Stopped output rail '{rail.name}' should have 'stop' in decisions"
 
-    has_exception = any(
-        msg.get("role") == "exception"
-        for msg in result.response
-        if isinstance(msg, dict)
-    )
+    has_exception = any(msg.get("role") == "exception" for msg in result.response if isinstance(msg, dict))
     assert has_exception, "Expected exception when output rail blocks"
 
 
@@ -347,9 +290,7 @@ async def test_parallel_rails_context_updates_preserved():
     This verifies that even when a rail raises an exception, any context updates
     it made before stopping are still captured.
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
 
     config.rails.input.flows.append("check with context update")
 
@@ -374,9 +315,7 @@ async def test_parallel_rails_context_updates_preserved():
 async def test_input_rails_only_parallel_with_exceptions():
     """Test parallel input rails with NO output rails configured."""
 
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
 
     chat = TestChat(
         config,
@@ -396,9 +335,7 @@ async def test_input_rails_only_parallel_with_exceptions():
     }
 
     chat >> "This is an unsafe message"
-    result = await chat.app.generate_async(
-        messages=chat.history, options=options_input_only
-    )
+    result = await chat.app.generate_async(messages=chat.history, options=options_input_only)
 
     input_rails = [r for r in result.log.activated_rails if r.type == "input"]
     output_rails = [r for r in result.log.activated_rails if r.type == "output"]
@@ -407,9 +344,7 @@ async def test_input_rails_only_parallel_with_exceptions():
     assert len(output_rails) == 0, "Should have no output rails"
 
     stopped_input_rails = [r for r in input_rails if r.stop]
-    assert (
-        len(stopped_input_rails) > 0
-    ), "Expected at least one stopped input rail when input is blocked"
+    assert len(stopped_input_rails) > 0, "Expected at least one stopped input rail when input is blocked"
 
     for rail in stopped_input_rails:
         assert rail.stop is True
@@ -419,9 +354,7 @@ async def test_input_rails_only_parallel_with_exceptions():
 @pytest.mark.asyncio
 async def test_output_rails_only_parallel_with_exceptions():
     """Test parallel output rails with NO input rails configured."""
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "parallel_rails_with_exceptions"))
 
     chat = TestChat(
         config,
@@ -443,9 +376,7 @@ async def test_output_rails_only_parallel_with_exceptions():
     }
 
     chat >> "Hello"
-    result = await chat.app.generate_async(
-        messages=chat.history, options=options_output_only
-    )
+    result = await chat.app.generate_async(messages=chat.history, options=options_output_only)
 
     input_rails = [r for r in result.log.activated_rails if r.type == "input"]
     output_rails = [r for r in result.log.activated_rails if r.type == "output"]
@@ -454,9 +385,7 @@ async def test_output_rails_only_parallel_with_exceptions():
     assert len(output_rails) > 0, "Should have output rails"
 
     stopped_output_rails = [r for r in output_rails if r.stop]
-    assert (
-        len(stopped_output_rails) > 0
-    ), "Expected at least one stopped output rail when output is blocked"
+    assert len(stopped_output_rails) > 0, "Expected at least one stopped output rail when output is blocked"
 
     for rail in stopped_output_rails:
         assert rail.stop is True

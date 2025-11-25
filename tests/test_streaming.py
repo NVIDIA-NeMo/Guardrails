@@ -27,9 +27,7 @@ from tests.utils import FakeLLM, TestChat
 
 @pytest.fixture
 def chat_1():
-    config: RailsConfig = RailsConfig.from_content(
-        config={"models": [], "streaming": True}
-    )
+    config: RailsConfig = RailsConfig.from_content(config={"models": [], "streaming": True})
     return TestChat(
         config,
         llm_completions=[
@@ -161,9 +159,7 @@ async def test_streaming_single_llm_call():
     )
     chat = TestChat(
         config,
-        llm_completions=[
-            '  express greeting\nbot express greeting\n  "Hi, how are you doing?"'
-        ],
+        llm_completions=['  express greeting\nbot express greeting\n  "Hi, how are you doing?"'],
         streaming=True,
     )
 
@@ -200,9 +196,7 @@ async def test_streaming_single_llm_call_with_message_override():
     )
     chat = TestChat(
         config,
-        llm_completions=[
-            '  express greeting\nbot express greeting\n  "Hi, how are you doing?"'
-        ],
+        llm_completions=['  express greeting\nbot express greeting\n  "Hi, how are you doing?"'],
         streaming=True,
     )
 
@@ -359,9 +353,7 @@ async def test_streaming_output_rails_allowed(output_rails_streaming_config):
     # number of buffered chunks should be equal to the number of actions
     # we are apply #calculate_number_of_actions of time the output rails
     # FIXME: nice but stupid
-    assert len(expected_chunks) == _calculate_number_of_actions(
-        len(llm_completions[1].lstrip().split(" ")), 4, 2
-    )
+    assert len(expected_chunks) == _calculate_number_of_actions(len(llm_completions[1].lstrip().split(" ")), 4, 2)
     # Wait for proper cleanup, otherwise we get a Runtime Error
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -603,10 +595,7 @@ async def test_streaming_error_handling():
     error_data = json.loads(error_chunk)
     assert "error" in error_data
     assert "message" in error_data["error"]
-    assert (
-        "The model `non-existent-model` does not exist"
-        in error_data["error"]["message"]
-    )
+    assert "The model `non-existent-model` does not exist" in error_data["error"]["message"]
     assert error_data["error"]["type"] == "invalid_request_error"
     assert error_data["error"]["code"] == "model_not_found"
 
@@ -776,9 +765,7 @@ def test_main_llm_supports_streaming_flag_config_combinations(
     if model_type == "chat":
         engine = "custom_streaming" if model_streaming else "custom_none_streaming"
     else:
-        engine = (
-            "custom_streaming_llm" if model_streaming else "custom_none_streaming_llm"
-        )
+        engine = "custom_streaming_llm" if model_streaming else "custom_none_streaming_llm"
 
     config = RailsConfig.from_content(
         config={
@@ -825,6 +812,6 @@ def test_main_llm_supports_streaming_flag_disabled_when_no_streaming():
     fake_llm = FakeLLM(responses=["test"], streaming=False)
     rails = LLMRails(config, llm=fake_llm)
 
-    assert (
-        rails.main_llm_supports_streaming is False
-    ), "main_llm_supports_streaming should be False when streaming is disabled"
+    assert rails.main_llm_supports_streaming is False, (
+        "main_llm_supports_streaming should be False when streaming is disabled"
+    )

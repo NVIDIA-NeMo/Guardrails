@@ -318,9 +318,7 @@ def parse_md_file(file_name, content=None):
 
             if "(" in sym:
                 sym, symbol_params = split_max(sym, "(", 1)
-                symbol_params = get_stripped_tokens(
-                    symbol_params.split(")")[0].split(",")
-                )
+                symbol_params = get_stripped_tokens(symbol_params.split(")")[0].split(","))
 
             # Make sure we have the type of the symbol in the name of the symbol
             symbol_type = _get_symbol_type(sym) or symbol_type
@@ -413,9 +411,7 @@ def parse_md_file(file_name, content=None):
                         symbol_name = split_max(sym, ":", 1)[1]
 
                         for k in list(params.keys()):
-                            if (
-                                k == "value" or k == symbol_name
-                            ) and k not in symbol_params:
+                            if (k == "value" or k == symbol_name) and k not in symbol_params:
                                 value = params[k][9:]
                                 new_k = f"{symbol_name}={value}"
                                 params[new_k] = value

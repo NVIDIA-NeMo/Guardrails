@@ -117,9 +117,7 @@ def random_seed() -> int:
 
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.random.seed")
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.random.binomial")
-def test_is_unsafe_mocks_no_seed(
-    mock_binomial: MagicMock, mock_seed: MagicMock, model_settings: ModelSettings
-):
+def test_is_unsafe_mocks_no_seed(mock_binomial: MagicMock, mock_seed: MagicMock, model_settings: ModelSettings):
     """Check `is_unsafe()` calls the correct numpy functions"""
     mock_binomial.return_value = [True]
 
@@ -128,16 +126,12 @@ def test_is_unsafe_mocks_no_seed(
     assert response
     assert mock_seed.call_count == 0
     assert mock_binomial.call_count == 1
-    mock_binomial.assert_called_once_with(
-        n=1, p=model_settings.unsafe_probability, size=1
-    )
+    mock_binomial.assert_called_once_with(n=1, p=model_settings.unsafe_probability, size=1)
 
 
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.random.seed")
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.random.binomial")
-def test_is_unsafe_mocks_with_seed(
-    mock_binomial, mock_seed, model_settings: ModelSettings, random_seed: int
-):
+def test_is_unsafe_mocks_with_seed(mock_binomial, mock_seed, model_settings: ModelSettings, random_seed: int):
     """Check `is_unsafe()` calls the correct numpy functions"""
     mock_binomial.return_value = [False]
 
@@ -146,9 +140,7 @@ def test_is_unsafe_mocks_with_seed(
     assert not response
     assert mock_seed.call_count == 1
     assert mock_binomial.call_count == 1
-    mock_binomial.assert_called_once_with(
-        n=1, p=model_settings.unsafe_probability, size=1
-    )
+    mock_binomial.assert_called_once_with(n=1, p=model_settings.unsafe_probability, size=1)
 
 
 def test_is_unsafe_prob_one(model_settings: ModelSettings):
@@ -169,9 +161,7 @@ def test_is_unsafe_prob_zero(model_settings: ModelSettings):
 
 def test_get_response_safe(model_settings: ModelSettings):
     """Check we get the safe response with is_unsafe returns False"""
-    with patch(
-        "nemoguardrails.benchmark.mock_llm_server.response_data.is_unsafe"
-    ) as mock_is_unsafe:
+    with patch("nemoguardrails.benchmark.mock_llm_server.response_data.is_unsafe") as mock_is_unsafe:
         mock_is_unsafe.return_value = False
         response = get_response(model_settings)
         assert response == model_settings.safe_text
@@ -179,9 +169,7 @@ def test_get_response_safe(model_settings: ModelSettings):
 
 def test_get_response_unsafe(model_settings: ModelSettings):
     """Check we get the safe response with is_unsafe returns False"""
-    with patch(
-        "nemoguardrails.benchmark.mock_llm_server.response_data.is_unsafe"
-    ) as mock_is_unsafe:
+    with patch("nemoguardrails.benchmark.mock_llm_server.response_data.is_unsafe") as mock_is_unsafe:
         mock_is_unsafe.return_value = True
         response = get_response(model_settings)
         assert response == model_settings.unsafe_text
@@ -190,9 +178,7 @@ def test_get_response_unsafe(model_settings: ModelSettings):
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.random.seed")
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.random.normal")
 @patch("nemoguardrails.benchmark.mock_llm_server.response_data.np.clip")
-def test_get_latency_seconds_mocks_no_seed(
-    mock_clip, mock_normal, mock_seed, model_settings: ModelSettings
-):
+def test_get_latency_seconds_mocks_no_seed(mock_clip, mock_normal, mock_seed, model_settings: ModelSettings):
     """Check we call the correct numpy functions (not including seed)"""
 
     mock_normal.return_value = model_settings.latency_mean_seconds

@@ -66,9 +66,9 @@ class TestJailbreakRequestChanges:
 
         for base_url, classification_path, expected_url in test_cases:
             result = join_nim_url(base_url, classification_path)
-            assert (
-                result == expected_url
-            ), f"join_nim_url({base_url}, {classification_path}) should equal {expected_url}, got {result}"
+            assert result == expected_url, (
+                f"join_nim_url({base_url}, {classification_path}) should equal {expected_url}, got {result}"
+            )
 
     def test_auth_header_logic(self):
         """Test the authorization header logic."""

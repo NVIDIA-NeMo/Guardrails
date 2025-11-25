@@ -32,9 +32,7 @@ def test_custom_llm_registration():
 
 
 def test_custom_chat_model_registration():
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "with_custom_chat_model")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_custom_chat_model"))
     _ = LLMRails(config)
 
     assert "custom_chat_model" in get_community_chat_provider_names()

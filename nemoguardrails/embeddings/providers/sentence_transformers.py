@@ -46,16 +46,13 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
             from sentence_transformers import SentenceTransformer  # type: ignore
         except ImportError:
             raise ImportError(
-                "Could not import sentence-transformers, please install it with "
-                "`pip install sentence-transformers`."
+                "Could not import sentence-transformers, please install it with `pip install sentence-transformers`."
             )
 
         try:
             from torch import cuda  # type: ignore
         except ImportError:
-            raise ImportError(
-                "Could not import torch, please install it with `pip install torch`."
-            )
+            raise ImportError("Could not import torch, please install it with `pip install torch`.")
 
         device = "cuda" if cuda.is_available() else "cpu"
         self.model = SentenceTransformer(embedding_model, device=device, **kwargs)
@@ -73,9 +70,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
         """
 
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            get_executor(), self.model.encode, documents
-        )
+        result = await loop.run_in_executor(get_executor(), self.model.encode, documents)
 
         return result.tolist()
 

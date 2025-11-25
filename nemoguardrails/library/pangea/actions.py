@@ -68,9 +68,7 @@ async def pangea_ai_guard(
     user_message: Optional[str] = None,
     bot_message: Optional[str] = None,
 ) -> TextGuardResult:
-    pangea_base_url_template = os.getenv(
-        "PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud"
-    )
+    pangea_base_url_template = os.getenv("PANGEA_BASE_URL_TEMPLATE", "https://{SERVICE_NAME}.aws.us.pangea.cloud")
     pangea_api_token = os.getenv("PANGEA_API_TOKEN")
 
     if not pangea_api_token:
@@ -86,12 +84,7 @@ async def pangea_ai_guard(
 
     messages: list[Message] = []
     if config.instructions:
-        messages.extend(
-            [
-                Message(role="system", content=instruction.content)
-                for instruction in config.instructions
-            ]
-        )
+        messages.extend([Message(role="system", content=instruction.content) for instruction in config.instructions])
     if user_message:
         messages.append(Message(role="user", content=user_message))
     if mode == "output" and bot_message:
@@ -100,16 +93,10 @@ async def pangea_ai_guard(
     recipe = (
         pangea_config.input.recipe
         if mode == "input" and pangea_config.input
-        else (
-            pangea_config.output.recipe
-            if mode == "output" and pangea_config.output
-            else None
-        )
+        else (pangea_config.output.recipe if mode == "output" and pangea_config.output else None)
     )
 
-    async with httpx.AsyncClient(
-        base_url=pangea_base_url_template.format(SERVICE_NAME="ai-guard")
-    ) as client:
+    async with httpx.AsyncClient(base_url=pangea_base_url_template.format(SERVICE_NAME="ai-guard")) as client:
         data = {"messages": messages, "recipe": recipe}
         # Remove `None` values.
         data = {k: v for k, v in data.items() if v is not None}
@@ -140,11 +127,7 @@ async def pangea_ai_guard(
         result = text_guard_response.result
         prompt_messages = result.prompt_messages or []
 
-        result.bot_message = next(
-            (m.content for m in prompt_messages if m.role == "assistant"), bot_message
-        )
-        result.user_message = next(
-            (m.content for m in prompt_messages if m.role == "user"), user_message
-        )
+        result.bot_message = next((m.content for m in prompt_messages if m.role == "assistant"), bot_message)
+        result.user_message = next((m.content for m in prompt_messages if m.role == "user"), user_message)
 
         return result

@@ -31,17 +31,11 @@ def query_tabular_data(usr_query: str, gpt: any, raw_data_frame: any):
     # TODO: check if there's a way to do this grouping dynamically
     grouped_by_cols = []
 
-    if any(
-        word in usr_query for word in ["first class", "second class", "third class"]
-    ):
+    if any(word in usr_query for word in ["first class", "second class", "third class"]):
         grouped_by_cols.append("Class")
-    elif any(
-        word in usr_query for word in ["port", "Queenstown", "Southampton", "Cherbourg"]
-    ):
+    elif any(word in usr_query for word in ["port", "Queenstown", "Southampton", "Cherbourg"]):
         grouped_by_cols.append("port")
-    elif any(
-        word in usr_query for word in ["female", "male", "man", "woman", "men", "women"]
-    ):
+    elif any(word in usr_query for word in ["female", "male", "man", "woman", "men", "women"]):
         grouped_by_cols.append("Sex")
     else:
         pass
@@ -104,8 +98,6 @@ class TabularLLM(BaseLLM):
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
         **kwargs,
     ) -> str:
-        result, processed_data = query_tabular_data(
-            usr_query=prompt, gpt=self.gpt, raw_data_frame=self.raw_data_frame
-        )
+        result, processed_data = query_tabular_data(usr_query=prompt, gpt=self.gpt, raw_data_frame=self.raw_data_frame)
 
         return "###".join([result, self.raw_data_path, processed_data])

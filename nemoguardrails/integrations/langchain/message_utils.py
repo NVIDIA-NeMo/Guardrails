@@ -101,17 +101,9 @@ def dict_to_message(msg_dict: Dict[str, Any]) -> BaseMessage:
 
     exclude_keys = {"role", "type", "content"}
 
-    valid_fields = (
-        set(message_class.model_fields.keys())
-        if hasattr(message_class, "model_fields")
-        else set()
-    )
+    valid_fields = set(message_class.model_fields.keys()) if hasattr(message_class, "model_fields") else set()
 
-    kwargs = {
-        k: v
-        for k, v in msg_dict.items()
-        if k not in exclude_keys and k in valid_fields and v is not None
-    }
+    kwargs = {k: v for k, v in msg_dict.items() if k not in exclude_keys and k in valid_fields and v is not None}
 
     if message_class == ToolMessage:
         kwargs["tool_call_id"] = msg_dict.get("tool_call_id", "")
@@ -205,11 +197,7 @@ def create_ai_message(
     if usage_metadata is not None:
         kwargs["usage_metadata"] = usage_metadata
 
-    valid_fields = (
-        set(AIMessage.model_fields.keys())
-        if hasattr(AIMessage, "model_fields")
-        else set()
-    )
+    valid_fields = set(AIMessage.model_fields.keys()) if hasattr(AIMessage, "model_fields") else set()
     for key, value in extra_kwargs.items():
         if key in valid_fields and key not in kwargs:
             kwargs[key] = value

@@ -74,18 +74,12 @@ def test_tasks_with_detailed_thinking():
         assert hasattr(prompt, "messages") and prompt.messages is not None
 
         # two system messages (one for detailed thinking, one for instructions)
-        system_messages = [
-            msg
-            for msg in prompt.messages
-            if hasattr(msg, "type") and msg.type == "system"
-        ]
-        assert (
-            len(system_messages) == 2
-        ), f"Task {task} should have exactly two system messages"
+        system_messages = [msg for msg in prompt.messages if hasattr(msg, "type") and msg.type == "system"]
+        assert len(system_messages) == 2, f"Task {task} should have exactly two system messages"
 
-        assert (
-            "detailed thinking on" in system_messages[0].content
-        ), f"Task {task} should have 'detailed thinking on' in first system message"
+        assert "detailed thinking on" in system_messages[0].content, (
+            f"Task {task} should have 'detailed thinking on' in first system message"
+        )
 
 
 def test_tasks_without_detailed_thinking():
@@ -98,25 +92,17 @@ def test_tasks_without_detailed_thinking():
         assert hasattr(prompt, "messages") and prompt.messages is not None
 
         # one system message (no detailed thinking)
-        system_messages = [
-            msg
-            for msg in prompt.messages
-            if hasattr(msg, "type") and msg.type == "system"
-        ]
-        assert (
-            len(system_messages) == 1
-        ), f"Task {task} should have exactly one system message"
+        system_messages = [msg for msg in prompt.messages if hasattr(msg, "type") and msg.type == "system"]
+        assert len(system_messages) == 1, f"Task {task} should have exactly one system message"
 
-        assert (
-            "detailed thinking on" not in system_messages[0].content
-        ), f"Task {task} should not have 'detailed thinking on' in system message"
+        assert "detailed thinking on" not in system_messages[0].content, (
+            f"Task {task} should not have 'detailed thinking on' in system message"
+        )
 
 
 def test_deepseek_uses_deepseek_yml():
     """Verify DeepSeek models use deepseek.yml."""
-    config = RailsConfig.from_content(
-        colang_config(), yaml_content=create_config(DEEPSEEK_MODEL)
-    )
+    config = RailsConfig.from_content(colang_config(), yaml_content=create_config(DEEPSEEK_MODEL))
 
     for task in [Task.GENERATE_BOT_MESSAGE, Task.GENERATE_USER_INTENT]:
         prompt = get_prompt(config, task)
@@ -173,45 +159,39 @@ ACTUAL_LLAMA3_MODELS_FOR_TEST = [
 ]
 
 EXPECTED_NEMOTRON_PROMPT_MODELS_FIELD = sorted(["nvidia/nemotron", "nemotron"])
-EXPECTED_LLAMA3_PROMPT_MODELS_FIELD = sorted(
-    ["meta/llama-3", "meta/llama3", "nvidia/usdcode-llama-3"]
-)
+EXPECTED_LLAMA3_PROMPT_MODELS_FIELD = sorted(["meta/llama-3", "meta/llama3", "nvidia/usdcode-llama-3"])
 
 
 @pytest.mark.parametrize("model_name", ACTUAL_NEMOTRON_MODELS_FOR_TEST)
 def test_specific_nemotron_model_variants_select_nemotron_prompt(model_name):
     """Verify that specific Nemotron model variants correctly select the Nemotron prompt."""
-    config = RailsConfig.from_content(
-        colang_config(), yaml_content=create_config(model=model_name)
-    )
+    config = RailsConfig.from_content(colang_config(), yaml_content=create_config(model=model_name))
     prompt = get_prompt(config, Task.GENERATE_BOT_MESSAGE)
 
-    assert (
-        hasattr(prompt, "messages") and prompt.messages is not None
-    ), f"Prompt for {model_name} should be message-based for Nemotron."
-    assert (
-        not hasattr(prompt, "content") or prompt.content is None
-    ), f"Prompt for {model_name} should not have content for Nemotron."
+    assert hasattr(prompt, "messages") and prompt.messages is not None, (
+        f"Prompt for {model_name} should be message-based for Nemotron."
+    )
+    assert not hasattr(prompt, "content") or prompt.content is None, (
+        f"Prompt for {model_name} should not have content for Nemotron."
+    )
 
     # sort because the order within the list in the YAML might not be guaranteed upon loading
-    assert (
-        sorted(prompt.models) == EXPECTED_NEMOTRON_PROMPT_MODELS_FIELD
-    ), f"Prompt for {model_name} selected wrong model identifiers. Expected {EXPECTED_NEMOTRON_PROMPT_MODELS_FIELD}, Got {sorted(prompt.models)}"
+    assert sorted(prompt.models) == EXPECTED_NEMOTRON_PROMPT_MODELS_FIELD, (
+        f"Prompt for {model_name} selected wrong model identifiers. Expected {EXPECTED_NEMOTRON_PROMPT_MODELS_FIELD}, Got {sorted(prompt.models)}"
+    )
 
 
 @pytest.mark.parametrize("model_name", ACTUAL_LLAMA3_MODELS_FOR_TEST)
 def test_specific_llama3_model_variants_select_llama3_prompt(model_name):
     """Verify that specific Llama3 model variants correctly select the Llama3 prompt."""
 
-    config = RailsConfig.from_content(
-        colang_config(), yaml_content=create_config(model=model_name)
-    )
+    config = RailsConfig.from_content(colang_config(), yaml_content=create_config(model=model_name))
     prompt = get_prompt(config, Task.GENERATE_BOT_MESSAGE)
 
-    assert (
-        hasattr(prompt, "messages") and prompt.messages is not None
-    ), f"Prompt for {model_name} should be message-based for Llama3."
+    assert hasattr(prompt, "messages") and prompt.messages is not None, (
+        f"Prompt for {model_name} should be message-based for Llama3."
+    )
 
-    assert (
-        sorted(prompt.models) == EXPECTED_LLAMA3_PROMPT_MODELS_FIELD
-    ), f"Prompt for {model_name} selected wrong model identifiers. Expected {EXPECTED_LLAMA3_PROMPT_MODELS_FIELD}, Got {sorted(prompt.models)}"
+    assert sorted(prompt.models) == EXPECTED_LLAMA3_PROMPT_MODELS_FIELD, (
+        f"Prompt for {model_name} selected wrong model identifiers. Expected {EXPECTED_LLAMA3_PROMPT_MODELS_FIELD}, Got {sorted(prompt.models)}"
+    )

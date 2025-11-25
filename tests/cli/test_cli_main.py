@@ -90,9 +90,7 @@ class TestChatCommand:
     @patch("os.path.exists")
     def test_chat_with_verbose_no_llm(self, mock_exists, mock_run_chat):
         mock_exists.return_value = True
-        result = runner.invoke(
-            app, ["chat", "--config=test_config", "--verbose-no-llm"]
-        )
+        result = runner.invoke(app, ["chat", "--config=test_config", "--verbose-no-llm"])
         assert result.exit_code == 0
         mock_run_chat.assert_called_once_with(
             config_path="test_config",
@@ -143,9 +141,7 @@ class TestChatCommand:
     @patch("os.path.exists")
     def test_chat_with_debug_level(self, mock_exists, mock_init_seed, mock_run_chat):
         mock_exists.return_value = True
-        result = runner.invoke(
-            app, ["chat", "--config=test_config", "--debug-level=DEBUG"]
-        )
+        result = runner.invoke(app, ["chat", "--config=test_config", "--debug-level=DEBUG"])
         assert result.exit_code == 0
         mock_init_seed.assert_called_once_with(0)
         mock_run_chat.assert_called_once()
@@ -175,9 +171,7 @@ class TestServerCommand:
     @patch("nemoguardrails.server.api.app")
     @patch("os.path.exists")
     @patch("os.path.expanduser")
-    def test_server_with_config(
-        self, mock_expanduser, mock_exists, mock_app, mock_uvicorn
-    ):
+    def test_server_with_config(self, mock_expanduser, mock_exists, mock_app, mock_uvicorn):
         mock_expanduser.return_value = "/path/to/config"
         mock_exists.return_value = True
         result = runner.invoke(app, ["server", "--config=/path/to/config"])
@@ -188,9 +182,7 @@ class TestServerCommand:
     @patch("nemoguardrails.server.api.app")
     @patch("os.path.exists")
     @patch("os.getcwd")
-    def test_server_with_local_config(
-        self, mock_getcwd, mock_exists, mock_app, mock_uvicorn
-    ):
+    def test_server_with_local_config(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
         mock_getcwd.return_value = "/current/dir"
         mock_exists.return_value = True
         result = runner.invoke(app, ["server"])
@@ -215,9 +207,7 @@ class TestServerCommand:
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
     @patch("nemoguardrails.server.api.set_default_config_id")
-    def test_server_with_default_config_id(
-        self, mock_set_default, mock_app, mock_uvicorn
-    ):
+    def test_server_with_default_config_id(self, mock_set_default, mock_app, mock_uvicorn):
         result = runner.invoke(app, ["server", "--default-config-id=test_config"])
         assert result.exit_code == 0
         mock_set_default.assert_called_once_with("test_config")

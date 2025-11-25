@@ -20,55 +20,45 @@ from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import StreamingHandler
 
-streaming_handler_var: contextvars.ContextVar[
-    Optional[StreamingHandler]
-] = contextvars.ContextVar("streaming_handler", default=None)
+streaming_handler_var: contextvars.ContextVar[Optional[StreamingHandler]] = contextvars.ContextVar(
+    "streaming_handler", default=None
+)
 if TYPE_CHECKING:
     from nemoguardrails.logging.explain import ExplainInfo
     from nemoguardrails.logging.stats import LLMStats
     from nemoguardrails.rails.llm.options import GenerationOptions
     from nemoguardrails.streaming import StreamingHandler
 
-streaming_handler_var: contextvars.ContextVar[
-    Optional["StreamingHandler"]
-] = contextvars.ContextVar("streaming_handler", default=None)
+streaming_handler_var: contextvars.ContextVar[Optional["StreamingHandler"]] = contextvars.ContextVar(
+    "streaming_handler", default=None
+)
 
 # The object that holds additional explanation information.
-explain_info_var: contextvars.ContextVar[
-    Optional["ExplainInfo"]
-] = contextvars.ContextVar("explain_info", default=None)
+explain_info_var: contextvars.ContextVar[Optional["ExplainInfo"]] = contextvars.ContextVar("explain_info", default=None)
 
 # The current LLM call.
-llm_call_info_var: contextvars.ContextVar[
-    Optional[LLMCallInfo]
-] = contextvars.ContextVar("llm_call_info", default=None)
+llm_call_info_var: contextvars.ContextVar[Optional[LLMCallInfo]] = contextvars.ContextVar("llm_call_info", default=None)
 
 # All the generation options applicable to the current context.
-generation_options_var: contextvars.ContextVar[
-    Optional[GenerationOptions]
-] = contextvars.ContextVar("generation_options", default=None)
+generation_options_var: contextvars.ContextVar[Optional[GenerationOptions]] = contextvars.ContextVar(
+    "generation_options", default=None
+)
 
 # The stats about the LLM calls.
-llm_stats_var: contextvars.ContextVar[Optional["LLMStats"]] = contextvars.ContextVar(
-    "llm_stats", default=None
-)
+llm_stats_var: contextvars.ContextVar[Optional["LLMStats"]] = contextvars.ContextVar("llm_stats", default=None)
 
 # The raw LLM request that comes from the user.
 # This is used in passthrough mode.
-raw_llm_request: contextvars.ContextVar[
-    Optional[Union[str, List[Dict[str, Any]]]]
-] = contextvars.ContextVar("raw_llm_request", default=None)
-
-reasoning_trace_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
-    "reasoning_trace", default=None
+raw_llm_request: contextvars.ContextVar[Optional[Union[str, List[Dict[str, Any]]]]] = contextvars.ContextVar(
+    "raw_llm_request", default=None
 )
+
+reasoning_trace_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("reasoning_trace", default=None)
 
 # The tool calls from the current LLM response.
-tool_calls_var: contextvars.ContextVar[Optional[list]] = contextvars.ContextVar(
-    "tool_calls", default=None
-)
+tool_calls_var: contextvars.ContextVar[Optional[list]] = contextvars.ContextVar("tool_calls", default=None)
 
 # The response metadata from the current LLM response.
-llm_response_metadata_var: contextvars.ContextVar[
-    Optional[dict]
-] = contextvars.ContextVar("llm_response_metadata", default=None)
+llm_response_metadata_var: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
+    "llm_response_metadata", default=None
+)

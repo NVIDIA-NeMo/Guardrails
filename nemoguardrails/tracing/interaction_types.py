@@ -29,9 +29,7 @@ class InteractionLog(BaseModel):
 
     id: str = Field(description="A human readable id of the interaction.")
 
-    activated_rails: List[ActivatedRail] = Field(
-        default_factory=list, description="Details about the activated rails."
-    )
+    activated_rails: List[ActivatedRail] = Field(default_factory=list, description="Details about the activated rails.")
     events: List[dict] = Field(
         default_factory=list,
         description="The full list of events recorded during the interaction.",
@@ -46,9 +44,7 @@ class InteractionOutput(BaseModel):
 
     id: str = Field(description="A human readable id of the interaction.")
     input: Any = Field(description="The input for the interaction.")
-    output: Optional[Any] = Field(
-        default=None, description="The output of the interaction."
-    )
+    output: Optional[Any] = Field(default=None, description="The output of the interaction.")
 
 
 def extract_interaction_log(

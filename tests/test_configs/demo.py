@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Demo script."""
+
 import logging
 
 from nemoguardrails import LLMRails, RailsConfig
@@ -25,9 +26,7 @@ def demo():
     """Quick demo using LLMRails with config from dict."""
     config = RailsConfig.parse_object(
         {
-            "models": [
-                {"type": "main", "engine": "openai", "model": "gpt-3.5-turbo-instruct"}
-            ],
+            "models": [{"type": "main", "engine": "openai", "model": "gpt-3.5-turbo-instruct"}],
             "instructions": [
                 {
                     "type": "general",

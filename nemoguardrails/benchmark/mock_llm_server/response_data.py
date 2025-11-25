@@ -48,9 +48,7 @@ def get_latency_seconds(config: ModelSettings, seed: Optional[int] = None) -> fl
         np.random.seed(seed)
 
     # Sample from the normal distribution using model config
-    latency_seconds = np.random.normal(
-        loc=config.latency_mean_seconds, scale=config.latency_std_seconds, size=1
-    )
+    latency_seconds = np.random.normal(loc=config.latency_mean_seconds, scale=config.latency_std_seconds, size=1)
 
     # Truncate distribution's support using min and max config values
     latency_seconds = np.clip(

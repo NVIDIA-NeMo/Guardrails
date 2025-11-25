@@ -131,9 +131,7 @@ async def test_no_token_usage_tracking_without_metadata():
 
     assert llm_call_info.total_tokens is None or llm_call_info.total_tokens == 0
     assert llm_call_info.prompt_tokens is None or llm_call_info.prompt_tokens == 0
-    assert (
-        llm_call_info.completion_tokens is None or llm_call_info.completion_tokens == 0
-    )
+    assert llm_call_info.completion_tokens is None or llm_call_info.completion_tokens == 0
 
 
 @pytest.mark.asyncio

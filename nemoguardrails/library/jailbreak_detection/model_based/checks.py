@@ -36,18 +36,14 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
 
     if classifier_path is None:
         # Log a warning, but do not throw an exception
-        logger.warning(
-            "No embedding classifier path set. Server /model endpoint will not work."
-        )
+        logger.warning("No embedding classifier path set. Server /model endpoint will not work.")
         return None
 
     from nemoguardrails.library.jailbreak_detection.model_based.models import (
         JailbreakClassifier,
     )
 
-    jailbreak_classifier = JailbreakClassifier(
-        str(Path(classifier_path).joinpath("snowflake.pkl"))
-    )
+    jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.pkl")))
 
     return jailbreak_classifier
 

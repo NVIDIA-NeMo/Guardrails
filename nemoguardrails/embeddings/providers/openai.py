@@ -49,14 +49,10 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             import openai  # type: ignore
             from openai import OpenAI  # type: ignore
         except ImportError:
-            raise ImportError(
-                "Could not import openai, please install it with "
-                "`pip install openai`."
-            )
+            raise ImportError("Could not import openai, please install it with `pip install openai`.")
         if openai.__version__ < "1.0.0":  # type: ignore
             raise RuntimeError(
-                "`openai<1.0.0` is no longer supported. "
-                "Please upgrade using `pip install openai>=1.0.0`."
+                "`openai<1.0.0` is no longer supported. Please upgrade using `pip install openai>=1.0.0`."
             )
 
         self.model = embedding_model

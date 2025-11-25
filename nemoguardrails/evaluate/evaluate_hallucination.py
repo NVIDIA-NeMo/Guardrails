@@ -93,9 +93,7 @@ class HallucinationRailsEvaluation:
         """
         extra_responses = []
         for _ in range(num_responses):
-            extra_response = self.get_response_with_retries(
-                prompt, llm_params={"temperature": 1.0, "max_tokens": 100}
-            )
+            extra_response = self.get_response_with_retries(prompt, llm_params={"temperature": 1.0, "max_tokens": 100})
 
             if extra_response is None:
                 log(
@@ -124,9 +122,7 @@ class HallucinationRailsEvaluation:
         for question in tqdm.tqdm(self.dataset):
             errored_out = False
             # Using temperature=0.2 and max_tokens=100 for consistent responses
-            bot_response = self.get_response_with_retries(
-                question, llm_params={"temperature": 0.2, "max_tokens": 100}
-            )
+            bot_response = self.get_response_with_retries(question, llm_params={"temperature": 0.2, "max_tokens": 100})
 
             if bot_response is None:
                 log(
@@ -185,21 +181,15 @@ class HallucinationRailsEvaluation:
             num_flagged,
             num_error,
         ) = self.self_check_hallucination()
-        print(
-            f"% of samples flagged as hallucinations: {num_flagged / len(self.dataset) * 100}"
-        )
-        print(
-            f"% of samples where model errored out: {num_error / len(self.dataset) * 100}"
-        )
+        print(f"% of samples flagged as hallucinations: {num_flagged / len(self.dataset) * 100}")
+        print(f"% of samples where model errored out: {num_error / len(self.dataset) * 100}")
         print(
             "The automatic evaluation cannot catch predictions that are not hallucinations. Please check the predictions manually."
         )
 
         if self.write_outputs:
             dataset_name = os.path.basename(self.dataset_path).split(".")[0]
-            output_path = (
-                f"{self.output_dir}/{dataset_name}_hallucination_predictions.json"
-            )
+            output_path = f"{self.output_dir}/{dataset_name}_hallucination_predictions.json"
             with open(output_path, "w") as f:
                 json.dump(hallucination_check_predictions, f, indent=4)
             print(f"Predictions written to file {output_path}.json")

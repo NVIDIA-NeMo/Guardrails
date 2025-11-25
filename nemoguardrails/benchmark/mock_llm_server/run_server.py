@@ -34,9 +34,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)  # Set the lowest level to capture all messages
 
 # Set up formatter and direct it to the console
-formatter = logging.Formatter(
-    "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
+formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)  # DEBUG and higher will go to the console
 console_handler.setFormatter(formatter)
@@ -58,9 +56,7 @@ def parse_arguments():
         default=8000,
         help="Port to bind the server to (default: 8000)",
     )
-    parser.add_argument(
-        "--reload", action="store_true", help="Enable auto-reload for development"
-    )
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     parser.add_argument(
         "--log-level",
         default="info",
@@ -68,9 +64,7 @@ def parse_arguments():
         help="Log level (default: info)",
     )
 
-    parser.add_argument(
-        "--config-file", help=".env file to configure model", required=True
-    )
+    parser.add_argument("--config-file", help=".env file to configure model", required=True)
     parser.add_argument(
         "--workers",
         type=int,
@@ -82,9 +76,7 @@ def parse_arguments():
 
 def validate_config_file(config_file):
     if not config_file:
-        raise RuntimeError(
-            "No CONFIG_FILE environment variable set, or --config-file CLI argument"
-        )
+        raise RuntimeError("No CONFIG_FILE environment variable set, or --config-file CLI argument")
 
     if not (os.path.exists(config_file) and os.path.isfile(config_file)):
         raise RuntimeError(f"Can't open {config_file}")

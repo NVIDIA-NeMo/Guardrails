@@ -97,9 +97,7 @@ def test_task_prompt_mode_validation():
 
 
 def test_task_prompt_stop_tokens_validation():
-    prompt = TaskPrompt(
-        task="example_task", content="Test prompt", stop=["\n", "Human:", "Assistant:"]
-    )
+    prompt = TaskPrompt(task="example_task", content="Test prompt", stop=["\n", "Human:", "Assistant:"])
     assert prompt.stop == ["\n", "Human:", "Assistant:"]
 
     prompt = TaskPrompt(task="example_task", content="Test prompt", stop=[])
@@ -189,9 +187,7 @@ def test_rails_config_actions_server_url_conflicts():
         actions_server_url="http://localhost:9000",
     )
 
-    with pytest.raises(
-        ValueError, match="Both config files should have the same actions_server_url"
-    ):
+    with pytest.raises(ValueError, match="Both config files should have the same actions_server_url"):
         config1 + config2
 
 
@@ -358,9 +354,7 @@ def test_rails_config_flows_streaming_supported_true():
         }
     }
     prompts = [{"task": "content safety check output", "content": "..."}]
-    rails_config = RailsConfig.model_validate(
-        {"models": [], "rails": rails, "prompts": prompts}
-    )
+    rails_config = RailsConfig.model_validate({"models": [], "rails": rails, "prompts": prompts})
     assert rails_config.streaming_supported
 
 
@@ -374,7 +368,5 @@ def test_rails_config_flows_streaming_supported_false():
         }
     }
     prompts = [{"task": "content safety check output", "content": "..."}]
-    rails_config = RailsConfig.model_validate(
-        {"models": [], "rails": rails, "prompts": prompts}
-    )
+    rails_config = RailsConfig.model_validate({"models": [], "rails": rails, "prompts": prompts})
     assert not rails_config.streaming_supported

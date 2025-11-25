@@ -101,9 +101,7 @@ async def self_check_hallucination(
 
         if len(extra_responses) == 0:
             # Log message and return that no hallucination was found
-            log.warning(
-                f"No extra LLM responses were generated for '{bot_response}' hallucination check."
-            )
+            log.warning(f"No extra LLM responses were generated for '{bot_response}' hallucination check.")
             return False
         elif len(extra_responses) < num_responses:
             log.warning(

@@ -57,13 +57,9 @@ def _load_model(model_name_or_path, device, num_gpus, hf_auth_token=None, debug=
 
     if hf_auth_token is None:
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name_or_path, low_cpu_mem_usage=True, **kwargs
-        )
+        model = AutoModelForCausalLM.from_pretrained(model_name_or_path, low_cpu_mem_usage=True, **kwargs)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_name_or_path, use_auth_token=hf_auth_token, use_fast=False
-        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_auth_token=hf_auth_token, use_fast=False)
         model = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             low_cpu_mem_usage=True,
@@ -97,12 +93,8 @@ def init_main_llm(config: RailsConfig):
     model_path = model_config.parameters.get("path")
     device = model_config.parameters.get("device", "cuda")
     num_gpus = model_config.parameters.get("num_gpus", 1)
-    hf_token = os.environ[
-        "HF_TOKEN"
-    ]  # [TODO] to register this into the config.yaml as well
-    model, tokenizer = _load_model(
-        model_path, device, num_gpus, hf_auth_token=hf_token, debug=False
-    )
+    hf_token = os.environ["HF_TOKEN"]  # [TODO] to register this into the config.yaml as well
+    model, tokenizer = _load_model(model_path, device, num_gpus, hf_auth_token=hf_token, debug=False)
 
     # repo_id="TheBloke/Wizard-Vicuna-13B-Uncensored-HF"
     # pipe = pipeline("text-generation", model=repo_id, device_map={"":"cuda:0"}, max_new_tokens=256, temperature=0.1, do_sample=True,use_cache=True)
@@ -116,9 +108,7 @@ def init_main_llm(config: RailsConfig):
     )
 
     hf_llm = HuggingFacePipelineCompatible(pipeline=pipe)
-    provider = get_llm_instance_wrapper(
-        llm_instance=hf_llm, llm_type="hf_pipeline_llama2_13b"
-    )
+    provider = get_llm_instance_wrapper(llm_instance=hf_llm, llm_type="hf_pipeline_llama2_13b")
     register_llm_provider("hf_pipeline_llama2_13b", provider)
 
 

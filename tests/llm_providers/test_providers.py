@@ -63,12 +63,8 @@ def mock_langchain_llms():
 @pytest.fixture
 def mock_langchain_chat_models():
     with patch("nemoguardrails.llm.providers.providers._module_lookup") as mock_lookup:
-        mock_lookup.items.return_value = [
-            ("mock_provider", "langchain_community.chat_models.mock_provider")
-        ]
-        with patch(
-            "nemoguardrails.llm.providers.providers.importlib.import_module"
-        ) as mock_import:
+        mock_lookup.items.return_value = [("mock_provider", "langchain_community.chat_models.mock_provider")]
+        with patch("nemoguardrails.llm.providers.providers.importlib.import_module") as mock_import:
             mock_module = MagicMock()
             mock_module.mock_provider = MockChatModel
             mock_import.return_value = mock_module
@@ -147,9 +143,7 @@ def test_get_llm_provider_names():
     assert isinstance(provider_names, list)
 
     # the default providers
-    assert (
-        "trt_llm" in provider_names
-    ), "Default provider 'trt_llm' is not in the list of providers"
+    assert "trt_llm" in provider_names, "Default provider 'trt_llm' is not in the list of providers"
 
     common_providers = ["openai", "anthropic", "huggingface"]
     for provider in common_providers:

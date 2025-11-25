@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 from nemoguardrails.tracing import SpanEvent, SpanLegacy
 from nemoguardrails.tracing.spans import LLMSpan
 
@@ -45,9 +44,7 @@ class TestSpanModels:
 
     def test_span_opentelemetry_creation(self):
         """Test creating an OpenTelemetry format span - typed spans with explicit fields."""
-        event = SpanEvent(
-            name="gen_ai.content.prompt", timestamp=0.5, body={"content": "test prompt"}
-        )
+        event = SpanEvent(name="gen_ai.content.prompt", timestamp=0.5, body={"content": "test prompt"})
 
         # OpenTelemetry spans are typed with explicit fields
         span = LLMSpan(

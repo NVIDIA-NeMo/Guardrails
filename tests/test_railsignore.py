@@ -45,9 +45,7 @@ def cleanup():
     railsignore_path = temp_dir / ".railsignore"
 
     # Mock the path to the .railsignore file
-    with patch(
-        "nemoguardrails.utils.get_railsignore_path"
-    ) as mock_get_railsignore_path:
+    with patch("nemoguardrails.utils.get_railsignore_path") as mock_get_railsignore_path:
         mock_get_railsignore_path.return_value = railsignore_path
 
         # Ensure the mock file exists

@@ -20,9 +20,7 @@ import streamlit as st
 from pandas import DataFrame
 
 
-def plot_as_series(
-    df: DataFrame, title: Optional[str] = None, range_y=None, include_table=False
-):
+def plot_as_series(df: DataFrame, title: Optional[str] = None, range_y=None, include_table=False):
     """Helper to plot a dataframe as individual series."""
     df = df.copy()
     df[""] = ""
@@ -75,9 +73,7 @@ def plot_matrix_series(
     range_y=None,
     include_table=False,
 ):
-    df_melted = df.melt(id_vars=["Metric"], var_name=var_name, value_name=value_name)[
-        [var_name, "Metric", value_name]
-    ]
+    df_melted = df.melt(id_vars=["Metric"], var_name=var_name, value_name=value_name)[[var_name, "Metric", value_name]]
 
     plot_bar_series(df_melted, title=title, range_y=range_y)
     if include_table:

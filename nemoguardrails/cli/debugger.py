@@ -94,11 +94,7 @@ def flow(
             flow_config = state.flow_configs[flow_name]
             console.print(flow_config)
         else:
-            matches = [
-                (uid, item)
-                for uid, item in state.flow_states.items()
-                if flow_name in uid
-            ]
+            matches = [(uid, item) for uid, item in state.flow_states.items() if flow_name in uid]
             if matches:
                 flow_instance = matches[0][1]
                 console.print(flow_instance.__dict__)
@@ -111,9 +107,7 @@ def flow(
 
 @app.command()
 def flows(
-    all: bool = typer.Option(
-        default=False, help="Show all flows (including inactive)."
-    ),
+    all: bool = typer.Option(default=False, help="Show all flows (including inactive)."),
     order_by_name: bool = typer.Option(
         default=False,
         help="Order flows by flow name, otherwise its ordered by event processing priority.",
@@ -166,9 +160,7 @@ def flows(
         else:
             instances = []
             if flow_id in state.flow_id_states:
-                instances = [
-                    i.uid.split(")")[1][:5] for i in state.flow_id_states[flow_id]
-                ]
+                instances = [i.uid.split(")")[1][:5] for i in state.flow_id_states[flow_id]]
             rows.append(
                 [
                     flow_id,
@@ -185,7 +177,7 @@ def flows(
         rows.sort(key=lambda x: (-flow_configs[x[0]].loop_priority, x[0]))
 
     for i, row in enumerate(rows):
-        table.add_row(f"{i+1}", *row)
+        table.add_row(f"{i + 1}", *row)
 
     console.print(table)
 
@@ -195,7 +187,7 @@ def tree(
     all: bool = typer.Option(
         default=False,
         help="Show all active flow instances (including inactive with `--all`).",
-    )
+    ),
 ):
     """Lists the tree of all active flows."""
     if state is None or "main" not in state.flow_id_states:
@@ -224,17 +216,12 @@ def tree(
                     child_instance_flow_state = state.flow_states[child_instance_uid]
                     if (
                         is_active_flow(child_instance_flow_state)
-                        and child_instance_flow_state.flow_id
-                        == child_flow_state.flow_id
+                        and child_instance_flow_state.flow_id == child_flow_state.flow_id
                     ):
                         is_inactive_parent_instance = True
                         break
 
-            if (
-                not is_inactive_parent_instance
-                and not all
-                and not is_active_flow(child_flow_state)
-            ):
+            if not is_inactive_parent_instance and not all and not is_active_flow(child_flow_state):
                 continue
 
             child_uid_short = child_uid.split(")")[1][0:3] + "..."
@@ -259,11 +246,7 @@ def tree(
                             else Spec(**cast(Dict, head_element_spec_op.spec))
                         )
 
-                        if (
-                            spec.spec_type
-                            and spec.spec_type == SpecType.REFERENCE
-                            and spec.var_name
-                        ):
+                        if spec.spec_type and spec.spec_type == SpecType.REFERENCE and spec.var_name:
                             var_name = spec.var_name
                             var = flow_state.context.get(var_name)
 

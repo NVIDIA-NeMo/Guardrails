@@ -15,7 +15,6 @@
 
 """Tests for guardrails_ai configuration parsing."""
 
-
 from nemoguardrails.rails.llm.config import RailsConfig
 
 

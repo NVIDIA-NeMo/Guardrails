@@ -65,15 +65,12 @@ def run(
     parallel: int = typer.Option(
         1,
         "--parallel",
-        help="The degree of parallelism to use when running the checks. "
-        "Default is 1.",
+        help="The degree of parallelism to use when running the checks. Default is 1.",
     ),
 ):
     """Run the interactions for an evaluation."""
     if guardrail_config_path is None:
-        console.print(
-            "[red]No guardrail configuration provided! Use --help for more details.[/]"
-        )
+        console.print("[red]No guardrail configuration provided! Use --help for more details.[/]")
         exit(1)
 
     eval_config_path = os.path.abspath(eval_config_path)
@@ -107,10 +104,7 @@ def _launch_ui(script: str, port: int = 8501):
     base_path = os.path.abspath(os.path.dirname(__file__))
 
     # Forward the rest of the parameters
-    cli.main_run(
-        [os.path.join(base_path, "ui", script), "--server.port", str(port), "--"]
-        + sys.argv[3:]
-    )
+    cli.main_run([os.path.join(base_path, "ui", script), "--server.port", str(port), "--"] + sys.argv[3:])
 
 
 @app.command()
@@ -164,8 +158,7 @@ def check_compliance(
     parallel: int = typer.Option(
         1,
         "--parallel",
-        help="The degree of parallelism to use when running the checks. "
-        "Default is 1.",
+        help="The degree of parallelism to use when running the checks. Default is 1.",
     ),
 ):
     """Check the policy compliance of the interactions in the `output_path`."""

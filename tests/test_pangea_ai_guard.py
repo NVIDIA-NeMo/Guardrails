@@ -41,9 +41,7 @@ output_rail_config = RailsConfig.from_content(
 
 @pytest.mark.unit
 @pytest.mark.parametrize("config", (input_rail_config, output_rail_config))
-def test_pangea_ai_guard_blocked(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, config: RailsConfig
-):
+def test_pangea_ai_guard_blocked(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, config: RailsConfig):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
     httpx_mock.add_response(
         is_reusable=True,
@@ -69,9 +67,7 @@ def test_pangea_ai_guard_blocked(
 
 
 @pytest.mark.unit
-def test_pangea_ai_guard_input_transform(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
-):
+def test_pangea_ai_guard_input_transform(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
     httpx_mock.add_response(
         is_reusable=True,
@@ -100,9 +96,7 @@ def test_pangea_ai_guard_input_transform(
 
 
 @pytest.mark.unit
-def test_pangea_ai_guard_output_transform(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
-):
+def test_pangea_ai_guard_output_transform(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
     httpx_mock.add_response(
         is_reusable=True,
@@ -134,13 +128,9 @@ def test_pangea_ai_guard_output_transform(
 
 @pytest.mark.unit
 @pytest.mark.parametrize("status_code", frozenset({429, 500, 502, 503, 504}))
-def test_pangea_ai_guard_error(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, status_code: int
-):
+def test_pangea_ai_guard_error(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, status_code: int):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
-    httpx_mock.add_response(
-        is_reusable=True, status_code=status_code, json={"result": {}}
-    )
+    httpx_mock.add_response(is_reusable=True, status_code=status_code, json={"result": {}})
 
     chat = TestChat(output_rail_config, llm_completions=["  Hello!"])
 
@@ -156,9 +146,7 @@ def test_pangea_ai_guard_missing_env_var():
 
 
 @pytest.mark.unit
-def test_pangea_ai_guard_malformed_response(
-    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
-):
+def test_pangea_ai_guard_malformed_response(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("PANGEA_API_TOKEN", "test-token")
     httpx_mock.add_response(is_reusable=True, text="definitely not valid JSON")
 

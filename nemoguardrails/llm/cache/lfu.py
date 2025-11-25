@@ -276,9 +276,7 @@ class LFUCache(CacheInterface):
 
             # Calculate hit rate
             total_requests = stats["hits"] + stats["misses"]
-            stats["hit_rate"] = (
-                stats["hits"] / total_requests if total_requests > 0 else 0.0
-            )
+            stats["hit_rate"] = stats["hits"] / total_requests if total_requests > 0 else 0.0
 
             return stats
 
@@ -339,9 +337,7 @@ class LFUCache(CacheInterface):
         """Check if this cache instance supports stats logging."""
         return self.track_stats and self.stats_logging_interval is not None
 
-    async def get_or_compute(
-        self, key: Any, compute_fn: Callable[[], Any], default: Any = None
-    ) -> Any:
+    async def get_or_compute(self, key: Any, compute_fn: Callable[[], Any], default: Any = None) -> Any:
         """
         Atomically get a value from the cache or compute it if not present.
 

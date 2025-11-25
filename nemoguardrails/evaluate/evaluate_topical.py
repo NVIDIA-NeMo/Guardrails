@@ -80,9 +80,7 @@ def _split_test_set_from_config(
 
                 # Limit the number of samples per intent if specified
                 if 0 < max_samples_per_intent < len(config.user_messages[intent]):
-                    config.user_messages[intent] = config.user_messages[intent][
-                        :max_samples_per_intent
-                    ]
+                    config.user_messages[intent] = config.user_messages[intent][:max_samples_per_intent]
 
 
 class TopicalRailsEvaluation:
@@ -113,8 +111,7 @@ class TopicalRailsEvaluation:
             from sentence_transformers import SentenceTransformer
         except ImportError:
             raise ImportError(
-                "Could not import sentence_transformers, please install it with "
-                "`pip install sentence-transformers`."
+                "Could not import sentence_transformers, please install it with `pip install sentence-transformers`."
             )
 
         self._model = None
@@ -241,9 +238,7 @@ class TopicalRailsEvaluation:
                     if intent_next_actions is not None:
                         intent_next_actions.append(event["action_params"]["value"])
 
-        num_intents_with_flows = len(
-            set(self.test_set.keys()).intersection(intents_with_flows.keys())
-        )
+        num_intents_with_flows = len(set(self.test_set.keys()).intersection(intents_with_flows.keys()))
 
         # Compute the embeddings for each intent if needed
         self._compute_intent_embeddings(list(self.test_set.keys()))
@@ -282,12 +277,8 @@ class TopicalRailsEvaluation:
                     "UtteranceUserActionFinished": sample,
                     "UserIntent": intent,
                 }
-                history_events = [
-                    {"type": "UtteranceUserActionFinished", "final_transcript": sample}
-                ]
-                new_events = await self.rails_app.runtime.generate_events(
-                    history_events
-                )
+                history_events = [{"type": "UtteranceUserActionFinished", "final_transcript": sample}]
+                new_events = await self.rails_app.runtime.generate_events(history_events)
 
                 generated_user_intent = None
                 last_user_intent_event = get_last_user_intent_event(new_events)
@@ -301,13 +292,8 @@ class TopicalRailsEvaluation:
                 if generated_user_intent is None or generated_user_intent != intent:
                     wrong_intent = True
                     # Employ semantic similarity if needed
-                    if (
-                        generated_user_intent is not None
-                        and self.similarity_threshold > 0
-                    ):
-                        sim_user_intent = self._get_most_similar_intent(
-                            generated_user_intent
-                        )
+                    if generated_user_intent is not None and self.similarity_threshold > 0:
+                        sim_user_intent = self._get_most_similar_intent(generated_user_intent)
                         prediction["sim_user_intent"] = sim_user_intent
                         if sim_user_intent == intent:
                             wrong_intent = False
@@ -321,10 +307,7 @@ class TopicalRailsEvaluation:
                                 f"Expected intent: {intent}"
                             )
                         else:
-                            print(
-                                f"Error!: Generated intent: {generated_user_intent} <> "
-                                f"Expected intent: {intent}"
-                            )
+                            print(f"Error!: Generated intent: {generated_user_intent} <> Expected intent: {intent}")
 
                 # If the intent is correct, the generated bot intent and bot message
                 # are also correct. For user intent similarity check,
@@ -332,9 +315,7 @@ class TopicalRailsEvaluation:
                 # the verbose logs as they are generated using the generated user intent,
                 # before applying similarity checking.
                 if wrong_intent:
-                    generated_bot_intent = get_last_bot_intent_event(new_events)[
-                        "intent"
-                    ]
+                    generated_bot_intent = get_last_bot_intent_event(new_events)["intent"]
                     prediction["generated_bot_intent"] = generated_bot_intent
                     prediction["bot_intents"] = intents_with_flows[intent]
                     if generated_bot_intent not in intents_with_flows[intent]:
@@ -344,9 +325,7 @@ class TopicalRailsEvaluation:
                             f"Expected bot intent: {intents_with_flows[intent]}"
                         )
 
-                    generated_bot_utterance = get_last_bot_utterance_event(new_events)[
-                        "script"
-                    ]
+                    generated_bot_utterance = get_last_bot_utterance_event(new_events)["script"]
                     prediction["generated_bot_said"] = generated_bot_utterance
                     found_utterance = False
                     found_bot_message = False
@@ -366,10 +345,7 @@ class TopicalRailsEvaluation:
 
                 topical_predictions.append(prediction)
                 processed_samples += 1
-                if (
-                    self.print_test_results_frequency
-                    and processed_samples % self.print_test_results_frequency == 0
-                ):
+                if self.print_test_results_frequency and processed_samples % self.print_test_results_frequency == 0:
                     TopicalRailsEvaluation._print_evaluation_results(
                         processed_samples,
                         total_test_samples,
@@ -397,9 +373,7 @@ class TopicalRailsEvaluation:
 
             model_name = self._get_main_llm_model()
             filename += (
-                f"_{model_name}_shots{self.max_samples_per_intent}"
-                f"_sim{self.similarity_threshold}"
-                f"_topical_results.json"
+                f"_{model_name}_shots{self.max_samples_per_intent}_sim{self.similarity_threshold}_topical_results.json"
             )
 
             output_path = f"{self.output_dir}/{filename}"

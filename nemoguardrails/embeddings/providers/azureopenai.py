@@ -48,9 +48,7 @@ class AzureEmbeddingModel(EmbeddingModel):
         try:
             from openai import AzureOpenAI  # type: ignore
         except ImportError:
-            raise ImportError(
-                "Could not import openai, please install it with `pip install openai`."
-            )
+            raise ImportError("Could not import openai, please install it with `pip install openai`.")
         # Set Azure OpenAI API credentials
         self.client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -95,9 +93,7 @@ class AzureEmbeddingModel(EmbeddingModel):
             RuntimeError: If the API call fails.
         """
         try:
-            response = self.client.embeddings.create(
-                model=self.embedding_model, input=documents
-            )
+            response = self.client.embeddings.create(model=self.embedding_model, input=documents)
             embeddings = [record.embedding for record in response.data]
             return embeddings
         except Exception as e:

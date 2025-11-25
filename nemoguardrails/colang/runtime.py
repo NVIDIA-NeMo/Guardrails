@@ -44,9 +44,7 @@ class Runtime:
             )
 
         if hasattr(self, "_run_flows_in_parallel"):
-            self.action_dispatcher.register_action(
-                self._run_flows_in_parallel, name="run_flows_in_parallel"
-            )
+            self.action_dispatcher.register_action(self._run_flows_in_parallel, name="run_flows_in_parallel")
 
         if hasattr(self, "_run_input_rails_in_parallel"):
             self.action_dispatcher.register_action(
@@ -77,9 +75,7 @@ class Runtime:
     def _init_flow_configs(self) -> None:
         pass
 
-    def register_action(
-        self, action: Callable, name: Optional[str] = None, override: bool = True
-    ) -> None:
+    def register_action(self, action: Callable, name: Optional[str] = None, override: bool = True) -> None:
         """Registers an action with the given name.
 
         :param name: The name of the action.
@@ -105,9 +101,7 @@ class Runtime:
         """
         self.registered_action_params[name] = value
 
-    async def generate_events(
-        self, events: List[dict], processing_log: Optional[List[dict]] = None
-    ) -> List[dict]:
+    async def generate_events(self, events: List[dict], processing_log: Optional[List[dict]] = None) -> List[dict]:
         """Generates the next events based on the provided history.
 
         This is a wrapper around the `process_events` method, that will keep

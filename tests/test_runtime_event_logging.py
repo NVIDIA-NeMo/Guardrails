@@ -35,15 +35,9 @@ async def test_bot_thinking_event_logged_in_runtime(caplog):
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
         chat = TestChat(config, llm_completions=["The answer is 42"])
 
-        await chat.app.generate_events_async(
-            [{"type": "UserMessage", "text": "What is the answer?"}]
-        )
+        await chat.app.generate_events_async([{"type": "UserMessage", "text": "What is the answer?"}])
 
-        bot_thinking_logs = [
-            record
-            for record in caplog.records
-            if "Event :: BotThinking" in record.message
-        ]
+        bot_thinking_logs = [record for record in caplog.records if "Event :: BotThinking" in record.message]
         assert len(bot_thinking_logs) >= 1
 
 
@@ -54,13 +48,9 @@ async def test_bot_message_event_logged_in_runtime(caplog):
     config = RailsConfig.from_content(config={"models": [], "passthrough": True})
     chat = TestChat(config, llm_completions=["The answer is 42"])
 
-    await chat.app.generate_events_async(
-        [{"type": "UserMessage", "text": "What is the answer?"}]
-    )
+    await chat.app.generate_events_async([{"type": "UserMessage", "text": "What is the answer?"}])
 
-    bot_message_logs = [
-        record for record in caplog.records if "Event :: BotMessage" in record.message
-    ]
+    bot_message_logs = [record for record in caplog.records if "Event :: BotMessage" in record.message]
     assert len(bot_message_logs) >= 1
 
 
@@ -76,8 +66,7 @@ async def test_context_update_event_logged_in_runtime(caplog):
     context_update_logs = [
         record
         for record in caplog.records
-        if "Event :: ContextUpdate" in record.message
-        or "Event ContextUpdate" in record.message
+        if "Event :: ContextUpdate" in record.message or "Event ContextUpdate" in record.message
     ]
     assert len(context_update_logs) >= 1
 
@@ -96,12 +85,8 @@ async def test_all_events_logged_when_multiple_events_generated(caplog):
 
         await chat.app.generate_events_async([{"type": "UserMessage", "text": "Test"}])
 
-        bot_thinking_found = any(
-            "Event :: BotThinking" in record.message for record in caplog.records
-        )
-        bot_message_found = any(
-            "Event :: BotMessage" in record.message for record in caplog.records
-        )
+        bot_thinking_found = any("Event :: BotThinking" in record.message for record in caplog.records)
+        bot_message_found = any("Event :: BotMessage" in record.message for record in caplog.records)
 
         assert bot_thinking_found
         assert bot_message_found
@@ -119,9 +104,7 @@ async def test_bot_thinking_event_logged_before_bot_message(caplog):
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
         chat = TestChat(config, llm_completions=["Answer"])
 
-        await chat.app.generate_events_async(
-            [{"type": "UserMessage", "text": "Question"}]
-        )
+        await chat.app.generate_events_async([{"type": "UserMessage", "text": "Question"}])
 
         bot_thinking_idx = None
         bot_message_idx = None
@@ -149,7 +132,6 @@ async def test_event_history_update_not_logged(caplog):
     event_history_update_logs = [
         record
         for record in caplog.records
-        if "Event :: EventHistoryUpdate" in record.message
-        or "Event EventHistoryUpdate" in record.message
+        if "Event :: EventHistoryUpdate" in record.message or "Event EventHistoryUpdate" in record.message
     ]
     assert len(event_history_update_logs) == 0

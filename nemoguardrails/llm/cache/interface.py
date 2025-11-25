@@ -134,9 +134,7 @@ class CacheInterface(ABC):
         The default implementation returns a message indicating that
         statistics tracking is not supported.
         """
-        return {
-            "message": "Statistics tracking is not supported by this cache implementation"
-        }
+        return {"message": "Statistics tracking is not supported by this cache implementation"}
 
     def reset_stats(self) -> None:
         """
@@ -174,9 +172,7 @@ class CacheInterface(ABC):
         """
         return False
 
-    async def get_or_compute(
-        self, key: Any, compute_fn: Callable[[], Any], default: Any = None
-    ) -> Any:
+    async def get_or_compute(self, key: Any, compute_fn: Callable[[], Any], default: Any = None) -> Any:
         """
         Atomically get a value from the cache or compute it if not present.
 

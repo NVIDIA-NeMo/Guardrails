@@ -80,9 +80,7 @@ async def self_check_tool_input(
 
     max_length = getattr(config, "max_tool_message_length", 10000) if config else 10000
     if len(tool_message) > max_length:
-        log.warning(
-            f"Tool message from {tool_name} exceeds max length: {len(tool_message)} > {max_length}"
-        )
+        log.warning(f"Tool message from {tool_name} exceeds max length: {len(tool_message)} > {max_length}")
         return False
 
     return True
@@ -140,10 +138,7 @@ async def validate_tool_input_safety(
     tool_message_lower = tool_message.lower()
     for pattern in dangerous_patterns:
         if pattern.lower() in tool_message_lower:
-            log.warning(
-                f"Potentially dangerous content in tool response from {tool_name}: "
-                f"pattern '{pattern}' found"
-            )
+            log.warning(f"Potentially dangerous content in tool response from {tool_name}: pattern '{pattern}' found")
             return False
 
     return True
@@ -188,17 +183,13 @@ async def sanitize_tool_input(
         flags=re.IGNORECASE,
     )
 
-    sanitized = re.sub(
-        r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", r"[USER]@\2", sanitized
-    )
+    sanitized = re.sub(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", r"[USER]@\2", sanitized)
 
     config = context.get("config") if context else None
     max_length = getattr(config, "max_tool_message_length", 10000) if config else 10000
 
     if len(sanitized) > max_length:
-        log.info(
-            f"Truncating tool response from {tool_name}: {len(sanitized)} -> {max_length}"
-        )
+        log.info(f"Truncating tool response from {tool_name}: {len(sanitized)} -> {max_length}")
         sanitized = sanitized[: max_length - 50] + "... [TRUNCATED]"
 
     return sanitized

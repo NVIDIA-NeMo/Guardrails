@@ -32,31 +32,23 @@ LIVE_TEST_MODE = os.environ.get("LIVE_TEST")
 @pytest.fixture
 def app():
     """Load the configuration where we replace FastEmbed with AzureOpenAI."""
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "with_azureopenai_embeddings")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_azureopenai_embeddings"))
 
     return LLMRails(config)
 
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 def test_custom_llm_registration(app):
-    assert isinstance(
-        app.llm_generation_actions.flows_index._model, AzureEmbeddingModel
-    )
+    assert isinstance(app.llm_generation_actions.flows_index._model, AzureEmbeddingModel)
 
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 @pytest.mark.asyncio
 async def test_live_query_async():
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "with_azureopenai_embeddings")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_azureopenai_embeddings"))
     app = LLMRails(config)
 
-    result = await app.generate_async(
-        messages=[{"role": "user", "content": "tell me what you can do"}]
-    )
+    result = await app.generate_async(messages=[{"role": "user", "content": "tell me what you can do"}])
 
     assert result == {
         "role": "assistant",
@@ -66,9 +58,7 @@ async def test_live_query_async():
 
 @pytest.mark.skipif(not LIVE_TEST_MODE, reason="Not in live mode.")
 def test_live_query_sync(app):
-    result = app.generate(
-        messages=[{"role": "user", "content": "tell me what you can do"}]
-    )
+    result = app.generate(messages=[{"role": "user", "content": "tell me what you can do"}])
 
     assert result == {
         "role": "assistant",

@@ -222,9 +222,7 @@ class TestGuardrailsAIBlockingBehavior:
             yaml_content=INPUT_RAILS_ONLY_CONFIG_EXCEPTION,
         )
 
-        llm = FakeLLM(
-            responses=["  express greeting", "Hello! How can I help you today?"]
-        )
+        llm = FakeLLM(responses=["  express greeting", "Hello! How can I help you today?"])
 
         rails = LLMRails(config=config, llm=llm)
 
@@ -232,10 +230,7 @@ class TestGuardrailsAIBlockingBehavior:
 
         assert result["role"] == "exception"
         assert result["content"]["type"] == "GuardrailsAIException"
-        assert (
-            "Guardrails AI regex_match validation failed"
-            in result["content"]["message"]
-        )
+        assert "Guardrails AI regex_match validation failed" in result["content"]["message"]
 
     @pytest.mark.skipif(
         not GUARDRAILS_AVAILABLE or not REGEX_MATCH_AVAILABLE,
@@ -243,9 +238,7 @@ class TestGuardrailsAIBlockingBehavior:
     )
     def test_input_rails_only_validation_blocks_with_refuse(self):
         """Test input rails when validation fails - blocked with bot refuse."""
-        config = RailsConfig.from_content(
-            colang_content=COLANG_CONTENT, yaml_content=INPUT_RAILS_ONLY_CONFIG_REFUSE
-        )
+        config = RailsConfig.from_content(colang_content=COLANG_CONTENT, yaml_content=INPUT_RAILS_ONLY_CONFIG_REFUSE)
 
         chat = TestChat(
             config,
@@ -311,10 +304,7 @@ class TestGuardrailsAIBlockingBehavior:
 
         assert result["role"] == "exception"
         assert result["content"]["type"] == "GuardrailsAIException"
-        assert (
-            "Guardrails AI valid_length validation failed"
-            in result["content"]["message"]
-        )
+        assert "Guardrails AI valid_length validation failed" in result["content"]["message"]
 
     @pytest.mark.skipif(
         not GUARDRAILS_AVAILABLE or not VALID_LENGTH_AVAILABLE,
@@ -346,9 +336,7 @@ class TestGuardrailsAIBlockingBehavior:
         assert "can't" in chat.history[1]["content"].lower()
 
     @pytest.mark.skipif(
-        not GUARDRAILS_AVAILABLE
-        or not REGEX_MATCH_AVAILABLE
-        or not VALID_LENGTH_AVAILABLE,
+        not GUARDRAILS_AVAILABLE or not REGEX_MATCH_AVAILABLE or not VALID_LENGTH_AVAILABLE,
         reason="Guardrails, RegexMatch, or ValidLength validator not installed",
     )
     def test_input_and_output_rails_both_pass(self):
@@ -387,9 +375,7 @@ class TestGuardrailsAIBlockingBehavior:
             yaml_content=INPUT_AND_OUTPUT_RAILS_CONFIG_EXCEPTION,
         )
 
-        llm = FakeLLM(
-            responses=["  express greeting", "general response", "Hello! How are you?"]
-        )
+        llm = FakeLLM(responses=["  express greeting", "general response", "Hello! How are you?"])
 
         rails = LLMRails(config=config, llm=llm)
 
@@ -397,15 +383,10 @@ class TestGuardrailsAIBlockingBehavior:
 
         assert result["role"] == "exception"
         assert result["content"]["type"] == "GuardrailsAIException"
-        assert (
-            "Guardrails AI regex_match validation failed"
-            in result["content"]["message"]
-        )
+        assert "Guardrails AI regex_match validation failed" in result["content"]["message"]
 
     @pytest.mark.skipif(
-        not GUARDRAILS_AVAILABLE
-        or not REGEX_MATCH_AVAILABLE
-        or not VALID_LENGTH_AVAILABLE,
+        not GUARDRAILS_AVAILABLE or not REGEX_MATCH_AVAILABLE or not VALID_LENGTH_AVAILABLE,
         reason="Guardrails, RegexMatch, or ValidLength validator not installed",
     )
     def test_input_and_output_rails_output_blocks_with_exception(self):
@@ -429,10 +410,7 @@ class TestGuardrailsAIBlockingBehavior:
 
         assert result["role"] == "exception"
         assert result["content"]["type"] == "GuardrailsAIException"
-        assert (
-            "Guardrails AI valid_length validation failed"
-            in result["content"]["message"]
-        )
+        assert "Guardrails AI valid_length validation failed" in result["content"]["message"]
 
     def test_config_structures_are_valid(self):
         """Test that all config structures parse correctly."""

@@ -214,9 +214,7 @@ class TestBatchConversion:
             HumanMessage(content="Hello", id="human-1"),
             AIMessage(
                 content="Hi there",
-                tool_calls=[
-                    {"name": "tool", "args": {}, "id": "c1", "type": "tool_call"}
-                ],
+                tool_calls=[{"name": "tool", "args": {}, "id": "c1", "type": "tool_call"}],
                 id="ai-1",
             ),
             ToolMessage(content="Tool result", tool_call_id="c1", name="tool"),
@@ -253,9 +251,7 @@ class TestBatchConversion:
             AIMessage(
                 content="Test 2",
                 id="a1",
-                tool_calls=[
-                    {"name": "func", "args": {"x": 1}, "id": "tc1", "type": "tool_call"}
-                ],
+                tool_calls=[{"name": "func", "args": {"x": 1}, "id": "tc1", "type": "tool_call"}],
             ),
             SystemMessage(content="Test 3", id="s1"),
             ToolMessage(content="Test 4", tool_call_id="tc1", name="func", id="t1"),

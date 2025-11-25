@@ -173,18 +173,14 @@ class LLMTaskManager:
         # If it's a MessageTemplate, we render it as a message.
         for message_template in message_templates:
             if isinstance(message_template, str):
-                str_messages = self._render_string(
-                    message_template, context=context, events=events
-                )
+                str_messages = self._render_string(message_template, context=context, events=events)
                 try:
                     new_messages = literal_eval(str_messages)
                 except SyntaxError:
                     raise ValueError(f"Invalid message template: {message_template}")
                 messages.extend(new_messages)
             else:
-                content = self._render_string(
-                    message_template.content, context=context, events=events
-                )
+                content = self._render_string(message_template.content, context=context, events=events)
 
                 # Don't add empty messages.
                 if content.strip():
@@ -214,9 +210,7 @@ class LLMTaskManager:
                     if isinstance(item, dict):
                         if item.get("type") == "text":
                             result_text += item.get("text", "") + "\n"
-                        elif item.get("type") == "image_url" and isinstance(
-                            item.get("image_url"), dict
-                        ):
+                        elif item.get("type") == "image_url" and isinstance(item.get("image_url"), dict):
                             # image_url items, only count a placeholder length
                             result_text += "[IMAGE_CONTENT]\n"
 
@@ -225,9 +219,7 @@ class LLMTaskManager:
                 base64_pattern = r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+"
                 if re.search(base64_pattern, content):
                     # Replace base64 content with placeholder using regex
-                    result_text += (
-                        re.sub(base64_pattern, "[IMAGE_CONTENT]", content) + "\n"
-                    )
+                    result_text += re.sub(base64_pattern, "[IMAGE_CONTENT]", content) + "\n"
                 else:
                     result_text += content + "\n"
 
@@ -263,21 +255,13 @@ class LLMTaskManager:
         """
         prompt = get_prompt(self.config, task)
         if prompt.content:
-            task_prompt = self._render_string(
-                prompt.content, context=context, events=events
-            )
-            while (
-                prompt.max_length is not None and len(task_prompt) > prompt.max_length
-            ):
+            task_prompt = self._render_string(prompt.content, context=context, events=events)
+            while prompt.max_length is not None and len(task_prompt) > prompt.max_length:
                 if not events:
-                    raise Exception(
-                        f"Prompt exceeds max length of {prompt.max_length} characters even without history"
-                    )
+                    raise Exception(f"Prompt exceeds max length of {prompt.max_length} characters even without history")
                 # Remove events from the beginning of the history until the prompt fits.
                 events = events[1:]
-                task_prompt = self._render_string(
-                    prompt.content, context=context, events=events
-                )
+                task_prompt = self._render_string(prompt.content, context=context, events=events)
 
             # Check if the output should be a user message, for chat models
             if force_string_to_message:
@@ -292,31 +276,21 @@ class LLMTaskManager:
         else:
             if prompt.messages is None:
                 return []
-            task_messages = self._render_messages(
-                prompt.messages, context=context, events=events
-            )
+            task_messages = self._render_messages(prompt.messages, context=context, events=events)
             task_prompt_length = self._get_messages_text_length(task_messages)
-            while (
-                prompt.max_length is not None and task_prompt_length > prompt.max_length
-            ):
+            while prompt.max_length is not None and task_prompt_length > prompt.max_length:
                 if not events:
-                    raise Exception(
-                        f"Prompt exceeds max length of {prompt.max_length} characters even without history"
-                    )
+                    raise Exception(f"Prompt exceeds max length of {prompt.max_length} characters even without history")
                 # Remove events from the beginning of the history until the prompt fits.
                 events = events[1:]
                 if prompt.messages is not None:
-                    task_messages = self._render_messages(
-                        prompt.messages, context=context, events=events
-                    )
+                    task_messages = self._render_messages(prompt.messages, context=context, events=events)
                 else:
                     task_messages = []
                 task_prompt_length = self._get_messages_text_length(task_messages)
             return task_messages
 
-    def parse_task_output(
-        self, task: Task, output: str, forced_output_parser: Optional[str] = None
-    ) -> str:
+    def parse_task_output(self, task: Task, output: str, forced_output_parser: Optional[str] = None) -> str:
         """Parses the output of a task using the configured output parser.
 
         Args:

@@ -383,8 +383,7 @@ async def test_intellectual_property_input():
     async def mock_autoalign_input_api(context: Optional[dict] = None, **kwargs):
         query = context.get("user_message")
         if (
-            query
-            == "Gorilla Glass is a brand of chemically strengthened glass developed and manufactured by Corning. "
+            query == "Gorilla Glass is a brand of chemically strengthened glass developed and manufactured by Corning. "
             "It is in its eighth generation."
         ):
             return {
@@ -488,8 +487,7 @@ async def test_toxic_input():
     async def mock_autoalign_output_api(context: Optional[dict] = None, **kwargs):
         query = context.get("bot_message")
         if (
-            query
-            == "User Input: Stereotypical bias, Toxicity in text has been detected by AutoAlign; Sorry, "
+            query == "User Input: Stereotypical bias, Toxicity in text has been detected by AutoAlign; Sorry, "
             "can't process. "
         ):
             return {
@@ -679,8 +677,7 @@ async def test_pii_contextual_output():
     async def mock_autoalign_output_api(context: Optional[dict] = None, **kwargs):
         query = context.get("bot_message")
         if (
-            query
-            == "Neptune is the eighth and farthest known planet from the Sun in our solar system. It is a gas "
+            query == "Neptune is the eighth and farthest known planet from the Sun in our solar system. It is a gas "
             "giant, similar in composition to Uranus, and is often referred to as an 'ice giant' due to its "
             "icy composition. Neptune is about 17 times the mass of Earth and is the fourth-largest planet by "
             "diameter. It has a blue color due to the presence of methane in its atmosphere, which absorbs red "

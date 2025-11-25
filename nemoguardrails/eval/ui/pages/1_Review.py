@@ -27,9 +27,7 @@ from nemoguardrails.eval.ui.utils import EvalData
 from nemoguardrails.utils import new_uuid
 
 
-def _render_policy(
-    _policy: Policy, interaction_output: InteractionOutput, eval_data: EvalData
-):
+def _render_policy(_policy: Policy, interaction_output: InteractionOutput, eval_data: EvalData):
     index = 0
     orig_option = ""
     if interaction_output.compliance[_policy.id] is True:
@@ -95,9 +93,7 @@ def main():
         )
         eval_output = eval_data.eval_outputs[eval_data.selected_output_path]
 
-        st.write(
-            "If you change the result files outside of the Eval UI, you must reload from disk. "
-        )
+        st.write("If you change the result files outside of the Eval UI, you must reload from disk. ")
         if st.button("Reload"):
             load_eval_data.clear()
             st.rerun()
@@ -151,10 +147,7 @@ def main():
     if "idx_change" not in st.session_state:
         st.session_state.idx_change = None
 
-    if (
-        st.session_state.idx != st.session_state.slider_idx
-        and st.session_state.idx_change == "button"
-    ):
+    if st.session_state.idx != st.session_state.slider_idx and st.session_state.idx_change == "button":
         st.session_state.idx_change = None
         st.session_state.slider_idx = st.session_state.idx
     else:
@@ -219,9 +212,7 @@ def main():
 
     interaction_output = filtered_results[st.session_state.idx - 1]
     interaction_id = interaction_output.id.split("/")[0]
-    interaction_set = [
-        _i for _i in eval_data.eval_config.interactions if _i.id == interaction_id
-    ][0]
+    interaction_set = [_i for _i in eval_data.eval_config.interactions if _i.id == interaction_id][0]
 
     # Interaction history
 
@@ -259,16 +250,12 @@ def main():
         if val is False:
             for check in reversed(interaction_output.compliance_checks):
                 if check.compliance.get(policy_id) is False:
-                    violations.append(
-                        f" - [{check.method}] **{policy_id}**: {check.details}"
-                    )
+                    violations.append(f" - [{check.method}] **{policy_id}**: {check.details}")
                     break
     if violations:
         st.markdown("**Violations**:\n" + "\n".join(violations) + "\n---")
 
-    st.write(
-        "Any changes to you make to the compliance statuses below are saved automatically to the result files. "
-    )
+    st.write("Any changes to you make to the compliance statuses below are saved automatically to the result files. ")
     # Render the navigation buttons
 
     col1, col2, col3, col4 = st.columns([4, 2, 3, 5])
@@ -286,9 +273,7 @@ def main():
                             created_at=datetime.now(timezone.utc).isoformat(),
                             interaction_id=interaction_output.id,
                             method="manual",
-                            compliance={
-                                policy_id: interaction_output.compliance[policy_id]
-                            },
+                            compliance={policy_id: interaction_output.compliance[policy_id]},
                             details="",
                         )
                     )
@@ -380,10 +365,7 @@ def main():
         "span_id": [span.span_id for span in spans],
         "parent_id": [span.parent_id for span in spans],
         "name": [span.name for span in spans],
-        "metrics": [
-            json.dumps(span.metrics, indent=True).replace("\n", "<br>")
-            for span in spans
-        ],
+        "metrics": [json.dumps(span.metrics, indent=True).replace("\n", "<br>") for span in spans],
     }
     df = pd.DataFrame(data)
     df["duration"] = df["end_time"] - df["start_time"]
@@ -400,9 +382,7 @@ def main():
                 y=[row["name"]],
                 orientation="h",
                 base=[row["start_time"]],  # Starting point of each bar
-                marker=dict(
-                    color=colors.get(row["name"], "#ff0000")
-                ),  # Use resource_id as color
+                marker=dict(color=colors.get(row["name"], "#ff0000")),  # Use resource_id as color
                 name=row["name"],  # Label each bar with span_id
                 hovertext=f"{row['duration']:.3f} seconds\n{row['metrics']}",
             )

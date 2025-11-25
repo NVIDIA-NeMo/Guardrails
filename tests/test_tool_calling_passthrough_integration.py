@@ -50,9 +50,7 @@ class TestToolCallingPassthroughIntegration:
             },
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
             chat = TestChat(
@@ -88,9 +86,7 @@ class TestToolCallingPassthroughIntegration:
             }
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
             chat = TestChat(
@@ -98,9 +94,7 @@ class TestToolCallingPassthroughIntegration:
                 llm_completions=["I'll check the weather for you."],
             )
 
-            result = await chat.app.generate_async(
-                messages=[{"role": "user", "content": "What's the weather like?"}]
-            )
+            result = await chat.app.generate_async(messages=[{"role": "user", "content": "What's the weather like?"}])
 
             assert isinstance(result, dict)
             assert "tool_calls" in result
@@ -110,9 +104,7 @@ class TestToolCallingPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_no_tool_calls_in_passthrough_mode(self):
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = None
 
             chat = TestChat(
@@ -131,18 +123,12 @@ class TestToolCallingPassthroughIntegration:
 
     @pytest.mark.asyncio
     async def test_empty_tool_calls_in_passthrough_mode(self):
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = []
 
-            chat = TestChat(
-                self.passthrough_config, llm_completions=["I understand your request."]
-            )
+            chat = TestChat(self.passthrough_config, llm_completions=["I understand your request."])
 
-            result = await chat.app.generate_async(
-                messages=[{"role": "user", "content": "Tell me a joke"}]
-            )
+            result = await chat.app.generate_async(messages=[{"role": "user", "content": "Tell me a joke"}])
 
             assert isinstance(result, dict)
             assert "tool_calls" not in result
@@ -159,9 +145,7 @@ class TestToolCallingPassthroughIntegration:
             }
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
             chat = TestChat(
@@ -171,9 +155,7 @@ class TestToolCallingPassthroughIntegration:
                 llm_completions=["I'll search for that information."],
             )
 
-            result = await chat.app.generate_async(
-                prompt="Search for the latest news", options=GenerationOptions()
-            )
+            result = await chat.app.generate_async(prompt="Search for the latest news", options=GenerationOptions())
 
             assert isinstance(result, GenerationResponse)
             assert result.tool_calls == test_tool_calls
@@ -203,16 +185,12 @@ class TestToolCallingPassthroughIntegration:
             },
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = complex_tool_calls
 
             chat = TestChat(
                 self.passthrough_config,
-                llm_completions=[
-                    "I'll help you with the weather, calculate the tip, and find restaurants."
-                ],
+                llm_completions=["I'll help you with the weather, calculate the tip, and find restaurants."],
             )
 
             result = await chat.app.generate_async(
@@ -278,9 +256,7 @@ class TestToolCallingPassthroughIntegration:
             }
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = test_tool_calls
 
             chat = TestChat(
@@ -320,16 +296,12 @@ class TestToolCallingPassthroughIntegration:
             },
         ]
 
-        with patch(
-            "nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar"
-        ) as mock_get_clear:
+        with patch("nemoguardrails.actions.llm.utils.get_and_clear_tool_calls_contextvar") as mock_get_clear:
             mock_get_clear.return_value = realistic_tool_calls
 
             chat = TestChat(
                 self.passthrough_config,
-                llm_completions=[
-                    "I'll get the weather in London and add 15 + 27 for you."
-                ],
+                llm_completions=["I'll get the weather in London and add 15 + 27 for you."],
             )
 
             result = await chat.app.generate_async(

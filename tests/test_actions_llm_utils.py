@@ -208,9 +208,7 @@ def test_extract_reasoning_from_content_blocks_no_attribute():
 
 
 def test_extract_reasoning_from_additional_kwargs_with_reasoning_content():
-    response = MockResponse(
-        additional_kwargs={"reasoning_content": "Let me think about this problem..."}
-    )
+    response = MockResponse(additional_kwargs={"reasoning_content": "Let me think about this problem..."})
     reasoning = _extract_reasoning_from_additional_kwargs(response)
     assert reasoning == "Let me think about this problem..."
 
@@ -328,9 +326,7 @@ def test_store_reasoning_traces_from_content_blocks():
 
 
 def test_store_reasoning_traces_from_additional_kwargs():
-    response = MockResponse(
-        additional_kwargs={"reasoning_content": "Provider specific reasoning"}
-    )
+    response = MockResponse(additional_kwargs={"reasoning_content": "Provider specific reasoning"})
     _store_reasoning_traces(response)
 
     reasoning = reasoning_trace_var.get()
@@ -491,9 +487,7 @@ def test_store_reasoning_traces_with_real_aimessage_no_reasoning():
 def test_store_tool_calls_with_real_aimessage_from_content_blocks():
     message = AIMessage(
         "",
-        tool_calls=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}
-        ],
+        tool_calls=[{"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}],
     )
 
     _store_tool_calls(message)
@@ -510,9 +504,7 @@ def test_store_tool_calls_with_real_aimessage_from_content_blocks():
 def test_store_tool_calls_with_real_aimessage_mixed_content():
     message = AIMessage(
         "foo",
-        tool_calls=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}
-        ],
+        tool_calls=[{"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}],
     )
 
     _store_tool_calls(message)

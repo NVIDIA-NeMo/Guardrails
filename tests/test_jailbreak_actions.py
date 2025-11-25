@@ -105,10 +105,7 @@ class TestJailbreakDetectionActions:
         assert result is False
 
         # verify warning was logged
-        assert (
-            "api_key_env var at MISSING_API_KEY but the environment variable was not set"
-            in caplog.text
-        )
+        assert "api_key_env var at MISSING_API_KEY but the environment variable was not set" in caplog.text
 
         # verify nim request was called with None token
         mock_nim_request.assert_called_once_with(
@@ -159,17 +156,13 @@ class TestJailbreakDetectionActions:
         )
 
     @pytest.mark.asyncio
-    async def test_jailbreak_detection_model_local_runtime_error(
-        self, monkeypatch, caplog
-    ):
+    async def test_jailbreak_detection_model_local_runtime_error(self, monkeypatch, caplog):
         """Test RuntimeError handling when local model is not available."""
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_model,
         )
 
-        mock_check_jailbreak = mock.MagicMock(
-            side_effect=RuntimeError("No classifier available")
-        )
+        mock_check_jailbreak = mock.MagicMock(side_effect=RuntimeError("No classifier available"))
         monkeypatch.setattr(
             "nemoguardrails.library.jailbreak_detection.model_based.checks.check_jailbreak",
             mock_check_jailbreak,
@@ -198,18 +191,14 @@ class TestJailbreakDetectionActions:
         assert "No classifier available" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_jailbreak_detection_model_local_import_error(
-        self, monkeypatch, caplog
-    ):
+    async def test_jailbreak_detection_model_local_import_error(self, monkeypatch, caplog):
         """Test ImportError handling when dependencies are missing."""
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_model,
         )
 
         # mock check_jailbreak to raise ImportError
-        mock_check_jailbreak = mock.MagicMock(
-            side_effect=ImportError("No module named 'sklearn'")
-        )
+        mock_check_jailbreak = mock.MagicMock(side_effect=ImportError("No module named 'sklearn'"))
         monkeypatch.setattr(
             "nemoguardrails.library.jailbreak_detection.model_based.checks.check_jailbreak",
             mock_check_jailbreak,
@@ -235,9 +224,7 @@ class TestJailbreakDetectionActions:
         assert result is False
 
         assert "Failed to import required dependencies for local model" in caplog.text
-        assert (
-            "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
-        )
+        assert "Install scikit-learn and torch, or use NIM-based approach" in caplog.text
 
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_success(self, monkeypatch, caplog):
@@ -246,9 +233,7 @@ class TestJailbreakDetectionActions:
             jailbreak_detection_model,
         )
 
-        mock_check_jailbreak = mock.MagicMock(
-            return_value={"jailbreak": True, "score": 0.95}
-        )
+        mock_check_jailbreak = mock.MagicMock(return_value={"jailbreak": True, "score": 0.95})
         monkeypatch.setattr(
             "nemoguardrails.library.jailbreak_detection.model_based.checks.check_jailbreak",
             mock_check_jailbreak,
@@ -314,9 +299,7 @@ class TestJailbreakDetectionActions:
         )
 
     @pytest.mark.asyncio
-    async def test_jailbreak_detection_model_context_without_user_message(
-        self, monkeypatch
-    ):
+    async def test_jailbreak_detection_model_context_without_user_message(self, monkeypatch):
         """Test handling of context without user_message key."""
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_model,
@@ -386,14 +369,10 @@ class TestJailbreakDetectionActions:
         result = await jailbreak_detection_model(llm_task_manager, context)
         assert result is True
 
-        mock_model_request.assert_called_once_with(
-            prompt="test prompt", api_url="http://legacy-server:1337/model"
-        )
+        mock_model_request.assert_called_once_with(prompt="test prompt", api_url="http://legacy-server:1337/model")
 
     @pytest.mark.asyncio
-    async def test_jailbreak_detection_model_none_response_handling(
-        self, monkeypatch, caplog
-    ):
+    async def test_jailbreak_detection_model_none_response_handling(self, monkeypatch, caplog):
         """Test handling when external service returns None."""
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_model,

@@ -141,9 +141,7 @@ def test_eval_config_policy_validation_invalid_interaction_format_missing_inputs
 
 def test_interaction_set_empty_expected_output():
     """Test that empty expected_output list is handled correctly."""
-    interaction_set = InteractionSet.model_validate(
-        {"id": "test_id", "inputs": ["test input"], "expected_output": []}
-    )
+    interaction_set = InteractionSet.model_validate({"id": "test_id", "inputs": ["test input"], "expected_output": []})
     assert len(interaction_set.expected_output) == 0
 
 
@@ -248,9 +246,7 @@ def test_eval_config_policy_validation_valid():
 
 def test_eval_config_policy_validation_invalid_policy_not_found():
     # invalid case, policy not found
-    with pytest.raises(
-        ValueError, match="Invalid policy id policy2 used in interaction set"
-    ):
+    with pytest.raises(ValueError, match="Invalid policy id policy2 used in interaction set"):
         EvalConfig.model_validate(
             {
                 "policies": [{"id": "policy1", "description": "Test policy"}],

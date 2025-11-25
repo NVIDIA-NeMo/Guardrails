@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Demo script."""
+
 import logging
 
 from nemoguardrails import LLMRails, RailsConfig

@@ -107,14 +107,10 @@ def get_validator_info(validator_path: str) -> Dict[str, str]:
             from guardrails.hub.validator_package_service import get_validator_manifest
         except ImportError:
             raise GuardrailsAIConfigError(
-                "Could not import get_validator_manifest. "
-                "Make sure guardrails-ai is properly installed."
+                "Could not import get_validator_manifest. Make sure guardrails-ai is properly installed."
             )
 
-        log.info(
-            f"Validator '{validator_path}' not found in registry. "
-            f"Attempting to fetch from Guardrails Hub..."
-        )
+        log.info(f"Validator '{validator_path}' not found in registry. Attempting to fetch from Guardrails Hub...")
 
         manifest = get_validator_manifest(validator_path)
 
@@ -122,9 +118,7 @@ def get_validator_info(validator_path: str) -> Dict[str, str]:
             class_name = manifest.exports[0]
         else:
             # fallback: construct class name from package name
-            class_name = "".join(
-                word.capitalize() for word in manifest.package_name.split("_")
-            )
+            class_name = "".join(word.capitalize() for word in manifest.package_name.split("_"))
 
         validator_info = {
             "module": "guardrails.hub",
@@ -142,10 +136,7 @@ def get_validator_info(validator_path: str) -> Dict[str, str]:
 
     except ImportError:
         raise GuardrailsAIConfigError(
-            "Could not import get_validator_manifest. "
-            "Make sure guardrails-ai is properly installed."
+            "Could not import get_validator_manifest. Make sure guardrails-ai is properly installed."
         )
     except Exception as e:
-        raise GuardrailsAIConfigError(
-            f"Failed to fetch validator info for '{validator_path}': {str(e)}"
-        )
+        raise GuardrailsAIConfigError(f"Failed to fetch validator info for '{validator_path}': {str(e)}")

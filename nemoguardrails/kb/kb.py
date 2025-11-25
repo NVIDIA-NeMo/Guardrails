@@ -74,9 +74,7 @@ class KnowledgeBase:
         self,
         documents: List[str],
         config: KnowledgeBaseConfig,
-        get_embedding_search_provider_instance: Callable[
-            [Optional[EmbeddingSearchProvider]], EmbeddingsIndex
-        ],
+        get_embedding_search_provider_instance: Callable[[Optional[EmbeddingSearchProvider]], EmbeddingsIndex],
     ):
         self.documents = documents
         self.chunks = []
@@ -138,9 +136,7 @@ class KnowledgeBase:
             log.info(cache_file)
             self.index = cast(
                 BasicEmbeddingsIndex,
-                self._get_embeddings_search_instance(
-                    self.config.embedding_search_provider
-                ),
+                self._get_embeddings_search_instance(self.config.embedding_search_provider),
             )
 
             with open(embedding_size_file, "r") as f:
@@ -153,9 +149,7 @@ class KnowledgeBase:
 
             await self.index.add_items(index_items)
         else:
-            self.index = self._get_embeddings_search_instance(
-                self.config.embedding_search_provider
-            )
+            self.index = self._get_embeddings_search_instance(self.config.embedding_search_provider)
             await self.index.add_items(index_items)
             await self.index.build()
 

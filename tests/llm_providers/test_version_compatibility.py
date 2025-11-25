@@ -316,9 +316,7 @@ def test_provider_imports():
     for provider_name in llm_provider_names:
         try:
             provider_cls = _llm_providers[provider_name]
-            assert (
-                provider_cls is not None
-            ), f"Provider class for '{provider_name}' is None"
+            assert provider_cls is not None, f"Provider class for '{provider_name}' is None"
         except Exception as e:
             pytest.fail(f"Failed to import LLM provider '{provider_name}': {str(e)}")
 
@@ -327,9 +325,7 @@ def test_provider_imports():
             # This is a simplified example - you might need to adjust this
             # based on how your providers are actually imported
             provider_cls = _chat_providers[provider_name]
-            assert (
-                provider_cls is not None
-            ), f"Provider class for '{provider_name}' is None"
+            assert provider_cls is not None, f"Provider class for '{provider_name}' is None"
         except Exception as e:
             pytest.fail(f"Failed to import chat provider '{provider_name}': {str(e)}")
 
@@ -339,12 +335,11 @@ def test_discover_langchain_community_chat_providers():
 
     providers = _discover_langchain_community_chat_providers()
     chat_provider_names = get_community_chat_provider_names()
-    assert set(chat_provider_names) == set(
-        providers.keys()
-    ), "it seems that we are registering a provider that is not in the LC community chat provider"
+    assert set(chat_provider_names) == set(providers.keys()), (
+        "it seems that we are registering a provider that is not in the LC community chat provider"
+    )
     assert _COMMUNITY_CHAT_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain chat community providers may have changed. "
-        "please investigate and update the test if necessary."
+        "LangChain chat community providers may have changed. please investigate and update the test if necessary."
     )
 
 
@@ -358,9 +353,9 @@ def test_dicsover_partner_chat_providers():
     )
     chat_providers = get_chat_provider_names()
 
-    assert partner_chat_providers.issubset(
-        chat_providers
-    ), "partner chat providers are not a subset of the list of chat providers"
+    assert partner_chat_providers.issubset(chat_providers), (
+        "partner chat providers are not a subset of the list of chat providers"
+    )
 
     if not partner_chat_providers == _PARTNER_CHAT_PROVIDERS_NAMES:
         warnings.warn(
@@ -374,12 +369,11 @@ def test_discover_langchain_community_llm_providers():
     llm_provider_names = get_llm_provider_names()
 
     custom_registered_providers = {"trt_llm"}
-    assert set(llm_provider_names) - custom_registered_providers == set(
-        providers.keys()
-    ), "it seems that we are registering a provider that is not in the LC community llm provider"
+    assert set(llm_provider_names) - custom_registered_providers == set(providers.keys()), (
+        "it seems that we are registering a provider that is not in the LC community llm provider"
+    )
     assert _LLM_PROVIDERS_NAMES == list(providers.keys()), (
-        "LangChain LLM community providers may have changed. "
-        "Please investigate and update the test if necessary."
+        "LangChain LLM community providers may have changed. Please investigate and update the test if necessary."
     )
 
 

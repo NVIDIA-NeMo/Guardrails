@@ -29,9 +29,7 @@ class Policy(BaseModel):
 
     id: str = Field(description="A human readable id of the policy.")
     description: str = Field(description="A detailed description of the policy.")
-    weight: int = Field(
-        default=100, description="The weight of the policy in the overall evaluation."
-    )
+    weight: int = Field(default=100, description="The weight of the policy in the overall evaluation.")
     apply_to_all: bool = Field(
         default=True,
         description="Whether the policy is applicable by default to all interactions.",
@@ -41,12 +39,8 @@ class Policy(BaseModel):
 class ExpectedOutput(BaseModel):
     """An expected output from the system, as dictated by a policy."""
 
-    type: str = Field(
-        description="The type of expected output, e.g., 'refusal, 'similar_message'"
-    )
-    policy: str = Field(
-        description="The id of the policy dictating the expected output."
-    )
+    type: str = Field(description="The type of expected output, e.g., 'refusal, 'similar_message'")
+    policy: str = Field(description="The id of the policy dictating the expected output.")
 
 
 class GenericOutput(ExpectedOutput):
@@ -66,9 +60,7 @@ class RefusalOutput(ExpectedOutput):
 
 class SimilarMessageOutput(ExpectedOutput):
     type: str = "similar_message"
-    message: str = Field(
-        description="A message that should be similar to the one from the LLM."
-    )
+    message: str = Field(description="A message that should be similar to the one from the LLM.")
 
     def __str__(self):
         return f'Response similar to "{self.message}"'
@@ -81,9 +73,7 @@ class InteractionSet(BaseModel):
     """
 
     id: str = Field(description="A unique identifier for the interaction set.")
-    inputs: List[Union[str, dict]] = Field(
-        description="A list of alternative inputs for the interaction set."
-    )
+    inputs: List[Union[str, dict]] = Field(description="A list of alternative inputs for the interaction set.")
     expected_output: List[ExpectedOutput] = Field(
         description="Expected output from the system as dictated by various policies."
     )
@@ -94,8 +84,7 @@ class InteractionSet(BaseModel):
     )
     exclude_policies: List[str] = Field(
         default_factory=list,
-        description="The list of policies that should be excluded from the evaluation "
-        "for this interaction set.",
+        description="The list of policies that should be excluded from the evaluation for this interaction set.",
     )
     evaluation_context: Dict[str, Any] = Field(
         default_factory=dict,
@@ -129,12 +118,8 @@ class InteractionSet(BaseModel):
 class EvalConfig(BaseModel):
     """An evaluation configuration for an evaluation dataset."""
 
-    policies: List[Policy] = Field(
-        description="A list of policies for the evaluation configuration."
-    )
-    interactions: List[InteractionSet] = Field(
-        description="A list of interactions for the evaluation configuration."
-    )
+    policies: List[Policy] = Field(description="A list of policies for the evaluation configuration.")
+    interactions: List[InteractionSet] = Field(description="A list of interactions for the evaluation configuration.")
     expected_latencies: Dict[str, float] = Field(
         default_factory=dict, description="The expected latencies for various resources"
     )
@@ -154,16 +139,10 @@ class EvalConfig(BaseModel):
         for interaction_set in values.get("interactions"):
             for expected_output in interaction_set.expected_output:
                 if expected_output.policy not in policy_ids:
-                    raise ValueError(
-                        f"Invalid policy id {expected_output.policy} used in interaction set."
-                    )
-            for policy_id in (
-                interaction_set.include_policies + interaction_set.exclude_policies
-            ):
+                    raise ValueError(f"Invalid policy id {expected_output.policy} used in interaction set.")
+            for policy_id in interaction_set.include_policies + interaction_set.exclude_policies:
                 if policy_id not in policy_ids:
-                    raise ValueError(
-                        f"Invalid policy id {policy_id} used in interaction set."
-                    )
+                    raise ValueError(f"Invalid policy id {policy_id} used in interaction set.")
         return values
 
     @classmethod
@@ -197,13 +176,9 @@ class ComplianceCheckResult(BaseModel):
     """Information about a compliance check."""
 
     id: str = Field(description="A human readable id of the compliance check.")
-    created_at: str = Field(
-        description="The datetime when the compliance check entry was created."
-    )
+    created_at: str = Field(description="The datetime when the compliance check entry was created.")
     interaction_id: Optional[str] = Field(description="The id of the interaction.")
-    method: str = Field(
-        description="The method of the compliance check (e.g., 'llm-judge', 'human')"
-    )
+    method: str = Field(description="The method of the compliance check (e.g., 'llm-judge', 'human')")
     compliance: Dict[str, Optional[Union[bool, str]]] = Field(
         default_factory=dict,
         description="A mapping from policy id to True, False, 'n/a' or None.",
@@ -220,9 +195,7 @@ class InteractionOutput(BaseModel):
     id: str = Field(description="A human readable id of the interaction.")
 
     input: Union[str, dict] = Field(description="The input of the interaction.")
-    output: Optional[Union[str, List[dict]]] = Field(
-        default=None, description="The output of the interaction."
-    )
+    output: Optional[Union[str, List[dict]]] = Field(default=None, description="The output of the interaction.")
 
     compliance: Dict[str, Optional[Union[bool, str]]] = Field(
         default_factory=dict,
@@ -251,12 +224,8 @@ class Span(BaseModel):
 
     span_id: str = Field(description="The id of the span.")
     name: str = Field(description="A human-readable name for the span.")
-    parent_id: Optional[str] = Field(
-        default=None, description="The id of the parent span."
-    )
-    resource_id: Optional[str] = Field(
-        default=None, description="The id of the resource."
-    )
+    parent_id: Optional[str] = Field(default=None, description="The id of the parent span.")
+    resource_id: Optional[str] = Field(default=None, description="The id of the resource.")
     start_time: float = Field(description="The start time of the span.")
     end_time: float = Field(description="The end time of the span.")
     duration: float = Field(description="The duration of the span in seconds.")
@@ -270,16 +239,12 @@ class InteractionLog(BaseModel):
 
     id: str = Field(description="A human readable id of the interaction.")
 
-    activated_rails: List[ActivatedRail] = Field(
-        default_factory=list, description="Details about the activated rails."
-    )
+    activated_rails: List[ActivatedRail] = Field(default_factory=list, description="Details about the activated rails.")
     events: List[dict] = Field(
         default_factory=list,
         description="The full list of events recorded during the interaction.",
     )
-    trace: List[Span] = Field(
-        default_factory=list, description="Detailed information about the execution."
-    )
+    trace: List[Span] = Field(default_factory=list, description="Detailed information about the execution.")
     compliance_checks: List[ComplianceCheckLog] = Field(
         default_factory=list,
         description="Detailed information about the compliance checks.",
@@ -317,10 +282,7 @@ class EvalOutput(BaseModel):
             for item in interaction_output.compliance_checks:
                 interaction_output.compliance.update(item.compliance)
             for policy in eval_config.policies:
-                if (
-                    policy.apply_to_all
-                    and policy.id not in interaction_output.compliance
-                ):
+                if policy.apply_to_all and policy.id not in interaction_output.compliance:
                     interaction_output.compliance[policy.id] = None
 
             for policy_id, val in interaction_output.compliance.items():
@@ -341,8 +303,7 @@ class EvalOutput(BaseModel):
         for policy_id in compliance:
             if compliance[policy_id]["interactions_count"] > 0:
                 compliance[policy_id]["rate"] = (
-                    compliance[policy_id]["interactions_comply_count"]
-                    / compliance[policy_id]["interactions_count"]
+                    compliance[policy_id]["interactions_comply_count"] / compliance[policy_id]["interactions_count"]
                 )
 
         return compliance

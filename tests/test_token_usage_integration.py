@@ -68,15 +68,11 @@ def llm_calls_option():
 
 
 @pytest.mark.asyncio
-async def test_token_usage_integration_with_streaming(
-    streaming_config, llm_calls_option
-):
+async def test_token_usage_integration_with_streaming(streaming_config, llm_calls_option):
     """Integration test for token usage tracking with streaming enabled using GenerationOptions."""
 
     # token usage data that the FakeLLM will return
-    token_usage_data = [
-        {"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}
-    ]
+    token_usage_data = [{"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}]
 
     chat = TestChat(
         streaming_config,
@@ -85,9 +81,7 @@ async def test_token_usage_integration_with_streaming(
         token_usage=token_usage_data,
     )
 
-    result = await chat.app.generate_async(
-        messages=[{"role": "user", "content": "hello"}], options=llm_calls_option
-    )
+    result = await chat.app.generate_async(messages=[{"role": "user", "content": "hello"}], options=llm_calls_option)
 
     assert isinstance(result, GenerationResponse)
     assert result.response[0]["content"] == "Hello there!"
@@ -103,14 +97,10 @@ async def test_token_usage_integration_with_streaming(
 
 
 @pytest.mark.asyncio
-async def test_token_usage_integration_streaming_api(
-    streaming_config, llm_calls_option
-):
+async def test_token_usage_integration_streaming_api(streaming_config, llm_calls_option):
     """Integration test for token usage tracking with streaming using GenerationOptions."""
 
-    token_usage_data = [
-        {"total_tokens": 25, "prompt_tokens": 12, "completion_tokens": 13}
-    ]
+    token_usage_data = [{"total_tokens": 25, "prompt_tokens": 12, "completion_tokens": 13}]
 
     chat = TestChat(
         streaming_config,
@@ -119,9 +109,7 @@ async def test_token_usage_integration_streaming_api(
         token_usage=token_usage_data,
     )
 
-    result = await chat.app.generate_async(
-        messages=[{"role": "user", "content": "Hi!"}], options=llm_calls_option
-    )
+    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Hi!"}], options=llm_calls_option)
 
     assert result.response[0]["content"] == "Hello there!"
 
@@ -163,9 +151,7 @@ async def test_token_usage_integration_actual_streaming(llm_calls_option):
         """,
     )
 
-    token_usage_data = [
-        {"total_tokens": 30, "prompt_tokens": 15, "completion_tokens": 15}
-    ]
+    token_usage_data = [{"total_tokens": 30, "prompt_tokens": 15, "completion_tokens": 15}]
 
     chat = TestChat(
         config,
@@ -263,9 +249,7 @@ async def test_token_usage_integration_multiple_calls(llm_calls_option):
     # verify accumllated token usage across multiple calls
     total_tokens = sum(call.total_tokens for call in result.log.llm_calls)
     total_prompt_tokens = sum(call.prompt_tokens for call in result.log.llm_calls)
-    total_completion_tokens = sum(
-        call.completion_tokens for call in result.log.llm_calls
-    )
+    total_completion_tokens = sum(call.completion_tokens for call in result.log.llm_calls)
 
     assert total_tokens == 30  # 10 + 20
     assert total_prompt_tokens == 18  # 6 + 12
@@ -289,9 +273,7 @@ async def test_token_usage_not_tracked_without_streaming(llm_calls_option):
         }
     )
 
-    token_usage_data = [
-        {"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}
-    ]
+    token_usage_data = [{"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}]
 
     chat = TestChat(
         config,
@@ -300,9 +282,7 @@ async def test_token_usage_not_tracked_without_streaming(llm_calls_option):
         token_usage=token_usage_data,
     )
 
-    result = await chat.app.generate_async(
-        messages=[{"role": "user", "content": "Hi!"}], options=llm_calls_option
-    )
+    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Hi!"}], options=llm_calls_option)
 
     assert isinstance(result, GenerationResponse)
     assert result.response[0]["content"] == "Hello there!"
@@ -339,9 +319,7 @@ async def test_token_usage_not_set_for_unsupported_provider():
         }
     )
 
-    token_usage_data = [
-        {"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}
-    ]
+    token_usage_data = [{"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}]
 
     chat = TestChat(
         config,
@@ -350,9 +328,7 @@ async def test_token_usage_not_set_for_unsupported_provider():
         token_usage=token_usage_data,
     )
 
-    result = await chat.app.generate_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    )
+    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Hi!"}])
 
     assert result["content"] == "Hello there!"
 

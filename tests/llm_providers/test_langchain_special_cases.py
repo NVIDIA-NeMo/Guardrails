@@ -39,12 +39,14 @@ from nemoguardrails.llm.models.langchain_initializer import (
 def has_openai():
     """Check if OpenAI package is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_openai")
 
 
 def has_nvidia_ai_endpoints():
     """Check if NVIDIA AI Endpoints package is installed."""
     from nemoguardrails.imports import check_optional_dependency
+
     return check_optional_dependency("langchain_nvidia_ai_endpoints")
 
 
@@ -57,9 +59,7 @@ class TestSpecialCaseHandlers:
         result = _handle_model_special_cases("unknown-model", "unknown-provider", {})
         assert result is None
 
-    @pytest.mark.skipif(
-        not has_openai(), reason="langchain-openai package not installed"
-    )
+    @pytest.mark.skipif(not has_openai(), reason="langchain-openai package not installed")
     def test_handle_model_special_cases_model_match(self):
         """Test that model-specific initializers are called correctly."""
 
@@ -101,10 +101,7 @@ class TestSpecialCaseHandlers:
         """Test that the _SPECIAL_MODEL_INITIALIZERS registry contains the expected entries."""
 
         assert "gpt-3.5-turbo-instruct" in _SPECIAL_MODEL_INITIALIZERS
-        assert (
-            _SPECIAL_MODEL_INITIALIZERS["gpt-3.5-turbo-instruct"]
-            == _init_gpt35_turbo_instruct
-        )
+        assert _SPECIAL_MODEL_INITIALIZERS["gpt-3.5-turbo-instruct"] == _init_gpt35_turbo_instruct
 
     def test_provider_initializers_registry(self):
         """Test that the _PROVIDER_INITIALIZERS registry contains the expected entries."""
@@ -120,21 +117,15 @@ class TestGPT35TurboInstructInitializer:
     def test_init_gpt35_turbo_instruct(self):
         """Test that _init_gpt35_turbo_instruct calls _init_text_completion_model."""
 
-        with patch(
-            "nemoguardrails.llm.models.langchain_initializer._init_text_completion_model"
-        ) as mock_init:
+        with patch("nemoguardrails.llm.models.langchain_initializer._init_text_completion_model") as mock_init:
             mock_init.return_value = "text_model"
             result = _init_gpt35_turbo_instruct("gpt-3.5-turbo-instruct", "openai", {})
             assert result == "text_model"
-            mock_init.assert_called_once_with(
-                model_name="gpt-3.5-turbo-instruct", provider_name="openai", kwargs={}
-            )
+            mock_init.assert_called_once_with(model_name="gpt-3.5-turbo-instruct", provider_name="openai", kwargs={})
 
     def test_init_gpt35_turbo_instruct_error(self):
         """Test that _init_gpt35_turbo_instruct raises ModelInitializationError on failure."""
-        with patch(
-            "nemoguardrails.llm.models.langchain_initializer._init_text_completion_model"
-        ) as mock_init:
+        with patch("nemoguardrails.llm.models.langchain_initializer._init_text_completion_model") as mock_init:
             mock_init.side_effect = ValueError("Text model failed")
             with pytest.raises(
                 ModelInitializationError,
@@ -155,9 +146,7 @@ class TestNVIDIAModelInitializer:
         result = _init_nvidia_model(
             "meta/llama-3.3-70b-instruct",
             "nim",
-            {
-                "api_key": "asdf"
-            },  # Note in future version of nvaie this might raise an error
+            {"api_key": "asdf"},  # Note in future version of nvaie this might raise an error
         )
         assert result is not None
         assert hasattr(result, "invoke")
@@ -165,9 +154,7 @@ class TestNVIDIAModelInitializer:
         assert hasattr(result, "agenerate")
         assert isinstance(result, BaseChatModel)
 
-    @pytest.mark.skipif(
-        not has_nvidia_ai_endpoints(), reason="Requires NVIDIA AI Endpoints package"
-    )
+    @pytest.mark.skipif(not has_nvidia_ai_endpoints(), reason="Requires NVIDIA AI Endpoints package")
     def test_init_nvidia_model_old_version(self):
         """Test that _init_nvidia_model raises ValueError for old versions."""
 

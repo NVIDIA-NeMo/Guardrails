@@ -200,9 +200,7 @@ def runnable_rails_with_metadata(mock_rails_config, mock_llm):
 class TestMetadataPreservation:
     """Test cases for metadata preservation in RunnableRails."""
 
-    def test_metadata_preserved_with_chat_prompt_value(
-        self, runnable_rails_with_metadata
-    ):
+    def test_metadata_preserved_with_chat_prompt_value(self, runnable_rails_with_metadata):
         """Test that metadata is preserved with ChatPromptValue input."""
         prompt = ChatPromptTemplate.from_messages([("human", "Test message")])
         chat_prompt_value = prompt.format_prompt()
@@ -253,9 +251,7 @@ class TestMetadataPreservation:
         assert result.additional_kwargs == {"custom_field": "custom_value"}
         assert result.usage_metadata is not None
 
-    def test_metadata_preserved_with_dict_input_base_message(
-        self, runnable_rails_with_metadata
-    ):
+    def test_metadata_preserved_with_dict_input_base_message(self, runnable_rails_with_metadata):
         """Test that metadata is preserved with dictionary input containing BaseMessage."""
         input_dict = {"input": HumanMessage(content="Test message")}
 
@@ -268,9 +264,7 @@ class TestMetadataPreservation:
         assert ai_message.content == "Test response from rails"
         assert ai_message.additional_kwargs == {"custom_field": "custom_value"}
 
-    def test_metadata_preserved_with_dict_input_message_list(
-        self, runnable_rails_with_metadata
-    ):
+    def test_metadata_preserved_with_dict_input_message_list(self, runnable_rails_with_metadata):
         """Test that metadata is preserved with dictionary input containing message list."""
         input_dict = {"input": [HumanMessage(content="Test message")]}
 
@@ -412,9 +406,7 @@ class TestMetadataPreservation:
         for chunk in chunks:
             assert hasattr(chunk, "content")
             assert hasattr(chunk, "additional_kwargs") or hasattr(chunk, "model")
-            assert hasattr(chunk, "response_metadata") or hasattr(
-                chunk, "finish_reason"
-            )
+            assert hasattr(chunk, "response_metadata") or hasattr(chunk, "finish_reason")
 
     @pytest.mark.asyncio
     async def test_async_streaming_metadata_preservation(self, mock_rails_config):

@@ -45,8 +45,6 @@ def get_falcon_7b_llm():
     return llm
 
 
-HFPipelineFalcon = get_llm_instance_wrapper(
-    llm_instance=get_falcon_7b_llm(), llm_type="hf_pipeline_falcon"
-)
+HFPipelineFalcon = get_llm_instance_wrapper(llm_instance=get_falcon_7b_llm(), llm_type="hf_pipeline_falcon")
 
 register_llm_provider("hf_pipeline_falcon", HFPipelineFalcon)

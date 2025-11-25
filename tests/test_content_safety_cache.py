@@ -46,9 +46,7 @@ def fake_llm_with_stats():
 
 
 @pytest.mark.asyncio
-async def test_content_safety_cache_stores_result_and_stats(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_cache_stores_result_and_stats(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
@@ -73,22 +71,14 @@ async def test_content_safety_cache_stores_result_and_stats(
     assert "result" in cached_entry
     assert "llm_stats" in cached_entry
 
-    if llm_call_info and (
-        llm_call_info.total_tokens
-        or llm_call_info.prompt_tokens
-        or llm_call_info.completion_tokens
-    ):
+    if llm_call_info and (llm_call_info.total_tokens or llm_call_info.prompt_tokens or llm_call_info.completion_tokens):
         assert cached_entry["llm_stats"] is not None
     else:
-        assert cached_entry["llm_stats"] is None or all(
-            v == 0 for v in cached_entry["llm_stats"].values()
-        )
+        assert cached_entry["llm_stats"] is None or all(v == 0 for v in cached_entry["llm_stats"].values())
 
 
 @pytest.mark.asyncio
-async def test_content_safety_cache_retrieves_result_and_restores_stats(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_cache_retrieves_result_and_restores_stats(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
 
     cache_entry = {
@@ -130,9 +120,7 @@ async def test_content_safety_cache_retrieves_result_and_restores_stats(
 
 
 @pytest.mark.asyncio
-async def test_content_safety_cache_duration_reflects_cache_read_time(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_cache_duration_reflects_cache_read_time(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
 
     cache_entry = {
@@ -167,9 +155,7 @@ async def test_content_safety_cache_duration_reflects_cache_read_time(
 
 
 @pytest.mark.asyncio
-async def test_content_safety_without_cache_does_not_store(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_without_cache_does_not_store(fake_llm_with_stats, mock_task_manager):
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
@@ -188,9 +174,7 @@ async def test_content_safety_without_cache_does_not_store(
 
 
 @pytest.mark.asyncio
-async def test_content_safety_cache_handles_missing_stats_gracefully(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_cache_handles_missing_stats_gracefully(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
 
     cache_entry = {
@@ -222,9 +206,7 @@ async def test_content_safety_cache_handles_missing_stats_gracefully(
 
 
 @pytest.mark.asyncio
-async def test_content_safety_check_output_cache_stores_result(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_check_output_cache_stores_result(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
     mock_task_manager.parse_task_output.return_value = [True, "policy2"]
 
@@ -242,9 +224,7 @@ async def test_content_safety_check_output_cache_stores_result(
 
 
 @pytest.mark.asyncio
-async def test_content_safety_check_output_cache_hit(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_check_output_cache_hit(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
 
     cache_entry = {
@@ -282,9 +262,7 @@ async def test_content_safety_check_output_cache_hit(
 
 
 @pytest.mark.asyncio
-async def test_content_safety_check_output_cache_miss(
-    fake_llm_with_stats, mock_task_manager
-):
+async def test_content_safety_check_output_cache_miss(fake_llm_with_stats, mock_task_manager):
     cache = LFUCache(maxsize=10)
 
     cache_entry = {

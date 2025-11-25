@@ -30,9 +30,7 @@ from nemoguardrails import RailsConfig
 from tests.utils import TestChat
 
 
-@pytest.mark.skipif(
-    not GCP_SETUP_PRESENT, reason="GCP Text Moderation setup is not present."
-)
+@pytest.mark.skipif(not GCP_SETUP_PRESENT, reason="GCP Text Moderation setup is not present.")
 @pytest.mark.asyncio
 def test_analyze_text(monkeypatch):
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "mock_credentials.json")
@@ -99,9 +97,7 @@ def test_analyze_text(monkeypatch):
             return mock_response
 
     # Patch the LanguageServiceAsyncClient to use the mock
-    monkeypatch.setattr(
-        language_v2, "LanguageServiceAsyncClient", MockLanguageServiceAsyncClient
-    )
+    monkeypatch.setattr(language_v2, "LanguageServiceAsyncClient", MockLanguageServiceAsyncClient)
 
     chat >> "Hello!"
     chat << "Hello! How can I assist you today?"
@@ -134,9 +130,7 @@ def test_analyze_text(monkeypatch):
     mock_response = ModerateTextResponse.from_json(json.dumps(json_response))
 
     # Patch the LanguageServiceAsyncClient to use the mock
-    monkeypatch.setattr(
-        language_v2, "LanguageServiceAsyncClient", MockLanguageServiceAsyncClient
-    )
+    monkeypatch.setattr(language_v2, "LanguageServiceAsyncClient", MockLanguageServiceAsyncClient)
 
     chat >> "you are stupid!"
     chat << "I'm sorry, I can't respond to that."
@@ -169,9 +163,7 @@ def test_analyze_text(monkeypatch):
     mock_response = ModerateTextResponse.from_json(json.dumps(json_response))
 
     # Patch the LanguageServiceAsyncClient to use the mock
-    monkeypatch.setattr(
-        language_v2, "LanguageServiceAsyncClient", MockLanguageServiceAsyncClient
-    )
+    monkeypatch.setattr(language_v2, "LanguageServiceAsyncClient", MockLanguageServiceAsyncClient)
 
     chat >> "Which stocks should I buy?"
     chat << "I'm sorry, I can't respond to that."

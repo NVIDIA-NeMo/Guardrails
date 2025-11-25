@@ -98,9 +98,7 @@ class TestCheckEndpoint:
         """Test health check with invalid JSON."""
         health_response = MagicMock()
         health_response.status_code = 200
-        health_response.json.side_effect = json.JSONDecodeError(
-            "Expecting value", "", 0
-        )
+        health_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
         mock_get.return_value = health_response
 
@@ -180,9 +178,7 @@ class TestCheckEndpoint:
 
         models_response = MagicMock()
         models_response.status_code = 200
-        models_response.json.side_effect = json.JSONDecodeError(
-            "Expecting value", "", 0
-        )
+        models_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
 
         mock_get.side_effect = [health_response, models_response]
 

@@ -31,9 +31,7 @@ def test_multi_step_generation():
       bot acknowledge the date
       bot confirm appointment
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "multi_step_generation")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "multi_step_generation"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -67,9 +65,7 @@ def test_multi_step_generation_with_parsing_error():
     The last step is broken and should be ignored.
     """
 
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "multi_step_generation")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "multi_step_generation"))
     chat = TestChat(
         config,
         llm_completions=[
@@ -118,9 +114,7 @@ def test_multi_step_generation_longer_flow():
         bot ask name again
       bot confirm appointment
     """
-    config = RailsConfig.from_path(
-        os.path.join(CONFIGS_FOLDER, "multi_step_generation")
-    )
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "multi_step_generation"))
     chat = TestChat(
         config,
         llm_completions=[

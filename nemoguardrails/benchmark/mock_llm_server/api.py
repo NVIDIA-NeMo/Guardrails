@@ -46,9 +46,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)  # TODO Control this from the CLi args
 
 # Create a formatter to define the log message format
-formatter = logging.Formatter(
-    "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
+formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
 # Create a console handler to print logs to the console
 console_handler = logging.StreamHandler()
@@ -116,18 +114,14 @@ async def list_models(config: ModelSettingsDep):
     """List available models."""
     log.debug("/v1/models request")
 
-    model = Model(
-        id=config.model, object="model", created=int(time.time()), owned_by="system"
-    )
+    model = Model(id=config.model, object="model", created=int(time.time()), owned_by="system")
     response = ModelsResponse(object="list", data=[model])
     log.debug("/v1/models response: %s", response)
     return response
 
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
-async def chat_completions(
-    request: ChatCompletionRequest, config: ModelSettingsDep
-) -> ChatCompletionResponse:
+async def chat_completions(request: ChatCompletionRequest, config: ModelSettingsDep) -> ChatCompletionResponse:
     """Create a chat completion."""
 
     log.debug("/v1/chat/completions request: %s", request)
@@ -175,9 +169,7 @@ async def chat_completions(
 
 
 @app.post("/v1/completions", response_model=CompletionResponse)
-async def completions(
-    request: CompletionRequest, config: ModelSettingsDep
-) -> CompletionResponse:
+async def completions(request: CompletionRequest, config: ModelSettingsDep) -> CompletionResponse:
     """Create a text completion."""
 
     log.debug("/v1/completions request: %s", request)
@@ -205,9 +197,7 @@ async def completions(
 
     choices = []
     for i in range(request.n or 1):
-        choice = CompletionChoice(
-            text=response_text, index=i, logprobs=None, finish_reason="stop"
-        )
+        choice = CompletionChoice(text=response_text, index=i, logprobs=None, finish_reason="stop")
         choices.append(choice)
 
     response = CompletionResponse(

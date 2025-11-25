@@ -169,13 +169,9 @@ async def llm_call(
     )
 
     if isinstance(prompt, str):
-        response = await _invoke_with_string_prompt(
-            generation_llm, prompt, all_callbacks
-        )
+        response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks)
     else:
-        response = await _invoke_with_message_list(
-            generation_llm, prompt, all_callbacks
-        )
+        response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks)
 
     _store_reasoning_traces(response)
     _store_tool_calls(response)
@@ -183,9 +179,7 @@ async def llm_call(
     return _extract_content(response)
 
 
-def _setup_llm_call_info(
-    llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]
-) -> None:
+def _setup_llm_call_info(llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]) -> None:
     """Initialize or update LLM call info in context."""
     llm_call_info = llm_call_info_var.get()
     if llm_call_info is None:
@@ -203,8 +197,7 @@ def _prepare_callbacks(
     if custom_callback_handlers and custom_callback_handlers != [None]:
         return BaseCallbackManager(
             handlers=logging_callbacks.handlers + list(custom_callback_handlers),
-            inheritable_handlers=logging_callbacks.handlers
-            + list(custom_callback_handlers),
+            inheritable_handlers=logging_callbacks.handlers + list(custom_callback_handlers),
         )
     return logging_callbacks
 
@@ -324,9 +317,7 @@ def _extract_and_remove_think_tags(response) -> Optional[str]:
     match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
     if match:
         reasoning_content = match.group(1).strip()
-        response.content = re.sub(
-            r"<think>.*?</think>", "", content, flags=re.DOTALL
-        ).strip()
+        response.content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
         return reasoning_content
     return None
 
@@ -361,9 +352,7 @@ def _store_response_metadata(response) -> None:
     if hasattr(response, "model_fields"):
         metadata = {}
         for field_name in response.model_fields:
-            if (
-                field_name != "content"
-            ):  # Exclude content since it may be modified by rails
+            if field_name != "content":  # Exclude content since it may be modified by rails
                 metadata[field_name] = getattr(response, field_name)
         llm_response_metadata_var.set(metadata)
 
@@ -436,22 +425,12 @@ def get_colang_history(
             elif event["type"] == "StartUtteranceBotAction" and include_texts:
                 history += f'  "{event["script"]}"\n'
             # We skip system actions from this log
-            elif event["type"] == "StartInternalSystemAction" and not event.get(
-                "is_system_action"
-            ):
-                if (
-                    remove_retrieval_events
-                    and event["action_name"] == "retrieve_relevant_chunks"
-                ):
+            elif event["type"] == "StartInternalSystemAction" and not event.get("is_system_action"):
+                if remove_retrieval_events and event["action_name"] == "retrieve_relevant_chunks":
                     continue
                 history += f"execute {event['action_name']}\n"
-            elif event["type"] == "InternalSystemActionFinished" and not event.get(
-                "is_system_action"
-            ):
-                if (
-                    remove_retrieval_events
-                    and event["action_name"] == "retrieve_relevant_chunks"
-                ):
+            elif event["type"] == "InternalSystemActionFinished" and not event.get("is_system_action"):
+                if remove_retrieval_events and event["action_name"] == "retrieve_relevant_chunks":
                     continue
 
                 # We make sure the return value is a string with no new lines
@@ -480,19 +459,14 @@ def get_colang_history(
             if (
                 event.name == InternalEvents.USER_ACTION_LOG
                 and previous_event
-                and events_to_dialog_history([previous_event])
-                == events_to_dialog_history([event])
+                and events_to_dialog_history([previous_event]) == events_to_dialog_history([event])
             ):
                 # Remove duplicated user action log events that stem from the same user event as the previous event
                 continue
 
-            if (
-                event.name == InternalEvents.BOT_ACTION_LOG
-                or event.name == InternalEvents.USER_ACTION_LOG
-            ):
+            if event.name == InternalEvents.BOT_ACTION_LOG or event.name == InternalEvents.USER_ACTION_LOG:
                 if len(action_group) > 0 and (
-                    current_intent is None
-                    or current_intent != event.arguments["intent_flow_id"]
+                    current_intent is None or current_intent != event.arguments["intent_flow_id"]
                 ):
                     new_history.append(events_to_dialog_history(action_group))
                     new_history.append("")
@@ -502,10 +476,7 @@ def get_colang_history(
                 current_intent = event.arguments["intent_flow_id"]
 
                 previous_event = event
-            elif (
-                event.name == InternalEvents.BOT_INTENT_LOG
-                or event.name == InternalEvents.USER_INTENT_LOG
-            ):
+            elif event.name == InternalEvents.BOT_INTENT_LOG or event.name == InternalEvents.USER_INTENT_LOG:
                 if event.arguments["flow_id"] == current_intent:
                     # Found parent of current group
                     if event.name == InternalEvents.BOT_INTENT_LOG:
@@ -617,16 +588,12 @@ def get_last_user_utterance(events: List[dict]) -> Optional[str]:
     return None
 
 
-def get_retrieved_relevant_chunks(
-    events: List[dict], skip_user_message: Optional[bool] = False
-) -> Optional[str]:
+def get_retrieved_relevant_chunks(events: List[dict], skip_user_message: Optional[bool] = False) -> Optional[str]:
     """Returns the retrieved chunks for current user utterance from the events."""
     for event in reversed(events):
         if not skip_user_message and event["type"] == "UserMessage":
             break
-        if event["type"] == "ContextUpdate" and "relevant_chunks" in event.get(
-            "data", {}
-        ):
+        if event["type"] == "ContextUpdate" and "relevant_chunks" in event.get("data", {}):
             return (event["data"]["relevant_chunks"] or "").strip()
 
     return None
@@ -804,9 +771,7 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
                 action += "\n"
             action += string.replace("bot action: ", "")
             action_started = True
-        elif (
-            string.startswith("  and") or string.startswith("  or")
-        ) and action_started:
+        elif (string.startswith("  and") or string.startswith("  or")) and action_started:
             action = action + string
         elif string == "":
             action_started = False
@@ -819,12 +784,7 @@ def get_first_bot_action(strings: List[str]) -> Optional[str]:
 def escape_flow_name(name: str) -> str:
     """Escape invalid keywords in flow names."""
     # TODO: We need to figure out how we can distinguish from valid flow parameters
-    result = (
-        name.replace(" and ", "_and_")
-        .replace(" or ", "_or_")
-        .replace(" as ", "_as_")
-        .replace("-", "_")
-    )
+    result = name.replace(" and ", "_and_").replace(" or ", "_or_").replace(" as ", "_as_").replace("-", "_")
     result = re.sub(r"\b\d+\b", lambda match: f"_{match.group()}_", result)
     # removes non-word chars and leading digits in a word
     result = re.sub(r"\b\d+|[^\w\s]", "", result)

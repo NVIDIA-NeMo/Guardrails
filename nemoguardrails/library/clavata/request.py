@@ -82,9 +82,7 @@ JobStatus = Literal[
     "JOB_STATUS_CANCELED",
 ]
 
-Outcome = Literal[
-    "OUTCOME_UNSPECIFIED", "OUTCOME_TRUE", "OUTCOME_FALSE", "OUTCOME_FAILED"
-]
+Outcome = Literal["OUTCOME_UNSPECIFIED", "OUTCOME_TRUE", "OUTCOME_FALSE", "OUTCOME_FAILED"]
 
 
 class SectionReport(BaseModel):
@@ -152,9 +150,7 @@ class ClavataClient:
     def _get_headers(self) -> Dict[str, str]:
         return AuthHeader(api_key=self.api_key).to_headers()
 
-    @exponential_backoff(
-        initial_delay=0.1, retry_exceptions=(ClavataPluginAPIRateLimitError,)
-    )
+    @exponential_backoff(initial_delay=0.1, retry_exceptions=(ClavataPluginAPIRateLimitError,))
     async def _make_request(
         self,
         endpoint: str,
@@ -176,8 +172,7 @@ class ClavataClient:
 
                     if resp.status != 200:
                         raise ClavataPluginAPIError(
-                            f"Clavata call failed with status code {resp.status}.\n"
-                            f"Details: {await resp.text()}"
+                            f"Clavata call failed with status code {resp.status}.\nDetails: {await resp.text()}"
                         )
 
                     try:
@@ -192,14 +187,10 @@ class ClavataClient:
                     try:
                         return response_model.model_validate(parsed_response)
                     except ValidationError as e:
-                        raise ClavataPluginValueError(
-                            f"Invalid response format from Clavata API. Details: {e}"
-                        ) from e
+                        raise ClavataPluginValueError(f"Invalid response format from Clavata API. Details: {e}") from e
 
         except Exception as e:
-            raise ClavataPluginAPIError(
-                f"Failed to make Clavata API request. Error: {e}"
-            ) from e
+            raise ClavataPluginAPIError(f"Failed to make Clavata API request. Error: {e}") from e
 
     async def create_job(self, text: str, policy_id: str) -> Job:
         """

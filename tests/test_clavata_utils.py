@@ -191,9 +191,7 @@ async def test_exponential_backoff_permanent_failure_custom_exception():
 def test_calculate_exp_delay(retries, expected_delay, initial_delay, max_delay, jitter):
     """Test that the calculate_exp_delay function works correctly."""
 
-    assert (
-        calculate_exp_delay(retries, initial_delay, max_delay, jitter) == expected_delay
-    )
+    assert calculate_exp_delay(retries, initial_delay, max_delay, jitter) == expected_delay
 
 
 @pytest.mark.unit
@@ -217,11 +215,7 @@ def test_calculate_exp_delay(retries, expected_delay, initial_delay, max_delay, 
 def test_calculate_exp_delay_jitter(retries, expected_delay, initial_delay, max_delay):
     """Test that the calculate_exp_delay function works correctly with jitter."""
 
-    assert (
-        0.0
-        <= calculate_exp_delay(retries, initial_delay, max_delay, True)
-        <= expected_delay
-    )
+    assert 0.0 <= calculate_exp_delay(retries, initial_delay, max_delay, True) <= expected_delay
 
 
 # TESTS FOR ADDITIONAL PYDANTIC MODELS USED TO PARSE RESPONSES FROM THE CLAVATA API

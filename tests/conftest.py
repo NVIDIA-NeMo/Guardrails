@@ -17,9 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-REASONING_TRACE_MOCK_PATH = (
-    "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
-)
+REASONING_TRACE_MOCK_PATH = "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
 
 
 @pytest.fixture(autouse=True)

@@ -237,9 +237,7 @@ async def run_parallel_self_check_test(config, llm_completions, register_actions
         chat.app.register_action(self_check_output)
 
     chunks = []
-    async for chunk in chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         chunks.append(chunk)
 
     return chunks
@@ -257,9 +255,7 @@ async def test_parallel_streaming_output_rails_allowed(
         '  "This is a safe and compliant high quality joke that should pass all checks."',
     ]
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_streaming_config, llm_completions
-    )
+    chunks = await run_parallel_self_check_test(parallel_output_rails_streaming_config, llm_completions)
 
     # should receive all chunks without blocking
     response = "".join(chunks)
@@ -285,9 +281,7 @@ async def test_parallel_streaming_output_rails_blocked_by_safety(
         '  "This is an UNSAFE joke that should be blocked by safety check."',
     ]
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_streaming_config, llm_completions
-    )
+    chunks = await run_parallel_self_check_test(parallel_output_rails_streaming_config, llm_completions)
 
     expected_error = {
         "error": {
@@ -324,9 +318,7 @@ async def test_parallel_streaming_output_rails_blocked_by_compliance(
         '  "This joke contains a policy VIOLATION and should be blocked."',
     ]
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_streaming_config, llm_completions
-    )
+    chunks = await run_parallel_self_check_test(parallel_output_rails_streaming_config, llm_completions)
 
     expected_error = {
         "error": {
@@ -363,9 +355,7 @@ async def test_parallel_streaming_output_rails_blocked_by_quality(
         '  "This is a LOWQUALITY joke that should be blocked by quality check."',
     ]
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_streaming_config, llm_completions
-    )
+    chunks = await run_parallel_self_check_test(parallel_output_rails_streaming_config, llm_completions)
 
     expected_error = {
         "error": {
@@ -402,9 +392,7 @@ async def test_parallel_streaming_output_rails_blocked_at_start(
         '  "[BLOCK] This should be blocked immediately at the start."',
     ]
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_streaming_single_flow_config, llm_completions
-    )
+    chunks = await run_parallel_self_check_test(parallel_output_rails_streaming_single_flow_config, llm_completions)
 
     expected_error = {
         "error": {
@@ -433,9 +421,7 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
         '  "This contains both UNSAFE content and a VIOLATION which is also LOWQUALITY."',
     ]
 
-    chunks = await run_parallel_self_check_test(
-        parallel_output_rails_streaming_config, llm_completions
-    )
+    chunks = await run_parallel_self_check_test(parallel_output_rails_streaming_config, llm_completions)
 
     # should be blocked by one of the rails (whichever detects first in parallel execution)
     error_chunks = []
@@ -447,9 +433,7 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
         except JSONDecodeError:
             continue
 
-    assert (
-        len(error_chunks) == 1
-    ), f"Expected exactly one error chunk, got {len(error_chunks)}"
+    assert len(error_chunks) == 1, f"Expected exactly one error chunk, got {len(error_chunks)}"
 
     error = error_chunks[0]
     assert error["error"]["type"] == "guardrails_violation"
@@ -552,40 +536,30 @@ async def test_parallel_streaming_output_rails_performance_benefits():
         '  "This is a safe and compliant high quality response for timing tests."',
     ]
 
-    parallel_chat = TestChat(
-        parallel_config, llm_completions=llm_completions, streaming=True
-    )
+    parallel_chat = TestChat(parallel_config, llm_completions=llm_completions, streaming=True)
     parallel_chat.app.register_action(slow_self_check_output_safety)
     parallel_chat.app.register_action(slow_self_check_output_compliance)
     parallel_chat.app.register_action(slow_self_check_output_quality)
 
     start_time = time.time()
     parallel_chunks = []
-    async for chunk in parallel_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in parallel_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         parallel_chunks.append(chunk)
     parallel_time = time.time() - start_time
 
-    sequential_chat = TestChat(
-        sequential_config, llm_completions=llm_completions, streaming=True
-    )
+    sequential_chat = TestChat(sequential_config, llm_completions=llm_completions, streaming=True)
     sequential_chat.app.register_action(slow_self_check_output_safety)
     sequential_chat.app.register_action(slow_self_check_output_compliance)
     sequential_chat.app.register_action(slow_self_check_output_quality)
 
     start_time = time.time()
     sequential_chunks = []
-    async for chunk in sequential_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in sequential_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         sequential_chunks.append(chunk)
     sequential_time = time.time() - start_time
 
     # Parallel should be faster than sequential (allowing some margin for test variability)
-    print(
-        f"Parallel time: {parallel_time:.2f}s, Sequential time: {sequential_time:.2f}s"
-    )
+    print(f"Parallel time: {parallel_time:.2f}s, Sequential time: {sequential_time:.2f}s")
 
     # with 3 rails each taking ~0.1 s sequential should take ~0.3 s per chunk, parallel should be closer to 0.1s
     # we allow some margin for test execution overhead
@@ -612,9 +586,7 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
     llmrails = LLMRails(parallel_output_rails_default_config)
 
     with pytest.raises(ValueError) as exc_info:
-        async for chunk in llmrails.stream_async(
-            messages=[{"role": "user", "content": "Hi!"}]
-        ):
+        async for chunk in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
             pass
 
     assert str(exc_info.value) == (
@@ -680,9 +652,7 @@ async def test_parallel_streaming_output_rails_error_handling():
     chat.app.register_action(working_rail)
 
     chunks = []
-    async for chunk in chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         chunks.append(chunk)
 
     # stops processing since one rail is failing
@@ -700,9 +670,7 @@ async def test_parallel_streaming_output_rails_error_handling():
         except JSONDecodeError:
             continue
 
-    assert (
-        len(error_chunks) == 1
-    ), f"Expected exactly one internal error chunk, got {len(error_chunks)}"
+    assert len(error_chunks) == 1, f"Expected exactly one internal error chunk, got {len(error_chunks)}"
     error = error_chunks[0]
     assert error["error"]["code"] == "rail_execution_failure"
     assert "Internal error in failing rail rail:" in error["error"]["message"]
@@ -895,17 +863,13 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
 
     start_time = time.time()
     sequential_chunks = []
-    async for chunk in sequential_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in sequential_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         sequential_chunks.append(chunk)
     sequential_time = time.time() - start_time
 
     start_time = time.time()
     parallel_chunks = []
-    async for chunk in parallel_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in parallel_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         parallel_chunks.append(chunk)
     parallel_time = time.time() - start_time
 
@@ -921,19 +885,11 @@ async def test_sequential_vs_parallel_streaming_output_rails_comparison():
     assert "compliant high quality" in parallel_response
 
     # neither should have error chunks
-    sequential_error_chunks = [
-        chunk for chunk in sequential_chunks if chunk.startswith('{"error":')
-    ]
-    parallel_error_chunks = [
-        chunk for chunk in parallel_chunks if chunk.startswith('{"error":')
-    ]
+    sequential_error_chunks = [chunk for chunk in sequential_chunks if chunk.startswith('{"error":')]
+    parallel_error_chunks = [chunk for chunk in parallel_chunks if chunk.startswith('{"error":')]
 
-    assert (
-        len(sequential_error_chunks) == 0
-    ), f"Sequential had errors: {sequential_error_chunks}"
-    assert (
-        len(parallel_error_chunks) == 0
-    ), f"Parallel had errors: {parallel_error_chunks}"
+    assert len(sequential_error_chunks) == 0, f"Sequential had errors: {sequential_error_chunks}"
+    assert len(parallel_error_chunks) == 0, f"Parallel had errors: {parallel_error_chunks}"
 
     assert sequential_response == parallel_response, (
         f"Sequential and parallel should produce identical content:\n"
@@ -991,15 +947,11 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
       execute test_self_check_output_blocking
     """
 
-    sequential_config = RailsConfig.from_content(
-        config=base_config, colang_content=colang_content
-    )
+    sequential_config = RailsConfig.from_content(config=base_config, colang_content=colang_content)
 
     parallel_config_dict = base_config.copy()
     parallel_config_dict["rails"]["output"]["parallel"] = True
-    parallel_config = RailsConfig.from_content(
-        config=parallel_config_dict, colang_content=colang_content
-    )
+    parallel_config = RailsConfig.from_content(config=parallel_config_dict, colang_content=colang_content)
 
     llm_completions = [
         '  express greeting\nbot express greeting\n  "Hi, how are you doing?"',
@@ -1021,15 +973,11 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
     parallel_chat.app.register_action(test_self_check_output_blocking)
 
     sequential_chunks = []
-    async for chunk in sequential_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in sequential_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         sequential_chunks.append(chunk)
 
     parallel_chunks = []
-    async for chunk in parallel_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in parallel_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         parallel_chunks.append(chunk)
 
     sequential_errors = []
@@ -1051,12 +999,8 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
         except JSONDecodeError:
             continue
 
-    assert (
-        len(sequential_errors) == 1
-    ), f"Sequential should have 1 error, got {len(sequential_errors)}"
-    assert (
-        len(parallel_errors) == 1
-    ), f"Parallel should have 1 error, got {len(parallel_errors)}"
+    assert len(sequential_errors) == 1, f"Sequential should have 1 error, got {len(sequential_errors)}"
+    assert len(parallel_errors) == 1, f"Parallel should have 1 error, got {len(parallel_errors)}"
 
     seq_error = sequential_errors[0]
     par_error = parallel_errors[0]
@@ -1188,17 +1132,13 @@ async def test_parallel_vs_sequential_with_slow_actions():
 
     start_time = time.time()
     sequential_chunks = []
-    async for chunk in sequential_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in sequential_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         sequential_chunks.append(chunk)
     sequential_time = time.time() - start_time
 
     start_time = time.time()
     parallel_chunks = []
-    async for chunk in parallel_chat.app.stream_async(
-        messages=[{"role": "user", "content": "Hi!"}]
-    ):
+    async for chunk in parallel_chat.app.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
         parallel_chunks.append(chunk)
     parallel_time = time.time() - start_time
 
@@ -1210,12 +1150,8 @@ async def test_parallel_vs_sequential_with_slow_actions():
     assert "This is a safe" in sequential_response
     assert "This is a safe" in parallel_response
 
-    sequential_error_chunks = [
-        chunk for chunk in sequential_chunks if chunk.startswith('{"error":')
-    ]
-    parallel_error_chunks = [
-        chunk for chunk in parallel_chunks if chunk.startswith('{"error":')
-    ]
+    sequential_error_chunks = [chunk for chunk in sequential_chunks if chunk.startswith('{"error":')]
+    parallel_error_chunks = [chunk for chunk in parallel_chunks if chunk.startswith('{"error":')]
 
     assert len(sequential_error_chunks) == 0
     assert len(parallel_error_chunks) == 0

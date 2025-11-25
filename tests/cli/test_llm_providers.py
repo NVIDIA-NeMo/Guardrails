@@ -34,9 +34,7 @@ class TestListProviders:
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.get_chat_provider_names")
     @patch("nemoguardrails.cli.providers.get_llm_provider_names")
-    def test_list_providers(
-        self, mock_llm_providers, mock_chat_providers, mock_console
-    ):
+    def test_list_providers(self, mock_llm_providers, mock_chat_providers, mock_console):
         mock_llm_providers.return_value = ["llm_provider_1", "llm_provider_2"]
         mock_chat_providers.return_value = ["chat_provider_1", "chat_provider_2"]
 
@@ -116,9 +114,7 @@ class TestSelectProviderType:
 
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
-    def test_select_provider_type_ambiguous_match(
-        self, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_type_ambiguous_match(self, mock_prompt_session, mock_console):
         mock_session = MagicMock()
         mock_session.prompt.return_value = "completion"
         mock_prompt_session.return_value = mock_session
@@ -129,9 +125,7 @@ class TestSelectProviderType:
 
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
-    def test_select_provider_type_keyboard_interrupt(
-        self, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_type_keyboard_interrupt(self, mock_prompt_session, mock_console):
         mock_session = MagicMock()
         mock_session.prompt.side_effect = KeyboardInterrupt()
         mock_prompt_session.return_value = mock_session
@@ -156,9 +150,7 @@ class TestSelectProvider:
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
     @patch("nemoguardrails.cli.providers._get_provider_completions")
-    def test_select_provider_exact_match(
-        self, mock_get_completions, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_exact_match(self, mock_get_completions, mock_prompt_session, mock_console):
         mock_get_completions.return_value = ["openai", "anthropic", "azure"]
         mock_session = MagicMock()
         mock_session.prompt.return_value = "openai"
@@ -171,9 +163,7 @@ class TestSelectProvider:
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
     @patch("nemoguardrails.cli.providers._get_provider_completions")
-    def test_select_provider_fuzzy_match(
-        self, mock_get_completions, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_fuzzy_match(self, mock_get_completions, mock_prompt_session, mock_console):
         mock_get_completions.return_value = ["openai", "anthropic", "azure"]
         mock_session = MagicMock()
         mock_session.prompt.return_value = "open"
@@ -186,9 +176,7 @@ class TestSelectProvider:
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
     @patch("nemoguardrails.cli.providers._get_provider_completions")
-    def test_select_provider_empty_input(
-        self, mock_get_completions, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_empty_input(self, mock_get_completions, mock_prompt_session, mock_console):
         mock_get_completions.return_value = ["openai", "anthropic"]
         mock_session = MagicMock()
         mock_session.prompt.return_value = ""
@@ -201,9 +189,7 @@ class TestSelectProvider:
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
     @patch("nemoguardrails.cli.providers._get_provider_completions")
-    def test_select_provider_no_match(
-        self, mock_get_completions, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_no_match(self, mock_get_completions, mock_prompt_session, mock_console):
         mock_get_completions.return_value = ["openai", "anthropic"]
         mock_session = MagicMock()
         mock_session.prompt.return_value = "invalid_provider"
@@ -216,9 +202,7 @@ class TestSelectProvider:
     @patch("nemoguardrails.cli.providers.console")
     @patch("nemoguardrails.cli.providers.PromptSession")
     @patch("nemoguardrails.cli.providers._get_provider_completions")
-    def test_select_provider_keyboard_interrupt(
-        self, mock_get_completions, mock_prompt_session, mock_console
-    ):
+    def test_select_provider_keyboard_interrupt(self, mock_get_completions, mock_prompt_session, mock_console):
         mock_get_completions.return_value = ["openai"]
         mock_session = MagicMock()
         mock_session.prompt.side_effect = KeyboardInterrupt()
@@ -232,9 +216,7 @@ class TestSelectProvider:
 class TestSelectProviderWithType:
     @patch("nemoguardrails.cli.providers.select_provider")
     @patch("nemoguardrails.cli.providers.select_provider_type")
-    def test_select_provider_with_type_success(
-        self, mock_select_type, mock_select_provider
-    ):
+    def test_select_provider_with_type_success(self, mock_select_type, mock_select_provider):
         mock_select_type.return_value = "chat completion"
         mock_select_provider.return_value = "openai"
 
@@ -254,9 +236,7 @@ class TestSelectProviderWithType:
 
     @patch("nemoguardrails.cli.providers.select_provider")
     @patch("nemoguardrails.cli.providers.select_provider_type")
-    def test_select_provider_with_type_no_provider(
-        self, mock_select_type, mock_select_provider
-    ):
+    def test_select_provider_with_type_no_provider(self, mock_select_type, mock_select_provider):
         mock_select_type.return_value = "chat completion"
         mock_select_provider.return_value = None
 

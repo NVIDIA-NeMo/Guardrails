@@ -93,9 +93,9 @@ async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     llmrails = LLMRails(output_rails_streaming_config)
 
     result = llmrails.stream_async(prompt="test")
-    assert not isinstance(
-        result, StreamingHandler
-    ), "Did not expect StreamingHandler instance when streaming is enabled"
+    assert not isinstance(result, StreamingHandler), (
+        "Did not expect StreamingHandler instance when streaming is enabled"
+    )
 
 
 @action(is_system_action=True, output_mapping=lambda result: not result)
@@ -149,9 +149,7 @@ async def test_streaming_output_rails_blocked_explicit(output_rails_streaming_co
         }
     }
 
-    error_chunks = [
-        json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')
-    ]
+    error_chunks = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
     assert len(error_chunks) > 0
     assert expected_error in error_chunks
 
@@ -167,9 +165,7 @@ async def test_streaming_output_rails_blocked_default_config(
     llmrails = LLMRails(output_rails_streaming_config_default)
 
     with pytest.raises(ValueError) as exc_info:
-        async for chunk in llmrails.stream_async(
-            messages=[{"role": "user", "content": "Hi!"}]
-        ):
+        async for chunk in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
             pass
 
     assert str(exc_info.value) == (
@@ -262,9 +258,7 @@ async def test_external_generator_with_output_rails_allowed():
                 }
             },
             "streaming": True,
-            "prompts": [
-                {"task": "self_check_output", "content": "Check: {{ bot_response }}"}
-            ],
+            "prompts": [{"task": "self_check_output", "content": "Check: {{ bot_response }}"}],
         },
         colang_content="""
         define flow self check output
@@ -308,9 +302,7 @@ async def test_external_generator_with_output_rails_blocked():
                 }
             },
             "streaming": True,
-            "prompts": [
-                {"task": "self_check_output", "content": "Check: {{ bot_response }}"}
-            ],
+            "prompts": [{"task": "self_check_output", "content": "Check: {{ bot_response }}"}],
         },
         colang_content="""
         define flow self check output
@@ -322,9 +314,7 @@ async def test_external_generator_with_output_rails_blocked():
 
     @action(name="self_check_output")
     async def self_check_output(**kwargs):
-        bot_message = kwargs.get(
-            "bot_message", kwargs.get("context", {}).get("bot_message", "")
-        )
+        bot_message = kwargs.get("bot_message", kwargs.get("context", {}).get("bot_message", ""))
         # block if message contains "offensive" or "idiot"
         if "offensive" in bot_message.lower() or "idiot" in bot_message.lower():
             return False
@@ -380,9 +370,7 @@ async def test_external_generator_with_custom_llm():
     messages = [{"role": "user", "content": "What's the weather?"}]
     tokens = []
 
-    async for token in rails.stream_async(
-        generator=custom_llm_generator(messages), messages=messages
-    ):
+    async for token in rails.stream_async(generator=custom_llm_generator(messages), messages=messages):
         tokens.append(token)
 
     result = "".join(tokens).strip()
@@ -436,9 +424,7 @@ async def test_external_generator_single_chunk():
                 }
             },
             "streaming": True,
-            "prompts": [
-                {"task": "self_check_output", "content": "Check: {{ bot_response }}"}
-            ],
+            "prompts": [{"task": "self_check_output", "content": "Check: {{ bot_response }}"}],
         },
         colang_content="""
         define flow self check output

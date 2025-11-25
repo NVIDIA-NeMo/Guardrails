@@ -86,9 +86,7 @@ def test_patronus_lynx_returns_no_hallucination():
     Test that that chat flow completes successfully when
     Patronus Lynx returns "PASS" for the hallucination check
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -117,9 +115,7 @@ def test_patronus_lynx_returns_hallucination():
     Test that that bot output is successfully guarded against when
     Patronus Lynx returns "FAIL" for the hallucination check
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -148,9 +144,7 @@ def test_patronus_lynx_parses_score_when_no_double_quote():
     Test that that chat flow completes successfully when
     Patronus Lynx returns "PASS" for the hallucination check
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -179,9 +173,7 @@ def test_patronus_lynx_returns_no_hallucination_when_no_retrieved_context():
     Test that that Patronus Lynx does not block the bot output
     when no relevant context is given
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -208,9 +200,7 @@ def test_patronus_lynx_returns_hallucination_when_no_score_in_llm_output():
     Test that that Patronus Lynx defaults to blocking the bot output
     when no score is returned in its response.
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[
@@ -239,9 +229,7 @@ def test_patronus_lynx_returns_no_hallucination_when_no_reasoning_in_llm_output(
     Test that that Patronus Lynx's hallucination check does not
     depend on the reasoning provided in its response.
     """
-    config = RailsConfig.from_content(
-        colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG
-    )
+    config = RailsConfig.from_content(colang_content=COLANG_CONFIG, yaml_content=YAML_CONFIG)
     chat = TestChat(
         config,
         llm_completions=[

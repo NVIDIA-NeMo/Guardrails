@@ -52,10 +52,7 @@ def test_get_root_endpoint_server_data(client):
     data = response.json()
     assert data["message"] == "Mock LLM Server"
     assert data["version"] == "0.0.1"
-    assert (
-        data["description"]
-        == f"OpenAI-compatible mock LLM server for model: {model_name}"
-    )
+    assert data["description"] == f"OpenAI-compatible mock LLM server for model: {model_name}"
     assert data["endpoints"] == [
         "/v1/models",
         "/v1/chat/completions",
@@ -155,9 +152,7 @@ class TestChatCompletionsEndpoint:
         assert "prompt_tokens" in usage
         assert "completion_tokens" in usage
         assert "total_tokens" in usage
-        assert (
-            usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
-        )
+        assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
 
     def test_chat_completions_multiple_choices(self, client):
         """Test chat completion with n > 1."""
@@ -301,9 +296,7 @@ class TestCompletionsEndpoint:
         usage = data["usage"]
         assert usage["prompt_tokens"] > 0
         assert usage["completion_tokens"] > 0
-        assert (
-            usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
-        )
+        assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
 
     def test_completions_invalid_model(self, client):
         """Test completion with invalid model name."""

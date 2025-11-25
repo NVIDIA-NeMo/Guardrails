@@ -59,9 +59,7 @@ class TritonClient:
     def get_model_concurrency(self, model_name: str, timeout: int = 1000) -> int:
         """Get the modle concurrency."""
         self.load_model(model_name, timeout)
-        instances = self.client.get_model_config(model_name, as_json=True)["config"][
-            "instance_group"
-        ]
+        instances = self.client.get_model_config(model_name, as_json=True)["config"]["instance_group"]
         return sum(instance["count"] * len(instance["gpus"]) for instance in instances)
 
     @staticmethod
@@ -154,9 +152,7 @@ class TritonClient:
         # pylint: disable-next=import-outside-toplevel
         from tritonclient.utils import np_to_triton_dtype
 
-        t = grpcclient.InferInput(
-            name, input_data.shape, np_to_triton_dtype(input_data.dtype)
-        )
+        t = grpcclient.InferInput(name, input_data.shape, np_to_triton_dtype(input_data.dtype))
         t.set_data_from_numpy(input_data)
         return t
 
@@ -183,9 +179,7 @@ class TritonClient:
         runtime_top_p = np.array([top_p]).astype(np.float32).reshape((1, -1))
         temperature_array = np.array([temperature]).astype(np.float32).reshape((1, -1))
         len_penalty = np.array([length_penalty]).astype(np.float32).reshape((1, -1))
-        repetition_penalty_array = (
-            np.array([repetition_penalty]).astype(np.float32).reshape((1, -1))
-        )
+        repetition_penalty_array = np.array([repetition_penalty]).astype(np.float32).reshape((1, -1))
         random_seed = np.array([RANDOM_SEED]).astype(np.uint64).reshape((1, -1))
         beam_width_array = np.array([beam_width]).astype(np.uint32).reshape((1, -1))
         streaming_data = np.array([[True]], dtype=bool)

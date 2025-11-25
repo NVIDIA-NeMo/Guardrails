@@ -64,22 +64,18 @@ async def private_ai_request(
         headers["x-api-key"] = api_key
 
     if enabled_entities:
-        payload["entity_detection"]["entity_types"] = [
-            {"type": "ENABLE", "value": enabled_entities}
-        ]
+        payload["entity_detection"]["entity_types"] = [{"type": "ENABLE", "value": enabled_entities}]
 
     async with aiohttp.ClientSession() as session:
         async with session.post(server_endpoint, json=payload, headers=headers) as resp:
             if resp.status != 200:
                 raise ValueError(
-                    f"Private AI call failed with status code {resp.status}.\n"
-                    f"Details: {await resp.text()}"
+                    f"Private AI call failed with status code {resp.status}.\nDetails: {await resp.text()}"
                 )
 
             try:
                 return await resp.json()
             except aiohttp.ContentTypeError:
                 raise ValueError(
-                    f"Failed to parse Private AI response as JSON. Status: {resp.status}, "
-                    f"Content: {await resp.text()}"
+                    f"Failed to parse Private AI response as JSON. Status: {resp.status}, Content: {await resp.text()}"
                 )

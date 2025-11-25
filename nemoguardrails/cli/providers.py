@@ -59,9 +59,7 @@ def select_provider_type() -> Optional[ProviderType]:
     session = PromptSession()
     completer = FuzzyWordCompleter(provider_types)
 
-    console.print(
-        "\n[bold]Available Provider Types:[/] (type to filter, use arrows to select)"
-    )
+    console.print("\n[bold]Available Provider Types:[/] (type to filter, use arrows to select)")
     for provider_type in provider_types:
         console.print(f"  • {provider_type}")
 
@@ -100,9 +98,7 @@ def select_provider(
     session = PromptSession()
     completer = FuzzyWordCompleter(providers)
 
-    console.print(
-        f"\n[bold]Available {provider_type} providers:[/] (type to filter, use arrows to select)"
-    )
+    console.print(f"\n[bold]Available {provider_type} providers:[/] (type to filter, use arrows to select)")
     for provider in providers:
         console.print(f"  • {provider}")
 
@@ -145,9 +141,7 @@ def select_provider_with_type() -> Optional[Tuple[str, str]]:
 
 
 def find_providers(
-    list_only: bool = typer.Option(
-        False, "--list", "-l", help="Just list all available providers"
-    ),
+    list_only: bool = typer.Option(False, "--list", "-l", help="Just list all available providers"),
 ):
     """List and select LLM providers interactively.
 

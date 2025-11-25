@@ -44,9 +44,7 @@ class LabelResult(BaseModel):
     """Result of a label evaluation"""
 
     label: str = Field(description="The label that was evaluated")
-    message: str = Field(
-        description="An arbitrary message attached to the label in the policy."
-    )
+    message: str = Field(description="An arbitrary message attached to the label in the policy.")
     matched: bool = Field(description="Whether the label matched the policy")
 
     @classmethod
@@ -62,12 +60,8 @@ class LabelResult(BaseModel):
 class PolicyResult(BaseModel):
     """Result of Clavata Policy Evaluation"""
 
-    failed: bool = Field(
-        default=False, description="Whether the policy evaluation failed"
-    )
-    policy_matched: bool = Field(
-        default=False, description="Whether any part of the policy matched the input"
-    )
+    failed: bool = Field(default=False, description="Whether the policy evaluation failed")
+    policy_matched: bool = Field(default=False, description="Whether any part of the policy matched the input")
     label_matches: List[LabelResult] = Field(
         default=[],
         description="List of section results from the policy evaluation",
@@ -79,10 +73,7 @@ class PolicyResult(BaseModel):
         return cls(
             failed=report.result == "OUTCOME_FAILED",
             policy_matched=report.result == "OUTCOME_TRUE",
-            label_matches=[
-                LabelResult.from_section_report(report)
-                for report in report.sectionEvaluationReports
-            ],
+            label_matches=[LabelResult.from_section_report(report) for report in report.sectionEvaluationReports],
         )
 
     @classmethod
@@ -93,16 +84,12 @@ class PolicyResult(BaseModel):
             return cls(failed=True)
 
         if job.status != "JOB_STATUS_COMPLETED":
-            raise ClavataPluginAPIError(
-                f"Policy evaluation is not complete. Status: {job.status}"
-            )
+            raise ClavataPluginAPIError(f"Policy evaluation is not complete. Status: {job.status}")
 
         reports = [res.report for res in job.results]
         # We should only ever have one report per job as we're only sending one content item
         if len(reports) != 1:
-            raise ClavataPluginAPIError(
-                f"Expected 1 report per job, got {len(reports)}"
-            )
+            raise ClavataPluginAPIError(f"Expected 1 report per job, got {len(reports)}")
 
         report = reports[0]
         return cls.from_report(report)
@@ -111,17 +98,10 @@ class PolicyResult(BaseModel):
 def get_clavata_config(config: Any) -> ClavataRailConfig:
     """Get the Clavata config and flow config for the given source."""
     if not isinstance(config, RailsConfig):
-        raise ClavataPluginValueError(
-            "Passed configuration object is not a RailsConfig"
-        )
+        raise ClavataPluginValueError("Passed configuration object is not a RailsConfig")
 
-    if (
-        not hasattr(config.rails.config, "clavata")
-        or config.rails.config.clavata is None
-    ):
-        raise ClavataPluginConfigurationError(
-            "Clavata config is not defined in the Rails config."
-        )
+    if not hasattr(config.rails.config, "clavata") or config.rails.config.clavata is None:
+        raise ClavataPluginConfigurationError("Clavata config is not defined in the Rails config.")
 
     return cast(ClavataRailConfig, config.rails.config.clavata)
 
@@ -141,9 +121,7 @@ def get_policy_id(
             policy_name = getattr(config, rail).policy
             return get_policy_id(config, policy_name)
 
-        raise ClavataPluginValueError(
-            "'policy' is required, or 'rail' must be provided."
-        )
+        raise ClavataPluginValueError("'policy' is required, or 'rail' must be provided.")
 
     # Policy was provided, so we try to convert to a UUID
     try:

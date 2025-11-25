@@ -55,9 +55,7 @@ def split_messages(message):
     """
     messages = message.split("\n\n")[1:]
     human = [m.replace("Human: ", "") for i, m in enumerate(messages) if i % 2 == 0]
-    assistant = [
-        m.replace("Assistant: ", "") for i, m in enumerate(messages) if i % 2 != 0
-    ]
+    assistant = [m.replace("Assistant: ", "") for i, m in enumerate(messages) if i % 2 != 0]
     return human, assistant
 
 

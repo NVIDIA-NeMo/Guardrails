@@ -161,9 +161,7 @@ def test_generation_response_empty_tool_calls():
 
 
 def test_generation_response_serialization_with_tool_calls():
-    test_tool_calls = [
-        {"name": "test_func", "args": {}, "id": "call_test", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "test_func", "args": {}, "id": "call_test", "type": "tool_call"}]
 
     response = GenerationResponse(response="Response text", tool_calls=test_tool_calls)
 
@@ -198,9 +196,7 @@ def test_generation_response_model_validation():
 def test_generation_response_with_reasoning_content():
     test_reasoning = "Step 1: Analyze\nStep 2: Respond"
 
-    response = GenerationResponse(
-        response="Final answer", reasoning_content=test_reasoning
-    )
+    response = GenerationResponse(response="Final answer", reasoning_content=test_reasoning)
 
     assert response.reasoning_content == test_reasoning
     assert response.response == "Final answer"
@@ -233,9 +229,7 @@ def test_generation_response_serialization_with_reasoning_content():
 
 
 def test_generation_response_with_all_fields():
-    test_tool_calls = [
-        {"name": "test_func", "args": {}, "id": "call_123", "type": "tool_call"}
-    ]
+    test_tool_calls = [{"name": "test_func", "args": {}, "id": "call_123", "type": "tool_call"}]
     test_reasoning = "Detailed reasoning"
 
     response = GenerationResponse(

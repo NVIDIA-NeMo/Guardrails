@@ -65,9 +65,7 @@ def teardown_module(module):
     pass
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_masking_input_output():
     config = RailsConfig.from_content(
@@ -120,9 +118,7 @@ def test_masking_input_output():
     chat << "Hello there! My name is <PERSON>!"
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_detection_input_output():
     config = RailsConfig.from_content(
@@ -171,9 +167,7 @@ def test_detection_input_output():
     chat << "I can't answer that."
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_masking_retrieval():
     config = RailsConfig.from_content(
@@ -230,9 +224,7 @@ def test_masking_retrieval():
     chat << "Hello there!"
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_score_threshold():
     config = RailsConfig.from_content(
@@ -285,9 +277,7 @@ def test_score_threshold():
     chat << "I can't answer that."
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_invalid_score_threshold(caplog):
     config = RailsConfig.from_content(
@@ -342,9 +332,7 @@ def test_invalid_score_threshold(caplog):
     assert "score_threshold must be a float between 0 and 1 (inclusive)." in caplog.text
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_invalid_score_threshold_chat_message():
     config = RailsConfig.from_content(
@@ -393,9 +381,7 @@ def test_invalid_score_threshold_chat_message():
     chat << "I'm sorry, an internal error has occurred."
 
 
-@pytest.mark.skipif(
-    not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present."
-)
+@pytest.mark.skipif(not SDD_SETUP_PRESENT, reason="Sensitive Data Detection setup is not present.")
 @pytest.mark.unit
 def test_high_score_threshold_disables_rails():
     config = RailsConfig.from_content(

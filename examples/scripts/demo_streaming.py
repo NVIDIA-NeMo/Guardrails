@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Demo script."""
+
 import asyncio
 import logging
 from typing import Optional
@@ -66,9 +67,7 @@ async def demo_2():
 
     asyncio.create_task(process_tokens())
 
-    result = await app.generate_async(
-        messages=history, streaming_handler=streaming_handler
-    )
+    result = await app.generate_async(messages=history, streaming_handler=streaming_handler)
     print(result)
 
 
@@ -140,9 +139,7 @@ async def demo_streaming_from_custom_action():
 
     asyncio.create_task(process_tokens())
 
-    result = await app.generate_async(
-        messages=history, streaming_handler=streaming_handler
-    )
+    result = await app.generate_async(messages=history, streaming_handler=streaming_handler)
     print(result)
 
 

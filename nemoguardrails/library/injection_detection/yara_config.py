@@ -50,9 +50,7 @@ class YaraEnumMeta(EnumMeta):
             values = {member.value for member in list(cls)}
             return values <= other
         else:
-            raise TypeError(
-                f"Comparison not supported between instances of '{type(other)}' and '{cls.__name__}'"
-            )
+            raise TypeError(f"Comparison not supported between instances of '{type(other)}' and '{cls.__name__}'")
 
     def __ge__(cls, other):
         if isinstance(other, list):
@@ -61,9 +59,7 @@ class YaraEnumMeta(EnumMeta):
             values = {member.value for member in list(cls)}
             return values >= other
         else:
-            raise TypeError(
-                f"Comparison not supported between instances of '{type(other)}' and '{cls.__name__}'"
-            )
+            raise TypeError(f"Comparison not supported between instances of '{type(other)}' and '{cls.__name__}'")
 
 
 class Rules(Enum, metaclass=YaraEnumMeta):
