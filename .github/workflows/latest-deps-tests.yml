@@ -9,13 +9,13 @@ jobs:
   latest-deps-tests-matrix:
     strategy:
       matrix:
-        os: [Ubuntu]
+        os: [Ubuntu, macOS, Windows]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
           - os: Ubuntu
             image: ubuntu-latest
           - os: macOS
-            image: macos-15
+            image: macos-latest
           - os: Windows
             image: windows-latest
       fail-fast: false
