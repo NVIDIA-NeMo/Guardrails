@@ -142,7 +142,8 @@ def init_langchain_model(
         ModelInitializer(_init_chat_completion_model, ["chat"]),
         # For chat mode, fall back to community chat models
         ModelInitializer(_init_community_chat_models, ["chat"]),
-        # For text mode, use text completion
+        # FIXME: is text and chat a good idea?
+        # For text mode, use text completion, we are using both text and chat as the last resort
         ModelInitializer(_init_text_completion_model, ["text", "chat"]),
     ]
 
