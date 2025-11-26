@@ -183,14 +183,14 @@ def test_text_completion_called_when_previous_fail(mock_initializers):
     mock_initializers["text"].assert_called_once()
 
 
-def test_text_mode_only_calls_text_initializers(mock_initializers):
-    """Test that text mode only tries initializers that support text mode."""
+def test_text_completion_supports_chat_mode(mock_initializers):
     mock_initializers["special"].return_value = None
+    mock_initializers["chat"].return_value = None
+    mock_initializers["community"].return_value = None
     mock_initializers["text"].return_value = "text_model"
-    result = init_langchain_model("text-model", "provider", "text", {})
+    result = init_langchain_model("text-model", "provider", "chat", {})
     assert result == "text_model"
     mock_initializers["special"].assert_called_once()
+    mock_initializers["chat"].assert_called_once()
+    mock_initializers["community"].assert_called_once()
     mock_initializers["text"].assert_called_once()
-    # Since text returns a value, chat and community are not called
-    mock_initializers["chat"].assert_not_called()
-    mock_initializers["community"].assert_not_called()

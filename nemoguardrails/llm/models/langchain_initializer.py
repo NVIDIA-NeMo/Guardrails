@@ -227,7 +227,7 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
 
 def _init_text_completion_model(
     model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> BaseLLM | None:
+) -> BaseLLM:
     """Initialize a text completion model.
 
     Args:
@@ -241,14 +241,9 @@ def _init_text_completion_model(
     Raises:
         RuntimeError: If the provider is not found
     """
-    try:
-        provider_cls = _get_text_completion_provider(provider_name)
-    except RuntimeError as e:
-        return None
-
+    provider_cls = _get_text_completion_provider(provider_name)
     if provider_cls is None:
-        return None
-
+        raise ValueError()
     kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
     # remove stream_usage parameter as it's not supported by text completion APIs
     # (e.g., OpenAI's AsyncCompletions.create() doesn't accept this parameter)
@@ -258,7 +253,7 @@ def _init_text_completion_model(
 
 def _init_community_chat_models(
     model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> BaseChatModel | None:
+) -> BaseChatModel:
     """Initialize community chat models.
 
     Args:
@@ -275,14 +270,14 @@ def _init_community_chat_models(
     """
     provider_cls = _get_chat_completion_provider(provider_name)
     if provider_cls is None:
-        return None
+        raise ValueError()
     kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
     return provider_cls(**kwargs)
 
 
 def _init_gpt35_turbo_instruct(
     model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> BaseLLM | None:
+) -> BaseLLM:
     """Initialize GPT-3.5 Turbo Instruct model.
 
     Currently init_chat_model from langchain infers this as a chat model.
