@@ -141,8 +141,6 @@ res.log.print_summary()
 - [0.31s] OUTPUT (self check output): 1 actions (self_check_output), 1 llm calls [0.31s]
 ```
 
-**TODO**: add more details about the returned data.
-
 ## Disabling Rails
 
 You can choose which categories of rails you want to apply by using the `rails` generation option. The four supported categories are: `input`, `dialog`, `retrieval` and `output`. By default, all are enabled.

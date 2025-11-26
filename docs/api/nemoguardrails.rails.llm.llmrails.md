@@ -108,8 +108,6 @@ The format for messages is the following:
 **Returns:**
  The completion (when a prompt is provided) or the next message.
 
-System messages are not yet supported.
-
 ---
 
 <a href="../../nemoguardrails/rails/llm/llmrails.py#L513"><img align="right" style="float:right;" src="https://img.shields.io/badge/-source-cccccc?style=flat-square" /></a>

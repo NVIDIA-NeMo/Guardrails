@@ -14,7 +14,6 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [LlamaGuard-based Content Moderation](#llama-guard-based-content-moderation)
    - [Patronus Lynx-based RAG Hallucination Detection](#patronus-lynx-based-rag-hallucination-detection)
    - [Presidio-based Sensitive data detection](#presidio-based-sensitive-data-detection)
-   - BERT-score Hallucination Checking - *[COMING SOON]*
 
 3. Third-Party APIs
    - [ActiveFence Moderation](#activefence)
@@ -28,7 +27,6 @@ NeMo Guardrails comes with a library of built-in guardrails that you can easily 
    - [Prompt Security Protection](#prompt-security-protection)
    - [Pangea AI Guard](#pangea-ai-guard)
    - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
-   - OpenAI Moderation API - *[COMING SOON]*
    - [Cisco AI Defense](#cisco-ai-defense)
 
 4. Other
@@ -428,7 +426,7 @@ Similar to the self-check fact-checking, we formulate the consistency checking s
 
 ## NVIDIA Models
 
-NeMo Guardrails provides out of the box connectivity for safety models trained by the NVIDIA for specialized use cases. These models shall be provided as both as HuggingFace checkpoints, and as NVIDIA NIM containers that will provide out of the box TRTLLM support with lower latency.
+NeMo Guardrails provides out of the box connectivity for safety models trained by NVIDIA for specialized use cases. These models are provided as both HuggingFace checkpoints and as NVIDIA NIM containers that provide out of the box TRTLLM support with lower latency.
 
 ### Content Safety
 
@@ -1035,8 +1033,6 @@ Using the default value allows for detection of 49/50 GCG-style attacks with a 0
 #### Perplexity Computation
 
 To compute the perplexity of a string, the current implementation uses the `gpt2-large` model.
-
-**NOTE**: in future versions, multiple options will be supported.
 
 #### Model-based Jailbreak Detections
 
