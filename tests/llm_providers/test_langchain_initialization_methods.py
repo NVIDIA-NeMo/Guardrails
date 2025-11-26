@@ -116,8 +116,7 @@ class TestCommunityChatInitializer:
             "nemoguardrails.llm.models.langchain_initializer._get_chat_completion_provider"
         ) as mock_get_provider:
             mock_get_provider.return_value = None
-            with pytest.raises(ValueError):
-                _init_community_chat_models("community-model", "provider", {})
+            assert _init_community_chat_models("community-model", "provider", {}) is None
 
 
 class TestTextCompletionInitializer:
@@ -156,8 +155,7 @@ class TestTextCompletionInitializer:
             "nemoguardrails.llm.models.langchain_initializer._get_text_completion_provider"
         ) as mock_get_provider:
             mock_get_provider.return_value = None
-            with pytest.raises(ValueError):
-                _init_text_completion_model("text-model", "provider", {})
+            assert _init_text_completion_model("text-model", "provider", {}) is None
 
 
 class TestUpdateModelKwargs:

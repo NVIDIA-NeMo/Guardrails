@@ -194,3 +194,32 @@ def test_text_completion_supports_chat_mode(mock_initializers):
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
     mock_initializers["text"].assert_called_once()
+
+
+# Tests for error masking prevention (issue where later None returns mask earlier exceptions)
+
+
+def test_exception_not_masked_by_none_return(mock_initializers):
+    """Test that an exception from an initializer is preserved when later ones return None.
+
+    For example: if community chat throws an error (e.g., invalid API key), but text completion
+    returns None because that provider type doesn't exist, the community error should be raised.
+    """
+    mock_initializers["special"].return_value = None
+    mock_initializers["chat"].return_value = None
+    mock_initializers["community"].side_effect = ValueError("Invalid API key for provider")
+    mock_initializers["text"].return_value = None  # Provider not found, returns None
+
+    with pytest.raises(ModelInitializationError, match="Invalid API key for provider"):
+        init_langchain_model("community-model", "provider", "chat", {})
+
+
+def test_import_error_prioritized_over_other_exceptions(mock_initializers):
+    """Test that ImportError is surfaced to help users know when packages are missing."""
+    mock_initializers["special"].return_value = None
+    mock_initializers["chat"].side_effect = ValueError("Some config error")
+    mock_initializers["community"].side_effect = ImportError("Missing langchain_community package")
+    mock_initializers["text"].return_value = None
+
+    with pytest.raises(ModelInitializationError, match="Missing langchain_community package"):
+        init_langchain_model("model", "provider", "chat", {})
