@@ -143,7 +143,7 @@ def init_langchain_model(
         # For chat mode, fall back to community chat models
         ModelInitializer(_init_community_chat_models, ["chat"]),
         # For text mode, use text completion
-        ModelInitializer(_init_text_completion_model, ["text"]),
+        ModelInitializer(_init_text_completion_model, ["text", "chat"]),
     ]
 
     # Track the last exception for better error reporting
@@ -224,7 +224,9 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
         raise
 
 
-def _init_text_completion_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM:
+def _init_text_completion_model(
+    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+) -> BaseLLM | None:
     """Initialize a text completion model.
 
     Args:
@@ -238,9 +240,14 @@ def _init_text_completion_model(model_name: str, provider_name: str, kwargs: Dic
     Raises:
         RuntimeError: If the provider is not found
     """
-    provider_cls = _get_text_completion_provider(provider_name)
+    try:
+        provider_cls = _get_text_completion_provider(provider_name)
+    except RuntimeError as e:
+        return None
+
     if provider_cls is None:
-        raise ValueError()
+        return None
+
     kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
     # remove stream_usage parameter as it's not supported by text completion APIs
     # (e.g., OpenAI's AsyncCompletions.create() doesn't accept this parameter)
@@ -248,7 +255,9 @@ def _init_text_completion_model(model_name: str, provider_name: str, kwargs: Dic
     return provider_cls(**kwargs)
 
 
-def _init_community_chat_models(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseChatModel:
+def _init_community_chat_models(
+    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+) -> BaseChatModel | None:
     """Initialize community chat models.
 
     Args:
@@ -265,12 +274,14 @@ def _init_community_chat_models(model_name: str, provider_name: str, kwargs: Dic
     """
     provider_cls = _get_chat_completion_provider(provider_name)
     if provider_cls is None:
-        raise ValueError()
+        return None
     kwargs = _update_model_kwargs(provider_cls, model_name, kwargs)
     return provider_cls(**kwargs)
 
 
-def _init_gpt35_turbo_instruct(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM:
+def _init_gpt35_turbo_instruct(
+    model_name: str, provider_name: str, kwargs: Dict[str, Any]
+) -> BaseLLM | None:
     """Initialize GPT-3.5 Turbo Instruct model.
 
     Currently init_chat_model from langchain infers this as a chat model.

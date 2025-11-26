@@ -96,12 +96,13 @@ def test_all_initializers_fail(mock_initializers):
     mock_initializers["special"].return_value = None
     mock_initializers["chat"].return_value = None
     mock_initializers["community"].return_value = None
+    mock_initializers["text"].return_value = None
     with pytest.raises(ModelInitializationError):
         init_langchain_model("unknown-model", "provider", "chat", {})
     mock_initializers["special"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
-    mock_initializers["text"].assert_not_called()
+    mock_initializers["text"].assert_called_once()
 
 
 def test_unsupported_mode(mock_initializers):
@@ -132,7 +133,7 @@ def test_all_initializers_raise_exceptions(mock_initializers):
     mock_initializers["special"].assert_called_once()
     mock_initializers["chat"].assert_called_once()
     mock_initializers["community"].assert_called_once()
-    mock_initializers["text"].assert_not_called()
+    mock_initializers["text"].assert_called_once()
 
 
 def test_duplicate_modes_in_initializer(mock_initializers):
