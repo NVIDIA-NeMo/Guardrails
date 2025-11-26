@@ -27,7 +27,6 @@ from langchain_core.runnables import Runnable
 
 from nemoguardrails import utils
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.logging.callbacks import logging_callbacks
 
 log = logging.getLogger(__name__)
 

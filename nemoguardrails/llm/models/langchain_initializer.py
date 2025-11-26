@@ -225,9 +225,7 @@ def _init_chat_completion_model(model_name: str, provider_name: str, kwargs: Dic
         raise
 
 
-def _init_text_completion_model(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> BaseLLM:
+def _init_text_completion_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM:
     """Initialize a text completion model.
 
     Args:
@@ -251,9 +249,7 @@ def _init_text_completion_model(
     return provider_cls(**kwargs)
 
 
-def _init_community_chat_models(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> BaseChatModel:
+def _init_community_chat_models(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseChatModel:
     """Initialize community chat models.
 
     Args:
@@ -275,9 +271,7 @@ def _init_community_chat_models(
     return provider_cls(**kwargs)
 
 
-def _init_gpt35_turbo_instruct(
-    model_name: str, provider_name: str, kwargs: Dict[str, Any]
-) -> BaseLLM:
+def _init_gpt35_turbo_instruct(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseLLM:
     """Initialize GPT-3.5 Turbo Instruct model.
 
     Currently init_chat_model from langchain infers this as a chat model.

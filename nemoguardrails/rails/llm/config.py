@@ -41,7 +41,6 @@ from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
 )
-from nemoguardrails.llm.types import Task
 
 log = logging.getLogger(__name__)
 
@@ -142,7 +141,7 @@ class Model(BaseModel):
 
             if model_field and model_from_params:
                 raise InvalidModelConfigurationError(
-                    f"Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`).",
+                    "Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`).",
                 )
             if not model_field and model_from_params:
                 data["model"] = model_from_params
@@ -157,7 +156,7 @@ class Model(BaseModel):
         """Validate that a model name is present either directly or in parameters."""
         if not self.model or not self.model.strip():
             raise InvalidModelConfigurationError(
-                f"Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`)."
+                "Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`)."
             )
         return self
 
@@ -339,14 +338,10 @@ class TaskPrompt(BaseModel):
     @root_validator(pre=True, allow_reuse=True)
     def check_fields(cls, values):
         if not values.get("content") and not values.get("messages"):
-            raise InvalidRailsConfigurationError(
-                "One of `content` or `messages` must be provided."
-            )
+            raise InvalidRailsConfigurationError("One of `content` or `messages` must be provided.")
 
         if values.get("content") and values.get("messages"):
-            raise InvalidRailsConfigurationError(
-                "Only one of `content` or `messages` must be provided."
-            )
+            raise InvalidRailsConfigurationError("Only one of `content` or `messages` must be provided.")
 
         return values
 
@@ -1424,11 +1419,7 @@ class RailsConfig(BaseModel):
                 continue
             if flow_model not in model_types:
                 flow_id = _normalize_flow_id(flow)
-                available_types = (
-                    ", ".join(f"'{str(t)}'" for t in sorted(model_types))
-                    if model_types
-                    else "none"
-                )
+                available_types = ", ".join(f"'{str(t)}'" for t in sorted(model_types)) if model_types else "none"
                 raise InvalidRailsConfigurationError(
                     f"Input flow '{flow_id}' references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
                 )
@@ -1454,11 +1445,7 @@ class RailsConfig(BaseModel):
                 continue
             if flow_model not in model_types:
                 flow_id = _normalize_flow_id(flow)
-                available_types = (
-                    ", ".join(f"'{str(t)}'" for t in sorted(model_types))
-                    if model_types
-                    else "none"
-                )
+                available_types = ", ".join(f"'{str(t)}'" for t in sorted(model_types)) if model_types else "none"
                 raise InvalidRailsConfigurationError(
                     f"Output flow '{flow_id}' references model type '{flow_model}' that is not defined in the configuration. Detected model types: {available_types}."
                 )
@@ -1474,19 +1461,13 @@ class RailsConfig(BaseModel):
         provided_task_prompts = [prompt.task if hasattr(prompt, "task") else prompt.get("task") for prompt in prompts]
 
         # Input moderation prompt verification
-        if (
-            "self check input" in enabled_input_rails
-            and "self_check_input" not in provided_task_prompts
-        ):
+        if "self check input" in enabled_input_rails and "self_check_input" not in provided_task_prompts:
             raise InvalidRailsConfigurationError(
-                f"Missing a `self_check_input` prompt template, which is required for the `self check input` rail."
+                "Missing a `self_check_input` prompt template, which is required for the `self check input` rail."
             )
-        if (
-            "llama guard check input" in enabled_input_rails
-            and "llama_guard_check_input" not in provided_task_prompts
-        ):
+        if "llama guard check input" in enabled_input_rails and "llama_guard_check_input" not in provided_task_prompts:
             raise InvalidRailsConfigurationError(
-                f"Missing a `llama_guard_check_input` prompt template, which is required for the `llama guard check input` rail."
+                "Missing a `llama_guard_check_input` prompt template, which is required for the `llama guard check input` rail."
             )
 
         # Only content-safety and topic-safety include a $model reference in the rail flow text
@@ -1496,34 +1477,28 @@ class RailsConfig(BaseModel):
         _validate_rail_prompts(enabled_input_rails, provided_task_prompts, "topic safety check input")
 
         # Output moderation prompt verification
-        if (
-            "self check output" in enabled_output_rails
-            and "self_check_output" not in provided_task_prompts
-        ):
+        if "self check output" in enabled_output_rails and "self_check_output" not in provided_task_prompts:
             raise InvalidRailsConfigurationError(
-                f"Missing a `self_check_output` prompt template, which is required for the `self check output` rail."
+                "Missing a `self_check_output` prompt template, which is required for the `self check output` rail."
             )
         if (
             "llama guard check output" in enabled_output_rails
             and "llama_guard_check_output" not in provided_task_prompts
         ):
             raise InvalidRailsConfigurationError(
-                f"Missing a `llama_guard_check_output` prompt template, which is required for the `llama guard check output` rail."
+                "Missing a `llama_guard_check_output` prompt template, which is required for the `llama guard check output` rail."
             )
         if (
             "patronus lynx check output hallucination" in enabled_output_rails
             and "patronus_lynx_check_output_hallucination" not in provided_task_prompts
         ):
             raise InvalidRailsConfigurationError(
-                f"Missing a `patronus_lynx_check_output_hallucination` prompt template, which is required for the `patronus lynx check output hallucination` rail."
+                "Missing a `patronus_lynx_check_output_hallucination` prompt template, which is required for the `patronus lynx check output hallucination` rail."
             )
 
-        if (
-            "self check facts" in enabled_output_rails
-            and "self_check_facts" not in provided_task_prompts
-        ):
+        if "self check facts" in enabled_output_rails and "self_check_facts" not in provided_task_prompts:
             raise InvalidRailsConfigurationError(
-                f"Missing a `self_check_facts` prompt template, which is required for the `self check facts` rail."
+                "Missing a `self_check_facts` prompt template, which is required for the `self check facts` rail."
             )
 
         # Only content-safety and topic-safety include a $model reference in the rail flow text
@@ -1577,9 +1552,7 @@ class RailsConfig(BaseModel):
         api_keys = [m.api_key_env_var for m in models]
         for api_key in api_keys:
             if api_key and not os.environ.get(api_key):
-                raise InvalidRailsConfigurationError(
-                    f"Model API Key environment variable '{api_key}' not set."
-                )
+                raise InvalidRailsConfigurationError(f"Model API Key environment variable '{api_key}' not set.")
         return models
 
     raw_llm_call_action: Optional[str] = Field(

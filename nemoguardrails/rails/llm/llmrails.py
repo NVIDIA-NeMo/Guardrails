@@ -239,9 +239,7 @@ class LLMRails:
             )
 
         # First, we initialize the runtime.
-        self.runtime = colang_version_to_runtime[config.colang_version](
-            config=config, verbose=verbose
-        )
+        self.runtime = colang_version_to_runtime[config.colang_version](config=config, verbose=verbose)
 
         # If we have a config_modules with an `init` function, we call it.
         # We need to call this here because the `init` might register additional
@@ -327,22 +325,16 @@ class LLMRails:
             # content safety check input/output flows are special as they have parameters
             flow_name = _normalize_flow_id(flow_name)
             if flow_name not in existing_flows_names:
-                raise InvalidRailsConfigurationError(
-                    f"The provided input rail flow `{flow_name}` does not exist"
-                )
+                raise InvalidRailsConfigurationError(f"The provided input rail flow `{flow_name}` does not exist")
 
         for flow_name in self.config.rails.output.flows:
             flow_name = _normalize_flow_id(flow_name)
             if flow_name not in existing_flows_names:
-                raise InvalidRailsConfigurationError(
-                    f"The provided output rail flow `{flow_name}` does not exist"
-                )
+                raise InvalidRailsConfigurationError(f"The provided output rail flow `{flow_name}` does not exist")
 
         for flow_name in self.config.rails.retrieval.flows:
             if flow_name not in existing_flows_names:
-                raise InvalidRailsConfigurationError(
-                    f"The provided retrieval rail flow `{flow_name}` does not exist"
-                )
+                raise InvalidRailsConfigurationError(f"The provided retrieval rail flow `{flow_name}` does not exist")
 
         # If both passthrough mode and single call mode are specified, we raise an exception.
         if self.config.passthrough and self.config.rails.dialog.single_call.enabled:
@@ -1198,10 +1190,10 @@ class LLMRails:
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):
             raise InvalidRailsConfigurationError(
-                f"stream_async() cannot be used when output rails are configured but "
-                f"rails.output.streaming.enabled is False. Either set "
-                f"rails.output.streaming.enabled to True in your configuration, or use "
-                f"generate_async() instead of stream_async()."
+                "stream_async() cannot be used when output rails are configured but "
+                "rails.output.streaming.enabled is False. Either set "
+                "rails.output.streaming.enabled to True in your configuration, or use "
+                "generate_async() instead of stream_async()."
             )
 
     @overload

@@ -91,9 +91,7 @@ def test_check_prompt_exist_for_self_check_rails():
             # missings self_check_output prompt
         ],
     }
-    with pytest.raises(
-        ValueError, match="Missing a `self_check_output` prompt template"
-    ):
+    with pytest.raises(ValueError, match="Missing a `self_check_output` prompt template"):
         RailsConfig.check_prompt_exist_for_self_check_rails(values)
 
 
