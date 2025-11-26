@@ -119,11 +119,13 @@ def import_optional_dependency(
 
     # Version checking logic can be added here if needed
     if min_version:
-        try:
-            version = getattr(module, "__version__", None)
-            if version:
+        version = getattr(module, "__version__", None)
+        if version:
+            try:
                 from packaging import version as version_mod
-
+            except ImportError:
+                pass
+            else:
                 if version_mod.parse(version) < version_mod.parse(min_version):
                     if errors == "raise":
                         raise ImportError(
@@ -137,8 +139,6 @@ def import_optional_dependency(
                             ImportWarning,
                             stacklevel=2,
                         )
-        except ImportError:
-            pass  # packaging not available, skip version check
 
     return module
 
