@@ -196,9 +196,6 @@ def test_text_completion_supports_chat_mode(mock_initializers):
     mock_initializers["text"].assert_called_once()
 
 
-# Tests for error masking prevention (issue where later None returns mask earlier exceptions)
-
-
 def test_exception_not_masked_by_none_return(mock_initializers):
     """Test that an exception from an initializer is preserved when later ones return None.
 
