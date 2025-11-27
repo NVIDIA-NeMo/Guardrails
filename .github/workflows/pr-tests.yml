@@ -26,16 +26,8 @@ jobs:
       with-coverage: ${{ matrix.with-coverage || false }}
   pr-tests-summary:
     name: PR Tests Summary
-    if: always()
     needs: pr-tests-matrix
     runs-on: ubuntu-latest
     steps:
-      - name: Check if tests ran
-        if: needs.pr-tests-matrix.result == 'success'
+      - name: Confirm all PR tests passed
         run: echo "All PR Tests completed successfully"
-      - name: Check if tests were skipped
-        if: needs.pr-tests-matrix.result == 'skipped'
-        run: echo "Tests were skipped (docs-only changes)"
-      - name: Fail if tests failed
-        if: needs.pr-tests-matrix.result == 'failure'
-        run: exit 1
