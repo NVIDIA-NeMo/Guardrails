@@ -375,8 +375,11 @@ async def test_output_rails_only_parallel_with_exceptions():
         },
     }
 
-    chat >> "Hello"
-    result = await chat.app.generate_async(messages=chat.history, options=options_output_only)
+    messages = [
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "This response contains harmful content"},
+    ]
+    result = await chat.app.generate_async(messages=messages, options=options_output_only)
 
     input_rails = [r for r in result.log.activated_rails if r.type == "input"]
     output_rails = [r for r in result.log.activated_rails if r.type == "output"]
