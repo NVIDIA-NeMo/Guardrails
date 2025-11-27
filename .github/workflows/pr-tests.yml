@@ -4,7 +4,7 @@ on:
   pull_request:
     paths-ignore:
       - "**/*.md"
-      - ".github/workflows/docs-*.yml"
+      - ".github/**"
 
 jobs:
   pr-tests-matrix:
