@@ -344,3 +344,74 @@ def test_generation_log_print_summary(capsys):
         capture_lines[8]
         == "- 4 LLM calls, 8.00s total duration, 1000 total prompt tokens, 2000 total completion tokens, 3000 total tokens."
     )
+
+
+@pytest.mark.parametrize(
+    "input_opt,output_opt,dialog_opt,expect_input,expect_output",
+    [
+        (True, True, True, True, True),
+        (True, True, False, True, False),
+        (True, False, True, True, False),
+        (True, False, False, True, False),
+        (False, True, True, False, True),
+        (False, True, False, False, False),
+        (False, False, True, False, False),
+        (False, False, False, False, False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_rails_options_combinations(input_opt, output_opt, dialog_opt, expect_input, expect_output):
+    """
+    Test all combinations of input/output/dialog options.
+    When dialog=False and no bot_message is provided, output rails should skip.
+    """
+    config = RailsConfig.from_content(
+        colang_content="""
+            define user express greeting
+              "hi"
+
+            define flow
+              user express greeting
+              bot express greeting
+
+            define subflow dummy input rail
+              if "block" in $user_message
+                bot refuse to respond
+                stop
+
+            define subflow dummy output rail
+              if "block" in $bot_message
+                bot refuse to respond
+                stop
+        """,
+        yaml_content="""
+            rails:
+              input:
+                flows:
+                  - dummy input rail
+              output:
+                flows:
+                  - dummy output rail
+        """,
+    )
+    chat = TestChat(
+        config,
+        llm_completions=["  express greeting", '  "Hello!"'] if dialog_opt else [],
+    )
+
+    res: GenerationResponse = await chat.app.generate_async(
+        "Hello!",
+        options={
+            "rails": {"input": input_opt, "output": output_opt, "dialog": dialog_opt},
+            "log": {"activated_rails": True},
+        },
+    )
+
+    activated_rails = res.log.activated_rails if res.log else []
+    rail_names = [r.name for r in activated_rails]
+
+    input_rails_ran = any("input" in name.lower() for name in rail_names)
+    output_rails_ran = any("output" in name.lower() for name in rail_names)
+
+    assert input_rails_ran == expect_input, f"Input rails: expected {expect_input}, got {rail_names}"
+    assert output_rails_ran == expect_output, f"Output rails: expected {expect_output}, got {rail_names}"
