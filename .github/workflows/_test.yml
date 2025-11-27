@@ -99,7 +99,7 @@ jobs:
         run: poetry run pytest --cov=nemoguardrails tests/ --cov-report=xml:coverage.xml -v
 
       - name: Run pytest without coverage
-        if: ${{ !inputs.with-coverage }}
+        if: inputs.with-coverage == false
         run: poetry run pytest -v
 
       - name: Upload coverage to Codecov
