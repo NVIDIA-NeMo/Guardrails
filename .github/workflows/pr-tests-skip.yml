@@ -1,4 +1,4 @@
-name: PR Tests
+name: Skip PR Tests
 
 on:
   pull_request:
