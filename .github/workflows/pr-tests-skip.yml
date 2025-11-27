@@ -1,0 +1,14 @@
+name: PR Tests
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - ".github/**"
+
+jobs:
+  pr-tests-summary:
+    name: PR Tests Summary
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Tests skipped (no code changes)"
