@@ -5,7 +5,7 @@ on:
     types: [review_requested, ready_for_review]
     paths-ignore:
       - "**/*.md"
-      - ".github/**"
+      - ".github/workflows/docs-*.yml"
   push:
     branches:
       - main

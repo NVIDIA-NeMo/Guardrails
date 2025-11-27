@@ -23,6 +23,11 @@ on:
         required: false
         default: false
         type: boolean
+      with-coverage:
+        description: "Whether to run tests with coverage reporting"
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -89,8 +94,23 @@ jobs:
             poetry install --with dev
           fi
 
-      - name: Run pre-commit hooks
-        run: poetry run make pre_commit
+      - name: Run pytest with coverage
+        if: inputs.with-coverage
+        run: poetry run pytest --cov=nemoguardrails tests/ --cov-report=xml:coverage.xml -v
 
-      - name: Run pytest
+      - name: Run pytest without coverage
+        if: ${{ !inputs.with-coverage }}
         run: poetry run pytest -v
+
+      - name: Upload coverage to Codecov
+        if: inputs.with-coverage
+        uses: codecov/codecov-action@v5
+        with:
+          directory: ./coverage/reports/
+          env_vars: PYTHON
+          fail_ci_if_error: true
+          files: ./coverage.xml
+          flags: python
+          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
