@@ -15,7 +15,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Support langchain v1 ([#1472](https://github.com/NVIDIA/NeMo-Guardrails/issues/1472))
 - *(llm)* Add LangChain 1.x content blocks support for reasoning and tool calls ([#1496](https://github.com/NVIDIA/NeMo-Guardrails/issues/1496))
-
 - *(benchmark)* Add Procfile to run Guardrails and mock LLMs ([#1490](https://github.com/NVIDIA/NeMo-Guardrails/issues/1490))
 
 ### 🐛 Bug Fixes
