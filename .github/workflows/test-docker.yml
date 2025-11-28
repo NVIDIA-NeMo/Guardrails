@@ -8,6 +8,12 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/test-docker.yml"
 
 jobs:
   docker:
