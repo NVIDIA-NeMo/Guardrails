@@ -7,7 +7,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![arXiv](https://img.shields.io/badge/arXiv-2310.10501-b31b1b.svg)](https://arxiv.org/abs/2310.10501)
 
-> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA/NeMo-Guardrails/tree/main) branch tracks the latest released beta version: [0.18.0](https://github.com/NVIDIA/NeMo-Guardrails/tree/v0.18.0). For the latest development version, checkout the [develop](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop) branch.
+> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA/NeMo-Guardrails/tree/main) branch tracks the latest released beta version: [0.19.0](https://github.com/NVIDIA/NeMo-Guardrails/tree/v0.19.0). For the latest development version, checkout the [develop](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop) branch.
 
 ✨✨✨
 
