@@ -13,33 +13,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 🚀 Features
 
-- *(benchmark)* Add Procfile to run Guardrails and mock LLMs ([#1490](https://github.com/NVIDIA/NeMo-Guardrails/issues/1490)) 
-- Support langchain v1 ([#1472](https://github.com/NVIDIA/NeMo-Guardrails/issues/1472)) 
-- *(llm)* Add LangChain 1.x content blocks support for reasoning and tool calls ([#1496](https://github.com/NVIDIA/NeMo-Guardrails/issues/1496)) 
+- Support langchain v1 ([#1472](https://github.com/NVIDIA/NeMo-Guardrails/issues/1472))
+- *(llm)* Add LangChain 1.x content blocks support for reasoning and tool calls ([#1496](https://github.com/NVIDIA/NeMo-Guardrails/issues/1496))
+
+- *(benchmark)* Add Procfile to run Guardrails and mock LLMs ([#1490](https://github.com/NVIDIA/NeMo-Guardrails/issues/1490))
 
 ### 🐛 Bug Fixes
 
-- *(llm)* Add async streaming support to ChatNVIDIA provider patch ([#1504](https://github.com/NVIDIA/NeMo-Guardrails/issues/1504)) 
-- *(cli)* Fix TypeError in v2.x chat due to incorrect State/dict conv… ([#1509](https://github.com/NVIDIA/NeMo-Guardrails/issues/1509)) 
-- *(ci)* Run latest-deps tests on all OS with all Python versions ([#1510](https://github.com/NVIDIA/NeMo-Guardrails/issues/1510)) 
-
-### 📚 Documentation
-
-- Clean up documentation language and references ([#1514](https://github.com/NVIDIA/NeMo-Guardrails/issues/1514)) 
+- *(llm)* Add async streaming support to ChatNVIDIA provider patch ([#1504](https://github.com/NVIDIA/NeMo-Guardrails/issues/1504))
+- *(cli)* Fix TypeError in v2.x chat due to incorrect State/dict conversion ([#1509](https://github.com/NVIDIA/NeMo-Guardrails/issues/1509))
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(llm)* Remove deprecated llm_params module ([#1475](https://github.com/NVIDIA/NeMo-Guardrails/issues/1475)) 
-- Use ruff linter and formatter ([#1351](https://github.com/NVIDIA/NeMo-Guardrails/issues/1351)) 
-- Remove duplicate coverage runs on push events ([#1515](https://github.com/NVIDIA/NeMo-Guardrails/issues/1515)) 
-- *(ci)* Add Greptile configuration for PR code review bot ([#1513](https://github.com/NVIDIA/NeMo-Guardrails/issues/1513)) 
-- Improve version tag detection in publish workflow ([#1511](https://github.com/NVIDIA/NeMo-Guardrails/issues/1511)) 
-- Add lint workflow and unify coverage reporting ([#1517](https://github.com/NVIDIA/NeMo-Guardrails/issues/1517)) 
+- *(llm)* Remove deprecated llm_params module ([#1475](https://github.com/NVIDIA/NeMo-Guardrails/issues/1475))
+- Use ruff linter and formatter ([#1351](https://github.com/NVIDIA/NeMo-Guardrails/issues/1351))
 
 ### ◀️ Revert
 
-- *(llm)* Remove custom HTTP headers patch now in langchain-nvidia-ai-endpoints v0.3.19 ([#1503](https://github.com/NVIDIA/NeMo-Guardrails/issues/1503)) 
-
+- *(llm)* Remove custom HTTP headers patch now in langchain-nvidia-ai-endpoints v0.3.19 ([#1503](https://github.com/NVIDIA/NeMo-Guardrails/issues/1503))
 
 ## [0.18.0] - 2025-11-06
 
