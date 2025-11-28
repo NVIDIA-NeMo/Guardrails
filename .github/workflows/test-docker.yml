@@ -3,10 +3,11 @@ name: Test Docker Image
 # TODO: set docker auth
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0"
   push:
-    #   tags:
-    #     - "v*"
-  pull_request:
+    tags:
+      - "v*"
 
 jobs:
   docker:
