@@ -26,7 +26,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### ⚙️ Miscellaneous Tasks
 
 - *(llm)* Remove deprecated llm_params module ([#1475](https://github.com/NVIDIA/NeMo-Guardrails/issues/1475))
-- Use ruff linter and formatter ([#1351](https://github.com/NVIDIA/NeMo-Guardrails/issues/1351))
 
 ### ◀️ Revert
 
