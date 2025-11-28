@@ -15,10 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.10
+FROM python:3.12-slim
 
-# Install git and gcc/g++ for annoy
-RUN apt-get update && apt-get install -y git gcc g++
+RUN apt-get update && apt-get install -y --no-install-recommends git gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set POETRY_VERSION environment variable
 ENV POETRY_VERSION=1.8.2
