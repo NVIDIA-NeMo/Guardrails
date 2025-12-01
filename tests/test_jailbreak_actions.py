@@ -229,6 +229,9 @@ class TestJailbreakDetectionActions:
     @pytest.mark.asyncio
     async def test_jailbreak_detection_model_local_success(self, monkeypatch, caplog):
         """Test successful local model execution."""
+        import logging
+
+        caplog.set_level(logging.INFO)
         from nemoguardrails.library.jailbreak_detection.actions import (
             jailbreak_detection_model,
         )
