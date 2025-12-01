@@ -257,10 +257,7 @@ class TestSanitizeCommandForLogging:
         result = AIPerfRunner._sanitize_command_for_logging(cmd)
 
         # "secret-key-123" has 14 chars, so 8 asterisks + last 6 chars "ey-123"
-        assert result == (
-            "aiperf profile --model test-model --api-key ********ey-123 "
-            "--url http://localhost:8000"
-        )
+        assert result == ("aiperf profile --model test-model --api-key ********ey-123 --url http://localhost:8000")
 
     def test_sanitize_command_without_api_key(self):
         """Test sanitizing command without API key."""
@@ -311,9 +308,7 @@ class TestSanitizeCommandForLogging:
             "second-key",
         ]
         result = AIPerfRunner._sanitize_command_for_logging(cmd)
-        assert result == (
-            "aiperf profile --api-key ***st-key --model test-model --api-key ****nd-key"
-        )
+        assert result == ("aiperf profile --api-key ***st-key --model test-model --api-key ****nd-key")
 
     def test_sanitize_command_preserves_other_values(self):
         """Test that other command values are preserved exactly."""
@@ -331,10 +326,7 @@ class TestSanitizeCommandForLogging:
         result = AIPerfRunner._sanitize_command_for_logging(cmd)
 
         # "my-secret-key" has 13 chars, so 7 asterisks + "et-key" (last 6 chars)
-        assert result == (
-            "aiperf profile --api-key *******et-key --concurrency 10 "
-            "--benchmark-duration 60 --streaming"
-        )
+        assert result == ("aiperf profile --api-key *******et-key --concurrency 10 --benchmark-duration 60 --streaming")
 
     def test_sanitize_command_short_api_key(self):
         """Test sanitizing command with API key shorter than or equal to 6 chars."""
@@ -404,13 +396,9 @@ class TestBuildCommand:
         duration_idx = cmd.index("--benchmark-duration")
         assert cmd[duration_idx + 1] == "30"
 
-    def test_build_command_with_api_key_env_var(
-        self, create_config_file, tmp_path, monkeypatch
-    ):
+    def test_build_command_with_api_key_env_var(self, create_config_file, tmp_path, monkeypatch):
         """Test building command with API key from environment variable."""
-        config_file = create_config_file(
-            extra_base_config={"api_key_env_var": "TEST_API_KEY"}
-        )
+        config_file = create_config_file(extra_base_config={"api_key_env_var": "TEST_API_KEY"})
 
         # Set the environment variable
         monkeypatch.setenv("TEST_API_KEY", "secret-key-123")
@@ -423,13 +411,9 @@ class TestBuildCommand:
         api_key_idx = cmd.index("--api-key")
         assert cmd[api_key_idx + 1] == "secret-key-123"
 
-    def test_build_command_with_missing_api_key_env_var(
-        self, create_config_file, tmp_path
-    ):
+    def test_build_command_with_missing_api_key_env_var(self, create_config_file, tmp_path):
         """Test building command when API key environment variable is not set."""
-        config_file = create_config_file(
-            extra_base_config={"api_key_env_var": "MISSING_API_KEY"}
-        )
+        config_file = create_config_file(extra_base_config={"api_key_env_var": "MISSING_API_KEY"})
 
         runner = AIPerfRunner(config_file)
         output_dir = tmp_path / "output"
@@ -511,9 +495,7 @@ class TestBuildCommand:
             ui_type_idx = cmd.index("--ui-type")
             assert cmd[ui_type_idx + 1] == "none"
 
-    def test_build_command_with_list_in_sweep_params(
-        self, create_config_file, tmp_path
-    ):
+    def test_build_command_with_list_in_sweep_params(self, create_config_file, tmp_path):
         """Test building command when sweep params contain list values."""
         config_file = create_config_file()
 
@@ -790,9 +772,7 @@ class TestCheckService:
 
     def test_check_service_api_key_env_var_not_set(self, create_config_file):
         """Test checking service when api_key_env_var is configured but env var doesn't exist."""
-        config_file = create_config_file(
-            extra_base_config={"api_key_env_var": "NONEXISTENT_API_KEY"}
-        )
+        config_file = create_config_file(extra_base_config={"api_key_env_var": "NONEXISTENT_API_KEY"})
 
         runner = AIPerfRunner(config_file)
 
@@ -811,9 +791,7 @@ class TestCheckService:
 
     def test_check_service_api_key_env_var_set(self, create_config_file, monkeypatch):
         """Test checking service when api_key_env_var is configured and env var exists."""
-        config_file = create_config_file(
-            extra_base_config={"api_key_env_var": "TEST_API_KEY"}
-        )
+        config_file = create_config_file(extra_base_config={"api_key_env_var": "TEST_API_KEY"})
 
         # Set the environment variable
         monkeypatch.setenv("TEST_API_KEY", "test-secret-key-123")
@@ -832,9 +810,7 @@ class TestCheckService:
             mock_get.assert_called_once()
             call_args = mock_get.call_args
             assert call_args[1]["headers"] is not None
-            assert (
-                call_args[1]["headers"]["Authorization"] == "Bearer test-secret-key-123"
-            )
+            assert call_args[1]["headers"]["Authorization"] == "Bearer test-secret-key-123"
 
 
 class TestGetBatchDir:
@@ -906,18 +882,14 @@ class TestRunSingleBenchmark:
         run_directory = tmp_path / "runs"
 
         # Mock subprocess.run to raise CalledProcessError
-        with patch(
-            "subprocess.run", side_effect=subprocess.CalledProcessError(1, "aiperf")
-        ):
+        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "aiperf")):
             summary = runner.run_single_benchmark(run_directory, dry_run=False)
 
             assert summary.total == 1
             assert summary.completed == 0
             assert summary.failed == 1
 
-    def test_run_single_benchmark_keyboard_interrupt(
-        self, create_config_file, tmp_path
-    ):
+    def test_run_single_benchmark_keyboard_interrupt(self, create_config_file, tmp_path):
         """Test that KeyboardInterrupt is re-raised."""
         config_file = create_config_file()
 
@@ -1019,9 +991,7 @@ class TestRunBatchBenchmarks:
         with pytest.raises(RuntimeError, match="Can't generate sweep combinations"):
             runner.run_batch_benchmarks(run_directory, dry_run=False)
 
-    def test_run_batch_benchmarks_keyboard_interrupt(
-        self, create_config_file, tmp_path
-    ):
+    def test_run_batch_benchmarks_keyboard_interrupt(self, create_config_file, tmp_path):
         """Test that KeyboardInterrupt is re-raised in batch benchmarks."""
         config_file = create_config_file(sweeps={"concurrency": [1, 2]})
 
@@ -1033,9 +1003,7 @@ class TestRunBatchBenchmarks:
             with pytest.raises(KeyboardInterrupt):
                 runner.run_batch_benchmarks(run_directory, dry_run=False)
 
-    def test_run_batch_benchmarks_non_zero_returncode(
-        self, create_config_file, tmp_path
-    ):
+    def test_run_batch_benchmarks_non_zero_returncode(self, create_config_file, tmp_path):
         """Test running batch benchmarks when subprocess returns non-zero but doesn't raise."""
         config_file = create_config_file(sweeps={"concurrency": [1, 2]})
 
@@ -1111,9 +1079,7 @@ class TestRun:
 
         # Mock _check_service and subprocess.run to fail
         with patch.object(runner, "_check_service"):
-            with patch(
-                "subprocess.run", side_effect=subprocess.CalledProcessError(1, "aiperf")
-            ):
+            with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "aiperf")):
                 exit_code = runner.run(dry_run=False)
                 assert exit_code == 1
 
@@ -1123,9 +1089,7 @@ class TestRun:
         runner = AIPerfRunner(config_file)
 
         # Mock _check_service to raise error
-        with patch.object(
-            runner, "_check_service", side_effect=RuntimeError("Service unavailable")
-        ):
+        with patch.object(runner, "_check_service", side_effect=RuntimeError("Service unavailable")):
             with pytest.raises(RuntimeError, match="Service unavailable"):
                 runner.run(dry_run=False)
 
@@ -1164,9 +1128,7 @@ class TestCLICommand:
             mock_runner.run.return_value = 0
             mock_runner_class.return_value = mock_runner
 
-            result = runner.invoke(
-                app, ["--config-file", str(config_file), "--verbose"]
-            )
+            result = runner.invoke(app, ["--config-file", str(config_file), "--verbose"])
 
             assert result.exit_code == 0
             mock_runner.run.assert_called_once_with(dry_run=False)
@@ -1184,9 +1146,7 @@ class TestCLICommand:
             mock_runner.run.return_value = 0
             mock_runner_class.return_value = mock_runner
 
-            result = runner.invoke(
-                app, ["--config-file", str(config_file), "--dry-run"]
-            )
+            result = runner.invoke(app, ["--config-file", str(config_file), "--dry-run"])
 
             assert result.exit_code == 0
             mock_runner.run.assert_called_once_with(dry_run=True)

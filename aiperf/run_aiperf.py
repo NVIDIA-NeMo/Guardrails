@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from subprocess import CompletedProcess
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import typer
@@ -37,9 +37,7 @@ from aiperf.aiperf_models import AIPerfConfig
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-formatter = logging.Formatter(
-    "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
+formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(formatter)
@@ -143,9 +141,7 @@ class AIPerfRunner:
 
         return " ".join(sanitized)
 
-    def _build_command(
-        self, sweep_params: Optional[Dict[str, Union[str, int]]], output_dir: Path
-    ) -> List[str]:
+    def _build_command(self, sweep_params: Optional[Dict[str, Union[str, int]]], output_dir: Path) -> List[str]:
         """Create a list of strings with the aiperf command and arguments to execute"""
 
         # Run aiperf in profile mode: `aiperf profile`
@@ -239,9 +235,7 @@ class AIPerfRunner:
             json.dump(metadata, f, indent=2)
 
     @staticmethod
-    def _save_subprocess_result_json(
-        output_dir: Path, result: CompletedProcess
-    ) -> None:
+    def _save_subprocess_result_json(output_dir: Path, result: CompletedProcess) -> None:
         """Save the subprocess result to the given filename"""
 
         process_result_file = output_dir / "process_result.json"
@@ -252,15 +246,11 @@ class AIPerfRunner:
                 json.dump(save_data, f, indent=2)
 
         except (IOError, OSError) as e:
-            log.error(
-                "Could not write %s to file %s: %s", save_data, process_result_file, e
-            )
+            log.error("Could not write %s to file %s: %s", save_data, process_result_file, e)
             raise
 
         except TypeError as e:
-            log.error(
-                "Couldn't serialize %s to %s: %s", save_data, process_result_file, e
-            )
+            log.error("Couldn't serialize %s to %s: %s", save_data, process_result_file, e)
             raise
 
     def _check_service(self, endpoint: Optional[str] = "/v1/models") -> None:
@@ -357,9 +347,7 @@ class AIPerfRunner:
             log.info("Run completed successfully")
             self._save_subprocess_result_json(run_output_dir, result)
             run_completed = 1 if result.returncode == 0 else 0
-            return AIPerfSummary(
-                total=1, completed=run_completed, failed=1 - run_completed
-            )
+            return AIPerfSummary(total=1, completed=run_completed, failed=1 - run_completed)
 
         except subprocess.CalledProcessError as e:
             log.error("Run failed with exit code %s", e.returncode)
@@ -379,9 +367,7 @@ class AIPerfRunner:
         # Generate all sweep combinations
         combinations = self._get_sweep_combinations()
         if not combinations:
-            raise RuntimeError(
-                f"Can't generate sweep combinations from {self.config.sweeps}"
-            )
+            raise RuntimeError(f"Can't generate sweep combinations from {self.config.sweeps}")
 
         num_combinations = len(combinations)
         log.info("Running %s benchmarks", num_combinations)

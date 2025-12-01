@@ -236,11 +236,7 @@ class TestAIPerfConfig:
         error_msg = str(exc_info.value)
         # Pydantic catches this during type validation
         assert "sweeps.concurrency" in error_msg
-        assert (
-            "must be int or str" in error_msg
-            or "int_type" in error_msg
-            or "string_type" in error_msg
-        )
+        assert "must be int or str" in error_msg or "int_type" in error_msg or "string_type" in error_msg
 
     def test_aiperf_config_sweep_invalid_value_type_list(self, valid_base_config):
         """Test that list values in sweeps raise validation error."""
@@ -254,11 +250,7 @@ class TestAIPerfConfig:
         error_msg = str(exc_info.value)
         # Pydantic catches this during type validation
         assert "sweeps.concurrency" in error_msg
-        assert (
-            "must be int or str" in error_msg
-            or "int_type" in error_msg
-            or "string_type" in error_msg
-        )
+        assert "must be int or str" in error_msg or "int_type" in error_msg or "string_type" in error_msg
 
     def test_aiperf_config_sweep_empty_list(self, valid_base_config):
         """Test that empty sweep list raises validation error."""
@@ -302,9 +294,7 @@ class TestAIPerfConfig:
 
     def test_aiperf_config_get_output_base_path(self, valid_base_config):
         """Test get_output_base_path method."""
-        config = AIPerfConfig(
-            output_base_dir="custom_results", base_config=valid_base_config
-        )
+        config = AIPerfConfig(output_base_dir="custom_results", base_config=valid_base_config)
         path = config.get_output_base_path()
         assert isinstance(path, Path)
         assert str(path) == "custom_results"

@@ -33,22 +33,16 @@ class BaseConfig(BaseModel):
         description="Optional tokenizer Huggingface name, or local directory",
     )
     url: str = Field(..., description="Model base URL")
-    endpoint: str = Field(
-        default="/v1/chat/completions", description="API endpoint path"
-    )
+    endpoint: str = Field(default="/v1/chat/completions", description="API endpoint path")
     endpoint_type: Literal["chat", "completions"] = Field(
         default="chat",
         description="Type of endpoint (chat or completions)",
     )
-    api_key_env_var: Optional[str] = Field(
-        default=None, description="API key environment variable"
-    )
+    api_key_env_var: Optional[str] = Field(default=None, description="API key environment variable")
     streaming: Optional[bool] = Field(default=False, description="Streaming mode")
 
     # Load generation settings
-    warmup_request_count: int = Field(
-        description="Requests to send before beginning performance-test"
-    )
+    warmup_request_count: int = Field(description="Requests to send before beginning performance-test")
     benchmark_duration: int = Field(description="Benchmark duration in seconds")
     concurrency: int = Field(description="Number of concurrent requests")
     request_rate: Optional[float] = Field(
@@ -61,9 +55,7 @@ class BaseConfig(BaseModel):
     )
 
     # Synthetic data generation
-    random_seed: Optional[int] = Field(
-        default=None, description="Random seed for reproducibility"
-    )
+    random_seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
     prompt_input_tokens_mean: Optional[int] = Field(
         default=None,
         description="Mean number of input tokens",
@@ -85,16 +77,12 @@ class BaseConfig(BaseModel):
 class AIPerfConfig(BaseModel):
     """Main configuration model for AIPerf benchmark runner."""
 
-    batch_name: str = Field(
-        default="benchmark", description="Name for this batch of benchmarks"
-    )
+    batch_name: str = Field(default="benchmark", description="Name for this batch of benchmarks")
     output_base_dir: str = Field(
         default="aiperf_results",
         description="Base directory for benchmark results",
     )
-    base_config: BaseConfig = Field(
-        ..., description="Base configuration applied to all benchmark runs"
-    )
+    base_config: BaseConfig = Field(..., description="Base configuration applied to all benchmark runs")
     sweeps: Optional[Dict[str, List[Union[int, str]]]] = Field(
         default=None,
         description="Parameter sweeps. Key is the parameter to change, value is a list of values to use",
@@ -102,9 +90,7 @@ class AIPerfConfig(BaseModel):
 
     @field_validator("sweeps")
     @classmethod
-    def validate_sweeps(
-        cls, v: Optional[Dict[str, List[Any]]]
-    ) -> Optional[Dict[str, List[Any]]]:
+    def validate_sweeps(cls, v: Optional[Dict[str, List[Any]]]) -> Optional[Dict[str, List[Any]]]:
         """Validate that sweep values are lists of ints or strings."""
         if v is None:
             return v

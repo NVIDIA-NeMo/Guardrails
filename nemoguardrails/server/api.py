@@ -475,9 +475,7 @@ async def chat_completion(body: RequestBody, request: Request):
 
     except Exception as ex:
         log.exception(ex)
-        return ResponseBody(
-            messages=[{"role": "assistant", "content": "Internal server error."}]
-        )
+        return ResponseBody(messages=[{"role": "assistant", "content": "Internal server error."}])
 
 
 # By default, there are no challenges
