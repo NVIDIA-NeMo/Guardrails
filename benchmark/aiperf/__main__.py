@@ -19,7 +19,7 @@
 
 """Entry point for running aiperf as a module: python -m aiperf"""
 
-from aiperf.run_aiperf import app
+from benchmark.aiperf.run_aiperf import app
 
 if __name__ == "__main__":
     app()

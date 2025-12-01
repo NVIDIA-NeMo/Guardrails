@@ -65,7 +65,7 @@ There are two example configs included which can be extended for your use-cases.
 To run a benchmark, use the following command:
 
 ```bash
-$ python -m aiperf --config-file <path-to-config.yaml>
+$ python -m benchmark.aiperf --config-file <path-to-config.yaml>
 ```
 
 ### Running a Single Benchmark
@@ -73,7 +73,7 @@ $ python -m aiperf --config-file <path-to-config.yaml>
 To run a single benchmark with fixed parameters, use the `single_concurrency.yaml` configuration:
 
 ```bash
-$ python -m aiperf --config-file aiperf/configs/single_concurrency.yaml
+$ python -m benchmark.aiperf --config-file aiperf/configs/single_concurrency.yaml
 ```
 
 **Example output:**
@@ -97,7 +97,7 @@ $ python -m aiperf --config-file aiperf/configs/single_concurrency.yaml
 To run multiple benchmarks with different concurrency levels, use the `sweep_concurrency.yaml` configuration as below:
 
 ```bash
-$ python -m aiperf --config-file aiperf/configs/sweep_concurrency.yaml
+$ python -m benchmark.aiperf --config-file aiperf/configs/sweep_concurrency.yaml
 ```
 
 **Example output:**
@@ -134,7 +134,7 @@ The `--dry-run` option allows you to preview all benchmark commands without exec
 - Debugging configuration issues
 
 ```bash
-$ python -m aiperf --config-file aiperf/configs/sweep_concurrency.yaml --dry-run
+$ python -m benchmark.aiperf --config-file aiperf/configs/sweep_concurrency.yaml --dry-run
 ```
 
 When in dry-run mode, the script will:
@@ -150,7 +150,7 @@ When in dry-run mode, the script will:
 The `--verbose` option outputs more detailed debugging information to understand each step of the benchmarking process.
 
 ```bash
-$ python -m aiperf --config-file <config.yaml> --verbose
+$ python -m benchmark.aiperf --config-file <config.yaml> --verbose
 ```
 
 Verbose mode provides:

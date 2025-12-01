@@ -32,7 +32,7 @@ import typer
 import yaml
 from pydantic import ValidationError
 
-from aiperf.aiperf_models import AIPerfConfig
+from benchmark.aiperf.aiperf_models import AIPerfConfig
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)

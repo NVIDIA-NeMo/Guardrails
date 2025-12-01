@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from aiperf.aiperf_models import AIPerfConfig, BaseConfig
+from benchmark.aiperf.aiperf_models import AIPerfConfig, BaseConfig
 
 
 class TestBaseConfig:
