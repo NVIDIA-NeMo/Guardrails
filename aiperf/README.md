@@ -21,41 +21,36 @@ Instead of manually running AIPerf multiple times with different parameters, you
 
 These steps have been tested with Python 3.11.11.
 To use the provided configurations, you need to create accounts at https://build.nvidia.com/ and [Huggingface](https://huggingface.co/).
-The provided configurations use models hosted at https://build.nvidia.com/, you'll need to create a Personal API Key to access the models.
-AIperf requires the [Meta Llama 3.3 70B Instruct tokenizer](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) to calculate token-counts.
+* The provided configurations use models hosted at https://build.nvidia.com/, you'll need to create a Personal API Key to access the models.
+* The provided AIperf configurations require the [Meta Llama 3.3 70B Instruct tokenizer](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) to calculate token-counts.
 
-1. **Install NeMo Guardrails with developer tooling:**
-
-   ```bash
-   poetry install --with dev
-   ```
-
-2. **Install AIPerf and NVIDIA AI Endpoints:**
+1. **Create a virtual environment in which to install AIPerf**
 
    ```bash
-   poetry run pip install aiperf langchain-nvidia-ai-endpoints
+   $ mkdir ~/env
+   $ python -m venv ~/env/aiperf
    ```
 
-3. ** Install/upgrade Hugging Face Hub:**
-
-   AIPerf needs a tokenizer to run and will download one from Hugging Face if available. If you have the tokenizer locally, you can point to that directory and not log into Huggingface.
+2. **Install dependencies in the virtual environment**
 
    ```bash
-   poetry run pip install --upgrade huggingface_hub
+   $ pip install aiperf huggingface_hub typer
    ```
 
-4. ** Login to Hugging Face:**
+3. ** Login to Hugging Face:**
 
    ```bash
    huggingface-cli login
    ```
 
-5. ** Set NVIDIA API Key:**
+4. ** Set NVIDIA API Key:**
 
-   To use models hosted on [build.nvidia.com](https://build.nvidia.com/), set your API key:
+   The provided configs use models hosted on [build.nvidia.com](https://build.nvidia.com/).
+   To access these, [create an account](https://build.nvidia.com/), and create a Personal API Key.
+   After creating a Personal API key, set the `NVIDIA_API_KEY` variable as below.
 
    ```bash
-   export NVIDIA_API_KEY="your-api-key-here"
+   $ export NVIDIA_API_KEY="your-api-key-here"
    ```
 
 ## Running Benchmarks
@@ -70,7 +65,7 @@ There are two example configs included which can be extended for your use-cases.
 To run a benchmark, use the following command:
 
 ```bash
-poetry run nemoguardrails aiperf run --config-file <path-to-config.yaml>
+$ python -m aiperf --config-file <path-to-config.yaml>
 ```
 
 ### Running a Single Benchmark
@@ -78,31 +73,31 @@ poetry run nemoguardrails aiperf run --config-file <path-to-config.yaml>
 To run a single benchmark with fixed parameters, use the `single_concurrency.yaml` configuration:
 
 ```bash
-poetry run nemoguardrails aiperf run --config-file nemoguardrails/benchmark/aiperf/aiperf_configs/single_concurrency.yaml
+$ python -m aiperf --config-file aiperf/configs/single_concurrency.yaml
 ```
 
 **Example output:**
 
 ```text
-2025-11-14 13:58:21 INFO: Running AIPerf with configuration: nemoguardrails/benchmark/aiperf/aiperf_configs/single_concurrency.yaml
-2025-11-14 13:58:21 INFO: Results root directory: aiperf_results/single_concurrency/20251114_135821
-2025-11-14 13:58:21 INFO: Sweeping parameters: None
-2025-11-14 13:58:21 INFO: Running AIPerf with configuration: nemoguardrails/benchmark/aiperf/aiperf_configs/single_concurrency.yaml
-2025-11-14 13:58:21 INFO: Output directory: aiperf_results/single_concurrency/20251114_135821
-2025-11-14 13:58:21 INFO: Single Run
-2025-11-14 13:59:58 INFO: Run completed successfully
-2025-11-14 13:59:58 INFO: SUMMARY
-2025-11-14 13:59:58 INFO: Total runs : 1
-2025-11-14 13:59:58 INFO: Completed  : 1
-2025-11-14 13:59:58 INFO: Failed     : 0
+2025-12-01 10:35:17 INFO: Running AIPerf with configuration: aiperf/configs/single_concurrency.yaml
+2025-12-01 10:35:17 INFO: Results root directory: aiperf_results/single_concurrency/20251201_103517
+2025-12-01 10:35:17 INFO: Sweeping parameters: None
+2025-12-01 10:35:17 INFO: Running AIPerf with configuration: aiperf/configs/single_concurrency.yaml
+2025-12-01 10:35:17 INFO: Output directory: aiperf_results/single_concurrency/20251201_103517
+2025-12-01 10:35:17 INFO: Single Run
+2025-12-01 10:36:54 INFO: Run completed successfully
+2025-12-01 10:36:54 INFO: SUMMARY
+2025-12-01 10:36:54 INFO: Total runs : 1
+2025-12-01 10:36:54 INFO: Completed  : 1
+2025-12-01 10:36:54 INFO: Failed     : 0
 ```
 
 ### Running a Concurrency Sweep
 
-To run multiple benchmarks with different concurrency levels, use the `sweep_concurrency.yaml` configuration:
+To run multiple benchmarks with different concurrency levels, use the `sweep_concurrency.yaml` configuration as below:
 
 ```bash
-poetry run nemoguardrails aiperf run --config-file nemoguardrails/benchmark/aiperf/aiperf_configs/sweep_concurrency.yaml
+$ python -m aiperf --config-file aiperf/configs/sweep_concurrency.yaml
 ```
 
 **Example output:**
@@ -139,7 +134,7 @@ The `--dry-run` option allows you to preview all benchmark commands without exec
 - Debugging configuration issues
 
 ```bash
-poetry run nemoguardrails aiperf run --config-file <config.yaml> --dry-run
+$ python -m aiperf --config-file aiperf/configs/sweep_concurrency.yaml --dry-run
 ```
 
 When in dry-run mode, the script will:
@@ -155,7 +150,7 @@ When in dry-run mode, the script will:
 The `--verbose` option outputs more detailed debugging information to understand each step of the benchmarking process.
 
 ```bash
-poetry run nemoguardrails aiperf run --config-file <config.yaml> --verbose
+$ python -m aiperf --config-file <config.yaml> --verbose
 ```
 
 Verbose mode provides:

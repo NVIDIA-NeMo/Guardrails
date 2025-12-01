@@ -46,6 +46,8 @@ console_handler.setFormatter(formatter)
 
 log.addHandler(console_handler)
 
+app = typer.Typer()
+
 
 @dataclass
 class AIPerfSummary:
@@ -486,3 +488,7 @@ def run(
     exit_code = runner.run(dry_run=dry_run)
 
     raise typer.Exit(code=exit_code)
+
+
+if __name__ == "__main__":
+    app()
