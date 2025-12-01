@@ -22,15 +22,14 @@ For a complete record of changes in a release, refer to the
 
 ### Key Features
 
-- Added support for LangChain 1.x.
-  NeMo Guardrails now supports LangChain version 1.x, including the new content blocks API for reasoning traces and tool calls.
+- Added support for LangChain 1.x, including the content blocks API for reasoning traces and tool calls.
 
 (v0-19-0-fixed-issues)=
 
 ### Fixed Issues
 
-- Fixed TypeError in Colang 2.x chat due to incorrect State/dict conversion.
-- Fixed async streaming support for ChatNVIDIA provider patch.
+- Fixed TypeError in Colang 2.x chat caused by incorrect type conversion between `State` and `dict`.
+- Fixed async streaming support for the ChatNVIDIA provider patch by adding a new `async_stream_decorator`.
 
 ---
 
