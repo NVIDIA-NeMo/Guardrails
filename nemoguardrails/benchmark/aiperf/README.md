@@ -2,7 +2,7 @@
 
 ## Introduction
 
-[AIPerf](https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf) is NVIDIA's latest benchmarking tool for LLMs. It supports any OpenAI-compatible inference service and generates synthetic data loads, benchmarks, and all the metrics needed for performance comparison and analysis.
+[AIPerf](https://github.com/ai-dynamo/aiperf) is NVIDIA's latest benchmarking tool for LLMs. It supports any OpenAI-compatible inference service and generates synthetic data loads, benchmarks, and all the metrics needed for performance comparison and analysis.
 
 The [`run_aiperf.py`](run_aiperf.py) script enhances AIPerf's capabilities by providing:
 
@@ -20,6 +20,9 @@ Instead of manually running AIPerf multiple times with different parameters, you
 ### Prerequisites
 
 These steps have been tested with Python 3.11.11.
+To use the provided configurations, you need to create accounts at https://build.nvidia.com/ and [Huggingface](https://huggingface.co/).
+The provided configurations use models hosted at https://build.nvidia.com/, you'll need to create a Personal API Key to access the models.
+AIperf requires the [Meta Llama 3.3 70B Instruct tokenizer](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) to calculate token-counts.
 
 1. **Install NeMo Guardrails with developer tooling:**
 
@@ -33,21 +36,21 @@ These steps have been tested with Python 3.11.11.
    poetry run pip install aiperf langchain-nvidia-ai-endpoints
    ```
 
-3. **[Optional] Install/upgrade Hugging Face Hub:**
+3. ** Install/upgrade Hugging Face Hub:**
 
    AIPerf needs a tokenizer to run and will download one from Hugging Face if available. If you have the tokenizer locally, you can point to that directory and not log into Huggingface.
 
    ```bash
-   pip install --upgrade huggingface_hub
+   poetry run pip install --upgrade huggingface_hub
    ```
 
-4. **[Optional] Login to Hugging Face:**
+4. ** Login to Hugging Face:**
 
    ```bash
    huggingface-cli login
    ```
 
-5. **[Optional] Set NVIDIA API Key:**
+5. ** Set NVIDIA API Key:**
 
    To use models hosted on [build.nvidia.com](https://build.nvidia.com/), set your API key:
 

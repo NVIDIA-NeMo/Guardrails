@@ -222,6 +222,22 @@ class TestGetSweepCombinations:
         assert {"concurrency": 2, "benchmark_duration": 30} in combinations
         assert {"concurrency": 2, "benchmark_duration": 60} in combinations
 
+    def test_too_many_runs_raises(self, create_config_file):
+        """Test sweeps with more than 100 runs to make sure Excpetion is raised"""
+
+        # Create a config with two parameter sweeps of 100 each
+        # This has a total of 10,000, greater than 100 limit
+        config_file = create_config_file(
+            sweeps={
+                "concurrency": list(range(100)),
+                "benchmark_duration": list(range(100)),
+            }
+        )
+
+        runner = AIPerfRunner(config_file)
+        with pytest.raises(RuntimeError, match="Requested 10000 runs, max is 100"):
+            _ = runner._get_sweep_combinations()
+
 
 class TestSanitizeCommandForLogging:
     """Test the _sanitize_command_for_logging static method."""
@@ -419,7 +435,7 @@ class TestBuildCommand:
         output_dir = tmp_path / "output"
 
         with pytest.raises(
-            RuntimeError, match="Environment variable MISSING_API_KEY not set"
+            RuntimeError, match="Environment variable 'MISSING_API_KEY' is not set. Please set it: export MISSING_API_KEY='your-api-key'"
         ):
             runner._build_command(None, output_dir)
 

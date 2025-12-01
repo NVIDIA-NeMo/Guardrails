@@ -34,18 +34,16 @@ from pydantic import ValidationError
 
 from nemoguardrails.benchmark.aiperf.aiperf_models import AIPerfConfig
 
-# Set up logging
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)  # Set the lowest level to capture all messages
+log.setLevel(logging.INFO)
 
 formatter = logging.Formatter(
     "%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)  # DEBUG and higher will go to the console
+console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(formatter)
 
-# Add the console handler for logging
 log.addHandler(console_handler)
 
 
@@ -96,6 +94,14 @@ class AIPerfRunner:
         # Extract parameter names and their values
         param_names = list(self.config.sweeps.keys())
         param_values = [self.config.sweeps[name] for name in param_names]
+
+        num_runs = 1
+        for _, sweep_values in self.config.sweeps.items():
+            num_runs *= len(sweep_values)
+
+        max_runs = 100
+        if num_runs > max_runs:
+            raise RuntimeError(f"Requested {num_runs} runs, max is {max_runs}")
 
         # Generate all combinations
         combinations = []
@@ -168,9 +174,9 @@ class AIPerfRunner:
                 api_key = os.environ.get(value)
                 if not api_key:
                     raise RuntimeError(
-                        f"Environment variable {value} not set. Please store the API Key in {value}"
+                        f"Environment variable '{value}' is not set. Please set it: export {value}='your-api-key'"
                     )
-                cmd.extend([f"--api-key", str(api_key)])
+                cmd.extend(["--api-key", str(api_key)])
                 continue
 
             # Convert underscores to hyphens for CLI arguments
