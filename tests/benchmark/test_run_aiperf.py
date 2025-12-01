@@ -29,8 +29,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from nemoguardrails.benchmark.aiperf.aiperf_models import AIPerfConfig, BaseConfig
-from nemoguardrails.benchmark.aiperf.run_aiperf import AIPerfRunner, AIPerfSummary
+from aiperf.aiperf_models import AIPerfConfig, BaseConfig
+from aiperf.run_aiperf import AIPerfRunner, AIPerfSummary
 
 
 @pytest.fixture
@@ -435,7 +435,8 @@ class TestBuildCommand:
         output_dir = tmp_path / "output"
 
         with pytest.raises(
-            RuntimeError, match="Environment variable 'MISSING_API_KEY' is not set. Please set it: export MISSING_API_KEY='your-api-key'"
+            RuntimeError,
+            match="Environment variable 'MISSING_API_KEY' is not set. Please set it: export MISSING_API_KEY='your-api-key'",
         ):
             runner._build_command(None, output_dir)
 
@@ -488,9 +489,7 @@ class TestBuildCommand:
         output_dir = tmp_path / "output"
 
         # Patch log.level to be DEBUG
-        with patch(
-            "nemoguardrails.benchmark.aiperf.run_aiperf.log.level", logging.DEBUG
-        ):
+        with patch("aiperf.run_aiperf.log.level", logging.DEBUG):
             cmd = runner._build_command(None, output_dir)
 
             assert "--ui-type" in cmd
@@ -505,9 +504,7 @@ class TestBuildCommand:
         output_dir = tmp_path / "output"
 
         # Patch log.level to be INFO
-        with patch(
-            "nemoguardrails.benchmark.aiperf.run_aiperf.log.level", logging.INFO
-        ):
+        with patch("aiperf.run_aiperf.log.level", logging.INFO):
             cmd = runner._build_command(None, output_dir)
 
             assert "--ui-type" in cmd
@@ -1141,12 +1138,10 @@ class TestCLICommand:
         config_file = create_config_file()
         runner = CliRunner()
 
-        from nemoguardrails.benchmark.aiperf.run_aiperf import app
+        from aiperf.run_aiperf import app
 
         # Mock the runner and service check
-        with patch(
-            "nemoguardrails.benchmark.aiperf.run_aiperf.AIPerfRunner"
-        ) as mock_runner_class:
+        with patch("aiperf.run_aiperf.AIPerfRunner") as mock_runner_class:
             mock_runner = Mock()
             mock_runner.run.return_value = 0
             mock_runner_class.return_value = mock_runner
@@ -1161,12 +1156,10 @@ class TestCLICommand:
         config_file = create_config_file()
         runner = CliRunner()
 
-        from nemoguardrails.benchmark.aiperf.run_aiperf import app
+        from aiperf.run_aiperf import app
 
         # Mock the runner and service check
-        with patch(
-            "nemoguardrails.benchmark.aiperf.run_aiperf.AIPerfRunner"
-        ) as mock_runner_class:
+        with patch("aiperf.run_aiperf.AIPerfRunner") as mock_runner_class:
             mock_runner = Mock()
             mock_runner.run.return_value = 0
             mock_runner_class.return_value = mock_runner
@@ -1183,12 +1176,10 @@ class TestCLICommand:
         config_file = create_config_file()
         runner = CliRunner()
 
-        from nemoguardrails.benchmark.aiperf.run_aiperf import app
+        from aiperf.run_aiperf import app
 
         # Mock the runner and service check
-        with patch(
-            "nemoguardrails.benchmark.aiperf.run_aiperf.AIPerfRunner"
-        ) as mock_runner_class:
+        with patch("aiperf.run_aiperf.AIPerfRunner") as mock_runner_class:
             mock_runner = Mock()
             mock_runner.run.return_value = 0
             mock_runner_class.return_value = mock_runner
@@ -1205,12 +1196,10 @@ class TestCLICommand:
         config_file = create_config_file()
         runner = CliRunner()
 
-        from nemoguardrails.benchmark.aiperf.run_aiperf import app
+        from aiperf.run_aiperf import app
 
         # Mock the runner to return failure
-        with patch(
-            "nemoguardrails.benchmark.aiperf.run_aiperf.AIPerfRunner"
-        ) as mock_runner_class:
+        with patch("aiperf.run_aiperf.AIPerfRunner") as mock_runner_class:
             mock_runner = Mock()
             mock_runner.run.return_value = 1  # Failure
             mock_runner_class.return_value = mock_runner
