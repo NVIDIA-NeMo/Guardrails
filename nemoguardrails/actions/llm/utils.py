@@ -165,7 +165,7 @@ async def llm_call(
     all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
     generation_llm: Union[BaseLanguageModel, Runnable] = (
-        llm.bind(stop=stop, **llm_params) if llm_params and llm is not None else llm
+        llm.bind(stop=stop, **llm_params) if llm_params else llm.bind(stop=stop)
     )
 
     if isinstance(prompt, str):
