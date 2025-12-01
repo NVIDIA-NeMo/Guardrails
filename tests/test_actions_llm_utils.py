@@ -25,6 +25,7 @@ from nemoguardrails.actions.llm.utils import (
     _extract_reasoning_from_content_blocks,
     _extract_tool_calls_from_attribute,
     _extract_tool_calls_from_content_blocks,
+    _filter_params_for_openai_reasoning_models,
     _infer_provider_from_module,
     _store_reasoning_traces,
     _store_tool_calls,
@@ -657,3 +658,53 @@ async def test_llm_call_exception_extracts_nested_client_base_url():
     assert "https://custom.endpoint.com/v1" in exc_str
     assert "gpt-4-turbo" in exc_str
     assert "Client error" in exc_str
+
+
+def _create_llm(model_name):
+    try:
+        from langchain_openai import ChatOpenAI
+
+        return ChatOpenAI(model=model_name)
+    except Exception:
+
+        class _MockLLM:
+            def __init__(self, model_name):
+                self.model_name = model_name
+
+        return _MockLLM(model_name)
+
+
+class TestFilterParamsForOpenAIReasoningModels:
+    @pytest.mark.parametrize(
+        "model,params,expected",
+        [
+            ("gpt-4", {"temperature": 0.5, "max_tokens": 100}, {"temperature": 0.5, "max_tokens": 100}),
+            ("gpt-4o", {"temperature": 0.7}, {"temperature": 0.7}),
+            ("gpt-4o-mini", {"temperature": 0.3, "max_tokens": 50}, {"temperature": 0.3, "max_tokens": 50}),
+            ("gpt-5-chat", {"temperature": 0.5}, {"temperature": 0.5}),
+            ("o1-preview", {"temperature": 0.001, "max_tokens": 100}, {"max_tokens": 100}),
+            ("o1-mini", {"temperature": 0.5}, {}),
+            ("o3", {"temperature": 0.001, "max_tokens": 200}, {"max_tokens": 200}),
+            ("o3-mini", {"temperature": 0.1}, {}),
+            ("gpt-5", {"temperature": 0.001}, {}),
+            ("gpt-5-mini", {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("gpt-5-nano", {"temperature": 0.001}, {}),
+            ("o1-preview", {"max_tokens": 100}, {"max_tokens": 100}),
+            ("o1-preview", {}, {}),
+        ],
+    )
+    def test_filter_params(self, model, params, expected):
+        llm = _create_llm(model)
+        result = _filter_params_for_openai_reasoning_models(llm, params)
+        assert result == expected
+
+    def test_returns_none_when_llm_params_is_none(self):
+        llm = _create_llm("gpt-4")
+        result = _filter_params_for_openai_reasoning_models(llm, None)
+        assert result is None
+
+    def test_does_not_modify_original_params(self):
+        llm = _create_llm("o1-preview")
+        params = {"temperature": 0.5, "max_tokens": 100}
+        _filter_params_for_openai_reasoning_models(llm, params)
+        assert params == {"temperature": 0.5, "max_tokens": 100}
