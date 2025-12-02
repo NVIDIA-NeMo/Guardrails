@@ -891,6 +891,32 @@ class AIDefenseRailConfig(BaseModel):
     )
 
 
+class MultilingualConfig(BaseModel):
+    """Configuration for multilingual refusal messages."""
+
+    enabled: bool = Field(
+        default=False,
+        description="If True, detect the language of user input and return refusal messages in the same language. "
+        "Supported languages: en (English), es (Spanish), zh (Chinese), de (German), fr (French), "
+        "hi (Hindi), ja (Japanese), ar (Arabic), th (Thai).",
+    )
+    refusal_messages: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Custom refusal messages per language code. "
+        "If not specified, built-in defaults are used. "
+        "Example: {'en': 'Sorry, I cannot help.', 'es': 'Lo siento, no puedo ayudar.'}",
+    )
+
+
+class ContentSafetyConfig(BaseModel):
+    """Configuration data for content safety rails."""
+
+    multilingual: MultilingualConfig = Field(
+        default_factory=MultilingualConfig,
+        description="Configuration for multilingual refusal messages.",
+    )
+
+
 class RailsConfigData(BaseModel):
     """Configuration data for specific rails that are supported out-of-the-box."""
 
@@ -957,6 +983,11 @@ class RailsConfigData(BaseModel):
     ai_defense: Optional[AIDefenseRailConfig] = Field(
         default_factory=AIDefenseRailConfig,
         description="Configuration for Cisco AI Defense.",
+    )
+
+    content_safety: Optional[ContentSafetyConfig] = Field(
+        default_factory=ContentSafetyConfig,
+        description="Configuration for content safety rails.",
     )
 
 

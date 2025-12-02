@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, FrozenSet, Optional
 
 from langchain_core.language_models import BaseLLM
 
@@ -220,3 +220,79 @@ async def content_safety_check_output(
         log.debug(f"Content safety output result cached for model '{model_name}'")
 
     return final_result
+
+
+SUPPORTED_LANGUAGES: FrozenSet[str] = frozenset({"en", "es", "zh", "de", "fr", "hi", "ja", "ar", "th"})
+
+DEFAULT_REFUSAL_MESSAGES: Dict[str, str] = {
+    "en": "I'm sorry, I can't respond to that.",
+    "es": "Lo siento, no puedo responder a eso.",
+    "zh": "抱歉，我无法回应。",
+    "de": "Es tut mir leid, darauf kann ich nicht antworten.",
+    "fr": "Je suis désolé, je ne peux pas répondre à cela.",
+    "hi": "मुझे खेद है, मैं इसका जवाब नहीं दे सकता।",
+    "ja": "申し訳ありませんが、それには回答できません。",
+    "ar": "عذراً، لا أستطيع الرد على ذلك.",
+    "th": "ขออภัย ฉันไม่สามารถตอบได้",
+}
+
+
+def _detect_language(text: str) -> Optional[str]:
+    try:
+        from fast_langdetect import detect
+
+        result = detect(text, k=1)
+        if result and len(result) > 0:
+            return result[0].get("lang")
+        return None
+    except ImportError:
+        log.warning("fast-langdetect not installed, skipping")
+        return None
+    except Exception as e:
+        log.warning(f"fast-langdetect detection failed: {e}")
+        return None
+
+
+def _get_refusal_message(lang: str, custom_messages: Optional[Dict[str, str]]) -> str:
+    if custom_messages and lang in custom_messages:
+        return custom_messages[lang]
+    if lang in DEFAULT_REFUSAL_MESSAGES:
+        return DEFAULT_REFUSAL_MESSAGES[lang]
+    if custom_messages and "en" in custom_messages:
+        return custom_messages["en"]
+    return DEFAULT_REFUSAL_MESSAGES["en"]
+
+
+@action()
+async def detect_language(
+    context: Optional[dict] = None,
+    config: Optional[dict] = None,
+) -> dict:
+    user_message = ""
+    if context is not None:
+        user_message = context.get("user_message", "")
+
+    custom_messages = None
+    if config is not None:
+        multilingual_config = (
+            config.rails.config.content_safety.multilingual
+            if hasattr(config, "rails")
+            and hasattr(config.rails, "config")
+            and hasattr(config.rails.config, "content_safety")
+            and hasattr(config.rails.config.content_safety, "multilingual")
+            else None
+        )
+        if multilingual_config:
+            custom_messages = multilingual_config.refusal_messages
+
+    lang = _detect_language(user_message) or "en"
+
+    if lang not in SUPPORTED_LANGUAGES:
+        lang = "en"
+
+    refusal_message = _get_refusal_message(lang, custom_messages)
+
+    return {
+        "language": lang,
+        "refusal_message": refusal_message,
+    }
