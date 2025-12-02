@@ -3,22 +3,27 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# About NeMo Guardrails
+# Welcome to the NeMo Guardrails Toolkit Documentation
 
-```{include} ../README.md
-:start-after: <!-- start-documentation-reuse -->
-:end-before: <!-- end-documentation-reuse --
+TBD
+
+```{toctree}
+:caption: NVIDIA NeMo Guardrails Toolkit
+:name: NVIDIA NeMo Guardrails Toolkit
+:hidden:
+
+Overview <overview.md>
+How It Works <how-it-works.md>
+Release Notes <release-notes.md>
 ```
 
 ```{toctree}
-:caption: NVIDIA NeMo Guardrails
-:name: NVIDIA NeMo Guardrails
+:caption: Getting Started
+:name: Getting Started
 :hidden:
 
-About NeMo Guardrails <self>
 getting-started/installation-guide
-getting-started.md
-release-notes.md
+getting-started/tutorials/index
 ```
 
 ```{toctree}

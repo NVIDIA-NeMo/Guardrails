@@ -1,4 +1,4 @@
-.PHONY: all test tests test_watch test_coverage test_profile docs pre_commit help
+.PHONY: all test tests test_watch test_coverage test_profile docs docs-serve pre_commit help
 
 # Default target executed when no specific target is provided to make.
 all: help
@@ -24,6 +24,9 @@ test_profile:
 docs:
 	poetry run sphinx-build -b html docs _build/docs
 
+docs-serve:
+	cd docs && poetry run sphinx-autobuild . _build/html --port 8000 --open-browser
+
 pre_commit:
 	pre-commit install
 	pre-commit run --all-files
@@ -39,4 +42,5 @@ help:
 	@echo 'test_watch                   - run unit tests in watch mode'
 	@echo 'test_coverage                - run unit tests with coverage'
 	@echo 'docs                         - build docs, if you installed the docs dependencies'
+	@echo 'docs-serve                   - serve docs locally with auto-rebuild on changes'
 	@echo 'pre_commit                   - run pre-commit hooks'
