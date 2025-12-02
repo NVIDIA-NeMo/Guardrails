@@ -24,6 +24,8 @@ from nemoguardrails.server import api
 from nemoguardrails.server.api import RequestBody, _format_streaming_response
 from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
 
+LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE") or os.environ.get("TEST_LIVE_MODE")
+
 client = TestClient(api.app)
 
 
@@ -59,12 +61,16 @@ def test_get_models():
     # Check each model has the required OpenAI format
     for model in result["data"]:
         assert "id" in model
+        assert "guardrails_config_id" in model
         assert model["object"] == "model"
         assert "created" in model
         assert model["owned_by"] == "nemo-guardrails"
 
 
-@pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
+@pytest.mark.skipif(
+    not LIVE_TEST_MODE,
+    reason="This test requires LIVE_TEST_MODE or TEST_LIVE_MODE environment variable to be set for live testing",
+)
 def test_chat_completion():
     response = client.post(
         "/v1/chat/completions",
@@ -90,7 +96,10 @@ def test_chat_completion():
     assert res["choices"][0]["message"]["role"] == "assistant"
 
 
-@pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
+@pytest.mark.skipif(
+    not LIVE_TEST_MODE,
+    reason="This test requires LIVE_TEST_MODE or TEST_LIVE_MODE environment variable to be set for live testing",
+)
 def test_chat_completion_with_default_configs():
     api.set_default_config_id("general")
 

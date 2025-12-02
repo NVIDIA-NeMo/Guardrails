@@ -25,22 +25,27 @@ from pydantic import BaseModel, Field
 class ResponseBody(ChatCompletion):
     """OpenAI API response body with NeMo-Guardrails extensions."""
 
-    state: Optional[dict] = Field(
-        default=None, description="State object for continuing the conversation."
+    guardrails_config_id: Optional[str] = Field(
+        default=None,
+        description="The guardrails configuration ID associated with this response.",
     )
-    llm_output: Optional[dict] = Field(
-        default=None, description="Additional LLM output data."
-    )
-    output_data: Optional[dict] = Field(
-        default=None, description="Additional output data."
-    )
+    state: Optional[dict] = Field(default=None, description="State object for continuing the conversation.")
+    llm_output: Optional[dict] = Field(default=None, description="Additional LLM output data.")
+    output_data: Optional[dict] = Field(default=None, description="Additional output data.")
     log: Optional[dict] = Field(default=None, description="Generation log data.")
 
 
-class ModelsResponse(BaseModel):
-    """OpenAI API models list response."""
+class GuardrailsModel(Model):
+    """OpenAI API model with NeMo-Guardrails extensions."""
 
-    object: str = Field(
-        default="list", description="The object type, which is always 'list'."
+    guardrails_config_id: Optional[str] = Field(
+        default=None,
+        description="[NeMo Guardrails extension] The guardrails configuration ID associated with this model.",
     )
-    data: List[Model] = Field(description="The list of models.")
+
+
+class ModelsResponse(BaseModel):
+    """OpenAI API models list response with NeMo-Guardrails extensions."""
+
+    object: str = Field(default="list", description="The object type, which is always 'list'.")
+    data: List[GuardrailsModel] = Field(description="The list of models.")

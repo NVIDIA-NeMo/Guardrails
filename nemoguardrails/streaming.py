@@ -189,9 +189,7 @@ class StreamingHandler(AsyncIterator):
                         {
                             "text": chunk,
                             "generation_info": (
-                                self.current_generation_info.copy()
-                                if self.current_generation_info
-                                else {}
+                                self.current_generation_info.copy() if self.current_generation_info else {}
                             ),
                         }
                     )

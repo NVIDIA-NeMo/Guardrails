@@ -24,13 +24,12 @@ import time
 import uuid
 import warnings
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Optional, Union
+from typing import Any, AsyncIterator, Callable, List, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
-from openai.types.model import Model
 from pydantic import BaseModel, Field, root_validator, validator
 from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
@@ -39,8 +38,7 @@ from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.schemas.openai import (
-    Choice,
-    Model,
+    GuardrailsModel,
     ModelsResponse,
     OpenAIRequestFields,
     ResponseBody,
@@ -237,8 +235,8 @@ class RequestBody(BaseModel):
     )
     # Standard OpenAI completion parameters
     model: Optional[str] = Field(
-        default=None,
-        description="The model to use for chat completion. Maps to config_id for backward compatibility.",
+        default="main",
+        description="The model to use for chat completion. Maps to the main model in the config.",
     )
     max_tokens: Optional[int] = Field(
         default=None,
@@ -314,6 +312,7 @@ async def get_models():
     # Use the same logic as get_rails_configs to find available configurations
     if app.single_config_mode:
         config_ids = [app.single_config_id] if app.single_config_id else []
+
     else:
         config_ids = [
             f
@@ -328,16 +327,43 @@ async def get_models():
             )
         ]
 
-    # Convert configurations to OpenAI model format
     models = []
     for config_id in config_ids:
-        model = Model(
-            id=config_id,
-            object="model",
-            created=int(time.time()),  # Use current time as created timestamp
-            owned_by="nemo-guardrails",
-        )
-        models.append(model)
+        try:
+            # Load the RailsConfig to extract model information
+            if app.single_config_mode:
+                config_path = app.rails_config_path
+            else:
+                config_path = os.path.join(app.rails_config_path, config_id)
+
+            rails_config = RailsConfig.from_path(config_path)
+            # Extract all models from this config
+            config_models = rails_config.models
+
+            if len(config_models) == 0:
+                guardrails_model = GuardrailsModel(
+                    id=config_id,
+                    object="model",
+                    created=int(time.time()),
+                    owned_by="nemo-guardrails",
+                    guardrails_config_id=config_id,
+                )
+                models.append(guardrails_model)
+            else:
+                for model in config_models:
+                    # Only include models with a model name
+                    if model.model:
+                        guardrails_model = GuardrailsModel(
+                            id=model.model,
+                            object="model",
+                            created=int(time.time()),
+                            owned_by="nemo-guardrails",
+                            guardrails_config_id=config_id,
+                        )
+                        models.append(guardrails_model)
+        except Exception as ex:
+            log.warning(f"Could not load model info for config {config_id}: {ex}")
+            continue
 
     return ModelsResponse(data=models)
 
@@ -380,6 +406,14 @@ def _generate_cache_key(config_ids: List[str]) -> str:
     """Generates a cache key for the given config ids."""
 
     return "-".join((config_ids))  # remove sorted
+
+
+def _get_main_model_name(rails_config: RailsConfig) -> Optional[str]:
+    """Extracts the main model name from a RailsConfig."""
+    main_models = [m for m in rails_config.models if m.type == "main"]
+    if main_models and main_models[0].model:
+        return main_models[0].model
+    return None
 
 
 def _get_rails(config_ids: List[str]) -> LLMRails:
@@ -523,6 +557,7 @@ async def chat_completion(body: RequestBody, request: Request):
     # Use Request config_ids if set, otherwise use the FastAPI default config.
     # If neither is available we can't generate any completions as we have no config_id
     config_ids = body.config_ids
+
     if not config_ids:
         if app.default_config_id:
             config_ids = [app.default_config_id]
@@ -533,6 +568,7 @@ async def chat_completion(body: RequestBody, request: Request):
 
     try:
         llm_rails = _get_rails(config_ids)
+
     except ValueError as ex:
         log.exception(ex)
         return ResponseBody(
@@ -555,6 +591,10 @@ async def chat_completion(body: RequestBody, request: Request):
         )
 
     try:
+        main_model_name = _get_main_model_name(llm_rails.config)
+        if main_model_name is None:
+            main_model_name = config_ids[0] if config_ids else "unknown"
+
         messages = body.messages or []
         if body.context:
             messages.insert(0, {"role": "context", "content": body.context})
@@ -565,14 +605,13 @@ async def chat_completion(body: RequestBody, request: Request):
         if body.thread_id:
             if datastore is None:
                 raise RuntimeError("No DataStore has been configured.")
-
             # We make sure the `thread_id` meets the minimum complexity requirement.
             if len(body.thread_id) < 16:
                 return ResponseBody(
                     id=f"chatcmpl-{uuid.uuid4()}",
                     object="chat.completion",
                     created=int(time.time()),
-                    model=config_ids[0] if config_ids else "unknown",
+                    model=main_model_name,
                     choices=[
                         Choice(
                             index=0,
@@ -624,7 +663,7 @@ async def chat_completion(body: RequestBody, request: Request):
 
             return StreamingResponse(
                 _format_streaming_response(
-                    streaming_handler, model_name=config_ids[0] if config_ids else None
+                    streaming_handler, model_name=main_model_name
                 ),
                 media_type="text/event-stream",
             )
@@ -649,12 +688,12 @@ async def chat_completion(body: RequestBody, request: Request):
             if body.thread_id and datastore is not None and datastore_key is not None:
                 await datastore.set(datastore_key, json.dumps(messages + [bot_message]))
 
-            # Build the response with OpenAI-compatible format plus NeMo-Guardrails extensions
+            # Build the response with OpenAI-compatible format
             response_kwargs = {
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion",
                 "created": int(time.time()),
-                "model": config_ids[0] if config_ids else "unknown",
+                "model": main_model_name,
                 "choices": [
                     Choice(
                         index=0,
@@ -683,7 +722,7 @@ async def chat_completion(body: RequestBody, request: Request):
             id=f"chatcmpl-{uuid.uuid4()}",
             object="chat.completion",
             created=int(time.time()),
-            model="unknown",
+            model=config_ids[0] if config_ids else "unknown",
             choices=[
                 Choice(
                     index=0,
