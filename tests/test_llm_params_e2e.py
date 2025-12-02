@@ -197,6 +197,26 @@ class TestLLMParamsOpenAI:
         content = response.response[-1]["content"]
         assert "1" in content
 
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.getenv("OPENAI_API_KEY"),
+        reason="OpenAI API key not available for e2e testing",
+    )
+    async def test_openai_stop_tokens_without_llm_params(self, openai_config_path):
+        """Test stop tokens work without llm_params (regression test for 67de94723)."""
+        config = RailsConfig.from_path(openai_config_path)
+        rails = LLMRails(config, verbose=False)
+
+        response = await llm_call(
+            rails.llm,
+            "Count from 1 to 10, one number per line.",
+            stop=["5"],
+            llm_params=None,
+        )
+
+        assert "4" in response
+        assert "5" not in response
+
 
 @pytest.mark.skipif(
     not LIVE_TEST_MODE,
