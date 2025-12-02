@@ -46,8 +46,7 @@ def nim_config_content():
     models:
       - type: main
         engine: nim
-        model: meta/llama-3.1-70b-instruct
-        api_base: https://integrate.api.nvidia.com/v1
+        model: meta/llama-3.3-70b-instruct
     """
 
 
@@ -412,7 +411,7 @@ class TestLLMParamsIntegration:
         models:
           - type: main
             engine: openai
-            model: o1-mini
+            model: o3-mini
         """
 
         with tempfile.TemporaryDirectory() as temp_dir:
