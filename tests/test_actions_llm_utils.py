@@ -532,3 +532,19 @@ def test_store_tool_calls_with_real_aimessage_multiple_tool_calls():
     assert len(tool_calls) == 2
     assert tool_calls[0]["name"] == "foo"
     assert tool_calls[1]["name"] == "bar"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("llm_params", [None, {}])
+async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
+    """Stop tokens must be passed to ainvoke even when llm_params is None or empty."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from nemoguardrails.actions.llm.utils import llm_call
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = MagicMock(content="response")
+
+    await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=llm_params)
+
+    assert mock_llm.ainvoke.call_args[1]["stop"] == ["User:"]

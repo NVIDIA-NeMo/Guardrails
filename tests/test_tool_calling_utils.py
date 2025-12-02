@@ -249,7 +249,7 @@ async def test_llm_call_with_llm_params():
     result = await llm_call(mock_llm, "Test prompt", llm_params=llm_params)
 
     assert result == "LLM response with params"
-    mock_llm.bind.assert_called_once_with(stop=None, **llm_params)
+    mock_llm.bind.assert_called_once_with(**llm_params)
     mock_bound_llm.ainvoke.assert_called_once()
 
 
@@ -298,7 +298,7 @@ async def test_llm_call_with_llm_params_temperature_max_tokens():
     result = await llm_call(mock_llm, "Test prompt", llm_params=llm_params)
 
     assert result == "Response with temp and tokens"
-    mock_llm.bind.assert_called_once_with(stop=None, temperature=0.8, max_tokens=50)
+    mock_llm.bind.assert_called_once_with(temperature=0.8, max_tokens=50)
     mock_bound_llm.ainvoke.assert_called_once()
 
 

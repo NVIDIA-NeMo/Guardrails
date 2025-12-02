@@ -164,14 +164,12 @@ async def llm_call(
     _setup_llm_call_info(llm, model_name, model_provider)
     all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
-    generation_llm: Union[BaseLanguageModel, Runnable] = (
-        llm.bind(stop=stop, **llm_params) if llm_params else llm.bind(stop=stop)
-    )
+    generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**llm_params) if llm_params else llm
 
     if isinstance(prompt, str):
-        response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks)
+        response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks, stop)
     else:
-        response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks)
+        response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks, stop)
 
     _store_reasoning_traces(response)
     _store_tool_calls(response)
@@ -206,10 +204,11 @@ async def _invoke_with_string_prompt(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: str,
     callbacks: BaseCallbackManager,
+    stop: Optional[List[str]],
 ):
     """Invoke LLM with string prompt."""
     try:
-        return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks))
+        return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks), stop=stop)
     except Exception as e:
         raise LLMCallException(e)
 
@@ -218,12 +217,13 @@ async def _invoke_with_message_list(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: List[dict],
     callbacks: BaseCallbackManager,
+    stop: Optional[List[str]],
 ):
     """Invoke LLM with message list after converting to LangChain format."""
     messages = _convert_messages_to_langchain_format(prompt)
 
     try:
-        return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks))
+        return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks), stop=stop)
     except Exception as e:
         raise LLMCallException(e)
 
