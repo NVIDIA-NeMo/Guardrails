@@ -1,9 +1,0 @@
-define bot inform cannot about proprietary technology
-  "I cannot talk about proprietary technology."
-
-define subflow check blocked terms
-  $is_blocked = execute check_blocked_terms
-
-  if $is_blocked
-    bot inform cannot about proprietary technology
-    stop

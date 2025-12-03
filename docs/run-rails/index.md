@@ -36,35 +36,35 @@ print(response["content"])
 :link: core-classes
 :link-type: doc
 
-Learn about `RailsConfig` and `LLMRails`, the two fundamental classes for loading configurations and generating responses with guardrails.
+This guide covers the two fundamental classes in the NeMo Guardrails toolkit: `RailsConfig` for loading configurations and `LLMRails` for generating responses with guardrails.
 :::
 
 :::{grid-item-card} Generation Options
 :link: generation-options
 :link-type: doc
 
-Fine-grained control over LLM generation, including output variables, LLM parameters, logging, and selectively disabling rails.
+NeMo Guardrails exposes a set of **generation options** that give you fine-grained control over how the LLM generation is performed (for example, what rails are enabled, additional parameters that...
 :::
 
 :::{grid-item-card} Streaming
 :link: streaming
 :link-type: doc
 
-Configure and use streaming responses with guardrails, including Python API, CLI, and server API usage.
+If the application LLM supports streaming, you can configure NeMo Guardrails to stream tokens as well.
 :::
 
 :::{grid-item-card} Event-based API
 :link: event-based-api
 :link-type: doc
 
-Use the low-level event-based API for fine-grained control over the guardrails interaction flow.
+You can use a guardrails configuration through an event-based API using [`LLMRails.generate_events_async`](../api/nemoguardrails.rails.llm.llmrails.md#method-llmrailsgenerate_events_async) and...
 :::
 
-:::{grid-item-card} Tools Integration
+:::{grid-item-card} Tools Integration with NeMo Guardrails
 :link: tools-integration
 :link-type: doc
 
-Integrate LangChain tools with guardrails while maintaining safety controls through input and output rails.
+This guide provides comprehensive instructions for integrating and using tools within NeMo Guardrails via the LLMRails interface. It covers supported tools, configuration settings, practical...
 :::
 
 ::::

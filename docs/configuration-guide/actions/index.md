@@ -42,28 +42,28 @@ The following sections provide detailed documentation for creating and using cus
 :link: creating-actions
 :link-type: doc
 
-Learn how to create custom actions using the `@action` decorator with parameters and return values.
+This section describes how to create custom actions in the `actions.py` file.
 :::
 
 :::{grid-item-card} Built-in Actions
 :link: built-in-actions
 :link-type: doc
 
-Reference guide for default actions included in the toolkit, including core and guardrail-specific actions.
+This section describes the default actions included in the NeMo Guardrails toolkit.
 :::
 
 :::{grid-item-card} Action Parameters
 :link: action-parameters
 :link-type: doc
 
-Understand special parameters like `context`, `events`, `llm`, and `config` that are automatically provided.
+This section describes the special parameters automatically provided to actions by the NeMo Guardrails toolkit.
 :::
 
 :::{grid-item-card} Registering Actions
 :link: registering-actions
 :link-type: doc
 
-Learn different ways to register actions including file-based, programmatic, and LangChain tool integration.
+This section describes the different ways to register custom actions with the NeMo Guardrails toolkit.
 :::
 
 ::::

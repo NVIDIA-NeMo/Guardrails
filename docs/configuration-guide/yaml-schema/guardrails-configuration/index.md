@@ -38,6 +38,20 @@ rails:
       - check retrieval sensitive data
 ```
 
+## Sections
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} Guardrails Library
+:link: guardrails-library
+:link-type: doc
+
+NeMo Guardrails comes with a library of built-in guardrails that you can easily use:
+:::
+
+::::
+
 ## Input Rails
 
 Input rails process user messages before they reach the LLM:
@@ -208,5 +222,12 @@ rails:
 
 ## Related Topics
 
-- [Guardrails Library](../../user-guides/guardrails-library) - Complete list of built-in rails
-- [Guardrails Process](../../user-guides/guardrails-process) - How rails are invoked
+- [Guardrails Library](guardrails-library.md) - Complete list of built-in rails
+- [Guardrails Process](../../../user-guides/guardrails-process) - How rails are invoked
+
+```{toctree}
+:hidden:
+:maxdepth: 2
+
+guardrails-library
+```

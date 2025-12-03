@@ -19,7 +19,7 @@ from datetime import date
 
 from toml import load
 
-project = "NVIDIA NeMo Guardrails Toolkit"
+project = "NVIDIA NeMo Guardrails Toolkit Developer Guide"
 this_year = date.today().year
 copyright = f"2023-{this_year}, NVIDIA Corporation"
 author = "NVIDIA Corporation"

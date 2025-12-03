@@ -44,7 +44,7 @@ The following sections provide detailed documentation for using Colang:
 :link: colang-2/index
 :link-type: doc
 
-The latest version of Colang with powerful flows engine, parallel flow support, and advanced pattern matching.
+whats-changed getting-started/index language-reference/index migration-guide
 :::
 
 :::{grid-item-card} Colang 1.0 Guide
@@ -54,11 +54,11 @@ The latest version of Colang with powerful flows engine, parallel flow support, 
 The original Colang syntax for defining user messages, bot messages, and dialog flows.
 :::
 
-:::{grid-item-card} Migration Guide
+:::{grid-item-card} Migrating from Colang 1 to Colang 2
 :link: colang-2/migration-guide
 :link-type: doc
 
-Migrate your configurations from Colang 1.0 to Colang 2.0.
+The NeMo Guardrails CLI provides a tool (`nemoguardrails convert ...`) for converting guardrail configurations from Colang 1.0 format to Colang 2.x. It performs several syntax transformations on...
 :::
 
 ::::
@@ -147,6 +147,6 @@ If not, you can get started with the [Hello World](colang-2/getting-started/hell
 :maxdepth: 2
 
 colang-2/index
-colang-language-syntax-guide
+colang-1/index
 usage-examples/index
 ```

@@ -56,38 +56,31 @@ The following sections provide detailed documentation for each configuration are
 :gutter: 3
 
 :::{grid-item-card} Model Configuration
-:link: yaml-schema/model-configuration
+:link: model-configuration
 :link-type: doc
 
-Configure LLM providers, models, embeddings, and model-specific parameters.
+This section describes how to configure LLM models and embedding models in the `config.yml` file.
 :::
 
 :::{grid-item-card} Guardrails Configuration
-:link: yaml-schema/guardrails-configuration
+:link: guardrails-configuration/index
 :link-type: doc
 
-Set up input, output, dialog, retrieval, and execution rails to control LLM behavior.
+This section describes how to configure guardrails (rails) in the `config.yml` file to control LLM behavior.
 :::
 
 :::{grid-item-card} Prompt Configuration
-:link: yaml-schema/prompt-configuration
+:link: prompt-configuration
 :link-type: doc
 
-Customize prompts for various LLM tasks including self-check, intent generation, and more.
-:::
-
-:::{grid-item-card} Knowledge Base Configuration
-:link: yaml-schema/knowledge-base-configuration
-:link-type: doc
-
-Configure document retrieval and RAG (Retrieval-Augmented Generation) settings.
+This section describes how to customize prompts in the `config.yml` or `prompts.yml` file.
 :::
 
 :::{grid-item-card} Tracing Configuration
-:link: yaml-schema/tracing-configuration
+:link: tracing-configuration
 :link-type: doc
 
-Enable monitoring, logging, and observability for guardrails interactions.
+This section describes how to configure tracing and monitoring in the `config.yml` file.
 :::
 
 ::::
@@ -119,8 +112,7 @@ For detailed information about each configuration section, refer to the individu
 :maxdepth: 2
 
 model-configuration
-guardrails-configuration
+guardrails-configuration/index
 prompt-configuration
-knowledge-base-configuration
 tracing-configuration
 ```

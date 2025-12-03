@@ -5,18 +5,18 @@ This section provides additional configuration topics that are not covered in th
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Knowledge Base Folder
+:::{grid-item-card} Knowledge Base
 :link: knowledge-base
 :link-type: doc
 
-Configure the `kb` folder to enable Retrieval-Augmented Generation (RAG) with your own documents.
+The NeMo Guardrails toolkit supports using a set of documents as context for generating bot responses through Retrieval-Augmented Generation (RAG). This guide explains how to configure and use the...
 :::
 
-:::{grid-item-card} Exceptions
+:::{grid-item-card} Exceptions and Error Handling
 :link: exceptions
 :link-type: doc
 
-Handle and customize exception behavior in your guardrails configuration.
+NeMo Guardrails supports raising exceptions from within flows. An exception is an event whose name ends with `Exception`, e.g., `InputRailException`. When an exception is raised, the final output...
 :::
 
 ::::
