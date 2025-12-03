@@ -9,18 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
-## [0.19.0] - 2025-11-28
+## [0.19.0] - 2025-12-03
 
 ### 🚀 Features
 
 - Support langchain v1 ([#1472](https://github.com/NVIDIA/NeMo-Guardrails/issues/1472))
 - *(llm)* Add LangChain 1.x content blocks support for reasoning and tool calls ([#1496](https://github.com/NVIDIA/NeMo-Guardrails/issues/1496))
 - *(benchmark)* Add Procfile to run Guardrails and mock LLMs ([#1490](https://github.com/NVIDIA/NeMo-Guardrails/issues/1490))
+- *(benchmark)*: Add AIPerf run script (([#1501](https://github.com/NVIDIA/NeMo-Guardrails/issues/1501)))
 
 ### 🐛 Bug Fixes
 
 - *(llm)* Add async streaming support to ChatNVIDIA provider patch ([#1504](https://github.com/NVIDIA/NeMo-Guardrails/issues/1504))
+- ensure stream_async background task completes before exit ([#1508](https://github.com/NVIDIA/NeMo-Guardrails/issues/1508))
 - *(cli)* Fix TypeError in v2.x chat due to incorrect State/dict conversion ([#1509](https://github.com/NVIDIA/NeMo-Guardrails/issues/1509))
+- *(llmrails)*: skip output rails when dialog disabled and no bot_message provided ([#1518](https://github.com/NVIDIA/NeMo-Guardrails/issues/1518))
+- *(llm)*: ensure that stop token is not ignored if llm_params is None ([#1529](https://github.com/NVIDIA/NeMo-Guardrails/issues/1529))
 
 ### ⚙️ Miscellaneous Tasks
 
