@@ -3,7 +3,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Welcome to the NeMo Guardrails Toolkit Documentation
+# NeMo Guardrails Toolkit Documentation
 
 TBD
 
@@ -24,6 +24,49 @@ Release Notes <release-notes.md>
 
 getting-started/installation-guide
 getting-started/tutorials/index
+```
+
+```{toctree}
+:caption: Configuration Guide
+:name: Configuration Guide
+:hidden:
+
+Configuration Overview <configuration-guide/index.md>
+Configuration YAML Schema <configuration-guide/yaml-schema/index.md>
+Actions <configuration-guide/actions/index.md>
+Colang <configuration-guide/colang/index.md>
+Other Configurations <configuration-guide/other-configurations/index.md>
+```
+
+```{toctree}
+:caption: Run Rails
+:name: Run Rails
+:hidden:
+
+Run Rails <run-rails/index.md>
+Core Classes <run-rails/core-classes.md>
+Generation Options <run-rails/generation-options.md>
+Streaming <run-rails/streaming.md>
+Event-based API <run-rails/event-based-api.md>
+Tools Integration <run-rails/tools-integration.md>
+```
+
+```{toctree}
+:caption: Observability
+:name: Observability
+:hidden:
+
+Logging <observability/logging/index.md>
+Tracing <observability/tracing/index.md>
+```
+
+```{toctree}
+:caption: Integration
+:name: Integration
+:hidden:
+
+LangChain <integration/langchain/index.md>
+Vertex AI <integration/vertexai.md>
 ```
 
 ```{toctree}
@@ -105,17 +148,6 @@ getting-started/4-input-rails/README
 getting-started/5-output-rails/README
 getting-started/6-topical-rails/README
 getting-started/7-rag/README
-```
-
-```{toctree}
-:caption: Colang 2.0
-:name: Colang 2.0
-:hidden:
-
-colang-2/overview
-colang-2/whats-changed
-colang-2/getting-started/index
-colang-2/language-reference/index
 ```
 
 ```{toctree}

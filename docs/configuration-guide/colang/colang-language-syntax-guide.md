@@ -1,6 +1,6 @@
-# Colang Guide
+# Colang 1.0 Guide
 
-This document is a brief introduction Colang 1.0.
+This document is a brief introduction to Colang 1.0.
 
 Colang is a modeling language enabling the design of guardrails for conversational systems.
 
