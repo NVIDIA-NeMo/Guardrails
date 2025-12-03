@@ -14,7 +14,7 @@ rails:
         enabled: true
         # Optional: customize refusal messages per language
         # If not specified, built-in defaults are used
-        refusal_messages:
+        # refusal_messages:
           # en: "Sorry, I cannot help with that request."
           # es: "Lo siento, no puedo ayudar con esa solicitud."
           # zh: "抱歉，我无法处理该请求。"
