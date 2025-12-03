@@ -23,7 +23,9 @@ import pytest
 
 from nemoguardrails.llm.prompts import TaskPrompt
 from nemoguardrails.rails.llm.config import (
+    ContentSafetyConfig,
     Model,
+    MultilingualConfig,
     RailsConfig,
     _get_flow_model,
     _validate_rail_prompts,
@@ -1015,3 +1017,76 @@ class TestCombinedConfig:
                     content: Verify the user input is on-topic
                 """
             )
+
+
+class TestMultilingualConfig:
+    def test_defaults(self):
+        config = MultilingualConfig()
+        assert config.enabled is False
+        assert config.refusal_messages is None
+
+    def test_with_custom_messages(self):
+        custom = {"en": "Custom", "es": "Personalizado"}
+        config = MultilingualConfig(enabled=True, refusal_messages=custom)
+        assert config.enabled is True
+        assert config.refusal_messages == custom
+
+
+class TestContentSafetyConfigModel:
+    def test_defaults(self):
+        config = ContentSafetyConfig()
+        assert config.multilingual.enabled is False
+        assert config.multilingual.refusal_messages is None
+
+    def test_with_multilingual(self):
+        custom = {"en": "Custom"}
+        config = ContentSafetyConfig(multilingual=MultilingualConfig(enabled=True, refusal_messages=custom))
+        assert config.multilingual.enabled is True
+        assert config.multilingual.refusal_messages == custom
+
+
+class TestMultilingualConfigInRailsConfig:
+    BASE_YAML = """
+        models:
+          - type: content_safety
+            engine: nim
+            model: nvidia/llama-3.1-nemoguard-8b-content-safety
+        rails:
+          {rails_config}
+          input:
+            flows:
+              - content safety check input $model=content_safety
+        prompts:
+          - task: content_safety_check_input $model=content_safety
+            content: Check content safety
+    """
+
+    def test_multilingual_disabled_by_default(self):
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=""))
+        assert config.rails.config.content_safety.multilingual.enabled is False
+
+    def test_multilingual_enabled_with_custom_messages(self):
+        rails_config = """
+          config:
+            content_safety:
+              multilingual:
+                enabled: true
+                refusal_messages:
+                  en: "Custom English"
+                  es: "Personalizado"
+        """
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
+        assert config.rails.config.content_safety.multilingual.enabled is True
+        assert config.rails.config.content_safety.multilingual.refusal_messages["en"] == "Custom English"
+        assert config.rails.config.content_safety.multilingual.refusal_messages["es"] == "Personalizado"
+
+    def test_multilingual_enabled_no_custom_messages(self):
+        rails_config = """
+          config:
+            content_safety:
+              multilingual:
+                enabled: true
+        """
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
+        assert config.rails.config.content_safety.multilingual.enabled is True
+        assert config.rails.config.content_safety.multilingual.refusal_messages is None
