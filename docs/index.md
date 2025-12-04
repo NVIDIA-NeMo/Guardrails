@@ -53,21 +53,21 @@ Tools Integration <run-rails/tools-integration.md>
 ```
 
 ```{toctree}
-:caption: Observability
-:name: Observability
-:hidden:
-
-Logging <observability/logging/index.md>
-Tracing <observability/tracing/index.md>
-```
-
-```{toctree}
 :caption: Evaluation
 :name: Evaluation
 :hidden:
 
 evaluation/README
 evaluation/llm-vulnerability-scanning
+```
+
+```{toctree}
+:caption: Observability
+:name: Observability
+:hidden:
+
+Logging <observability/logging/index.md>
+Tracing <observability/tracing/index.md>
 ```
 
 ```{toctree}

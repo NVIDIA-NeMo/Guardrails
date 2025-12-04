@@ -43,7 +43,7 @@ Adding programmable guardrails to your LLM-based applications provides the follo
 
 ## Tools
 
-NeMo Guardrails provides two main interfaces for adding guardrails to your applications:
+The NeMo Guardrails toolkit provides two main interfaces for adding guardrails to your applications:
 
 ### SDK
 
@@ -71,7 +71,7 @@ For more information, refer to the [Python API Guide](user-guides/python-api.md)
 
 ### CLI
 
-NeMo Guardrails provides a command-line interface for interacting with your guardrails configurations:
+The NeMo Guardrails toolkit provides a command-line interface for interacting with your guardrails configurations:
 
 ```bash
 $ nemoguardrails --help
@@ -85,7 +85,7 @@ server            Start a NeMo Guardrails server.
 ```
 
 **Guardrails Server**:
-You can use the NeMo Guardrails CLI to start a guardrails server.
+You can use the NeMo Guardrails toolkit CLI to start a guardrails server.
 The server can load one or more configurations from the specified folder and expose an HTTP API for using them.
 
 ```bash
@@ -98,13 +98,13 @@ For more information, refer to the [CLI Guide](user-guides/cli.md) and [Server G
 
 ## Use Cases
 
-NeMo Guardrails supports a wide range of use cases for protecting LLM-based applications.
+The NeMo Guardrails toolkit supports a wide range of use cases for protecting LLM-based applications.
 The following sections describe the primary use cases.
 
 ### Content Safety
 
 Content safety guardrails help ensure that both user inputs and LLM outputs are safe and appropriate.
-NeMo Guardrails provides multiple approaches to content safety:
+The NeMo Guardrails toolkit provides multiple approaches to content safety:
 
 - **LLM self-checking**: Use the LLM itself to check inputs and outputs for harmful content.
 - **NVIDIA safety models**: Integration with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety) for robust content moderation.
@@ -116,7 +116,7 @@ For more information, refer to the [Content Safety section](user-guides/guardrai
 ### Jailbreak Protection
 
 Jailbreak detection helps prevent adversarial attempts to bypass safety measures and manipulate the LLM into generating harmful or unwanted content.
-NeMo Guardrails provides multiple layers of jailbreak protection:
+The NeMo Guardrails toolkit provides multiple layers of jailbreak protection:
 
 - **Self-check jailbreak detection**: Use the LLM to identify jailbreak attempts.
 - **Heuristic detection**: Pattern-based detection of common jailbreak techniques.
@@ -139,7 +139,7 @@ For more information, refer to the [Topical Rails tutorial](getting-started/6-to
 ### PII Detection
 
 Personally Identifiable Information (PII) detection helps protect user privacy by detecting and masking sensitive data in user inputs, LLM outputs, and retrieved content.
-NeMo Guardrails supports PII detection through multiple integrations:
+The NeMo Guardrails toolkit supports PII detection through multiple integrations:
 
 - **Presidio-based detection**: Built-in support using [Microsoft Presidio](user-guides/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
 - **Private AI**: Integration with [Private AI](user-guides/community/privateai.md) for advanced PII detection and masking.
@@ -185,7 +185,7 @@ For more information, refer to the [Tools Integration Guide](user-guides/advance
 
 ### Custom Rails
 
-NeMo Guardrails provides extensive flexibility for creating custom guardrails tailored to your specific requirements:
+The NeMo Guardrails toolkit provides extensive flexibility for creating custom guardrails tailored to your specific requirements:
 
 #### Custom Rails into Guardrails
 
@@ -239,7 +239,7 @@ You can create custom rails using one or more of the following approaches:
 
 #### Integrate Guardrails into Customer Applications
 
-NeMo Guardrails can be integrated into applications in multiple ways:
+The NeMo Guardrails toolkit can be integrated into applications in multiple ways:
 
 1. **Python SDK integration**: Add guardrails directly into your Python application.
 
@@ -281,10 +281,10 @@ For complete examples and detailed integration patterns, refer to the [examples 
 
 ## Relation with NeMo Guardrails Microservice
 
-NeMo Guardrails (this toolkit) is an open-source SDK and runtime for adding programmable guardrails to LLM applications.
+The NeMo Guardrails toolkit is an open-source SDK and runtime for adding programmable guardrails to LLM applications.
 It provides the core framework, built-in guardrails library, and integration capabilities described in this documentation.
 
-The **NeMo Guardrails Microservice** is a managed, production-ready deployment option that packages NeMo Guardrails as a scalable microservice within the broader NeMo Microservices ecosystem.
+The **NeMo Guardrails Microservice** is a managed, production-ready deployment option that packages the NeMo Guardrails toolkit as a scalable microservice within the broader NeMo Microservices ecosystem.
 
 |                        | **NeMo Guardrails (SDK/Toolkit)**                       | **NeMo Guardrails Microservice**                       |
 |------------------------|---------------------------------------------------------|--------------------------------------------------------|
@@ -297,4 +297,4 @@ The **NeMo Guardrails Microservice** is a managed, production-ready deployment o
 Both share the same core guardrails capabilities and configuration format.
 Guardrails configurations developed with the open-source toolkit can be deployed using the microservice, and vice versa.
 
-For information about deploying NeMo Guardrails in production environments, refer to the [Server Guide](user-guides/server-guide.md) and [Using Docker](user-guides/advanced/using-docker.md) documentation.
+For information about deploying the NeMo Guardrails toolkit in production environments, refer to the [Server Guide](user-guides/server-guide.md) and [Using Docker](user-guides/advanced/using-docker.md) documentation.
