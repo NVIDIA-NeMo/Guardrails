@@ -1,3 +1,5 @@
+(nemoguardrails-cli)=
+
 # CLI
 
 **NOTE: THIS SECTION IS WORK IN PROGRESS.**
@@ -147,7 +149,9 @@ Options:
 --help                                                      Show this message and exit.
 ```
 
-### providers
+(find-providers-command)=
+
+### find-providers
 
 ```bash
 > nemoguardrails find-providers --help
@@ -162,25 +166,25 @@ provider (text completion or chat completion) and then show you the available
 providers for that type.
 
 Options:
-  --list, -l    Just list all available providers without interactive selection
+  --list, -l    Lists all available providers without interactive selection
   --help        Show this message and exit.
 ```
 
-### Find Providers Command
+#### List Mode
 
-The `providers` command provides an interactive interface to explore and select LLM providers available in NeMo Guardrails. It supports both text completion and chat completion providers.
+Run the following command to list all available providers:
 
 ```bash
 nemoguardrails find-providers [--list]
 ```
 
-#### Options
-
-- `--list`, `-l`: Just list all available providers without interactive selection
-
 #### Interactive Mode
 
-When run without the `--list` option, the command provides an interactive interface:
+Run the following command start an interactive process to select a provider:
+
+```bash
+nemoguardrails find-providers
+```
 
 1. First, you'll be prompted to select a provider type:
    - Type to filter between "text completion" and "chat completion", you can press Tab to autocomplete.
@@ -194,17 +198,7 @@ When run without the `--list` option, the command provides an interactive interf
    - Press Tab to autocomplete
    - Press Enter to select
 
-#### Example Usage
-
-```bash
-# List all available providers
-nemoguardrails find-providers --list
-
-# Interactive provider selection
-nemoguardrails find-providers
-```
-
-#### Example Output
+##### Example of Interactive Mode
 
 ```
 Available Provider Types: (type to filter, use arrows to select)

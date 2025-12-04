@@ -5,6 +5,7 @@ Detailed below are steps to self-host Llama Guard using vLLM and HuggingFace. Al
 1. Get access to the Llama Guard model from Meta on HuggingFace. See [this page](https://huggingface.co/meta-llama/LlamaGuard-7b) for more details.
 
 2. Log in to Hugging Face with your account token
+
 ```sh
 huggingface-cli login
 ```
@@ -18,4 +19,4 @@ python -m vllm.entrypoints.openai.api_server --port 5123 --model meta-llama/Llam
 
 This will serve up the vLLM inference server on `http://localhost:5123/`.
 
-4. Set the host and port in your bot's YAML configuration files ([example config](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/examples/configs/llama_guard/README.md)). If you're running the `nemoguardrails` app on another server, remember to replace `localhost` with your vLLM server's public IP address.
+4. Set the host and port in your bot's YAML configuration files ([example config](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/examples/configs/llama_guard)). If you're running the `nemoguardrails` app on another server, remember to replace `localhost` with your vLLM server's public IP address.

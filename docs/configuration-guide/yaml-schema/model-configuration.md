@@ -6,10 +6,6 @@ This section describes how to configure LLM models and embedding models in the `
 
 The `models` key defines the LLM providers and models used by the NeMo Guardrails toolkit.
 
-### Main LLM Model
-
-Configure the primary LLM model using the `main` type:
-
 ```yaml
 models:
   - type: main
@@ -19,64 +15,58 @@ models:
 
 | Attribute | Description |
 |-----------|-------------|
-| `type` | Set to `main` to indicate the application LLM |
+| `type` | The model type (`main`, `embeddings`, or task-specific types) |
 | `engine` | The LLM provider (for example, `openai`, `nim`, `anthropic`) |
 | `model` | The model name (for example, `gpt-3.5-turbo-instruct`, `meta/llama-3.1-8b-instruct`) |
-| `parameters` | Optional parameters to pass to the LangChain class |
+| `parameters` | Optional parameters to pass to the LangChain class that is used by the LLM provider. For example, when engine is set to openai, the toolkit loads the ChatOpenAI class. The ChatOpenAI class supports temperature, max_tokens, and other class-specific arguments. |
 
-### Supported Engines
+---
+
+## LLM Engines
+
+### Core Engines
 
 | Engine | Description |
 |--------|-------------|
-| `openai` | OpenAI models (GPT-3.5, GPT-4, GPT-4o) |
-| `nim` | NVIDIA NIM microservices (local or hosted) |
+| `openai` | OpenAI models |
+| `nim` | NVIDIA NIM microservices |
 | `nvidia_ai_endpoints` | Alias for `nim` engine |
-| `anthropic` | Anthropic Claude models |
 | `azure` | Azure OpenAI models |
+| `anthropic` | Anthropic Claude models |
 | `cohere` | Cohere models |
-| `huggingface_endpoint` | HuggingFace Inference Endpoints |
+| `vertexai` | Google Vertex AI |
+
+### Self-Hosted Engines
+
+| Engine | Description |
+|--------|-------------|
 | `huggingface_hub` | HuggingFace Hub models |
-| `self_hosted` | Self-hosted models |
+| `huggingface_endpoint` | HuggingFace Inference Endpoints |
+| `vllm_openai` | vLLM with OpenAI-compatible API |
+| `trt_llm` | TensorRT-LLM |
+| `self_hosted` | Generic self-hosted models |
 
-### Model Parameters
+### Auto-Discovered LangChain Providers
 
-Pass additional parameters to the underlying LangChain class:
+The toolkit automatically discovers all LLM providers from LangChain Community at runtime. This includes 50+ additional providers. Use the provider name as the `engine` value in your configuration.
 
-```yaml
-models:
-  - type: main
-    engine: openai
-    model: gpt-4
-    parameters:
-      temperature: 0.7
-      max_tokens: 1000
+To help you explore and select the right LLM provider, the toolkit CLI provides the [`find-providers`](nemoguardrails-cli) command to discover available LLM providers:
+
+```bash
+nemoguardrails find-providers [--list]
 ```
 
-## NVIDIA NIM Configuration
+---
 
-Configure NVIDIA NIM microservices for optimized inference:
+## Embedding Engines
 
-```yaml
-models:
-  - type: main
-    engine: nim
-    model: meta/llama-3.1-8b-instruct
-```
+| Engine | Description |
+|--------|-------------|
+| `FastEmbed` | FastEmbed (default) |
+| `openai` | OpenAI embeddings |
+| `nim` | NVIDIA NIM embeddings |
 
-For locally-deployed NIMs, specify the base URL:
-
-```yaml
-models:
-  - type: main
-    engine: nim
-    model: meta/llama-3.1-8b-instruct
-    parameters:
-      base_url: http://localhost:8000/v1
-```
-
-## Embeddings Model
-
-Configure the embedding model for knowledge base retrieval and similarity search:
+### Embeddings Configuration
 
 ```yaml
 models:
@@ -89,22 +79,39 @@ models:
     model: all-MiniLM-L6-v2
 ```
 
-### Supported Embedding Providers
+---
 
-| Provider | Engine Name | Default Model |
-|----------|-------------|---------------|
-| FastEmbed (default) | `FastEmbed` | `all-MiniLM-L6-v2` |
-| OpenAI | `openai` | `text-embedding-ada-002` |
-| NVIDIA NIM | `nim` | Various |
+## NVIDIA NIM Configuration
 
-### OpenAI Embeddings Example
+The NeMo Guardrails toolkit provides seamless integration with NVIDIA NIM microservices:
 
 ```yaml
 models:
-  - type: embeddings
-    engine: openai
-    model: text-embedding-ada-002
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
 ```
+
+This provides access to:
+
+- **Locally-deployed NIMs**: Run models on your own infrastructure with optimized inference.
+- **NVIDIA API Catalog**: Access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
+- **Specialized NIMs**: NemoGuard Content Safety, Topic Control, and Jailbreak Detection.
+
+### Local NIM Deployment
+
+For locally-deployed NIMs, specify the base URL:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8000/v1
+```
+
+---
 
 ## Task-Specific Models
 
@@ -134,17 +141,84 @@ models:
 | Task Type | Description |
 |-----------|-------------|
 | `main` | Primary application LLM |
+| `embeddings` | Embedding generation |
 | `self_check_input` | Input validation checks |
 | `self_check_output` | Output validation checks |
 | `generate_user_intent` | Canonical user intent generation |
 | `generate_next_steps` | Next step prediction |
 | `generate_bot_message` | Bot response generation |
 | `fact_checking` | Fact verification |
-| `embeddings` | Embedding generation |
 
-## Example Configuration
+---
 
-Complete model configuration example:
+## Configuration Examples
+
+### OpenAI
+
+The following example shows how to configure the OpenAI model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o
+```
+
+### Azure OpenAI
+
+The following example shows how to configure the Azure OpenAI model as the main application LLM using the Azure OpenAI API:
+
+```yaml
+models:
+  - type: main
+    engine: azure
+    model: gpt-4
+    parameters:
+      azure_deployment: my-gpt4-deployment
+      azure_endpoint: https://my-resource.openai.azure.com
+```
+
+### Anthropic
+
+The following example shows how to configure the Anthropic model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: anthropic
+    model: claude-3-5-sonnet-20241022
+```
+
+### vLLM (OpenAI-Compatible)
+
+The following example shows how to configure the vLLM model as the main application LLM using the vLLM OpenAI API:
+
+```yaml
+models:
+  - type: main
+    engine: vllm_openai
+    parameters:
+      openai_api_base: http://localhost:5000/v1
+      model_name: meta-llama/Llama-3.1-8B-Instruct
+```
+
+### Google Vertex AI
+
+The following example shows how to configure the Google Vertex AI model as the main application LLM:
+
+```yaml
+models:
+  - type: main
+    engine: vertexai
+    model: gemini-pro
+    parameters:
+      project: my-gcp-project
+      location: us-central1
+```
+
+### Complete Example
+
+The following example shows how to configure the main application LLM, embeddings model, and a dedicated NemoGuard model for input and output checking:
 
 ```yaml
 models:
@@ -172,7 +246,21 @@ models:
     model: nvidia/llama-3.1-nemoguard-8b-content-safety
 ```
 
-## Related Topics
+---
 
-- [LLM Configuration](../../user-guides/configuration-guide/llm-configuration) - Detailed LLM provider options
-- [LLM Support](../../user-guides/llm-support) - Supported models and evaluation results
+## Model Parameters
+
+Pass additional parameters to the underlying LangChain class:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-4
+    parameters:
+      temperature: 0.7
+      max_tokens: 1000
+      top_p: 0.9
+```
+
+Common parameters vary by provider. Refer to the LangChain documentation for provider-specific options.

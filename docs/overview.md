@@ -279,43 +279,6 @@ For complete examples and detailed integration patterns, refer to the [examples 
 
 ---
 
-## Supported LLMs
-
-NeMo Guardrails supports a wide range of LLM providers and models:
-
-### LLM Providers
-
-You can use any LLM provider that is supported by LangChain, including:
-
-- **OpenAI**: GPT-3.5, GPT-4, GPT-4 Turbo, GPT-4o
-- **NVIDIA NIM microservices**: Access to locally-deployed NIMs or NVIDIA hosted models on [build.nvidia.com](https://build.nvidia.com/models)
-- **Azure OpenAI**: Azure-hosted OpenAI models
-- **Anthropic**: Claude models
-- **Cohere**: Cohere models
-- **HuggingFace**: HuggingFace Hub and HuggingFace Endpoints
-- **Self-hosted models**: LLaMa-2, Falcon, Vicuna, Mosaic, and other open models
-
-### NVIDIA NIM Integration
-
-NeMo Guardrails provides seamless integration with NVIDIA NIM microservices using the `nim` engine:
-
-```yaml
-models:
-  - type: main
-    engine: nim
-    model: meta/llama-3.1-8b-instruct
-```
-
-This provides access to:
-
-- **Locally-deployed NIMs**: Run models on your own infrastructure.
-- **NVIDIA API Catalog**: Access to hosted models on build.nvidia.com.
-- **Specialized NIMs**: NemoGuard Content Safety, Topic Control, and Jailbreak Detection.
-
-For more information about supported LLMs and configuration details, refer to the [LLM Configuration Guide](user-guides/configuration-guide/llm-configuration.md) and [LLM Support](user-guides/llm-support.md) documentation.
-
----
-
 ## Relation with NeMo Guardrails Microservice
 
 NeMo Guardrails (this toolkit) is an open-source SDK and runtime for adding programmable guardrails to LLM applications.

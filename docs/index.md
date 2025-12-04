@@ -14,6 +14,7 @@ TBD
 
 Overview <overview.md>
 How It Works <how-it-works.md>
+Supported LLMs <supported-llms.md>
 Release Notes <release-notes.md>
 ```
 
@@ -70,11 +71,23 @@ evaluation/llm-vulnerability-scanning
 ```
 
 ```{toctree}
+:caption: Deployment Guides
+:hidden:
+
+Deployment Options <deployment/index>
+Local Server Setup <deployment/local-server/index>
+Using Docker <deployment/using-docker>
+Using NeMo Guardrails Microservice <deployment/using-microservice>
+```
+
+```{toctree}
 :caption: Integration with Third-Party Libraries
 :hidden:
 
 LangChain <integration/langchain/index.md>
 Vertex AI <integration/vertexai.md>
+AlignScore <integration/align-score-deployment>
+Llama Guard <integration/llama-guard-deployment>
 ```
 
 ```{toctree}
@@ -90,6 +103,8 @@ security/guidelines
 :name: Reference
 :hidden:
 
+user-guides/python-api
+user-guides/cli
 glossary
 faqs
 ```
