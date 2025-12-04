@@ -50,7 +50,7 @@ models:
 
 The toolkit automatically discovers all LLM providers from LangChain Community at runtime. This includes 50+ additional providers. Use the provider name as the `engine` value in your configuration.
 
-To help you explore and select the right LLM provider, the toolkit CLI provides the [`find-providers`](nemoguardrails-cli) command to discover available LLM providers:
+To help you explore and select the right LLM provider, the toolkit CLI provides the [`find-providers`](find-providers-command) command to discover available LLM providers:
 
 ```bash
 nemoguardrails find-providers [--list]

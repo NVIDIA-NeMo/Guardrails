@@ -9,12 +9,14 @@ The NeMo Guardrails toolkit provides two core classes for running guardrails:
 - **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
 - **`LLMRails`**: The main interface for generating responses with guardrails applied.
 
+Upon initializing the core classes (`RailsConfig` and `LLMRails`) or starting the `nemoguardrails` CLI chat or server, the toolkit loads the configuration files you created in the previous chapter [Configure Rails](../configuration-guide/index.md).
+
 ## Quick Start
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
 
-# Load configuration from a directory
+# Load configuration from the config directory
 config = RailsConfig.from_path("path/to/config")
 
 # Create the LLMRails instance

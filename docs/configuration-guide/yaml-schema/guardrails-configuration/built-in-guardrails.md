@@ -1,6 +1,6 @@
-# Guardrails Library
+# Built-in Guardrails
 
-NeMo Guardrails comes with a library of built-in guardrails that you can easily use:
+NeMo Guardrails comes with a set of built-in guardrails that you can use out of the box.
 
 1. LLM Self-Checking
    - [Input Checking](#self-check-input)

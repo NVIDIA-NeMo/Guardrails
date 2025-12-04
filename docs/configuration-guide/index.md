@@ -1,15 +1,15 @@
 # Configuration Overview
 
-A guardrails configuration includes the following components:
+Before using the NeMo Guardrails toolkit, you need to prepare configuration files that define your guardrails behavior. This section provides a complete instructions on preparing your configuration files and executable scripts.
+
+A guardrails configuration includes the following components. You can start with a basic configuration and add more components as needed.
 
 | Component                    | Required/Optional | Description                                                                                                                                                                      | Location        |
 |------------------------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------|
 | **Core Configuration**       | Required          | A `config.yml` file that contains the core configuration options such as which LLM(s) to use, general instructions (similar to system prompts), sample conversation, which rails are active, and specific rails configuration options. | `config.yml`           |
 | **Colang Rails**             | Optional          | A collection of Colang files implementing the rails.                                                                                                                             | `rails` folder         |
 | **Knowledge Base Documents** | Optional          | Documents that can be used in a RAG (Retrieval-Augmented Generation) scenario using the built-in Knowledge Base support.                                                         | `kb` folder            |
-| **Initialization Code**      | Optional          | Custom Python code performing additional initialization, e.g. registering a new type of LLM.                                                                                     | Usually `actions.py`    |
-
-These files are typically included in a `config` folder, which is referenced when initializing a `RailsConfig` instance or when starting the CLI Chat or Server.
+| **Initialization Code**      | Optional          | Custom Python code performing additional initialization, e.g. registering a new type of LLM.                                                                                     | `actions.py` or `actions` folder    |
 
 ## Example Configuration Folder Structures
 
@@ -17,7 +17,7 @@ The following are example configuration folder structures.
 
 - Basic configuration
 
-    ```
+    ```text
     .
     ├── config
     │   └── config.yml
@@ -25,7 +25,7 @@ The following are example configuration folder structures.
 
 - Configuration with Colang Rails and a custom initialization code file `actions.py`
 
-    ```
+    ```text
     .
     ├── config
     │   ├── config.yml
@@ -38,7 +38,7 @@ The following are example configuration folder structures.
 
 - A complete configuration with all components: core configuration, Colang Rails, a collection of custom initialization code files in an `actions` sub-package, and a knowledge base folder
 
-    ```
+    ```text
     .
     ├── config
     │   ├── config.yml

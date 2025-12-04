@@ -229,5 +229,5 @@ rails:
 :hidden:
 :maxdepth: 2
 
-guardrails-library
+built-in-guardrails
 ```

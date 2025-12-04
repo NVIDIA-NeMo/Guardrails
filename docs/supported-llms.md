@@ -31,7 +31,7 @@ The toolkit supports NVIDIA NIM microservices for local deployment and NVIDIA AP
 
 ### Providers from LangChain Community
 
-The toolkit supports any LLM providers from the LangChain Community. This includes 50+ additional providers.
+The toolkit supports any LLM providers from the LangChain Community. Refer to [All integration providers](https://docs.langchain.com/oss/python/integrations/providers/all_providers) in the LangChain documentation.
 
 ## Embedding Providers
 
