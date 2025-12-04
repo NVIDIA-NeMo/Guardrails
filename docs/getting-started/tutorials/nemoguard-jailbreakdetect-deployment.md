@@ -1,3 +1,8 @@
+---
+title: NemoGuard Jailbreak Detection Deployment
+description: Deploy the NemoGuard Jailbreak Detection NIM microservice to protect your LLM applications from adversarial jailbreak attempts.
+---
+
 # NemoGuard JailbreakDetect Deployment
 
 The NemoGuard Jailbreak Detect model is available via the [Jailbreak Detection Container](jailbreak-detection-deployment.md) or as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard).

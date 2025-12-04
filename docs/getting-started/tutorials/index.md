@@ -6,31 +6,31 @@ This section contains tutorials that help you get started with NeMo Guardrails T
 :gutter: 3
 
 :::{grid-item-card} Nemotron Safety Guard Deployment
-:link: ../../user-guides/advanced/nemotron-safety-guard-deployment
+:link: nemotron-safety-guard-deployment
 :link-type: doc
 
-Documentation for Nemotron Safety Guard Deployment.
+Deploy a GPU-accelerated multilingual content safety model using Llama 3.1 Nemotron Safety Guard 8B V3 to detect harmful content in multiple languages.
 :::
 
 :::{grid-item-card} Llama 3.1 NemoGuard 8B Topic Control Deployment
-:link: ../../user-guides/advanced/nemoguard-topiccontrol-deployment
+:link: nemoguard-topiccontrol-deployment
 :link-type: doc
 
-The TopicControl model is available to download as a LoRA adapter module through Hugging Face or as an [NVIDIA TopicControl NIM...
+Deploy the TopicControl NIM microservice for low-latency optimized inference and integrate it into your NeMo Guardrails configuration.
 :::
 
 :::{grid-item-card} NemoGuard JailbreakDetect Deployment
-:link: ../../user-guides/advanced/nemoguard-jailbreakdetect-deployment
+:link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
-The NemoGuard Jailbreak Detect model is available via the [Jailbreak Detection Container](jailbreak-detection-deployment.md) or as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard).
+Deploy the NemoGuard Jailbreak Detection NIM microservice to protect your LLM applications from adversarial jailbreak attempts.
 :::
 
 :::{grid-item-card} Multimodal Data with NeMo Guardrails
-:link: ../../user-guides/multimodal
+:link: multimodal
 :link-type: doc
 
-Documentation for Multimodal Data with NeMo Guardrails.
+Add safety checks to multimodal content including images and text using image reasoning models as LLM-as-a-judge.
 :::
 
 ::::

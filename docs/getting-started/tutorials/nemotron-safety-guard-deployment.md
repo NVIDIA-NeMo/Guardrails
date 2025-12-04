@@ -1,3 +1,8 @@
+---
+title: Nemotron Safety Guard Deployment
+description: Deploy a GPU-accelerated multilingual content safety model using Llama 3.1 Nemotron Safety Guard 8B V3 to detect harmful content in multiple languages.
+---
+
 <!--
   SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0

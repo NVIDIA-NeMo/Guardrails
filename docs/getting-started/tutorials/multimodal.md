@@ -1,7 +1,13 @@
+---
+title: Multimodal Data with NeMo Guardrails
+description: Add safety checks to multimodal content including images and text using image reasoning models as LLM-as-a-judge.
+---
+
 <!--
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+
 # Multimodal Data with NeMo Guardrails
 
 ## About Working with Multimodal Data

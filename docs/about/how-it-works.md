@@ -26,6 +26,6 @@ Explore the event-driven architecture, canonical forms, LLM interaction patterns
 ```{toctree}
 :hidden:
 
-user-guides/guardrails-process
+guardrails-process
 architecture/README
 ```
