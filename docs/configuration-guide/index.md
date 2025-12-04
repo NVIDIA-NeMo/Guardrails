@@ -7,9 +7,9 @@ A guardrails configuration includes the following components. You can start with
 | Component                    | Required/Optional | Description                                                                                                                                                                      | Location        |
 |------------------------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------|
 | **Core Configuration**       | Required          | A `config.yml` file that contains the core configuration options such as which LLM(s) to use, general instructions (similar to system prompts), sample conversation, which rails are active, and specific rails configuration options. | `config.yml`           |
-| **Colang Rails**             | Optional          | A collection of Colang files implementing the rails.                                                                                                                             | `rails` folder         |
+| **Colang Flows (Rails)**             | Optional          | A collection of Colang files implementing the rails.                                                                                                                             | `rails` folder         |
+| **Initialization Code (Actions)**      | Optional          | Custom Python code performing additional initialization, e.g. registering a new type of LLM.                                                                                     | `actions.py` or `actions` folder    |
 | **Knowledge Base Documents** | Optional          | Documents that can be used in a RAG (Retrieval-Augmented Generation) scenario using the built-in Knowledge Base support.                                                         | `kb` folder            |
-| **Initialization Code**      | Optional          | Custom Python code performing additional initialization, e.g. registering a new type of LLM.                                                                                     | `actions.py` or `actions` folder    |
 
 ## Example Configuration Folder Structures
 
