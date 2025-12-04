@@ -2,14 +2,14 @@
 
 Before using the NeMo Guardrails toolkit, you need to prepare configuration files that define your guardrails behavior. This section provides a complete instructions on preparing your configuration files and executable scripts.
 
-A guardrails configuration includes the following components. You can start with a basic configuration and add more components as needed.
+A guardrails configuration includes the following components. You can start with a basic configuration and add more components as needed. All the components should be placed in the `config` folder, and the locations in the table are relative to the `config` folder.
 
 | Component                    | Required/Optional | Description                                                                                                                                                                      | Location        |
 |------------------------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------|
 | **Core Configuration**       | Required          | A `config.yml` file that contains the core configuration options such as which LLM(s) to use, general instructions (similar to system prompts), sample conversation, which rails are active, and specific rails configuration options. | `config.yml`           |
-| **Colang Flows (Rails)**             | Optional          | A collection of Colang files implementing the rails.                                                                                                                             | `rails` folder         |
-| **Initialization Code (Actions)**      | Optional          | Custom Python code performing additional initialization, e.g. registering a new type of LLM.                                                                                     | `actions.py` or `actions` folder    |
-| **Knowledge Base Documents** | Optional          | Documents that can be used in a RAG (Retrieval-Augmented Generation) scenario using the built-in Knowledge Base support.                                                         | `kb` folder            |
+| **Colang Flows**             | Optional          | A collection of Colang files (`.co` files) implementing the rails.                                                                                                                             | `rails` folder         |
+| **Initialization Code (Actions)**      | Optional          | Custom Python code (`.py` files) performing additional initialization, e.g. registering a new type of LLM.                                                                                     | `actions.py` or `actions` folder    |
+| **Knowledge Base Documents** | Optional          | Documents (`.md` files) that can be used in a RAG (Retrieval-Augmented Generation) scenario using the built-in Knowledge Base support.                                                         | `kb` folder            |
 
 ## Example Configuration Folder Structures
 

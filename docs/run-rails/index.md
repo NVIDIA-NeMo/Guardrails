@@ -13,6 +13,8 @@ Upon initializing the core classes (`RailsConfig` and `LLMRails`) or starting th
 
 ## Quick Start
 
+The following example shows the minimal code to load the prepared configuration files in the `config` directory and generate a response using the `LLMRails` class.
+
 ```python
 from nemoguardrails import LLMRails, RailsConfig
 

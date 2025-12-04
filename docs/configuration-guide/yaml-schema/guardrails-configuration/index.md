@@ -9,6 +9,8 @@ Rails are organized into five categories based on when they trigger during the g
 
 ## Rail Categories
 
+The following table summarizes the different rail categories and their trigger points.
+
 | Category | Trigger Point | Purpose |
 |----------|---------------|---------|
 | **Input rails** | When user input is received | Validate, filter, or modify user input |
@@ -16,6 +18,14 @@ Rails are organized into five categories based on when they trigger during the g
 | **Dialog rails** | After canonical form is computed | Control conversation flow |
 | **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
 | **Execution rails** | Before/after action execution | Control tool and action calls |
+
+The following diagram shows the guardrails process described in the table above in detail.
+
+```{image} ../../../_static/images/programmable_guardrails_flow.png
+:alt: "Diagram showing the programmable guardrails flow"
+:width: 800px
+:align: center
+```
 
 ## Basic Configuration
 
@@ -38,20 +48,6 @@ rails:
       - check retrieval sensitive data
 ```
 
-## Sections
-
-::::{grid} 1 1 2 2
-:gutter: 3
-
-:::{grid-item-card} Guardrails Library
-:link: guardrails-library
-:link-type: doc
-
-NeMo Guardrails comes with a library of built-in guardrails that you can easily use:
-:::
-
-::::
-
 ## Input Rails
 
 Input rails process user messages before they reach the LLM:
@@ -65,9 +61,9 @@ rails:
       - mask sensitive data on input  # PII masking
 ```
 
-### Available Input Rails
+### Available Flows for Input Rails
 
-| Rail | Description |
+| Flow | Description |
 |------|-------------|
 | `self check input` | LLM-based policy compliance check |
 | `check jailbreak` | Detect jailbreak attempts |
@@ -90,9 +86,9 @@ rails:
       - mask sensitive data on output  # PII masking
 ```
 
-### Available Output Rails
+### Available Flows for Output Rails
 
-| Rail | Description |
+| Flow | Description |
 |------|-------------|
 | `self check output` | LLM-based policy compliance check |
 | `self check facts` | Verify factual accuracy |
