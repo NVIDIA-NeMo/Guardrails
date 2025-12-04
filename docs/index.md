@@ -12,10 +12,11 @@ TBD
 :name: About NeMo Guardrails Toolkit
 :hidden:
 
-Overview <overview.md>
-How It Works <how-it-works.md>
-Supported LLMs <supported-llms.md>
-Release Notes <release-notes.md>
+Overview <about/overview.md>
+How It Works <about/how-it-works.md>
+Use Cases <about/use-cases.md>
+Supported LLMs <about/supported-llms.md>
+Release Notes <about/release-notes.md>
 ```
 
 ```{toctree}

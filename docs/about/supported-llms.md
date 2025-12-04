@@ -1,6 +1,6 @@
 # Supported LLMs
 
-The NeMo Guardrails toolkit supports a wide range of LLM providers and theirmodels.
+The NeMo Guardrails toolkit supports a wide range of LLM providers and their models.
 
 ## LLM Providers
 
@@ -16,6 +16,8 @@ The toolkit supports NVIDIA NIM microservices for local deployment and NVIDIA AP
 
 ### External LLM Providers
 
+The toolkit supports the following external LLM providers.
+
 - OpenAI
 - Azure OpenAI
 - Anthropic
@@ -23,6 +25,8 @@ The toolkit supports NVIDIA NIM microservices for local deployment and NVIDIA AP
 - Google Vertex AI
 
 ### Self-Hosted
+
+The toolkit supports the following self-hosted LLM providers.
 
 - HuggingFace Hub
 - HuggingFace Endpoints

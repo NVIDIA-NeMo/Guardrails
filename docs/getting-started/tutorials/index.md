@@ -39,8 +39,8 @@ Documentation for Multimodal Data with NeMo Guardrails.
 :hidden:
 :maxdepth: 2
 
-../../user-guides/advanced/nemotron-safety-guard-deployment
-../../user-guides/advanced/nemoguard-topiccontrol-deployment
-../../user-guides/advanced/nemoguard-jailbreakdetect-deployment
-../../user-guides/multimodal
+Content Safety <nemotron-safety-guard-deployment>
+Topic Control <nemoguard-topiccontrol-deployment>
+Jailbreak Detection <nemoguard-jailbreakdetect-deployment>
+Multimodal Data <multimodal>
 ```
