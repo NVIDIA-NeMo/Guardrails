@@ -18,14 +18,14 @@ The NeMo Guardrails toolkit enables you to create a guardrails local server and 
 :link: guardrails-server
 :link-type: doc
 
-Configure and run the main guardrails server with FastAPI, including endpoints, CORS, threads, and Chat UI.
+The Guardrails server loads a predefined set of guardrails configurations at startup and exposes an HTTP API to use them. The server uses [FastAPI](https://fastapi.tiangolo.com/), and the...
 :::
 
 :::{grid-item-card} Actions Server
 :link: actions-server
 :link-type: doc
 
-Deploy a separate server to run custom actions securely, with endpoints for listing and executing actions.
+The Actions Server enables you to run the actions invoked from the guardrails more securely (see [Security Guidelines](../../security/guidelines.md) for more details). The action server should be...
 :::
 
 ::::

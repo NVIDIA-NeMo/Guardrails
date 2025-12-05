@@ -9,21 +9,21 @@ You can deploy the NeMo Guardrails toolkit in the following ways.
 :link: local-server/index
 :link-type: doc
 
-Deploy guardrails locally using the Guardrails Server and Actions Server with FastAPI.
+The NeMo Guardrails toolkit enables you to create a guardrails local server and deploy it using a **guardrails server** and an **actions server**.
 :::
 
-:::{grid-item-card} Docker Deployment
+:::{grid-item-card} NeMo Guardrails with Docker
 :link: using-docker
 :link-type: doc
 
-Deploy guardrails using Docker containers for isolated and reproducible environments.
+Documentation for NeMo Guardrails with Docker.
 :::
 
-:::{grid-item-card} NeMo Guardrails Microservice
+:::{grid-item-card} Using NeMo Guardrails Microservice for Production Deployment
 :link: using-microservice
 :link-type: doc
 
-Deploy guardrails as a managed microservice for production environments.
+You can also deploy the Guardrails server as a microservice. For more information, refer to the [NeMo Microservices Documentation](https://docs.nvidia.com/nemo/microservices/latest/about/index.html).
 :::
 
 ::::

@@ -6452,4 +6452,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "9a2f5777aca031e9ae72fdcf94cbada4641c0631b250faf0b63035fd802c3e31"
+content-hash = "135466d77afee2ef6330c17eee816b3b494928355f04539658d969c129873ea3"

@@ -5,7 +5,61 @@
 
 # NVIDIA NeMo Guardrails Toolkit Developer Guide
 
-TBD
+## Introduction
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} About NeMo Guardrails Toolkit
+:link: about/index
+:link-type: doc
+
+This section covers the basics of the NeMo Guardrails toolkit.
+:::
+
+:::{grid-item-card} Get Started
+:link: getting-started/index
+:link-type: doc
+
+Get started with the NeMo Guardrails toolkit.
+:::
+
+::::
+
+## Using the NeMo Guardrails Toolkit
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} Configuration Overview
+:link: configure-rails/index
+:link-type: doc
+
+Prepare configuration files including config.yml, Colang flows, actions.py, config.py, and knowledge base documents.
+:::
+
+:::{grid-item-card} Run Rails
+:link: run-rails/index
+:link-type: doc
+
+This section covers how to use the NeMo Guardrails toolkit programmatically through the Python API. Learn about the core classes, generation methods, and advanced features for integrating...
+:::
+
+:::{grid-item-card} Deployment Options
+:link: deployment/index
+:link-type: doc
+
+You can deploy the NeMo Guardrails toolkit in the following ways.
+:::
+
+:::{grid-item-card} Evaluation
+:link: evaluation/index
+:link-type: doc
+
+README llm-vulnerability-scanning
+:::
+
+::::
 
 ```{toctree}
 :caption: About NeMo Guardrails Toolkit
@@ -33,11 +87,13 @@ getting-started/tutorials/index
 :name: Configure Rails
 :hidden:
 
-Configuration Overview <configuration-guide/index.md>
-Core Configuration <configuration-guide/yaml-schema/index.md>
-Actions <configuration-guide/actions/index.md>
-Colang <configuration-guide/colang/index.md>
-Other Configurations <configuration-guide/other-configurations/index.md>
+Before Configuring Rails <configure-rails/before-configuration.md>
+Configuration Overview <configure-rails/index.md>
+Core Configuration <configure-rails/yaml-schema/index.md>
+Custom Actions <configure-rails/actions/index.md>
+Custom Initialization <configure-rails/custom-initialization/index.md>
+Colang <configure-rails/colang/index.md>
+Other Configurations <configure-rails/other-configurations/index.md>
 ```
 
 ```{toctree}
@@ -104,8 +160,8 @@ security/guidelines
 :name: Reference
 :hidden:
 
-user-guides/python-api
-user-guides/cli
+python-api/index
+cli/index
 glossary
 faqs
 ```

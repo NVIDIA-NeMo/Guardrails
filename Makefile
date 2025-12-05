@@ -28,13 +28,13 @@ docs-serve:
 	cd docs && poetry run sphinx-autobuild . _build/html --port 8000 --open-browser
 
 docs-update-cards:
-	cd docs && python scripts/update_cards/update_cards.py
+	cd docs && poetry run python scripts/update_cards/update_cards.py
 
 docs-check-cards:
-	cd docs && python scripts/update_cards/update_cards.py --dry-run
+	cd docs && poetry run python scripts/update_cards/update_cards.py --dry-run
 
 docs-watch-cards:
-	cd docs && python scripts/update_cards/update_cards.py watch
+	cd docs && poetry run python scripts/update_cards/update_cards.py watch
 
 pre_commit:
 	pre-commit install

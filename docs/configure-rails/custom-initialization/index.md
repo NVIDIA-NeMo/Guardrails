@@ -1,0 +1,69 @@
+---
+title: Custom Initialization
+description: Use config.py to register custom LLM providers, embedding providers, and shared resources at startup.
+---
+
+# Custom Initialization
+
+The `config.py` file contains initialization code that runs **once at startup**, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
+
+## When to Use config.py vs actions.py
+
+| Use Case | File | Reason |
+|----------|------|--------|
+| Register custom LLM provider | `config.py` | Must happen before LLMRails initialization |
+| Register custom embedding provider | `config.py` | Must happen before LLMRails initialization |
+| Initialize database connection | `config.py` | Shared resource, initialized once |
+| Validate user input | `actions.py` | Called during request processing |
+| Call external API | `actions.py` | Called during request processing |
+| Custom guardrail logic | `actions.py` | Called from Colang flows |
+
+## Configuration Sections
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} The init() Function
+:link: init-function
+:link-type: doc
+
+Define the init() function to initialize resources and register action parameters.
+:::
+
+:::{grid-item-card} Custom LLM Providers
+:link: custom-llm-providers
+:link-type: doc
+
+Register custom text completion (BaseLLM) and chat models (BaseChatModel).
+:::
+
+:::{grid-item-card} Custom Embedding Providers
+:link: custom-embedding-providers
+:link-type: doc
+
+Register custom embedding providers for vector similarity search.
+:::
+
+:::{grid-item-card} Custom Configuration Data
+:link: custom-data
+:link-type: doc
+
+Pass and access custom data from config.yml in your initialization code.
+:::
+
+::::
+
+## Related Topics
+
+- [Custom Actions](../actions/index.md) - Define callable actions in `actions.py`
+- [Model Configuration](../yaml-schema/model-configuration.md) - Configure LLM models in `config.yml`
+
+```{toctree}
+:hidden:
+:maxdepth: 2
+
+init-function
+custom-llm-providers
+custom-embedding-providers
+custom-data
+```

@@ -182,6 +182,7 @@ sphinx-copybutton = "<=0.6"
 sphinx-design = "*"
 sphinx-autobuild = "*"
 nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
+watchdog = "^6.0.0"
 
 
 [tool.pytest.ini_options]

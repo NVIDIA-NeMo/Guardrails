@@ -437,6 +437,10 @@ class CardUpdateHandler(FileSystemEventHandler):
         affected = []
         changed_dir = changed_file.parent
 
+        # If the changed file itself is an index file with cards, include it
+        if changed_file in self._index_files:
+            affected.append(changed_file)
+
         for index_file in self._index_files:
             # Check if the changed file is in the same directory or a subdirectory
             try:
@@ -490,10 +494,16 @@ class CardUpdateHandler(FileSystemEventHandler):
 
         if not affected_indexes:
             if self.verbose:
-                print("  No affected index files found.")
+                print("   No affected index files found.")
             return
 
+        if self.verbose:
+            print(f"   Found {len(affected_indexes)} affected index file(s)")
+
         for index_file in affected_indexes:
+            if self.verbose:
+                print(f"   Checking: {index_file}")
+
             _updates, changes = update_index_file(
                 index_file,
                 dry_run=False,
@@ -503,7 +513,9 @@ class CardUpdateHandler(FileSystemEventHandler):
             if changes:
                 print(f"✅ Updated {index_file}:")
                 for change in changes:
-                    print(change)
+                    print(f"   {change}")
+            elif self.verbose:
+                print(f"   No card updates needed for {index_file.name}")
 
 
 def run_watch_mode(docs_dir: Path, verbose: bool = False):
@@ -756,8 +768,10 @@ def main():
     parser.add_argument(
         "--docs-dir",
         type=Path,
-        default=Path(__file__).parent.parent,
-        help="Documentation root directory (default: ../)",
+        default=Path(
+            __file__
+        ).parent.parent.parent,  # scripts/update_cards/ → scripts/ → docs/
+        help="Documentation root directory (default: docs/)",
     )
     parser.add_argument(
         "--verbose",
