@@ -7,6 +7,13 @@ Read the following pages to learn more about how the toolkit works and how you c
 ::::{grid} 1 1 2 2
 :gutter: 3
 
+:::{grid-item-card} How Guardrails Work
+:link: how-rails-work
+:link-type: doc
+
+Learn how the NeMo Guardrails toolkit applies guardrails at multiple stages of the LLM interaction.
+:::
+
 :::{grid-item-card} Guardrails Process
 :link: user-guides/guardrails-process
 :link-type: doc
@@ -26,6 +33,7 @@ Explore the event-driven architecture, canonical forms, LLM interaction patterns
 ```{toctree}
 :hidden:
 
-guardrails-process
-architecture/README
+Rails Overview  <how-rails-work.md>
+Rails Sequence Diagrams <guardrails-process.md>
+Detailed Architecture <../architecture/README.md>
 ```

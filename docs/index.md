@@ -67,7 +67,7 @@ README llm-vulnerability-scanning
 :hidden:
 
 Overview <about/overview.md>
-How It Works <about/how-it-works.md>
+How It Works <about/how-it-works/index.md>
 Use Cases <about/use-cases.md>
 Supported LLMs <about/supported-llms.md>
 Release Notes <about/release-notes.md>

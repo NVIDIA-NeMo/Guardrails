@@ -23,32 +23,32 @@ The `config.py` file contains initialization code that runs **once at startup**,
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} The init() Function
+:::{grid-item-card} The Init Function
 :link: init-function
 :link-type: doc
 
-Define the init() function to initialize resources and register action parameters.
+Define the init() function to initialize resources and register action parameters at startup.
 :::
 
 :::{grid-item-card} Custom LLM Providers
 :link: custom-llm-providers
 :link-type: doc
 
-Register custom text completion (BaseLLM) and chat models (BaseChatModel).
+Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.
 :::
 
 :::{grid-item-card} Custom Embedding Providers
 :link: custom-embedding-providers
 :link-type: doc
 
-Register custom embedding providers for vector similarity search.
+Register custom embedding providers for vector similarity search in NeMo Guardrails.
 :::
 
 :::{grid-item-card} Custom Configuration Data
 :link: custom-data
 :link-type: doc
 
-Pass and access custom data from config.yml in your initialization code.
+Pass and access custom data from config.yml in your initialization code and actions.
 :::
 
 ::::

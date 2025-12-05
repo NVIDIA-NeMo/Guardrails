@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide walks you through the following steps to install the NeMo Guardrails toolkit:
+This guide walks you through the following steps to install the NeMo Guardrails toolkit.
 
 1. Check the requirements.
 2. Set up a fresh virtual environment.

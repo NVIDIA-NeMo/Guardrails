@@ -13,6 +13,7 @@ The following table shows which rail types apply to each use case:
 | **Jailbreak Protection** | ✅ | | | | |
 | **Topic Control** | ✅ | ✅ | | | |
 | **PII Detection** | ✅ | | ✅ | | ✅ |
+| **Knowledge Base / RAG** | | | ✅ | | ✅ |
 | **Agentic Security** | | | | ✅ | |
 | **Custom Rails** | ✅ | ✅ | ✅ | ✅ | ✅ |
 

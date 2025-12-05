@@ -1,10 +1,10 @@
-# Guardrails Process
+# Guardrails Sequence Diagrams
 
 This guide provides an overview of the process of invoking guardrails.
 
 The following diagram depicts the guardrails process in detail:
 
-```{image} ../_static/puml/master_rails_flow.png
+```{image} ../../_static/puml/master_rails_flow.png
 :alt: "Sequence diagram showing the complete guardrails process in NeMo Guardrails: 1) Input Validation stage where user messages are processed by input rails that can use actions and LLM to validate or alter input, 2) Dialog stage where messages are processed by dialog rails that can interact with a knowledge base, use retrieval rails to filter retrieved information, and use execution rails to perform custom actions, 3) Output Validation stage where bot responses are processed by output rails that can use actions and LLM to validate or alter output. The diagram shows all optional components and their interactions, including knowledge base queries, custom actions, and LLM calls at various stages."
 :width: 720px
 :align: center
@@ -20,7 +20,7 @@ The guardrails process has multiple stages that a user message goes through:
 
 The diagram below depicts the dialog rails flow in detail:
 
-```{image} ../_static/puml/dialog_rails_flow.png
+```{image} ../../_static/puml/dialog_rails_flow.png
 :alt: "Sequence diagram showing the detailed dialog rails flow in NeMo Guardrails: 1) User Intent Generation stage where the system first searches for similar canonical form examples in a vector database, then either uses the closest match if embeddings_only is enabled, or asks the LLM to generate the user's intent. 2) Next Step Prediction stage where the system either uses a matching flow if one exists, or searches for similar flow examples and asks the LLM to generate the next step. 3) Bot Message Generation stage where the system either uses a predefined message if one exists, or searches for similar bot message examples and asks the LLM to generate an appropriate response. The diagram shows all the interactions between the application code, LLM Rails system, vector database, and LLM, with clear branching paths based on configuration options and available predefined content."
 :width: 500px
 :align: center
@@ -38,7 +38,7 @@ The dialog rails flow has multiple stages that a user message goes through:
 
 When the `single_llm_call.enabled` is set to `True`, the dialog rails flow will be simplified to a single LLM call that predicts all the steps at once. The diagram below depicts the simplified dialog rails flow:
 
-```{image} ../_static/puml/single_llm_call_flow.png
+```{image} ../../_static/puml/single_llm_call_flow.png
 :alt: "Sequence diagram showing the simplified dialog rails flow in NeMo Guardrails when single LLM call is enabled: 1) The system first searches for similar examples in the vector database for canonical forms, flows, and bot messages. 2) A single LLM call is made using the generate_intent_steps_message task prompt to predict the user's canonical form, next step, and bot message all at once. 3) The system then either uses the next step from a matching flow if one exists, or uses the LLM-generated next step. 4) Finally, the system either uses a predefined bot message if available, uses the LLM-generated message if the next step came from the LLM, or makes one additional LLM call to generate the bot message. This simplified flow reduces the number of LLM calls needed to process a user message."
 :width: 600px
 :align: center
