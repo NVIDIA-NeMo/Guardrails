@@ -49,14 +49,14 @@ The following guides provide detailed documentation for each streaming configura
 :link: global-streaming
 :link-type: doc
 
-Enable streaming mode for LLM token generation, token usage tracking, and the stream_async() API.
+Enable streaming mode for LLM token generation in config.yml.
 :::
 
 :::{grid-item-card} Output Rail Streaming
 :link: output-rail-streaming
 :link-type: doc
 
-Configure chunked processing for output rails including chunk size, context overlap, and stream-first behavior.
+Configure how output rails process streamed tokens in chunked mode.
 :::
 
 ::::

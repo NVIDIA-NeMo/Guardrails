@@ -145,7 +145,7 @@ Blueprint with NemoGuard NIMs <integration/safeguarding-ai-virtual-assistant-blu
 
 LangChain <integration/langchain/index.md>
 Vertex AI <integration/vertexai.md>
-Vertex AI Setup <user-guides/advanced/vertexai-setup.md>
+Vertex AI Setup <integration/vertexai-setup.md>
 AlignScore <integration/align-score-deployment>
 Llama Guard <integration/llama-guard-deployment>
 Tools Integration <integration/tools-integration.md>

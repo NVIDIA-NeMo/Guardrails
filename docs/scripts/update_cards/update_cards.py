@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Automatically update grid cards in index files based on linked page content.
 
@@ -146,11 +162,7 @@ def extract_page_info(file_path: Path) -> PageInfo | None:
         # RST H1: Title followed by === underline
         if i + 1 < len(lines):
             next_line = lines[i + 1].strip()
-            if (
-                next_line
-                and all(c == "=" for c in next_line)
-                and len(next_line) >= len(stripped)
-            ):
+            if next_line and all(c == "=" for c in next_line) and len(next_line) >= len(stripped):
                 title = stripped
                 start_idx = i + 2
                 break
@@ -209,11 +221,7 @@ def extract_page_info(file_path: Path) -> PageInfo | None:
             # Collect paragraph lines
             if stripped:
                 # Skip if it looks like a table or list
-                if (
-                    stripped.startswith("|")
-                    or stripped.startswith("-")
-                    or stripped.startswith("*")
-                ):
+                if stripped.startswith("|") or stripped.startswith("-") or stripped.startswith("*"):
                     if not description_lines:
                         continue
                     break
@@ -373,9 +381,7 @@ def update_index_file(
         new_card_text = generate_card_text(card, page_info)
 
         if card.original_text.strip() != new_card_text.strip():
-            changes.append(
-                f"  - '{card.title}' → '{page_info.title}' (from {resolved_path.name})"
-            )
+            changes.append(f"  - '{card.title}' → '{page_info.title}' (from {resolved_path.name})")
 
             # Replace the card in content
             new_lines = new_card_text.split("\n")
@@ -409,9 +415,7 @@ def find_index_files(docs_dir: Path) -> list[Path]:
 class CardUpdateHandler(FileSystemEventHandler):
     """File system event handler for auto-updating cards."""
 
-    def __init__(
-        self, docs_dir: Path, verbose: bool = False, debounce_seconds: float = 1.0
-    ):
+    def __init__(self, docs_dir: Path, verbose: bool = False, debounce_seconds: float = 1.0):
         self.docs_dir = docs_dir
         self.verbose = verbose
         self.debounce_seconds = debounce_seconds
@@ -534,9 +538,7 @@ def run_watch_mode(docs_dir: Path, verbose: bool = False):
     print(f"Found {len(index_files)} index file(s) with grid cards.")
 
     for index_file in index_files:
-        _updates, changes = update_index_file(
-            index_file, dry_run=False, verbose=verbose
-        )
+        _updates, changes = update_index_file(index_file, dry_run=False, verbose=verbose)
         if changes:
             print(f"Updated {index_file}:")
             for change in changes:
@@ -565,9 +567,7 @@ def run_watch_mode(docs_dir: Path, verbose: bool = False):
 # =============================================================================
 
 
-def find_documentable_files(
-    directory: Path, exclude_patterns: list[str] | None = None
-) -> list[Path]:
+def find_documentable_files(directory: Path, exclude_patterns: list[str] | None = None) -> list[Path]:
     """Find markdown/rst files in a directory that could have cards generated."""
     exclude_patterns = exclude_patterns or ["index.md", "index.rst", "README.md"]
     files = []
@@ -683,9 +683,7 @@ def run_generate_cards(
 
     output_file = output_file or (directory / "index.md")
 
-    print(
-        f"{'[DRY RUN] ' if dry_run else ''}Generated {card_count} card(s) for {directory}\n"
-    )
+    print(f"{'[DRY RUN] ' if dry_run else ''}Generated {card_count} card(s) for {directory}\n")
 
     if verbose or dry_run:
         print("Generated markup:")
@@ -706,9 +704,7 @@ def run_generate_cards(
             if newline_pos == -1:
                 newline_pos = len(content)
 
-            new_content = (
-                content[:newline_pos] + "\n\n" + markup + "\n" + content[newline_pos:]
-            )
+            new_content = content[:newline_pos] + "\n\n" + markup + "\n" + content[newline_pos:]
 
             if not dry_run:
                 output_file.write_text(new_content, encoding="utf-8")
@@ -717,9 +713,7 @@ def run_generate_cards(
                 print(f"Would insert cards into {output_file}")
         else:
             print(f"⚠️  Pattern '{insert_after}' not found in {output_file}")
-            print(
-                "   Cards were not inserted. Use --verbose to see the generated markup."
-            )
+            print("   Cards were not inserted. Use --verbose to see the generated markup.")
             return 1
     elif output_file.exists():
         # Check if file already has grid cards
@@ -739,7 +733,7 @@ def run_generate_cards(
             print(f"Would append cards to {output_file}")
     else:
         # Create new file with basic structure
-        new_content = f"""# {directory.name.replace('-', ' ').title()}
+        new_content = f"""# {directory.name.replace("-", " ").title()}
 
 {markup}
 """
@@ -768,9 +762,7 @@ def main():
     parser.add_argument(
         "--docs-dir",
         type=Path,
-        default=Path(
-            __file__
-        ).parent.parent.parent,  # scripts/update_cards/ → scripts/ → docs/
+        default=Path(__file__).parent.parent.parent,  # scripts/update_cards/ → scripts/ → docs/
         help="Documentation root directory (default: docs/)",
     )
     parser.add_argument(
@@ -853,11 +845,7 @@ def main():
         # Check if there are positional arguments that look like files
         remaining = sys.argv[1:]
         # Filter out known flags
-        files = [
-            arg
-            for arg in remaining
-            if not arg.startswith("-") and not arg.startswith("--")
-        ]
+        files = [arg for arg in remaining if not arg.startswith("-") and not arg.startswith("--")]
         args.command = "update"
         args.files = files if files else []
         args.dry_run = "--dry-run" in remaining or "-n" in remaining
@@ -896,9 +884,7 @@ def run_update_command(args) -> int:
     dry_run = getattr(args, "dry_run", False)
     verbose = getattr(args, "verbose", False)
 
-    print(
-        f"{'[DRY RUN] ' if dry_run else ''}Checking {len(index_files)} index file(s)...\n"
-    )
+    print(f"{'[DRY RUN] ' if dry_run else ''}Checking {len(index_files)} index file(s)...\n")
 
     for index_file in index_files:
         if verbose:
