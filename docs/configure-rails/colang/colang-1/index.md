@@ -12,4 +12,5 @@ Colang 1.0 is the original Colang syntax for defining user messages, bot message
 
 colang-language-syntax-guide
 tutorials/index
+bot-thinking-guardrails
 ```

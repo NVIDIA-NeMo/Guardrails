@@ -31,5 +31,6 @@ Raise and handle exceptions in guardrails flows to control error behavior and cu
 :maxdepth: 2
 
 knowledge-base
+embedding-search-providers
 exceptions
 ```

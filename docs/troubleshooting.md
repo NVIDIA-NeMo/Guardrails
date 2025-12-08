@@ -1,4 +1,8 @@
-# Nested AsyncIO Loop
+# Troubleshooting
+
+This page provides solutions to issues you may encounter while using NeMo Guardrails. If you encounter an issue that is not listed here, [open an issue](https://github.com/NVIDIA/NeMo-Guardrails/issues) on GitHub.
+
+## Nested AsyncIO Loop
 
 NeMo Guardrails is an async-first toolkit, i.e., the core functionality is implemented using async functions. To provide a blocking API, the toolkit must invoke async functions inside synchronous code using `asyncio.run`. However, the current Python implementation for `asyncio` does not allow "nested event loops". This issue is being discussed by the Python core team and, most likely, support will be added (see [GitHub Issue 66435](https://github.com/python/cpython/issues/66435) and [Pull Request 93338](https://github.com/python/cpython/pull/93338)).
 

@@ -88,6 +88,13 @@ Customize prompts for LLM tasks including self-check input/output, fact checking
 Configure tracing adapters (FileSystem, OpenTelemetry) to monitor and debug guardrails interactions.
 :::
 
+:::{grid-item-card} Streaming Configuration
+:link: streaming/index
+:link-type: doc
+
+Configure streaming for LLM token generation and output rail processing in config.yml.
+:::
+
 ::::
 
 ## File Organization
@@ -120,4 +127,5 @@ model-configuration
 guardrails-configuration/index
 prompt-configuration
 tracing-configuration
+streaming/index
 ```

@@ -231,4 +231,5 @@ rails:
 :maxdepth: 2
 
 built-in-guardrails
+Rails in Parallel <parallel-rails.md>
 ```

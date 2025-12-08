@@ -94,6 +94,7 @@ Custom Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
 Colang <configure-rails/colang/index.md>
 Other Configurations <configure-rails/other-configurations/index.md>
+Caching <configure-rails/caching/index.md>
 ```
 
 ```{toctree}
@@ -135,6 +136,7 @@ Deployment Options <deployment/index>
 Local Server Setup <deployment/local-server/index>
 Using Docker <deployment/using-docker>
 Using NeMo Guardrails Microservice <deployment/using-microservice>
+Blueprint with NemoGuard NIMs <integration/safeguarding-ai-virtual-assistant-blueprint>
 ```
 
 ```{toctree}
@@ -143,8 +145,10 @@ Using NeMo Guardrails Microservice <deployment/using-microservice>
 
 LangChain <integration/langchain/index.md>
 Vertex AI <integration/vertexai.md>
+Vertex AI Setup <user-guides/advanced/vertexai-setup.md>
 AlignScore <integration/align-score-deployment>
 Llama Guard <integration/llama-guard-deployment>
+Tools Integration <integration/tools-integration.md>
 ```
 
 ```{toctree}
@@ -160,8 +164,9 @@ security/guidelines
 :name: Reference
 :hidden:
 
+troubleshooting
+faqs
 python-api/index
 cli/index
 glossary
-faqs
 ```

@@ -3,6 +3,7 @@
 This is an FAQ document. If your question isn't answered here, feel free to open a GitHub issue or ask a question using GitHub Discussions.
 
 ## Table of Contents
+
 1. [Can I deploy NeMo Guardrails in a production?](#can-i-deploy-nemo-guardrails-in-production)
 2. [How robust are the examples provided in the repo?](#how-robust-are-the-examples-provided-in-the-repo)
 3. [What type of information can I add to the knowledge base?](#what-type-of-information-can-i-add-to-the-knowledge-base)
