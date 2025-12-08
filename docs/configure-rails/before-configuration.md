@@ -5,13 +5,12 @@ description: Prerequisites and decisions to make before configuring the NeMo Gua
 
 # Before You Begin Configuring Rails
 
-Before configuring your guardrails, ensure you have the following components ready.
+This chapter thoroughly describes how to prepare guardrails configuration files.
+This page covers the prerequisites and decisions to make before configuring the NeMo Guardrails toolkit.
 
-## Required: LLM Backend
+## LLM NIM Microservices for the Main LLM
 
-You need a main LLM hosted and accessible via API. This LLM handles:
-
-- Generating responses to user queries
+You need a main LLM hosted and accessible via API. This LLM handles the conversation by generating responses to user queries.
 
 **Options:**
 
@@ -22,14 +21,14 @@ You need a main LLM hosted and accessible via API. This LLM handles:
 | Azure OpenAI | Configure Azure endpoint and API key |
 | Other providers | Refer to [Supported LLMs](../supported-llms.md) |
 
-**What you need:**
+**Checklist of what you need:**
 
-- [ ] LLM API endpoint URL
+- [ ] LLM API endpoint URL, either locally, on NVIDIA API Catalog, or on the third-party providers
 - [ ] Authentication credentials (API key or token)
 
-## Recommended: Safety Models (NemoGuard NIMs)
+## NemoGuard NIM Microservices
 
-For production deployments, deploy dedicated safety models to offload guardrail checks from the main LLM:
+Deploy dedicated safety models to offload guardrail checks from the main LLM:
 
 | NemoGuard Model | Purpose |
 |-----------------|---------|
@@ -37,9 +36,9 @@ For production deployments, deploy dedicated safety models to offload guardrail 
 | Jailbreak Detection | Block adversarial prompt attacks |
 | Topic Control | Keep conversations on-topic |
 
-**What you need:**
+**Checklist of what you need:**
 
-- [ ] NemoGuard NIM endpoint URLs
+- [ ] NemoGuard NIM endpoint URLs, either locally or on NVIDIA API Catalog
 - [ ] KV cache enabled for better performance (recommended)
 
 :::{tip}
@@ -67,16 +66,13 @@ For advanced use cases such as implementing your own custom scripts or guardrail
 
 **Before starting configuration:**
 
-- [ ] Main LLM endpoint and credentials ready
+- [ ] (Required) Main LLM endpoint and credentials ready
 - [ ] (Recommended) NemoGuard NIM endpoints deployed
 - [ ] (Optional) Knowledge base documents prepared
 - [ ] (Optional) Custom action requirements identified
 
 ## Next Steps
 
-Once you have these components ready, proceed to:
-
-- [Configuration Overview](index.md) - Create your configuration files
-- [Core Configuration](yaml-schema/index.md) - Configure `config.yml`
+Once you have these components ready, proceed to the next section [Configuration Overview](index.md) to create guardrails configuration files.
 
 If you need tutorials to understand how to use the NeMo Guardrails toolkit, revisit the [Get Started](../getting-started/index.md) section.
