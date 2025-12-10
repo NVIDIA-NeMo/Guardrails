@@ -1,21 +1,12 @@
+---
+title: Use Cases
+description: Browse the different use cases of the NeMo Guardrails toolkit.
+---
+
 # Use Cases
 
 The NeMo Guardrails toolkit supports a wide range of use cases for protecting LLM-based applications.
 The following sections describe the primary use cases.
-
-## Use Cases and Rail Types
-
-The following table shows which rail types apply to each use case:
-
-| Use Case | Input | Dialog | Retrieval | Execution | Output |
-|----------|:-----:|:------:|:---------:|:---------:|:------:|
-| **Content Safety** | ✅ | | | | ✅ |
-| **Jailbreak Protection** | ✅ | | | | |
-| **Topic Control** | ✅ | ✅ | | | |
-| **PII Detection** | ✅ | | ✅ | | ✅ |
-| **Knowledge Base / RAG** | | | ✅ | | ✅ |
-| **Agentic Security** | | | | ✅ | |
-| **Custom Rails** | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -26,10 +17,10 @@ The NeMo Guardrails toolkit provides multiple approaches to content safety:
 
 - **LLM self-checking**: Use the LLM itself to check inputs and outputs for harmful content.
 - **NVIDIA safety models**: Integration with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety) for robust content moderation.
-- **Community models**: Support for [LlamaGuard](user-guides/community/llama-guard.md), [Fiddler Guardrails](user-guides/community/fiddler.md), and other content safety solutions.
-- **Third-party APIs**: Integration with [ActiveFence](user-guides/guardrails-library.md#activefence), [Cisco AI Defense](user-guides/community/ai-defense.md), and other moderation services.
+- **Community models**: Support for [LlamaGuard](../user-guides/community/llama-guard.md), [Fiddler Guardrails](../user-guides/community/fiddler.md), and other content safety solutions.
+- **Third-party APIs**: Integration with [ActiveFence](../user-guides/guardrails-library.md#activefence), [Cisco AI Defense](../user-guides/community/ai-defense.md), and other moderation services.
 
-For more information, refer to the [Content Safety section](user-guides/guardrails-library.md#content-safety) in the Guardrails Library and the [Getting Started guide](getting-started.md).
+For more information, refer to the [Content Safety section](../user-guides/guardrails-library.md#content-safety) in the Guardrails Library and the [Getting Started guide](../getting-started/index.md).
 
 ## Jailbreak Protection
 
@@ -38,10 +29,10 @@ The NeMo Guardrails toolkit provides multiple layers of jailbreak protection:
 
 - **Self-check jailbreak detection**: Use the LLM to identify jailbreak attempts.
 - **Heuristic detection**: Pattern-based detection of common jailbreak techniques.
-- **NVIDIA NemoGuard**: Integration with [NemoGuard Jailbreak Detection NIM](user-guides/advanced/nemoguard-jailbreakdetect-deployment.md) for advanced threat detection.
-- **Third-party integrations**: Support for [Prompt Security](user-guides/community/prompt-security.md), [Pangea AI Guard](user-guides/community/pangea.md), and other services.
+- **NVIDIA NemoGuard**: Integration with [NemoGuard Jailbreak Detection NIM](../getting-started/tutorials/nemoguard-jailbreakdetect-deployment.md) for advanced threat detection.
+- **Third-party integrations**: Support for [Prompt Security](../user-guides/community/prompt-security.md), [Pangea AI Guard](../user-guides/community/pangea.md), and other services.
 
-For more information, refer to the [Jailbreak Detection section](user-guides/guardrails-library.md#jailbreak-detection) in the Guardrails Library and [LLM Vulnerability Scanning](evaluation/llm-vulnerability-scanning.md).
+For more information, refer to the [Jailbreak Detection section](../user-guides/guardrails-library.md#jailbreak-detection) in the Guardrails Library and [LLM Vulnerability Scanning](../evaluation/llm-vulnerability-scanning.md).
 
 ## Topic Control
 
@@ -50,37 +41,23 @@ This is implemented through:
 
 - **Dialog rails**: Pre-defined conversational flows using the Colang language.
 - **Topical rails**: Control what topics the bot can and cannot discuss.
-- **NVIDIA NemoGuard**: Integration with [NemoGuard Topic Control NIM](user-guides/advanced/nemoguard-topiccontrol-deployment.md) for semantic topic detection.
+- **NVIDIA NemoGuard**: Integration with [NemoGuard Topic Control NIM](../getting-started/tutorials/nemoguard-topiccontrol-deployment.md) for semantic topic detection.
 
-For more information, refer to the [Topical Rails tutorial](getting-started/6-topical-rails/README.md) and [Colang Language Syntax Guide](user-guides/colang-language-syntax-guide.md).
+For more information, refer to the [Topical Rails tutorial](../getting-started/6-topical-rails/README.md) and [Colang Language Syntax Guide](../user-guides/colang-language-syntax-guide.md).
 
 ## PII Detection
 
 Personally Identifiable Information (PII) detection helps protect user privacy by detecting and masking sensitive data in user inputs, LLM outputs, and retrieved content.
 The NeMo Guardrails toolkit supports PII detection through multiple integrations:
 
-- **Presidio-based detection**: Built-in support using [Microsoft Presidio](user-guides/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
-- **Private AI**: Integration with [Private AI](user-guides/community/privateai.md) for advanced PII detection and masking.
-- **AutoAlign**: Support for [AutoAlign PII detection](user-guides/community/auto-align.md) with customizable entity types.
-- **GuardrailsAI**: Access to [GuardrailsAI PII validators](user-guides/community/guardrails-ai.md) from the Guardrails Hub.
+- **Presidio-based detection**: Built-in support using [Microsoft Presidio](../user-guides/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
+- **Private AI**: Integration with [Private AI](../user-guides/community/privateai.md) for advanced PII detection and masking.
+- **AutoAlign**: Support for [AutoAlign PII detection](../user-guides/community/auto-align.md) with customizable entity types.
+- **GuardrailsAI**: Access to [GuardrailsAI PII validators](../user-guides/community/guardrails-ai.md) from the Guardrails Hub.
 
-PII detection can be configured to either detect and block content containing PII or to mask PII entities before processing:
+PII detection can be configured to either detect and block content containing PII or to mask PII entities before processing.
 
-```yaml
-rails:
-  config:
-    sensitive_data_detection:
-      input:
-        entities:
-          - PERSON
-          - EMAIL_ADDRESS
-          - PHONE_NUMBER
-  input:
-    flows:
-      - mask sensitive data on input
-```
-
-For more information, refer to the [Presidio Integration](user-guides/community/presidio.md) and [Sensitive Data Detection section](user-guides/guardrails-library.md#presidio-based-sensitive-data-detection) in the Guardrails Library.
+For more information, refer to the [Presidio Integration](../user-guides/community/presidio.md) and [Sensitive Data Detection section](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#presidio-based-sensitive-data-detection) in the built-in Guardrails library.
 
 ## Agentic Security (Security Rails for Agent Systems)
 
@@ -88,8 +65,8 @@ Agentic security provides specialized guardrails for LLM-based agents that use t
 This includes:
 
 - **Tool call validation**: Execution rails that validate tool inputs and outputs before and after invocation.
-- **Agent workflow protection**: Integration with [LangGraph](user-guides/langchain/langgraph-integration.md) for multi-agent safety.
-- **Secure tool integration**: Guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](security/guidelines.md)).
+- **Agent workflow protection**: Integration with [LangGraph](../integration/langchain/langgraph-integration.md) for multi-agent safety.
+- **Secure tool integration**: Guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](../security/guidelines.md)).
 - **Action monitoring**: Detailed logging and tracing of agent actions.
 
 Key security considerations for agent systems:
@@ -99,7 +76,7 @@ Key security considerations for agent systems:
 3. Apply execution rails to tool calls.
 4. Monitor agent behavior for unexpected actions.
 
-For more information, refer to the [Tools Integration Guide](user-guides/advanced/tools-integration.md), [Security Guidelines](security/guidelines.md), and [LangGraph Integration](user-guides/langchain/langgraph-integration.md).
+For more information, refer to the [Tools Integration Guide](../integration/tools-integration.md), [Security Guidelines](../security/guidelines.md), and [LangGraph Integration](../integration/langchain/langgraph-integration.md).
 
 ## Custom Rails
 
@@ -122,7 +99,7 @@ You can create custom rails using one or more of the following approaches:
      bot offer to help
    ```
 
-   For more information, refer to the [Colang Language Syntax Guide](user-guides/colang-language-syntax-guide.md).
+   For more information, refer to the [Colang Language Syntax Guide](../user-guides/colang-language-syntax-guide.md).
 
 2. **Python actions**: Create custom actions in Python for complex logic and external integrations.
 
@@ -135,7 +112,7 @@ You can create custom rails using one or more of the following approaches:
        return True
    ```
 
-   For more information, refer to the [Python API Guide](user-guides/python-api.md).
+   For more information, refer to the [Python API Guide](../python-api/index.md).
 
 3. **LangChain tool integration**: Register LangChain tools as custom actions.
 
@@ -150,10 +127,10 @@ You can create custom rails using one or more of the following approaches:
    rails.register_action(custom_tool, "custom_action")
    ```
 
-   For more information, refer to the [Tools Integration Guide](user-guides/advanced/tools-integration.md).
+   For more information, refer to the [Tools Integration Guide](../integration/tools-integration.md).
 
 4. **Third-party API integration**: Integrate external moderation and validation services.
-   For examples, refer to the [Guardrails Library](user-guides/guardrails-library.md) which includes integrations with ActiveFence, AutoAlign, Fiddler, and other services.
+   For examples, refer to the [Guardrails Library](../user-guides/guardrails-library.md) which includes integrations with ActiveFence, AutoAlign, Fiddler, and other services.
 
 ### Integrate Guardrails into LLM-based Applications
 
@@ -180,7 +157,7 @@ The NeMo Guardrails toolkit can be integrated into applications in multiple ways
    chain_with_guardrails = prompt | guardrails | model | output_parser
    ```
 
-   For more information, refer to the [LangChain Integration Guide](user-guides/langchain/langchain-integration.md).
+   For more information, refer to the [LangChain Integration Guide](../integration/langchain/langchain-integration.md).
 
 3. **HTTP API integration**: Use the guardrails server to add protection to applications in any programming language.
 
@@ -188,9 +165,9 @@ The NeMo Guardrails toolkit can be integrated into applications in multiple ways
    nemoguardrails server --config path/to/configs
    ```
 
-   For more information, refer to the [Server Guide](user-guides/server-guide.md).
+   For more information, refer to the [Server Guide](../deployment/local-server/index.md).
 
 4. **Docker deployment**: Deploy guardrails as a containerized service.
-   For more information, refer to the [Using Docker Guide](user-guides/advanced/using-docker.md).
+   For more information, refer to the [Using Docker Guide](../deployment/using-docker.md).
 
 For complete examples and detailed integration patterns, refer to the [examples directory](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples) in the GitHub repository.

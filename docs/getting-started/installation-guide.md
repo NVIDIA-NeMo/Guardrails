@@ -1,3 +1,8 @@
+---
+title: Install
+description: Install the toolkit with pip and set up your environment.
+---
+
 # Installation Guide
 
 This guide walks you through the following steps to install the NeMo Guardrails toolkit.

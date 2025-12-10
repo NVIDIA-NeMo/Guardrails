@@ -207,6 +207,17 @@ models:
       model_name: meta-llama/Llama-3.1-8B-Instruct
 ```
 
+The following example shows how to configure Llama Guard as a guardrail model using the vLLM OpenAI API:
+
+```yaml
+models:
+  - type: llama_guard
+    engine: vllm_openai
+    parameters:
+      openai_api_base: http://localhost:5000/v1
+      model_name: meta-llama/LlamaGuard-7b
+```
+
 ### Google Vertex AI
 
 The following example shows how to configure the Google Vertex AI model as the main application LLM:
@@ -215,10 +226,7 @@ The following example shows how to configure the Google Vertex AI model as the m
 models:
   - type: main
     engine: vertexai
-    model: gemini-pro
-    parameters:
-      project: my-gcp-project
-      location: us-central1
+    model: gemini-1.0-pro
 ```
 
 ### Complete Example

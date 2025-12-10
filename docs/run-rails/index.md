@@ -1,3 +1,8 @@
+---
+title: Run Rails
+description: Use the Python SDK and understand core classes like RailsConfig and LLMRails.
+---
+
 # Run Rails
 
 This section covers how to use the NeMo Guardrails toolkit programmatically through the Python API. Learn about the core classes, generation methods, and advanced features for integrating guardrails into your applications.

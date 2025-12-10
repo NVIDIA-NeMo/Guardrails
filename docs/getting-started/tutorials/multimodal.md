@@ -1,6 +1,6 @@
 ---
-title: Multimodal Data with NeMo Guardrails
-description: Add safety checks to multimodal content including images and text using image reasoning models as LLM-as-a-judge.
+title: Multimodal Content Safety
+description: Add safety checks to images and text using vision models as LLM-as-a-judge.
 ---
 
 <!--
@@ -8,7 +8,7 @@ description: Add safety checks to multimodal content including images and text u
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Multimodal Data with NeMo Guardrails
+# Multimodal Content Safety with Vision Models as LLM-as-a-judge
 
 ## About Working with Multimodal Data
 
@@ -25,13 +25,13 @@ You must ensure the image size and prompt length do not exceed the maximum conte
 
 1. Create a directory, such as `configs/content_safety_vision`, and add a `config.yml` file with the following content:
 
-   ```{literalinclude} ../../examples/configs/content_safety_vision/config.yml
+   ```{literalinclude} ../../../examples/configs/content_safety_vision/config.yml
    :language: yaml
    ```
 
 1. Add a `configs/content_safety_vision/prompts.yml` file with the following content:
 
-   ```{literalinclude} ../../examples/configs/content_safety_vision/prompts.yml
+   ```{literalinclude} ../../../examples/configs/content_safety_vision/prompts.yml
    :language: yaml
    ```
 
@@ -48,7 +48,7 @@ The sample image is a handgun.
 
 1. Import required libraries:
 
-   ```{literalinclude} ../../examples/configs/content_safety_vision/demo.py
+   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
    :start-after: "# start-prerequisites"
    :end-before: "# end-prerequisites"
@@ -56,7 +56,7 @@ The sample image is a handgun.
 
 1. Load the vision content safety configuration:
 
-   ```{literalinclude} ../../examples/configs/content_safety_vision/demo.py
+   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
    :start-after: "# start-config"
    :end-before: "# end-config"
@@ -64,7 +64,7 @@ The sample image is a handgun.
 
 1. Send an image reasoning request:
 
-   ```{literalinclude} ../../examples/configs/content_safety_vision/demo.py
+   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
    :start-after: "# start-image-reasoning"
    :end-before: "# end-image-reasoning"
@@ -72,7 +72,7 @@ The sample image is a handgun.
 
 1. Send a potentially unsafe request:
 
-   ```{literalinclude} ../../examples/configs/content_safety_vision/demo.py
+   ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
    :start-after: "# start-potentially-unsafe"
    :end-before: "# end-potentially-unsafe"

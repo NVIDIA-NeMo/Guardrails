@@ -1,9 +1,9 @@
 ---
-title: How Guardrails Work
+title: Rails Overview
 description: Learn how the NeMo Guardrails toolkit applies guardrails at multiple stages of the LLM interaction.
 ---
 
-# How Guardrails Work
+# Rails Overview
 
 The NeMo Guardrails toolkit applies guardrails at multiple stages of the LLM interaction.
 
@@ -20,3 +20,17 @@ The NeMo Guardrails toolkit applies guardrails at multiple stages of the LLM int
 :width: 800px
 :align: center
 ```
+
+## Use Cases and Applicable Rails
+
+The following table summarizes which rail types apply to each use case.
+
+| Use Case | Input | Dialog | Retrieval | Execution | Output |
+|----------|:-----:|:------:|:---------:|:---------:|:------:|
+| **Content Safety** | ✅ | | | | ✅ |
+| **Jailbreak Protection** | ✅ | | | | |
+| **Topic Control** | ✅ | ✅ | | | |
+| **PII Detection** | ✅ | | ✅ | | ✅ |
+| **Knowledge Base / RAG** | | | ✅ | | ✅ |
+| **Agentic Security** | | | | ✅ | |
+| **Custom Rails** | ✅ | ✅ | ✅ | ✅ | ✅ |

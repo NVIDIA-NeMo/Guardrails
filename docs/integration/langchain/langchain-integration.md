@@ -26,7 +26,7 @@ chain_with_guardrails = guardrails | some_chain
 chain_with_guardrails = RunnableRails(config, runnable=some_chain)
 ```
 
-For more details, check out the [RunnableRails Guide](runnable-rails.md) and the [Chain with Guardrails Guide](chain-with-guardrails/README.md).
+For more details, check out the [RunnableRails Guide](runnable-rails.md) and the [Chain with Guardrails Guide](chain-with-guardrails/index.md).
 
 ## Using a Chain inside Guardrails
 
@@ -50,7 +50,7 @@ define flow
   ...
 ```
 
-For a complete example, check out the [Runnable as Action Guide](runnable-as-action/README.md).
+For a complete example, check out the [Runnable as Action Guide](runnable-as-action/index.md).
 
 ## LangSmith Integration
 

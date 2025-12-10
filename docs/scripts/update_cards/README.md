@@ -79,7 +79,7 @@ poetry add watchdog --group docs
 
 **Example output:**
 
-```
+```text
 👀 Watching for changes in: /path/to/docs
    Press Ctrl+C to stop.
 
@@ -214,19 +214,21 @@ cd docs && python scripts/update_cards/update_cards.py watch
 
 ### Title Extraction
 
-The script extracts titles from:
+The script extracts titles using the following priority:
 
-1. Markdown H1: `# Title`
-2. RST H1: `Title` followed by `===` underline
+1. **Frontmatter `title` field** (highest priority)
+2. Markdown H1: `# Title`
+3. RST H1: `Title` followed by `===` underline
 
 ### Description Extraction
 
-The script extracts descriptions from:
+The script extracts descriptions using the following priority:
 
-1. First non-empty paragraph after the title
-2. Skips code blocks, directives, tables, and lists
-3. Truncates to ~200 characters if too long
-4. Falls back to "Documentation for {title}." if no description found
+1. **Frontmatter `description` field** (highest priority)
+2. First non-empty paragraph after the title
+3. Skips code blocks, directives, tables, and lists
+4. Truncates to ~200 characters if too long
+5. Falls back to "Documentation for {title}." if no description found
 
 ### Link Resolution
 
@@ -236,16 +238,39 @@ Links in grid cards are resolved relative to the index file:
 - `../getting-started/index` → `../getting-started/index.md`
 - Supports both `.md` and `.rst` files
 
-## Adding Description Metadata
+## Using Frontmatter for Card Content
 
-For more control over card descriptions, you can add frontmatter to your pages (future enhancement):
+For precise control over card titles and descriptions, add frontmatter to your pages:
 
 ```markdown
 ---
+title: Custom Card Title
 description: Custom description for the grid card.
 ---
 
-# Page Title
+# Page Heading (can be different from card title)
 
 Page content...
 ```
+
+**Example:**
+
+If your page has this frontmatter:
+
+```markdown
+---
+title: Install
+description: Install the toolkit with pip and set up your environment.
+---
+
+# Installation Guide
+
+This guide walks you through installing NeMo Guardrails...
+```
+
+The generated card will use:
+
+- **Title**: "Install" (from frontmatter, not "Installation Guide")
+- **Description**: "Install the toolkit with pip and set up your environment."
+
+This is useful when you want concise card titles that differ from the full page headings.

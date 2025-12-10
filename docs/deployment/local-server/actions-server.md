@@ -20,7 +20,7 @@ The OpenAPI specification for the actions server is available at `http://localho
 
 ### `/v1/actions/list`
 
-To list the [available actions](../python-api.md#actions) for the server, use the `/v1/actions/list` endpoint.
+To list the [available actions](../../python-api/index.md#actions) for the server, use the `/v1/actions/list` endpoint.
 
 ```text
 GET /v1/actions/list

@@ -1,9 +1,9 @@
 ---
-title: NemoGuard Topic Control Deployment
-description: Deploy the TopicControl NIM microservice for low-latency optimized inference and integrate it into your NeMo Guardrails configuration.
+title: Topic Control
+description: Deploy NemoGuard Topic Control NIM to restrict conversations to allowed topics.
 ---
 
-# Llama 3.1 NemoGuard 8B Topic Control Deployment
+# Topic Control with NemoGuard NIM
 
 The TopicControl model is available to download as a LoRA adapter module through Hugging Face or as an [NVIDIA TopicControl NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/index.html) for low-latency optimized inference with [NVIDIA TensorRT-LLM](https://docs.nvidia.com/tensorrt-llm/index.html).
 

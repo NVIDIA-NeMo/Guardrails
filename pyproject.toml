@@ -163,7 +163,7 @@ include = [
   "nemoguardrails/tracing/**",
   "nemoguardrails/server/**",
   "tests/test_callbacks.py",
-  "nemoguardrails/benchmark/**"
+  "nemoguardrails/benchmark/**",
 ]
 exclude = [
   "nemoguardrails/llm/providers/trtllm/**",
@@ -181,6 +181,7 @@ myst-parser = "<=5"
 sphinx-copybutton = "<=0.6"
 sphinx-design = "*"
 sphinx-autobuild = "*"
+sphinxcontrib-mermaid = "*"
 nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
 watchdog = "^6.0.0"
 

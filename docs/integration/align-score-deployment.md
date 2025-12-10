@@ -1,7 +1,7 @@
 # AlignScore Deployment
 
 ```{note}
-The recommended way to use AlignScore with NeMo Guardrails is using the provided [Dockerfile](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/library/factchecking/align_score/Dockerfile). For more details, check out how to [build and use the image](using-docker.md).
+The recommended way to use AlignScore with NeMo Guardrails is using the provided [Dockerfile](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/library/factchecking/align_score/Dockerfile). For more details, check out how to [build and use the image](../deployment/using-docker.md).
 ```
 
 In order to deploy an AlignScore server, follow these steps:
@@ -31,6 +31,7 @@ python -m spacy download en_core_web_sm
 ```
 
 4. Download the one or both of the AlignScore checkpoints:
+
 ```
 curl -OL https://huggingface.co/yzha/AlignScore/resolve/main/AlignScore-base.ckpt
 curl -OL https://huggingface.co/yzha/AlignScore/resolve/main/AlignScore-large.ckpt
@@ -39,6 +40,7 @@ curl -OL https://huggingface.co/yzha/AlignScore/resolve/main/AlignScore-large.ck
 5. Set the `ALIGN_SCORE_PATH` environment variable to point to the path where the checkpoints have been downloaded.
 
 6. Set the `ALIGN_SCORE_DEVICE` environment variable to `"cpu"` to run the AlignScore model on CPU, or to the corresponding GPU device, e.g. `"cuda:0"`.
+
 ```bash
 export ALIGN_SCORE_PATH=<path/to/folder_containing_ckpt>
 export ALIGN_SCORE_DEVICE="cuda:0"

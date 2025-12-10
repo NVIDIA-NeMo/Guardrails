@@ -5,58 +5,116 @@
 
 # NVIDIA NeMo Guardrails Toolkit Developer Guide
 
-## Introduction
+The NeMo Guardrails toolkit is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
+
+## About the NeMo Guardrails Toolkit
+
+Learn about the toolkit and its capabilities in the following sections.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} About NeMo Guardrails Toolkit
-:link: about/index
+:::{grid-item-card} Overview
+:link: about/overview
 :link-type: doc
 
-This section covers the basics of the NeMo Guardrails toolkit.
+Learn about the NeMo Guardrails toolkit and its capabilities.
 :::
 
-:::{grid-item-card} Get Started
-:link: getting-started/index
+:::{grid-item-card} Use Cases
+:link: about/use-cases
 :link-type: doc
 
-Get started with the NeMo Guardrails toolkit.
+Browse the different use cases of the NeMo Guardrails toolkit.
+:::
+
+:::{grid-item-card} How It Works
+:link: about/how-it-works/index
+:link-type: doc
+
+Learn how the NeMo Guardrails toolkit works.
+:::
+
+:::{grid-item-card} Supported LLMs and Providers
+:link: about/supported-llms
+:link-type: doc
+
+Browse the LLMs and their providers supported by the toolkit.
 :::
 
 ::::
 
-## Using the NeMo Guardrails Toolkit
+## Get Started
+
+Follow these steps to start using the NeMo Guardrails toolkit.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Configuration Overview
-:link: configure-rails/index
+:::{grid-item-card} Install
+:link: getting-started/installation-guide
 :link-type: doc
 
-Prepare configuration files including config.yml, Colang flows, actions.py, config.py, and knowledge base documents.
+Install the toolkit with pip and set up your environment.
+:::
+
+:::{grid-item-card} Tutorials
+:link: getting-started/tutorials/index
+:link-type: doc
+
+Follow hands-on tutorials to build your first guardrails configuration.
+:::
+::::
+
+---
+
+## Next Steps
+
+Once you've completed the get-started tutorials, explore the following areas to deepen your understanding.
+
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} Configure Rails
+:link: configure-rails/overview
+:link-type: doc
+
+Learn to write config.yml, Colang flows, and custom actions.
 :::
 
 :::{grid-item-card} Run Rails
 :link: run-rails/index
 :link-type: doc
 
-This section covers how to use the NeMo Guardrails toolkit programmatically through the Python API. Learn about the core classes, generation methods, and advanced features for integrating...
+Use the Python SDK and understand core classes like RailsConfig and LLMRails.
 :::
 
-:::{grid-item-card} Deployment Options
+:::{grid-item-card} Evaluate
+:link: evaluation/README
+:link-type: doc
+
+Evaluate the performance of the rails.
+:::
+
+:::{grid-item-card} Observability
+:link: observability/logging/index
+:link-type: doc
+
+Monitor and troubleshoot your guardrails applications.
+:::
+
+:::{grid-item-card} Deploy
 :link: deployment/index
 :link-type: doc
 
-You can deploy the NeMo Guardrails toolkit in the following ways.
+Deploy your guardrails using the toolkit's local server, Docker, or as a production microservice.
 :::
 
-:::{grid-item-card} Evaluation
-:link: evaluation/index
+:::{grid-item-card} Integrate
+:link: integration/langchain/index
 :link-type: doc
 
-README llm-vulnerability-scanning
+Connect with LangChain, LangGraph, and other frameworks.
 :::
 
 ::::
@@ -67,8 +125,8 @@ README llm-vulnerability-scanning
 :hidden:
 
 Overview <about/overview.md>
-How It Works <about/how-it-works/index.md>
 Use Cases <about/use-cases.md>
+How It Works <about/how-it-works/index.md>
 Supported LLMs <about/supported-llms.md>
 Release Notes <about/release-notes.md>
 ```
@@ -88,7 +146,7 @@ getting-started/tutorials/index
 :hidden:
 
 Before Configuring Rails <configure-rails/before-configuration.md>
-Configuration Overview <configure-rails/index.md>
+Configuration Overview <configure-rails/overview.md>
 Core Configuration <configure-rails/yaml-schema/index.md>
 Custom Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
@@ -107,7 +165,6 @@ Core Classes <run-rails/core-classes.md>
 Generation Options <run-rails/generation-options.md>
 Streaming <run-rails/streaming.md>
 Event-based API <run-rails/event-based-api.md>
-Tools Integration <run-rails/tools-integration.md>
 ```
 
 ```{toctree}
@@ -144,11 +201,8 @@ Blueprint with NemoGuard NIMs <integration/safeguarding-ai-virtual-assistant-blu
 :hidden:
 
 LangChain <integration/langchain/index.md>
-Vertex AI <integration/vertexai.md>
-Vertex AI Setup <integration/vertexai-setup.md>
 AlignScore <integration/align-score-deployment>
-Llama Guard <integration/llama-guard-deployment>
-Tools Integration <integration/tools-integration.md>
+Integrate LangChain Tools <integration/tools-integration.md>
 ```
 
 ```{toctree}

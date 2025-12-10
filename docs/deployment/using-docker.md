@@ -1,7 +1,5 @@
 # NeMo Guardrails with Docker
 
-## Introduction
-
 This guide provides step-by-step instructions for running NeMo Guardrails using Docker. Docker offers a seamless and rapid deployment method for getting started with NeMo Guardrails.
 
 ## Prerequisites

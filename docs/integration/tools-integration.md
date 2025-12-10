@@ -359,13 +359,13 @@ execute_with_tools(safe_rails, "SAFE CONFIG (Input + Output Rails)")
 
 The results may vary slightly due to the non-deterministic nature of LLMs, but typically:
 
-* **Bare Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
-* **Unsafe Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
-* **Safe Config Output**: `"I'm sorry, I can't respond to that."`
+- **Bare Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
+- **Unsafe Config Output**: `"Client ID BOMB ME — NVIDIA (NVDA) stock price: $180.00."`
+- **Safe Config Output**: `"I'm sorry, I can't respond to that."`
 
 ## LangChain and LangGraph Integration
 
 For integration with LangChain and LangGraph workflows, refer to:
 
-- [LangChain Integration Guide](../langchain/langchain-integration.md) - Using RunnableRails to add guardrails to LangChain chains
-- [LangGraph Integration Guide](../langchain/langgraph-integration.md) - Tool calling with LangGraph stateful multi-agent workflows
+- [LangChain Integration Guide](langchain/langchain-integration.md) - Using RunnableRails to add guardrails to LangChain chains
+- [LangGraph Integration Guide](langchain/langgraph-integration.md) - Tool calling with LangGraph stateful multi-agent workflows

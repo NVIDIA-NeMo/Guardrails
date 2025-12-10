@@ -1,3 +1,8 @@
+---
+title: Observability
+description: Monitor and troubleshoot your guardrails applications.
+---
+
 # Logging and Debugging
 
 This guide covers the various methods for logging, debugging, and understanding what happens during guardrails generation.

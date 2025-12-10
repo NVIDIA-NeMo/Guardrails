@@ -1,3 +1,8 @@
+---
+title: Tutorials
+description: Follow hands-on tutorials to build your first guardrails configuration.
+---
+
 # Tutorials
 
 This section contains tutorials that help you get started with NeMo Guardrails Toolkit.
@@ -5,32 +10,32 @@ This section contains tutorials that help you get started with NeMo Guardrails T
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Nemotron Safety Guard Deployment
+:::{grid-item-card} Text Content Safety
 :link: nemotron-safety-guard-deployment
 :link-type: doc
 
-Deploy a GPU-accelerated multilingual content safety model using Llama 3.1 Nemotron Safety Guard 8B V3 to detect harmful content in multiple languages.
+Deploy Nemotron Safety Guard to detect harmful content in text inputs and outputs.
 :::
 
-:::{grid-item-card} Llama 3.1 NemoGuard 8B Topic Control Deployment
+:::{grid-item-card} Topic Control
 :link: nemoguard-topiccontrol-deployment
 :link-type: doc
 
-Deploy the TopicControl NIM microservice for low-latency optimized inference and integrate it into your NeMo Guardrails configuration.
+Deploy NemoGuard Topic Control NIM to restrict conversations to allowed topics.
 :::
 
-:::{grid-item-card} NemoGuard JailbreakDetect Deployment
+:::{grid-item-card} Jailbreak Detection
 :link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
-Deploy the NemoGuard Jailbreak Detection NIM microservice to protect your LLM applications from adversarial jailbreak attempts.
+Deploy NemoGuard Jailbreak Detection NIM to block adversarial prompts.
 :::
 
-:::{grid-item-card} Multimodal Data with NeMo Guardrails
+:::{grid-item-card} Multimodal Content Safety
 :link: multimodal
 :link-type: doc
 
-Add safety checks to multimodal content including images and text using image reasoning models as LLM-as-a-judge.
+Add safety checks to images and text using vision models as LLM-as-a-judge.
 :::
 
 ::::

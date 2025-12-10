@@ -1,3 +1,8 @@
+---
+title: Integrate
+description: Connect with LangChain, LangGraph, and other frameworks.
+---
+
 # LangChain Integration
 
 This section covers how to integrate the NeMo Guardrails toolkit with LangChain.

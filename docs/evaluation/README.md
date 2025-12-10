@@ -1,3 +1,8 @@
+---
+title: Evaluate
+description: Evaluate the performance of the rails.
+---
+
 # Guardrails Evaluation
 
 NeMo Guardrails includes a set of tools that you can use to evaluate the different types of rails. In the current version, these tools test the performance of each type of rail individually. You can use the evaluation tools through the `nemoguardrails` CLI. Examples will be provided for each type of rail.

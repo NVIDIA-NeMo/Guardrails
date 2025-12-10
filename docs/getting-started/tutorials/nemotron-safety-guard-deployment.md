@@ -1,6 +1,6 @@
 ---
-title: Nemotron Safety Guard Deployment
-description: Deploy a GPU-accelerated multilingual content safety model using Llama 3.1 Nemotron Safety Guard 8B V3 to detect harmful content in multiple languages.
+title: Text Content Safety
+description: Deploy Nemotron Safety Guard to detect harmful content in text inputs and outputs.
 ---
 
 <!--
@@ -8,7 +8,7 @@ description: Deploy a GPU-accelerated multilingual content safety model using Ll
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Nemotron Safety Guard Deployment
+# Text Content Safety with Nemotron Safety Guard NIM
 
 ## Adding Multilingual Content Safety Guardrails
 
