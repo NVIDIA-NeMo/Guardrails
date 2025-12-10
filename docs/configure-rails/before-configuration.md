@@ -5,10 +5,21 @@ description: Prerequisites and decisions to make before configuring the NeMo Gua
 
 # Before You Begin Configuring Rails
 
-This chapter thoroughly describes how to prepare guardrails configuration files.
-This page covers the prerequisites and decisions to make before configuring the NeMo Guardrails toolkit.
+This Configure Rails chapter thoroughly describes how to prepare guardrails configuration files.
+This page covers the prerequisites and decisions to make before you begin working on guardrails configurations.
 
-## LLM NIM Microservices for the Main LLM
+## Checklist Summary
+
+Use the following checklist to ensure that you have all the necessary components ready before you begin configuring guardrails.
+
+- [ ] (Required) Main LLM endpoint and credentials ready. Refer to [](#hosted-llm-for-the-main-llm) for more details.
+- [ ] (Recommended) NemoGuard NIM endpoints deployed. Refer to [](#nemoguard-nim-microservices) for more details.
+- [ ] (Optional) Knowledge base documents prepared. Refer to [](#knowledge-base-documents) for more details.
+- [ ] (Optional) Custom action requirements identified. Refer to [](#advanced-components) for more details.
+
+Each item in the checklist is described in detail in the following sections.
+
+## Hosted LLM for the Main LLM
 
 You need a main LLM hosted and accessible via API. This LLM handles the conversation by generating responses to user queries.
 
@@ -45,14 +56,14 @@ Deploy dedicated safety models to offload guardrail checks from the main LLM:
 If you use NVIDIA NIM for LLMs and LLM-based NemoGuard NIMs, KV cache helps reduce latency for sequential guardrail checks. To learn more about KV cache, see the [KV Cache Reuse](https://docs.nvidia.com/nim/large-language-models/latest/kv-cache-reuse.html) guide in the NVIDIA NIM documentation.
 :::
 
-## Optional: Knowledge Base Documents
+## Knowledge Base Documents
 
 If using RAG (Retrieval-Augmented Generation) for grounded responses:
 
 - [ ] Prepare documents in markdown format (`.md` files)
 - [ ] Organize documents in a `kb/` folder
 
-## Optional: Advanced Components
+## Advanced Components
 
 For advanced use cases such as implementing your own custom scripts or guardrails, prepare the following as needed:
 
@@ -62,17 +73,8 @@ For advanced use cases such as implementing your own custom scripts or guardrail
 | **Custom Initialization** | Register custom LLM/embedding providers | Python code in `config.py` |
 | **Custom Prompts** | Override default guardrails prompts | YAML in `config.yml` |
 
-## Checklist Summary
-
-**Before starting configuration:**
-
-- [ ] (Required) Main LLM endpoint and credentials ready
-- [ ] (Recommended) NemoGuard NIM endpoints deployed
-- [ ] (Optional) Knowledge base documents prepared
-- [ ] (Optional) Custom action requirements identified
-
 ## Next Steps
 
-Once you have these components ready, proceed to the next section [Configuration Overview](index.md) to create guardrails configuration files.
+Once you have these components ready, proceed to the next section [Configuration Overview](index.md) to start organizing your guardrails configuration files.
 
 If you need tutorials to understand how to use the NeMo Guardrails toolkit, revisit the [Get Started](../getting-started/index.md) section.
