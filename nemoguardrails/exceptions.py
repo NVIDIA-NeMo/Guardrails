@@ -57,17 +57,17 @@ class LLMCallException(Exception):
     """
 
     inner_exception: Union[BaseException, str]
-    context_message: Optional[str]
+    detail: Optional[str]
 
-    def __init__(self, inner_exception: Union[BaseException, str], context_message: Optional[str] = None):
+    def __init__(self, inner_exception: Union[BaseException, str], detail: Optional[str] = None):
         """Initialize LLMCallException.
 
         Args:
             inner_exception: The original exception that occurred
-            context_message: Optional context to prepend (for example, the model name or endpoint)
+            detail: Optional context to prepend (for example, the model name or endpoint)
         """
-        message = f"{context_message or 'LLM Call Exception'}: {str(inner_exception)}"
+        message = f"{detail or 'LLM Call Exception'}: {str(inner_exception)}"
         super().__init__(message)
 
         self.inner_exception = inner_exception
-        self.context_message = context_message
+        self.detail = detail

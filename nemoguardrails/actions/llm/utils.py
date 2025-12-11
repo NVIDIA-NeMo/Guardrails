@@ -248,8 +248,8 @@ def _raise_llm_call_exception(
         context_parts.append(f"endpoint={endpoint_url}")
 
     if context_parts:
-        context_message = f"Error invoking LLM ({', '.join(context_parts)})"
-        raise LLMCallException(exception, context_message=context_message) from exception
+        detail = f"Error invoking LLM ({', '.join(context_parts)})"
+        raise LLMCallException(exception, detail=detail) from exception
     else:
         raise LLMCallException(exception) from exception
 
