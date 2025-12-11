@@ -28,6 +28,7 @@ from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
+from nemoguardrails.exceptions import InvalidRailsConfigurationError
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
@@ -65,11 +66,6 @@ async def _run_chat_v1_0(
             raise RuntimeError("config_path cannot be None when server_url is None")
         rails_config = RailsConfig.from_path(config_path)
         rails_app = LLMRails(rails_config, verbose=verbose)
-        if streaming and not rails_config.streaming_supported:
-            console.print(
-                f"WARNING: The config `{config_path}` does not support streaming. Falling back to normal mode."
-            )
-            streaming = False
     else:
         rails_app = None
 
@@ -83,19 +79,25 @@ async def _run_chat_v1_0(
 
         if not server_url:
             # If we have streaming from a locally loaded config, we initialize the handler.
-            if streaming and not server_url and rails_app and rails_app.main_llm_supports_streaming:
-                bot_message_list = []
-                async for chunk in rails_app.stream_async(messages=history):
-                    if '{"event": "ABORT"' in chunk:
-                        dict_chunk = json.loads(chunk)
-                        console.print("\n\n[red]" + f"ABORT streaming. {dict_chunk['data']}" + "[/]")
-                        break
+            if streaming and not server_url and rails_app:
+                try:
+                    bot_message_list = []
+                    async for chunk in rails_app.stream_async(messages=history):
+                        if '{"event": "ABORT"' in chunk:
+                            dict_chunk = json.loads(chunk)
+                            console.print("\n\n[red]" + f"ABORT streaming. {dict_chunk['data']}" + "[/]")
+                            break
 
-                    console.print("[green]" + f"{chunk}" + "[/]", end="")
-                    bot_message_list.append(chunk)
+                        console.print("[green]" + f"{chunk}" + "[/]", end="")
+                        bot_message_list.append(chunk)
 
-                bot_message_text = "".join(bot_message_list)
-                bot_message = {"role": "assistant", "content": bot_message_text}
+                    bot_message_text = "".join(bot_message_list)
+                    bot_message = {"role": "assistant", "content": bot_message_text}
+                except InvalidRailsConfigurationError as e:
+                    # TODO: improve this error message
+                    raise InvalidRailsConfigurationError(
+                        f"The config `{config_path}` does not support streaming. {e}"
+                    ) from e
 
             else:
                 if rails_app is None:
@@ -124,7 +126,7 @@ async def _run_chat_v1_0(
                     # String or other fallback case
                     bot_message = {"role": "assistant", "content": str(response)}
 
-                if not streaming or not rails_app.main_llm_supports_streaming:
+                if not streaming:
                     # We print bot messages in green.
                     content = bot_message.get("content", str(bot_message))
                     console.print("[green]" + f"{content}" + "[/]")

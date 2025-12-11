@@ -155,9 +155,6 @@ class LLMRails:
         #   should be removed
         self.events_history_cache = {}
 
-        # Weather the main LLM supports streaming
-        self.main_llm_supports_streaming = False
-
         # We also load the default flows from the `default_flows.yml` file in the current folder.
         # But only for version 1.0.
         # TODO: decide on the default flows for 2.x.
@@ -377,10 +374,9 @@ class LLMRails:
             if api_key:
                 kwargs["api_key"] = api_key
 
-        # enable streaming token usage when streaming is enabled
+        # enable streaming token usage
         # providers that don't support this parameter will simply ignore it
-        if self.config.streaming:
-            kwargs["stream_usage"] = True
+        kwargs["stream_usage"] = True
 
         return kwargs
 
@@ -398,22 +394,9 @@ class LLMRails:
             provider_name (Optional[str], optional): Optional provider name for logging.
 
         """
-        if not self.config.streaming:
-            return
 
         if hasattr(llm, "streaming"):
             setattr(llm, "streaming", True)
-            self.main_llm_supports_streaming = True
-        else:
-            self.main_llm_supports_streaming = False
-            if model_name and provider_name:
-                log.warning(
-                    "Model %s from provider %s does not support streaming.",
-                    model_name,
-                    provider_name,
-                )
-            else:
-                log.warning("Provided main LLM does not support streaming.")
 
     def _init_llms(self):
         """
@@ -442,7 +425,6 @@ class LLMRails:
                 )
             self.runtime.register_action_param("llm", self.llm)
 
-            self._configure_main_llm_streaming(self.llm)
         else:
             # Otherwise, initialize the main LLM from the config
             main_model = next((model for model in self.config.models if model.type == "main"), None)
@@ -457,11 +439,6 @@ class LLMRails:
                 )
                 self.runtime.register_action_param("llm", self.llm)
 
-                self._configure_main_llm_streaming(
-                    self.llm,
-                    model_name=main_model.model,
-                    provider_name=main_model.engine,
-                )
             else:
                 log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
@@ -1190,10 +1167,9 @@ class LLMRails:
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):
             raise InvalidRailsConfigurationError(
-                "stream_async() cannot be used when output rails are configured but "
+                "Streaming cannot be used when output rails are configured but "
                 "rails.output.streaming.enabled is False. Either set "
-                "rails.output.streaming.enabled to True in your configuration, or use "
-                "generate_async() instead of stream_async()."
+                "rails.output.streaming.enabled to True in your configuration, or disable streaming."
             )
 
     @overload
@@ -1245,6 +1221,8 @@ class LLMRails:
         self.explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
+
+        self._configure_main_llm_streaming(self.llm)  # type: ignore
 
         # Create a properly managed task with exception handling
         async def _generation_task():

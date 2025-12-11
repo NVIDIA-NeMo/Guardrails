@@ -37,7 +37,6 @@ from nemoguardrails.rails.llm.options import (
     GenerationResponse,
 )
 from nemoguardrails.server.datastore.datastore import DataStore
-from nemoguardrails.streaming import StreamingHandler
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -426,18 +425,11 @@ async def chat_completion(body: RequestBody, request: Request):
             # And prepend them.
             messages = thread_messages + messages
 
-        if body.stream and llm_rails.config.streaming_supported and llm_rails.main_llm_supports_streaming:
-            # Create the streaming handler instance
-            streaming_handler = StreamingHandler()
-
-            # Start the generation
-            asyncio.create_task(
-                llm_rails.generate_async(
-                    messages=messages,
-                    streaming_handler=streaming_handler,
-                    options=body.options,
-                    state=body.state,
-                )
+        if body.stream:
+            streaming_handler = llm_rails.stream_async(
+                messages=messages,
+                options=body.options,
+                state=body.state,
             )
 
             # TODO: Add support for thread_ids in streaming mode
