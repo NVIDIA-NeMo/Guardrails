@@ -15,7 +15,7 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, NoReturn, Optional, Sequence, Union
 
 from langchain_core.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
 from langchain_core.language_models import BaseLanguageModel
@@ -40,14 +40,14 @@ logger = logging.getLogger(__name__)
 # Since different providers have different attributes for the base URL, we'll use this list
 # to attempt to extract the base URL from a `BaseLanguageModel` instance.
 BASE_URL_ATTRIBUTES = [
+    "base_url",
+    "endpoint_url",
+    "server_url",
+    "azure_endpoint",
+    "openai_api_base",
     "api_base",
     "api_host",
-    "azure_endpoint",
-    "base_url",
     "endpoint",
-    "endpoint_url",
-    "openai_api_base",
-    "server_url",
 ]
 
 
@@ -162,7 +162,7 @@ async def llm_call(
         The generated text response
     """
     if llm is None:
-        raise LLMCallException("No LLM provided to llm_call()")
+        raise LLMCallException(ValueError("No LLM provided to llm_call()"))
     _setup_llm_call_info(llm, model_name, model_provider)
     all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
@@ -205,7 +205,7 @@ def _prepare_callbacks(
 def _raise_llm_call_exception(
     exception: Exception,
     llm: Union[BaseLanguageModel, Runnable],
-) -> None:
+) -> NoReturn:
     """Raise an LLMCallException with enriched context about the failed invocation.
 
     Args:
@@ -249,9 +249,9 @@ def _raise_llm_call_exception(
 
     if context_parts:
         context_message = f"Error invoking LLM ({', '.join(context_parts)})"
-        raise LLMCallException(exception, context_message=context_message)
+        raise LLMCallException(exception, context_message=context_message) from exception
     else:
-        raise LLMCallException(exception)
+        raise LLMCallException(exception) from exception
 
 
 async def _invoke_with_string_prompt(

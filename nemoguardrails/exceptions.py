@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional
+from typing import Optional, Union
 
 __all__ = [
     "ConfigurationError",
@@ -56,7 +56,10 @@ class LLMCallException(Exception):
     catch it and return an "Internal server error." message.
     """
 
-    def __init__(self, inner_exception: Any, context_message: Optional[str] = None):
+    inner_exception: Union[BaseException, str]
+    context_message: Optional[str]
+
+    def __init__(self, inner_exception: Union[BaseException, str], context_message: Optional[str] = None):
         """Initialize LLMCallException.
 
         Args:
