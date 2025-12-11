@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Optional
 
 TRANSFORMERS_AVAILABLE = True
 try:
-    from transformers.generation.streamers import (
-        TextStreamer,  # type: ignore[import-untyped]
+    from transformers.generation.streamers import (  # type: ignore[import-untyped]
+        TextStreamer,
     )
 except ImportError:
     # Fallback if transformers is not available
