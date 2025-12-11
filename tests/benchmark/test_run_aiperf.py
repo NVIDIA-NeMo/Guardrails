@@ -34,13 +34,13 @@ from benchmark.aiperf.run_aiperf import AIPerfRunner, AIPerfSummary
 
 
 @pytest.fixture
-def create_config_data():
+def create_config_data(tmp_path):
     """Returns a function with sample basic config, and allows mutation of fields to cover
     more cases or add extra fields"""
 
     def _create_config(
         batch_name="test_batch",
-        output_base_dir="test_output",
+        output_base_dir=str(tmp_path),
         model="test-model",
         tokenizer="test-tokenizer",
         url="http://localhost:8000",
@@ -125,7 +125,7 @@ class TestAIPerfRunnerInit:
         assert runner.config_path == config_file
         assert isinstance(runner.config, AIPerfConfig)
         assert runner.config.batch_name == "test_batch"
-        assert runner.config.output_base_dir == "test_output"
+        assert runner.config.output_base_dir == str(config_file.parent)
         assert runner.config.base_config.model == "test-model"
         assert runner.config.base_config.tokenizer == "test-tokenizer"
         assert runner.config.base_config.url == "http://localhost:8000"
