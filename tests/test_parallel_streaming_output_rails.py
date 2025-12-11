@@ -24,6 +24,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.exceptions import InvalidRailsConfigurationError
 from tests.utils import TestChat
 
 
@@ -585,15 +586,14 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
 
     llmrails = LLMRails(parallel_output_rails_default_config)
 
-    with pytest.raises(ValueError) as exc_info:
-        async for chunk in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
+    with pytest.raises(InvalidRailsConfigurationError) as exc_info:
+        async for _ in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
             pass
 
     assert str(exc_info.value) == (
-        "stream_async() cannot be used when output rails are configured but "
+        "Streaming cannot be used when output rails are configured but "
         "rails.output.streaming.enabled is False. Either set "
-        "rails.output.streaming.enabled to True in your configuration, or use "
-        "generate_async() instead of stream_async()."
+        "rails.output.streaming.enabled to True in your configuration, or disable streaming."
     )
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})

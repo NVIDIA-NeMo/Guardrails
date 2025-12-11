@@ -188,13 +188,10 @@ class TestChat:
         """
         self.llm = None
         if llm_completions is not None:
-            # check if we should simulate stream_usage=True behavior
-            # this mirrors the logic in LLMRails._prepare_model_kwargs
-            should_enable_stream_usage = False
-            if config.streaming:
-                main_model = next((model for model in config.models if model.type == "main"), None)
-                if main_model and main_model.engine in _TEST_PROVIDERS_WITH_TOKEN_USAGE_SUPPORT:
-                    should_enable_stream_usage = True
+            main_model = next((model for model in config.models if model.type == "main"), None)
+            should_enable_stream_usage = bool(
+                main_model and main_model.engine in _TEST_PROVIDERS_WITH_TOKEN_USAGE_SUPPORT
+            )
 
             self.llm = FakeLLM(
                 responses=llm_completions,

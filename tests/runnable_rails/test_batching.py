@@ -130,7 +130,7 @@ async def test_astream_output():
         ],
         streaming=True,
     )
-    config = RailsConfig.from_content(config={"models": [], "streaming": True})
+    config = RailsConfig.from_content(config={"models": []})
     model_with_rails = RunnableRails(config, llm=llm)
 
     # Collect all chunks from the stream

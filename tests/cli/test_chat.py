@@ -184,12 +184,10 @@ class TestRunChatV1Async:
         from nemoguardrails.cli.chat import _run_chat_v1_0
 
         mock_config = MagicMock()
-        mock_config.streaming_supported = False
         mock_rails_config.from_path.return_value = mock_config
 
         mock_rails = AsyncMock()
         mock_rails.generate_async = AsyncMock(return_value={"role": "assistant", "content": "Hello!"})
-        mock_rails.main_llm_supports_streaming = False
         mock_llm_rails.return_value = mock_rails
 
         mock_input.side_effect = ["test message", KeyboardInterrupt()]
@@ -203,31 +201,28 @@ class TestRunChatV1Async:
 
     @pytest.mark.asyncio
     @patch("builtins.input")
-    @patch.object(chat_module, "console")
     @patch.object(chat_module, "LLMRails")
     @patch.object(chat_module, "RailsConfig")
-    async def test_run_chat_v1_streaming_not_supported(
-        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
-    ):
+    async def test_run_chat_v1_streaming_not_supported(self, mock_rails_config, mock_llm_rails, mock_input):
         from nemoguardrails.cli.chat import _run_chat_v1_0
+        from nemoguardrails.exceptions import InvalidRailsConfigurationError
 
         mock_config = MagicMock()
-        mock_config.streaming_supported = False
         mock_rails_config.from_path.return_value = mock_config
 
-        mock_rails = AsyncMock()
+        mock_rails = MagicMock()
+
+        async def mock_stream_async_generator(*args, **kwargs):
+            raise InvalidRailsConfigurationError("Streaming not supported")
+            yield
+
+        mock_rails.stream_async = mock_stream_async_generator
         mock_llm_rails.return_value = mock_rails
 
-        mock_input.side_effect = [KeyboardInterrupt()]
+        mock_input.side_effect = ["test message"]
 
-        try:
+        with pytest.raises(InvalidRailsConfigurationError):
             await _run_chat_v1_0(config_path="test_config", streaming=True)
-        except KeyboardInterrupt:
-            pass
-
-        mock_console.print.assert_any_call(
-            "WARNING: The config `test_config` does not support streaming. Falling back to normal mode."
-        )
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession")

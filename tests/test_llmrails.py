@@ -965,10 +965,8 @@ def test_api_key_environment_variable_logic_without_rails_init():
 
 @pytest.mark.asyncio
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
-async def test_stream_usage_enabled_for_streaming_supported_providers(
-    mock_init_llm_model,
-):
-    """Test that stream_usage=True is set when streaming is enabled for supported providers."""
+async def test_stream_usage_always_enabled(mock_init_llm_model):
+    """Test that stream_usage=True is always set for LLM models."""
     config = RailsConfig.from_content(
         config={
             "models": [
@@ -978,7 +976,6 @@ async def test_stream_usage_enabled_for_streaming_supported_providers(
                     "model": "gpt-4",
                 }
             ],
-            "streaming": True,
         }
     )
 
@@ -989,68 +986,6 @@ async def test_stream_usage_enabled_for_streaming_supported_providers(
     kwargs = call_args.kwargs.get("kwargs", {})
 
     assert kwargs.get("stream_usage") is True
-
-
-@pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
-async def test_stream_usage_not_set_without_streaming(mock_init_llm_model):
-    """Test that stream_usage is not set when streaming is disabled."""
-    config = RailsConfig.from_content(
-        config={
-            "models": [
-                {
-                    "type": "main",
-                    "engine": "openai",
-                    "model": "gpt-4",
-                }
-            ],
-            "streaming": False,
-        }
-    )
-
-    LLMRails(config=config)
-
-    mock_init_llm_model.assert_called_once()
-    call_args = mock_init_llm_model.call_args
-    kwargs = call_args.kwargs.get("kwargs", {})
-
-    assert "stream_usage" not in kwargs
-
-
-@pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
-async def test_stream_usage_enabled_for_all_providers_when_streaming(
-    mock_init_llm_model,
-):
-    """Test that stream_usage is passed to ALL providers when streaming is enabled.
-
-    With the new design, stream_usage=True is passed to ALL providers when
-    streaming is enabled. Providers that don't support it will simply ignore it.
-    """
-    config = RailsConfig.from_content(
-        config={
-            "models": [
-                {
-                    "type": "main",
-                    "engine": "unsupported",
-                    "model": "whatever",
-                }
-            ],
-            "streaming": True,
-        }
-    )
-
-    LLMRails(config=config)
-
-    mock_init_llm_model.assert_called_once()
-    call_args = mock_init_llm_model.call_args
-    kwargs = call_args.kwargs.get("kwargs", {})
-
-    # stream_usage should be set for all providers when streaming is enabled
-    assert kwargs.get("stream_usage") is True
-
-
-# Add this test after the existing tests, around line 1100+
 
 
 def test_register_methods_return_self():

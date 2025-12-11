@@ -144,10 +144,10 @@ class TestChatV2xE2E:
 
         This requires LIVE_TEST_MODE=1 and OpenAI API key.
         """
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
 
         from nemoguardrails import LLMRails, RailsConfig
-        from nemoguardrails.cli.chat import _run_chat_v2_x
+        from nemoguardrails.cli.chat import ChatState, _run_chat_v2_x
 
         config = RailsConfig.from_content(
             """
@@ -171,13 +171,22 @@ class TestChatV2xE2E:
         simulated_input = ["hi", "exit"]
         input_iter = iter(simulated_input)
 
-        def mock_input(*args, **kwargs):
+        async def mock_prompt_async(*args, **kwargs):
             try:
                 return next(input_iter)
             except StopIteration:
                 raise KeyboardInterrupt()
 
-        with patch("builtins.input", side_effect=mock_input):
+        mock_session = MagicMock()
+        mock_session.prompt_async = mock_prompt_async
+
+        original_init = ChatState.__init__
+
+        def patched_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            self.session = mock_session
+
+        with patch.object(ChatState, "__init__", patched_init):
             try:
                 await _run_chat_v2_x(rails)
             except (KeyboardInterrupt, StopIteration):
