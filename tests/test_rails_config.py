@@ -1024,6 +1024,9 @@ class TestMultilingualConfig:
         config = MultilingualConfig()
         assert config.enabled is False
         assert config.refusal_messages is None
+        assert config.max_text_length is None
+        assert config.normalize_text is True
+        assert config.cache_dir is None
 
     def test_with_custom_messages(self):
         custom = {"en": "Custom", "es": "Personalizado"}
@@ -1031,12 +1034,27 @@ class TestMultilingualConfig:
         assert config.enabled is True
         assert config.refusal_messages == custom
 
+    def test_with_detection_options(self):
+        config = MultilingualConfig(
+            enabled=True,
+            max_text_length=200,
+            normalize_text=False,
+            cache_dir="/custom/cache",
+        )
+        assert config.enabled is True
+        assert config.max_text_length == 200
+        assert config.normalize_text is False
+        assert config.cache_dir == "/custom/cache"
+
 
 class TestContentSafetyConfigModel:
     def test_defaults(self):
         config = ContentSafetyConfig()
         assert config.multilingual.enabled is False
         assert config.multilingual.refusal_messages is None
+        assert config.multilingual.max_text_length is None
+        assert config.multilingual.normalize_text is True
+        assert config.multilingual.cache_dir is None
 
     def test_with_multilingual(self):
         custom = {"en": "Custom"}
@@ -1090,3 +1108,19 @@ class TestMultilingualConfigInRailsConfig:
         config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
         assert config.rails.config.content_safety.multilingual.enabled is True
         assert config.rails.config.content_safety.multilingual.refusal_messages is None
+
+    def test_multilingual_with_detection_options(self):
+        rails_config = """
+          config:
+            content_safety:
+              multilingual:
+                enabled: true
+                max_text_length: 200
+                normalize_text: false
+                cache_dir: "/custom/cache"
+        """
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
+        assert config.rails.config.content_safety.multilingual.enabled is True
+        assert config.rails.config.content_safety.multilingual.max_text_length == 200
+        assert config.rails.config.content_safety.multilingual.normalize_text is False
+        assert config.rails.config.content_safety.multilingual.cache_dir == "/custom/cache"

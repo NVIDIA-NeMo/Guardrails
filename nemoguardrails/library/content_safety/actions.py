@@ -31,6 +31,7 @@ from nemoguardrails.llm.cache.utils import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.rails.llm.config import RailsConfig
 
 log = logging.getLogger(__name__)
 
@@ -237,11 +238,22 @@ DEFAULT_REFUSAL_MESSAGES: Dict[str, str] = {
 }
 
 
-def _detect_language(text: str) -> Optional[str]:
+def _detect_language(
+    text: str,
+    max_text_length: Optional[int] = None,
+    normalize_text: bool = True,
+    cache_dir: Optional[str] = None,
+) -> Optional[str]:
     try:
-        from fast_langdetect import detect
+        from fast_langdetect import LangDetectConfig, LangDetector
 
-        result = detect(text, k=1)
+        config = LangDetectConfig(
+            max_input_length=max_text_length,
+            normalize_input=normalize_text,
+            cache_dir=cache_dir,
+        )
+        detector = LangDetector(config)
+        result = detector.detect(text, k=1)
         if result and len(result) > 0:
             return result[0].get("lang")
         return None
@@ -266,13 +278,17 @@ def _get_refusal_message(lang: str, custom_messages: Optional[Dict[str, str]]) -
 @action()
 async def detect_language(
     context: Optional[dict] = None,
-    config: Optional[dict] = None,
+    config: Optional[RailsConfig] = None,
 ) -> dict:
     user_message = ""
     if context is not None:
         user_message = context.get("user_message", "")
 
     custom_messages = None
+    max_text_length = None
+    normalize_text = True
+    cache_dir = None
+
     if config is not None:
         multilingual_config = (
             config.rails.config.content_safety.multilingual
@@ -284,8 +300,19 @@ async def detect_language(
         )
         if multilingual_config:
             custom_messages = multilingual_config.refusal_messages
+            max_text_length = multilingual_config.max_text_length
+            normalize_text = multilingual_config.normalize_text
+            cache_dir = multilingual_config.cache_dir
 
-    lang = _detect_language(user_message) or "en"
+    lang = (
+        _detect_language(
+            user_message,
+            max_text_length=max_text_length,
+            normalize_text=normalize_text,
+            cache_dir=cache_dir,
+        )
+        or "en"
+    )
 
     if lang not in SUPPORTED_LANGUAGES:
         lang = "en"

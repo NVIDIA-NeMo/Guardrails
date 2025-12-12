@@ -906,6 +906,21 @@ class MultilingualConfig(BaseModel):
         "If not specified, built-in defaults are used. "
         "Example: {'en': 'Sorry, I cannot help.', 'es': 'Lo siento, no puedo ayudar.'}",
     )
+    max_text_length: Optional[int] = Field(
+        default=None,
+        description="Maximum text length for language detection. Text longer than this will be truncated. "
+        "If not specified, uses the library default (80 characters).",
+    )
+    normalize_text: bool = Field(
+        default=True,
+        description="If True, normalize input text before language detection "
+        "(e.g., lowercase uppercase text to prevent misdetection).",
+    )
+    cache_dir: Optional[str] = Field(
+        default=None,
+        description="Directory for storing downloaded language detection models. "
+        "If not specified, uses the system default cache location.",
+    )
 
 
 class ContentSafetyConfig(BaseModel):
