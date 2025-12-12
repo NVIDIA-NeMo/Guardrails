@@ -1,17 +1,17 @@
 ---
 title: Topic Control
-description: Deploy NemoGuard Topic Control NIM to restrict conversations to allowed topics.
+description: Deploy NeMo Topic Control to restrict conversations to allowed topics.
 ---
 
-# Topic Control with NemoGuard NIM
+# Topic Control with NeMo Topic Control
 
-The TopicControl model is available to download as a LoRA adapter module through Hugging Face or as an [NVIDIA TopicControl NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/index.html) for low-latency optimized inference with [NVIDIA TensorRT-LLM](https://docs.nvidia.com/tensorrt-llm/index.html).
+The Topic Control model is available to download as a LoRA adapter module through Hugging Face or as an [NVIDIA TopicControl NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/index.html) for low-latency optimized inference with [NVIDIA TensorRT-LLM](https://docs.nvidia.com/tensorrt-llm/index.html).
 
-This guide covers how to deploy the TopicControl model as a NIM microservice and use it in a NeMo Guardrails configuration.
+This guide covers how to deploy NeMo Topic Control as a NIM microservice and use it in a NeMo Guardrails configuration.
 
 ## NIM Deployment
 
-Follow the instructions below to deploy the TopicControl NIM microservice and configure it in a NeMo Guardrails application.
+Follow the instructions below to deploy NeMo Topic Control and configure it in a NeMo Guardrails application.
 
 ### Access
 
@@ -44,9 +44,9 @@ docker run -it --name=$MODEL_NAME \
     $NIM_IMAGE
 ```
 
-### Use TopicControl NIM Microservice in NeMo Guardrails App
+### Use NeMo Topic Control in the NeMo Guardrails App
 
-A locally running TopicControl NIM microservice exposes the standard OpenAI interface on the `v1/chat/completions` endpoint. NeMo Guardrails provides out-of-the-box support for engines that support the standard LLM interfaces. In Guardrails configuration, use the engine `nim` for the TopicControl NIM microservice as follows.
+A locally running Topic Control NIM exposes the standard OpenAI interface on the `v1/chat/completions` endpoint. NeMo Guardrails provides out-of-the-box support for engines that support the standard LLM interfaces. In the Guardrails configuration, use the engine `nim` for the Topic Control NIM as follows.
 
 ```yaml
 models:
@@ -68,7 +68,7 @@ rails:
 
 A few things to note:
 
-- `parameters.base_url` should contain the IP address of the machine the NIM was hosted on, the port should match the tunnel forwarding port specified in the docker run command.
+- `parameters.base_url` should contain the IP address of the machine the NIM was hosted on, and the port should match the tunnel forwarding port specified in the docker run command.
 - `parameters.model_name` in the Guardrails configuration needs to match the `$MODEL_NAME` used when running the NIM container.
 - The `rails` definitions should list `topic_control` as the model.
 
@@ -76,7 +76,9 @@ A few things to note:
 
 If you'd like to not build TRTLLM engines from scratch every time you run the NIM container, you can cache it in the first run by just adding a flag to mount a local directory inside the docker to store the model cache.
 
-To achieve this, you simply need to mount the folder containing the cached TRTLLM assets onto the docker container while running it using `-v $LOCAL_NIM_CACHE:/opt/nim/.cache`. See below instructions for the full command. Important: make sure that docker has permissions to write to the cache folder (`sudo chmod 666 $LOCAL_NIM_CACHE`).
+To achieve this, you simply need to mount the folder containing the cached TRTLLM assets onto the docker container while running it using `-v $LOCAL_NIM_CACHE:/opt/nim/.cache`. See below instructions for the full command.
+
+Important: Make sure that docker has permissions to write to the cache folder (`sudo chmod 666 $LOCAL_NIM_CACHE`).
 
 ```bash
 ### To bind a $LOCAL_NIM_CACHE folder to "/opt/nim/.cache"
@@ -99,10 +101,10 @@ docker run -it --name=$MODEL_NAME \
     $NIM_IMAGE
 ```
 
-## More details on TopicControl model
+## More details on NeMo Topic Control
 
-For more details on the TopicControl model, check out the other resources:
+For more details on NeMo Topic Control, check out these resources:
 
-- NeMo Guardrails library for [NVIDIA NemoGuard models](../guardrails-library.md#nvidia-models)
-- TopicControl topic safety example [configuration and prompts](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/topic_safety)
+- NeMo Guardrails Library for [NVIDIA NemoGuard models](../guardrails-library.md#nvidia-models)
+- NeMo Topic Control topic safety example [configuration and prompts](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/topic_safety)
 - [Paper at EMNLP 2024](https://arxiv.org/abs/2404.03820)

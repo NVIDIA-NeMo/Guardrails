@@ -1,6 +1,6 @@
 ---
-title: Text Content Safety
-description: Deploy Nemotron Safety Guard to detect harmful content in text inputs and outputs.
+title: Content Safety - Text
+description: Deploy NeMo Content Safety to detect harmful content in text inputs and outputs.
 ---
 
 <!--
@@ -8,7 +8,7 @@ description: Deploy Nemotron Safety Guard to detect harmful content in text inpu
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Text Content Safety with Nemotron Safety Guard NIM
+# Content Safety (Text) with NeMo Content Safety
 
 ## Adding Multilingual Content Safety Guardrails
 

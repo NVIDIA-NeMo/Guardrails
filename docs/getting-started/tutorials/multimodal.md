@@ -12,7 +12,7 @@ description: Add safety checks to images and text using vision models as LLM-as-
 
 ## About Working with Multimodal Data
 
-NeMo Guardrails toolkit supports adding safety checks to multimodal content---images and text.
+NeMo Guardrails Library supports adding safety checks to multimodal content---images and text.
 The support is for input and output guardrails only.
 Depending on the image reasoning model, you can specify the image to check as a base64 encoded data or as a URL.
 

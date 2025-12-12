@@ -1,11 +1,11 @@
 ---
 title: Jailbreak Detection
-description: Deploy NemoGuard Jailbreak Detection NIM to block adversarial prompts.
+description: Deploy NeMo Jailbreak Detect to block adversarial prompts.
 ---
 
-# Jailbreak Detection with NemoGuard NIM
+# Jailbreak Detection with NeMo Jailbreak Detect
 
-The NemoGuard Jailbreak Detect model is available via the [Jailbreak Detection Container](jailbreak-detection-deployment.md) or as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard).
+NeMo Jailbreak Detect is available via the [Jailbreak Detection Container](jailbreak-detection-deployment.md) or as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard).
 
 ## NIM Deployment
 
