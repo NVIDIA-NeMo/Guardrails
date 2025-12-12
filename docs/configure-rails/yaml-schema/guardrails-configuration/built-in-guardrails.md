@@ -552,6 +552,14 @@ The multilingual feature supports 9 languages:
 
 If the detected language is not in this list, English is used as the fallback.
 
+##### Installation
+
+To use multilingual refusal messages, install NeMo Guardrails with the `multilingual` extra:
+
+```bash
+pip install nemoguardrails[multilingual]
+```
+
 ##### Usage
 
 To enable multilingual refusal messages, add the `multilingual` configuration to your `config.yml`:
