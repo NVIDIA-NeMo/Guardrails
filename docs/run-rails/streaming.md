@@ -1,19 +1,11 @@
 # Streaming
 
-If the application LLM supports streaming, you can configure NeMo Guardrails to stream tokens as well.
+If the application LLM supports streaming, NeMo Guardrails can stream tokens as well. Streaming is automatically enabled when you use the `stream_async()` method - no configuration is required.
 
 For information about configuring streaming with output guardrails, refer to the following:
 
 - For configuration, refer to [streaming output configuration](../user-guides/configuration-guide.md#streaming-output-configuration).
 - For sample Python client code, refer to [streaming output](../getting-started/5-output-rails/README.md#streaming-output).
-
-## Configuration
-
-To activate streaming on a guardrails configuration, add the following to your `config.yml`:
-
-```yaml
-streaming: True
-```
 
 ## Usage
 
@@ -215,13 +207,7 @@ POST /v1/chat/completions
 We also support streaming for LLMs deployed using `HuggingFacePipeline`.
 One example is provided in the [HF Pipeline Dolly](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md) configuration.
 
-To use streaming for HF Pipeline LLMs, you first need to set the streaming flag in your `config.yml`.
-
-```yaml
-streaming: True
-```
-
-Then you need to create an `nemoguardrails.llm.providers.huggingface.AsyncTextIteratorStreamer` streamer object,
+To use streaming for HF Pipeline LLMs, you need to create an `nemoguardrails.llm.providers.huggingface.AsyncTextIteratorStreamer` streamer object,
 add it to the `kwargs` of the pipeline and to the `model_kwargs` of the `HuggingFacePipelineCompatible` object.
 
 ```python
