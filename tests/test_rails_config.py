@@ -1090,3 +1090,43 @@ class TestMultilingualConfigInRailsConfig:
         config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
         assert config.rails.config.content_safety.multilingual.enabled is True
         assert config.rails.config.content_safety.multilingual.refusal_messages is None
+
+
+class TestDeprecatedStreamingConfig:
+    """Tests for deprecated streaming config field."""
+
+    def test_streaming_config_field_accepted(self):
+        """Test that the deprecated streaming: True config field is still accepted."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            streaming: True
+            """
+        )
+        assert config.streaming is True
+
+    def test_streaming_config_field_default_false(self):
+        """Test that streaming defaults to False when not specified."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            """
+        )
+        assert config.streaming is False
+
+    def test_streaming_config_field_shows_deprecation_warning(self):
+        """Test that using streaming: True shows a deprecation warning."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = RailsConfig.from_content(
+                yaml_content="""
+                models: []
+                streaming: True
+                """
+            )
+            assert config.streaming is True
+
+            deprecation_warnings = [warning for warning in w if "streaming" in str(warning.message).lower()]
+            assert len(deprecation_warnings) > 0, "Expected a deprecation warning for 'streaming' field"
