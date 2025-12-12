@@ -3,13 +3,13 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA NeMo Guardrails Toolkit Developer Guide
+# NVIDIA NeMo Guardrails Library Developer Guide
 
-The NeMo Guardrails toolkit is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
+The NeMo Guardrails library is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
 
-## About the NeMo Guardrails Toolkit
+## About the NeMo Guardrails Library
 
-Learn about the toolkit and its capabilities in the following sections.
+Learn about the library and its capabilities in the following sections.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -18,35 +18,35 @@ Learn about the toolkit and its capabilities in the following sections.
 :link: about/overview
 :link-type: doc
 
-Learn about the NeMo Guardrails toolkit and its capabilities.
+Learn about the NeMo Guardrails library and its capabilities.
 :::
 
 :::{grid-item-card} Use Cases
 :link: about/use-cases
 :link-type: doc
 
-Browse the different use cases of the NeMo Guardrails toolkit.
+Browse the different use cases of the NeMo Guardrails library.
 :::
 
 :::{grid-item-card} How It Works
 :link: about/how-it-works/index
 :link-type: doc
 
-Learn how the NeMo Guardrails toolkit works.
+Learn how the NeMo Guardrails library works.
 :::
 
 :::{grid-item-card} Supported LLMs and Providers
 :link: about/supported-llms
 :link-type: doc
 
-Browse the LLMs and their providers supported by the toolkit.
+Browse the LLMs and their providers supported by the library.
 :::
 
 ::::
 
 ## Get Started
 
-Follow these steps to start using the NeMo Guardrails toolkit.
+Follow these steps to start using the NeMo Guardrails library.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -55,14 +55,14 @@ Follow these steps to start using the NeMo Guardrails toolkit.
 :link: getting-started/installation-guide
 :link-type: doc
 
-Install the toolkit with pip and set up your environment.
+Install the library with pip and set up your environment.
 :::
 
 :::{grid-item-card} Tutorials
 :link: getting-started/tutorials/index
 :link-type: doc
 
-Follow hands-on tutorials to build your first guardrails configuration.
+Follow hands-on tutorials to build your first Guardrails configuration.
 :::
 ::::
 
@@ -107,7 +107,7 @@ Monitor and troubleshoot your guardrails applications.
 :link: deployment/index
 :link-type: doc
 
-Deploy your guardrails using the toolkit's local server, Docker, or as a production microservice.
+Deploy your guardrails using the library's local server, Docker, or as a production microservice.
 :::
 
 :::{grid-item-card} Integrate
@@ -120,8 +120,8 @@ Connect with LangChain, LangGraph, and other frameworks.
 ::::
 
 ```{toctree}
-:caption: About NeMo Guardrails Toolkit
-:name: About NeMo Guardrails Toolkit
+:caption: About NeMo Guardrails Library
+:name: About NeMo Guardrails Library
 :hidden:
 
 Overview <about/overview.md>
