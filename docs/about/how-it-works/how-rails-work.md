@@ -1,11 +1,11 @@
 ---
 title: Rails Overview
-description: Learn how the NeMo Guardrails toolkit applies guardrails at multiple stages of the LLM interaction.
+description: Learn how the NeMo Guardrails Library applies guardrails at multiple stages of the LLM interaction.
 ---
 
 # Rails Overview
 
-The NeMo Guardrails toolkit applies guardrails at multiple stages of the LLM interaction.
+The NeMo Guardrails Library applies guardrails at multiple stages of the LLM interaction.
 
 | Stage | Rail Type | Common Use Cases |
 |-------|-----------|------------------|

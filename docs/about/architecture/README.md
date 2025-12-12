@@ -1,6 +1,6 @@
 # Architecture Guide
 
-This document provides more details on the architecture and the approach that the NeMo Guardrails toolkit takes for implementing guardrails.
+This document provides more details on the architecture and the approach that the NeMo Guardrails Library takes for implementing guardrails.
 
 ![Overall Architecture](overall-architecture.png)
 
@@ -8,7 +8,7 @@ This document provides more details on the architecture and the approach that th
 
 This section explains in detail the process under the hood, from the utterance sent by the user to the bot utterance that is returned.
 
-The guardrails runtime uses an event-driven design (i.e., an event loop that processes events and generates back other events). Whenever the user says something to the bot, a `UtteranceUserActionFinished` event is created and sent to the runtime.
+The guardrails runtime uses an event-driven design (i.e., an event loop that processes events and generates back other events). Whenever the user says something to the bot, an `UtteranceUserActionFinished` event is created and sent to the runtime.
 
 The process has three main stages:
 
@@ -69,7 +69,7 @@ Regardless of the path taken, there are two categories of next steps:
 
 When an action needs to be executed, the runtime will invoke the action and wait for the result. When the action finishes, an `InternalSystemActionFinished` event is created with the result of the action.
 
-**Note**: the default implementation of the runtime is async, so the action execution is only blocking for a specific user.
+**Note**: The default implementation of the runtime is async, so the action execution is only blocking for a specific user.
 
 When the bot should say something, the process will move to the next stage, i.e., generating the bot utterance.
 
@@ -246,13 +246,13 @@ Notice the various sections included in the prompt: the general instruction, the
 
 ## Interaction with LLMs
 
-This toolkit relies on LangChain for the interaction with LLMs. Below is a high-level sequence diagram showing the interaction between the user's code (the one using the guardrails), the `LLMRails`, LangChain and the LLM API.
+This library relies on LangChain for the interaction with LLMs. Below is a high-level sequence diagram showing the interaction between the user's code (the one using the guardrails), the `LLMRails`, LangChain and the LLM API.
 
 ![Sequence Diagram LLMRails](sequence-diagram-llmrails.png)
 
 ## Server Architecture
 
-This toolkit provides a guardrails server with an interface similar to publicly available LLM APIs. Using the server, integrating a guardrails configuration in your application can be as easy as replacing the initial LLM API URL with the Guardrails Server API URL.
+This library provides a guardrails server with an interface similar to publicly available LLM APIs. Using the server, integrating a guardrails configuration in your application can be as easy as replacing the initial LLM API URL with the Guardrails Server API URL.
 
 ![Guardrails Server](guardrails-server.png)
 
