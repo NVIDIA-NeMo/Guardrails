@@ -1,63 +1,13 @@
 ---
-title: Global Streaming
-description: Enable streaming mode for LLM token generation in config.yml.
+title: Streaming
+description: Using streaming mode for LLM token generation in NeMo Guardrails.
 ---
 
-# Global Streaming
+# Streaming
 
-Enable streaming mode for the main LLM generation at the top level of `config.yml`.
+NeMo Guardrails supports streaming LLM responses via the `stream_async()` method. No configuration is required to enable streaming—simply use `stream_async()` instead of `generate_async()`.
 
-## Configuration
-
-```yaml
-streaming: True
-```
-
-## What It Does
-
-When enabled, global streaming:
-
-- Sets `streaming = True` on the underlying LLM model
-- Enables `stream_usage = True` for token usage tracking
-- Allows using the `stream_async()` method on `LLMRails`
-- Makes the LLM produce tokens incrementally instead of all at once
-
-## Default
-
-`False`
-
----
-
-## When to Use
-
-### Streaming Without Output Rails
-
-If you do not have output rails configured, only global streaming is needed:
-
-```yaml
-streaming: True
-```
-
-### Streaming With Output Rails
-
-When using output rails with streaming, you must also configure [output rail streaming](output-rail-streaming.md):
-
-```yaml
-streaming: True
-
-rails:
-  output:
-    flows:
-      - self check output
-    streaming:
-      enabled: True
-```
-
----
-
-## Python API Usage
-
-### Simple Streaming
+## Basic Usage
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
@@ -71,9 +21,30 @@ async for chunk in rails.stream_async(messages=messages):
     print(chunk, end="", flush=True)
 ```
 
-### Streaming With Handler
+---
 
-For more control, use a `StreamingHandler`:
+## Streaming With Output Rails
+
+When using output rails with streaming, you must configure [output rail streaming](output-rail-streaming.md):
+
+```yaml
+rails:
+  output:
+    flows:
+      - self check output
+    streaming:
+      enabled: True
+```
+
+If output rails are configured but `rails.output.streaming.enabled` is not set to `True`, calling `stream_async()` will raise an `StreamingNotSupportedError`.
+
+---
+
+## Streaming With Handler (Deprecated)
+
+> **Warning:** Using `StreamingHandler` directly is deprecated and will be removed in a future release. Use `stream_async()` instead.
+
+For advanced use cases requiring more control over token processing, you can use a `StreamingHandler` with `generate_async()`:
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
@@ -113,9 +84,19 @@ Enable streaming in the request body by setting `stream` to `true`:
 
 ---
 
+## CLI Usage
+
+Use the `--streaming` flag with the chat command:
+
+```bash
+nemoguardrails chat path/to/config --streaming
+```
+
+---
+
 ## Token Usage Tracking
 
-When streaming is enabled, NeMo Guardrails automatically enables token usage tracking by setting `stream_usage = True` for the underlying LLM model.
+When using `stream_async()`, NeMo Guardrails automatically enables token usage tracking by setting `stream_usage = True` on the underlying LLM model.
 
 Access token usage through the `log` generation option:
 
