@@ -591,9 +591,10 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
             pass
 
     assert str(exc_info.value) == (
-        "Streaming cannot be used when output rails are configured but "
+        "stream_async() cannot be used when output rails are configured but "
         "rails.output.streaming.enabled is False. Either set "
-        "rails.output.streaming.enabled to True in your configuration, or disable streaming."
+        "rails.output.streaming.enabled to True in your configuration, or use "
+        "generate_async() instead of stream_async()."
     )
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})

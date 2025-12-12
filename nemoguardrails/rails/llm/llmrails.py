@@ -1167,9 +1167,10 @@ class LLMRails:
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):
             raise InvalidRailsConfigurationError(
-                "Streaming cannot be used when output rails are configured but "
+                "stream_async() cannot be used when output rails are configured but "
                 "rails.output.streaming.enabled is False. Either set "
-                "rails.output.streaming.enabled to True in your configuration, or disable streaming."
+                "rails.output.streaming.enabled to True in your configuration, or use "
+                "generate_async() instead of stream_async()."
             )
 
     @overload
