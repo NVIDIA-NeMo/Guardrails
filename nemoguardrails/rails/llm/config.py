@@ -1455,6 +1455,12 @@ class RailsConfig(BaseModel):
         description="Configuration for the various rails (input, output, etc.).",
     )
 
+    streaming: bool = Field(
+        default=False,
+        deprecated="The 'streaming' field is no longer required. Use stream_async() method directly instead. This field will be removed in a future version.",
+        description="DEPRECATED: Use stream_async() method instead. This field is ignored.",
+    )
+
     enable_rails_exceptions: bool = Field(
         default=False,
         description="If set, the pre-defined guardrails raise exceptions instead of returning pre-defined messages.",
