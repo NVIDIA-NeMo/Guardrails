@@ -23,7 +23,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.exceptions import InvalidRailsConfigurationError
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.streaming import StreamingHandler
 from tests.utils import TestChat
@@ -165,7 +165,7 @@ async def test_streaming_output_rails_blocked_default_config(
 
     llmrails = LLMRails(output_rails_streaming_config_default)
 
-    with pytest.raises(InvalidRailsConfigurationError) as exc_info:
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
         async for chunk in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
             pass
 

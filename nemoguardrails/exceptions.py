@@ -19,6 +19,7 @@ __all__ = [
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
     "LLMCallException",
+    "StreamingNotSupportedError",
 ]
 
 
@@ -45,6 +46,12 @@ class InvalidRailsConfigurationError(ConfigurationError):
         - Missing required prompt template
         - Invalid rail parameters
     """
+
+    pass
+
+
+class StreamingNotSupportedError(InvalidRailsConfigurationError):
+    """Raised when streaming is requested but not supported by the configuration."""
 
     pass
 

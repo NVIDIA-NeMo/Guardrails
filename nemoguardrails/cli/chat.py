@@ -28,7 +28,7 @@ from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
-from nemoguardrails.exceptions import InvalidRailsConfigurationError
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
@@ -93,22 +93,19 @@ async def _run_chat_v1_0(
 
                     bot_message_text = "".join(bot_message_list)
                     bot_message = {"role": "assistant", "content": bot_message_text}
-                except InvalidRailsConfigurationError as e:
-                    error_msg = str(e)
-                    if "stream_async()" in error_msg and "output rails" in error_msg:
-                        raise InvalidRailsConfigurationError(
-                            f"Cannot use --streaming with config `{config_path}` because output rails "
-                            "are configured but streaming is not enabled for them.\n\n"
-                            "To fix this, either:\n"
-                            "  1. Enable streaming for output rails by adding to your config.yml:\n"
-                            "     rails:\n"
-                            "       output:\n"
-                            "         streaming:\n"
-                            "           enabled: True\n\n"
-                            "  2. Or run without the --streaming flag:\n"
-                            f"     nemoguardrails chat {config_path}"
-                        ) from e
-                    raise
+                except StreamingNotSupportedError as e:
+                    raise StreamingNotSupportedError(
+                        f"Cannot use --streaming with config `{config_path}` because output rails "
+                        "are configured but streaming is not enabled for them.\n\n"
+                        "To fix this, either:\n"
+                        "  1. Enable streaming for output rails by adding to your config.yml:\n"
+                        "     rails:\n"
+                        "       output:\n"
+                        "         streaming:\n"
+                        "           enabled: True\n\n"
+                        "  2. Or run without the --streaming flag:\n"
+                        f"     nemoguardrails chat {config_path}"
+                    ) from e
 
             else:
                 if rails_app is None:

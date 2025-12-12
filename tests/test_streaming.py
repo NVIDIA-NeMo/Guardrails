@@ -21,7 +21,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
-from nemoguardrails.exceptions import InvalidRailsConfigurationError
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.streaming import StreamingHandler
 from tests.utils import TestChat
 
@@ -494,7 +494,7 @@ async def test_streaming_with_output_rails_disabled_raises_error():
         streaming=True,
     )
 
-    with pytest.raises(InvalidRailsConfigurationError) as exc_info:
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
         async for chunk in chat.app.stream_async(
             messages=[{"role": "user", "content": "Hi!"}],
         ):
@@ -536,7 +536,7 @@ async def test_streaming_with_output_rails_no_streaming_config_raises_error():
         streaming=True,
     )
 
-    with pytest.raises(InvalidRailsConfigurationError) as exc_info:
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
         async for chunk in chat.app.stream_async(
             messages=[{"role": "user", "content": "Hi!"}],
         ):

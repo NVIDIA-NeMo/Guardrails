@@ -73,6 +73,7 @@ from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
+    StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
@@ -1167,7 +1168,7 @@ class LLMRails:
         if len(self.config.rails.output.flows) > 0 and (
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):
-            raise InvalidRailsConfigurationError(
+            raise StreamingNotSupportedError(
                 "stream_async() cannot be used when output rails are configured but "
                 "rails.output.streaming.enabled is False. Either set "
                 "rails.output.streaming.enabled to True in your configuration, or use "
