@@ -529,6 +529,141 @@ The above is an example prompt that you can use with the *content safety check i
 
 The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](../../nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](../../nemoguardrails/library/content_safety/actions.py) actions respectively.
 
+#### Multilingual Refusal Messages
+
+<!-- TODO: should we mention nvidia/llama-3.1-nemotron-safety-guard-8b-v3  -->
+When content safety rails block unsafe content, you can configure NeMo Guardrails to automatically detect the user's input language and return refusal messages in that same language. This provides a better user experience for multilingual applications.
+
+##### Supported Languages
+
+The multilingual feature supports 9 languages:
+
+| Language | Code | Default Refusal Message |
+|----------|------|-------------------------|
+| English | `en` | I'm sorry, I can't respond to that. |
+| Spanish | `es` | Lo siento, no puedo responder a eso. |
+| Chinese | `zh` | 抱歉，我无法回应。 |
+| German | `de` | Es tut mir leid, darauf kann ich nicht antworten. |
+| French | `fr` | Je suis désolé, je ne peux pas répondre à cela. |
+| Hindi | `hi` | मुझे खेद है, मैं इसका जवाब नहीं दे सकता। |
+| Japanese | `ja` | 申し訳ありませんが、それには回答できません。 |
+| Arabic | `ar` | عذراً، لا أستطيع الرد على ذلك. |
+| Thai | `th` | ขออภัย ฉันไม่สามารถตอบได้ |
+
+If the detected language is not in this list, English is used as the fallback.
+
+##### Usage
+
+To enable multilingual refusal messages, add the `multilingual` configuration to your `config.yml`:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+
+rails:
+  config:
+    content_safety:
+      multilingual:
+        enabled: true
+
+  input:
+    flows:
+      - content safety check input $model=content_safety
+
+  output:
+    flows:
+      - content safety check output $model=content_safety
+```
+
+##### Custom Refusal Messages
+
+You can customize the refusal messages for each language:
+
+```yaml
+rails:
+  config:
+    content_safety:
+      multilingual:
+        enabled: true
+        refusal_messages:
+          en: "Sorry, I cannot help with that request."
+          es: "Lo siento, no puedo ayudar con esa solicitud."
+          zh: "抱歉，我无法处理该请求。"
+          # Add other languages as needed
+```
+
+If a custom message is not provided for a detected language, the built-in default message for that language is used.
+
+<!--  TODO: shall we include it here -->
+##### How It Works
+
+When `multilingual.enabled` is set to `true`:
+
+1. The `detect_language` action uses the [fast-langdetect](https://github.com/LlmKira/fast-langdetect) library to detect the language of the user's input
+2. If the content safety check blocks the input, the refusal message is returned in the detected language
+3. Language detection adds minimal latency (~12μs per request)
+
+##### Advanced Configuration
+
+You can fine-tune language detection behavior with additional options:
+
+```yaml
+rails:
+  config:
+    content_safety:
+      multilingual:
+        enabled: true
+        max_text_length: 200      # Maximum characters for detection (default: 80)
+        normalize_text: true      # Lowercase uppercase text to prevent misdetection (default: true)
+        cache_dir: "/path/to/cache"  # Custom model cache directory (optional)
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `max_text_length` | int | 80 | Maximum text length for detection. Longer text is truncated. Set to `null` to disable truncation. |
+| `normalize_text` | bool | true | Lowercase uppercase text to prevent misdetection as Japanese. |
+| `cache_dir` | string | null | Custom directory for storing language detection models. If not set, uses system default. |
+
+##### Cold Start Behavior
+
+The fast-langdetect library downloads a language detection model on first use:
+
+| Model | Download Size | [Memory Usage](https://github.com/LlmKira/fast-langdetect?tab=readme-ov-file#memory-note) | First Call Behavior |
+|-------|---------------|--------------|---------------------|
+| `auto` (default) | 125 MB | ~170-210 MB | Downloads model on first call if not cached |
+| `lite` | ~0.9 MB (bundled) | ~45-60 MB | No download, works offline immediately |
+
+**Default cache location:**
+
+fast-langdetect stores its downloaded FastText model in a temporary, OS-specific cache directory at `{system_temp_dir}/fasttext-langdetect/`, where `system_temp_dir` is whatever directory your operating system uses for temporary files:
+
+- **macOS**: A sandboxed temp path such as `/var/folders/<random>/T/fasttext-langdetect/`
+- **Linux**: The global temp directory `/tmp/fasttext-langdetect/`
+- **Windows**: The user's temporary directory, e.g., `C:\Users\<User>\AppData\Local\Temp\fasttext-langdetect\`
+
+You can override this location via the `cache_dir` config option or the `FTLANG_CACHE` environment variable.
+
+**Production considerations:**
+
+- First API call may take ~10-20 seconds to download and load the full model (network-dependent)
+- Subsequent calls use the cached model with ~9-12μs latency
+- For container/serverless environments, consider pre-warming during startup or persisting the model cache in your container image
+
+##### Accuracy
+
+Language detection accuracy was benchmarked on two datasets:
+
+| Dataset | Samples | Accuracy |
+|---------|---------|----------|
+| [papluca/language-identification](https://huggingface.co/datasets/papluca/language-identification) | 40,500 | 99.71% |
+| [nvidia/Nemotron-Safety-Guard-Dataset-v3](https://huggingface.co/datasets/nvidia/Nemotron-Safety-Guard-Dataset-v3) | 336,283 | 99.35% |
+
 ### Topic Safety
 
 The topic safety feature allows you to define and enforce specific conversation rules and boundaries using NVIDIA's Topic Control model. This model helps ensure that conversations stay within predefined topics and follow specified guidelines.
