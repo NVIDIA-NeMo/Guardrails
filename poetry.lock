@@ -680,7 +680,7 @@ cron = ["capturer (>=2.4)"]
 name = "colorlog"
 version = "6.10.1"
 description = "Add colours to the output of Python's logging module."
-optional = true
+optional = false
 python-versions = ">=3.6"
 files = [
     {file = "colorlog-6.10.1-py3-none-any.whl", hash = "sha256:2d7e8348291948af66122cff006c9f8da6255d224e7cf8e37d8de2df3bad8c9c"},
@@ -974,7 +974,7 @@ test = ["pytest (>=6)"]
 name = "fast-langdetect"
 version = "1.0.0"
 description = "Quickly detect text language and segment language"
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "fast_langdetect-1.0.0-py3-none-any.whl", hash = "sha256:aab9e3435cc667ac8ba8b1a38872f75492f65b7087901d0f3a02a88d436cd22a"},
@@ -1042,7 +1042,7 @@ tqdm = ">=4.66,<5.0"
 name = "fasttext-predict"
 version = "0.9.2.4"
 description = "fasttext with wheels and no external dependency, but only the predict method (<1MB)"
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "fasttext_predict-0.9.2.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:ba432f33228928df5f2af6dfa50560cd77f9859914cffd652303fb02ba100456"},
@@ -4538,7 +4538,7 @@ jupyter = ["ipywidgets (>=7.5.1,<9)"]
 name = "robust-downloader"
 version = "0.0.2"
 description = "A Simple Robust Downloader written in Python"
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "robust-downloader-0.0.2.tar.gz", hash = "sha256:08c938b96e317abe6b037e34230a91bda9b5d613f009bca4a47664997c61de90"},
@@ -6609,4 +6609,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "a4a88ebec0695f8b4514e7e5c9f8931687e40045ed45140006a01839195d638e"
+content-hash = "5f621add3bdfe92f78c38e14702f22cef7adb3a98b6ca6e494bb44ed834bdd97"
