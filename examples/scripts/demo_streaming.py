@@ -34,8 +34,6 @@ models:
   - type: main
     engine: openai
     model: gpt-4
-
-streaming: True
 """
 
 
@@ -99,8 +97,6 @@ async def demo_streaming_from_custom_action():
                 dialog:
                     user_messages:
                         embeddings_only: True
-
-            streaming: True
         """,
         colang_content="""
             # We need to have at least on canonical form to enable dialog rails.

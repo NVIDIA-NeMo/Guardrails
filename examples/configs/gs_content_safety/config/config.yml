@@ -18,5 +18,3 @@ rails:
       enabled: True
       chunk_size: 200
       context_size: 50
-
-streaming: True

@@ -13,5 +13,3 @@ rails:
   dialog:
     single_call:
       enabled: True
-
-streaming: True
