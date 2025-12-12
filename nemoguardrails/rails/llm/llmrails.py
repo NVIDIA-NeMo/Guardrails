@@ -825,6 +825,7 @@ class LLMRails:
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
+            self._configure_main_llm_streaming(self.llm)  # type: ignore
 
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
@@ -1335,6 +1336,9 @@ class LLMRails:
         # Initialize the LLM stats
         llm_stats = LLMStats()
         llm_stats_var.set(llm_stats)
+
+        if streaming_handler_var.get():
+            self._configure_main_llm_streaming(self.llm)  # type: ignore
 
         # Compute the new events.
         processing_log = []
