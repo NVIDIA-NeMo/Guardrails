@@ -386,6 +386,8 @@ def _handle_model_special_cases(
         return None
 
     result = initializer(model_name, provider_name, kwargs)
+    if result is None:
+        return None
     if not isinstance(result, (BaseChatModel, BaseLLM)):
         raise TypeError("Initializer returned an invalid type")
     return result
