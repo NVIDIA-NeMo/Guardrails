@@ -158,7 +158,7 @@ class TestSuccessScenarios:
     """
 
     @pytest.mark.parametrize(
-        "scenario,model_name,provider,mode,setup_fn",
+        ("scenario", "model_name", "provider", "mode", "setup_fn"),
         [
             pytest.param(
                 "special_case_success",
@@ -268,7 +268,7 @@ class TestSingleErrorScenarios:
         ),
     ]
 
-    @pytest.mark.parametrize("mode,provider,error_config,expected_msg", SINGLE_ERROR_CASES)
+    @pytest.mark.parametrize(("mode", "provider", "error_config", "expected_msg"), SINGLE_ERROR_CASES)
     def test_single_error_preserved(self, registry, mode, provider, error_config, expected_msg):
         """
         When one initializer raises an error and others return None,
@@ -315,7 +315,7 @@ class TestMultipleErrorPriority:
     """
 
     @pytest.mark.parametrize(
-        "errors,expected_winner,reason",
+        ("errors", "expected_winner", "reason"),
         [
             pytest.param(
                 [("chat", ValueError, "Error A"), ("community", ValueError, "Error B")],
@@ -388,7 +388,7 @@ class TestErrorRecovery:
     """
 
     @pytest.mark.parametrize(
-        "failing_initializers,succeeding_initializer",
+        ("failing_initializers", "succeeding_initializer"),
         [
             pytest.param(["special"], "chat", id="special_fails_chat_succeeds"),
             pytest.param(["special", "chat"], "community", id="special_chat_fail_community_succeeds"),
