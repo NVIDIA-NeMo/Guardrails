@@ -273,6 +273,52 @@ class PrivateAIDetection(BaseModel):
     )
 
 
+class GLiNERDetectionOptions(BaseModel):
+    """Configuration options for GLiNER."""
+
+    entities: List[str] = Field(
+        default_factory=list,
+        description="The list of entity labels to detect (e.g., 'email', 'phone_number', 'ssn').",
+    )
+
+
+class GLiNERDetection(BaseModel):
+    """Configuration for GLiNER PII detection."""
+
+    server_endpoint: str = Field(
+        default="http://localhost:1235/v1/extract",
+        description="The endpoint for the GLiNER detection server.",
+    )
+    threshold: float = Field(
+        default=0.5,
+        description="Confidence threshold for entity detection (0.0 to 1.0).",
+    )
+    chunk_length: int = Field(
+        default=384,
+        description="Length of text chunks for processing.",
+    )
+    overlap: int = Field(
+        default=128,
+        description="Overlap between chunks.",
+    )
+    flat_ner: bool = Field(
+        default=False,
+        description="Whether to use flat NER mode.",
+    )
+    input: GLiNERDetectionOptions = Field(
+        default_factory=GLiNERDetectionOptions,
+        description="Configuration of the entities to be detected on the user input.",
+    )
+    output: GLiNERDetectionOptions = Field(
+        default_factory=GLiNERDetectionOptions,
+        description="Configuration of the entities to be detected on the bot output.",
+    )
+    retrieval: GLiNERDetectionOptions = Field(
+        default_factory=GLiNERDetectionOptions,
+        description="Configuration of the entities to be detected on retrieved relevant chunks.",
+    )
+
+
 class FiddlerGuardrails(BaseModel):
     """Configuration for Fiddler Guardrails."""
 
@@ -927,6 +973,11 @@ class RailsConfigData(BaseModel):
     privateai: Optional[PrivateAIDetection] = Field(
         default_factory=PrivateAIDetection,
         description="Configuration for Private AI.",
+    )
+
+    gliner: Optional[GLiNERDetection] = Field(
+        default_factory=GLiNERDetection,
+        description="Configuration for GLiNER PII detection.",
     )
 
     fiddler: Optional[FiddlerGuardrails] = Field(

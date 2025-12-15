@@ -1,0 +1,31 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:1235/v1/extract
+      threshold: 0.5
+      input:
+        entities:
+          - email
+          - phone_number
+          - ssn
+          - first_name
+          - last_name
+      output:
+        entities:   # If no entity is specified here, all supported entities will be detected by default.
+          - email
+          - phone_number
+          - ssn
+          - first_name
+          - last_name
+  input:
+    flows:
+      - gliner detect pii on input
+
+  output:
+    flows:
+      - gliner detect pii on output
