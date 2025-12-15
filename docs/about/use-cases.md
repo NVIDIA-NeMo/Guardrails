@@ -84,24 +84,9 @@ The NeMo Guardrails Library provides extensive flexibility for creating custom g
 
 ### Add Custom Rails into Guardrails
 
-You can create custom rails using one or more of the following approaches:
+If you have a script or tool that runs a custom guardrail, you can use it in NeMo Guardrails by following one of these approaches:
 
-1. **Colang flows**: Define custom dialog flows, input rails, and output rails using the Colang language.
-
-   ```colang
-   define user express greeting
-     "Hello!"
-     "Good morning!"
-
-   define flow
-     user express greeting
-     bot express greeting
-     bot offer to help
-   ```
-
-   For more information, refer to the [Colang Language Syntax Guide](../user-guides/colang-language-syntax-guide.md).
-
-2. **Python actions**: Create custom actions in Python for complex logic and external integrations.
+1. **Python actions**: Create custom actions in Python for complex logic and external integrations.
 
    ```python
    from nemoguardrails.actions import action
@@ -114,7 +99,7 @@ You can create custom rails using one or more of the following approaches:
 
    For more information, refer to the [Python API Guide](../python-api/index.md).
 
-3. **LangChain tool integration**: Register LangChain tools as custom actions.
+2. **LangChain tool integration**: Register LangChain tools as custom actions.
 
    ```python
    from langchain_core.tools import tool
@@ -129,7 +114,7 @@ You can create custom rails using one or more of the following approaches:
 
    For more information, refer to the [Tools Integration Guide](../integration/tools-integration.md).
 
-4. **Third-party API integration**: Integrate external moderation and validation services.
+3. **Third-party API integration**: Integrate external moderation and validation services.
    For examples, refer to the [Guardrails Library](../user-guides/guardrails-library.md) which includes integrations with ActiveFence, AutoAlign, Fiddler, and other services.
 
 ### Integrate Guardrails into LLM-based Applications

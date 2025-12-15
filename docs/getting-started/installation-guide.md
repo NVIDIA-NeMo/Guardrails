@@ -20,7 +20,7 @@ Review the following requirements to install the NeMo Guardrails Library.
 
 | Requirement Type     | Details                                                                                                                                      |
 |----------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| **Hardware**         | The library runs on CPUs (no GPUs required).<br>It acts as a process manager between your app front-end and the backend LLM.                            |
+| **Hardware**         | The Guardrails process runs on CPU. Guardrails models run on GPUs and can be deployed on a separate host or environment.                            |
 | **Software**         | Python 3.10, 3.11, 3.12, or 3.13                                                                                                           |
 
 ### Additional Dependencies
@@ -72,7 +72,7 @@ To experiment with the NeMo Guardrails Library from scratch, use a fresh virtual
 
 Use the `mkvirtualenv` *name* command to activate a new virtual environment called *name*.
 
-## Install the NeMo Guardrails Toolkit
+## Install the NeMo Guardrails Library
 
 Install the NeMo Guardrails Library using **pip**:
 

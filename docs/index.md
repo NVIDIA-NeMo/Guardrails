@@ -126,6 +126,7 @@ Connect with LangChain, LangGraph, and other frameworks.
 
 Overview <about/overview.md>
 Use Cases <about/use-cases.md>
+Rail Types <about/rail-types.md>
 How It Works <about/how-it-works/index.md>
 Supported LLMs <about/supported-llms.md>
 Release Notes <about/release-notes.md>
@@ -138,6 +139,7 @@ Release Notes <about/release-notes.md>
 
 getting-started/installation-guide
 getting-started/tutorials/index
+getting-started/integrate-into-application
 ```
 
 ```{toctree}

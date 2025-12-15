@@ -12,13 +12,6 @@ Read the following pages to learn more about how the library works and how you c
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Rails Overview
-:link: how-rails-work
-:link-type: doc
-
-Learn how the NeMo Guardrails Library applies guardrails at multiple stages of the LLM interaction.
-:::
-
 :::{grid-item-card} Guardrails Sequence Diagrams
 :link: guardrails-process
 :link-type: doc
@@ -38,7 +31,6 @@ Learn about the architecture and the approach that the NeMo Guardrails Library t
 ```{toctree}
 :hidden:
 
-Rails Overview  <how-rails-work.md>
 Rails Sequence Diagrams <guardrails-process.md>
 Detailed Architecture <../architecture/README.md>
 ```
