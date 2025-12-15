@@ -13,7 +13,7 @@ The following diagram depicts the guardrails process in detail:
 The guardrails process has multiple stages that a user message goes through:
 
 1. **Input stage**: The user input is first processed by the input rails. The input rails decide if the input is allowed, or whether it should be altered or rejected.
-2. **Dialog stage**: If the input is allowed and the configuration contains dialog rails (i.e., at least one user message is defined), then the user message is processed by the dialog flows. This will ultimately result in a bot message.
-3. **Output stage**: The Output rails decide if the output is allowed, or whether it should be altered or rejected.
-4. **Retrieval stage**: If configured to use a knowledge base, relevant context is retrieved and then processed by retrieval rails to validate, filter, and transform the retrieved information before it is injected into prompts.
-5. **Execution stage**: If custom actions/tools are defined, the system executes them under the control of execution rails, which govern which actions can run and how their inputs/outputs are validated; results may be incorporated into the response.
+2. **Retrieval stage**: If configured to use a knowledge base, relevant context is retrieved and then processed by retrieval rails to validate, filter, and transform the retrieved information before it is injected into prompts.
+3. **Dialog stage**: If the input is allowed and the configuration contains dialog rails (i.e., at least one user message is defined), then the user message is processed by the dialog flows. This will ultimately result in a bot message.
+4. **Execution stage**: If custom actions/tools are defined, the system executes them under the control of execution rails, which govern which actions can run and how their inputs/outputs are validated; results may be incorporated into the response.
+5. **Output stage**: The Output rails decide if the output is allowed, or whether it should be altered or rejected.
