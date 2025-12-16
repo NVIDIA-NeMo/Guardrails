@@ -460,17 +460,6 @@ async def test_enable_print_functionality():
 
 
 @pytest.mark.asyncio
-async def test_first_token_handling():
-    """Test the first_token flag behavior directly."""
-    handler = StreamingHandler()
-    assert handler.first_token is True
-
-    await handler.push_chunk("first token")
-
-    assert handler.first_token is True
-
-
-@pytest.mark.asyncio
 async def test_suffix_removal_at_end():
     """Test that suffix is removed at the end of streaming."""
 

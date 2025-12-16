@@ -72,8 +72,6 @@ class StreamingHandler(AsyncIterator):
         # If set, the chunk will be piped to the specified handler rather than added to the queue or printed
         self.pipe_to = None
 
-        self.first_token = True
-
         # The stop chunks
         self.stop = []
 
