@@ -732,15 +732,3 @@ async def test_finish_with_suffix():
         assert chunks == ["Hello World"]
     finally:
         await consumer.cancel()
-
-
-@pytest.mark.asyncio
-async def test_streaming_handler_alias():
-    """Test that StreamingHandler is an alias for StreamingHandler."""
-    assert StreamingHandler is StreamingHandler
-
-    handler = StreamingHandler()
-    handler2 = StreamingHandler()
-
-    assert isinstance(handler, StreamingHandler)
-    assert isinstance(handler2, StreamingHandler)
