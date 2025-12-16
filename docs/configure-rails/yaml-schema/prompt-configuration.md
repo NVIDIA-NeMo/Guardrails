@@ -33,7 +33,7 @@ prompts:
 | `task` | The LLM task this prompt is used for |
 | `content` | The prompt template text |
 | `messages` | Message-based prompt format (alternative to `content`) |
-| `models` | Optional list of models this prompt applies to |
+| `models` | Optional list of models to which this prompt applies |
 | `max_length` | Maximum token length for the prompt |
 | `output_parser` | Parser for processing the LLM response |
 
