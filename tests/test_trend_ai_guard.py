@@ -25,8 +25,9 @@ input_rail_config = RailsConfig.from_content(
         rails:
           config:
             trend_micro:
-              v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard"
+              v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"
               api_key_env_var: "V1_API_KEY"
+              application_name: "test-app"
           input:
             flows:
               - trend ai guard input
@@ -38,8 +39,9 @@ output_rail_config = RailsConfig.from_content(
         rails:
           config:
             trend_micro:
-              v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard"
+              v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"
               api_key_env_var: "V1_API_KEY"
+              application_name: "test-app"
           output:
             flows:
               - trend ai guard output

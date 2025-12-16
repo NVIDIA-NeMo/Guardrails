@@ -848,13 +848,24 @@ class TrendMicroRailConfig(BaseModel):
     """Configuration data for the Trend Micro AI Guard API"""
 
     v1_url: Optional[str] = Field(
-        default="https://api.xdr.trendmicro.com/beta/aiSecurity/guard",
-        description="The endpoint for the Trend Micro AI Guard API",
+        default="https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails",
+        description="The endpoint for the Trend Micro AI Guard API. For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails where region is eu, jp, au, in, sg, or mea.",
     )
 
     api_key_env_var: Optional[str] = Field(
         default=None,
         description="Environment variable containing API key for Trend Micro AI Guard",
+    )
+
+    application_name: str = Field(
+        default="nemo-guardrails",
+        description="Application name for TMV1-Application-Name header (REQUIRED). Must contain only letters, numbers, hyphens, and underscores, with a maximum length of 64 characters.",
+        max_length=64,
+    )
+
+    detailed_response: Optional[bool] = Field(
+        default=False,
+        description="If True, returns detailed AI Guard results with confidence scores (Prefer: return=representation). If False, returns minimal response with only action and reasons (Prefer: return=minimal).",
     )
 
     def get_api_key(self) -> Optional[str]:

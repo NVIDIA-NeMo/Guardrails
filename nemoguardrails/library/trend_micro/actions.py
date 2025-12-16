@@ -33,10 +33,10 @@ class Guard(BaseModel):
     Represents a guard entity with a single string attribute.
 
     Attributes:
-        guard (str): The input text for guard analysis.
+        prompt (str): The input text for AI guard analysis.
     """
 
-    guard: str
+    prompt: str
 
 
 class GuardResult(BaseModel):
@@ -93,7 +93,7 @@ def trend_ai_guard_mapping(result: GuardResult) -> bool:
 @action(is_system_action=True, output_mapping=trend_ai_guard_mapping)
 async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
     """
-    Custom action to invoke the Trend Ai Guard
+    Custom action to invoke the Trend Micro AI Guard API.
     """
 
     trend_config = get_config(config)
@@ -109,16 +109,28 @@ async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
             reason="Trend Micro Vision One API Key not found",
         )
 
+    app_name = trend_config.application_name
+
     async with httpx.AsyncClient() as client:
-        data = Guard(guard=text).model_dump()
+        data = Guard(prompt=text).model_dump()
+
+        # Build headers with required TMV1-Application-Name
+        headers = {
+            "Authorization": f"Bearer {v1_api_key}",
+            "Content-Type": "application/json",
+            "TMV1-Application-Name": app_name,
+        }
+
+        # Add Prefer header for detail level control
+        if trend_config.detailed_response:
+            headers["Prefer"] = "return=representation"
+        else:
+            headers["Prefer"] = "return=minimal"
 
         response = await client.post(
             v1_url,
             content=to_json(data),
-            headers={
-                "Authorization": f"Bearer {v1_api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
         )
 
         try:

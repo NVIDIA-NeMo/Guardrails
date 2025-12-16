@@ -13,7 +13,26 @@ instructions:
 rails:
   config:
     trend_micro:
+      v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"
+
+      # Trend Micro Vision One API key environment variable
       api_key_env_var: "V1_API_KEY"
+
+      # Application name
+      # Must be alphanumeric with hyphens/underscores, max 64 characters
+      application_name: "nemo-guardrails-demo"
+
+      # Optional: Set to true for detailed AI Guard results with confidence scores
+      detailed_response: false
+
+      # For other regions, update v1_url to:
+      # EU: https://api.eu.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # JP: https://api.jp.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # AU: https://api.au.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # IN: https://api.in.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # SG: https://api.sg.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # MEA: https://api.mea.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+
   input:
     flows:
       - trend ai guard input

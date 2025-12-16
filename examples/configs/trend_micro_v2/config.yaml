@@ -5,7 +5,16 @@ enable_rails_exceptions: True
 rails:
   config:
     trend_micro:
+      v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"
+
+      # Trend Micro Vision One API key environment variable
       api_key_env_var: "V1_API_KEY"
+
+      # Application name
+      application_name: "nemo-guardrails-demo-v2"
+
+      # Optional: Set to true for detailed AI Guard results
+      detailed_response: false
 
 models:
   - type: main

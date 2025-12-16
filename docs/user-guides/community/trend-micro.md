@@ -20,8 +20,13 @@ Trend Micro Vision One [AI Application Security's](https://docs.trendmicro.com/e
 rails:
   config:
     trend_micro:
-      v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard" # Replace this with your AI Guard URL
+      v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"  # Trend Micro AI Guard Endpoint
       api_key_env_var: "V1_API_KEY"
+      application_name: "my-ai-app"  # Required: Application identifier (max 64 chars, alphanumeric, hyphens, underscores)
+      # Optional:
+      detailed_response: true  # Set to true for detailed AI Guard results
+      # For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # where region is: eu, jp, au, in, sg, or mea
   input:
     flows:
       - trend ai guard input
@@ -37,8 +42,13 @@ colang_version: "2.x"
 rails:
   config:
     trend_micro:
-      v1_url: "https://api.xdr.trendmicro.com/beta/aiSecurity/guard" # Replace this with your AI Guard URL
+      v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"  # Trend Micro AI Guard Endpoint
       api_key_env_var: "V1_API_KEY"
+      application_name: "my-ai-app"  # Required: Application identifier (max 64 chars, alphanumeric, hyphens, underscores)
+      # Optional:
+      detailed_response: true  # Set to true for detailed AI results
+      # For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails
+      # where region is: eu, jp, au, in, sg, or mea
 ```
 ```
 # rails.co
