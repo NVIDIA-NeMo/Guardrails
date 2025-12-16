@@ -203,7 +203,7 @@ class TestDetectLanguage:
                 assert result is None
 
     def test_detect_language_exception(self):
-        with patch("fast_langdetect.LangDetector.detect", side_effect=Exception("Detection failed")):
+        with patch("fast_langdetect.detect", side_effect=Exception("Detection failed")):
             result = _detect_language("Hello")
             assert result is None
 
