@@ -25,7 +25,7 @@ Language Reference
    development-and-debugging.rst
 ..    intent-slot-models-and-rags.rst
 
-This chapter is a comprehensive introduction to Colang. Explaining all important concepts in a bottom up approach.
+This chapter is a comprehensive introduction to Colang, explaining all important concepts in a bottom up approach.
 
 * :ref:`reference_introduction`
 * :ref:`event-generation-and-matching`

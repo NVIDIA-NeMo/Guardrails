@@ -9,7 +9,7 @@ This section explains how to create multimodal rails in Colang 2.0.
 Definition
 ----------
 
-**Multimodal rails** are a type of rails that take into account multiple types of input/output modalities (e.g., text, voice, gestures, posture, image).
+**Multimodal rails** are a type of rail that take into account multiple types of input/output modalities (e.g., text, voice, gestures, posture, image).
 
 Usage
 -----

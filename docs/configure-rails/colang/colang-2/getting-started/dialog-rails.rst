@@ -9,7 +9,7 @@ This section explains how to create dialog rails using Colang.
 Definition
 ----------
 
-*Dialog Rails* are a type of rails enforcing the path that the dialog between the user and the bot should take. Typically, they involve three components:
+*Dialog Rails* are a type of rail enforcing the path that the dialog between the user and the bot should take. Typically, they involve three components:
 
 1. The definition of user messages, which includes the canonical forms, e.g., ``user expressed greeting``, and potential utterances.
 2. The definition of bot messages, which includes the canonical forms, e.g., ``bot express greeting``, and potential utterances.
