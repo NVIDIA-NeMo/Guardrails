@@ -5,7 +5,7 @@ description: Complete reference for config.yml structure including models, guard
 
 # Core Configuration
 
-This section describes the `config.yml` file schema used to configure the NeMo Guardrails toolkit.
+This section describes the `config.yml` file schema used to configure the NeMo Guardrails Library.
 The `config.yml` file is the primary configuration file for defining LLM models, guardrails behavior, prompts, knowledge base settings, and tracing options.
 
 ## Overview
@@ -55,7 +55,7 @@ tracing:
 
 ## Configuration Sections
 
-The following sections provide detailed documentation for each configuration area:
+The following guides provide detailed documentation for each configuration section of the overall `config.yml` file:
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -106,18 +106,24 @@ Configuration files are typically organized in a `config` folder:
 ├── config
 │   ├── config.yml        # Main configuration file
 │   ├── prompts.yml       # Custom prompts (optional)
-│   ├── rails/            # Colang flow definitions
+│   ├── rails/            # Colang flow definitions (optional)
 │   │   ├── input.co
 │   │   ├── output.co
 │   │   └── ...
-│   ├── kb/               # Knowledge base documents
+│   ├── kb/               # Knowledge base documents (optional)
 │   │   ├── doc1.md
 │   │   └── ...
 │   ├── actions.py        # Custom actions (optional)
 │   └── config.py         # Custom initialization (optional)
 ```
 
-For detailed information about each configuration section, refer to the individual pages linked above.
+Once you have finished crafting your overall `config.yml` file, refer to the following guides for detailed information each of the optional components as needed:
+
+- [Core Configuration](yaml-schema/index.md) - A complete guide to writing your `config.yml` file.
+- [Colang Rails](colang/index.md) - `.co` flow files.
+- [Custom Actions](actions/index.md) - `actions.py` for callable actions.
+- [Custom Initialization](custom-initialization/index.md) - `config.py` for provider registration.
+- [Knowledge Base Documents](other-configurations/knowledge-base.md) - `kb/` folder for RAG.
 
 ```{toctree}
 :hidden:
