@@ -5,7 +5,7 @@ description: Register custom actions via actions.py, LLMRails.register_action(),
 
 # Registering Actions
 
-This section describes the different ways to register custom actions with the NeMo Guardrails toolkit.
+This section describes the different ways to register custom actions with the NeMo Guardrails Library.
 
 ## Registration Methods
 
@@ -339,5 +339,5 @@ async def search_knowledge_base(
 ## Related Topics
 
 - [Creating Custom Actions](creating-actions) - Create your own actions
+- [Built-in Actions](built-in-actions) - Default actions in the library
 - [Action Parameters](action-parameters) - Special parameters for actions
-- [LangChain Integration](../../user-guides/langchain/langchain-integration) - LangChain integration guide

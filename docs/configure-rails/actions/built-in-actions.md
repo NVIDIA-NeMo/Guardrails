@@ -1,11 +1,11 @@
 ---
 title: Built-in Actions
-description: Reference for default actions included in the NeMo Guardrails toolkit for common operations.
+description: Reference for default actions included in the NeMo Guardrails Library for common operations.
 ---
 
 # Built-in Actions
 
-This section describes the default actions included in the NeMo Guardrails toolkit.
+This section describes the default actions included in the NeMo Guardrails Library.
 
 ## Core Actions
 
@@ -62,7 +62,7 @@ These actions implement built-in guardrails:
 
 | Action | Description |
 |--------|-------------|
-| `self_check_input` | Check if user input should be allowed |
+| `self_check_input` | Check if user input should be accepted |
 | `self_check_output` | Check if bot response should be allowed |
 | `self_check_facts` | Verify factual accuracy of bot response |
 | `self_check_hallucination` | Detect hallucinations in bot response |
@@ -135,7 +135,7 @@ rails:
 
 ## LangChain Tool Wrappers
 
-The toolkit includes wrappers for popular LangChain tools:
+The library includes wrappers for popular LangChain tools:
 
 | Action | Description | Requirements |
 |--------|-------------|--------------|
@@ -267,5 +267,6 @@ define flow enhanced_input_check
 
 ## Related Topics
 
+- [Action Parameters](action-parameters) - Special parameters provided automatically
+- [Registering Actions](registering-actions) - Different ways to register actions
 - [Creating Custom Actions](creating-actions) - Create your own actions
-- [Guardrails Library](../../user-guides/guardrails-library) - Complete guardrails reference

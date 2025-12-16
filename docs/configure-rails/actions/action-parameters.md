@@ -5,7 +5,7 @@ description: Reference for special parameters like context, llm, and config auto
 
 # Action Parameters
 
-This section describes the special parameters automatically provided to actions by the NeMo Guardrails toolkit.
+This section describes the special parameters automatically provided to actions by the NeMo Guardrails Library.
 
 ## Special Parameters
 
@@ -262,5 +262,6 @@ async def properly_typed_action(
 
 ## Related Topics
 
-- [Creating Custom Actions](creating-actions) - Create your own actions
 - [Registering Actions](registering-actions) - Ways to register actions
+- [Built-in Actions](built-in-actions) - Default actions in the library
+- [Creating Custom Actions](creating-actions) - Create your own actions
