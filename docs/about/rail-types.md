@@ -17,7 +17,7 @@ Input and Output rails are the most common.
 | **Tool calls** | Execution rails | Action input/output validation |
 | **After LLM** | Output rails | Response filtering, fact checking, sensitive data removal |
 
-```{image} ../../_static/images/programmable_guardrails_flow.png
+```{image} ../_static/images/programmable_guardrails_flow.png
 :alt: "Programmable Guardrails Flow"
 :width: 800px
 :align: center
