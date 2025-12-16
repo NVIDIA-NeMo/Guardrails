@@ -1,6 +1,6 @@
 ---
 title: Before You Begin
-description: Prerequisites and decisions to make before configuring the NeMo Guardrails toolkit.
+description: Prerequisites and decisions to make before configuring the NeMo Guardrails Library.
 ---
 
 # Before You Begin Configuring Rails
@@ -37,28 +37,28 @@ You need a main LLM hosted and accessible via API. This LLM handles the conversa
 - [ ] LLM API endpoint URL, either locally, on NVIDIA API Catalog, or on the third-party providers
 - [ ] Authentication credentials (API key or token)
 
-## NemoGuard NIM Microservices
+## Nemotron NIM Microservices
 
 Deploy dedicated safety models to offload guardrail checks from the main LLM:
 
-| NemoGuard Model | Purpose |
+| Nemotron Model | Purpose |
 |-----------------|---------|
 | Content Safety | Detect harmful or inappropriate content |
-| Jailbreak Detection | Block adversarial prompt attacks |
+| Jailbreak Detect | Block adversarial prompt attacks |
 | Topic Control | Keep conversations on-topic |
 
 **Checklist of what you need:**
 
-- [ ] NemoGuard NIM endpoint URLs, either locally or on NVIDIA API Catalog
+- [ ] Nemotron NIM endpoint URLs, either locally or on NVIDIA API Catalog
 - [ ] KV cache enabled for better performance (recommended)
 
 :::{tip}
-If you use NVIDIA NIM for LLMs and LLM-based NemoGuard NIMs, KV cache helps reduce latency for sequential guardrail checks. To learn more about KV cache, see the [KV Cache Reuse](https://docs.nvidia.com/nim/large-language-models/latest/kv-cache-reuse.html) guide in the NVIDIA NIM documentation.
+If you use NVIDIA NIM for LLMs and LLM-based Nemotron NIMs, KV cache helps reduce latency for sequential guardrail checks. To learn more about KV cache, see the [KV Cache Reuse](https://docs.nvidia.com/nim/large-language-models/latest/kv-cache-reuse.html) guide in the NVIDIA NIM documentation.
 :::
 
 ## Knowledge Base Documents
 
-If using RAG (Retrieval-Augmented Generation) for grounded responses:
+If using RAG (Retrieval-Augmented Generation) for grounded responses (i.e. Retrieval rails):
 
 - [ ] Prepare documents in markdown format (`.md` files)
 - [ ] Organize documents in a `kb/` folder
@@ -77,4 +77,4 @@ For advanced use cases such as implementing your own custom scripts or guardrail
 
 Once you have these components ready, proceed to the next section [Configuration Overview](index.md) to start organizing your guardrails configuration files.
 
-If you need tutorials to understand how to use the NeMo Guardrails toolkit, revisit the [Get Started](../getting-started/index.md) section.
+If you need tutorials to understand how to use the NeMo Guardrails Library, revisit the [Get Started](../getting-started/index.md) section.

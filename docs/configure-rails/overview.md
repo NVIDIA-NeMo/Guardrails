@@ -5,7 +5,7 @@ description: Learn to write config.yml, Colang flows, and custom actions.
 
 # Configuration Overview
 
-Before using the NeMo Guardrails toolkit, you need to prepare configuration files that define your guardrails behavior. When you initialize the toolkit's core classes or the `nemoguardrails` CLI chat or server, it will load the configuration files you'll create in the next chapter [Run Rails](../run-rails/index.md). This section provides complete instructions on preparing your configuration files and executable scripts.
+Before using the NeMo Guardrails Library, you need to prepare configuration files that define your guardrails behavior. When you initialize the library's core classes or the `nemoguardrails` CLI chat or server, it will load the configuration files you'll create in the next chapter [Run Rails](../run-rails/index.md). This section provides complete instructions on preparing your configuration files and executable scripts.
 
 A guardrails configuration includes the following components. You can start with a basic configuration and add more components as needed. All the components should be placed in the `config` folder, and the locations in the following table are relative to the `config` folder.
 
@@ -15,7 +15,7 @@ A guardrails configuration includes the following components. You can start with
 | **Colang Flows**             | Optional          | A collection of Colang files (`.co` files) implementing the rails.                                                                                                               | `rails` folder         |
 | **Custom Actions**           | Optional          | Python functions decorated with `@action()` that can be called from Colang flows during request processing (for example, external API calls, validation logic).                                 | `actions.py` or `actions/` folder |
 | **Custom Initialization**    | Optional          | Python code that runs once at startup to register custom LLM providers, embedding providers, or shared resources (for example, database connections).                                            | `config.py`            |
-| **Knowledge Base Documents** | Optional          | Documents (`.md` files) that can be used in a RAG (Retrieval-Augmented Generation) scenario using the built-in Knowledge Base support.                                           | `kb` folder            |
+| **Knowledge Base Documents** | Optional          | Documents (`.md` files) that can be used in a RAG (Retrieval-Augmented Generation) scenario (i.e. Retrieval rail) using the built-in Knowledge Base support.                                           | `kb` folder            |
 
 ## Example Configuration Folder Structures
 
