@@ -617,27 +617,6 @@ When `multilingual.enabled` is set to `true`:
 2. If the content safety check blocks the input, the refusal message is returned in the detected language
 3. Language detection adds minimal latency (~12μs per request)
 
-##### Advanced Configuration
-
-You can fine-tune language detection behavior with additional options:
-
-```yaml
-rails:
-  config:
-    content_safety:
-      multilingual:
-        enabled: true
-        max_text_length: 200      # Maximum characters for detection (default: 80)
-        normalize_text: true      # Lowercase uppercase text to prevent misdetection (default: true)
-        cache_dir: "/path/to/cache"  # Custom model cache directory (optional)
-```
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `max_text_length` | int | 80 | Maximum text length for detection. Longer text is truncated. Set to `null` to disable truncation. |
-| `normalize_text` | bool | true | Lowercase uppercase text to prevent misdetection as Japanese. |
-| `cache_dir` | string | null | Custom directory for storing language detection models. If not set, uses system default. |
-
 ##### Cold Start Behavior
 
 The fast-langdetect library downloads a language detection model on first use:
@@ -655,7 +634,7 @@ fast-langdetect stores its downloaded FastText model in a temporary, OS-specific
 - **Linux**: The global temp directory `/tmp/fasttext-langdetect/`
 - **Windows**: The user's temporary directory, e.g., `C:\Users\<User>\AppData\Local\Temp\fasttext-langdetect\`
 
-You can override this location via the `cache_dir` config option or the `FTLANG_CACHE` environment variable.
+You can override this location via the `FTLANG_CACHE` environment variable.
 
 **Production considerations:**
 
@@ -1311,7 +1290,7 @@ Before you begin, install the `yara-python` package or you can install the NeMo 
 1. Set your NVIDIA API key as an environment variable:
 
    ```console
-   $ export NVIDIA_API_KEY=<nvapi-...>
+   export NVIDIA_API_KEY=<nvapi-...>
    ```
 
 1. Create a configuration directory, such as `config`, and add a `config.yml` file with contents like the following:
