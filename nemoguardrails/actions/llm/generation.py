@@ -507,12 +507,10 @@ class LLMGenerationActions:
 
                     streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
 
-                    custom_callback_handlers = [streaming_handler] if streaming_handler else None
-
                     text = await llm_call(
                         generation_llm,
                         prompt,
-                        custom_callback_handlers=custom_callback_handlers,
+                        streaming_handler=streaming_handler,
                         llm_params=llm_params,
                     )
                     text = self.llm_task_manager.parse_task_output(Task.GENERAL, output=text)
@@ -537,12 +535,11 @@ class LLMGenerationActions:
 
                 generation_options: Optional[GenerationOptions] = generation_options_var.get()
                 llm_params = (generation_options and generation_options.llm_params) or {}
-                custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                 result = await llm_call(
                     generation_llm,
                     prompt,
-                    custom_callback_handlers=custom_callback_handlers,
+                    streaming_handler=streaming_handler,
                     stop=["User:"],
                     llm_params=llm_params,
                 )
@@ -898,14 +895,13 @@ class LLMGenerationActions:
 
                     gen_options: Optional[GenerationOptions] = generation_options_var.get()
                     llm_params = (gen_options and gen_options.llm_params) or {}
-                    custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                     if not prompt:
                         raise RuntimeError("No prompt found to generate bot message")
                     result = await llm_call(
                         generation_llm,
                         prompt,
-                        custom_callback_handlers=custom_callback_handlers,
+                        streaming_handler=streaming_handler,
                         llm_params=llm_params,
                     )
 
@@ -953,12 +949,11 @@ class LLMGenerationActions:
 
                 generation_options: Optional[GenerationOptions] = generation_options_var.get()
                 llm_params = (generation_options and generation_options.llm_params) or {}
-                custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
                 result = await llm_call(
                     generation_llm,
                     prompt,
-                    custom_callback_handlers=custom_callback_handlers,
+                    streaming_handler=streaming_handler,
                     llm_params=llm_params,
                 )
 
@@ -1247,7 +1242,7 @@ class LLMGenerationActions:
                     llm_call(
                         generation_llm,
                         prompt,
-                        custom_callback_handlers=[_streaming_handler],
+                        streaming_handler=_streaming_handler,
                         stop=["\nuser ", "\nUser "],
                         llm_params={"temperature": self.config.lowest_temperature},
                     )
