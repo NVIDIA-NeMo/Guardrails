@@ -40,7 +40,7 @@ end
   style F fill:#f0f7e6,stroke:#76b900
 ```
 
-*Application code interacting with LLMs through the NeMo Guardrails Library.*
+*Application code interacting with LLMs through the NeMo Guardrails library.*
 
 ---
 
