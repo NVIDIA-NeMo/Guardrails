@@ -15,6 +15,7 @@
 
 import argparse
 import json
+import logging
 import os
 import time
 import uuid
@@ -26,14 +27,22 @@ from fastapi import FastAPI, HTTPException
 from gliner import GLiNER
 from pydantic import BaseModel
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
-def create_tagged_text(text: str, entities: List[Dict[str, Any]], label_key="suggested_label") -> str:
+
+def create_tagged_text(text: str, entities: List[Dict[str, Any]], label_key: str = "suggested_label") -> str:
     """
     Create tagged text from original text and entities with positions.
 
     Args:
         text: Original text
         entities: List of entity dictionaries with 'value', label_key, 'start_position', 'end_position' keys
+        label_key: The key to use for the entity label (default: 'suggested_label')
 
     Returns:
         Tagged text with format: [entity_text](entity_label)
@@ -70,6 +79,125 @@ def create_tagged_text(text: str, entities: List[Dict[str, Any]], label_key="sug
     tagged_text += text[position:]
 
     return tagged_text
+
+
+def remove_subset_entities(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Remove entities that are subsets of other entities (based on position).
+
+    An entity is considered a subset if another entity fully contains its span.
+
+    Args:
+        entities: List of entity dictionaries with 'start' and 'end' keys
+
+    Returns:
+        List of entities with subset entities removed
+    """
+    if not entities:
+        return []
+
+    # Create a copy to avoid modifying the original
+    entities = list(entities)
+    entities_to_delete = []
+
+    for idx, ent in enumerate(entities):
+        has_superset = any(
+            i != idx and i not in entities_to_delete and e["start"] <= ent["start"] and e["end"] >= ent["end"]
+            for i, e in enumerate(entities)
+        )
+        if has_superset:
+            entities_to_delete.append(idx)
+
+    for idx in sorted(entities_to_delete, reverse=True):
+        del entities[idx]
+
+    return entities
+
+
+def deduplicate_entities_by_score(entities: List[Dict[str, Any]]) -> Dict[tuple, Dict[str, Any]]:
+    """
+    Deduplicate entities by keeping the highest scoring one for each (label, text) pair.
+
+    Args:
+        entities: List of entity dictionaries with 'label', 'text', 'start', 'end', 'score' keys
+
+    Returns:
+        Dictionary mapping (label, normalized_text) to entity span dictionaries
+    """
+    dedup_map = {}
+
+    for ent in entities:
+        label = ent.get("label")
+        if not label:
+            continue
+
+        text_val = ent.get("text", "")
+        score_val = float(ent.get("score", 0.0))
+        key = (label, text_val.strip().lower())
+
+        if key not in dedup_map or score_val > dedup_map[key]["score"]:
+            dedup_map[key] = {
+                "value": text_val,
+                "suggested_label": label,
+                "start_position": int(ent.get("start", 0)),
+                "end_position": int(ent.get("end", 0)),
+                "score": round(score_val, 3),
+            }
+
+    return dedup_map
+
+
+def adjust_entity_positions(entities: List[Dict[str, Any]], offset: int) -> List[Dict[str, Any]]:
+    """
+    Adjust entity start/end positions by a given offset.
+
+    Args:
+        entities: List of entity dictionaries with 'start' and 'end' keys
+        offset: The offset to add to start and end positions
+
+    Returns:
+        List of entities with adjusted positions
+    """
+    for entity in entities:
+        entity["start"] += offset
+        entity["end"] += offset
+    return entities
+
+
+def process_raw_entities(entities: List[Dict[str, Any]], text: str) -> Dict[str, Any]:
+    """
+    Process raw GLiNER entities into the final response format.
+
+    This function:
+    1. Removes subset entities
+    2. Deduplicates by score
+    3. Creates EntitySpan objects
+    4. Generates tagged text
+
+    Args:
+        entities: Raw entities from GLiNER with 'start', 'end', 'label', 'text', 'score' keys
+        text: The original text
+
+    Returns:
+        Dictionary with 'total_entities', 'entities' (list of EntitySpan), and 'tagged_text'
+    """
+    # Remove subset entities
+    entities = remove_subset_entities(entities)
+
+    # Deduplicate by score
+    dedup_map = deduplicate_entities_by_score(entities)
+
+    # Convert to list of EntitySpan objects
+    entity_spans = [EntitySpan(**ent) for ent in dedup_map.values()]
+
+    # Create tagged text
+    tagged_text = create_tagged_text(text, list(dedup_map.values()))
+
+    return {
+        "total_entities": len(entity_spans),
+        "entities": entity_spans,
+        "tagged_text": tagged_text,
+    }
 
 
 # Configuration from environment variables or defaults
@@ -234,81 +362,55 @@ def extract_with_gliner(
     flat_ner: bool = False,
 ):
     """
-    GLiNER entity extraction with chunking, deduplication, and position tracking
-    Returns entities with start/end positions, text, labels, and scores
+    GLiNER entity extraction with chunking, deduplication, and position tracking.
+
+    Args:
+        text: The text to extract entities from
+        labels: List of entity labels to detect (defaults to DEFAULT_LABELS)
+        threshold: Confidence threshold for entity detection
+        chunk_length: Length of text chunks for processing
+        overlap: Overlap between chunks
+        flat_ner: Whether to use flat NER mode
+
+    Returns:
+        Dictionary with 'total_entities', 'entities' (list of EntitySpan), and 'tagged_text'
     """
     if labels is None:
         labels = DEFAULT_LABELS
 
+    # Create all chunks with their offsets
+    chunks = []
+    offsets = []
     start = 0
-    entities = []
-
-    # Chunking with overlap
     while start < len(text):
-        temp_entities = model.predict_entities(
-            text[start : start + chunk_length],
-            labels,
-            threshold=threshold,
-            flat_ner=flat_ner,
-        )
-        for idx in range(len(temp_entities)):
-            temp_entities[idx]["start"] += start
-            temp_entities[idx]["end"] += start
-        entities.extend(temp_entities)
+        chunks.append(text[start : start + chunk_length])
+        offsets.append(start)
         start += chunk_length - overlap
 
-    # Deduplication - remove entities that are subsets of others
-    entities_to_delete = []
-    for idx, ent in enumerate(entities):
-        has_superset = any(
-            [
-                i != idx and i not in entities_to_delete and e["start"] <= ent["start"] and e["end"] >= ent["end"]
-                for i, e in enumerate(entities)
-            ]
-        )
-        if has_superset:
-            entities_to_delete.append(idx)
-    for idx in sorted(entities_to_delete, reverse=True):
-        del entities[idx]
+    # Run inference on all chunks at once
+    batch_entities = model.inference(
+        chunks,
+        labels,
+        threshold=threshold,
+        flat_ner=flat_ner,
+    )
 
-    # Create dedup_map for both grouped entities and entity spans
-    dedup_map = {}
-    for ent in entities:
-        label = ent.get("label")
-        if not label:
-            continue
-        text_val = ent.get("text", "")
-        score_val = float(ent.get("score", 0.0))
-        key = (label, text_val.strip().lower())
+    # Combine entities from all chunks, adjusting positions
+    entities = []
+    for chunk_entities, offset in zip(batch_entities, offsets):
+        adjusted = adjust_entity_positions(list(chunk_entities), offset)
+        entities.extend(adjusted)
 
-        if key not in dedup_map or score_val > dedup_map[key]["score"]:
-            dedup_map[key] = {
-                "value": text_val,
-                "suggested_label": label,
-                "start_position": int(ent.get("start", 0)),
-                "end_position": int(ent.get("end", 0)),
-                "score": round(score_val, 3),
-            }
-
-    # Convert to list of EntitySpan objects
-    entity_spans = [EntitySpan(**ent) for ent in dedup_map.values()]
-
-    # Create tagged text
-    tagged_text = create_tagged_text(text, list(dedup_map.values()))
-
-    return {
-        "total_entities": len(entity_spans),
-        "entities": entity_spans,
-        "tagged_text": tagged_text,
-    }
+    # Process raw entities (deduplication, span conversion, tagging)
+    return process_raw_entities(entities, text)
 
 
 @app.on_event("startup")
 async def load_model():
     """Load the GLiNER model on startup"""
     global model
-    print(f"Loading GLiNER model: {MODEL_NAME}")
-    print(f"Server will run on: {HOST}:{PORT}")
+    logger.info("Loading GLiNER model: %s", MODEL_NAME)
+    logger.info("Server will run on: %s:%s", HOST, PORT)
 
     # Determine device
     if DEVICE == "auto":
@@ -323,11 +425,11 @@ async def load_model():
 
     try:
         model = GLiNER.from_pretrained(MODEL_NAME, map_location=device)
-        print(f"Model loaded successfully on {device}")
-        print(f"API endpoint: http://{HOST}:{PORT}/v1")
-        print(f"Default labels: {len(DEFAULT_LABELS)} PII categories")
+        logger.info("Model loaded successfully on %s", device)
+        logger.info("API endpoint: http://%s:%s/v1", HOST, PORT)
+        logger.info("Default labels: %d PII categories", len(DEFAULT_LABELS))
     except Exception as e:
-        print(f"Error loading model: {e}")
+        logger.error("Error loading model: %s", e)
         raise
 
 
@@ -523,13 +625,13 @@ def main():
     MODEL_NAME = args.model
     DEVICE = args.device
 
-    print("Starting GLiNER API server...")
-    print(f"Host: {HOST}")
-    print(f"Port: {PORT}")
-    print(f"Model: {MODEL_NAME}")
-    print(f"Device: {DEVICE}")
-    print(f"PII Labels: {len(DEFAULT_LABELS)}")
-    print(f"Endpoint: http://{HOST}:{PORT}/v1")
+    logger.info("Starting GLiNER API server...")
+    logger.info("Host: %s", HOST)
+    logger.info("Port: %s", PORT)
+    logger.info("Model: %s", MODEL_NAME)
+    logger.info("Device: %s", DEVICE)
+    logger.info("PII Labels: %d", len(DEFAULT_LABELS))
+    logger.info("Endpoint: http://%s:%s/v1", HOST, PORT)
 
     uvicorn.run(
         "gliner_server:app" if args.reload else app,

@@ -14,5 +14,9 @@ For more details on the GLiNER integration, see [GLiNER Integration User Guide](
 Start the GLiNER server before running these examples:
 
 ```bash
-python nemoguardrails/library/gliner/gliner_server.py --host 0.0.0.0 --port 1235
+# Install dependencies
+pip install gliner torch fastapi uvicorn
+
+# Start the example server
+python examples/deployment/gliner_server/gliner_server.py --host 0.0.0.0 --port 1235
 ```
