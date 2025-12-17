@@ -22,15 +22,14 @@ import os.path
 import re
 import time
 import uuid
-import warnings
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, List, Optional
+from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
@@ -38,10 +37,17 @@ from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.schemas.openai import (
+    GuardrailsChatCompletion,
     GuardrailsModel,
-    ModelsResponse,
+    GuardrailsModelsResponse,
     OpenAIRequestFields,
     ResponseBody,
+)
+from nemoguardrails.server.schemas.utils import (
+    create_error_chat_completion,
+    extract_bot_message_from_response,
+    format_streaming_chunk_as_sse,
+    generation_response_to_chat_completion,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -234,7 +240,7 @@ class RequestBody(BaseModel):
         description="A state object that should be used to continue the interaction.",
     )
     # Standard OpenAI completion parameters
-    model: Optional[str] = Field(
+    model: str = Field(
         default="main",
         description="The model to use for chat completion. Maps to the main model in the config.",
     )
@@ -278,18 +284,21 @@ class RequestBody(BaseModel):
     @root_validator(pre=True)
     def ensure_config_id(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            if data.get("model") is not None and data.get("config_id") is None:
-                data["config_id"] = data["model"]
             if data.get("config_id") is not None and data.get("config_ids") is not None:
                 raise ValueError(
                     "Only one of config_id or config_ids should be specified"
                 )
-            if data.get("config_id") is None and data.get("config_ids") is not None:
-                data["config_id"] = None
+
+            # Map OpenAI 'model' field to 'config_id' if config_id is not provided
             if data.get("config_id") is None and data.get("config_ids") is None:
-                warnings.warn(
-                    "No config_id or config_ids provided, using default config_id"
-                )
+                model = data.get("model")
+                if model and model != "main":
+                    # Use model as config_id for OpenAI compatibility
+                    data["config_id"] = model
+                else:
+                    warnings.warn(
+                        "No config_id or config_ids provided, using default config_id"
+                    )
         return data
 
     @validator("config_ids", pre=True, always=True)
@@ -302,7 +311,7 @@ class RequestBody(BaseModel):
 
 @app.get(
     "/v1/models",
-    response_model=ModelsResponse,
+    response_model=GuardrailsModelsResponse,
     summary="List available models",
     description="Lists the currently available models, mapping guardrails configurations to OpenAI-compatible model format.",
 )
@@ -346,7 +355,7 @@ async def get_models():
                     object="model",
                     created=int(time.time()),
                     owned_by="nemo-guardrails",
-                    guardrails_config_id=config_id,
+                    config_id=config_id,
                 )
                 models.append(guardrails_model)
             else:
@@ -358,14 +367,14 @@ async def get_models():
                             object="model",
                             created=int(time.time()),
                             owned_by="nemo-guardrails",
-                            guardrails_config_id=config_id,
+                            config_id=config_id,
                         )
                         models.append(guardrails_model)
         except Exception as ex:
             log.warning(f"Could not load model info for config {config_id}: {ex}")
             continue
 
-    return ModelsResponse(data=models)
+    return GuardrailsModelsResponse(data=models)
 
 
 @app.get(
@@ -468,76 +477,89 @@ def _get_rails(config_ids: List[str]) -> LLMRails:
     return llm_rails
 
 
+class ChunkErrorMetadata(BaseModel):
+    message: str
+    type: str
+    param: str
+    code: str
+
+
+class ChunkError(BaseModel):
+    error: ChunkErrorMetadata
+
+
 async def _format_streaming_response(
-    streaming_handler: StreamingHandler, model_name: Optional[str]
+    stream_iterator: AsyncIterator[Union[str, dict]], model_name: str
 ) -> AsyncIterator[str]:
-    while True:
-        try:
-            chunk = await streaming_handler.__anext__()
-        except StopAsyncIteration:
-            # When the stream ends, yield the [DONE] message
-            yield "data: [DONE]\n\n"
-            break
+    """
+    Format streaming chunks from LLMRails.stream_async() as SSE events.
 
-        # Determine the payload format based on chunk type
-        if isinstance(chunk, dict):
-            # If chunk is a dict, wrap it in OpenAI chunk format with delta
-            payload = {
-                "id": None,
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": model_name,
-                "choices": [
-                    {
-                        "delta": chunk,
-                        "index": 0,
-                        "finish_reason": None,
-                    }
-                ],
-            }
-        elif isinstance(chunk, str):
-            try:
-                # Try parsing as JSON - if it parses, it might be a pre-formed payload
-                payload = json.loads(chunk)
-            except Exception:
-                # treat as plain text content token
-                payload = {
-                    "id": None,
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "delta": {"content": chunk},
-                            "index": 0,
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-        else:
-            # For any other type, treat as plain content
-            payload = {
-                "id": None,
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": model_name,
-                "choices": [
-                    {
-                        "delta": {"content": str(chunk)},
-                        "index": 0,
-                        "finish_reason": None,
-                    }
-                ],
-            }
+    Args:
+        stream_iterator: AsyncIterator from stream_async() that yields str or dict chunks
+        model_name: The model name to include in the chunks
 
-        # Send the payload as JSON
-        data = json.dumps(payload, ensure_ascii=False)
-        yield f"data: {data}\n\n"
+    Yields:
+        SSE-formatted strings (data: {...}\n\n)
+    """
+    # Use "unknown" as default if model_name is None
+    model = model_name or "unknown"
+
+    try:
+        async for chunk in stream_iterator:
+            # Format the chunk as SSE using the utility function
+            processed_chunk = process_chunk(chunk)
+            if isinstance(processed_chunk, ChunkError):
+                # Yield the error and stop streaming
+                yield f"data: {json.dumps(processed_chunk.model_dump())}\n\n"
+                return
+            else:
+                yield format_streaming_chunk_as_sse(processed_chunk, model)
+
+    finally:
+        # Always send [DONE] event when stream ends
+        yield "data: [DONE]\n\n"
+
+
+def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
+    """
+    Processes a single chunk from the stream.
+
+    Args:
+        chunk: A single chunk from the stream (can be str, dict, or other type).
+        model: The model name (not used in processing but kept for signature consistency).
+
+    Returns:
+        Union[Any, StreamingError]: StreamingError instance for errors or the original chunk.
+    """
+    # Convert chunk to string for JSON parsing if needed
+    chunk_str = (
+        chunk
+        if isinstance(chunk, str)
+        else json.dumps(chunk) if isinstance(chunk, dict) else str(chunk)
+    )
+
+    try:
+        validated_data = ChunkError.model_validate_json(chunk_str)
+        return validated_data  # Return the StreamingError instance directly
+    except ValidationError:
+        # Not an error, just a normal token
+        pass
+    except json.JSONDecodeError:
+        # Invalid JSON format, treat as normal token
+        pass
+    except Exception as e:
+        log.warning(
+            f"Unexpected error processing stream chunk: {type(e).__name__}: {str(e)}",
+            extra={"chunk": chunk_str},
+        )
+
+    # Return the original chunk
+    return chunk
 
 
 @app.post(
     "/v1/chat/completions",
-    response_model=ResponseBody,
+    response_model=GuardrailsChatCompletion,
     response_model_exclude_none=True,
 )
 async def chat_completion(body: RequestBody, request: Request):
@@ -571,23 +593,10 @@ async def chat_completion(body: RequestBody, request: Request):
 
     except ValueError as ex:
         log.exception(ex)
-        return ResponseBody(
-            id=f"chatcmpl-{uuid.uuid4()}",
-            object="chat.completion",
-            created=int(time.time()),
+        return create_error_chat_completion(
             model=config_ids[0] if config_ids else "unknown",
-            choices=[
-                Choice(
-                    index=0,
-                    message=ChatCompletionMessage(
-                        content=f"Could not load the {config_ids} guardrails configuration. "
-                        f"An internal error has occurred.",
-                        role="assistant",
-                    ),
-                    finish_reason="stop",
-                    logprobs=None,
-                )
-            ],
+            error_message=f"Could not load the {config_ids} guardrails configuration. An internal error has occurred.",
+            config_id=config_ids[0] if config_ids else None,
         )
 
     try:
@@ -607,22 +616,10 @@ async def chat_completion(body: RequestBody, request: Request):
                 raise RuntimeError("No DataStore has been configured.")
             # We make sure the `thread_id` meets the minimum complexity requirement.
             if len(body.thread_id) < 16:
-                return ResponseBody(
-                    id=f"chatcmpl-{uuid.uuid4()}",
-                    object="chat.completion",
-                    created=int(time.time()),
+                return create_error_chat_completion(
                     model=main_model_name,
-                    choices=[
-                        Choice(
-                            index=0,
-                            message=ChatCompletionMessage(
-                                content="The `thread_id` must have a minimum length of 16 characters.",
-                                role="assistant",
-                            ),
-                            finish_reason="stop",
-                            logprobs=None,
-                        )
-                    ],
+                    error_message="The `thread_id` must have a minimum length of 16 characters.",
+                    config_id=config_ids[0] if config_ids else None,
                 )
 
             # Fetch the existing thread messages. For easier management, we prepend
@@ -654,17 +651,15 @@ async def chat_completion(body: RequestBody, request: Request):
             generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
 
         if body.stream:
-            # Use stream_async for streaming
-            streaming_handler = llm_rails.stream_async(
+            # Use stream_async for streaming with output rails support
+            stream_iterator = llm_rails.stream_async(
                 messages=messages,
                 options=generation_options,
                 state=body.state,
             )
 
             return StreamingResponse(
-                _format_streaming_response(
-                    streaming_handler, model_name=main_model_name
-                ),
+                _format_streaming_response(stream_iterator, model_name=main_model_name),
                 media_type="text/event-stream",
             )
         else:
@@ -672,68 +667,47 @@ async def chat_completion(body: RequestBody, request: Request):
                 messages=messages, options=generation_options, state=body.state
             )
 
-            if isinstance(res, GenerationResponse):
-                bot_message_content = res.response[0]
-                # Ensure bot_message is always a dict
-                if isinstance(bot_message_content, str):
-                    bot_message = {"role": "assistant", "content": bot_message_content}
-                else:
-                    bot_message = bot_message_content
-            else:
-                assert isinstance(res, dict)
-                bot_message = res
+            # Extract bot message for thread storage if needed
+            bot_message = extract_bot_message_from_response(res)
 
             # If we're using threads, we also need to update the data before returning
             # the message.
             if body.thread_id and datastore is not None and datastore_key is not None:
                 await datastore.set(datastore_key, json.dumps(messages + [bot_message]))
 
-            # Build the response with OpenAI-compatible format
-            response_kwargs = {
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": main_model_name,
-                "choices": [
-                    Choice(
-                        index=0,
-                        message=ChatCompletionMessage(
-                            role="assistant",
-                            content=bot_message["content"],
-                        ),
-                        finish_reason="stop",
-                        logprobs=None,
-                    )
-                ],
-            }
-
-            # If we have additional GenerationResponse fields, include them for backward compatibility
+            # Build the response with OpenAI-compatible format using utility function
             if isinstance(res, GenerationResponse):
-                response_kwargs["llm_output"] = res.llm_output
-                response_kwargs["output_data"] = res.output_data
-                response_kwargs["log"] = res.log
-                response_kwargs["state"] = res.state
-
-            return ResponseBody(**response_kwargs)
+                return generation_response_to_chat_completion(
+                    response=res,
+                    model=main_model_name,
+                    config_id=config_ids[0] if config_ids else None,
+                )
+            else:
+                # For dict responses, convert to basic chat completion
+                return GuardrailsChatCompletion(
+                    id=f"chatcmpl-{uuid.uuid4()}",
+                    object="chat.completion",
+                    created=int(time.time()),
+                    model=main_model_name,
+                    choices=[
+                        Choice(
+                            index=0,
+                            message=ChatCompletionMessage(
+                                role="assistant",
+                                content=bot_message.get("content", ""),
+                            ),
+                            finish_reason="stop",
+                            logprobs=None,
+                        )
+                    ],
+                )
 
     except Exception as ex:
         log.exception(ex)
-        return ResponseBody(
-            id=f"chatcmpl-{uuid.uuid4()}",
-            object="chat.completion",
-            created=int(time.time()),
+        return create_error_chat_completion(
             model=config_ids[0] if config_ids else "unknown",
-            choices=[
-                Choice(
-                    index=0,
-                    message=ChatCompletionMessage(
-                        content="Internal server error",
-                        role="assistant",
-                    ),
-                    finish_reason="stop",
-                    logprobs=None,
-                )
-            ],
+            error_message="Internal server error",
+            config_id=config_ids[0] if config_ids else None,
         )
 
 

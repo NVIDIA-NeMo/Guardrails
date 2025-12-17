@@ -95,6 +95,10 @@ class ModelCacheConfig(BaseModel):
     )
 
 
+class ModelRegistry(BaseModel):
+    pass
+
+
 class Model(BaseModel):
     """Configuration of a model used by the rails engine.
 

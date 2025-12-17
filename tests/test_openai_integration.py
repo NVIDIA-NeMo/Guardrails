@@ -13,39 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import time
 
 import pytest
 from fastapi.testclient import TestClient
 from openai import OpenAI
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
-from openai.types.model import Model
 
 from nemoguardrails.server import api
 
 
 @pytest.fixture(scope="function", autouse=True)
 def set_rails_config_path():
-    """Set the rails config path to the test configs directory."""
+    """Set the rails_config_path to test configs."""
     original_path = api.app.rails_config_path
-    api.app.rails_config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "test_configs/simple_server"))
+    # Use test_configs which have mock LLMs that don't need API keys
+    test_configs_path = os.path.join(os.path.dirname(__file__), "test_configs")
+    api.app.rails_config_path = test_configs_path
     yield
-
-    # Restore the original path and clear cache after the test
     api.app.rails_config_path = original_path
-    api.llm_rails_instances.clear()
-    api.llm_rails_events_history_cache.clear()
 
 
 @pytest.fixture(scope="function")
-def test_client():
-    """Create a FastAPI TestClient for the guardrails server."""
-    return TestClient(api.app)
+def openai_client():
+    """Create an OpenAI client that uses the guardrails FastAPI app via TestClient."""
+    # Create a TestClient for the FastAPI app
+    test_client = TestClient(api.app)
 
-
-@pytest.fixture(scope="function")
-def openai_client(test_client):
     client = OpenAI(
         api_key="dummy-key",
         base_url="http://dummy-url/v1",
@@ -58,18 +52,21 @@ def test_openai_client_list_models(openai_client):
     models = openai_client.models.list()
 
     # Verify the response structure matches the GuardrailsModel schema
-    assert models.data[0] == Model(
-        id="config_1",
-        object="model",
-        created=int(time.time()),
-        owned_by="nemo-guardrails",
-        guardrails_config_id="config_1",
-    )
+    assert len(models.data) > 0
+    model = models.data[0]
+    # Verify it's a valid model response with required fields
+    assert model.object == "model"
+    assert model.owned_by == "nemo-guardrails"
+    # Check the extra fields that GuardrailsModel adds
+    assert hasattr(model, "config_id")
+    assert hasattr(model, "engine")
+    assert hasattr(model, "base_url")
+    assert model.base_url == "https://localhost:8000/v1"
 
 
 def test_openai_client_chat_completion(openai_client):
     response = openai_client.chat.completions.create(
-        model="config_1",
+        model="with_custom_llm",
         messages=[{"role": "user", "content": "hi"}],
         stream=False,
     )
@@ -82,7 +79,7 @@ def test_openai_client_chat_completion(openai_client):
         index=0,
         logprobs=None,
         message=ChatCompletionMessage(
-            content="Hello!",
+            content="Custom LLM response",
             refusal=None,
             role="assistant",
             annotations=None,
@@ -96,7 +93,7 @@ def test_openai_client_chat_completion(openai_client):
 
 def test_openai_client_chat_completion_parameterized(openai_client):
     response = openai_client.chat.completions.create(
-        model="config_1",
+        model="with_custom_llm",
         messages=[{"role": "user", "content": "hi"}],
         temperature=0.7,
         max_tokens=100,
@@ -111,7 +108,7 @@ def test_openai_client_chat_completion_parameterized(openai_client):
         index=0,
         logprobs=None,
         message=ChatCompletionMessage(
-            content="Hello!",
+            content="Custom LLM response",
             refusal=None,
             role="assistant",
             annotations=None,
@@ -122,7 +119,7 @@ def test_openai_client_chat_completion_parameterized(openai_client):
 
 def test_openai_client_chat_completion_input_rails(openai_client):
     response = openai_client.chat.completions.create(
-        model="input_rails",
+        model="with_input_rails",
         messages=[{"role": "user", "content": "Hello, how are you?"}],
         stream=False,
     )

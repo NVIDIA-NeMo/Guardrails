@@ -15,6 +15,7 @@
 
 """OpenAI API schema definitions for the NeMo Guardrails server."""
 
+import os
 from typing import List, Optional
 
 from openai.types.chat.chat_completion import ChatCompletion
@@ -22,10 +23,10 @@ from openai.types.model import Model
 from pydantic import BaseModel, Field
 
 
-class ResponseBody(ChatCompletion):
+class GuardrailsChatCompletion(ChatCompletion):
     """OpenAI API response body with NeMo-Guardrails extensions."""
 
-    guardrails_config_id: Optional[str] = Field(
+    config_id: Optional[str] = Field(
         default=None,
         description="The guardrails configuration ID associated with this response.",
     )
@@ -38,13 +39,25 @@ class ResponseBody(ChatCompletion):
 class GuardrailsModel(Model):
     """OpenAI API model with NeMo-Guardrails extensions."""
 
-    guardrails_config_id: Optional[str] = Field(
+    config_id: Optional[str] = Field(
         default=None,
         description="[NeMo Guardrails extension] The guardrails configuration ID associated with this model.",
     )
+    engine: Optional[str] = Field(
+        default_factory=lambda: os.getenv("MAIN_MODEL_ENGINE", "nim"),
+        description="[NeMo Guardrails extension] The engine associated with this model.",
+    )
+    base_url: Optional[str] = Field(
+        default_factory=lambda: os.getenv("MAIN_MODEL_BASE_URL", "https://localhost:8000/v1"),
+        description="[NeMo Guardrails extension] The base URL this model serves on.",
+    )
+    api_key_env_var: Optional[str] = Field(
+        default_factory=lambda: os.getenv("MAIN_MODEL_API_KEY", None),
+        description="[NeMo Guardrails extension] This model's API key.",
+    )
 
 
-class ModelsResponse(BaseModel):
+class GuardrailsModelsResponse(BaseModel):
     """OpenAI API models list response with NeMo-Guardrails extensions."""
 
     object: str = Field(default="list", description="The object type, which is always 'list'.")
