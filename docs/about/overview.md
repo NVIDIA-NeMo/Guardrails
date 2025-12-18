@@ -82,7 +82,7 @@ Content safety guardrails help ensure that both user inputs and LLM outputs are 
 The NeMo Guardrails library provides multiple approaches to content safety:
 
 - **LLM self-checking**: Use the LLM itself to check inputs and outputs for harmful content.
-- **NVIDIA safety models**: Integrate with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety) for robust content moderation.
+- **NVIDIA safety models**: Integrate with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3) for robust content moderation.
 - **Community models**: Use [LlamaGuard](../user-guides/community/llama-guard.md), [Fiddler Guardrails](../user-guides/community/fiddler.md), and other community content safety solutions.
 - **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#activefence), [Cisco AI Defense](../user-guides/community/ai-defense.md), and other moderation services.
 
