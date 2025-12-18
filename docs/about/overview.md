@@ -22,7 +22,7 @@ The NVIDIA NeMo Guardrails library ([PyPI](https://pypi.org/project/nemoguardrai
 
 ## NeMo Guardrails Library within the NVIDIA NeMo Software Stack
 
-[NVIDIA NeMo](https://www.nvidia.com/en-us/ai-data-science/products/nemo/) is a suite of tools and libraries for building and deploying LLM-based applications. It includes various tools, open source libraries, and microservices to help you build, deploy, and scale your LLM-based applications.
+[NVIDIA NeMo](https://www.nvidia.com/en-us/ai-data-science/products/nemo/) is a suite of microservices, tools, and libraries for building, deploying, and scaling LLM-based applications.
 
 NeMo Guardrails is part of the NVIDIA NeMo software stack. It takes part in adding programmable guardrails to LLM-based applications. The NeMo Guardrails library provides tools to build guardrails and integrate them into your LLM-based applications at development time. The NeMo Guardrails microservice as part of the [NeMo microservices platform](https://docs.nvidia.com/nemo/microservices/latest/about/index.html) is a production-ready container image built on top of this library, designed for Kubernetes deployment with Helm charts.
 
