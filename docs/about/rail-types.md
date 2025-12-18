@@ -1,7 +1,7 @@
 ---
 title:
-  page: "Rail Types"
-  nav: "Rail Types"
+  page: "Guardrail Types"
+  nav: "Guardrail Types"
 description: "Apply input, retrieval, dialog, execution, and output rails to protect LLM applications."
 topics: ["AI"]
 tags: ["Guardrails", "Input Rails", "Output Rails", "RAG", "Agentic"]
@@ -11,9 +11,9 @@ content:
   audience: ["Developer", "Machine Learning Engineer"]
 ---
 
-# Rail Types
+# Guardrail Types
 
-The NeMo Guardrails library applies guardrails at multiple stages of the LLM interaction. Input rails apply guardrails before the LLM is called by validating and sanitizing user inputs. Retrieval rails filter and validate retrieved knowledge (documents and chunks) to ensure only trusted context is provided to the LLM. Dialog rails steer and constrain the multi‑turn conversation, enforcing flow logic and policies across turns. Execution rails control and validate tool/function calls, their arguments, and results to safely interact with external systems. Output rails evaluate and post‑process model responses, filtering, editing, or blocking unsafe or off‑policy content before it reaches users.
+The NeMo Guardrails library applies guardrails (also called *rails*) at multiple stages of the LLM interaction. Input rails apply guardrails before the LLM is called by validating and sanitizing user inputs. Retrieval rails filter and validate retrieved knowledge (documents and chunks) to ensure only trusted context is provided to the LLM. Dialog rails steer and constrain the multi‑turn conversation, enforcing flow logic and policies across turns. Execution rails control and validate tool/function calls, their arguments, and results to safely interact with external systems. Output rails evaluate and post‑process model responses, filtering, editing, or blocking unsafe or off‑policy content before it reaches users.
 
 Input and Output rails are the most common.
 

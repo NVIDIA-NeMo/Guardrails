@@ -5,6 +5,9 @@
 
 # NVIDIA NeMo Guardrails Library Developer Guide
 
+{bdg-link-primary}`PyPI <https://pypi.org/project/nemoguardrails/>`
+{bdg-link-secondary}`GitHub <https://github.com/NVIDIA/NeMo-Guardrails>`
+
 The NeMo Guardrails library is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
 
 ## About the NeMo Guardrails Library
@@ -21,11 +24,11 @@ Learn about the library and its capabilities in the following sections.
 Add programmable guardrails to LLM applications with this open-source Python library.
 :::
 
-:::{grid-item-card} Use Cases
-:link: about/use-cases
+:::{grid-item-card} Guardrail Types
+:link: about/rail-types
 :link-type: doc
 
-Implement content safety, jailbreak protection, topic control, PII detection, and custom rails.
+Apply input, retrieval, dialog, execution, and output rails to protect LLM applications.
 :::
 
 :::{grid-item-card} How It Works
@@ -125,7 +128,6 @@ Integrate NeMo Guardrails with LangChain chains, runnables, and LangGraph workfl
 :hidden:
 
 Overview <about/overview.md>
-Use Cases <about/use-cases.md>
 Rail Types <about/rail-types.md>
 How It Works <about/how-it-works/index.md>
 Supported LLMs <about/supported-llms.md>
