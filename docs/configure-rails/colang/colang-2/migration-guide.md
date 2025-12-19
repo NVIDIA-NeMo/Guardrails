@@ -9,7 +9,7 @@ The NeMo Guardrails CLI provides a tool (`nemoguardrails convert ...`) for conve
 It performs several syntax transformations on the content of the files, such as converting certain keywords and changing the case of certain identifiers.
 
 ```{warning}
-There are edge cases not convered by the conversion tool. You should always manually review a guardrail configuration after conversion.
+There are edge cases not covered by the conversion tool. You should always manually review a guardrail configuration after conversion.
 ```
 
 ## How it Works
@@ -21,14 +21,14 @@ The tool walks through the directory specified by the `path` argument and applie
 - Converting `define bot` to `flow bot`.
 - Converting `define user` to `flow user`.
 - Converting `execute` to `await`.
-- Converting snake_case identifiers after `await` to CamelCase and append it with key word `Action` while preserving any arguments used..
+- Converting snake_case identifiers after `await` to CamelCase and appending them with key word `Action` while preserving any arguments used.
 - Converting `else when` to `or when`.
 - Converting `stop` to `abort`.
 - Converting quoted strings after `bot` to `bot say` or `or bot say`.
 - Converting quoted strings after `user` to `user said` or `or user said`.
-- Convert anonymous flows.
-- Use `active` decorator for root flows (flows that need activation).
-- Add `global` keyword to global variables.
+- Converting anonymous flows.
+- Using `active` decorator for root flows (flows that need activation).
+- Adding `global` keyword to global variables.
 - Converting `...` to corresponding syntax in Colang 2.
 
 ### Generation operator
@@ -40,7 +40,7 @@ The syntax for the generation operation has changed slightly between Colang 1.0 
 $var_name = ...
 ```
 
-It is translated to:
+is translated to:
 
 ```colang
 $name = ... "some instruction in natural language"
@@ -48,8 +48,8 @@ $name = ... "some instruction in natural language"
 
 ### Generic Matching
 
-In Colang 1.0 it was possible to use generic matching using `user ...` and `bot ...`.
-These have a different equivalent in Colang 2.0. The `...` can no longer be used for matching, only for generation.
+In Colang 1.0, it was possible to use generic matching using `user ...` and `bot ...`.
+These have different equivalents in Colang 2.0. The `...` can no longer be used for matching, only for generation.
 
 The following changes are applied during conversion:
 - `user ...` is translated to `user said something`
@@ -57,8 +57,8 @@ The following changes are applied during conversion:
 
 ### Rails Configuration
 
-Colang 1.0 configuration can define certain rails in the `rails` field.
-- If rails are defined in `config.yml` a `_rails.co` file is generated with the rails defined in it.
+Colang 1.0 configuration can define certain guardrails in the `rails` field.
+- If guardrails are defined in `config.yml`, a `_rails.co` file is generated with the rails defined in it.
 
 ### Example Flow conversion
 
@@ -111,5 +111,5 @@ The `convert` command has several options:
 - The tool uses regular expressions to find and replace certain patterns in the text. If the input files contain text that matches these patterns but should not be replaced, the tool may produce incorrect results.
 - The tool renames the original files and writes the transformed content to new files with the original names. Use version control to track the changes made by the tool.
 - The tool does not handle errors that may occur during file reading and writing operations. If an error occurs, the tool logs the error and continues with the next file.
-- Using characters like `-`, `+` and tokens like `or`, `and`, etc. is not supported in flow definition, the migration tool does not handle this conversion.
+- Using characters like `-`, `+` and tokens like `or`, `and`, etc. is not supported in flow definition. The migration tool does not handle this conversion.
 - It is a better practice to define global variables at the beginning of the flow. However, the migration tool does not enforce this.
