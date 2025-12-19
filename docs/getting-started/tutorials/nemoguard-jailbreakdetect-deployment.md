@@ -1,7 +1,7 @@
 ---
 title:
   page: "Detect Jailbreaks with Nemotron Jailbreak Detect NIM"
-  nav: "Jailbreak Detection"
+  nav: "Detect Jailbreaks"
 description: "Detect and block adversarial prompts and jailbreak attempts using Nemotron Jailbreak Detect NIM."
 topics: ["AI Safety", "Security"]
 tags: ["Jailbreak", "NIM", "Security", "Input Rails", "Docker", "Nemotron"]

@@ -1,7 +1,7 @@
 ---
 title:
-  page: "Check Content with Nemotron Content Safety NIM"
-  nav: "Content Safety"
+  page: "Check Harmful Content with Nemotron Content Safety NIM"
+  nav: "Check Harmful Content"
 description: "Check text inputs and outputs for harmful content using Nemotron Content Safety NIM."
 topics: ["AI Safety", "Content Safety"]
 tags: ["Content Safety", "NIM", "Multilingual", "Input Rails", "Output Rails", "Docker", "Nemotron"]
@@ -16,7 +16,7 @@ content:
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Check Content with Nemotron Content Safety NIM
+# Check Harmful Content with Nemotron Content Safety NIM
 
 ## Adding Multilingual Content Safety Guardrails
 

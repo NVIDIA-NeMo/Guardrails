@@ -1,7 +1,7 @@
 ---
 title:
   page: "Restrict Topics with Nemotron Topic Control NIM"
-  nav: "Topic Control"
+  nav: "Restrict Topics"
 description: "Restrict conversations to allowed topics using Nemotron Topic Control NIM."
 topics: ["AI Safety", "Content Moderation"]
 tags: ["Topic Control", "NIM", "Input Rails", "LoRA", "Docker", "Nemotron"]

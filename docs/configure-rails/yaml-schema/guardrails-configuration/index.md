@@ -231,5 +231,5 @@ rails:
 :maxdepth: 2
 
 Built-in Guardrails <built-in-guardrails>
-Rails in Parallel <parallel-rails.md>
+Parallel Execution of Rails <parallel-rails.md>
 ```

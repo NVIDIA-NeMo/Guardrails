@@ -40,6 +40,6 @@ Explore the event-driven runtime, canonical messages, and server design.
 ```{toctree}
 :hidden:
 
-Rails Sequence Diagrams <guardrails-process.md>
-Detailed Architecture <../architecture/README.md>
+Sequence Diagrams <guardrails-process.md>
+Architecture <../architecture/README.md>
 ```
