@@ -7,11 +7,17 @@
 1. Deploy a GLiNER-compatible server. An example implementation is provided at [`examples/deployment/gliner_server/`](../../../examples/deployment/gliner_server/):
 
 ```bash
-# Install dependencies
-pip install gliner torch fastapi uvicorn
+cd examples/deployment/gliner_server
 
-# Start the example server (uses nvidia/gliner-PII model by default)
-python examples/deployment/gliner_server/gliner_server.py --host 0.0.0.0 --port 1235
+# Install with uv (recommended)
+uv sync
+
+# Start the server (uses nvidia/gliner-PII model by default)
+uv run gliner-server --host 0.0.0.0 --port 1235
+
+# Or install with pip
+pip install -e .
+gliner-server --host 0.0.0.0 --port 1235
 ```
 
 2. Update your `config.yml` file to include the GLiNER settings:
@@ -182,8 +188,34 @@ An example GLiNER server implementation is provided at [`examples/deployment/gli
 - Supports GPU acceleration (CUDA, MPS on Apple Silicon)
 - Implements text chunking with overlap for long documents
 - Provides entity deduplication
+- Structured as a proper Python package with `src/` layout
+- CLI entry point (`gliner-server`) for easy startup
+- Unit tests for PII utility functions (no server required)
+- Integration test script for end-to-end validation
 
 See the [deployment README](../../../examples/deployment/gliner_server/README.md) for detailed instructions.
+
+## Testing
+
+The NeMo Guardrails GLiNER integration tests (`tests/test_gliner.py`) use mocked API responses, so they don't require a running server. To run them:
+
+```bash
+pytest tests/test_gliner.py -v
+```
+
+The example server package also includes unit tests for the PII utility functions:
+
+```bash
+cd examples/deployment/gliner_server
+uv run pytest tests/ -v
+```
+
+For integration testing with a running server, use the provided script:
+
+```bash
+cd examples/deployment/gliner_server
+./test_integration.sh
+```
 
 ## Notes
 
