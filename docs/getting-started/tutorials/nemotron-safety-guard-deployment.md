@@ -1,10 +1,10 @@
 ---
 title:
-  page: "Deploy NeMo Content Safety for Text"
+  page: "Check Content with Nemotron Content Safety NIM"
   nav: "Content Safety"
-description: "Deploy Nemotron Safety Guard to detect harmful content in multilingual text inputs and outputs."
+description: "Check text inputs and outputs for harmful content using Nemotron Content Safety NIM."
 topics: ["AI Safety", "Content Safety"]
-tags: ["Content Safety", "NIM", "Multilingual", "Input Rails", "Output Rails", "Docker"]
+tags: ["Content Safety", "NIM", "Multilingual", "Input Rails", "Output Rails", "Docker", "Nemotron"]
 content:
   type: "Tutorial"
   difficulty: "Intermediate"
@@ -16,7 +16,7 @@ content:
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Content Safety (Text) with NeMo Content Safety
+# Check Content with Nemotron Content Safety NIM
 
 ## Adding Multilingual Content Safety Guardrails
 

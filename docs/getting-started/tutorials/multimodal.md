@@ -1,8 +1,8 @@
 ---
 title:
-  page: "Multimodal Content Safety with Vision Models"
+  page: "Add Multimodal Content Safety Using a Vision Model"
   nav: "Multimodal"
-description: "Add safety checks to images and text using vision models as LLM-as-a-judge."
+description: "Add safety checks to images and text using a vision model as LLM-as-a-Judge."
 topics: ["AI Safety", "Content Safety"]
 tags: ["Multimodal", "Vision", "Images", "LLM-as-a-Judge", "OpenAI"]
 content:
@@ -16,7 +16,7 @@ content:
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Multimodal Content Safety with Vision Models as LLM-as-a-judge
+# Add Multimodal Content Safety Using a Vision Model
 
 ## About Working with Multimodal Data
 

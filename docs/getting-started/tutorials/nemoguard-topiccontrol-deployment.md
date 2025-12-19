@@ -1,25 +1,25 @@
 ---
 title:
-  page: "Deploy NeMo Topic Control"
+  page: "Restrict Topics with Nemotron Topic Control NIM"
   nav: "Topic Control"
-description: "Deploy NeMo Topic Control NIM to restrict conversations to allowed topics."
+description: "Restrict conversations to allowed topics using Nemotron Topic Control NIM."
 topics: ["AI Safety", "Content Moderation"]
-tags: ["Topic Control", "NIM", "Input Rails", "LoRA", "Docker"]
+tags: ["Topic Control", "NIM", "Input Rails", "LoRA", "Docker", "Nemotron"]
 content:
   type: "Tutorial"
   difficulty: "Intermediate"
   audience: ["Developer", "AI Engineer"]
 ---
 
-# Topic Control with NeMo Topic Control
+# Restrict Topics with Nemotron Topic Control NIM
 
 The Topic Control model is available to download as a LoRA adapter module through Hugging Face or as an [NVIDIA TopicControl NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/index.html) for low-latency optimized inference with [NVIDIA TensorRT-LLM](https://docs.nvidia.com/tensorrt-llm/index.html).
 
-This guide covers how to deploy NeMo Topic Control as a NIM microservice and use it in a NeMo Guardrails configuration.
+This guide covers how to deploy Nemotron Topic Control as a NIM microservice and use it in a NeMo Guardrails configuration.
 
 ## NIM Deployment
 
-Follow the instructions below to deploy NeMo Topic Control and configure it in a NeMo Guardrails application.
+Follow the instructions below to deploy Nemotron Topic Control NIM and configure it in a NeMo Guardrails application.
 
 ### Access
 
@@ -52,7 +52,7 @@ docker run -it --name=$MODEL_NAME \
     $NIM_IMAGE
 ```
 
-### Use NeMo Topic Control in the NeMo Guardrails App
+### Use Nemotron Topic Control in the NeMo Guardrails App
 
 A locally running Topic Control NIM exposes the standard OpenAI interface on the `v1/chat/completions` endpoint. NeMo Guardrails provides out-of-the-box support for engines that support the standard LLM interfaces. In the Guardrails configuration, use the engine `nim` for the Topic Control NIM as follows.
 
@@ -109,10 +109,10 @@ docker run -it --name=$MODEL_NAME \
     $NIM_IMAGE
 ```
 
-## More details on NeMo Topic Control
+## More Details on Nemotron Topic Control
 
-For more details on NeMo Topic Control, check out these resources:
+For more details on Nemotron Topic Control, check out these resources:
 
-- [NVIDIA NemoGuard models](../guardrails-library.md#nvidia-models)
-- NeMo Topic Control topic safety example [configuration and prompts](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/topic_safety)
+- [NVIDIA Nemotron Safety models](../guardrails-library.md#nvidia-models)
+- Nemotron Topic Control topic safety example [configuration and prompts](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/topic_safety)
 - [Paper at EMNLP 2024](https://arxiv.org/abs/2404.03820)

@@ -1,19 +1,19 @@
 ---
 title:
-  page: "Deploy NeMo Jailbreak Detection"
+  page: "Detect Jailbreaks with Nemotron Jailbreak Detect NIM"
   nav: "Jailbreak Detection"
-description: "Deploy NeMo Jailbreak Detect NIM to block adversarial prompts and jailbreak attempts."
+description: "Detect and block adversarial prompts and jailbreak attempts using Nemotron Jailbreak Detect NIM."
 topics: ["AI Safety", "Security"]
-tags: ["Jailbreak", "NIM", "Security", "Input Rails", "Docker"]
+tags: ["Jailbreak", "NIM", "Security", "Input Rails", "Docker", "Nemotron"]
 content:
   type: "Tutorial"
   difficulty: "Intermediate"
   audience: ["Developer", "AI Engineer", "Security Engineer"]
 ---
 
-# Jailbreak Detection with NeMo Jailbreak Detect
+# Detect Jailbreaks with Nemotron Jailbreak Detect NIM
 
-NeMo Jailbreak Detect is available via the [Jailbreak Detection Container](jailbreak-detection-deployment.md) or as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard).
+Nemotron Jailbreak Detect is available via the [Jailbreak Detection Heuristics](../../user-guides/jailbreak-detection-heuristics/README.md) or as an [NVIDIA NIM](https://docs.nvidia.com/nim/#nemoguard).
 
 ## NIM Deployment
 
@@ -25,7 +25,7 @@ export NGC_API_KEY=<your NGC API key>
 docker login nvcr.io -u '$oauthtoken' -p <<< <your NGC API key>
 ```
 
-Test that you are able to use the NVIDIA NIM assets by pulling the latest NemoGuard container.
+Test that you are able to use the NVIDIA NIM assets by pulling the latest Nemotron Jailbreak Detect container.
 
 ```bash
 export NIM_IMAGE='nvcr.io/nim/nvidia/nemoguard-jailbreak-detect:latest'
@@ -47,7 +47,7 @@ Within your guardrails configuration file, you can specify that you want to use 
 To do this, ensure that you specify the endpoint of the NIM in the `nim_base_url` parameter.
 If you need an API key, you can export it as an environment variable and specify the name of that environment variable in `api_key_env_var`.
 If you must hard-code the API key in the config, which is generally not recommended for security reasons, you can also use the `api_key` parameter.
-The NemoGuard JailbreakDetect container uses `"classify"` as its endpoint for jailbreak detection, but if you are using an endpoint other than `"classify"`, you can specify this via the `nim_server_endpoint` parameter.
+The Nemotron Jailbreak Detect container uses `"classify"` as its endpoint for jailbreak detection, but if you are using an endpoint other than `"classify"`, you can specify this via the `nim_server_endpoint` parameter.
 An example configuration is shown below.
 
 ```yaml

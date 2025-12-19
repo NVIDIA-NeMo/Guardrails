@@ -2,9 +2,9 @@
 title:
   page: "NeMo Guardrails Tutorials"
   nav: "Tutorials"
-description: "Follow hands-on tutorials to deploy content safety, topic control, and jailbreak detection."
+description: "Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect NIMs."
 topics: ["Get Started", "AI Safety"]
-tags: ["Tutorial", "Content Safety", "Jailbreak", "Topic Control"]
+tags: ["Tutorial", "Content Safety", "Jailbreak", "Topic Control", "Nemotron", "NIM"]
 content:
   type: "Tutorial"
   difficulty: "Beginner"
@@ -29,14 +29,14 @@ Deploy Nemotron Safety Guard to detect harmful content in multilingual text inpu
 :link: nemoguard-topiccontrol-deployment
 :link-type: doc
 
-Deploy NeMo Topic Control NIM to restrict conversations to allowed topics.
+Deploy Nemotron Topic Control NIM to restrict conversations to allowed topics.
 :::
 
 :::{grid-item-card} Jailbreak Detection
 :link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
-Deploy NeMo Jailbreak Detect NIM to block adversarial prompts and jailbreak attempts.
+Deploy Nemotron Jailbreak Detect NIM to block adversarial prompts and jailbreak attempts.
 :::
 
 :::{grid-item-card} Multimodal
