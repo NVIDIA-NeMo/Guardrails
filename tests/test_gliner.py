@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -21,7 +21,121 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
 from tests.utils import TestChat
 
-GLINER_SERVER_AVAILABLE = os.getenv("GLINER_SERVER_ENDPOINT") is not None
+
+def create_gliner_mock_response(
+    text: str,
+    entities_to_detect: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Create a mock GLiNER response based on the input text and entities to detect.
+
+    This simulates the GLiNER server's behavior by detecting common PII patterns.
+    """
+    detected_entities = []
+
+    # Define patterns to detect (simple substring matching for mock purposes)
+    entity_patterns = {
+        "first_name": ["John", "Jane"],
+        "last_name": ["Doe", "Smith"],
+        "email": ["@gmail.com", "@email.com", "@yahoo.com", "@hotmail.com"],
+    }
+
+    for entity_type, patterns in entity_patterns.items():
+        # Skip if entities_to_detect is specified and this type is not in the list
+        if entities_to_detect and entity_type not in entities_to_detect:
+            continue
+
+        for pattern in patterns:
+            start = 0
+            while True:
+                pos = text.find(pattern, start)
+                if pos == -1:
+                    break
+
+                # For emails, find the full email address
+                if entity_type == "email":
+                    # Find the start of the email (go back to find non-space character)
+                    email_start = pos
+                    while email_start > 0 and text[email_start - 1] not in " \n\t,;:":
+                        email_start -= 1
+                    # Find the end of the email
+                    email_end = pos + len(pattern)
+                    value = text[email_start:email_end]
+                    detected_entities.append(
+                        {
+                            "value": value,
+                            "suggested_label": entity_type,
+                            "start_position": email_start,
+                            "end_position": email_end,
+                            "score": 0.95,
+                        }
+                    )
+                else:
+                    detected_entities.append(
+                        {
+                            "value": pattern,
+                            "suggested_label": entity_type,
+                            "start_position": pos,
+                            "end_position": pos + len(pattern),
+                            "score": 0.95,
+                        }
+                    )
+
+                start = pos + 1
+
+    return {
+        "entities": detected_entities,
+        "total_entities": len(detected_entities),
+        "tagged_text": text,  # Simplified - not actually tagging for mock
+    }
+
+
+def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
+    """
+    Mask detected entities in text with their labels.
+
+    Args:
+        text: Original text
+        entities: List of entity dictionaries with 'value', 'suggested_label',
+                 'start_position', 'end_position' keys
+
+    Returns:
+        Text with entities replaced by [LABEL] placeholders
+    """
+    if not entities:
+        return text
+
+    # Sort entities by start position in reverse order to replace from end to start
+    sorted_entities = sorted(entities, key=lambda x: x["start_position"], reverse=True)
+
+    masked_text = text
+    for entity in sorted_entities:
+        start = entity["start_position"]
+        end = entity["end_position"]
+        label = entity["suggested_label"].upper()
+        masked_text = masked_text[:start] + f"[{label}]" + masked_text[end:]
+
+    return masked_text
+
+
+def create_mock_gliner_detect_pii(entities_to_detect: Optional[List[str]] = None):
+    """Create a mock gliner_detect_pii action that returns True when PII is detected."""
+
+    async def mock_gliner_detect_pii(source: str, text: str, config, **kwargs):
+        response = create_gliner_mock_response(text, entities_to_detect)
+        return response.get("total_entities", 0) > 0
+
+    return mock_gliner_detect_pii
+
+
+def create_mock_gliner_mask_pii(entities_to_detect: Optional[List[str]] = None):
+    """Create a mock gliner_mask_pii action that masks PII in text."""
+
+    async def mock_gliner_mask_pii(source: str, text: str, config, **kwargs):
+        response = create_gliner_mock_response(text, entities_to_detect)
+        entities = response.get("entities", [])
+        return _mask_text_with_entities(text, entities)
+
+    return mock_gliner_mask_pii
 
 
 @action()
@@ -34,7 +148,6 @@ def retrieve_relevant_chunks():
     )
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_detection_no_active_pii_detection():
     config = RailsConfig.from_content(
@@ -67,11 +180,14 @@ def test_gliner_pii_detection_no_active_pii_detection():
     )
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    # Register mock GLiNER actions (not used but prevents errors if called)
+    chat.app.register_action(create_mock_gliner_detect_pii(), "gliner_detect_pii")
+    chat.app.register_action(create_mock_gliner_mask_pii(), "gliner_mask_pii")
+
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "Hi! My name is John as well."
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_detection_input():
     config = RailsConfig.from_content(
@@ -112,11 +228,20 @@ def test_gliner_pii_detection_input():
     )
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    # Register mock GLiNER actions with the entities to detect
+    chat.app.register_action(
+        create_mock_gliner_detect_pii(["email", "first_name", "last_name"]),
+        "gliner_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_gliner_mask_pii(["email", "first_name", "last_name"]),
+        "gliner_mask_pii",
+    )
+
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
     chat << "I can't answer that."
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_detection_output():
     config = RailsConfig.from_content(
@@ -157,11 +282,20 @@ def test_gliner_pii_detection_output():
     )
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    # Register mock GLiNER actions with the entities to detect
+    chat.app.register_action(
+        create_mock_gliner_detect_pii(["email", "first_name", "last_name"]),
+        "gliner_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_gliner_mask_pii(["email", "first_name", "last_name"]),
+        "gliner_mask_pii",
+    )
+
     chat >> "Hi!"
     chat << "I can't answer that."
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_detection_retrieval_with_no_pii():
     config = RailsConfig.from_content(
@@ -202,12 +336,20 @@ def test_gliner_pii_detection_retrieval_with_no_pii():
     )
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    # Register mock GLiNER actions with the entities to detect
+    chat.app.register_action(
+        create_mock_gliner_detect_pii(["email", "first_name", "last_name"]),
+        "gliner_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_gliner_mask_pii(["email", "first_name", "last_name"]),
+        "gliner_mask_pii",
+    )
 
     chat >> "Hi!"
     chat << "Hi! My name is John as well."
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_masking_on_output():
     config = RailsConfig.from_content(
@@ -247,13 +389,23 @@ def test_gliner_pii_masking_on_output():
     )
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
+    # Register mock GLiNER actions with the entities to detect
+    chat.app.register_action(
+        create_mock_gliner_detect_pii(["email", "first_name"]),
+        "gliner_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_gliner_mask_pii(["email", "first_name"]),
+        "gliner_mask_pii",
+    )
 
     chat >> "Hi!"
-    # The name should be masked - check that the response contains masked content
-    # Note: The actual masking behavior depends on GLiNER server response
+    # The name should be masked - response should contain [FIRST_NAME] instead of John
+    response = chat.app.generate(messages=[{"role": "user", "content": "Hi!"}])
+    # Verify the name was masked
+    assert "John" not in response["content"] or "[FIRST_NAME]" in response["content"]
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_masking_on_input():
     config = RailsConfig.from_content(
@@ -304,11 +456,19 @@ def test_gliner_pii_masking_on_input():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
     chat.app.register_action(check_user_message, "check_user_message")
+    # Register mock GLiNER actions with the entities to detect
+    chat.app.register_action(
+        create_mock_gliner_detect_pii(["email", "first_name"]),
+        "gliner_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_gliner_mask_pii(["email", "first_name"]),
+        "gliner_mask_pii",
+    )
 
     chat >> "Hi there! Are you John?"
 
 
-@pytest.mark.skipif(not GLINER_SERVER_AVAILABLE, reason="GLiNER server is not available.")
 @pytest.mark.unit
 def test_gliner_pii_masking_on_retrieval():
     config = RailsConfig.from_content(
@@ -368,5 +528,14 @@ def test_gliner_pii_masking_on_retrieval():
 
     chat.app.register_action(retrieve_relevant_chunk_for_masking, "retrieve_relevant_chunks")
     chat.app.register_action(check_relevant_chunks)
+    # Register mock GLiNER actions with the entities to detect
+    chat.app.register_action(
+        create_mock_gliner_detect_pii(["email", "first_name"]),
+        "gliner_detect_pii",
+    )
+    chat.app.register_action(
+        create_mock_gliner_mask_pii(["email", "first_name"]),
+        "gliner_mask_pii",
+    )
 
     chat >> "Hey! Can you help me get John's email?"
