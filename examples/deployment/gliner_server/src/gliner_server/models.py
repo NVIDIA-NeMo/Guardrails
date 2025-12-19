@@ -15,7 +15,7 @@
 
 """Pydantic models for GLiNER server API."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # =============================================================================
 # Core Entity Models
@@ -37,7 +37,7 @@ class GLiNERRequest(BaseModel):
 
     text: str
     labels: list[str] | None = None
-    threshold: float | None = 0.5
+    threshold: float | None = Field(default=0.5, ge=0.0, le=1.0)
     chunk_length: int | None = 384
     overlap: int | None = 128
     flat_ner: bool | None = False
@@ -73,7 +73,7 @@ class GLiNERChatCompletionRequest(BaseModel):
     stream: bool | None = False
     # GLiNER-specific parameters
     entity_labels: list[str] | None = None
-    threshold: float | None = 0.5
+    threshold: float | None = Field(default=0.5, ge=0.0, le=1.0)
     chunk_length: int | None = 384
     overlap: int | None = 128
     flat_ner: bool | None = False

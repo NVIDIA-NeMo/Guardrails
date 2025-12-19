@@ -70,7 +70,7 @@ app = FastAPI(
 model = None
 
 
-def extract_with_gliner(request: GLiNERRequest):
+def extract_with_gliner(request: GLiNERRequest) -> GLiNERResponse:
     """
     GLiNER entity extraction with chunking, deduplication, and position tracking.
 
@@ -176,9 +176,9 @@ async def chat_completions(request: GLiNERChatCompletionRequest):
 
         # Convert EntitySpan objects to dictionaries for JSON serialization
         serializable_result = {
-            "total_entities": result["total_entities"],
-            "entities": [span.model_dump() for span in result["entities"]],
-            "tagged_text": result["tagged_text"],
+            "total_entities": result.total_entities,
+            "entities": [span.model_dump() for span in result.entities],
+            "tagged_text": result.tagged_text,
         }
 
         return GLiNERChatCompletionResponse(
@@ -210,10 +210,7 @@ async def extract_entities_advanced(request: GLiNERRequest):
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     try:
-        result = extract_with_gliner(request)
-
-        return GLiNERResponse(**result)
-
+        return extract_with_gliner(request)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction error: {str(e)}")
 
@@ -241,25 +238,10 @@ async def health_check():
 
     return {
         "status": "healthy" if model is not None else "unhealthy",
-        "model_loaded": model is not None,
         "model_name": MODEL_NAME,
         "device": device,
         "server": f"{HOST}:{PORT}",
         "default_labels_count": len(DEFAULT_LABELS),
-        "features": {
-            "chunking": True,
-            "overlap_processing": True,
-            "entity_deduplication": True,
-            "pii_detection": True,
-        },
-        "endpoints": {
-            "base_url": f"http://{HOST}:{PORT}/v1",
-            "chat_completions": "/v1/chat/completions",
-            "extract": "/v1/extract",
-            "models": "/v1/models",
-            "labels": "/v1/labels",
-            "health": "/health",
-        },
     }
 
 

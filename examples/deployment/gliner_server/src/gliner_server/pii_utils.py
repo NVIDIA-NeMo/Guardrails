@@ -17,7 +17,7 @@
 
 from typing import Any
 
-from .models import EntitySpan
+from .models import EntitySpan, GLiNERResponse
 
 # Comprehensive PII labels
 DEFAULT_LABELS = [
@@ -232,7 +232,7 @@ def adjust_entity_positions(entities: list[dict[str, Any]], offset: int) -> list
     return entities
 
 
-def process_raw_entities(entities: list[dict[str, Any]], text: str) -> dict[str, Any]:
+def process_raw_entities(entities: list[dict[str, Any]], text: str) -> GLiNERResponse:
     """
     Process raw GLiNER entities into the final response format.
 
@@ -247,7 +247,7 @@ def process_raw_entities(entities: list[dict[str, Any]], text: str) -> dict[str,
         text: The original text
 
     Returns:
-        Dictionary with 'total_entities', 'entities' (list of EntitySpan), and 'tagged_text'
+        GLiNERResponse object
     """
     # Remove subset entities
     entities = remove_subset_entities(entities)
@@ -261,11 +261,11 @@ def process_raw_entities(entities: list[dict[str, Any]], text: str) -> dict[str,
     # Create tagged text
     tagged_text = create_tagged_text(text, list(dedup_map.values()))
 
-    return {
-        "total_entities": len(entity_spans),
-        "entities": entity_spans,
-        "tagged_text": tagged_text,
-    }
+    return GLiNERResponse(
+        total_entities=len(entity_spans),
+        entities=entity_spans,
+        tagged_text=tagged_text,
+    )
 
 
 def create_text_chunks(text: str, chunk_length: int = 384, overlap: int = 128) -> tuple:

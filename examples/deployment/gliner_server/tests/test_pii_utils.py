@@ -20,6 +20,8 @@ These tests do not require the GLiNER model or server to be running.
 
 import pytest
 from gliner_server.pii_utils import (
+    DEFAULT_CATEGORIES,
+    DEFAULT_LABELS,
     adjust_entity_positions,
     create_tagged_text,
     create_text_chunks,
@@ -27,6 +29,22 @@ from gliner_server.pii_utils import (
     process_raw_entities,
     remove_subset_entities,
 )
+
+
+class TestDefaultLabelsAndCategories:
+    """Tests for validating DEFAULT_LABELS and DEFAULT_CATEGORIES consistency."""
+
+    def test_all_category_labels_are_valid(self):
+        """Ensure all labels in DEFAULT_CATEGORIES exist in DEFAULT_LABELS."""
+        invalid_labels = []
+        for category, labels in DEFAULT_CATEGORIES.items():
+            for label in labels:
+                if label not in DEFAULT_LABELS:
+                    invalid_labels.append((category, label))
+
+        assert not invalid_labels, (
+            f"Found labels in DEFAULT_CATEGORIES that are not in DEFAULT_LABELS: {invalid_labels}"
+        )
 
 
 class TestCreateTaggedText:
@@ -274,9 +292,9 @@ class TestProcessRawEntities:
     def test_empty_entities(self):
         """Test with empty entities."""
         result = process_raw_entities([], "Hello world")
-        assert result["total_entities"] == 0
-        assert result["entities"] == []
-        assert result["tagged_text"] == "Hello world"
+        assert result.total_entities == 0
+        assert result.entities == []
+        assert result.tagged_text == "Hello world"
 
     def test_full_pipeline(self):
         """Test the full processing pipeline."""
@@ -287,10 +305,10 @@ class TestProcessRawEntities:
         text = "John's email is john@example.com"
         result = process_raw_entities(entities, text)
 
-        assert result["total_entities"] == 2
-        assert len(result["entities"]) == 2
-        assert "[John](first_name)" in result["tagged_text"]
-        assert "[john@example.com](email)" in result["tagged_text"]
+        assert result.total_entities == 2
+        assert len(result.entities) == 2
+        assert "[John](first_name)" in result.tagged_text
+        assert "[john@example.com](email)" in result.tagged_text
 
     def test_removes_subsets_and_deduplicates(self):
         """Test that subsets are removed and duplicates are deduplicated."""
@@ -304,8 +322,8 @@ class TestProcessRawEntities:
         result = process_raw_entities(entities, text)
 
         # Should have 2 entities: full_name and email (deduplicated)
-        assert result["total_entities"] == 2
-        labels = {e.suggested_label for e in result["entities"]}
+        assert result.total_entities == 2
+        labels = {e.suggested_label for e in result.entities}
         assert labels == {"full_name", "email"}
 
 
