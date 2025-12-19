@@ -1,25 +1,32 @@
-# GLiNER Server Deployment
+# GLiNER Server
 
-This directory contains an example implementation of a GLiNER server that provides PII detection capabilities for NeMo Guardrails.
+A FastAPI server for PII detection and entity extraction using GLiNER.
 
 ## Overview
 
-[GLiNER](https://github.com/urchade/GLiNER) is a Generalist and Lightweight Model for Named Entity Recognition. This server wraps GLiNER in a FastAPI application that exposes an API compatible with NeMo Guardrails' GLiNER integration.
+[GLiNER](https://github.com/urchade/GLiNER) is a Generalist and Lightweight Model for Named Entity Recognition. This package wraps GLiNER in a FastAPI application that exposes an API compatible with NeMo Guardrails' GLiNER integration.
 
-## Requirements
+## Installation
 
 ```bash
-pip install gliner torch fastapi uvicorn pydantic aiohttp
+# Install with uv
+uv pip install -e .
+
+# Or install with dev dependencies
+uv pip install -e ".[dev]"
 ```
 
 ## Quick Start
 
 ```bash
 # Start the server with default settings (nvidia/gliner-PII model)
-python gliner_server.py --host 0.0.0.0 --port 1235
+gliner-server --host 0.0.0.0 --port 1235
+
+# Or run directly with Python
+python -m gliner_server.server --host 0.0.0.0 --port 1235
 
 # Or with custom model
-python gliner_server.py --model nvidia/gliner-PII --device auto --port 1235
+gliner-server --model nvidia/gliner-PII --device auto --port 1235
 ```
 
 ## Command Line Options
@@ -42,8 +49,6 @@ You can also configure the server using environment variables:
 - `DEVICE` - Device to use
 
 ## API Endpoints
-
-The server exposes the following endpoints:
 
 ### `POST /v1/extract`
 
@@ -114,6 +119,35 @@ The default `nvidia/gliner-PII` model supports 56 PII categories:
 | Identification | `national_id`, `license_plate`, `vehicle_identifier`, `employee_id`, `customer_id`, `unique_id`, `medical_record_number`, `health_plan_beneficiary_number` |
 | Sensitive Attributes | `sexuality`, `political_view`, `race_ethnicity`, `religious_belief`, `blood_type` |
 
+## Project Structure
+
+```
+gliner_server/
+├── pyproject.toml          # Package configuration with uv
+├── README.md
+├── src/
+│   └── gliner_server/
+│       ├── __init__.py     # Package exports
+│       ├── pii_utils.py    # PII detection utilities
+│       └── server.py       # FastAPI server
+└── tests/
+    ├── __init__.py
+    └── test_pii_utils.py   # Unit tests
+```
+
+## Testing
+
+```bash
+# Install dev dependencies
+uv pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with verbose output
+pytest -v
+```
+
 ## Integration with NeMo Guardrails
 
 Configure NeMo Guardrails to use this server:
@@ -136,39 +170,26 @@ rails:
 
 See the [GLiNER User Guide](../../../docs/user-guides/community/gliner.md) for more details.
 
-## Testing
-
-The server includes unit tests for the helper functions that don't require the GLiNER model or server to be running:
-
-```bash
-# Run from this directory
-cd examples/deployment/gliner_server
-pytest test_gliner_server.py -v
-```
-
-The tests cover:
-- `create_tagged_text` - Creating tagged text from entities
-- `remove_subset_entities` - Removing overlapping/subset entities
-- `deduplicate_entities_by_score` - Keeping highest-scored entities
-- `adjust_entity_positions` - Adjusting entity positions for chunking
-- `process_raw_entities` - Full processing pipeline
-
 ## Docker Deployment
 
-You can containerize the server for production:
-
 ```dockerfile
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install gliner torch fastapi uvicorn pydantic
+# Install uv
+RUN pip install uv
 
-COPY gliner_server.py .
+# Copy package files
+COPY pyproject.toml README.md ./
+COPY src/ src/
+
+# Install dependencies
+RUN uv pip install --system .
 
 EXPOSE 1235
 
-CMD ["python", "gliner_server.py", "--host", "0.0.0.0", "--port", "1235"]
+CMD ["gliner-server", "--host", "0.0.0.0", "--port", "1235"]
 ```
 
 Build and run:

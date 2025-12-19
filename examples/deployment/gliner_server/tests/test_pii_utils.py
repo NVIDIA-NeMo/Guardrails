@@ -13,15 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for GLiNER server helper functions.
+"""Unit tests for PII utility functions.
 
 These tests do not require the GLiNER model or server to be running.
 """
 
 import pytest
-from gliner_server import (
+from gliner_server.pii_utils import (
     adjust_entity_positions,
     create_tagged_text,
+    create_text_chunks,
     deduplicate_entities_by_score,
     process_raw_entities,
     remove_subset_entities,
@@ -306,6 +307,88 @@ class TestProcessRawEntities:
         assert result["total_entities"] == 2
         labels = {e.suggested_label for e in result["entities"]}
         assert labels == {"full_name", "email"}
+
+
+class TestCreateTextChunks:
+    """Tests for the create_text_chunks function."""
+
+    def test_short_text_single_chunk(self):
+        """Test that text shorter than chunk_length produces a single chunk."""
+        text = "Hello world"
+        chunks, offsets = create_text_chunks(text, chunk_length=100, overlap=20)
+
+        assert len(chunks) == 1
+        assert chunks[0] == "Hello world"
+        assert offsets == [0]
+
+    def test_text_exactly_chunk_length(self):
+        """Test text exactly equal to chunk_length."""
+        text = "A" * 100
+        chunks, offsets = create_text_chunks(text, chunk_length=100, overlap=20)
+
+        # With overlap, we get 2 chunks: 0-100 and 80-100
+        assert len(chunks) == 2
+        assert offsets == [0, 80]
+        assert len(chunks[0]) == 100
+        assert len(chunks[1]) == 20
+
+    def test_long_text_multiple_chunks(self):
+        """Test that long text is split into multiple overlapping chunks."""
+        text = "A" * 250
+        chunks, offsets = create_text_chunks(text, chunk_length=100, overlap=20)
+
+        # With step = 100 - 20 = 80, chunks at: 0, 80, 160, 240
+        assert len(chunks) == 4
+        assert offsets == [0, 80, 160, 240]
+        assert len(chunks[0]) == 100
+        assert len(chunks[1]) == 100
+        assert len(chunks[2]) == 90  # 250 - 160 = 90
+        assert len(chunks[3]) == 10  # 250 - 240 = 10
+
+    def test_overlap_creates_redundancy(self):
+        """Test that overlapping regions contain the same content."""
+        text = "0123456789ABCDEFGHIJ"  # 20 chars
+        chunks, offsets = create_text_chunks(text, chunk_length=12, overlap=4)
+
+        # With step = 12 - 4 = 8, chunks at: 0, 8, 16
+        assert len(chunks) == 3
+        assert offsets == [0, 8, 16]
+
+        # Verify overlap region between chunk 0 and chunk 1
+        # Chunk 0: positions 0-12, chunk 1: positions 8-20
+        # Overlap is positions 8-12: "89AB"
+        overlap_from_chunk0 = chunks[0][8:12]  # Last 4 chars of chunk 0
+        overlap_from_chunk1 = chunks[1][0:4]  # First 4 chars of chunk 1
+        assert overlap_from_chunk0 == overlap_from_chunk1 == "89AB"
+
+    def test_default_parameters(self):
+        """Test with default chunk_length=384 and overlap=128."""
+        text = "X" * 500
+        chunks, offsets = create_text_chunks(text)
+
+        # With chunk_length=384 and overlap=128, step is 256
+        # Chunks: 0-384, 256-500
+        assert len(chunks) == 2
+        assert offsets == [0, 256]
+        assert len(chunks[0]) == 384
+        assert len(chunks[1]) == 244  # 500 - 256
+
+    def test_empty_text(self):
+        """Test with empty text."""
+        chunks, offsets = create_text_chunks("", chunk_length=100, overlap=20)
+
+        assert chunks == []
+        assert offsets == []
+
+    def test_returns_tuple(self):
+        """Test that the function returns a tuple of two lists."""
+        result = create_text_chunks("test", chunk_length=10, overlap=2)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        chunks, offsets = result
+        assert isinstance(chunks, list)
+        assert isinstance(offsets, list)
 
 
 if __name__ == "__main__":
