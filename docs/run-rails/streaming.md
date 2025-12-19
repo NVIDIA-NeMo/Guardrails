@@ -1,25 +1,30 @@
-# Streaming
+---
+title:
+  page: "Streaming Generated Responses in Real-Time"
+  nav: "Streaming"
+description: "Stream LLM responses in real-time with the stream_async method and output rails support."
+topics: ["AI Safety", "LLM Guardrails"]
+tags: ["Python", "Streaming", "Async", "Real-Time"]
+content:
+  type: "How-To"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
+---
 
-If the application LLM supports streaming, you can configure NeMo Guardrails to stream tokens as well.
+# Streaming Generated Responses in Real-Time
+
+If the application LLM supports streaming, the NeMo Guardrails library can stream tokens as well. Streaming is automatically enabled when you use the `stream_async()` method - no configuration is required.
 
 For information about configuring streaming with output guardrails, refer to the following:
 
 - For configuration, refer to [streaming output configuration](../user-guides/configuration-guide.md#streaming-output-configuration).
 - For sample Python client code, refer to [streaming output](../getting-started/5-output-rails/README.md#streaming-output).
 
-## Configuration
-
-To activate streaming on a guardrails configuration, add the following to your `config.yml`:
-
-```yaml
-streaming: True
-```
-
 ## Usage
 
 ### Chat CLI
 
-You can enable streaming when launching the NeMo Guardrails chat CLI by using the `--streaming` option:
+You can enable streaming when launching the NeMo Guardrails library chat CLI by using the `--streaming` option:
 
 ```bash
 nemoguardrails chat --config=examples/configs/streaming --streaming
@@ -141,11 +146,11 @@ async for chunk in app.stream_async(
     print(chunk, end="", flush=True)
 ```
 
-This feature enables seamless integration of NeMo Guardrails with any streaming LLM or token source while maintaining all the safety features of output rails.
+This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of output rails.
 
 ## Token Usage Tracking
 
-When streaming is enabled, NeMo Guardrails automatically enables token usage tracking by setting the `stream_usage` parameter to `True` for the underlying LLM model. This feature:
+When streaming is enabled, the NeMo Guardrails library automatically enables token usage tracking by setting the `stream_usage` parameter to `True` for the underlying LLM model. This feature:
 
 - Provides token usage statistics even when streaming responses.
 - Is primarily supported by OpenAI, AzureOpenAI, and other providers. The NVIDIA NIM provider supports it by default.
@@ -160,12 +165,12 @@ For optimal token usage tracking with streaming, ensure you're using recent vers
 - `langchain >= 0.2.14` and `langchain-core >= 0.2.14` for universal token counting support
 
 ```{note}
-The NeMo Guardrails toolkit requires `langchain-openai >= 0.1.0` as an optional dependency, which provides basic streaming token usage support. For enhanced features and stability, consider upgrading to `langchain-openai >= 0.2.0` in your environment.
+The NeMo Guardrails library requires `langchain-openai >= 0.1.0` as an optional dependency, which provides basic streaming token usage support. For enhanced features and stability, consider upgrading to `langchain-openai >= 0.2.0` in your environment.
 ```
 
 ### Accessing Token Usage Information
 
-You can access token usage statistics through the detailed logging capabilities of the NeMo Guardrails toolkit. Use the `log` generation option to capture comprehensive information about LLM calls, including token usage:
+You can access token usage statistics through the detailed logging capabilities of the NeMo Guardrails library. Use the `log` generation option to capture comprehensive information about LLM calls, including token usage:
 
 ```python
 response = rails.generate(messages=messages, options={
@@ -193,7 +198,7 @@ For more information about streaming token usage support across different provid
 
 ### Server API
 
-To make a call to the NeMo Guardrails Server in streaming mode, you have to set the `stream` parameter to `True` inside the JSON body. For example, to get the completion for a chat session using the `/v1/chat/completions` endpoint:
+To make a call to the NeMo Guardrails library Server in streaming mode, you have to set the `stream` parameter to `True` inside the JSON body. For example, to get the completion for a chat session using the `/v1/chat/completions` endpoint:
 
 ```text
 POST /v1/chat/completions
@@ -215,13 +220,7 @@ POST /v1/chat/completions
 We also support streaming for LLMs deployed using `HuggingFacePipeline`.
 One example is provided in the [HF Pipeline Dolly](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md) configuration.
 
-To use streaming for HF Pipeline LLMs, you first need to set the streaming flag in your `config.yml`.
-
-```yaml
-streaming: True
-```
-
-Then you need to create an `nemoguardrails.llm.providers.huggingface.AsyncTextIteratorStreamer` streamer object,
+To use streaming for HF Pipeline LLMs, you need to create an `nemoguardrails.llm.providers.huggingface.AsyncTextIteratorStreamer` streamer object,
 add it to the `kwargs` of the pipeline and to the `model_kwargs` of the `HuggingFacePipelineCompatible` object.
 
 ```python

@@ -5,7 +5,7 @@ description: Configure the knowledge base folder for RAG-based responses using m
 
 # Knowledge Base
 
-The NeMo Guardrails toolkit supports using a set of documents as context for generating bot responses through Retrieval-Augmented Generation (RAG). This guide explains how to configure and use the knowledge base folder.
+The NeMo Guardrails library supports using a set of documents as context for generating bot responses through Retrieval-Augmented Generation (RAG). This guide explains how to configure and use the knowledge base folder.
 
 ## Overview
 

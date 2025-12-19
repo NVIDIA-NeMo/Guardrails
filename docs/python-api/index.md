@@ -1,4 +1,17 @@
-# Python API
+---
+title:
+  page: "NeMo Guardrails Library Python API Reference"
+  nav: "Python API"
+description: "Use the Python SDK to integrate guardrails, generate responses, and register custom actions."
+topics: ["AI Safety", "LLM Guardrails"]
+tags: ["Python", "SDK", "API", "LangChain", "Actions"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
+---
+
+# NeMo Guardrails Library Python API Reference
 
 The primary way for using guardrails in your project is:
 
@@ -97,7 +110,7 @@ An example which also sets the initial context is the following:
 
 ## Actions
 
-Actions are a key component of the Guardrails toolkit. Actions enable the execution of python code inside guardrails.
+Actions are a key component of the NeMo Guardrails library. Actions enable the execution of python code inside guardrails.
 
 ### Default Actions
 
@@ -172,18 +185,18 @@ Actions can take any number of parameters. Since actions are invoked from Colang
 
 #### Special parameters
 
-The following parameters are special and are provided automatically by the NeMo Guardrails toolkit, if they appear in the signature of an action:
+The following parameters are special and are provided automatically by the NeMo Guardrails library, if they appear in the signature of an action:
 
 - `events`: the history of events so far; the last one is the one triggering the action itself;
 - `context`: the context data available to the action;
 - `llm`: access to the LLM instance (BaseLLM from LangChain);
 - `config`: the full `RailsConfig` instance.
 
-These parameters are only meant to be used in advanced use cases.
+These parameters are only meant to be used in advanced use cases with the NeMo Guardrails library.
 
 ## Action Parameters
 
-The following are the parameters that can be used in the actions:
+The following are the parameters that can be used in the actions with the NeMo Guardrails library:
 
 | Parameters | Description                                                                         | Type       | Example                                                                                                                                                                                                                                  |
 | ---------- | ----------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

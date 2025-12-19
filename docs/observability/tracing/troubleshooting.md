@@ -1,3 +1,16 @@
+---
+title:
+  page: "Troubleshooting"
+  nav: "Troubleshooting"
+description: "Resolve common tracing issues with OpenTelemetry SDK configuration and connectivity."
+topics: ["Observability", "AI Safety"]
+tags: ["Troubleshooting", "Tracing", "OpenTelemetry", "Debugging"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer"]
+---
+
 # Troubleshooting
 
 | Issue | Solution |

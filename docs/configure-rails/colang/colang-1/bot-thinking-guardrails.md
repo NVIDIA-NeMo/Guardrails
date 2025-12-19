@@ -1,10 +1,15 @@
+---
+title: Guardrailing Bot Reasoning Content
+description: Inspect and control LLM reasoning traces to block problematic patterns or enhance moderation decisions.
+---
+
 (bot-thinking-guardrails)=
 
 # Guardrailing Bot Reasoning Content
 
 Reasoning-capable large language models (LLMs) expose their internal thought process as reasoning traces. These traces reveal how the model arrives at its conclusions, providing transparency into the decision-making process. However, they may also contain sensitive information or problematic reasoning patterns that need to be monitored and controlled.
 
-The NeMo Guardrails toolkit helps you set up guardrails to inspect and control these reasoning traces by extracting them. With this feature, you can configure guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
+The NeMo Guardrails library helps you set up guardrails to inspect and control these reasoning traces by extracting them. With this feature, you can configure guardrails that can block responses based on the model's reasoning process, enhance moderation decisions with reasoning context, or monitor reasoning patterns.
 
 ```{note}
 This guide uses Colang 1.0 syntax. Colang 1.0 currently supports bot reasoning guardrails only.
@@ -18,7 +23,7 @@ The examples in this guide range from minimal toy examples (for understanding co
 
 ## Accessing Reasoning Content
 
-When an LLM generates a response with reasoning traces, the NeMo Guardrails toolkit extracts the reasoning and makes it available through the `bot_thinking` variable. You can use this variable in the following ways.
+When an LLM generates a response with reasoning traces, the NeMo Guardrails library extracts the reasoning and makes it available through the `bot_thinking` variable. You can use this variable in the following ways.
 
 ### In Colang Flows
 
@@ -158,7 +163,7 @@ This approach provides better code organization and makes it easier to share val
 
 The following steps show how to use `bot_thinking` in a self-check output rail. This pattern provides reasoning traces to your moderation LLM, allowing it to make more informed decisions by evaluating both the response and the reasoning process.
 
-This extends the [self check thinking configuration examples](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails toolkit repository.
+This extends the [self check thinking configuration examples](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails library repository.
 
 1. Write the `config.yml` file as follows:
 
@@ -212,5 +217,5 @@ Use the following guides to learn more about the features used in this guide.
 
 - [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces): API response handling and breaking changes.
 - [Output Rails](../../getting-started/5-output-rails/README.md): General guide on output rails.
-- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration example in the NeMo Guardrails toolkit repository.
+- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration example in the NeMo Guardrails library repository.
 - [Custom Actions](../../colang-language-syntax-guide.md#actions): Guide on writing custom actions.

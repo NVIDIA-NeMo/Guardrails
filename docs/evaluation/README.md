@@ -1,11 +1,19 @@
 ---
-title: Evaluate
-description: Evaluate the performance of the rails.
+title:
+  page: "Evaluate NeMo Guardrails Library Performance"
+  nav: "Evaluate"
+description: "Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails."
+topics: ["Evaluation", "AI Safety"]
+tags: ["Evaluation", "Benchmarking", "Accuracy", "LLM Testing"]
+content:
+  type: "How-To"
+  difficulty: "Advanced"
+  audience: ["Data Scientist", "AI Researcher", "AI Engineer"]
 ---
 
-# Guardrails Evaluation
+# Evaluate NeMo Guardrails Library Performance
 
-NeMo Guardrails includes a set of tools that you can use to evaluate the different types of rails. In the current version, these tools test the performance of each type of rail individually. You can use the evaluation tools through the `nemoguardrails` CLI. Examples will be provided for each type of rail.
+The NeMo Guardrails library includes a set of tools that you can use to evaluate the different types of rails. In the current version, these tools test the performance of each type of rail individually. You can use the evaluation tools through the `nemoguardrails` CLI. Examples will be provided for each type of rail.
 
 At the same time, we provide preliminary results on the performance of the rails on a set of public datasets that are relevant to each task at hand.
 

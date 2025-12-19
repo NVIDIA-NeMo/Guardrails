@@ -1,3 +1,16 @@
+---
+title:
+  page: "Guardrails Server"
+  nav: "Guardrails Server"
+description: "Configure and run the guardrails server with HTTP API endpoints and Chat UI."
+topics: ["Deployment", "AI Safety"]
+tags: ["Server", "FastAPI", "REST API", "Chat UI"]
+content:
+  type: "How-To"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
+---
+
 # Guardrails Server
 
 The Guardrails server loads a predefined set of guardrails configurations at startup and exposes an HTTP API to use them. The server uses [FastAPI](https://fastapi.tiangolo.com/), and the interface is based on the [chatbot-ui](https://github.com/mckaywrigley/chatbot-ui) project. This server is best suited to provide a visual interface/ playground to interact with the bot and try out the rails.
@@ -166,7 +179,7 @@ This approach encourages reusability across various configurations without code 
 
 ### Default Configuration
 
-The NeMo Guardrails server supports having a default guardrail configuration which can be set using the `--default-config-id` flag.
+The NeMo Guardrails library server supports having a default guardrail configuration which can be set using the `--default-config-id` flag.
 This configuration is used when no `config_id` is provided in the request.
 
 ```text
@@ -190,7 +203,7 @@ The Guardrails Server has basic support for storing the conversation threads. Th
 
 To use server-side threads, you have to register a datastore. To do this, you must create a `config.py` file in the root of the configurations folder (i.e., the folder containing all the guardrails configurations the server must load). Inside `config.py` use the `register_datastore` function to register the datastore you want to use.
 
-Out-of-the-box, NeMo Guardrails has support for `MemoryStore` (useful for quick testing) and `RedisStore`. If you want to use a different backend, you can implement the [`DataStore`](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/server/datastore/datastore.py) interface and register a different instance in `config.py`.
+Out-of-the-box, the NeMo Guardrails library has support for `MemoryStore` (useful for quick testing) and `RedisStore`. If you want to use a different backend, you can implement the [`DataStore`](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/server/datastore/datastore.py) interface and register a different instance in `config.py`.
 
 ```{caution}
 to use `RedisStore` you must install `aioredis >= 2.0.1`.
@@ -230,5 +243,5 @@ Threads are stored indefinitely; there is no cleanup mechanism.
 You can use the Chat UI to test a guardrails configuration quickly.
 
 ```{important}
-You should only use the Chat UI for internal testing. For a production deployment of the NeMo Guardrails server, the Chat UI should be disabled using the `--disable-chat-ui` flag.
+You should only use the Chat UI for internal testing. For a production deployment of the NeMo Guardrails library server, the Chat UI should be disabled using the `--disable-chat-ui` flag.
 ```

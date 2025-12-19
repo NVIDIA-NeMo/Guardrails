@@ -5,7 +5,7 @@ description: Configure input, output, dialog, retrieval, and execution rails in 
 
 # Guardrails Configuration
 
-This section describes how to configure guardrails (rails) in the `config.yml` file to control LLM behavior.
+This section describes how to configure guardrails in the `config.yml` file to control LLM behavior.
 
 ## The `rails` Key
 
@@ -19,10 +19,10 @@ The following table summarizes the different rail categories and their trigger p
 | Category | Trigger Point | Purpose |
 |----------|---------------|---------|
 | **Input rails** | When user input is received | Validate, filter, or modify user input |
-| **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
-| **Dialog rails** | After canonical form is computed | Control conversation flow |
 | **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
+| **Dialog rails** | After canonical form is computed | Control conversation flow |
 | **Execution rails** | Before/after action execution | Control tool and action calls |
+| **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
 
 The following diagram shows the guardrails process described in the table above in detail.
 
@@ -77,30 +77,16 @@ rails:
 | `llama guard check input` | LlamaGuard content moderation |
 | `content safety check input` | NVIDIA content safety model |
 
-## Output Rails
+## Retrieval Rails
 
-Output rails process LLM responses before returning to users:
+Retrieval rails process chunks retrieved from the knowledge base:
 
 ```yaml
 rails:
-  output:
+  retrieval:
     flows:
-      - self check output          # LLM-based output validation
-      - self check facts           # Fact verification
-      - self check hallucination   # Hallucination detection
-      - mask sensitive data on output  # PII masking
+      - check retrieval sensitive data
 ```
-
-### Available Flows for Output Rails
-
-| Flow | Description |
-|------|-------------|
-| `self check output` | LLM-based policy compliance check |
-| `self check facts` | Verify factual accuracy |
-| `self check hallucination` | Detect hallucinations |
-| `mask sensitive data on output` | Mask PII in output |
-| `llama guard check output` | LlamaGuard content moderation |
-| `content safety check output` | NVIDIA content safety model |
 
 ## Dialog Rails
 
@@ -125,17 +111,6 @@ rails:
 | `single_call.fallback_to_multiple_calls` | Fall back to multiple calls if single call fails | `true` |
 | `user_messages.embeddings_only` | Use only embeddings for user intent matching | `false` |
 
-## Retrieval Rails
-
-Retrieval rails process chunks retrieved from the knowledge base:
-
-```yaml
-rails:
-  retrieval:
-    flows:
-      - check retrieval sensitive data
-```
-
 ## Execution Rails
 
 Execution rails control custom action and tool invocations:
@@ -147,6 +122,31 @@ rails:
       - check tool input
       - check tool output
 ```
+
+## Output Rails
+
+Output rails process LLM responses before returning to users:
+
+```yaml
+rails:
+  output:
+    flows:
+      - self check output          # LLM-based output validation
+      - self check facts           # Fact verification
+      - self check hallucination   # Hallucination detection
+      - mask sensitive data on output  # PII masking
+```
+
+### Available Flows for Output Rails
+
+| Flow | Description |
+|------|-------------|
+| `self check output` | LLM-based policy compliance check |
+| `self check facts` | Verify factual accuracy |
+| `self check hallucination` | Detect hallucinations |
+| `mask sensitive data on output` | Mask PII in output |
+| `llama guard check output` | LlamaGuard content moderation |
+| `content safety check output` | NVIDIA content safety model |
 
 ## Rail-Specific Configuration
 
@@ -223,8 +223,8 @@ rails:
 
 ## Related Topics
 
-- [Guardrails Library](guardrails-library.md) - Complete list of built-in rails
-- [Guardrails Process](../../../user-guides/guardrails-process) - How rails are invoked
+- [Built-in Guardrails](built-in-guardrails.md) - Complete list of built-in rails
+- [Parallel Rails](parallel-rails.md) - How to invoke rails in parallel
 
 ```{toctree}
 :hidden:

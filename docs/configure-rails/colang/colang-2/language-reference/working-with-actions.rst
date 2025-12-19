@@ -67,7 +67,7 @@ Here are two common life cycles of an action that depend on the events:
     XAction.Stop() -> Action state: `Stopping`
     XAction.Finished() -> Action state: `Finished`
 
-In the :ref:`UMIM <UMIM intro>` reference documentation you will find many predefined actions that should cover the most common use cases. Let's have a look at one of the most prominent actions called `UtteranceBotAction`. This action represents the main channel to communicate with the user, e.g. through speech or text (depending on the specific system). This action relates to events that can be grouped into output and input events from the perspective of a bot:
+In the :ref:`UMIM <UMIM intro>` reference documentation, you will find many predefined actions that should cover the most common use cases. Let's have a look at one of the most prominent actions called `UtteranceBotAction`. This action represents the main channel to communicate with the user, e.g. through speech or text (depending on the specific system). This action relates to events that can be grouped into output and input events from the perspective of a bot:
 
 Output events:
 
@@ -87,9 +87,9 @@ Input events:
 
 .. note::
 
-    Note, that Colang is not limited to work only from a bot perspective but could also be used to simulate the user side. In this case the output and input categorization would flip.
+    Colang can model both bot and user behavior. When modeling the user, the roles of inputs and outputs are inverted.
 
-While there are no binding rules on how we work with these events using the ``send`` or ``match`` keywords, in most cases we will generate output events and match to input events. E.g. if we want the bot to finish saying something before making a gesture we could create the following interaction pattern:
+While there are no binding rules on how we work with these events using the ``send`` or ``match`` keywords, in most cases we will generate output events and match to input events. For example, if we want the bot to finish saying something before making a gesture we could create the following interaction pattern:
 
 .. code-block:: colang
     :caption: actions/action_events/main.co
@@ -144,9 +144,9 @@ Colang supports several features based on the action concept that make designing
 
     Gesture: Wave
 
-The keyword ``start`` creates an action object and then generates an action specific `Start` action event. A reference to this action object can be stored using ``as $ref_name``. With this action reference we can now conveniently match to the `Finished` event and no longer need to use the `action_uid` parameter to identify the specific action.
+The keyword ``start`` creates an action object and then generates an action specific `Start` action event. A reference to this action object can be stored using ``as $ref_name``. With this action reference, we can now conveniently match to the `Finished` event and no longer need to use the `action_uid` parameter to identify the specific action.
 
-Let's look now at an example of the common user action `UtteranceUserAction`. This action represents the counterpart to the `UtteranceBotAction` and is the main channel of the user to expressing herself, e.g. by talking, writing or any other way depending on the actual system. A user action is usually not started by Colang but by the user (system). These are the most important action events and parameters:
+Next, we look at UtteranceUserAction, which mirrors UtteranceBotAction on the user side and serves as the user’s primary channel for expression (e.g., speech, text, or other modalities). A user action is usually not started by Colang but by the user (system). These are the most important action events and parameters:
 
 .. code-block:: colang
 
@@ -181,7 +181,7 @@ With this, let's now build a little dialog pattern:
 
     Gesture: Thumbs up
 
-As you might have already noticed, this is very similar to the example we saw in the introduction example `introduction/interaction_sequence/main.co`. The difference is that we have more temporal control and will only start matching user input when the bot has completed the utterance. Note also, how the interaction pattern is completed only once the second bot utterance action and the bot gesture action have both finished.
+As you might have already noticed, this is very similar to the example we saw in `introduction/interaction_sequence/main.co`. The difference is that we have more temporal control and will only start matching user input once the bot has completed the utterance. Note also how the interaction pattern is completed only once the second bot utterance action and the bot gesture action have both finished.
 
 ----------------------------------------
 `Await` an Action
@@ -214,7 +214,7 @@ Let's introduce the ``await`` statement to further simplify the previous example
 
         await UtteranceBotAction(script="Hello") as $bot_action_ref
 
-Unfortunately, we cannot simplify the second part of the example with this... Or can we though? Actually yes! We can make use of action grouping using the ``and`` keyword to simplify it like this:
+We can optionally make use of action grouping using the ``and`` keyword to simplify it like this:
 
 .. code-block:: colang
     :caption: actions/action_grouping/main.co
@@ -228,7 +228,7 @@ Unfortunately, we cannot simplify the second part of the example with this... Or
 Action grouping is identical to event grouping using the keywords ``start`` and ``await`` instead of ``send`` and ``match``.
 
 .. important::
-    Note, that this:
+    Note that this:
 
     .. code-block:: colang
 
@@ -288,7 +288,7 @@ Another detail to point out is the difference between matching to an action even
     # Case 2) Wait for the Finished event of any UtteranceBotAction
     match UtteranceBotAction.Finished()
 
-In the first case the match is on the specific action reference (same action_uid parameter) and will not match to any other `Finished` event of another `UtteranceBotAction`. The second case is more general and will match to any `Finished` event from any `UtteranceBotAction`.
+In the first case, the match is on the specific action reference (same action_uid parameter) and will not match to any other `Finished` event of another `UtteranceBotAction`. The second case is more general and will match to any `Finished` event from any `UtteranceBotAction`.
 
 .. Furthermore, actions that were started are implicitly updated by relevant events, even if there is no related matching statement:
 

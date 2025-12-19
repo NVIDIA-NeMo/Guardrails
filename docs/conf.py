@@ -19,7 +19,7 @@ from datetime import date
 
 from toml import load
 
-project = "NVIDIA NeMo Guardrails Toolkit Developer Guide"
+project = "NVIDIA NeMo Guardrails Library Developer Guide"
 this_year = date.today().year
 copyright = f"2023-{this_year}, NVIDIA Corporation"
 author = "NVIDIA Corporation"
@@ -97,7 +97,20 @@ html_extra_path = ["project.json", "versions1.json"]
 highlight_language = "console"
 
 html_theme_options = {
-    "icon_links": [],
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/NVIDIA/NeMo-Guardrails",
+            "icon": "fa-brands fa-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/nemoguardrails/",
+            "icon": "fa-brands fa-python",
+            "type": "fontawesome",
+        },
+    ],
     "switcher": {
         "json_url": "../versions1.json",
         "version_match": release,

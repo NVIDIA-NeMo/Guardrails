@@ -9,7 +9,7 @@ This section explains how to create an interaction loop in Colang 2.0.
 Usage
 -----
 
-In various LLM-based application, there is a need for the LLM to keep interacting with the user in a continuous interaction loop. The example below shows how a simple interaction loop can be implemented using the ``while`` construct and how the bot can be proactive when the user is silent.
+In various LLM-based applications, there is a need for the LLM to keep interacting with the user in a continuous interaction loop. The example below shows how a simple interaction loop can be implemented using the ``while`` construct and how the bot can be proactive when the user is silent.
 
 .. code-block:: colang
   :linenos:
@@ -50,7 +50,7 @@ In various LLM-based application, there is a need for the LLM to keep interactin
       or bot say "Just ask me something!"
 
 
-The ``main`` flow above activates the ``generating user intent for unhandled user utterance`` flow from the ``avatars`` module which uses the LLM to generate the canonical form for a user message (a.k.a., the user intent). Also, when the LLM generates an intent that is not handled by the Colang script, the ``unhandled user intent`` flow is triggered (line 11).
+The ``main`` flow above activates the ``generating user intent for unhandled user utterance`` flow from the ``avatars`` module, which uses the LLM to generate the canonical form for a user message (a.k.a., the user intent). Also, when the LLM generates an intent that is not handled by the Colang script, the ``unhandled user intent`` flow is triggered (line 11).
 
 Line 14 in the example above shows how to use the pre-defined ``user silent`` event to model time-driven interaction.
 

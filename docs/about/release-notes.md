@@ -1,4 +1,14 @@
 ---
+title:
+  page: "Release Notes"
+  nav: "Release Notes"
+description: "Review new features, breaking changes, and fixed issues for each release."
+topics: ["AI"]
+tags: ["Release Notes", "Changelog", "Guardrails"]
+content:
+  type: "Reference"
+  difficulty: "Beginner"
+  audience: ["Developer", "Machine Learning Engineer", "Admin"]
 tocdepth: 2
 ---
 <!--

@@ -1,22 +1,35 @@
-# Tools Integration with NeMo Guardrails
+---
+title:
+  page: "Tools Integration with the NeMo Guardrails Library"
+  nav: "Tools Integration"
+description: "Integrate LangChain tools with guardrails using passthrough mode and output rail validation."
+topics: ["Integration", "AI Safety"]
+tags: ["Tools", "LangChain", "Tool Calling", "Passthrough", "Security"]
+content:
+  type: "How-To"
+  difficulty: "Advanced"
+  audience: ["Developer", "AI Engineer"]
+---
 
-This guide provides comprehensive instructions for integrating and using tools within NeMo Guardrails via the LLMRails interface. It covers supported tools, configuration settings, practical examples, and important security considerations for safe and effective implementation.
+# Tools Integration with the NeMo Guardrails Library
+
+This guide provides comprehensive instructions for integrating and using tools within the NeMo Guardrails library via the LLMRails interface. It covers supported tools, configuration settings, practical examples, and important security considerations for safe and effective implementation.
 
 ## Overview
 
-NeMo Guardrails supports the integration of tools to enhance the capabilities of language models while maintaining safety controls. Tools can be used to extend the functionality of your AI applications by enabling interaction with external services, APIs, databases, and custom functions.
+The NeMo Guardrails library supports the integration of tools to enhance the capabilities of language models while maintaining safety controls. Tools can be used to extend the functionality of your AI applications by enabling interaction with external services, APIs, databases, and custom functions.
 
 ## Supported Version
 
-Tool calling is available starting from NeMo Guardrails version 0.17.0.
+Tool calling is available starting from the NeMo Guardrails library version 0.17.0.
 
 ## Supported Tools
 
-NeMo Guardrails supports LangChain tools, which provide a standardized interface for integrating external functionality into language model applications.
+The NeMo Guardrails library supports LangChain tools, which provide a standardized interface for integrating external functionality into language model applications.
 
 ### LangChain Tools
 
-NeMo Guardrails is fully compatible with LangChain tools, including:
+The NeMo Guardrails library is fully compatible with LangChain tools, including:
 
 - **Built-in LangChain Tools**: Weather services, calculators, web search, database connections, and more
 - **Community Tools**: Third-party tools available in the LangChain ecosystem
@@ -46,9 +59,9 @@ For detailed information on creating custom tools, refer to the [LangChain Tools
 
 ### Passthrough Mode
 
-When using tools with NeMo Guardrails, it's recommended to use **passthrough mode**. This mode is essential because:
+When using tools with the NeMo Guardrails library, it's recommended to use **passthrough mode**. This mode is essential because:
 
-- Internal NeMo Guardrails tasks do not require tool use and might provide erroneous results if tools are enabled
+- Internal NeMo Guardrails library tasks do not require tool use and might provide erroneous results if tools are enabled
 - It ensures that the LLM can properly handle tool calls and responses
 - It maintains the natural flow of tool-based conversations
 

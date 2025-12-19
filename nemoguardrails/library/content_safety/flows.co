@@ -3,7 +3,6 @@ flow content safety check input $model
 
   global $allowed
   $allowed = $response["allowed"]
-  # Policy violations are currently unused, but can be used to better phrase the bot output
   global $policy_violations
   $policy_violations = $response["policy_violations"]
 
@@ -11,7 +10,12 @@ flow content safety check input $model
     if $system.config.enable_rails_exceptions
       send ContentSafetyCheckInputException(message="Input not allowed. The input was blocked by the 'content safety check input $model='{$model}'' flow.")
     else
-      bot refuse to respond
+      if $system.config.rails.config.content_safety.multilingual.enabled
+        $lang_result = await DetectLanguageAction()
+        $refusal_message = $lang_result["refusal_message"]
+        bot $refusal_message
+      else
+        bot refuse to respond
     abort
 
 flow content safety check output $model
@@ -25,5 +29,10 @@ flow content safety check output $model
     if $system.config.enable_rails_exceptions
       send ContentSafetyCheckOuputException(message="Output not allowed. The output was blocked by the 'content safety check output $model='{$model}'' flow.")
     else
-      bot refuse to respond
+      if $system.config.rails.config.content_safety.multilingual.enabled
+        $lang_result = await DetectLanguageAction()
+        $refusal_message = $lang_result["refusal_message"]
+        bot $refusal_message
+      else
+        bot refuse to respond
     abort

@@ -1,6 +1,19 @@
+---
+title:
+  page: "Local Server Setup"
+  nav: "Local Server"
+description: "Set up and run guardrails and actions servers locally for development and testing."
+topics: ["Deployment", "AI Safety"]
+tags: ["Server", "FastAPI", "Local Development"]
+content:
+  type: "How-To"
+  difficulty: "Beginner"
+  audience: ["Developer", "AI Engineer"]
+---
+
 # Local Server Setup
 
-The NeMo Guardrails toolkit enables you to create a guardrails local server and deploy it using a **guardrails server** and an **actions server**.
+The NeMo Guardrails library enables you to create a guardrails local server and deploy it using a **guardrails server** and an **actions server**.
 
 ## Overview
 
@@ -18,14 +31,14 @@ The NeMo Guardrails toolkit enables you to create a guardrails local server and 
 :link: guardrails-server
 :link-type: doc
 
-The Guardrails server loads a predefined set of guardrails configurations at startup and exposes an HTTP API to use them. The server uses [FastAPI](https://fastapi.tiangolo.com/), and the...
+Configure and run the guardrails server with HTTP API endpoints and Chat UI.
 :::
 
 :::{grid-item-card} Actions Server
 :link: actions-server
 :link-type: doc
 
-The Actions Server enables you to run the actions invoked from the guardrails more securely (see [Security Guidelines](../../security/guidelines.md) for more details). The action server should be...
+Deploy actions in a secure, isolated environment separate from the guardrails server.
 :::
 
 ::::

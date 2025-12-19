@@ -1,4 +1,17 @@
-# Security Guidelines
+---
+title:
+  page: "Security Guidelines for LLM Integrations"
+  nav: "Security"
+description: "Follow security best practices when integrating LLMs with external resources and APIs."
+topics: ["AI Safety", "Security"]
+tags: ["Security", "API Design", "Best Practices", "Authorization"]
+content:
+  type: "Best Practice"
+  difficulty: "Advanced"
+  audience: ["Developer", "Security Engineer", "AI Engineer"]
+---
+
+# Security Guidelines for LLM Integrations
 
 Allowing LLMs to access external resources – such as search interfaces, databases, or computing resources such as Wolfram Alpha – can dramatically improve their capabilities. However, the unpredictable nature of LLM completion generations means that – without careful integration – these external resources can potentially be manipulated by attackers, leading to a dramatic increase in the risk of deployment of these combined models.
 
@@ -32,6 +45,7 @@ We assume that the data flow for accessing external resources has the following 
 The parsing step may take on a number of forms, including pre-loading the LLM with tokens or verbs to indicate specific actions, or doing some form of embedding search on lines of the output. It is currently common practice to include a specific verb (e.g., “FINISH”) to indicate that the LLM should return the result to the user – effectively making user interaction an external resource as well – however, this area is new enough that there is no such thing as a “standard practice”.
 
 We separate the internal APIs from the parsing/dispatch engine for the following reasons:
+
 1. Keeping validation and authorization code co-located with the relevant API or service
 2. Keeping any authentication information required for the external API isolated from the LLM (to prevent leaks)
 3. Enabling more modular development of external resources for LLM use, and reducing the impact of external API changes.

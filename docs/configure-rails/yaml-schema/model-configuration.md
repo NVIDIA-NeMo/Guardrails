@@ -1,6 +1,14 @@
 ---
-title: Model Configuration
-description: Configure LLM providers, embedding models, and task-specific models in the config.yml file.
+title:
+  page: "Model Configuration for NeMo Guardrails"
+  nav: "Models"
+description: "Configure LLM engines, embedding models, and task-specific models in config.yml."
+topics: ["Configuration", "AI Safety"]
+tags: ["Models", "LLM", "Embeddings", "OpenAI", "NIM", "YAML"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Model Configuration
@@ -9,7 +17,7 @@ This section describes how to configure LLM models and embedding models in the `
 
 ## The `models` Key
 
-The `models` key defines the LLM providers and models used by the NeMo Guardrails toolkit.
+The `models` key defines the LLM providers and models used by the NeMo Guardrails library.
 
 ```yaml
 models:
@@ -23,7 +31,7 @@ models:
 | `type` | The model type (`main`, `embeddings`, or task-specific types) |
 | `engine` | The LLM provider (for example, `openai`, `nim`, `anthropic`) |
 | `model` | The model name (for example, `gpt-3.5-turbo-instruct`, `meta/llama-3.1-8b-instruct`) |
-| `parameters` | Optional parameters to pass to the LangChain class that is used by the LLM provider. For example, when engine is set to openai, the toolkit loads the ChatOpenAI class. The ChatOpenAI class supports temperature, max_tokens, and other class-specific arguments. |
+| `parameters` | Optional parameters to pass to the LangChain class that is used by the LLM provider. For example, when engine is set to `openai`, the library loads the ChatOpenAI class. The ChatOpenAI class supports `temperature`, `max_tokens`, and other class-specific arguments. |
 
 ---
 
@@ -53,9 +61,9 @@ models:
 
 ### Auto-Discovered LangChain Providers
 
-The toolkit automatically discovers all LLM providers from LangChain Community at runtime. This includes 50+ additional providers. Use the provider name as the `engine` value in your configuration.
+The library automatically discovers all LLM providers from LangChain Community at runtime. This includes 50+ additional providers. Use the provider name as the `engine` value in your configuration.
 
-To help you explore and select the right LLM provider, the toolkit CLI provides the [`find-providers`](find-providers-command) command to discover available LLM providers:
+To help you explore and select the right LLM provider, the library CLI provides the [`find-providers`](find-providers-command) command to discover available LLM providers:
 
 ```bash
 nemoguardrails find-providers [--list]
@@ -88,7 +96,7 @@ models:
 
 ## NVIDIA NIM Configuration
 
-The NeMo Guardrails toolkit provides seamless integration with NVIDIA NIM microservices:
+The NeMo Guardrails library provides seamless integration with NVIDIA NIM microservices:
 
 ```yaml
 models:
@@ -101,7 +109,7 @@ This provides access to:
 
 - **Locally-deployed NIMs**: Run models on your own infrastructure with optimized inference.
 - **NVIDIA API Catalog**: Access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
-- **Specialized NIMs**: NemoGuard Content Safety, Topic Control, and Jailbreak Detection.
+- **Specialized NIMs**: Nemotron Content Safety, Topic Control, and Jailbreak Detect.
 
 ### Local NIM Deployment
 
@@ -231,7 +239,7 @@ models:
 
 ### Complete Example
 
-The following example shows how to configure the main application LLM, embeddings model, and a dedicated NemoGuard model for input and output checking:
+The following example shows how to configure the main application LLM, embeddings model, and a dedicated Nemotron model for input and output checking:
 
 ```yaml
 models:

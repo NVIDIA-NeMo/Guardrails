@@ -1,37 +1,23 @@
 ---
 title: Streaming Configuration
-description: Configure streaming for LLM token generation and output rail processing in config.yml.
+description: Configure streaming for output rail processing in config.yml.
 ---
 
 # Streaming Configuration
 
-NeMo Guardrails supports two levels of streaming configuration:
+NeMo Guardrails supports streaming out of the box when using the `stream_async()` method. No configuration is required to enable basic streaming.
 
-1. **Global streaming** - Controls LLM token generation
-2. **Output rail streaming** - Controls how output rails process streamed tokens
-
-## Configuration Comparison
-
-| Aspect | Global `streaming` | Output Rail `streaming.enabled` |
-|--------|-------------------|--------------------------------|
-| **Scope** | LLM token generation | Output rail processing |
-| **Required for** | Any streaming | Streaming with output rails |
-| **Affects** | How LLM produces tokens | How rails process token chunks |
-| **Default** | `False` | `False` |
+When you have **output rails** configured, you need to explicitly enable streaming for them to process tokens in chunked mode.
 
 ## Quick Example
 
-When using streaming with output rails, both configurations are required:
+When using streaming with output rails:
 
 ```yaml
-# Global: Enable LLM streaming
-streaming: True
-
 rails:
   output:
     flows:
       - self check output
-    # Output rail streaming: Enable chunked processing
     streaming:
       enabled: True
       chunk_size: 200
@@ -40,17 +26,10 @@ rails:
 
 ## Streaming Configuration Details
 
-The following guides provide detailed documentation for each streaming configuration area.
+The following guides provide detailed documentation for streaming configuration.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
-
-:::{grid-item-card} Global Streaming
-:link: global-streaming
-:link-type: doc
-
-Enable streaming mode for LLM token generation in config.yml.
-:::
 
 :::{grid-item-card} Output Rail Streaming
 :link: output-rail-streaming

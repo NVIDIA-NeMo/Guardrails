@@ -1,3 +1,8 @@
+---
+title: Embedding Search Providers
+description: Configure embedding search providers for vector similarity search using FastEmbed, OpenAI, or custom implementations.
+---
+
 # Embedding Search Providers
 
 NeMo Guardrails utilizes embedding search, also known as vector databases, for implementing the [guardrails process](../../architecture/README.md#the-guardrails-process) and for the [knowledge base](../configuration-guide.md#knowledge-base-documents) functionality.

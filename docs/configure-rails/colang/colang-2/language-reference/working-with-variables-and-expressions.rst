@@ -14,7 +14,7 @@ Working with Variables & Expressions
 Introduction
 ----------------------------------------
 
-Like Python, Colang supports these fundamental data types: `string`, `int`, `float`, `bool`, `list`, `set`, `dict`, in addition to the Colang specific event, action and flow references. We have already seen how to assign event, action and flow references to a variable using the ``... as $ref`` notation. Here ``$ref`` is also just a variable. To enable whitespace characters in flow names Colang variables must always start with the ``$`` character and cannot contain whitespace characters themselves.
+Like Python, Colang supports these fundamental data types: `string`, `int`, `float`, `bool`, `list`, `set`, `dict`, in addition to the Colang specific event, action and flow references. We have already seen how to assign event, action and flow references to a variable using the ``... as $ref`` notation. Here ``$ref`` is also just a variable. To enable whitespace characters in flow names, Colang variables must always start with the ``$`` character and cannot contain whitespace characters themselves.
 
 .. important::
     Variable naming convention:
@@ -38,7 +38,7 @@ Variables in Colang behave exactly like in Python. As a consequence, mutable dat
         await UtteranceBotAction(script=$value_copy)
         match AnEvent()
 
-Note, that Colang references are also mutable and therefore point to the same underlying object:
+Note that Colang references are also mutable and therefore point to the same underlying object:
 
 .. code-block:: colang
     :caption: variables/references/main.co
@@ -123,7 +123,7 @@ Colang supports evaluation of common Python expressions for simple and compound 
     randint(x: int) -> int # Return a random int below x
     flows_info() -> dict # Returns a dictionary that contains more information about the current flow
 
-Here is how expression can be used withing Colang:
+Here is how expression can be used within Colang:
 
 .. code-block:: colang
 
@@ -144,7 +144,7 @@ You see how expressions can be used in different context and need to be wrapped 
 Flow Variable Access
 ----------------------------------------
 
-By default variables defined in a flow have a local scope and are not accessible from outside the flow. One way to enable access to them is by declaring them as flow attributes using the notation shown in :ref:`defining-flows` in the flow definition:
+By default, variables defined in a flow have a local scope and are not accessible from outside the flow. One way to enable access to them is by declaring them as flow attributes using the notation shown in :ref:`defining-flows` in the flow definition:
 
 .. code-block:: colang
     :caption: variables/flow_attributes/main.co
@@ -158,9 +158,9 @@ By default variables defined in a flow have a local scope and are not accessible
         match UtteranceUserAction.Finished() as $event_ref
         $transcript = $event_ref.final_transcript
 
-With this we can e.g. access the user transcript and use it to repeat it with a bot utterance action.
+With this, we can access, for example, the user transcript and use it to repeat it with a bot utterance action.
 
-Another way to share information between flows using variables is to make it global by using the keyword ``global``.
+Another way to share information between flows using variables is to make them global by using the keyword ``global``.
 
 .. code-block:: colang
     :caption: variables/global_variables/main.co
@@ -182,7 +182,7 @@ As you can see from the example, we need to define in each flow that the variabl
 Expressions in Strings
 ----------------------------------------
 
-As in Python's formatted string literals we can use braces to evaluate an expression inside a string ``"{$variable}"``:
+As in Python's formatted string literals, we can use braces to evaluate an expression inside a string ``"{$variable}"``:
 
 .. code-block:: colang
     :caption: variables/string_expression_evaluation/main.co
@@ -198,7 +198,7 @@ If you need to include a brace character in the literal text, it can be escaped 
 Flow Member Variables
 ----------------------------------------
 
-To access a flow instance's member variables you can use a reference or the reserved variable ``$self`` from within the flow itself:
+To access a flow instance's member variables, you can use a reference or the reserved variable ``$self`` from within the flow itself:
 
 .. code-block:: colang
 
@@ -216,14 +216,14 @@ To access a flow instance's member variables you can use a reference or the rese
     $ref.activate: bool # True if the flow was activated and will therefore restart immediately when finished
     $ref.new_instance_started: bool # True if new instance was started of an activated flow
 
-You should not change those values if you are not sure what you are doing since this can have side effects on the further execution of the flow!
+Note that you should not change those values if you are not sure what you are doing since this can have side effects on the further execution of the flow.
 
 
 ----------------------------------------
 Action Member Variables
 ----------------------------------------
 
-To access the member variables of an action you can use an action reference:
+To access the member variables of an action, you can use an action reference:
 
 .. code-block:: colang
 
@@ -238,7 +238,7 @@ To access the member variables of an action you can use an action reference:
 Event Member Variables
 ----------------------------------------
 
-To access the member variables of an event you can use an event reference:
+To access the member variables of an event, you can use an event reference:
 
 .. code-block:: colang
 
@@ -252,7 +252,7 @@ To access the member variables of an event you can use an event reference:
 System and Bot Configuration Values
 ----------------------------------------
 
-To access system or bot specific configuration variables you can use ``$system``:
+To access system or bot specific configuration variables, you can use ``$system``:
 
 .. code-block:: colang
 
@@ -265,11 +265,11 @@ As an example, if you defined a new boolean value `streaming` in the yaml bot co
 
     streaming: True
 
-you can access and print it like that:
+you can access and print it like this:
 
 .. code-block:: colang
 
     print $system.config.streaming
 
 
-Next we learn how to use :ref:`flow-control` to create branching or looping interaction patterns.
+Next, we learn how to use :ref:`flow-control` to create branching or looping interaction patterns.

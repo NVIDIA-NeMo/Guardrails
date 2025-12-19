@@ -4,23 +4,23 @@
 Input Rails
 =============
 
-This section explains how to create *input rails* in Colang 2.0
+This section explains how to create *input rails* in Colang 2.0.
 
 
 Definition
 ----------
 
-**Input Rails** are a type of rails that check the input from the user (i.e., what the user said), before any further processing.
+**Input Rails** are a type of rail that checks the input from the user (i.e., what the user said) before any further processing.
 
 Usage
 -----
 
-To activate input rails in Colang 2.0, you have to:
+To activate input rails in Colang 2.0, you must:
 
 1. Import the `guardrails` module from the :ref:`the-standard-library`.
 2. Define a flow called `input rails`, which takes a single parameter called `$input_text`.
 
-In the example below, the ``input rails`` flow calls another flow called ``check user message`` which prompts the LLM to check the input.
+In the example below, the ``input rails`` flow calls another flow named ``check user message`` which prompts the LLM to check the input.
 
 .. code-block:: colang
   :linenos:
@@ -57,15 +57,15 @@ In the example below, the ``input rails`` flow calls another flow called ``check
     print $is_safe
     return $is_safe
 
-The ``input rails`` flow above (lines 19-24) introduce some additional syntax elements:
+The ``input rails`` flow above (lines 19-24) introduces some additional syntax elements:
 
-- Flow parameters and variables, start with a ``$`` sign, e.g. ``$input_text``, ``$input_safe``.
+- Starting flow parameters and variables with a ``$`` symbol, e.g. ``$input_text``, ``$input_safe``.
 - Using the ``await`` operator to wait for another flow.
 - Capturing the return value of a flow using a local variable, e.g., ``$input_safe = await check user utterance $input_text``.
-- Using ``if`` similar to Python.
-- Using the ``abort`` keyword to make a flow fail, as opposed to finishing successfully.
+- Using ``if``, similar to Python.
+- Using the ``abort`` keyword to make a flow fail.
 
-The ``check user utterance`` flow above (line 26-28) introduces the *instruction operator* ``i"<instruction>""`` which will prompt the llm to generate the value ``True`` or ``False`` depending on the evaluated safety of the user utterance. In line 28 the generated value assigned to ``$is_safe`` will be returned.
+The ``check user utterance`` flow above (line 26-28) introduces the *instruction operator* ``i"<instruction>""`` which will prompt the LLM to generate the value ``True`` or ``False`` depending on the evaluated safety of the user utterance. In line 28, the generated value assigned to ``$is_safe`` will be returned.
 
 Testing
 -------

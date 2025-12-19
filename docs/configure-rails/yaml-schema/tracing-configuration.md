@@ -1,6 +1,14 @@
 ---
-title: Tracing Configuration
-description: Configure tracing adapters (FileSystem, OpenTelemetry) to monitor and debug guardrails interactions.
+title:
+  page: "Tracing Configuration for NeMo Guardrails"
+  nav: "Tracing"
+description: "Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails."
+topics: ["Configuration", "Observability"]
+tags: ["Tracing", "OpenTelemetry", "Monitoring", "YAML", "Configuration"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer"]
 ---
 
 # Tracing Configuration
@@ -9,7 +17,7 @@ This section describes how to configure tracing and monitoring in the `config.ym
 
 ## Overview
 
-The NeMo Guardrails toolkit includes tracing capabilities to monitor and debug guardrails interactions.
+The NeMo Guardrails library includes tracing capabilities to monitor and debug guardrails interactions.
 Tracing helps you understand rail activation, LLM call patterns, flow execution, and error conditions.
 
 ## The `tracing` Key
@@ -96,7 +104,7 @@ Traces capture the following information:
 
 | Data | Description |
 |------|-------------|
-| **Rail Activation** | Which rails triggered during the conversation |
+| **Rail Activation** | Which rails get triggered during the conversation |
 | **LLM Calls** | LLM invocations, prompts, and responses |
 | **Flow Execution** | Colang flow execution paths and timing |
 | **Actions** | Custom action invocations and results |

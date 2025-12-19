@@ -1,6 +1,14 @@
 ---
-title: Multimodal Content Safety
-description: Add safety checks to images and text using vision models as LLM-as-a-judge.
+title:
+  page: "Multimodal Content Safety with Vision Models"
+  nav: "Multimodal"
+description: "Add safety checks to images and text using vision models as LLM-as-a-judge."
+topics: ["AI Safety", "Content Safety"]
+tags: ["Multimodal", "Vision", "Images", "LLM-as-a-Judge", "OpenAI"]
+content:
+  type: "Tutorial"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 <!--
@@ -12,7 +20,7 @@ description: Add safety checks to images and text using vision models as LLM-as-
 
 ## About Working with Multimodal Data
 
-NeMo Guardrails toolkit supports adding safety checks to multimodal content---images and text.
+The NeMo Guardrails library supports adding safety checks to multimodal content---images and text.
 The support is for input and output guardrails only.
 Depending on the image reasoning model, you can specify the image to check as a base64 encoded data or as a URL.
 

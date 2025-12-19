@@ -10,17 +10,22 @@ NeMo Guardrails comes with a set of built-in guardrails that you can use out of 
 1. LLM Self-Checking
    - [Input Checking](#self-check-input)
    - [Output Checking](#self-check-output)
+   - [Dialog Rails](#dialog-rails)
    - [Fact Checking](#fact-checking)
    - [Hallucination Detection](#hallucination-detection)
    - [Content Safety](#content-safety)
 
-2. Community Models and Libraries
+2. Threat Detection
+   - [Jailbreak Detection](#jailbreak-detection)
+   - [Injection Detection](#injection-detection)
+
+3. Community Models and Libraries
    - [AlignScore-based Fact Checking](#alignscore-based-fact-checking)
    - [LlamaGuard-based Content Moderation](#llama-guard-based-content-moderation)
    - [Patronus Lynx-based RAG Hallucination Detection](#patronus-lynx-based-rag-hallucination-detection)
-   - [Presidio-based Sensitive data detection](#presidio-based-sensitive-data-detection)
+   - [Presidio-based Sensitive Data Detection](#presidio-based-sensitive-data-detection)
 
-3. Third-Party APIs
+4. Third-Party APIs
    - [ActiveFence Moderation](#activefence)
    - [AutoAlign](#autoalign)
    - [Clavata.ai](#clavata)
@@ -34,10 +39,6 @@ NeMo Guardrails comes with a set of built-in guardrails that you can use out of 
    - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
    - [Cisco AI Defense](#cisco-ai-defense)
 
-4. Other
-   - [Jailbreak Detection](#jailbreak-detection)
-   - [Injection Detection](#injection-detection)
-
 ## LLM Self-Checking
 
 This category of rails relies on prompting the LLM to perform various tasks like input checking, output checking, or fact-checking.
@@ -48,7 +49,7 @@ You should only use the example self-check prompts as a starting point. For prod
 
 ### Self Check Input
 
-The goal of the input self-checking rail is to determine if the input for the user should be allowed for further processing. This rail will prompt the LLM using a custom prompt. Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.
+The goal of the input self-checking rail is to determine if the input from the user should be allowed for further processing. This rail will prompt the LLM using a custom prompt. Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.
 
 ```{important}
 The performance of this rail is strongly dependent on the capability of the LLM to follow the instructions in the `self_check_input` prompt.
@@ -255,6 +256,34 @@ prompts:
       Answer [Yes/No]:
 ```
 
+### The Dialog Rails Flow
+
+The diagram below depicts the dialog rails flow in detail:
+
+```{image} ../../_static/puml/dialog_rails_flow.png
+:alt: "Sequence diagram showing the detailed dialog rails flow in NeMo Guardrails: 1) User Intent Generation stage where the system first searches for similar canonical form examples in a vector database, then either uses the closest match if embeddings_only is enabled, or asks the LLM to generate the user's intent. 2) Next Step Prediction stage where the system either uses a matching flow if one exists, or searches for similar flow examples and asks the LLM to generate the next step. 3) Bot Message Generation stage where the system either uses a predefined message if one exists, or searches for similar bot message examples and asks the LLM to generate an appropriate response. The diagram shows all the interactions between the application code, LLM Rails system, vector database, and LLM, with clear branching paths based on configuration options and available predefined content."
+:width: 500px
+:align: center
+```
+
+The dialog rails flow has multiple stages that a user message goes through:
+
+1. **User Intent Generation**: First, the user message has to be interpreted by computing the canonical form (a.k.a. user intent). This is done by searching the most similar examples from the defined user messages, and then asking LLM to generate the current canonical form.
+
+2. **Next Step Prediction**: After the canonical form for the user message is computed, the next step needs to be predicted. If there is a Colang flow that matches the canonical form, then the flow will be used to decide. If not, the LLM will be asked to generate the next step using the most similar examples from the defined flows.
+
+3. **Bot Message Generation**: Ultimately, a bot message needs to be generated based on a canonical form. If a pre-defined message exists, the message will be used. If not, the LLM will be asked to generate the bot message using the most similar examples.
+
+#### Single LLM Call
+
+When the `single_llm_call.enabled` is set to `True`, the dialog rails flow will be simplified to a single LLM call that predicts all the steps at once. While this helps reduce latency, it may result in lower quality. The diagram below depicts the simplified dialog rails flow:
+
+```{image} ../../_static/puml/single_llm_call_flow.png
+:alt: "Sequence diagram showing the simplified dialog rails flow in NeMo Guardrails when single LLM call is enabled: 1) The system first searches for similar examples in the vector database for canonical forms, flows, and bot messages. 2) A single LLM call is made using the generate_intent_steps_message task prompt to predict the user's canonical form, next step, and bot message all at once. 3) The system then either uses the next step from a matching flow if one exists, or uses the LLM-generated next step. 4) Finally, the system either uses a predefined bot message if available, uses the LLM-generated message if the next step came from the LLM, or makes one additional LLM call to generate the bot message. This simplified flow reduces the number of LLM calls needed to process a user message."
+:width: 600px
+:align: center
+```
+
 ### Fact-Checking
 
 The goal of the self-check fact-checking output rail is to ensure that the answer to a RAG (Retrieval Augmented Generation) query is grounded in the provided evidence extracted from the knowledge base (KB).
@@ -306,7 +335,7 @@ define subflow self check facts
       stop
 ```
 
-To trigger the fact-fact checking rail for a bot message, you must set the `$check_facts` context variable to `True` before a bot message requiring fact-checking. This enables you to explicitly enable fact-checking only when needed (e.g. when answering an important question vs. chitchat).
+To trigger the self-check fact-checking rail for a bot message, you must set the `$check_facts` context variable to `True` before a bot message requiring fact-checking. This enables you to explicitly enable fact-checking only when needed (e.g. when answering an important question vs. chitchat).
 
 The example below will trigger the fact-checking output rail every time the bot responds to a question about the report.
 
@@ -372,7 +401,7 @@ You can use the self-check hallucination detection in two modes:
 
 ##### Blocking Mode
 
-Similar to self-check fact-checking, to trigger the self-check hallucination rail in blocking mode, you have to set the `$check_halucination` context variable to `True` to verify that a bot message is not prone to hallucination:
+Similar to self-check fact-checking, to trigger the self-check hallucination rail in blocking mode, you have to set the `$check_hallucination` context variable to `True` to verify that a bot message is not prone to hallucination:
 
 ```colang
 define flow
@@ -385,7 +414,7 @@ The above example will trigger the hallucination rail for every people-related q
 
 ```colang
 define bot inform answer unknown
-  "I don't know the answer that."
+  "I don't know the answer to that."
 ```
 
 ##### Warning Mode
@@ -435,7 +464,7 @@ NeMo Guardrails provides out of the box connectivity for safety models trained b
 
 ### Content Safety
 
-The content safety checks in Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as Nvidia's [NemoGuard ContentSafety](https://docs.nvidia.com/nim/#nemoguard) model, Meta's [Llama Guard 3](https://www.llama.com/docs/model-cards-and-prompt-formats/llama-guard-3/), Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma), etc.
+The content safety checks inside Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as Nvidia's [Nemotron Content Safety](https://docs.nvidia.com/nim/#nemoguard) model, Meta's [Llama Guard 3](https://www.llama.com/docs/model-cards-and-prompt-formats/llama-guard-3/), and Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma).
 
 To use the content safety check, you should:
 
@@ -476,7 +505,7 @@ rails:
       - content safety check output $model=content_safety
 ```
 
-It is important to note that you must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safetry check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns set of policy violations. Please refer to the [content safety example](../../examples/configs/content_safety/README.md) for more details.
+It is important to note that you must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safety check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns set of policy violations. Please refer to the [content safety example](../../examples/configs/content_safety/README.md) for more details.
 
 3. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
 
@@ -528,6 +557,128 @@ If you're using this function for a different task with a custom prompt, you'll 
 The above is an example prompt that you can use with the *content safety check input $model=shieldgemma*. The prompt has one input variable: `{{ user_input }}`, which includes user input that should be moderated. The completion must be "yes" if the response is not safe and "no" otherwise. Optionally, some models may return a set of policy violations.
 
 The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](../../nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](../../nemoguardrails/library/content_safety/actions.py) actions respectively.
+
+#### Multilingual Refusal Messages
+
+<!-- TODO: should we mention nvidia/llama-3.1-nemotron-safety-guard-8b-v3  -->
+When content safety rails block unsafe content, you can configure NeMo Guardrails to automatically detect the user's input language and return refusal messages in that same language. This provides a better user experience for multilingual applications.
+
+##### Supported Languages
+
+The multilingual feature supports 9 languages:
+
+| Language | Code | Default Refusal Message |
+|----------|------|-------------------------|
+| English | `en` | I'm sorry, I can't respond to that. |
+| Spanish | `es` | Lo siento, no puedo responder a eso. |
+| Chinese | `zh` | 抱歉，我无法回应。 |
+| German | `de` | Es tut mir leid, darauf kann ich nicht antworten. |
+| French | `fr` | Je suis désolé, je ne peux pas répondre à cela. |
+| Hindi | `hi` | मुझे खेद है, मैं इसका जवाब नहीं दे सकता। |
+| Japanese | `ja` | 申し訳ありませんが、それには回答できません。 |
+| Arabic | `ar` | عذراً، لا أستطيع الرد على ذلك. |
+| Thai | `th` | ขออภัย ฉันไม่สามารถตอบได้ |
+
+If the detected language is not in this list, English is used as the fallback.
+
+##### Installation
+
+To use multilingual refusal messages, install NeMo Guardrails with the `multilingual` extra:
+
+```bash
+pip install nemoguardrails[multilingual]
+```
+
+##### Usage
+
+To enable multilingual refusal messages, add the `multilingual` configuration to your `config.yml`:
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+
+rails:
+  config:
+    content_safety:
+      multilingual:
+        enabled: true
+
+  input:
+    flows:
+      - content safety check input $model=content_safety
+
+  output:
+    flows:
+      - content safety check output $model=content_safety
+```
+
+##### Custom Refusal Messages
+
+You can customize the refusal messages for each language:
+
+```yaml
+rails:
+  config:
+    content_safety:
+      multilingual:
+        enabled: true
+        refusal_messages:
+          en: "Sorry, I cannot help with that request."
+          es: "Lo siento, no puedo ayudar con esa solicitud."
+          zh: "抱歉，我无法处理该请求。"
+          # Add other languages as needed
+```
+
+If a custom message is not provided for a detected language, the built-in default message for that language is used.
+
+<!--  TODO: shall we include it here -->
+##### How It Works
+
+When `multilingual.enabled` is set to `true`:
+
+1. The `detect_language` action uses the [fast-langdetect](https://github.com/LlmKira/fast-langdetect) library to detect the language of the user's input
+2. If the content safety check blocks the input, the refusal message is returned in the detected language
+3. Language detection adds minimal latency (~12μs per request)
+
+##### Cold Start Behavior
+
+The fast-langdetect library downloads a language detection model on first use:
+
+| Model | Download Size | [Memory Usage](https://github.com/LlmKira/fast-langdetect?tab=readme-ov-file#memory-note) | First Call Behavior |
+|-------|---------------|--------------|---------------------|
+| `auto` (default) | 125 MB | ~170-210 MB | Downloads model on first call if not cached |
+| `lite` | ~0.9 MB (bundled) | ~45-60 MB | No download, works offline immediately |
+
+**Default cache location:**
+
+fast-langdetect stores its downloaded FastText model in a temporary, OS-specific cache directory at `{system_temp_dir}/fasttext-langdetect/`, where `system_temp_dir` is whatever directory your operating system uses for temporary files:
+
+- **macOS**: A sandboxed temp path such as `/var/folders/<random>/T/fasttext-langdetect/`
+- **Linux**: The global temp directory `/tmp/fasttext-langdetect/`
+- **Windows**: The user's temporary directory, e.g., `C:\Users\<User>\AppData\Local\Temp\fasttext-langdetect\`
+
+You can override this location via the `FTLANG_CACHE` environment variable.
+
+**Production considerations:**
+
+- First API call may take ~10-20 seconds to download and load the full model (network-dependent)
+- Subsequent calls use the cached model with ~9-12μs latency
+- For container/serverless environments, consider pre-warming during startup or persisting the model cache in your container image
+
+##### Accuracy
+
+Language detection accuracy was benchmarked on two datasets:
+
+| Dataset | Samples | Accuracy |
+|---------|---------|----------|
+| [papluca/language-identification](https://huggingface.co/datasets/papluca/language-identification) | 40,500 | 99.71% |
+| [nvidia/Nemotron-Safety-Guard-Dataset-v3](https://huggingface.co/datasets/nvidia/Nemotron-Safety-Guard-Dataset-v3) | 336,283 | 99.35% |
 
 ### Topic Safety
 
@@ -596,6 +747,246 @@ prompts:
 #### Implementation Details
 
 The 'topic safety check input' flow uses the [`topic_safety_check_input`](../../nemoguardrails/library/topic_safety/actions.py) action. The model returns a boolean value indicating whether the user input is on-topic or not. Please refer to the [topic safety example](../../examples/configs/topic_safety/README.md) for more details.
+
+## Threat Detection
+
+### Jailbreak Detection
+
+NeMo Guardrails supports jailbreak detection using a set of heuristics. Currently, two heuristics are supported:
+
+1. [Length per Perplexity](#length-per-perplexity)
+2. [Prefix and Suffix Perplexity](#prefix-and-suffix-perplexity)
+
+Perplexity is a metric that measures how well a language model predicts text. Lower is better, meaning less randomness or surprise. Typically jailbreak attempts result in higher perplexity.
+
+To activate the jailbreak detection heuristics, you first need include the `jailbreak detection heuristics` flow as an input rail:
+
+```colang
+rails:
+  input:
+    flows:
+      - jailbreak detection heuristics
+```
+
+Also, you need to configure the desired thresholds in your `config.yml`:
+
+```colang
+rails:
+  config:
+    jailbreak_detection:
+      server_endpoint: "http://0.0.0.0:1337/heuristics"
+      length_per_perplexity_threshold: 89.79
+      prefix_suffix_perplexity_threshold: 1845.65
+```
+
+```{note}
+If the `server_endpoint` parameter is not set, the checks will run in-process. This is useful for TESTING PURPOSES ONLY and **IS NOT RECOMMENDED FOR PRODUCTION DEPLOYMENTS**.
+```
+
+#### Heuristics
+
+##### Length per Perplexity
+
+The *length per perplexity* heuristic computes the length of the input divided by the perplexity of the input. If the value is above the specified threshold (default `89.79`) then the input is considered a jailbreak attempt.
+
+The default value represents the mean length/perplexity for a set of jailbreaks derived from a combination of datasets including [AdvBench](https://github.com/llm-attacks/llm-attacks), [ToxicChat](https://huggingface.co/datasets/lmsys/toxic-chat/blob/main/README.md), and [JailbreakChat](https://github.com/verazuo/jailbreak_llms), with non-jailbreaks taken from the same datasets and incorporating 1000 examples from [Dolly-15k](https://huggingface.co/datasets/databricks/databricks-dolly-15k).
+
+The statistics for this metric across jailbreak and non jailbreak datasets are as follows:
+
+|      | Jailbreaks | Non-Jailbreaks |
+|------|------------|----------------|
+| mean | 89.79      | 27.11          |
+| min  | 0.03       | 0.00           |
+| 25%  | 12.90      | 0.46           |
+| 50%  | 47.32      | 2.40           |
+| 75%  | 116.94     | 18.78          |
+| max  | 1380.55    | 3418.62        |
+
+Using the mean value of `89.79` yields 31.19% of jailbreaks being detected with a false positive rate of 7.44% on the dataset.
+Increasing this threshold will decrease the number of jailbreaks detected but will yield fewer false positives.
+
+**USAGE NOTES**:
+
+- Manual inspection of false positives uncovered a number of mislabeled examples in the dataset and a substantial number of system-like prompts. If your application is intended for simple question answering or retrieval-aided generation, this should be a generally safe heuristic.
+- This heuristic in its current form is intended only for English language evaluation and will yield significantly more false positives on non-English text, including code.
+
+##### Prefix and Suffix Perplexity
+
+The *prefix and suffix perplexity* heuristic takes the input and computes the perplexity for the prefix and suffix. If any of the is above the specified threshold (default `1845.65`), then the input is considered a jailbreak attempt.
+
+This heuristic examines strings of more than 20 "words" (strings separated by whitespace) to detect potential prefix/suffix attacks.
+
+The default threshold value of `1845.65` is the second-lowest perplexity value across 50 different prompts generated using [GCG](https://github.com/llm-attacks/llm-attacks) prefix/suffix attacks.
+Using the default value allows for detection of 49/50 GCG-style attacks with a 0.04% false positive rate on the "non-jailbreak" dataset derived above.
+
+**USAGE NOTES**:
+
+- This heuristic in its current form is intended only for English language evaluation and will yield significantly more false positives on non-English text, including code.
+
+#### Perplexity Computation
+
+To compute the perplexity of a string, the current implementation uses the `gpt2-large` model.
+
+#### Model-based Jailbreak Detections
+
+There is currently one available model-based detection, using a random forest-based detector trained on [`Snowflake/snowflake-arctic-embed-m-long`](https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long) embeddings.
+
+#### Setup
+
+The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](advanced/jailbreak-detection-deployment.md) separately.
+
+For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `tourch`.
+
+```bash
+pip install transformers torch
+```
+
+#### Latency
+
+Latency was tested in-process and via local Docker for both CPU and GPU configurations.
+For each configuration, we tested the response time for 10 prompts ranging in length from 5 to 2048 tokens.
+Inference times for sequences longer than the model's maximum input length (1024 tokens for GPT-2) necessarily take longer.
+Times reported below in are **averages** and are reported in milliseconds.
+
+|            | CPU   | GPU |
+|------------|-------|-----|
+| Docker     | 2057  | 115 |
+| In-Process | 3227  | 157 |
+
+### Injection Detection
+
+NeMo Guardrails offers detection of potential exploitation attempts by using injection such as code injection, cross-site scripting, SQL injection, and template injection.
+Injection detection is primarily intended to be used in agentic systems to enhance other security controls as part of a defense-in-depth strategy.
+
+The first part of injection detection is [YARA rules](https://yara.readthedocs.io/en/stable/index.html).
+A YARA rule specifies a set of strings (text or binary patterns) to match and a Boolean expression that specifies the logic of the rule.
+YARA rules are a technology that is familiar to many security teams.
+
+The second part of injection detection is specifying the action to take when a rule is triggered.
+You can specify to *reject* the text and return "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {detections}."
+Rejecting the output is the safest action and most appropriate for production deployments.
+As an alternative to rejecting the output, you can specify to *omit* the triggering text from the response.
+
+#### About the Default Rules
+
+By default, NeMo Guardrails provides the following rules:
+
+- Code injection (Python): Recommended if the LLM output is used as an argument to downstream functions or passed to a code interpreter.
+- SQL injection: Recommended if the LLM output is used as part of a SQL query to a database.
+- Template injection (Jinja): Recommended for use if LLM output is rendered using the Jinja templating language.
+  This rule is usually paired with code injection rules.
+- Cross-site scripting (Markdown and Javascript): Recommended if the LLM output is rendered directly in HTML or Markdown.
+
+You can view the default rules in the [yara_rules directory](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/injection_detection/yara_rules) of the GitHub repository.
+
+#### Configuring Injection Detection
+
+To activate injection detection, you must specify the rules to apply and the action to take as well as include the `injection detection` output flow.
+As an example config:
+
+```yaml
+rails:
+  config:
+    injection_detection:
+      injections:
+        - code
+        - sqli
+        - template
+        - xss
+      action:
+        reject
+
+  output:
+    flows:
+      - injection detection
+```
+
+Refer to the following table for the `rails.config.injection_detection` field syntax reference:
+
+```{list-table}
+:header-rows: 1
+
+* - Field
+  - Description
+  - Default Value
+
+* - `injections`
+  - Specifies the injection detection rules to use.
+    The following injections are part of the library:
+
+    - `code` for Python code injection
+    - `sqli` for SQL injection
+    - `template` for Jinja template injection
+    - `xss` for cross-site scripting
+  - None (required)
+
+* - `action`
+  - Specifies the action to take when injection is detected.
+    Refer to the following actions:
+
+    - `reject` returns a message to the user indicating that the query could not be handled and they should try again.
+    - `omit` returns the model response, removing the offending detected content.
+  - None (required)
+
+* - `yara_path`
+  - Specifies the path to a directory that contains custom YARA rules.
+  - `library/injection_detection/yara_rules` in the NeMo Guardrails package.
+
+* - `yara_rules`
+  - Specifies inline YARA rules.
+    The field is a dictionary that maps rule names to the rules.
+    The rules use the string data type.
+
+    ```yaml
+    yara_rules:
+      <inline-rule-name>: |-
+        <inline-rule-content>
+    ```
+
+    If specified, these inline rules override the rules found in the `yara_path` field.
+  - None
+```
+
+For information about writing YARA rules, refer to the [YARA documentation](https://yara.readthedocs.io/en/stable/index.html).
+
+#### Example
+
+Before you begin, install the `yara-python` package or you can install the NeMo Guardrails package with `pip install nemoguardrails[jailbreak]`.
+
+1. Set your NVIDIA API key as an environment variable:
+
+   ```console
+   $ export NVIDIA_API_KEY=<nvapi-...>
+   ```
+
+1. Create a configuration directory, such as `config`, and add a `config.yml` file with contents like the following:
+
+   ```{literalinclude} ../../examples/configs/injection_detection/config/config.yml
+   :language: yaml
+   ```
+
+1. Load the guardrails configuration:
+
+   ```{literalinclude} ../../examples/configs/injection_detection/demo.py
+   :language: python
+   :start-after: "# start-load-config"
+   :end-before: "# end-load-config"
+   ```
+
+1. Send a possibly unsafe request:
+
+   ```{literalinclude} ../../examples/configs/injection_detection/demo.py
+   :language: python
+   :start-after: "# start-unsafe-response"
+   :end-before: "# end-unsafe-response"
+   ```
+
+   *Example Output*
+
+   ```{literalinclude} ../../examples/configs/injection_detection/demo-out.txt
+   :start-after: "# start-unsafe-response"
+   :end-before: "# end-unsafe-response"
+   ```
 
 ## Community Models and Libraries
 
@@ -961,241 +1352,3 @@ rails:
 ```
 
 For more details, check out the [Cisco AI Defense Integration](./community/ai-defense.md) page.
-
-## Other
-
-### Jailbreak Detection
-
-NeMo Guardrails supports jailbreak detection using a set of heuristics. Currently, two heuristics are supported:
-
-1. [Length per Perplexity](#length-per-perplexity)
-2. [Prefix and Suffix Perplexity](#prefix-and-suffix-perplexity)
-
-To activate the jailbreak detection heuristics, you first need include the `jailbreak detection heuristics` flow as an input rail:
-
-```colang
-rails:
-  input:
-    flows:
-      - jailbreak detection heuristics
-```
-
-Also, you need to configure the desired thresholds in your `config.yml`:
-
-```colang
-rails:
-  config:
-    jailbreak_detection:
-      server_endpoint: "http://0.0.0.0:1337/heuristics"
-      length_per_perplexity_threshold: 89.79
-      prefix_suffix_perplexity_threshold: 1845.65
-```
-
-```{note}
-If the `server_endpoint` parameter is not set, the checks will run in-process. This is useful for TESTING PURPOSES ONLY and **IS NOT RECOMMENDED FOR PRODUCTION DEPLOYMENTS**.
-```
-
-#### Heuristics
-
-##### Length per Perplexity
-
-The *length per perplexity* heuristic computes the length of the input divided by the perplexity of the input. If the value is above the specified threshold (default `89.79`) then the input is considered a jailbreak attempt.
-
-The default value represents the mean length/perplexity for a set of jailbreaks derived from a combination of datasets including [AdvBench](https://github.com/llm-attacks/llm-attacks), [ToxicChat](https://huggingface.co/datasets/lmsys/toxic-chat/blob/main/README.md), and [JailbreakChat](https://github.com/verazuo/jailbreak_llms), with non-jailbreaks taken from the same datasets and incorporating 1000 examples from [Dolly-15k](https://huggingface.co/datasets/databricks/databricks-dolly-15k).
-
-The statistics for this metric across jailbreak and non jailbreak datasets are as follows:
-
-|      | Jailbreaks | Non-Jailbreaks |
-|------|------------|----------------|
-| mean | 89.79      | 27.11          |
-| min  | 0.03       | 0.00           |
-| 25%  | 12.90      | 0.46           |
-| 50%  | 47.32      | 2.40           |
-| 75%  | 116.94     | 18.78          |
-| max  | 1380.55    | 3418.62        |
-
-Using the mean value of `89.79` yields 31.19% of jailbreaks being detected with a false positive rate of 7.44% on the dataset.
-Increasing this threshold will decrease the number of jailbreaks detected but will yield fewer false positives.
-
-**USAGE NOTES**:
-
-- Manual inspection of false positives uncovered a number of mislabeled examples in the dataset and a substantial number of system-like prompts. If your application is intended for simple question answering or retrieval-aided generation, this should be a generally safe heuristic.
-- This heuristic in its current form is intended only for English language evaluation and will yield significantly more false positives on non-English text, including code.
-
-##### Prefix and Suffix Perplexity
-
-The *prefix and suffix perplexity* heuristic takes the input and computes the perplexity for the prefix and suffix. If any of the is above the specified threshold (default `1845.65`), then the input is considered a jailbreak attempt.
-
-This heuristic examines strings of more than 20 "words" (strings separated by whitespace) to detect potential prefix/suffix attacks.
-
-The default threshold value of `1845.65` is the second-lowest perplexity value across 50 different prompts generated using [GCG](https://github.com/llm-attacks/llm-attacks) prefix/suffix attacks.
-Using the default value allows for detection of 49/50 GCG-style attacks with a 0.04% false positive rate on the "non-jailbreak" dataset derived above.
-
-**USAGE NOTES**:
-
-- This heuristic in its current form is intended only for English language evaluation and will yield significantly more false positives on non-English text, including code.
-
-#### Perplexity Computation
-
-To compute the perplexity of a string, the current implementation uses the `gpt2-large` model.
-
-#### Model-based Jailbreak Detections
-
-There is currently one available model-based detection, using a random forest-based detector trained on [`Snowflake/snowflake-arctic-embed-m-long`](https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long) embeddings.
-
-#### Setup
-
-The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](advanced/jailbreak-detection-deployment.md) separately.
-
-For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `tourch`.
-
-```bash
-pip install transformers torch
-```
-
-#### Latency
-
-Latency was tested in-process and via local Docker for both CPU and GPU configurations.
-For each configuration, we tested the response time for 10 prompts ranging in length from 5 to 2048 tokens.
-Inference times for sequences longer than the model's maximum input length (1024 tokens for GPT-2) necessarily take longer.
-Times reported below in are **averages** and are reported in milliseconds.
-
-|            | CPU   | GPU |
-|------------|-------|-----|
-| Docker     | 2057  | 115 |
-| In-Process | 3227  | 157 |
-
-### Injection Detection
-
-NeMo Guardrails offers detection of potential exploitation attempts by using injection such as code injection, cross-site scripting, SQL injection, and template injection.
-Injection detection is primarily intended to be used in agentic systems to enhance other security controls as part of a defense-in-depth strategy.
-
-The first part of injection detection is [YARA rules](https://yara.readthedocs.io/en/stable/index.html).
-A YARA rule specifies a set of strings--text or binary patterns--to match and a Boolean expression that specifies the logic of the rule.
-YARA rules are a technology that is familiar to many security teams.
-
-The second part of injection detection is specifying the action to take when a rule is triggered.
-You can specify to *reject* the text and return "I'm sorry, the desired output triggered rule(s) designed to mitigate exploitation of {detections}."
-Rejecting the output is the safest action and most appropriate for production deployments.
-As an alternative to rejecting the output, you can specify to *omit* the triggering text from the response.
-
-#### About the Default Rules
-
-By default, NeMo Guardrails provides the following rules:
-
-- Code injection (Python): Recommended if the LLM output is used as an argument to downstream functions or passed to a code interpreter.
-- SQL injection: Recommended if the LLM output is used as part of a SQL query to a database.
-- Template injection (Jinja): Recommended for use if LLM output is rendered using the Jinja templating language.
-  This rule is usually paired with code injection rules.
-- Cross-site scripting (Markdown and Javascript): Recommended if the LLM output is rendered directly in HTML or Markdown.
-
-You can view the default rules in the [yara_rules directory](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/injection_detection/yara_rules) of the GitHub repository.
-
-#### Configuring Injection Detection
-
-To activate injection detection, you must specify the rules to apply and the action to take as well as include the `injection detection` output flow.
-As an example config:
-
-```yaml
-rails:
-  config:
-    injection_detection:
-      injections:
-        - code
-        - sqli
-        - template
-        - xss
-      action:
-        reject
-
-  output:
-    flows:
-      - injection detection
-```
-
-Refer to the following table for the `rails.config.injection_detection` field syntax reference:
-
-```{list-table}
-:header-rows: 1
-
-* - Field
-  - Description
-  - Default Value
-
-* - `injections`
-  - Specifies the injection detection rules to use.
-    The following injections are part of the library:
-
-    - `code` for Python code injection
-    - `sqli` for SQL injection
-    - `template` for Jinja template injection
-    - `xss` for cross-site scripting
-  - None (required)
-
-* - `action`
-  - Specifies the action to take when injection is detected.
-    Refer to the following actions:
-
-    - `reject` returns a message to the user indicating that the query could not be handled and they should try again.
-    - `omit` returns the model response, removing the offending detected content.
-  - None (required)
-
-* - `yara_path`
-  - Specifies the path to a directory that contains custom YARA rules.
-  - `library/injection_detection/yara_rules` in the NeMo Guardrails package.
-
-* - `yara_rules`
-  - Specifies inline YARA rules.
-    The field is a dictionary that maps rule names to the rules.
-    The rules use the string data type.
-
-    ```yaml
-    yara_rules:
-      <inline-rule-name>: |-
-        <inline-rule-content>
-    ```
-
-    If specified, these inline rules override the rules found in the `yara_path` field.
-  - None
-```
-
-For information about writing YARA rules, refer to the [YARA documentation](https://yara.readthedocs.io/en/stable/index.html).
-
-#### Example
-
-Before you begin, install the `yara-python` package or you can install the NeMo Guardrails package with `pip install nemoguardrails[jailbreak]`.
-
-1. Set your NVIDIA API key as an environment variable:
-
-   ```console
-   $ export NVIDIA_API_KEY=<nvapi-...>
-   ```
-
-1. Create a configuration directory, such as `config`, and add a `config.yml` file with contents like the following:
-
-   ```{literalinclude} ../../examples/configs/injection_detection/config/config.yml
-   :language: yaml
-   ```
-
-1. Load the guardrails configuration:
-
-   ```{literalinclude} ../../examples/configs/injection_detection/demo.py
-   :language: python
-   :start-after: "# start-load-config"
-   :end-before: "# end-load-config"
-   ```
-
-1. Send a possibly unsafe request:
-
-   ```{literalinclude} ../../examples/configs/injection_detection/demo.py
-   :language: python
-   :start-after: "# start-unsafe-response"
-   :end-before: "# end-unsafe-response"
-   ```
-
-   *Example Output*
-
-   ```{literalinclude} ../../examples/configs/injection_detection/demo-out.txt
-   :start-after: "# start-unsafe-response"
-   :end-before: "# end-unsafe-response"
-   ```

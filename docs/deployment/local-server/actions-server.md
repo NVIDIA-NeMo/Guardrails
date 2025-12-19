@@ -1,3 +1,16 @@
+---
+title:
+  page: "Actions Server"
+  nav: "Actions Server"
+description: "Deploy actions in a secure, isolated environment separate from the guardrails server."
+topics: ["Deployment", "AI Safety"]
+tags: ["Server", "Actions", "Security", "REST API"]
+content:
+  type: "How-To"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
+---
+
 # Actions Server
 
 The Actions Server enables you to run the actions invoked from the guardrails more securely (see [Security Guidelines](../../security/guidelines.md) for more details). The action server should be deployed in a separate environment.

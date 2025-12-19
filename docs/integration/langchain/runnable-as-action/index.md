@@ -1,3 +1,16 @@
+---
+title:
+  page: "Use a Runnable as an Action in Guardrails"
+  nav: "Runnable as Action"
+description: "Register LangChain Runnables as actions and invoke them from Colang flows."
+topics: ["Integration", "AI Safety"]
+tags: ["LangChain", "Runnable", "Actions", "Colang"]
+content:
+  type: "Tutorial"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
+---
+
 # Runnable as Action
 
 This guide will teach you how to use a `Runnable` as an action inside a guardrails configuration.

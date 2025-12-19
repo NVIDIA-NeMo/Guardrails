@@ -1,8 +1,21 @@
+---
+title:
+  page: "Adapter Configurations"
+  nav: "Adapters"
+description: "Configure FileSystem, OpenTelemetry, or custom adapters for guardrails tracing."
+topics: ["Observability", "AI Safety"]
+tags: ["Tracing", "Adapters", "Configuration", "FileSystem", "OpenTelemetry"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer"]
+---
+
 # Adapter Configurations
 
 You can set up the following adapters for tracing.
 
-The following table summarizes the list of adapters supported by NeMo Guardrails and their use cases.
+The following table summarizes the list of adapters supported by the NeMo Guardrails library and their use cases.
 
 | Adapter Type | Use Case | Configuration |
 |---------|----------|---------------|

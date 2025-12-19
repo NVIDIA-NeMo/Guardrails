@@ -1,37 +1,45 @@
 ---
-title: Tutorials
-description: Follow hands-on tutorials to build your first guardrails configuration.
+title:
+  page: "NeMo Guardrails Tutorials"
+  nav: "Tutorials"
+description: "Follow hands-on tutorials to deploy content safety, topic control, and jailbreak detection."
+topics: ["Get Started", "AI Safety"]
+tags: ["Tutorial", "Content Safety", "Jailbreak", "Topic Control"]
+content:
+  type: "Tutorial"
+  difficulty: "Beginner"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Tutorials
 
-This section contains tutorials that help you get started with NeMo Guardrails Toolkit.
+This section contains tutorials that help you get started with the NeMo Guardrails library.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Text Content Safety
+:::{grid-item-card} Content Safety
 :link: nemotron-safety-guard-deployment
 :link-type: doc
 
-Deploy Nemotron Safety Guard to detect harmful content in text inputs and outputs.
+Deploy Nemotron Safety Guard to detect harmful content in multilingual text inputs and outputs.
 :::
 
 :::{grid-item-card} Topic Control
 :link: nemoguard-topiccontrol-deployment
 :link-type: doc
 
-Deploy NemoGuard Topic Control NIM to restrict conversations to allowed topics.
+Deploy NeMo Topic Control NIM to restrict conversations to allowed topics.
 :::
 
 :::{grid-item-card} Jailbreak Detection
 :link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
-Deploy NemoGuard Jailbreak Detection NIM to block adversarial prompts.
+Deploy NeMo Jailbreak Detect NIM to block adversarial prompts and jailbreak attempts.
 :::
 
-:::{grid-item-card} Multimodal Content Safety
+:::{grid-item-card} Multimodal
 :link: multimodal
 :link-type: doc
 

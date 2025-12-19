@@ -1,6 +1,19 @@
-# NeMo Guardrails with Docker
+---
+title:
+  page: "Deploy NeMo Guardrails Library with Docker"
+  nav: "Docker"
+description: "Build and run NeMo Guardrails Docker images for rapid deployment and testing."
+topics: ["Deployment", "AI Safety"]
+tags: ["Docker", "Container", "Deployment", "AlignScore"]
+content:
+  type: "How-To"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer"]
+---
 
-This guide provides step-by-step instructions for running NeMo Guardrails using Docker. Docker offers a seamless and rapid deployment method for getting started with NeMo Guardrails.
+# Deploy NeMo Guardrails Library with Docker
+
+This guide provides step-by-step instructions for running the NeMo Guardrails library using Docker. Docker offers a seamless and rapid deployment method for getting started with the NeMo Guardrails library.
 
 ## Prerequisites
 
@@ -52,13 +65,13 @@ docker build -t jailbreak_detection_heuristics .
 
 ## Running using Docker
 
-To run the NeMo Guardrails server using the Docker image, run the following command:
+To run the NeMo Guardrails library server using the Docker image, run the following command:
 
 ```bash
 docker run -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY nemoguardrails
 ```
 
-This will start the NeMo Guardrails server with the example configurations. The Chat UI will be accessible at `http://localhost:8000`.
+This will start the NeMo Guardrails library server with the example configurations. The Chat UI will be accessible at `http://localhost:8000`.
 
 NOTE: Since the example configurations use OpenAI models (such as `gpt-3.5-turbo-instruct` and `gpt-4`), you need to provide an `OPENAI_API_KEY`.
 
