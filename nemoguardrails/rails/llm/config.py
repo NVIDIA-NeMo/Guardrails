@@ -303,7 +303,7 @@ class GLiNERDetection(BaseModel):
     )
     flat_ner: bool = Field(
         default=False,
-        description="Whether to use flat NER mode.",
+        description="Whether to use flat NER mode. Setting to False allows for nested entities.",
     )
     input: GLiNERDetectionOptions = Field(
         default_factory=GLiNERDetectionOptions,

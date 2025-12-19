@@ -16,12 +16,7 @@
 """GLiNER server package for PII detection and entity extraction."""
 
 from .models import (
-    ChatMessage,
     EntitySpan,
-    GLiNERChatCompletionChoice,
-    GLiNERChatCompletionRequest,
-    GLiNERChatCompletionResponse,
-    GLiNERChatCompletionUsage,
     GLiNERRequest,
     GLiNERResponse,
     ModelInfo,
@@ -40,12 +35,7 @@ from .pii_utils import (
 
 __all__ = [
     # Models
-    "ChatMessage",
     "EntitySpan",
-    "GLiNERChatCompletionChoice",
-    "GLiNERChatCompletionRequest",
-    "GLiNERChatCompletionResponse",
-    "GLiNERChatCompletionUsage",
     "GLiNERRequest",
     "GLiNERResponse",
     "ModelInfo",

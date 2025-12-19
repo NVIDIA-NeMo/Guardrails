@@ -125,27 +125,8 @@ else
     exit 1
 fi
 
-# Test 7: Chat completions endpoint
-echo "Test 7: Chat completions endpoint"
-CHAT_RESPONSE=$(curl -s -X POST "${BASE_URL}/v1/chat/completions" \
-    -H "Content-Type: application/json" \
-    -d '{
-        "model": "gliner-ner",
-        "messages": [{"role": "user", "content": "Contact me at test@email.com"}],
-        "entity_labels": ["email"],
-        "threshold": 0.5
-    }')
-
-if echo "$CHAT_RESPONSE" | grep -q '"finish_reason":"stop"'; then
-    echo -e "${GREEN}✓ Chat completions endpoint passed${NC}"
-else
-    echo -e "${RED}✗ Chat completions endpoint failed${NC}"
-    echo "$CHAT_RESPONSE"
-    exit 1
-fi
-
-# Test 8: Extract with no PII
-echo "Test 8: Extract with no PII"
+# Test 7: Extract with no PII
+echo "Test 7: Extract with no PII"
 NO_PII_RESPONSE=$(curl -s -X POST "${BASE_URL}/v1/extract" \
     -H "Content-Type: application/json" \
     -d '{

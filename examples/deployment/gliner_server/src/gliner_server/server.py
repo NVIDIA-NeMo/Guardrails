@@ -16,11 +16,9 @@
 """GLiNER FastAPI server for PII detection and entity extraction."""
 
 import argparse
-import json
 import logging
 import os
 import time
-import uuid
 
 import torch
 import uvicorn
@@ -28,11 +26,6 @@ from fastapi import FastAPI, HTTPException
 from gliner import GLiNER
 
 from .models import (
-    ChatMessage,
-    GLiNERChatCompletionChoice,
-    GLiNERChatCompletionRequest,
-    GLiNERChatCompletionResponse,
-    GLiNERChatCompletionUsage,
     GLiNERRequest,
     GLiNERResponse,
     ModelInfo,
@@ -146,61 +139,6 @@ async def load_model():
 async def list_models():
     """OpenAI-compatible models endpoint"""
     return ModelsResponse(data=[ModelInfo(id="gliner-ner", created=int(time.time()), owned_by="gliner")])
-
-
-@app.post("/v1/chat/completions", response_model=GLiNERChatCompletionResponse)
-async def chat_completions(request: GLiNERChatCompletionRequest):
-    """OpenAI-compatible chat completions endpoint with GLiNER processing"""
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-
-    try:
-        user_messages = [msg for msg in request.messages if msg.role == "user"]
-        if not user_messages:
-            raise HTTPException(status_code=400, detail="No user message found")
-
-        text = user_messages[-1].content
-
-        # Convert GLiNERChatCompletionRequest to GLiNERRequest for extraction
-        extraction_request = GLiNERRequest(
-            text=text,
-            labels=(request.entity_labels or DEFAULT_LABELS),
-            threshold=request.threshold,
-            chunk_length=request.chunk_length,
-            overlap=request.overlap,
-            flat_ner=request.flat_ner,
-        )
-        result = extract_with_gliner(extraction_request)
-
-        completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
-
-        # Convert EntitySpan objects to dictionaries for JSON serialization
-        serializable_result = {
-            "total_entities": result.total_entities,
-            "entities": [span.model_dump() for span in result.entities],
-            "tagged_text": result.tagged_text,
-        }
-
-        return GLiNERChatCompletionResponse(
-            id=completion_id,
-            created=int(time.time()),
-            model=request.model,
-            choices=[
-                GLiNERChatCompletionChoice(
-                    index=0,
-                    message=ChatMessage(role="assistant", content=json.dumps(serializable_result)),
-                    finish_reason="stop",
-                )
-            ],
-            usage=GLiNERChatCompletionUsage(
-                prompt_tokens=len(text.split()),
-                completion_tokens=len(json.dumps(serializable_result).split()),
-                total_tokens=len(text.split()) + len(json.dumps(serializable_result).split()),
-            ),
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
 
 @app.post("/v1/extract", response_model=GLiNERResponse)

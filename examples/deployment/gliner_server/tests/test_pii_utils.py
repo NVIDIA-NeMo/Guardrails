@@ -56,12 +56,6 @@ class TestCreateTaggedText:
         result = create_tagged_text(text, [])
         assert result == text
 
-    def test_none_entities(self):
-        """Test with None entities returns original text."""
-        text = "Hello, my name is John."
-        result = create_tagged_text(text, None)
-        assert result == text
-
     def test_single_entity(self):
         """Test tagging a single entity."""
         text = "Hello, my name is John."

@@ -52,61 +52,6 @@ class GLiNERResponse(BaseModel):
 
 
 # =============================================================================
-# OpenAI-Compatible Chat Completion Models
-# =============================================================================
-
-
-class ChatMessage(BaseModel):
-    """Chat message model for OpenAI-compatible API."""
-
-    role: str
-    content: str
-
-
-class GLiNERChatCompletionRequest(BaseModel):
-    """OpenAI-compatible chat completion request with GLiNER parameters."""
-
-    model: str = "gliner-ner"
-    messages: list[ChatMessage]
-    temperature: float | None = 0.1
-    max_tokens: int | None = 1000
-    stream: bool | None = False
-    # GLiNER-specific parameters
-    entity_labels: list[str] | None = None
-    threshold: float | None = Field(default=0.5, ge=0.0, le=1.0)
-    chunk_length: int | None = 384
-    overlap: int | None = 128
-    flat_ner: bool | None = False
-
-
-class GLiNERChatCompletionChoice(BaseModel):
-    """Chat completion choice model."""
-
-    index: int
-    message: ChatMessage
-    finish_reason: str
-
-
-class GLiNERChatCompletionUsage(BaseModel):
-    """Token usage statistics."""
-
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
-
-
-class GLiNERChatCompletionResponse(BaseModel):
-    """OpenAI-compatible chat completion response."""
-
-    id: str
-    object: str = "chat.completion"
-    created: int
-    model: str
-    choices: list[GLiNERChatCompletionChoice]
-    usage: GLiNERChatCompletionUsage
-
-
-# =============================================================================
 # Models Endpoint Models
 # =============================================================================
 
