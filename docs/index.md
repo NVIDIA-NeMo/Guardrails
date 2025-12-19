@@ -139,9 +139,9 @@ Release Notes <about/release-notes.md>
 :name: Get Started
 :hidden:
 
-getting-started/installation-guide
-getting-started/tutorials/index
-getting-started/integrate-into-application
+Install <getting-started/installation-guide>
+Tutorials <getting-started/tutorials/index>
+Integrate into Application <getting-started/integrate-into-application.md>
 ```
 
 ```{toctree}
@@ -176,8 +176,8 @@ Event-based API <run-rails/event-based-api.md>
 :name: Evaluation
 :hidden:
 
-evaluation/README
-evaluation/llm-vulnerability-scanning
+Evaluate <evaluation/README>
+Vulnerability Scanning <evaluation/llm-vulnerability-scanning>
 ```
 
 ```{toctree}
@@ -214,7 +214,7 @@ Integrate LangChain Tools <integration/tools-integration.md>
 :name: Security
 :hidden:
 
-security/guidelines
+Security <security/guidelines>
 ```
 
 ```{toctree}
@@ -224,7 +224,7 @@ security/guidelines
 
 troubleshooting
 faqs
-python-api/index
-cli/index
+Python API <python-api/index>
+CLI <cli/index>
 glossary
 ```

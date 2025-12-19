@@ -6,4 +6,4 @@
 .. toctree::
    :maxdepth: 2
 
-   README
+   Core Colang Concepts <README>

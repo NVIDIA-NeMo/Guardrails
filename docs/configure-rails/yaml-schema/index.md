@@ -137,9 +137,9 @@ Once you have finished crafting your overall `config.yml` file, refer to the fol
 :hidden:
 :maxdepth: 2
 
-model-configuration
-guardrails-configuration/index
-prompt-configuration
-tracing-configuration
-streaming/index
+Models <model-configuration>
+Guardrails Configuration <guardrails-configuration/index>
+Prompts <prompt-configuration>
+Tracing <tracing-configuration>
+Streaming Configuration <streaming/index>
 ```

@@ -3,12 +3,13 @@ title:
   page: "How It Works"
   nav: "How It Works"
 description: "Learn the sequence diagrams and architecture for building guardrails."
-topics: ["AI"]
-tags: ["Guardrails", "Architecture", "Colang"]
+keywords: ["guardrails architecture", "colang", "guardrails process"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "security_for_ai", "nlp"]
 content:
-  type: "Concept"
-  difficulty: "Intermediate"
-  audience: ["Developer", "Machine Learning Engineer"]
+  type: concept
+  difficulty: technical_intermediate
+  audience: [engineer, data_scientist]
 ---
 
 # How It Works

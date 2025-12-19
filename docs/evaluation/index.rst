@@ -6,5 +6,5 @@ Evaluation
 .. toctree::
    :maxdepth: 2
 
-   README
-   llm-vulnerability-scanning
+   Evaluate <README>
+   Vulnerability Scanning <llm-vulnerability-scanning>

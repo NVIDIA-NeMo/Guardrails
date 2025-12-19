@@ -62,8 +62,8 @@ Pass and access custom data from config.yml in your initialization code and acti
 :hidden:
 :maxdepth: 2
 
-init-function
-custom-llm-providers
-custom-embedding-providers
-custom-data
+The Init Function <init-function>
+Custom LLM Providers <custom-llm-providers>
+Custom Embedding Providers <custom-embedding-providers>
+Custom Configuration Data <custom-data>
 ```

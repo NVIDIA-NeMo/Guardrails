@@ -230,6 +230,6 @@ rails:
 :hidden:
 :maxdepth: 2
 
-built-in-guardrails
+Built-in Guardrails <built-in-guardrails>
 Rails in Parallel <parallel-rails.md>
 ```

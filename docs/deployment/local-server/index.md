@@ -47,6 +47,6 @@ Deploy actions in a secure, isolated environment separate from the guardrails se
 :hidden:
 :maxdepth: 2
 
-guardrails-server
-actions-server
+Guardrails Server <guardrails-server>
+Actions Server <actions-server>
 ```

@@ -103,10 +103,10 @@ Existing configurations will continue to work. However, it is strongly recommend
 ```{toctree}
 :hidden:
 
-quick-start
+Quick Start <quick-start>
 adapter-types
-adapter-configurations
-opentelemetry-integration
+Adapters <adapter-configurations>
+OpenTelemetry <opentelemetry-integration>
 common-integrations
-troubleshooting
+Troubleshooting <troubleshooting>
 ```

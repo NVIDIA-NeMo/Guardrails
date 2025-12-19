@@ -159,7 +159,7 @@ If not, you can get started with the Colang 2.0 [Hello World](colang-2/getting-s
 :hidden:
 :maxdepth: 2
 
-colang-2/index
-colang-1/index
-usage-examples/index
+Colang 2.0 Guide <colang-2/index>
+Colang 1.0 Guide <colang-1/index>
+Colang Usage Examples <usage-examples/index>
 ```

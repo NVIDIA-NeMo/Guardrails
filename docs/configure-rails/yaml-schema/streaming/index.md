@@ -44,6 +44,6 @@ Configure how output rails process streamed tokens in chunked mode.
 :hidden:
 :maxdepth: 2
 
-global-streaming
-output-rail-streaming
+Streaming <global-streaming>
+Output Rail Streaming <output-rail-streaming>
 ```

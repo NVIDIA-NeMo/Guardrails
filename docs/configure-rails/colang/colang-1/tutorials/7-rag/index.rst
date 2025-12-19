@@ -6,4 +6,4 @@
 .. toctree::
    :maxdepth: 2
 
-   README
+   Retrieval-Augmented Generation <README>

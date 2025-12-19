@@ -18,9 +18,9 @@ This section covers how to integrate the NeMo Guardrails library with LangChain.
 ```{toctree}
 :maxdepth: 1
 
-langchain-integration
-runnable-rails
-langgraph-integration
-chain-with-guardrails/index
-runnable-as-action/index
+LangChain Integration <langchain-integration>
+RunnableRails <runnable-rails>
+LangGraph <langgraph-integration>
+Chain with Guardrails <chain-with-guardrails/index>
+Runnable as Action <runnable-as-action/index>
 ```

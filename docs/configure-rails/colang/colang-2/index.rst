@@ -1,3 +1,8 @@
+---
+title: Colang 2.0 Guide
+description: Reference and tutorials for Colang 2.0 syntax for defining dialog flows and guardrails.
+---
+
 .. include:: VERSION.txt
 
 .. _colang-doc:
@@ -13,4 +18,4 @@ Colang 2.0 Guide
    whats-changed
    getting-started/index
    language-reference/index
-   migration-guide
+   Migrating from Colang 1 to Colang 2 <migration-guide>
