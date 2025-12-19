@@ -29,7 +29,7 @@ echo ""
 
 # Start the server in background
 echo "Starting GLiNER server..."
-python examples/deployment/gliner_server/gliner_server.py --host $SERVER_HOST --port $SERVER_PORT &
+gliner-server --host $SERVER_HOST --port $SERVER_PORT &
 SERVER_PID=$!
 
 # Wait for server to be ready
