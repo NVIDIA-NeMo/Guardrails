@@ -210,21 +210,22 @@ Tools Integration <integration/tools-integration.md>
 ```
 
 ```{toctree}
-:caption: Security
-:name: Security
+:caption: Troubleshooting
+:name: Troubleshooting
 :hidden:
 
-Security <security/guidelines>
+Troubleshooting <troubleshooting>
 ```
 
 ```{toctree}
-:caption: Reference
-:name: Reference
+:caption: Resources
+:name: Resources
 :hidden:
 
-troubleshooting
 faqs
 Python API <python-api/index>
 CLI <cli/index>
+Use Case Diagrams <resources/use-case-diagrams.md>
 glossary
+Security <security/guidelines>
 ```
