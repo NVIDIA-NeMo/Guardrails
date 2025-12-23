@@ -32,7 +32,7 @@ Check text inputs and outputs for harmful content using Nemotron Content Safety 
 Restrict conversations to allowed topics using Nemotron Topic Control NIM.
 :::
 
-:::{grid-item-card} Detect Jailbreaks
+:::{grid-item-card} Detect Jailbreak Attempts
 :link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
@@ -54,6 +54,6 @@ Add safety checks to images and text using a vision model as LLM-as-a-Judge.
 
 Check Harmful Content <nemotron-safety-guard-deployment>
 Restrict Topics <nemoguard-topiccontrol-deployment>
-Detect Jailbreaks <nemoguard-jailbreakdetect-deployment>
+Detect Jailbreak Attempts <nemoguard-jailbreakdetect-deployment>
 Add Multimodal Content Safety <multimodal>
 ```

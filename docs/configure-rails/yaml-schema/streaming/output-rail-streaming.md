@@ -1,6 +1,14 @@
 ---
-title: Output Rail Streaming
-description: Configure how output rails process streamed tokens in chunked mode.
+title:
+  page: "Output Rail Streaming Configuration"
+  nav: "Output Rail Streaming"
+description: "Configure how output rails process streamed tokens in chunked mode."
+topics: ["Configuration", "Streaming", "Output Rails"]
+tags: ["Streaming", "Output Rails", "chunk_size", "context_size", "stream_first"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Output Rail Streaming

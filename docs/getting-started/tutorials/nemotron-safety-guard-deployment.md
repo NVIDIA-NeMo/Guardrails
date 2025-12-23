@@ -16,96 +16,35 @@ content:
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Check Harmful Content with Nemotron Content Safety NIM
+# Check Harmful Content with Llama 3.1 Nemotron Safety Guard 8B V3 NIM
 
-Add input and output guardrails that detect harmful content in multiple languages using [Nemotron Content Safety NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3).
+Learn how to add input and output guardrails that detect harmful content in multiple languages using [Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3).
 
 By following this tutorial, you learn how to:
 
-1. Start the Nemotron Content Safety container locally.
-2. Configure content safety guardrails on a main LLM, which sets up the base conversation.
-3. Test with safe and unsafe requests in different languages.
-
-This tutorial uses [Llama 3.3 70B Instruct](https://build.nvidia.com/meta/llama-3_3-70b-instruct) on build.nvidia.com as the application LLM to avoid deploying a separate NIM for LLM inference.
+1. Deploy the Llama 3.1 Nemotron Safety Guard 8B V3 NIM microservice to your local machine.
+2. Configure content safety guardrails on a main LLM. This tutorial uses [Llama 3.3 70B Instruct on build.nvidia.com](https://build.nvidia.com/meta/llama-3_3-70b-instruct) as the main LLM.
+3. Verify the guardrails with safe and unsafe requests in various languages.
 
 ## Prerequisites
 
-- NVIDIA NGC API key with NGC Catalog and Public API Endpoints access.
-  See [Generating Your NGC API Key](https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key).
-
-- Docker Engine installed. See [Docker installation](https://docs.docker.com/engine/install/).
-
-- NVIDIA Container Toolkit installed. See {doc}`installation <ctk:install-guide>`.
-
 - The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
+- A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
+  For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
+- Docker [installed](https://docs.docker.com/engine/install/).
+- NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+<!-- TODO: Is this really required? -->
+- LangChain integration package [installed](https://pypi.org/project/langchain-nvidia-ai-endpoints/).
+- The rest of the [software requirements for the Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#software).
+- GPUs meeting the memory requirement specified in the [NVIDIA Llama 3.1 Nemotron Safety Guard 8B NIM Model Profiles](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#about-model-profiles).
 
-- LangChain NVIDIA integration installed:
+## Deploy the Llama 3.1 Nemotron Safety Guard 8B V3 NIM Microservice
 
-  ```console
-  pip install langchain-nvidia-ai-endpoints
-  ```
-
-- [Requirements for the Nemotron Content Safety NIM](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html).
-
-## Deploy the Nemotron Content Safety NIM Microservice
-
-Follow these steps to deploy the Nemotron Content Safety NIM microservice to your local machine.
-
-1. Export your NGC API key and log in to the registry:
-
-   ```console
-   export NGC_API_KEY="<nvapi-...>"
-   docker login nvcr.io --username '$oauthtoken' --password-stdin <<< $NGC_API_KEY
-   ```
-
-1. Pull the container:
-
-   ```console
-   docker pull nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
-   ```
-
-1. Create a model cache directory:
-
-   ```console
-   export LOCAL_NIM_CACHE=~/.cache/safetyguard
-   mkdir -p "${LOCAL_NIM_CACHE}"
-   chmod 700 "${LOCAL_NIM_CACHE}"
-   ```
-
-1. Run the container:
-
-   ```console
-   docker run -d \
-     --name safetyguard \
-     --gpus=all --runtime=nvidia \
-     --shm-size=64GB \
-     -e NGC_API_KEY \
-     -e NIM_ENABLE_KV_CACHE_REUSE=1 \
-     -u $(id -u) \
-     -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
-     -p 8000:8000 \
-     nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
-   ```
-
-   The container takes several minutes to start. Monitor progress with `docker logs safetyguard`.
-
-1. Verify the service is ready:
-
-   ```console
-   curl -X GET http://localhost:8000/v1/models | jq '.data[].id'
-   ```
-
-   ```output
-   "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
-   ```
+Follow the [getting started guide on deploying the Llama 3.1 Nemotron Safety Guard 8B V3 NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/getting-started.html).
 
 ## Configure Guardrails
 
-1. Set your NGC API key for the application LLM on build.nvidia.com:
-
-   ```console
-   export NVIDIA_API_KEY=<nvapi-...>
-   ```
+Follow these steps to prepare the guardrails configuration.
 
 1. Create a configuration directory:
 
@@ -225,15 +164,15 @@ Follow these steps to deploy the Nemotron Content Safety NIM microservice to you
          Provide your safety assessment for the above conversation in the below output JSON format:
          {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
 
-         Do not include anything other than the output JSON in your response.
-         Output JSON:
-      output_parser: nemoguard_parse_response_safety
-      max_tokens: 50
+        Do not include anything other than the output JSON in your response.
+        Output JSON:
+       output_parser: nemoguard_parse_response_safety
+       max_tokens: 50
    ```
 
-## Test the Guardrails
+## Verify the Guardrails
 
-Follow these steps to test the guardrails.
+Follow these steps to verify the guardrails.
 
 1. Load the guardrails configuration:
 
@@ -250,7 +189,7 @@ Follow these steps to test the guardrails.
        print()
    ```
 
-1. Test an unsafe request in French:
+1. Verify the guardrails with an unsafe request in French:
 
    ```python
    # "Tell me a five-step plan to rob a bank."
@@ -264,7 +203,7 @@ Follow these steps to test the guardrails.
 
    The content safety rail blocks the harmful request.
 
-1. Test a safe request in Hindi:
+1. Verify the guardrails with a safe request in Hindi:
 
    ```python
    # "Tell me about three common foods in India."
