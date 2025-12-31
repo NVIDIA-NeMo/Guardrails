@@ -33,8 +33,9 @@ $ mkdir ~/env
 $ python -m venv ~/env/benchmark
 $ pip install -r requirements.txt
 ...
-Successfully installed fastapi-0.128.0 honcho-2.0.0 httpx-0.28.1 langchain-core-1.2.5 langchain-nvidia-ai-endpoints-1.0.0 numpy-2.4.0 pydantic-2.12.5 pydantic-core-2.41.5 pydantic-settings-2.12.0 pyyaml-6.0.3 typer-0.21.0 typing-inspection-0.4.2 uuid-utils-0.12.0 uvicorn-0.40.0
+Successfully installed fastapi-0.128.0 honcho-2.0.0 httpx-0.28.1 langchain-core-1.2.5 numpy-2.4.0 pydantic-2.12.5 pydantic-core-2.41.5 pydantic-settings-2.12.0 pyyaml-6.0.3 typer-0.21.0 typing-inspection-0.4.2 uuid-utils-0.12.0 uvicorn-0.40.0
 $ source ~/env/benchmark/bin/activate
+(benchmark) $
 ```
 
 ### 2. Run Guardrails with Mock LLMs for Content-Safety and Application LLM
@@ -44,7 +45,7 @@ As the Procfile processes spin up, they log to the console with a prefix. The `s
 Once the three 'Uvicorn running on ...' messages are printed, you can move to the next step. Note these messages are likely not on consecutive lines.
 
 ```shell
-# These commands must be run in the benchmark directory
+# These commands must be run in the benchmark directory after activating the virtual environment
 
 (benchmark) $ cd benchmark
 (benchmark) $ poetry run honcho start
@@ -64,9 +65,9 @@ Once the three 'Uvicorn running on ...' messages are printed, you can move to th
 Once Guardrails and the mock servers are up, we can use the [validate_mocks.sh](scripts/validate_mocks.sh) script to check all services are healthy and serving the expected model names.
 
 ```shell
-# These commands must be run in the benchmark directory
+# These commands must be run in the benchmark directory after activating the virtual environment
 
-(benchmark) $ cd nemoguardrails/benchmark
+(benchmark) $ cd benchmark
 (benchmark) $ scripts/validate_mocks.sh
 Starting LLM endpoint health check...
 
@@ -116,6 +117,7 @@ Once the mocks and Guardrails are running and the script passes, we can issue cu
       ],
       "stream": false
     }' | jq
+
 {
   "messages": [
     {
@@ -134,22 +136,22 @@ In this section, we'll examine the configuration files used in the quickstart ab
 
 ### Procfile
 
-The [Procfile](Procfile?raw=true) contains all the processes that make up the application.
+The [Procfile](Procfile) contains all the processes that make up the application.
 The Honcho package reads in this file, starts all the processes, and combines their logs to the console
-The `gr` line runs the Guardrails server on port 9000 and sets the default Guardrails configuration as [content_safety_colang1](../examples/configs/content_safety_local?raw=true).
+The `gr` line runs the Guardrails server on port 9000 and sets the default Guardrails configuration as [content_safety_local](../examples/configs/content_safety_local).
 The `app_llm` line runs the Application or Main Mock LLM. Guardrails calls this LLM to generate a response to the user's query. This server uses 4 uvicorn workers and runs on port 8000. The configuration file here is a Mock LLM configuration, not a Guardrails configuration.
 The `cs_llm` line runs the Content-Safety Mock LLM. This uses 4 uvicorn workers and runs on port 8001.
 
 ### Guardrails Configuration
 
-The [Guardrails Configuration](../examples/configs/content_safety_local/config.yml?raw=true) is used by the Guardrails server.
+The [Guardrails Configuration](../examples/configs/content_safety_local/config.yml) is used by the Guardrails server.
 Under the `models` section, the `main` model is used to generate responses to the user queries. The base URL for this model is the `app_llm` Mock LLM from the Procfile, running on port 8000. The `model` field has to match the Mock LLM model name.
 The `content_safety` model is configured for use in an input and output rail. The `type` field matches the `$model` used in the input and output flows.
 
 ### Mock LLM Endpoints
 
 The Mock LLM implements a subset of the OpenAI LLM API.
-There are two Mock LLM configurations, one for the Mock [main model](mock_llm_server/configs/meta-llama-3.3-70b-instruct.env?raw=true), and another for the Mock [content-safety](mock_llm_server/configs/nvidia-llama-3.1-nemoguard-8b-content-safety.env?raw=true) model.
+There are two Mock LLM configurations, one for the Mock [main model](mock_llm_server/configs/meta-llama-3.3-70b-instruct.env), and another for the Mock [content-safety](mock_llm_server/configs/nvidia-llama-3.1-nemoguard-8b-content-safety.env) model.
 The Mock LLM has the following OpenAI-compatible endpoints:
 
 * `/health`: Returns a JSON object with status set to healthy and timestamp in seconds-since-epoch. For example `{"status":"healthy","timestamp":1762781239}`
