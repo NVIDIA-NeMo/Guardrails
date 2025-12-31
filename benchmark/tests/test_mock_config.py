@@ -15,9 +15,8 @@
 
 
 import pytest
-from pydantic import ValidationError
-
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings
+from pydantic import ValidationError
 
 
 class TestAppModelConfig:

@@ -18,7 +18,6 @@ import uuid
 from typing import Optional
 
 import numpy as np
-
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings
 
 

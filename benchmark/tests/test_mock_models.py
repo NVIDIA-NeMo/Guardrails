@@ -14,8 +14,6 @@
 # limitations under the License.
 
 import pytest
-from pydantic import ValidationError
-
 from nemoguardrails.benchmark.mock_llm_server.models import (
     ChatCompletionChoice,
     ChatCompletionRequest,
@@ -28,6 +26,7 @@ from nemoguardrails.benchmark.mock_llm_server.models import (
     ModelsResponse,
     Usage,
 )
+from pydantic import ValidationError
 
 
 class TestMessage:

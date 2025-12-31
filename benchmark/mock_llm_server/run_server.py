@@ -26,7 +26,6 @@ import os
 import sys
 
 import uvicorn
-
 from nemoguardrails.benchmark.mock_llm_server.config import CONFIG_FILE_ENV_VAR
 
 # 1. Get a logger instance

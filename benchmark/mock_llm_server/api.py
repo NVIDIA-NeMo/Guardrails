@@ -20,7 +20,6 @@ import time
 from typing import Annotated, Union
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings, get_settings
 from nemoguardrails.benchmark.mock_llm_server.models import (
     ChatCompletionChoice,

@@ -17,7 +17,6 @@ import os
 from unittest.mock import patch
 
 import pytest
-
 from nemoguardrails.benchmark.mock_llm_server.run_server import (
     parse_arguments,
     validate_config_file,

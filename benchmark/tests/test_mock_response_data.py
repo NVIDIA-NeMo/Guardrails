@@ -17,7 +17,6 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings
 from nemoguardrails.benchmark.mock_llm_server.response_data import (
     calculate_tokens,
