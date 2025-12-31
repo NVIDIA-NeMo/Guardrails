@@ -7,14 +7,13 @@
 
 # --- general dependencies ---
 honcho>=2.0.0
-langchain-nvidia-ai-endpoints>=0.3.19
 
 # --- mock_llm_server dependencies ---
 fastapi>=0.103.0
 uvicorn>=0.23
 pydantic>=2.0
 pydantic-settings>=2.0
-numpy>=1.21
+numpy>=2.3.2
 
 # --- aiperf dependencies ---
 httpx>=0.24.1
