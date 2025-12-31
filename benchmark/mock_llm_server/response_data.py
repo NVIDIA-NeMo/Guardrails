@@ -56,7 +56,7 @@ def get_latency_seconds(config: ModelSettings, seed: Optional[int] = None) -> fl
         a_min=config.latency_min_seconds,
         a_max=config.latency_max_seconds,
     )
-    return float(latency_seconds)
+    return float(latency_seconds[0])
 
 
 def is_unsafe(config: ModelSettings, seed: Optional[int] = None) -> bool:

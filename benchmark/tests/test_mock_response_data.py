@@ -16,6 +16,7 @@
 import re
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from benchmark.mock_llm_server.config import ModelSettings
@@ -181,8 +182,8 @@ def test_get_response_unsafe(model_settings: ModelSettings):
 def test_get_latency_seconds_mocks_no_seed(mock_clip, mock_normal, mock_seed, model_settings: ModelSettings):
     """Check we call the correct numpy functions (not including seed)"""
 
-    mock_normal.return_value = model_settings.latency_mean_seconds
-    mock_clip.return_value = model_settings.latency_max_seconds
+    mock_normal.return_value = np.array([model_settings.latency_mean_seconds])
+    mock_clip.return_value = np.array([model_settings.latency_max_seconds])
 
     result = get_latency_seconds(model_settings)
 
@@ -208,8 +209,8 @@ def test_get_latency_seconds_mocks_with_seed(
 ):
     """Check we call the correct numpy functions (not including seed)"""
 
-    mock_normal.return_value = model_settings.latency_mean_seconds
-    mock_clip.return_value = model_settings.latency_max_seconds
+    mock_normal.return_value = np.array([model_settings.latency_mean_seconds])
+    mock_clip.return_value = np.array([model_settings.latency_max_seconds])
 
     result = get_latency_seconds(model_settings, seed=random_seed)
 
