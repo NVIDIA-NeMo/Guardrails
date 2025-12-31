@@ -24,7 +24,6 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-
 from nemoguardrails.benchmark.validate_mocks import (
     check_endpoint,
     check_rails_endpoint,
