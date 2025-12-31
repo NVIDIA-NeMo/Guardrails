@@ -17,8 +17,9 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
-from nemoguardrails.benchmark.mock_llm_server.api import app
-from nemoguardrails.benchmark.mock_llm_server.config import ModelSettings, get_settings
+
+from benchmark.mock_llm_server.api import app
+from benchmark.mock_llm_server.config import ModelSettings, get_settings
 
 
 def get_test_settings():
