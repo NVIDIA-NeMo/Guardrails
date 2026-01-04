@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,11 +36,11 @@ class GLiNERRequest(BaseModel):
     """Request model for GLiNER entity extraction."""
 
     text: str
-    labels: list[str] | None = None
-    threshold: float | None = Field(default=0.5, ge=0.0, le=1.0)
-    chunk_length: int | None = 384
-    overlap: int | None = 128
-    flat_ner: bool | None = False
+    labels: list[str] | None = None  # None means use server defaults
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    chunk_length: int = 384
+    overlap: int = 128
+    flat_ner: bool = False
 
 
 class GLiNERResponse(BaseModel):

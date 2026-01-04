@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -74,11 +74,11 @@ def extract_with_gliner(request: GLiNERRequest) -> GLiNERResponse:
         Dictionary with 'total_entities', 'entities' (list of EntitySpan), and 'tagged_text'
     """
     text = request.text
-    labels = request.labels or DEFAULT_LABELS
-    threshold = request.threshold or 0.5
-    chunk_length = request.chunk_length or 384
-    overlap = request.overlap or 128
-    flat_ner = request.flat_ner or False
+    labels = request.labels if request.labels is not None else DEFAULT_LABELS
+    threshold = request.threshold
+    chunk_length = request.chunk_length
+    overlap = request.overlap
+    flat_ner = request.flat_ner
 
     # Create all chunks with their offsets
     chunks, offsets = create_text_chunks(text, chunk_length, overlap)

@@ -128,6 +128,7 @@ gliner_server/
 ├── src/
 │   └── gliner_server/
 │       ├── __init__.py     # Package exports
+│       ├── models.py       # Pydantic request/response models
 │       ├── pii_utils.py    # PII detection utilities
 │       └── server.py       # FastAPI server
 └── tests/

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+from nemoguardrails.library.gliner.models import GLiNERRequest
+
 log = logging.getLogger(__name__)
 
 
@@ -27,10 +29,10 @@ async def gliner_request(
     text: str,
     server_endpoint: str,
     enabled_entities: Optional[List[str]] = None,
-    threshold: float = 0.5,
-    chunk_length: int = 384,
-    overlap: int = 128,
-    flat_ner: bool = False,
+    threshold: Optional[float] = None,
+    chunk_length: Optional[int] = None,
+    overlap: Optional[int] = None,
+    flat_ner: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Send a PII detection request to the GLiNER API.
 
@@ -39,9 +41,13 @@ async def gliner_request(
         server_endpoint: The API endpoint URL (e.g., http://localhost:1235/v1/extract).
         enabled_entities: List of entity types to detect. If None, uses server defaults.
         threshold: Confidence threshold for entity detection (0.0 to 1.0).
+            If None, uses default from GLiNERRequest model.
         chunk_length: Length of text chunks for processing.
+            If None, uses default from GLiNERRequest model.
         overlap: Overlap between chunks.
+            If None, uses default from GLiNERRequest model.
         flat_ner: Whether to use flat NER mode.
+            If None, uses default from GLiNERRequest model.
 
     Returns:
         The response from the GLiNER API containing:
@@ -52,16 +58,32 @@ async def gliner_request(
     Raises:
         ValueError: If the API call fails or the response cannot be parsed.
     """
+    # Build request using GLiNERRequest model to get defaults
+    request_data: Dict[str, Any] = {"text": text}
+    if enabled_entities is not None:
+        request_data["labels"] = enabled_entities
+    if threshold is not None:
+        request_data["threshold"] = threshold
+    if chunk_length is not None:
+        request_data["chunk_length"] = chunk_length
+    if overlap is not None:
+        request_data["overlap"] = overlap
+    if flat_ner is not None:
+        request_data["flat_ner"] = flat_ner
+
+    # Create GLiNERRequest to apply defaults
+    request = GLiNERRequest(**request_data)
+
     payload: Dict[str, Any] = {
-        "text": text,
-        "threshold": threshold,
-        "chunk_length": chunk_length,
-        "overlap": overlap,
-        "flat_ner": flat_ner,
+        "text": request.text,
+        "threshold": request.threshold,
+        "chunk_length": request.chunk_length,
+        "overlap": request.overlap,
+        "flat_ner": request.flat_ner,
     }
 
-    if enabled_entities:
-        payload["labels"] = enabled_entities
+    if request.labels:
+        payload["labels"] = request.labels
 
     headers: Dict[str, str] = {
         "Content-Type": "application/json",
