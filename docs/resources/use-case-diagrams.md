@@ -22,8 +22,10 @@ flowchart LR
     direction TB
     C1("LLM Self-Check")
     C2("Llama 3.1 NemoGuard<br/>Content Safety NIM")
-    C3("LlamaGuard / Fiddler")
-    C4("ActiveFence / AI Defense")
+    C3("LlamaGuard")
+    C4("Fiddler")
+    C5("ActiveFence")
+    C6("AI Defense")
   end
 
   D("LLM")
@@ -63,7 +65,8 @@ flowchart LR
     C1("Self-Check Detection")
     C2("Heuristic Detection")
     C3("NemoGuard Jailbreak<br/>Detection NIM")
-    C4("Prompt Security /<br/>Pangea AI Guard")
+    C4("Prompt Security")
+    C5("Pangea AI Guard")
   end
 
   D("LLM")
