@@ -142,7 +142,7 @@ async def list_models():
 
 
 @app.post("/v1/extract", response_model=GLiNERResponse)
-async def extract_entities_advanced(request: GLiNERRequest):
+def extract_entities_advanced(request: GLiNERRequest):
     """Direct GLiNER endpoint with advanced processing"""
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
