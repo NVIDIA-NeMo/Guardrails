@@ -163,7 +163,7 @@ async def stream_chat_completion(
                 )
             ],
         )
-        yield f"data: {first_response.model_dump_json()}\n\n"
+        yield f"data: {first_response.model_dump_json(exclude_none=True)}\n\n"
 
     # Stream content chunks
     for chunk_idx, chunk in enumerate(chunks):
@@ -183,7 +183,7 @@ async def stream_chat_completion(
                     )
                 ],
             )
-            yield f"data: {chunk_response.model_dump_json()}\n\n"
+            yield f"data: {chunk_response.model_dump_json(exclude_none=True)}\n\n"
 
     # Final chunk with finish_reason
     for i in range(n_choices):
@@ -200,7 +200,7 @@ async def stream_chat_completion(
                 )
             ],
         )
-        yield f"data: {final_response.model_dump_json()}\n\n"
+        yield f"data: {final_response.model_dump_json(exclude_none=True)}\n\n"
 
     yield "data: [DONE]\n\n"
 
@@ -244,7 +244,7 @@ async def stream_completion(
                     )
                 ],
             )
-            yield f"data: {chunk_response.model_dump_json()}\n\n"
+            yield f"data: {chunk_response.model_dump_json(exclude_none=True)}\n\n"
 
     # Final chunk with finish_reason
     for i in range(n):
@@ -262,7 +262,7 @@ async def stream_completion(
                 )
             ],
         )
-        yield f"data: {final_response.model_dump_json()}\n\n"
+        yield f"data: {final_response.model_dump_json(exclude_none=True)}\n\n"
 
     yield "data: [DONE]\n\n"
 
