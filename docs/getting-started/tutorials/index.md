@@ -25,6 +25,13 @@ This section contains tutorials that help you get started with the NeMo Guardrai
 Check text inputs and outputs for harmful content using Nemotron Content Safety NIM.
 :::
 
+:::{grid-item-card} Content Safety Reasoning
+:link: nemotron-content-safety-reasoning-deployment
+:link-type: doc
+
+Deploy Nemotron-Content-Safety-Reasoning-4B for customizable content safety with reasoning traces.
+:::
+
 :::{grid-item-card} Restrict Topics
 :link: nemoguard-topiccontrol-deployment
 :link-type: doc
@@ -53,6 +60,7 @@ Add safety checks to images and text using a vision model as LLM-as-a-Judge.
 :maxdepth: 2
 
 Check Harmful Content <nemotron-safety-guard-deployment>
+Content Safety Reasoning <nemotron-content-safety-reasoning-deployment>
 Restrict Topics <nemoguard-topiccontrol-deployment>
 Detect Jailbreak Attempts <nemoguard-jailbreakdetect-deployment>
 Add Multimodal Content Safety <multimodal>

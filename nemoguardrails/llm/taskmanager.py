@@ -43,6 +43,8 @@ from nemoguardrails.llm.output_parsers import (
     is_content_safe,
     nemoguard_parse_prompt_safety,
     nemoguard_parse_response_safety,
+    nemotron_reasoning_parse_prompt_safety,
+    nemotron_reasoning_parse_response_safety,
     user_intent_parser,
     verbose_v1_parser,
 )
@@ -84,6 +86,8 @@ class LLMTaskManager:
             "is_content_safe": is_content_safe,
             "nemoguard_parse_prompt_safety": nemoguard_parse_prompt_safety,
             "nemoguard_parse_response_safety": nemoguard_parse_response_safety,
+            "nemotron_reasoning_parse_prompt_safety": nemotron_reasoning_parse_prompt_safety,
+            "nemotron_reasoning_parse_response_safety": nemotron_reasoning_parse_response_safety,
         }
 
         # The prompt context will hold additional variables that ce also be included
@@ -129,6 +133,9 @@ class LLMTaskManager:
             "general_instructions": self._get_general_instructions(),
             "sample_conversation": self.config.sample_conversation,
             "sample_conversation_two_turns": self.config.sample_conversation,
+            # Make rails config available in templates for accessing settings like
+            # content_safety.reasoning.enabled, content_safety.multilingual.enabled, etc.
+            "config": self.config.rails.config,
         }
 
         # Copy the context variables to the render context.

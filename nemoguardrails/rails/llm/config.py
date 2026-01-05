@@ -954,12 +954,27 @@ class MultilingualConfig(BaseModel):
     )
 
 
+class ReasoningConfig(BaseModel):
+    """Configuration for reasoning mode in content safety models."""
+
+    enabled: bool = Field(
+        default=False,
+        description="If True, enable reasoning mode (with <think> traces) for content safety models. "
+        "If False, use low-latency mode without reasoning traces.",
+    )
+
+
 class ContentSafetyConfig(BaseModel):
     """Configuration data for content safety rails."""
 
     multilingual: MultilingualConfig = Field(
         default_factory=MultilingualConfig,
         description="Configuration for multilingual refusal messages.",
+    )
+
+    reasoning: ReasoningConfig = Field(
+        default_factory=ReasoningConfig,
+        description="Configuration for reasoning mode in content safety models.",
     )
 
 
