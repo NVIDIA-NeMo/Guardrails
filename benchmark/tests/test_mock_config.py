@@ -32,10 +32,10 @@ class TestAppModelConfig:
         )
         # Check defaults
         assert config.unsafe_probability == 0.1
-        assert config.latency_min_seconds == 0.1
-        assert config.latency_max_seconds == 5
-        assert config.latency_mean_seconds == 0.5
-        assert config.latency_std_seconds == 0.1
+        assert config.e2e_latency_min_seconds == 0.1
+        assert config.e2e_latency_max_seconds == 5
+        assert config.e2e_latency_mean_seconds == 0.5
+        assert config.e2e_latency_std_seconds == 0.1
 
     def test_app_model_config_missing_required_field(self):
         """Test that missing required fields raise validation error."""

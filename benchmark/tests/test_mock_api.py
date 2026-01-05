@@ -28,10 +28,10 @@ def get_test_settings():
         unsafe_probability=0.1,
         unsafe_text="I cannot help with that request",
         safe_text="This is a safe response",
-        latency_min_seconds=0,
-        latency_max_seconds=0,
-        latency_mean_seconds=0,
-        latency_std_seconds=0,
+        e2e_latency_min_seconds=0,
+        e2e_latency_max_seconds=0,
+        e2e_latency_mean_seconds=0,
+        e2e_latency_std_seconds=0,
     )
 
 

@@ -102,10 +102,10 @@ def model_settings() -> ModelSettings:
         unsafe_probability=0.5,
         unsafe_text="Sorry Dave, I'm afraid I can't do that.",
         safe_text="I'm an AI assistant and am happy to help",
-        latency_min_seconds=0.2,
-        latency_max_seconds=1.0,
-        latency_mean_seconds=0.5,
-        latency_std_seconds=0.1,
+        e2e_latency_min_seconds=0.2,
+        e2e_latency_max_seconds=1.0,
+        e2e_latency_mean_seconds=0.5,
+        e2e_latency_std_seconds=0.1,
     )
     return settings
 
@@ -182,22 +182,22 @@ def test_get_response_unsafe(model_settings: ModelSettings):
 def test_get_latency_seconds_mocks_no_seed(mock_clip, mock_normal, mock_seed, model_settings: ModelSettings):
     """Check we call the correct numpy functions (not including seed)"""
 
-    mock_normal.return_value = np.array([model_settings.latency_mean_seconds])
-    mock_clip.return_value = np.array([model_settings.latency_max_seconds])
+    mock_normal.return_value = np.array([model_settings.e2e_latency_mean_seconds])
+    mock_clip.return_value = np.array([model_settings.e2e_latency_max_seconds])
 
     result = get_latency_seconds(model_settings)
 
     assert result == mock_clip.return_value
     assert mock_seed.call_count == 0
     mock_normal.assert_called_once_with(
-        loc=model_settings.latency_mean_seconds,
-        scale=model_settings.latency_std_seconds,
+        loc=model_settings.e2e_latency_mean_seconds,
+        scale=model_settings.e2e_latency_std_seconds,
         size=1,
     )
     mock_clip.assert_called_once_with(
         mock_normal.return_value,
-        a_min=model_settings.latency_min_seconds,
-        a_max=model_settings.latency_max_seconds,
+        a_min=model_settings.e2e_latency_min_seconds,
+        a_max=model_settings.e2e_latency_max_seconds,
     )
 
 
@@ -209,20 +209,20 @@ def test_get_latency_seconds_mocks_with_seed(
 ):
     """Check we call the correct numpy functions (not including seed)"""
 
-    mock_normal.return_value = np.array([model_settings.latency_mean_seconds])
-    mock_clip.return_value = np.array([model_settings.latency_max_seconds])
+    mock_normal.return_value = np.array([model_settings.e2e_latency_mean_seconds])
+    mock_clip.return_value = np.array([model_settings.e2e_latency_max_seconds])
 
     result = get_latency_seconds(model_settings, seed=random_seed)
 
     assert result == mock_clip.return_value
     mock_seed.assert_called_once_with(random_seed)
     mock_normal.assert_called_once_with(
-        loc=model_settings.latency_mean_seconds,
-        scale=model_settings.latency_std_seconds,
+        loc=model_settings.e2e_latency_mean_seconds,
+        scale=model_settings.e2e_latency_std_seconds,
         size=1,
     )
     mock_clip.assert_called_once_with(
         mock_normal.return_value,
-        a_min=model_settings.latency_min_seconds,
-        a_max=model_settings.latency_max_seconds,
+        a_min=model_settings.e2e_latency_min_seconds,
+        a_max=model_settings.e2e_latency_max_seconds,
     )

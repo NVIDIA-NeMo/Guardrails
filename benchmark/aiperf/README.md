@@ -20,9 +20,9 @@ Instead of manually running AIPerf multiple times with different parameters, you
 ### Prerequisites
 
 These steps have been tested with Python 3.11.11.
-To use the provided configurations, you need to create accounts at https://build.nvidia.com/ and [Huggingface](https://huggingface.co/).
-* The provided configurations use models hosted at https://build.nvidia.com/, you'll need to create a Personal API Key to access the models.
-* The provided AIperf configurations require the [Meta Llama 3.3 70B Instruct tokenizer](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) to calculate token-counts.
+To use the provided configurations, you need to create accounts at <https://build.nvidia.com/> and [Huggingface](https://huggingface.co/).
+- The provided configurations use models hosted at <https://build.nvidia.com/>, you'll need to create a Personal API Key to access the models.
+- The provided AIperf configurations require the [Meta Llama 3.3 70B Instruct tokenizer](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) to calculate token-counts.
 
 1. **Create a virtual environment in which to install AIPerf**
 
@@ -37,13 +37,13 @@ To use the provided configurations, you need to create accounts at https://build
    $ pip install aiperf huggingface_hub typer
    ```
 
-3. ** Login to Hugging Face:**
+3. **Login to Hugging Face:**
 
    ```bash
    huggingface-cli login
    ```
 
-4. ** Set NVIDIA API Key:**
+4. **Set NVIDIA API Key:**
 
    The provided configs use models hosted on [build.nvidia.com](https://build.nvidia.com/).
    To access these, [create an account](https://build.nvidia.com/), and create a Personal API Key.
