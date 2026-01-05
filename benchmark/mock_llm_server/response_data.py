@@ -134,11 +134,11 @@ def generate_chunk_latencies(
             scale=config.itl_std_seconds,
             size=num_chunks - 1,
         )
-        itl = np.clip(
+        inter_token_latencies = np.clip(
             inter_token_latencies,
             a_min=config.itl_min_seconds,
             a_max=config.itl_max_seconds,
         )
-        latencies[1:] = itl
+        latencies[1:] = inter_token_latencies
 
     return latencies
