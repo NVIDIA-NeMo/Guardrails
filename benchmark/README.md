@@ -26,16 +26,16 @@ In this section, you'll create a new virtual environment, activate it, and insta
 First you'll create the virtual environment and install dependencies.
 
 ```shell
-# These commands must be run in the benchmark directory
+# Create a virtual environment under ~/env/benchmark_env and activate it
 
 $ cd benchmark
 $ mkdir ~/env
-$ python -m venv ~/env/benchmark
+$ python -m venv ~/env/benchmark_env
 $ pip install -r requirements.txt
 ...
 Successfully installed fastapi-0.128.0 honcho-2.0.0 httpx-0.28.1 langchain-core-1.2.5 numpy-2.4.0 pydantic-2.12.5 pydantic-core-2.41.5 pydantic-settings-2.12.0 pyyaml-6.0.3 typer-0.21.0 typing-inspection-0.4.2 uuid-utils-0.12.0 uvicorn-0.40.0
-$ source ~/env/benchmark/bin/activate
-(benchmark) $
+$ source ~/env/benchmark_env/bin/activate
+(benchmark_env) $
 ```
 
 ### 2. Run Guardrails with Mock LLMs for Content-Safety and Application LLM
@@ -45,10 +45,9 @@ As the Procfile processes spin up, they log to the console with a prefix. The `s
 Once the three 'Uvicorn running on ...' messages are printed, you can move to the next step. Note these messages are likely not on consecutive lines.
 
 ```shell
-# These commands must be run in the benchmark directory after activating the virtual environment
+# These commands must be run in the benchmark directory after activating the benchmark_env virtual environment
 
-(benchmark) $ cd benchmark
-(benchmark) $ poetry run honcho start
+(benchmark_env) $ honcho start
 13:40:33 system    | gr.1 started (pid=93634)
 13:40:33 system    | app_llm.1 started (pid=93635)
 13:40:33 system    | cs_llm.1 started (pid=93636)
@@ -62,13 +61,14 @@ Once the three 'Uvicorn running on ...' messages are printed, you can move to th
 
 ### 3. Validate services are running correctly
 
-Once Guardrails and the mock servers are up, we can use the [validate_mocks.sh](scripts/validate_mocks.sh) script to check all services are healthy and serving the expected model names.
+Once Guardrails and the mock servers are up, we'll use the [validate_mocks.sh](scripts/validate_mocks.sh) script to validate everything is working.
+This doesn't require the `benchmark_env` virtual environment since we're running curl commands in the script.
 
 ```shell
-# These commands must be run in the benchmark directory after activating the virtual environment
+# In a new shell, change into the benchmark directory and run these commands.
 
-(benchmark) $ cd benchmark
-(benchmark) $ scripts/validate_mocks.sh
+$ cd benchmark
+$ scripts/validate_mocks.sh
 Starting LLM endpoint health check...
 
 --- Checking Port: 8000 ---
@@ -173,7 +173,7 @@ The latency of each response is also controllable, and works as follows:
 The full list of configuration fields is shown below:
 
 * `MODEL`: The Model name served by the Mock LLM. This will be returned on the `/v1/models` endpoint.
-* `UNSAFE_PROBABILITY`: Probability of an unsafe response. This is a probability, and must be in the range [0, 1].
+* `UNSAFE_PROBABILITY`: Probability of an unsafe response. This must be in the range [0, 1].
 * `UNSAFE_TEXT`: String returned as an unsafe response.
 * `SAFE_TEXT`: String returned as a safe response.
 * `LATENCY_MIN_SECONDS`: Minimum latency in seconds.
