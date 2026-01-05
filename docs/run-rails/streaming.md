@@ -76,6 +76,8 @@ result = await app.generate_async(
 print(result)
 ```
 
+> **Warning:** Using `StreamingHandler` directly is deprecated and will be removed in a future release. Use `stream_async()` instead.
+
 (external-async-token-generators)=
 
 ### Using External Async Token Generators
@@ -146,7 +148,7 @@ async for chunk in app.stream_async(
     print(chunk, end="", flush=True)
 ```
 
-This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of output rails.
+This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of **output rails**.
 
 ## Token Usage Tracking
 
@@ -155,18 +157,6 @@ When streaming is enabled, the NeMo Guardrails library automatically enables tok
 - Provides token usage statistics even when streaming responses.
 - Is primarily supported by OpenAI, AzureOpenAI, and other providers. The NVIDIA NIM provider supports it by default.
 - Allows to safely pass token usage statistics to LLM providers. If the LLM provider you use don't support it, the parameter is ignored.
-
-### Version Requirements
-
-For optimal token usage tracking with streaming, ensure you're using recent versions of LangChain packages:
-
-- `langchain-openai >= 0.1.0` for basic streaming token support (minimum requirement)
-- `langchain-openai >= 0.2.0` for enhanced features and stability
-- `langchain >= 0.2.14` and `langchain-core >= 0.2.14` for universal token counting support
-
-```{note}
-The NeMo Guardrails library requires `langchain-openai >= 0.1.0` as an optional dependency, which provides basic streaming token usage support. For enhanced features and stability, consider upgrading to `langchain-openai >= 0.2.0` in your environment.
-```
 
 ### Accessing Token Usage Information
 

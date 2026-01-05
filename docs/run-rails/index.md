@@ -84,7 +84,7 @@ Use generate_events for low-level control over guardrails execution and event ha
 | API | Use Case |
 |-----|----------|
 | `generate()` / `generate_async()` | Standard chat interactions with messages |
-| `stream_async()` | Real-time token streaming for responsive UIs |
+| `stream_async()` | Real-time token streaming |
 | `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations |
 
 ## Synchronous vs Asynchronous
