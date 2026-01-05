@@ -25,7 +25,7 @@ NVIDIA Blueprints are comprehensive reference workflows that accelerate AI appli
 
 The NVIDIA Blueprint for AI virtual assistants can be deployed either with the NVIDIA-hosted endpoints or with locally hosted NIM microservices. To get started with the deployment:
 
-- **[Using the NVIDIA-hosted endpoint](https://build.nvidia.com/nvidia/ai-virtual-assistant-for-customer-service)**: The launchable opens to a jupyter notebook - `ai-virtual-assitant-notebook.ipynb`. Make sure that the [compute requirements](https://github.com/NVIDIA-AI-Blueprints/ai-virtual-assistant?tab=readme-ov-file#hardware-requirements) are satisfied
+- **[Using the NVIDIA-hosted endpoint](https://build.nvidia.com/nvidia/ai-virtual-assistant-for-customer-service)**: The launchable opens to a jupyter notebook - `ai-virtual-assistant-notebook.ipynb`. Make sure that the [compute requirements](https://github.com/NVIDIA-AI-Blueprints/ai-virtual-assistant?tab=readme-ov-file#hardware-requirements) are satisfied
 
 ### Integrating NemoGuard
 
@@ -61,7 +61,7 @@ services:
 
 ```
 
-Follow the notebook from - `nemoguardrails/examples/notebooks/safeguard_ai_virtual_assistant_notebook.ipynb` to deploy the NemoGuard NIM using downloadable containers and learn to step by step integrate it into the NIM blueprint
+Follow the notebook from - `examples/notebooks/safeguard_ai_virtual_assistant_notebook.ipynb` to deploy the NemoGuard NIM using downloadable containers and learn to step by step integrate it into the NIM blueprint
 
 ### NIM Blueprint API Usage
 
