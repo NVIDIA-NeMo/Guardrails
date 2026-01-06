@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -200,26 +200,28 @@ def format_streaming_chunk(
             # Try parsing as JSON - if it parses, it might be a pre-formed payload
             payload = json.loads(chunk)
             # Ensure it has the required fields
-            if "id" not in payload:
-                payload["id"] = chunk_id
-            if "model" not in payload:
-                payload["model"] = model
-            return payload
+            if isinstance(payload, dict):
+                if "id" not in payload:
+                    payload["id"] = chunk_id
+                if "model" not in payload:
+                    payload["model"] = model
+                return payload
         except (json.JSONDecodeError, ValueError):
             # treat as plain text content token
-            return {
-                "id": chunk_id,
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": model,
-                "choices": [
-                    {
-                        "delta": {"content": chunk},
-                        "index": 0,
-                        "finish_reason": None,
-                    }
-                ],
-            }
+            pass
+        return {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "delta": {"content": chunk},
+                    "index": 0,
+                    "finish_reason": None,
+                }
+            ],
+        }
     else:
         # For any other type, treat as plain content
         return {
