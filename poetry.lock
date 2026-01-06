@@ -22,7 +22,7 @@ tests = ["hypothesis", "pytest"]
 name = "aiofiles"
 version = "24.1.0"
 description = "File support for asyncio."
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5"},
@@ -935,7 +935,7 @@ files = [
 name = "distro"
 version = "1.9.0"
 description = "Distro - an OS platform information API"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"},
@@ -1841,7 +1841,7 @@ i18n = ["Babel (>=2.7)"]
 name = "jiter"
 version = "0.10.0"
 description = "Fast iterable JSON parser."
-optional = false
+optional = true
 python-versions = ">=3.9"
 files = [
     {file = "jiter-0.10.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:cd2fb72b02478f06a900a5782de2ef47e0396b3e1f7d5aba30daeb1fce66f303"},
@@ -3040,7 +3040,7 @@ sympy = "*"
 name = "openai"
 version = "1.102.0"
 description = "The official Python library for the openai API"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "openai-1.102.0-py3-none-any.whl", hash = "sha256:d751a7e95e222b5325306362ad02a7aa96e1fab3ed05b5888ce1c7ca63451345"},
@@ -6596,7 +6596,7 @@ files = [
 cffi = ["cffi (>=1.17)"]
 
 [extras]
-all = ["fast-langdetect", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
+all = ["aiofiles", "fast-langdetect", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "openai", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
 eval = ["numpy", "numpy", "numpy", "numpy", "streamlit", "tornado", "tqdm"]
 gcp = ["google-cloud-language"]
 jailbreak = ["yara-python"]
@@ -6604,9 +6604,10 @@ multilingual = ["fast-langdetect"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 openai = ["langchain-openai"]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
-tracing = ["opentelemetry-api"]
+server = ["aiofiles", "openai"]
+tracing = ["aiofiles", "opentelemetry-api"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "c3082feffd8b506002b6dcb4ea1ae7131c24c8cbc1f1e2ff6918322bd12b4ffd"
+content-hash = "356ebfd1819da1ad7635a90a6b6b65143d2f3393d958c13c9bbd3c229c2e4b17"
