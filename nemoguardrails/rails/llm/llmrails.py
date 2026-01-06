@@ -462,11 +462,6 @@ class LLMRails:
                     if not self.llm:
                         self.llm = llm_model
                         self.runtime.register_action_param("llm", self.llm)
-                        self._configure_main_llm_streaming(
-                            self.llm,
-                            model_name=llm_config.model,
-                            provider_name=llm_config.engine,
-                        )
                 else:
                     model_name = f"{llm_config.type}_llm"
                     if not hasattr(self, model_name):
