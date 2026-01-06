@@ -29,15 +29,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
-from pydantic import BaseModel, Field, ValidationError, root_validator, validator
+from pydantic import BaseModel, ValidationError
 from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from nemoguardrails import LLMRails, RailsConfig, utils
-from nemoguardrails.rails.llm.options import GenerationOptions, GenerationResponse
+from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.schemas.openai import (
     GuardrailsChatCompletion,
+    GuardrailsChatCompletionRequest,
     GuardrailsModel,
     GuardrailsModelsResponse,
     OpenAIRequestFields,
@@ -199,114 +200,6 @@ app.stop_signal = False
 # Whether the server is pointed to a directory containing a single config.
 app.single_config_mode = False
 app.single_config_id = None
-
-
-class RequestBody(BaseModel):
-    config_id: Optional[str] = Field(
-        default=os.getenv("DEFAULT_CONFIG_ID", None),
-        description="The id of the configuration to be used. If not set, the default configuration will be used.",
-    )
-    config_ids: Optional[List[str]] = Field(
-        default=None,
-        description="The list of configuration ids to be used. If set, the configurations will be combined.",
-        # alias="guardrails",
-        validate_default=True,
-    )
-    thread_id: Optional[str] = Field(
-        default=None,
-        min_length=16,
-        max_length=255,
-        description="The id of an existing thread to which the messages should be added.",
-    )
-    messages: Optional[List[dict]] = Field(
-        default=None, description="The list of messages in the current conversation."
-    )
-    context: Optional[dict] = Field(
-        default=None,
-        description="Additional context data to be added to the conversation.",
-    )
-    stream: Optional[bool] = Field(
-        default=False,
-        description="If set, partial message deltas will be sent, like in ChatGPT. "
-        "Tokens will be sent as data-only server-sent events as they become "
-        "available, with the stream terminated by a data: [DONE] message.",
-    )
-    options: GenerationOptions = Field(
-        default_factory=GenerationOptions,
-        description="Additional options for controlling the generation.",
-    )
-    state: Optional[dict] = Field(
-        default=None,
-        description="A state object that should be used to continue the interaction.",
-    )
-    # Standard OpenAI completion parameters
-    model: str = Field(
-        default="main",
-        description="The model to use for chat completion. Maps to the main model in the config.",
-    )
-    max_tokens: Optional[int] = Field(
-        default=None,
-        description="The maximum number of tokens to generate.",
-    )
-    temperature: Optional[float] = Field(
-        default=None,
-        description="Sampling temperature to use.",
-    )
-    top_p: Optional[float] = Field(
-        default=None,
-        description="Top-p sampling parameter.",
-    )
-    stop: Optional[str] = Field(
-        default=None,
-        description="Stop sequences.",
-    )
-    presence_penalty: Optional[float] = Field(
-        default=None,
-        description="Presence penalty parameter.",
-    )
-    frequency_penalty: Optional[float] = Field(
-        default=None,
-        description="Frequency penalty parameter.",
-    )
-    function_call: Optional[dict] = Field(
-        default=None,
-        description="Function call parameter.",
-    )
-    logit_bias: Optional[dict] = Field(
-        default=None,
-        description="Logit bias parameter.",
-    )
-    log_probs: Optional[bool] = Field(
-        default=None,
-        description="Log probabilities parameter.",
-    )
-
-    @root_validator(pre=True)
-    def ensure_config_id(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if data.get("config_id") is not None and data.get("config_ids") is not None:
-                raise ValueError(
-                    "Only one of config_id or config_ids should be specified"
-                )
-
-            # Map OpenAI 'model' field to 'config_id' if config_id is not provided
-            if data.get("config_id") is None and data.get("config_ids") is None:
-                model = data.get("model")
-                if model and model != "main":
-                    # Use model as config_id for OpenAI compatibility
-                    data["config_id"] = model
-                else:
-                    warnings.warn(
-                        "No config_id or config_ids provided, using default config_id"
-                    )
-        return data
-
-    @validator("config_ids", pre=True, always=True)
-    def ensure_config_ids(cls, v, values):
-        if v is None and values.get("config_id") and values.get("config_ids") is None:
-            # populate config_ids with config_id if only config_id is provided
-            return [values["config_id"]]
-        return v
 
 
 @app.get(
@@ -562,7 +455,7 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
     response_model=GuardrailsChatCompletion,
     response_model_exclude_none=True,
 )
-async def chat_completion(body: RequestBody, request: Request):
+async def chat_completion(body: GuardrailsChatCompletionRequest, request: Request):
     """Chat completion for the provided conversation.
 
     TODO: add support for explicit state object.

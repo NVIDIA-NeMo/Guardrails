@@ -16,11 +16,13 @@
 """OpenAI API schema definitions for the NeMo Guardrails server."""
 
 import os
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.model import Model
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator, validator
+
+from nemoguardrails.rails.llm.options import GenerationOptions
 
 
 class GuardrailsChatCompletion(ChatCompletion):
@@ -62,3 +64,106 @@ class GuardrailsModelsResponse(BaseModel):
 
     object: str = Field(default="list", description="The object type, which is always 'list'.")
     data: List[GuardrailsModel] = Field(description="The list of models.")
+
+
+class OpenAIChatCompletionRequest(BaseModel):
+    """Standard OpenAI chat completion request parameters."""
+
+    messages: Optional[List[dict]] = Field(
+        default=None,
+        description="The list of messages in the current conversation.",
+    )
+    model: str = Field(
+        default="main",
+        description="The model to use for chat completion.",
+    )
+    stream: Optional[bool] = Field(
+        default=False,
+        description="If set, partial message deltas will be sent as server-sent events.",
+    )
+    max_tokens: Optional[int] = Field(
+        default=None,
+        description="The maximum number of tokens to generate.",
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        description="Sampling temperature to use.",
+    )
+    top_p: Optional[float] = Field(
+        default=None,
+        description="Top-p sampling parameter.",
+    )
+    stop: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="Stop sequences.",
+    )
+    presence_penalty: Optional[float] = Field(
+        default=None,
+        description="Presence penalty parameter.",
+    )
+    frequency_penalty: Optional[float] = Field(
+        default=None,
+        description="Frequency penalty parameter.",
+    )
+    function_call: Optional[dict] = Field(
+        default=None,
+        description="Function call parameter.",
+    )
+    logit_bias: Optional[dict] = Field(
+        default=None,
+        description="Logit bias parameter.",
+    )
+    logprobs: Optional[bool] = Field(
+        default=None,
+        description="Log probabilities parameter.",
+    )
+
+
+class GuardrailsChatCompletionRequest(OpenAIChatCompletionRequest):
+    """OpenAI chat completion request with NeMo Guardrails extensions."""
+
+    config_id: Optional[str] = Field(
+        default_factory=lambda: os.getenv("DEFAULT_CONFIG_ID", None),
+        description="The guardrails configuration ID to use.",
+    )
+    config_ids: Optional[List[str]] = Field(
+        default=None,
+        description="List of configuration IDs to combine.",
+        validate_default=True,
+    )
+    thread_id: Optional[str] = Field(
+        default=None,
+        min_length=16,
+        max_length=255,
+        description="The ID of an existing thread to continue.",
+    )
+    context: Optional[dict] = Field(
+        default=None,
+        description="Additional context data for the conversation.",
+    )
+    options: GenerationOptions = Field(
+        default_factory=GenerationOptions,
+        description="Additional generation options.",
+    )
+    state: Optional[dict] = Field(
+        default=None,
+        description="State object to continue the interaction.",
+    )
+
+    @root_validator(pre=True)
+    def ensure_config_id(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("config_id") is not None and data.get("config_ids") is not None:
+                raise ValueError("Only one of config_id or config_ids should be specified")
+
+            if data.get("config_id") is None and data.get("config_ids") is None:
+                model = data.get("model")
+                if model and model != "main":
+                    data["config_id"] = model
+        return data
+
+    @validator("config_ids", pre=True, always=True)
+    def ensure_config_ids(cls, v, values):
+        if v is None and values.get("config_id") and values.get("config_ids") is None:
+            return [values["config_id"]]
+        return v

@@ -22,7 +22,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails.server import api
-from nemoguardrails.server.api import RequestBody, _format_streaming_response
+from nemoguardrails.server.api import _format_streaming_response
+from nemoguardrails.server.schemas.openai import GuardrailsChatCompletionRequest
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE") or os.environ.get("TEST_LIVE_MODE")
 
@@ -148,13 +149,13 @@ def test_chat_completion_with_default_configs():
 
 
 def test_request_body_validation():
-    """Test RequestBody validation."""
+    """Test GuardrailsChatCompletionRequest validation."""
 
     data = {
         "config_id": "test_config",
         "messages": [{"role": "user", "content": "Hello"}],
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.config_id == "test_config"
     assert request_body.config_ids == ["test_config"]
 
@@ -162,7 +163,7 @@ def test_request_body_validation():
         "config_ids": ["test_config1", "test_config2"],
         "messages": [{"role": "user", "content": "Hello"}],
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.config_ids == ["test_config1", "test_config2"]
 
     data = {
@@ -171,10 +172,10 @@ def test_request_body_validation():
         "messages": [{"role": "user", "content": "Hello"}],
     }
     with pytest.raises(ValueError, match="Only one of config_id or config_ids should be specified"):
-        RequestBody.model_validate(data)
+        GuardrailsChatCompletionRequest.model_validate(data)
 
     data = {"messages": [{"role": "user", "content": "Hello"}]}
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.config_ids is None
 
 
@@ -186,7 +187,7 @@ def test_openai_model_field_mapping():
         "model": "test_model",
         "messages": [{"role": "user", "content": "Hello"}],
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.model == "test_model"
 
     # Test model and config_id both provided (config_id takes precedence)
@@ -195,25 +196,25 @@ def test_openai_model_field_mapping():
         "config_id": "test_config",
         "messages": [{"role": "user", "content": "Hello"}],
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.model == "test_model"
     assert request_body.config_id == "test_config"
     assert request_body.config_ids == ["test_config"]
 
 
 def test_request_body_state():
-    """Test RequestBody state handling."""
+    """Test GuardrailsChatCompletionRequest state handling."""
     data = {
         "config_id": "test_config",
         "messages": [{"role": "user", "content": "Hello"}],
         "state": {"key": "value"},
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.state == {"key": "value"}
 
 
 def test_request_body_messages():
-    """Test RequestBody messages validation."""
+    """Test GuardrailsChatCompletionRequest messages validation."""
     data = {
         "config_id": "test_config",
         "messages": [
@@ -221,7 +222,7 @@ def test_request_body_messages():
             {"role": "assistant", "content": "Hi there!"},
         ],
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.messages is not None
     assert len(request_body.messages) == 2
 
@@ -229,7 +230,7 @@ def test_request_body_messages():
         "config_id": "test_config",
         "messages": [{"content": "Hello"}],
     }
-    request_body = RequestBody.model_validate(data)
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.messages is not None
     assert len(request_body.messages) == 1
 
