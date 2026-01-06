@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,7 @@ def set_rails_config_path():
     """Set the rails_config_path to test configs."""
     original_path = api.app.rails_config_path
     # Use test_configs which have mock LLMs that don't need API keys
-    test_configs_path = os.path.join(os.path.dirname(__file__), "test_configs")
+    test_configs_path = os.path.join(os.path.dirname(__file__), "..", "test_configs")
     api.app.rails_config_path = test_configs_path
     yield
     api.app.rails_config_path = original_path

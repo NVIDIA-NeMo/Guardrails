@@ -31,7 +31,7 @@ client = TestClient(api.app)
 
 @pytest.fixture(scope="function", autouse=True)
 def set_rails_config_path():
-    api.app.rails_config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "test_configs"))
+    api.app.rails_config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "test_configs"))
     yield
     api.app.rails_config_path = os.path.normpath(
         os.path.join(os.path.dirname(__file__), "..", "..", "examples", "bots")
