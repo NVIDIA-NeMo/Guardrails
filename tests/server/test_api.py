@@ -383,14 +383,17 @@ def test_chat_completion_response_structure():
     assert response.status_code == 200
     res = response.json()
 
-    assert "id" in res
+    assert res["id"].startswith("chatcmpl-")
     assert res["object"] == "chat.completion"
-    assert "created" in res
-    assert "model" in res
-    assert "choices" in res
+    assert isinstance(res["created"], int)
+    assert res["created"] > 0
+    assert res["model"] == "custom_model"
     assert len(res["choices"]) == 1
+    assert res["choices"][0]["index"] == 0
+    assert res["choices"][0]["finish_reason"] == "stop"
     assert res["choices"][0]["message"]["role"] == "assistant"
-    assert "content" in res["choices"][0]["message"]
+    assert res["choices"][0]["message"]["content"] == "Custom LLM response"
+    assert res["config_id"] == "with_custom_llm"
 
 
 def test_chat_completion_with_context():
@@ -406,6 +409,11 @@ def test_chat_completion_with_context():
         },
     )
     assert response.status_code == 200
+    res = response.json()
+    assert res["object"] == "chat.completion"
+    assert res["model"] == "custom_model"
+    assert res["choices"][0]["message"]["content"] == "Custom LLM response"
+    assert res["config_id"] == "with_custom_llm"
 
 
 def test_chat_completion_with_options():
@@ -423,6 +431,11 @@ def test_chat_completion_with_options():
         },
     )
     assert response.status_code == 200
+    res = response.json()
+    assert res["object"] == "chat.completion"
+    assert res["model"] == "custom_model"
+    assert res["choices"][0]["message"]["content"] == "Custom LLM response"
+    assert res["config_id"] == "with_custom_llm"
 
 
 def test_chat_completion_with_all_guardrails_fields():
@@ -443,6 +456,48 @@ def test_chat_completion_with_all_guardrails_fields():
         },
     )
     assert response.status_code == 200
+    res = response.json()
+
+    assert res["object"] == "chat.completion"
+    assert res["model"] == "custom_model"
+    assert res["choices"][0]["message"]["content"] == "Custom LLM response"
+    assert res["config_id"] == "with_custom_llm"
+
+    assert "log" in res
+    assert res["log"] is not None
+    assert "activated_rails" in res["log"]
+    assert isinstance(res["log"]["activated_rails"], list)
+    assert "stats" in res["log"]
+    assert isinstance(res["log"]["stats"], dict)
+    assert "total_duration" in res["log"]["stats"]
+
+
+def test_chat_completion_with_log_llm_calls():
+    """Test chat completion returns llm_calls when requested."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "options": {
+                    "log": {"llm_calls": True},
+                },
+            },
+        },
+    )
+    assert response.status_code == 200
+    res = response.json()
+
+    assert res["choices"][0]["message"]["content"] == "Custom LLM response"
+    assert "log" in res
+    assert res["log"] is not None
+    assert "llm_calls" in res["log"]
+    assert isinstance(res["log"]["llm_calls"], list)
+    assert len(res["log"]["llm_calls"]) >= 1
+    llm_call = res["log"]["llm_calls"][0]
+    assert "prompt" in llm_call
+    assert "completion" in llm_call
 
 
 async def _create_test_stream(chunks: list) -> AsyncIterator[Union[str, dict]]:
