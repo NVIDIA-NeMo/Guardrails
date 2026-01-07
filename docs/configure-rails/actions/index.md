@@ -168,8 +168,8 @@ For detailed information about each topic, refer to the individual pages linked 
 :hidden:
 :maxdepth: 2
 
-creating-actions
-built-in-actions
-action-parameters
-registering-actions
+Creating Custom Actions <creating-actions>
+Built-in Actions <built-in-actions>
+Action Parameters <action-parameters>
+Registering Actions <registering-actions>
 ```

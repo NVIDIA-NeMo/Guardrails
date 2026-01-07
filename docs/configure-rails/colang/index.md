@@ -57,7 +57,7 @@ The following sections provide detailed documentation for using Colang:
 :link: colang-2/index
 :link-type: doc
 
-whats-changed getting-started/index language-reference/index migration-guide
+Reference and tutorials for Colang 2.0 syntax for defining dialog flows and guardrails.
 :::
 
 :::{grid-item-card} Colang 1.0 Guide
@@ -159,7 +159,7 @@ If not, you can get started with the Colang 2.0 [Hello World](colang-2/getting-s
 :hidden:
 :maxdepth: 2
 
-colang-2/index
-colang-1/index
-usage-examples/index
+Colang 2.0 Guide <colang-2/index>
+Colang 1.0 Guide <colang-1/index>
+Colang Usage Examples <usage-examples/index>
 ```

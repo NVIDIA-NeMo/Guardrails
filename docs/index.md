@@ -65,7 +65,7 @@ Install NeMo Guardrails with pip, configure your environment, and verify the ins
 :link: getting-started/tutorials/index
 :link-type: doc
 
-Follow hands-on tutorials to deploy content safety, topic control, and jailbreak detection.
+Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect NIMs.
 :::
 ::::
 
@@ -128,7 +128,7 @@ Integrate NeMo Guardrails with LangChain chains, runnables, and LangGraph workfl
 :hidden:
 
 Overview <about/overview.md>
-Rail Types <about/rail-types.md>
+Guardrail Types <about/rail-types.md>
 How It Works <about/how-it-works/index.md>
 Supported LLMs <about/supported-llms.md>
 Release Notes <about/release-notes.md>
@@ -139,9 +139,9 @@ Release Notes <about/release-notes.md>
 :name: Get Started
 :hidden:
 
-getting-started/installation-guide
-getting-started/tutorials/index
-getting-started/integrate-into-application
+Install <getting-started/installation-guide>
+Tutorials <getting-started/tutorials/index>
+Integrate <getting-started/integrate-into-application.md>
 ```
 
 ```{toctree}
@@ -149,14 +149,14 @@ getting-started/integrate-into-application
 :name: Configure Rails
 :hidden:
 
-Before Configuring Rails <configure-rails/before-configuration.md>
-Configuration Overview <configure-rails/overview.md>
+Before You Begin <configure-rails/before-configuration.md>
+Configure Rails <configure-rails/overview.md>
 Core Configuration <configure-rails/yaml-schema/index.md>
-Custom Actions <configure-rails/actions/index.md>
+Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
 Colang <configure-rails/colang/index.md>
 Other Configurations <configure-rails/other-configurations/index.md>
-Caching <configure-rails/caching/index.md>
+Caching Instructions and Prompts <configure-rails/caching/index.md>
 ```
 
 ```{toctree}
@@ -168,7 +168,7 @@ Run Rails <run-rails/index.md>
 Core Classes <run-rails/core-classes.md>
 Generation Options <run-rails/generation-options.md>
 Streaming <run-rails/streaming.md>
-Event-based API <run-rails/event-based-api.md>
+Event-Based API <run-rails/event-based-api.md>
 ```
 
 ```{toctree}
@@ -176,8 +176,8 @@ Event-based API <run-rails/event-based-api.md>
 :name: Evaluation
 :hidden:
 
-evaluation/README
-evaluation/llm-vulnerability-scanning
+Evaluate <evaluation/README>
+Vulnerability Scanning <evaluation/llm-vulnerability-scanning>
 ```
 
 ```{toctree}
@@ -193,11 +193,11 @@ Tracing <observability/tracing/index.md>
 :caption: Deployment Guides
 :hidden:
 
-Deployment Options <deployment/index>
-Local Server Setup <deployment/local-server/index>
-Using Docker <deployment/using-docker>
-Using NeMo Guardrails Microservice <deployment/using-microservice>
-Blueprint with NemoGuard NIMs <integration/safeguarding-ai-virtual-assistant-blueprint>
+Deploy <deployment/index>
+Local Server <deployment/local-server/index>
+Docker <deployment/using-docker>
+Microservice <deployment/using-microservice>
+Blueprint Integration <integration/safeguarding-ai-virtual-assistant-blueprint>
 ```
 
 ```{toctree}
@@ -206,25 +206,26 @@ Blueprint with NemoGuard NIMs <integration/safeguarding-ai-virtual-assistant-blu
 
 LangChain <integration/langchain/index.md>
 AlignScore <integration/align-score-deployment>
-Integrate LangChain Tools <integration/tools-integration.md>
+Tools Integration <integration/tools-integration.md>
 ```
 
 ```{toctree}
-:caption: Security
-:name: Security
+:caption: Troubleshooting
+:name: Troubleshooting
 :hidden:
 
-security/guidelines
+Troubleshooting <troubleshooting>
 ```
 
 ```{toctree}
-:caption: Reference
-:name: Reference
+:caption: Resources
+:name: Resources
 :hidden:
 
-troubleshooting
 faqs
-python-api/index
-cli/index
+Python API <python-api/index>
+CLI <cli/index>
+Use Case Diagrams <resources/use-case-diagrams.md>
 glossary
+Security <security/guidelines>
 ```

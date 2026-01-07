@@ -61,12 +61,23 @@ tracing:
       filepath: "./logs/traces.jsonl"
 ```
 
+## Quick Reference
+
+For a complete, consolidated reference of all configuration options, see the [Configuration Reference](configuration-reference.md).
+
 ## Configuration Sections
 
 The following guides provide detailed documentation for each configuration section of the overall `config.yml` file:
 
 ::::{grid} 1 1 2 2
 :gutter: 3
+
+:::{grid-item-card} Configuration Reference
+:link: configuration-reference
+:link-type: doc
+
+Complete reference for all config.yml options including models, rails, prompts, and advanced settings.
+:::
 
 :::{grid-item-card} Models
 :link: model-configuration
@@ -96,11 +107,11 @@ Customize prompts for self-check, fact-checking, and intent generation tasks.
 Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails.
 :::
 
-:::{grid-item-card} Streaming Configuration
+:::{grid-item-card} Streaming
 :link: streaming/index
 :link-type: doc
 
-Configure streaming for output rail processing in config.yml.
+Configure streaming for LLM token generation and output rail processing in config.yml.
 :::
 
 ::::
@@ -137,9 +148,10 @@ Once you have finished crafting your overall `config.yml` file, refer to the fol
 :hidden:
 :maxdepth: 2
 
-model-configuration
-guardrails-configuration/index
-prompt-configuration
-tracing-configuration
-streaming/index
+Configuration Reference <configuration-reference>
+Models <model-configuration>
+Guardrails Configuration <guardrails-configuration/index>
+Prompts <prompt-configuration>
+Tracing <tracing-configuration>
+Streaming <streaming/index>
 ```

@@ -3,12 +3,13 @@ title:
   page: "Supported LLMs"
   nav: "Supported LLMs"
 description: "Connect to NVIDIA NIM, OpenAI, Azure, Anthropic, HuggingFace, and LangChain providers."
-topics: ["AI"]
-tags: ["LLM", "NVIDIA NIM", "OpenAI", "LangChain", "Embeddings"]
+keywords: ["llm providers", "nvidia nim", "openai", "langchain", "embedding providers"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "pretrained_models", "nlp"]
 content:
-  type: "Reference"
-  difficulty: "Beginner"
-  audience: ["Developer", "Machine Learning Engineer"]
+  type: reference
+  difficulty: technical_beginner
+  audience: [engineer, data_scientist]
 ---
 
 # Supported LLMs

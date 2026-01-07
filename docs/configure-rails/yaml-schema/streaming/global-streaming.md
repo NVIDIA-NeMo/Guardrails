@@ -1,11 +1,19 @@
 ---
-title: Streaming
-description: Using streaming mode for LLM token generation in NeMo Guardrails.
+title:
+  page: "Streaming LLM Responses in Real-Time"
+  nav: "Streaming LLM Responses"
+description: "Enable and use streaming mode for LLM responses in real-time in the NeMo Guardrails library."
+topics: ["Configuration", "Streaming"]
+tags: ["Streaming", "LLM", "stream_async", "Python API"]
+content:
+  type: "How-To"
+  difficulty: "Beginner"
+  audience: ["Developer", "AI Engineer"]
 ---
 
-# Streaming
+# Streaming LLM Responses in Real-Time
 
-NeMo Guardrails supports streaming LLM responses via the `stream_async()` method. No configuration is required to enable streaming—simply use `stream_async()` instead of `generate_async()`.
+The NeMo Guardrails library supports streaming LLM responses in real-time through the `stream_async()` method. No configuration is required to enable streaming—simply use `stream_async()` instead of `generate_async()`.
 
 ## Basic Usage
 
