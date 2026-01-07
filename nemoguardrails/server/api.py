@@ -380,13 +380,13 @@ def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRa
     if full_llm_rails_config is None:
         raise ValueError("No valid rails configuration found.")
 
-    # Override the main model if a model name is provided in the request
     if model_name:
         engine = os.environ.get("MAIN_MODEL_ENGINE")
         if not engine:
-            raise ValueError(
-                "MAIN_MODEL_ENGINE environment variable must be set when using model override. "
-                "Set it to the LLM engine type (e.g., 'openai', 'nim', 'vllm')."
+            raise HTTPException(
+                status_code=500,
+                detail="MAIN_MODEL_ENGINE environment variable must be set. "
+                "Set it to the LLM engine type (e.g., 'openai', 'nim', 'vllm').",
             )
         main_model = Model(model=model_name, type="main", engine=engine)
         full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
