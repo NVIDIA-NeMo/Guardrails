@@ -181,25 +181,16 @@ def test_request_body_validation():
     assert request_body.guardrails.config_ids is None
 
 
-def test_openai_model_field_mapping():
-    """Test OpenAI-compatible model field mapping to config_id."""
+def test_model_field_independent_of_config_id():
+    """Test that model field is independent of config_id."""
 
-    # Test model field maps to config_id
     data = {
-        "model": "test_model",
-        "messages": [{"role": "user", "content": "Hello"}],
-    }
-    request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.model == "test_model"
-
-    # Test model and config_id both provided (config_id takes precedence)
-    data = {
-        "model": "test_model",
+        "model": "gpt-4",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {"config_id": "test_config"},
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.model == "test_model"
+    assert request_body.model == "gpt-4"
     assert request_body.guardrails.config_id == "test_config"
     assert request_body.guardrails.config_ids == ["test_config"]
 

@@ -25,14 +25,16 @@ def _test_call(config_id):
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": config_id,
             "messages": [
                 {
                     "content": "hi",
                     "role": "user",
                 }
             ],
-            "state": {},
+            "guardrails": {
+                "config_id": config_id,
+                "state": {},
+            },
         },
     )
     assert response.status_code == 200
@@ -42,21 +44,19 @@ def _test_call(config_id):
     assert res["choices"][0]["message"]["content"] == "Hello!"
     assert res.get("state")
 
-    # When making a second call with the returned state, the conversations should continue
-    # and we should get the "Hello again!" message.
-    # For Colang 2.x, we only send the new user message, not the conversation history
-    # since the state maintains the conversation context.
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": config_id,
             "messages": [
                 {
                     "content": "hi",
                     "role": "user",
                 }
             ],
-            "state": res["state"],
+            "guardrails": {
+                "config_id": config_id,
+                "state": res["state"],
+            },
         },
     )
     res = response.json()

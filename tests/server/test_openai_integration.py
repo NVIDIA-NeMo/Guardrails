@@ -66,9 +66,10 @@ def test_openai_client_list_models(openai_client):
 
 def test_openai_client_chat_completion(openai_client):
     response = openai_client.chat.completions.create(
-        model="with_custom_llm",
+        model="gpt-4o",
         messages=[{"role": "user", "content": "hi"}],
         stream=False,
+        extra_body={"guardrails": {"config_id": "with_custom_llm"}},
     )
 
     assert isinstance(response, ChatCompletion)
@@ -93,11 +94,12 @@ def test_openai_client_chat_completion(openai_client):
 
 def test_openai_client_chat_completion_parameterized(openai_client):
     response = openai_client.chat.completions.create(
-        model="with_custom_llm",
+        model="gpt-4o",
         messages=[{"role": "user", "content": "hi"}],
         temperature=0.7,
         max_tokens=100,
         stream=False,
+        extra_body={"guardrails": {"config_id": "with_custom_llm"}},
     )
 
     # Verify response exists
@@ -119,12 +121,12 @@ def test_openai_client_chat_completion_parameterized(openai_client):
 
 def test_openai_client_chat_completion_input_rails(openai_client):
     response = openai_client.chat.completions.create(
-        model="with_input_rails",
+        model="gpt-4o",
         messages=[{"role": "user", "content": "Hello, how are you?"}],
         stream=False,
+        extra_body={"guardrails": {"config_id": "with_input_rails"}},
     )
 
-    # Verify response exists
     assert isinstance(response, ChatCompletion)
     assert response.id is not None
     assert isinstance(response.choices[0], Choice)
@@ -134,27 +136,27 @@ def test_openai_client_chat_completion_input_rails(openai_client):
 @pytest.mark.skip(reason="Should only be run locally as it needs OpenAI key.")
 def test_openai_client_chat_completion_streaming(openai_client):
     stream = openai_client.chat.completions.create(
-        model="input_rails",
+        model="gpt-4o",
         messages=[{"role": "user", "content": "Tell me a short joke."}],
         stream=True,
+        extra_body={"guardrails": {"config_id": "input_rails"}},
     )
 
     chunks = list(stream)
     assert len(chunks) > 0
 
-    # Verify at least one chunk has content
     has_content = any(hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content for chunk in chunks)
     assert has_content, "At least one chunk should contain content"
 
 
 def test_openai_client_error_handling_invalid_model(openai_client):
     response = openai_client.chat.completions.create(
-        model="nonexistent_config",
+        model="gpt-4o",
         messages=[{"role": "user", "content": "hi"}],
         stream=False,
+        extra_body={"guardrails": {"config_id": "nonexistent_config"}},
     )
 
-    # The error should be in the content
     assert (
         "Could not load" in response.choices[0].message.content
         or "error" in response.choices[0].message.content.lower()

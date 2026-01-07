@@ -151,15 +151,10 @@ class GuardrailsDataInput(BaseModel):
     )
 
     @root_validator(pre=True)
-    def ensure_config_id(cls, data: Any) -> Any:
+    def validate_config_ids(cls, data: Any) -> Any:
         if isinstance(data, dict):
             if data.get("config_id") is not None and data.get("config_ids") is not None:
                 raise ValueError("Only one of config_id or config_ids should be specified")
-
-            if data.get("config_id") is None and data.get("config_ids") is None:
-                model = data.get("model")
-                if model and model != "main":
-                    data["config_id"] = model
         return data
 
     @validator("config_ids", pre=True, always=True)
