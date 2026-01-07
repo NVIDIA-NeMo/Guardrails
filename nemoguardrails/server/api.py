@@ -34,6 +34,7 @@ from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from nemoguardrails import LLMRails, RailsConfig, utils
+from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.schemas.openai import (
@@ -304,17 +305,45 @@ llm_rails_instances: dict[str, LLMRails] = {}
 llm_rails_events_history_cache: dict[str, dict] = {}
 
 
-def _generate_cache_key(config_ids: List[str]) -> str:
-    """Generates a cache key for the given config ids."""
+def _generate_cache_key(config_ids: List[str], model_name: Optional[str] = None) -> str:
+    """Generates a cache key for the given config ids and model name."""
+    key = "-".join(config_ids)
+    if model_name:
+        key = f"{key}:{model_name}"
+    return key
 
-    return "-".join((config_ids))  # remove sorted
+
+def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsConfig:
+    """Update the main model in the RailsConfig.
+
+    If a model with type="main" exists, it replaces it. Otherwise, adds it.
+    """
+    models = config.models.copy()
+    main_model_index = None
+
+    for index, model in enumerate(models):
+        if model.type == main_model.type:
+            main_model_index = index
+            break
+
+    if main_model_index is not None:
+        parameters = {**models[main_model_index].parameters, **main_model.parameters}
+        models[main_model_index] = main_model
+        models[main_model_index].parameters = parameters
+    else:
+        models.append(main_model)
+
+    return config.model_copy(update={"models": models})
 
 
-def _get_rails(config_ids: List[str]) -> LLMRails:
-    """Returns the rails instance for the given config id."""
+def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
+    """Returns the rails instance for the given config id and model.
 
-    # If we have a single config id, we just use it as the key
-    configs_cache_key = _generate_cache_key(config_ids)
+    Args:
+        config_ids: List of configuration IDs to load
+        model_name: The model name from the request (overrides config's main model)
+    """
+    configs_cache_key = _generate_cache_key(config_ids, model_name)
 
     if configs_cache_key in llm_rails_instances:
         return llm_rails_instances[configs_cache_key]
@@ -350,6 +379,17 @@ def _get_rails(config_ids: List[str]) -> LLMRails:
 
     if full_llm_rails_config is None:
         raise ValueError("No valid rails configuration found.")
+
+    # Override the main model if a model name is provided in the request
+    if model_name:
+        engine = os.environ.get("MAIN_MODEL_ENGINE")
+        if not engine:
+            raise ValueError(
+                "MAIN_MODEL_ENGINE environment variable must be set when using model override. "
+                "Set it to the LLM engine type (e.g., 'openai', 'nim', 'vllm')."
+            )
+        main_model = Model(model=model_name, type="main", engine=engine)
+        full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
 
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
     llm_rails_instances[configs_cache_key] = llm_rails
@@ -475,7 +515,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             )
 
     try:
-        llm_rails = _get_rails(config_ids)
+        llm_rails = _get_rails(config_ids, model_name=body.model)
 
     except ValueError as ex:
         log.exception(ex)
@@ -525,9 +565,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         # Initialize llm_params if not already set
         if generation_options.llm_params is None:
             generation_options.llm_params = {}
-
-        # Set the model from request body to override the config's main model
-        generation_options.llm_params["model"] = body.model
 
         # Set OpenAI-compatible parameters in llm_params
         if body.max_tokens:
