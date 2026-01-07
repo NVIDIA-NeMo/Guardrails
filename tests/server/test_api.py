@@ -208,6 +208,19 @@ def test_request_body_state():
     assert request_body.guardrails.state == {"key": "value"}
 
 
+def test_request_body_context():
+    """Test GuardrailsChatCompletionRequest context handling."""
+    data = {
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {
+            "config_id": "test_config",
+            "context": {"user_name": "John", "session_id": "abc123"},
+        },
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert request_body.guardrails.context == {"user_name": "John", "session_id": "abc123"}
+
+
 def test_request_body_messages():
     """Test GuardrailsChatCompletionRequest messages validation."""
     data = {
@@ -228,6 +241,208 @@ def test_request_body_messages():
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.messages is not None
     assert len(request_body.messages) == 1
+
+
+def test_request_body_options():
+    """Test GuardrailsChatCompletionRequest options handling."""
+    data = {
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {
+            "config_id": "test_config",
+            "options": {
+                "rails": {"input": False, "output": True, "dialog": False},
+                "llm_params": {"temperature": 0.5},
+                "output_vars": ["relevant_chunks"],
+                "log": {"activated_rails": True, "llm_calls": True},
+            },
+        },
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert request_body.guardrails.options.rails.input is False
+    assert request_body.guardrails.options.rails.output is True
+    assert request_body.guardrails.options.rails.dialog is False
+    assert request_body.guardrails.options.llm_params == {"temperature": 0.5}
+    assert request_body.guardrails.options.output_vars == ["relevant_chunks"]
+    assert request_body.guardrails.options.log.activated_rails is True
+    assert request_body.guardrails.options.log.llm_calls is True
+
+
+def test_request_body_options_with_rail_names():
+    """Test options with specific rail names instead of booleans."""
+    data = {
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {
+            "config_id": "test_config",
+            "options": {
+                "rails": {
+                    "input": ["check jailbreak", "check toxicity"],
+                    "output": ["output moderation"],
+                },
+            },
+        },
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+    assert request_body.guardrails.options.rails.input == ["check jailbreak", "check toxicity"]
+    assert request_body.guardrails.options.rails.output == ["output moderation"]
+
+
+def test_guardrails_defaults_when_not_provided():
+    """Test that guardrails field has proper defaults when not provided."""
+    data = {"messages": [{"role": "user", "content": "Hello"}]}
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+
+    assert request_body.guardrails is not None
+    assert request_body.guardrails.config_id is None
+    assert request_body.guardrails.config_ids is None
+    assert request_body.guardrails.thread_id is None
+    assert request_body.guardrails.context is None
+    assert request_body.guardrails.state is None
+    assert request_body.guardrails.options is not None
+    assert request_body.guardrails.options.rails.input is True
+    assert request_body.guardrails.options.rails.output is True
+
+
+def test_guardrails_defaults_when_empty_object():
+    """Test that guardrails field has proper defaults when empty object provided."""
+    data = {
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {},
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+
+    assert request_body.guardrails.config_id is None
+    assert request_body.guardrails.config_ids is None
+    assert request_body.guardrails.options is not None
+
+
+def test_guardrails_partial_fields():
+    """Test that guardrails works with only some fields provided."""
+    data = {
+        "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {"config_id": "test_config"},
+    }
+    request_body = GuardrailsChatCompletionRequest.model_validate(data)
+
+    assert request_body.guardrails.config_id == "test_config"
+    assert request_body.guardrails.context is None
+    assert request_body.guardrails.state is None
+    assert request_body.guardrails.options is not None
+
+
+def test_default_config_id_from_env():
+    """Test that DEFAULT_CONFIG_ID env var sets default config_id."""
+    with patch.dict(os.environ, {"DEFAULT_CONFIG_ID": "env_config"}):
+        from nemoguardrails.server.schemas.openai import GuardrailsDataInput
+
+        guardrails = GuardrailsDataInput()
+        assert guardrails.config_id == "env_config"
+
+
+def test_no_config_error_returns_proper_response():
+    """Test API returns proper error response when no config_id and no default."""
+    api.app.default_config_id = None
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "Hello"}],
+        },
+    )
+    assert response.status_code == 422
+    res = response.json()
+    assert "detail" in res
+    assert "config" in res["detail"].lower()
+
+
+def test_invalid_state_returns_error():
+    """Test API handles invalid state gracefully instead of crashing."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "state": {"invalid_key": "value"},
+            },
+        },
+    )
+    assert response.status_code == 422
+    res = response.json()
+    assert "detail" in res
+    assert "state" in res["detail"].lower() or "events" in res["detail"].lower()
+
+
+def test_chat_completion_response_structure():
+    """Test that chat completion response includes proper structure."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {"config_id": "with_custom_llm"},
+        },
+    )
+    assert response.status_code == 200
+    res = response.json()
+
+    assert "id" in res
+    assert res["object"] == "chat.completion"
+    assert "created" in res
+    assert "model" in res
+    assert "choices" in res
+    assert len(res["choices"]) == 1
+    assert res["choices"][0]["message"]["role"] == "assistant"
+    assert "content" in res["choices"][0]["message"]
+
+
+def test_chat_completion_with_context():
+    """Test chat completion with context field."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "context": {"user_id": "123", "session": "abc"},
+            },
+        },
+    )
+    assert response.status_code == 200
+
+
+def test_chat_completion_with_options():
+    """Test chat completion with custom options."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "options": {
+                    "rails": {"input": False, "output": False},
+                },
+            },
+        },
+    )
+    assert response.status_code == 200
+
+
+def test_chat_completion_with_all_guardrails_fields():
+    """Test chat completion with all guardrails fields populated."""
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hi"}],
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "context": {"user_id": "123"},
+                "options": {
+                    "rails": {"input": True, "output": True},
+                    "log": {"activated_rails": True},
+                },
+                "state": {},
+            },
+        },
+    )
+    assert response.status_code == 200
 
 
 async def _create_test_stream(chunks: list) -> AsyncIterator[Union[str, dict]]:

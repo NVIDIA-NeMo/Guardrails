@@ -25,7 +25,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -477,8 +477,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         if app.default_config_id:
             config_ids = [app.default_config_id]
         else:
-            raise GuardrailsConfigurationError(
-                "No request config_ids provided and server has no default configuration"
+            raise HTTPException(
+                status_code=422,
+                detail="No guardrails config_id provided and server has no default configuration",
             )
 
     try:
@@ -524,6 +525,14 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             messages = thread_messages + messages
 
         generation_options = body.guardrails.options
+
+        # Validate state format if provided
+        if body.guardrails.state is not None and body.guardrails.state != {}:
+            if "events" not in body.guardrails.state and "state" not in body.guardrails.state:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Invalid state format: state must contain 'events' or 'state' key. Use an empty dict {} to start a new conversation.",
+                )
 
         # Initialize llm_params if not already set
         if generation_options.llm_params is None:
@@ -595,6 +604,8 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                     ],
                 )
 
+    except HTTPException:
+        raise
     except Exception as ex:
         log.exception(ex)
         return create_error_chat_completion(

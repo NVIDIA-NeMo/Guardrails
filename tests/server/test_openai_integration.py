@@ -161,3 +161,123 @@ def test_openai_client_error_handling_invalid_model(openai_client):
         "Could not load" in response.choices[0].message.content
         or "error" in response.choices[0].message.content.lower()
     )
+
+
+def test_openai_client_with_context(openai_client):
+    """Test OpenAI client with context in guardrails."""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "context": {"user_id": "test123", "session": "abc"},
+            }
+        },
+    )
+
+    assert isinstance(response, ChatCompletion)
+    assert response.choices[0].message.content == "Custom LLM response"
+
+
+def test_openai_client_with_options(openai_client):
+    """Test OpenAI client with custom options in guardrails."""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "options": {
+                    "rails": {"input": False, "output": False},
+                },
+            }
+        },
+    )
+
+    assert isinstance(response, ChatCompletion)
+    assert response.choices[0].message.content == "Custom LLM response"
+
+
+def test_openai_client_with_empty_state(openai_client):
+    """Test OpenAI client with empty state in guardrails."""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "state": {},
+            }
+        },
+    )
+
+    assert isinstance(response, ChatCompletion)
+    assert response.choices[0].message.content == "Custom LLM response"
+
+
+def test_openai_client_with_all_guardrails_fields(openai_client):
+    """Test OpenAI client with all guardrails fields populated."""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "context": {"user_id": "test123"},
+                "options": {
+                    "rails": {"input": True, "output": True},
+                    "log": {"activated_rails": True},
+                },
+                "state": {},
+            }
+        },
+    )
+
+    assert isinstance(response, ChatCompletion)
+    assert response.choices[0].message.content == "Custom LLM response"
+
+
+def test_openai_client_with_multiple_configs(openai_client):
+    """Test OpenAI client with multiple config_ids."""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={
+            "guardrails": {
+                "config_ids": ["with_custom_llm"],
+            }
+        },
+    )
+
+    assert isinstance(response, ChatCompletion)
+    assert response.choices[0].message.content == "Custom LLM response"
+
+
+def test_openai_client_with_rails_disabled(openai_client):
+    """Test OpenAI client with all rails disabled."""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        extra_body={
+            "guardrails": {
+                "config_id": "with_custom_llm",
+                "options": {
+                    "rails": {
+                        "input": False,
+                        "output": False,
+                        "dialog": False,
+                    },
+                },
+            }
+        },
+    )
+
+    assert isinstance(response, ChatCompletion)
+    assert response.choices[0].message.content is not None
