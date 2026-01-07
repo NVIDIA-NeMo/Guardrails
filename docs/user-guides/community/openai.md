@@ -17,6 +17,7 @@ The following table outlines which OpenAI API features are currently supported w
 | **Response Format (JSON Mode)** | ✖ Unsupported | Structured output with guardrails requires additional validation logic |
 
 ## Example Usage
+
 Export the main model's base URL, engine, and API key as environment variables:
 
 ```
@@ -26,37 +27,36 @@ export MAIN_MODEL_API_KEY="model-server-api-key"  # or leave empty if not needed
 ```
 
 **NOTE**: By default these values are:
+
 * `MAIN_MODEL_BASE_URL`: `https://localhost:8000/v1`
 * `MAIN_MODEL_ENGINE`: `nim`
 * `MAIN_MODEL_API_KEY`: `None`
 
 ## Basic Chat Completion
 
+The request requires two key fields:
+* `model`: The LLM model to use (e.g., "gpt-4o", "llama-3.1-8b")
+* `guardrails.config_id`: The guardrails configuration to apply
+
 ```
 $ curl -X POST http://0.0.0.0:8000/v1/chat/completions \
    -H 'Accept: application/json' \
    -H 'Content-Type: application/json' \
    -d '{
-      "model": "nemoguards", // Maps to config_id="nemoguards"
+      "model": "gpt-4o",
       "messages": [
          {
             "role": "user",
             "content": "What can you do for me?"
          }
       ],
+      "guardrails": {
+         "config_id": "nemoguards"
+      },
       "max_tokens": 256,
       "temperature": 1,
       "top_p": 1
    }'
-```
-
-**NOTE**: You can also explicitly specify `config_id` if needed:
-
-```
-{
-   "config_id": "my-config",
-   "messages": [...]
-}
 ```
 
 ## Streaming Chat Completion
@@ -66,17 +66,20 @@ $ curl -X POST http://0.0.0.0:8000/v1/chat/completions \
    -H 'Accept: application/json' \
    -H 'Content-Type: application/json' \
    -d '{
-      "model": "nemoguards",
+      "model": "gpt-4o",
       "messages": [
          {
             "role": "user",
             "content": "What can you do for me?"
          }
       ],
+      "guardrails": {
+         "config_id": "nemoguards"
+      },
       "max_tokens": 256,
       "stream": true,
       "temperature": 1,
-      "top_p": 1,
+      "top_p": 1
    }'
 ```
 
@@ -88,6 +91,7 @@ $ curl -X GET http://0.0.0.0:8000/v1/models \
 ```
 
 *Example output*:
+
 ```
 {
    "object": "list",
@@ -97,7 +101,7 @@ $ curl -X GET http://0.0.0.0:8000/v1/models \
          "object": "model",
          "created": 1234567890,
          "owned_by": "nemo-guardrails",
-         "config_id": "abc"
+         "config_id": "nemoguards"
       }
    ]
 }
@@ -105,7 +109,7 @@ $ curl -X GET http://0.0.0.0:8000/v1/models \
 
 ## Using with the OpenAI Python Client
 
-```
+```python
 from openai import OpenAI
 
 # Point to your NeMo Guardrails server
@@ -114,13 +118,47 @@ client = OpenAI(
     base_url="http://localhost:8000/v1"
 )
 
-# Use the model field to specify your guardrails config
 response = client.chat.completions.create(
-    model="nemoguards",  # Your config ID
+    model="gpt-4o",
     messages=[
         {"role": "user", "content": "Hello!"}
-    ]
+    ],
+    extra_body={
+        "guardrails": {
+            "config_id": "nemoguards"
+        }
+    }
 )
 
 print(response.choices[0].message.content)
 ```
+
+## Guardrails Options
+
+The `guardrails` field supports additional options:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_body={
+        "guardrails": {
+            "config_id": "nemoguards",
+            "context": {"user_id": "123"},
+            "options": {
+                "rails": {"input": True, "output": True},
+                "log": {"activated_rails": True, "llm_calls": True}
+            }
+        }
+    }
+)
+```
+
+| Field | Description |
+| :---- | :---------- |
+| `config_id` | The guardrails configuration ID to use |
+| `config_ids` | List of configuration IDs to combine (alternative to `config_id`) |
+| `context` | Additional context data for the conversation |
+| `options` | Generation options (rails settings, logging, etc.) |
+| `state` | State object to continue a stateful conversation |
+| `thread_id` | Thread ID for server-managed conversation history |
