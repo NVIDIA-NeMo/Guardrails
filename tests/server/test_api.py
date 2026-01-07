@@ -97,13 +97,13 @@ def test_chat_completion():
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "general",
             "messages": [
                 {
                     "content": "Hello",
                     "role": "user",
                 }
             ],
+            "guardrails": {"config_id": "general"},
         },
     )
     assert response.status_code == 200
@@ -152,31 +152,33 @@ def test_request_body_validation():
     """Test GuardrailsChatCompletionRequest validation."""
 
     data = {
-        "config_id": "test_config",
         "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {"config_id": "test_config"},
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.config_id == "test_config"
-    assert request_body.config_ids == ["test_config"]
+    assert request_body.guardrails.config_id == "test_config"
+    assert request_body.guardrails.config_ids == ["test_config"]
 
     data = {
-        "config_ids": ["test_config1", "test_config2"],
         "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {"config_ids": ["test_config1", "test_config2"]},
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.config_ids == ["test_config1", "test_config2"]
+    assert request_body.guardrails.config_ids == ["test_config1", "test_config2"]
 
     data = {
-        "config_id": "test_config",
-        "config_ids": ["test_config1", "test_config2"],
         "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {
+            "config_id": "test_config",
+            "config_ids": ["test_config1", "test_config2"],
+        },
     }
     with pytest.raises(ValueError, match="Only one of config_id or config_ids should be specified"):
         GuardrailsChatCompletionRequest.model_validate(data)
 
     data = {"messages": [{"role": "user", "content": "Hello"}]}
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.config_ids is None
+    assert request_body.guardrails.config_ids is None
 
 
 def test_openai_model_field_mapping():
@@ -193,42 +195,44 @@ def test_openai_model_field_mapping():
     # Test model and config_id both provided (config_id takes precedence)
     data = {
         "model": "test_model",
-        "config_id": "test_config",
         "messages": [{"role": "user", "content": "Hello"}],
+        "guardrails": {"config_id": "test_config"},
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.model == "test_model"
-    assert request_body.config_id == "test_config"
-    assert request_body.config_ids == ["test_config"]
+    assert request_body.guardrails.config_id == "test_config"
+    assert request_body.guardrails.config_ids == ["test_config"]
 
 
 def test_request_body_state():
     """Test GuardrailsChatCompletionRequest state handling."""
     data = {
-        "config_id": "test_config",
         "messages": [{"role": "user", "content": "Hello"}],
-        "state": {"key": "value"},
+        "guardrails": {
+            "config_id": "test_config",
+            "state": {"key": "value"},
+        },
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
-    assert request_body.state == {"key": "value"}
+    assert request_body.guardrails.state == {"key": "value"}
 
 
 def test_request_body_messages():
     """Test GuardrailsChatCompletionRequest messages validation."""
     data = {
-        "config_id": "test_config",
         "messages": [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
         ],
+        "guardrails": {"config_id": "test_config"},
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.messages is not None
     assert len(request_body.messages) == 2
 
     data = {
-        "config_id": "test_config",
         "messages": [{"content": "Hello"}],
+        "guardrails": {"config_id": "test_config"},
     }
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.messages is not None
@@ -444,9 +448,9 @@ def test_chat_completion_with_streaming():
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "general",
             "messages": [{"role": "user", "content": "Hello"}],
             "stream": True,
+            "guardrails": {"config_id": "general"},
         },
     )
     assert response.status_code == 200

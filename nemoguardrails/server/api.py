@@ -460,7 +460,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     TODO: add support for explicit state object.
     """
-    log.info("Got request for config %s", body.config_id)
+    log.info("Got request for config %s", body.guardrails.config_id)
     for logger in registered_loggers:
         asyncio.get_event_loop().create_task(
             logger({"endpoint": "/v1/chat/completions", "body": body.json()})
@@ -471,7 +471,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     # Use Request config_ids if set, otherwise use the FastAPI default config.
     # If neither is available we can't generate any completions as we have no config_id
-    config_ids = body.config_ids
+    config_ids = body.guardrails.config_ids
 
     if not config_ids:
         if app.default_config_id:
@@ -498,17 +498,17 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             main_model_name = config_ids[0] if config_ids else "unknown"
 
         messages = body.messages or []
-        if body.context:
-            messages.insert(0, {"role": "context", "content": body.context})
+        if body.guardrails.context:
+            messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
         # If we have a `thread_id` specified, we need to look up the thread
         datastore_key = None
 
-        if body.thread_id:
+        if body.guardrails.thread_id:
             if datastore is None:
                 raise RuntimeError("No DataStore has been configured.")
             # We make sure the `thread_id` meets the minimum complexity requirement.
-            if len(body.thread_id) < 16:
+            if len(body.guardrails.thread_id) < 16:
                 return create_error_chat_completion(
                     model=main_model_name,
                     error_message="The `thread_id` must have a minimum length of 16 characters.",
@@ -517,13 +517,13 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
             # Fetch the existing thread messages. For easier management, we prepend
             # the string `thread-` to all thread keys.
-            datastore_key = "thread-" + body.thread_id
+            datastore_key = "thread-" + body.guardrails.thread_id
             thread_messages = json.loads(await datastore.get(datastore_key) or "[]")
 
             # And prepend them.
             messages = thread_messages + messages
 
-        generation_options = body.options
+        generation_options = body.guardrails.options
 
         # Initialize llm_params if not already set
         if generation_options.llm_params is None:
@@ -548,7 +548,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             stream_iterator = llm_rails.stream_async(
                 messages=messages,
                 options=generation_options,
-                state=body.state,
+                state=body.guardrails.state,
             )
 
             return StreamingResponse(
@@ -557,7 +557,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             )
         else:
             res = await llm_rails.generate_async(
-                messages=messages, options=generation_options, state=body.state
+                messages=messages, options=generation_options, state=body.guardrails.state
             )
 
             # Extract bot message for thread storage if needed
@@ -565,7 +565,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
             # If we're using threads, we also need to update the data before returning
             # the message.
-            if body.thread_id and datastore is not None and datastore_key is not None:
+            if body.guardrails.thread_id and datastore is not None and datastore_key is not None:
                 await datastore.set(datastore_key, json.dumps(messages + [bot_message]))
 
             # Build the response with OpenAI-compatible format using utility function

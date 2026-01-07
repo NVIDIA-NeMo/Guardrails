@@ -119,8 +119,8 @@ class OpenAIChatCompletionRequest(BaseModel):
     )
 
 
-class GuardrailsChatCompletionRequest(OpenAIChatCompletionRequest):
-    """OpenAI chat completion request with NeMo Guardrails extensions."""
+class GuardrailsDataInput(BaseModel):
+    """Guardrails-specific options for the request."""
 
     config_id: Optional[str] = Field(
         default_factory=lambda: os.getenv("DEFAULT_CONFIG_ID", None),
@@ -167,3 +167,12 @@ class GuardrailsChatCompletionRequest(OpenAIChatCompletionRequest):
         if v is None and values.get("config_id") and values.get("config_ids") is None:
             return [values["config_id"]]
         return v
+
+
+class GuardrailsChatCompletionRequest(OpenAIChatCompletionRequest):
+    """OpenAI chat completion request with NeMo Guardrails extensions."""
+
+    guardrails: GuardrailsDataInput = Field(
+        default_factory=GuardrailsDataInput,
+        description="Guardrails specific options for the request.",
+    )
