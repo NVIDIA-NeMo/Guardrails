@@ -25,6 +25,7 @@ def _test_call(config_id):
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [
                 {
                     "content": "hi",
@@ -47,6 +48,7 @@ def _test_call(config_id):
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [
                 {
                     "content": "hi",

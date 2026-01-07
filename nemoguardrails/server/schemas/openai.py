@@ -74,8 +74,8 @@ class OpenAIChatCompletionRequest(BaseModel):
         description="The list of messages in the current conversation.",
     )
     model: str = Field(
-        default="main",
-        description="The model to use for chat completion.",
+        ...,
+        description="The LLM model to use for chat completion (e.g., 'gpt-4o', 'llama-3.1-8b').",
     )
     stream: Optional[bool] = Field(
         default=False,

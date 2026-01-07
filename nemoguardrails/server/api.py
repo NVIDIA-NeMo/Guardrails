@@ -310,14 +310,6 @@ def _generate_cache_key(config_ids: List[str]) -> str:
     return "-".join((config_ids))  # remove sorted
 
 
-def _get_main_model_name(rails_config: RailsConfig) -> Optional[str]:
-    """Extracts the main model name from a RailsConfig."""
-    main_models = [m for m in rails_config.models if m.type == "main"]
-    if main_models and main_models[0].model:
-        return main_models[0].model
-    return None
-
-
 def _get_rails(config_ids: List[str]) -> LLMRails:
     """Returns the rails instance for the given config id."""
 
@@ -488,16 +480,12 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     except ValueError as ex:
         log.exception(ex)
         return create_error_chat_completion(
-            model=config_ids[0] if config_ids else "unknown",
+            model=body.model,
             error_message=f"Could not load the {config_ids} guardrails configuration. An internal error has occurred.",
             config_id=config_ids[0] if config_ids else None,
         )
 
     try:
-        main_model_name = _get_main_model_name(llm_rails.config)
-        if main_model_name is None:
-            main_model_name = config_ids[0] if config_ids else "unknown"
-
         messages = body.messages or []
         if body.guardrails.context:
             messages.insert(0, {"role": "context", "content": body.guardrails.context})
@@ -511,7 +499,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             # We make sure the `thread_id` meets the minimum complexity requirement.
             if len(body.guardrails.thread_id) < 16:
                 return create_error_chat_completion(
-                    model=main_model_name,
+                    model=body.model,
                     error_message="The `thread_id` must have a minimum length of 16 characters.",
                     config_id=config_ids[0] if config_ids else None,
                 )
@@ -538,6 +526,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         if generation_options.llm_params is None:
             generation_options.llm_params = {}
 
+        # Set the model from request body to override the config's main model
+        generation_options.llm_params["model"] = body.model
+
         # Set OpenAI-compatible parameters in llm_params
         if body.max_tokens:
             generation_options.llm_params["max_tokens"] = body.max_tokens
@@ -561,7 +552,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             )
 
             return StreamingResponse(
-                _format_streaming_response(stream_iterator, model_name=main_model_name),
+                _format_streaming_response(stream_iterator, model_name=body.model),
                 media_type="text/event-stream",
             )
         else:
@@ -581,7 +572,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             if isinstance(res, GenerationResponse):
                 return generation_response_to_chat_completion(
                     response=res,
-                    model=main_model_name,
+                    model=body.model,
                     config_id=config_ids[0] if config_ids else None,
                 )
             else:
@@ -590,7 +581,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                     id=f"chatcmpl-{uuid.uuid4()}",
                     object="chat.completion",
                     created=int(time.time()),
-                    model=main_model_name,
+                    model=body.model,
                     choices=[
                         Choice(
                             index=0,
@@ -609,7 +600,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     except Exception as ex:
         log.exception(ex)
         return create_error_chat_completion(
-            model=config_ids[0] if config_ids else "unknown",
+            model=body.model,
             error_message="Internal server error",
             config_id=config_ids[0] if config_ids else None,
         )

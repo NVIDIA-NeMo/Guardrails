@@ -180,7 +180,7 @@ def test_openai_client_with_context(openai_client):
     assert isinstance(response, ChatCompletion)
     assert response.id.startswith("chatcmpl-")
     assert response.object == "chat.completion"
-    assert response.model == "custom_model"
+    assert response.model == "gpt-4o"
     assert response.choices[0].index == 0
     assert response.choices[0].finish_reason == "stop"
     assert response.choices[0].message.role == "assistant"
@@ -207,7 +207,7 @@ def test_openai_client_with_options(openai_client):
 
     assert isinstance(response, ChatCompletion)
     assert response.object == "chat.completion"
-    assert response.model == "custom_model"
+    assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
     assert response.config_id == "with_custom_llm"
 
@@ -228,7 +228,7 @@ def test_openai_client_with_empty_state(openai_client):
 
     assert isinstance(response, ChatCompletion)
     assert response.object == "chat.completion"
-    assert response.model == "custom_model"
+    assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
     assert response.config_id == "with_custom_llm"
 
@@ -254,7 +254,7 @@ def test_openai_client_with_all_guardrails_fields(openai_client):
 
     assert isinstance(response, ChatCompletion)
     assert response.object == "chat.completion"
-    assert response.model == "custom_model"
+    assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
     assert response.config_id == "with_custom_llm"
 
@@ -282,7 +282,7 @@ def test_openai_client_with_multiple_configs(openai_client):
 
     assert isinstance(response, ChatCompletion)
     assert response.object == "chat.completion"
-    assert response.model == "custom_model"
+    assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
     assert response.config_id == "with_custom_llm"
 
@@ -313,6 +313,6 @@ def test_openai_client_with_rails_disabled(openai_client):
 
     assert isinstance(response, ChatCompletion)
     assert response.object == "chat.completion"
-    assert response.model == "custom_model"
+    assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "hi"
     assert response.config_id == "with_custom_llm"

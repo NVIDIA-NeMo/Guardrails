@@ -39,6 +39,7 @@ def test_1():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [
                 {
                     "content": "hi",
@@ -60,6 +61,7 @@ def test_1():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [
                 {
                     "content": "hi",
@@ -93,6 +95,7 @@ def test_thread_id(thread_id, status_code):
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"content": "hi", "role": "user"}],
             "guardrails": guardrails_data,
         },

@@ -152,6 +152,7 @@ def test_request_body_validation():
     """Test GuardrailsChatCompletionRequest validation."""
 
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {"config_id": "test_config"},
     }
@@ -160,6 +161,7 @@ def test_request_body_validation():
     assert request_body.guardrails.config_ids == ["test_config"]
 
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {"config_ids": ["test_config1", "test_config2"]},
     }
@@ -167,6 +169,7 @@ def test_request_body_validation():
     assert request_body.guardrails.config_ids == ["test_config1", "test_config2"]
 
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {
             "config_id": "test_config",
@@ -176,7 +179,7 @@ def test_request_body_validation():
     with pytest.raises(ValueError, match="Only one of config_id or config_ids should be specified"):
         GuardrailsChatCompletionRequest.model_validate(data)
 
-    data = {"messages": [{"role": "user", "content": "Hello"}]}
+    data = {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
     assert request_body.guardrails.config_ids is None
 
@@ -198,6 +201,7 @@ def test_model_field_independent_of_config_id():
 def test_request_body_state():
     """Test GuardrailsChatCompletionRequest state handling."""
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {
             "config_id": "test_config",
@@ -211,6 +215,7 @@ def test_request_body_state():
 def test_request_body_context():
     """Test GuardrailsChatCompletionRequest context handling."""
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {
             "config_id": "test_config",
@@ -224,6 +229,7 @@ def test_request_body_context():
 def test_request_body_messages():
     """Test GuardrailsChatCompletionRequest messages validation."""
     data = {
+        "model": "gpt-4o",
         "messages": [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
@@ -235,6 +241,7 @@ def test_request_body_messages():
     assert len(request_body.messages) == 2
 
     data = {
+        "model": "gpt-4o",
         "messages": [{"content": "Hello"}],
         "guardrails": {"config_id": "test_config"},
     }
@@ -246,6 +253,7 @@ def test_request_body_messages():
 def test_request_body_options():
     """Test GuardrailsChatCompletionRequest options handling."""
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {
             "config_id": "test_config",
@@ -270,6 +278,7 @@ def test_request_body_options():
 def test_request_body_options_with_rail_names():
     """Test options with specific rail names instead of booleans."""
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {
             "config_id": "test_config",
@@ -288,7 +297,7 @@ def test_request_body_options_with_rail_names():
 
 def test_guardrails_defaults_when_not_provided():
     """Test that guardrails field has proper defaults when not provided."""
-    data = {"messages": [{"role": "user", "content": "Hello"}]}
+    data = {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}
     request_body = GuardrailsChatCompletionRequest.model_validate(data)
 
     assert request_body.guardrails is not None
@@ -305,6 +314,7 @@ def test_guardrails_defaults_when_not_provided():
 def test_guardrails_defaults_when_empty_object():
     """Test that guardrails field has proper defaults when empty object provided."""
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {},
     }
@@ -318,6 +328,7 @@ def test_guardrails_defaults_when_empty_object():
 def test_guardrails_partial_fields():
     """Test that guardrails works with only some fields provided."""
     data = {
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": "Hello"}],
         "guardrails": {"config_id": "test_config"},
     }
@@ -344,6 +355,7 @@ def test_no_config_error_returns_proper_response():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "Hello"}],
         },
     )
@@ -358,6 +370,7 @@ def test_invalid_state_returns_error():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {
                 "config_id": "with_custom_llm",
@@ -376,6 +389,7 @@ def test_chat_completion_response_structure():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {"config_id": "with_custom_llm"},
         },
@@ -387,7 +401,7 @@ def test_chat_completion_response_structure():
     assert res["object"] == "chat.completion"
     assert isinstance(res["created"], int)
     assert res["created"] > 0
-    assert res["model"] == "custom_model"
+    assert res["model"] == "gpt-4o"
     assert len(res["choices"]) == 1
     assert res["choices"][0]["index"] == 0
     assert res["choices"][0]["finish_reason"] == "stop"
@@ -401,6 +415,7 @@ def test_chat_completion_with_context():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {
                 "config_id": "with_custom_llm",
@@ -411,7 +426,7 @@ def test_chat_completion_with_context():
     assert response.status_code == 200
     res = response.json()
     assert res["object"] == "chat.completion"
-    assert res["model"] == "custom_model"
+    assert res["model"] == "gpt-4o"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
     assert res["config_id"] == "with_custom_llm"
 
@@ -421,6 +436,7 @@ def test_chat_completion_with_options():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {
                 "config_id": "with_custom_llm",
@@ -433,7 +449,7 @@ def test_chat_completion_with_options():
     assert response.status_code == 200
     res = response.json()
     assert res["object"] == "chat.completion"
-    assert res["model"] == "custom_model"
+    assert res["model"] == "gpt-4o"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
     assert res["config_id"] == "with_custom_llm"
 
@@ -443,6 +459,7 @@ def test_chat_completion_with_all_guardrails_fields():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {
                 "config_id": "with_custom_llm",
@@ -459,7 +476,7 @@ def test_chat_completion_with_all_guardrails_fields():
     res = response.json()
 
     assert res["object"] == "chat.completion"
-    assert res["model"] == "custom_model"
+    assert res["model"] == "gpt-4o"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
     assert res["config_id"] == "with_custom_llm"
 
@@ -477,6 +494,7 @@ def test_chat_completion_with_log_llm_calls():
     response = client.post(
         "/v1/chat/completions",
         json={
+            "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hi"}],
             "guardrails": {
                 "config_id": "with_custom_llm",
