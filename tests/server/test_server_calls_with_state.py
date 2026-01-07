@@ -14,11 +14,25 @@
 # limitations under the License.
 import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 from nemoguardrails.server import api
 
 client = TestClient(api.app)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_test_env():
+    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
+    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    api.llm_rails_instances.clear()
+    yield
+    api.llm_rails_instances.clear()
+    if original_engine is not None:
+        os.environ["MAIN_MODEL_ENGINE"] = original_engine
+    else:
+        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 def _test_call(config_id):

@@ -22,8 +22,23 @@ from nemoguardrails.server.api import register_datastore
 from nemoguardrails.server.datastore.memory_store import MemoryStore
 
 register_datastore(MemoryStore())
-api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
 client = TestClient(api.app)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_test_env():
+    original_path = api.app.rails_config_path
+    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
+    api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
+    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    api.llm_rails_instances.clear()
+    yield
+    api.app.rails_config_path = original_path
+    api.llm_rails_instances.clear()
+    if original_engine is not None:
+        os.environ["MAIN_MODEL_ENGINE"] = original_engine
+    else:
+        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 def test_get():

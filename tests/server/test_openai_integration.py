@@ -25,13 +25,20 @@ from nemoguardrails.server import api
 
 @pytest.fixture(scope="function", autouse=True)
 def set_rails_config_path():
-    """Set the rails_config_path to test configs."""
+    """Set the rails_config_path to test configs and required env vars."""
     original_path = api.app.rails_config_path
-    # Use test_configs which have mock LLMs that don't need API keys
+    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
     test_configs_path = os.path.join(os.path.dirname(__file__), "..", "test_configs")
     api.app.rails_config_path = test_configs_path
+    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    api.llm_rails_instances.clear()
     yield
     api.app.rails_config_path = original_path
+    api.llm_rails_instances.clear()
+    if original_engine is not None:
+        os.environ["MAIN_MODEL_ENGINE"] = original_engine
+    else:
+        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 @pytest.fixture(scope="function")

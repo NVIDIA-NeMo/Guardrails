@@ -32,11 +32,18 @@ client = TestClient(api.app)
 
 @pytest.fixture(scope="function", autouse=True)
 def set_rails_config_path():
+    original_path = api.app.rails_config_path
+    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
     api.app.rails_config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "test_configs"))
+    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    api.llm_rails_instances.clear()
     yield
-    api.app.rails_config_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "examples", "bots")
-    )
+    api.app.rails_config_path = original_path
+    api.llm_rails_instances.clear()
+    if original_engine is not None:
+        os.environ["MAIN_MODEL_ENGINE"] = original_engine
+    else:
+        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 def test_get():
@@ -49,26 +56,31 @@ def test_get():
 
 def test_get_models_default_env_vars():
     """Test the OpenAI-compatible /v1/models endpoint."""
-    response = client.get("/v1/models")
-    assert response.status_code == 200
+    saved_engine = os.environ.pop("MAIN_MODEL_ENGINE", None)
+    try:
+        response = client.get("/v1/models")
+        assert response.status_code == 200
 
-    result = response.json()
+        result = response.json()
 
-    # Check OpenAI models list format
-    assert result["object"] == "list"
-    assert "data" in result
-    assert len(result["data"]) > 0
+        # Check OpenAI models list format
+        assert result["object"] == "list"
+        assert "data" in result
+        assert len(result["data"]) > 0
 
-    # Check each model has the required OpenAI format
-    for model in result["data"]:
-        assert "id" in model
-        assert "config_id" in model
-        assert model["object"] == "model"
-        assert "created" in model
-        assert model["owned_by"] == "nemo-guardrails"
-        assert model["engine"] == "nim"
-        assert model["base_url"] == "https://localhost:8000/v1"
-        assert model["api_key_env_var"] is None
+        # Check each model has the required OpenAI format
+        for model in result["data"]:
+            assert "id" in model
+            assert "config_id" in model
+            assert model["object"] == "model"
+            assert "created" in model
+            assert model["owned_by"] == "nemo-guardrails"
+            assert model["engine"] == "nim"
+            assert model["base_url"] == "https://localhost:8000/v1"
+            assert model["api_key_env_var"] is None
+    finally:
+        if saved_engine is not None:
+            os.environ["MAIN_MODEL_ENGINE"] = saved_engine
 
 
 def test_get_models_with_custom_env_vars():
