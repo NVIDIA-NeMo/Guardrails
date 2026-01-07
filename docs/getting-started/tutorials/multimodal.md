@@ -1,8 +1,8 @@
 ---
 title:
-  page: "Multimodal Content Safety with Vision Models"
-  nav: "Multimodal"
-description: "Add safety checks to images and text using vision models as LLM-as-a-judge."
+  page: "Add Multimodal Content Safety Using a Vision Model"
+  nav: "Add Multimodal Content Safety"
+description: "Add safety checks to images and text using a vision model as LLM-as-a-Judge."
 topics: ["AI Safety", "Content Safety"]
 tags: ["Multimodal", "Vision", "Images", "LLM-as-a-Judge", "OpenAI"]
 content:
@@ -16,45 +16,47 @@ content:
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Multimodal Content Safety with Vision Models as LLM-as-a-judge
+# Add Multimodal Content Safety Using a Vision Model as LLM-as-a-Judge
 
-## About Working with Multimodal Data
+Learn how to add safety checks to images and text using a vision model as LLM-as-a-Judge with [OpenAI GPT-4 Vision](https://platform.openai.com/docs/guides/vision), Llama Vision, or Llama Guard.
 
-The NeMo Guardrails library supports adding safety checks to multimodal content---images and text.
-The support is for input and output guardrails only.
-Depending on the image reasoning model, you can specify the image to check as a base64 encoded data or as a URL.
+By following this tutorial, you learn how to:
 
-The safety check uses the image reasoning model as LLM as-a-judge to determine if the content is safe.
-The OpenAI, Llama Vision, and Llama Guard models can accept multimodal input and act as a judge model.
+1. Configure multimodal content safety rails for images and text.
+2. Use a vision model as LLM-as-a-Judge to evaluate content safety.
+3. Test with safe and unsafe image requests.
 
-You must ensure the image size and prompt length do not exceed the maximum context length of the model.
+The NeMo Guardrails library supports multimodal content safety for input and output rails. You can provide images as base64-encoded data or URLs, depending on the model.
 
-## Sample Configuration
+:::{important}
+Ensure image size and prompt length do not exceed the model's maximum context length.
+:::
 
-1. Create a directory, such as `configs/content_safety_vision`, and add a `config.yml` file with the following content:
+## Configure Guardrails
+
+1. Create a configuration directory and add `config.yml`:
 
    ```{literalinclude} ../../../examples/configs/content_safety_vision/config.yml
    :language: yaml
    ```
 
-1. Add a `configs/content_safety_vision/prompts.yml` file with the following content:
+1. Add `prompts.yml`:
 
    ```{literalinclude} ../../../examples/configs/content_safety_vision/prompts.yml
    :language: yaml
    ```
 
-## Example
+## Test with OpenAI
 
-The following sample code uses the preceding configuration and sends requests to OpenAI endpoints.
-The sample image is a handgun.
+This example sends image requests to OpenAI endpoints and tests safety checks on a handgun image.
 
-1. Set the OpenAI environment variable with your token:
+1. Set your OpenAI API key:
 
    ```console
-   export OPENAI_API_KEY=<api-key>
+   export OPENAI_API_KEY=<your-openai-api-key>
    ```
 
-1. Import required libraries:
+1. Import libraries:
 
    ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
@@ -62,7 +64,7 @@ The sample image is a handgun.
    :end-before: "# end-prerequisites"
    ```
 
-1. Load the vision content safety configuration:
+1. Load the configuration:
 
    ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
@@ -70,7 +72,7 @@ The sample image is a handgun.
    :end-before: "# end-config"
    ```
 
-1. Send an image reasoning request:
+1. Send a safe image reasoning request:
 
    ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
@@ -78,7 +80,7 @@ The sample image is a handgun.
    :end-before: "# end-image-reasoning"
    ```
 
-1. Send a potentially unsafe request:
+1. Send an unsafe request:
 
    ```{literalinclude} ../../../examples/configs/content_safety_vision/demo.py
    :language: python
@@ -86,12 +88,9 @@ The sample image is a handgun.
    :end-before: "# end-potentially-unsafe"
    ```
 
-## Tips for Base 64 Encoded Images
+## Use Base64-Encoded Images
 
-Some models, such as the Llama Vision models, do not read an image from a URL.
-For these models, encode the image in base 64 and provide the encoded image to the model.
-
-The following code sample shows the common Python statements.
+Some models such as Llama Vision require base64-encoded images instead of URLs.
 
 ```{code-block} python
 :emphasize-lines: 11, 23

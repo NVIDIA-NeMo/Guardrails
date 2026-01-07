@@ -3,12 +3,13 @@ title:
   page: "Release Notes"
   nav: "Release Notes"
 description: "Review new features, breaking changes, and fixed issues for each release."
-topics: ["AI"]
-tags: ["Release Notes", "Changelog", "Guardrails"]
+keywords: ["nemo guardrails changelog", "release notes", "version history"]
+topics: ["generative_ai"]
+tags: ["llms", "security_for_ai"]
 content:
-  type: "Reference"
-  difficulty: "Beginner"
-  audience: ["Developer", "Machine Learning Engineer", "Admin"]
+  type: reference
+  difficulty: technical_beginner
+  audience: [engineer, data_scientist, it_operations]
 tocdepth: 2
 ---
 <!--

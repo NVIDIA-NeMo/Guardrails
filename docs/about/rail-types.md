@@ -3,12 +3,13 @@ title:
   page: "Guardrail Types"
   nav: "Guardrail Types"
 description: "Apply input, retrieval, dialog, execution, and output rails to protect LLM applications."
-topics: ["AI"]
-tags: ["Guardrails", "Input Rails", "Output Rails", "RAG", "Agentic"]
+keywords: ["input rails", "output rails", "retrieval rails", "dialog rails", "execution rails"]
+topics: ["generative_ai", "cybersecurity"]
+tags: ["llms", "security_for_ai", "rag", "nlp"]
 content:
-  type: "Concept"
-  difficulty: "Beginner"
-  audience: ["Developer", "Machine Learning Engineer"]
+  type: concept
+  difficulty: technical_beginner
+  audience: [engineer, data_scientist]
 ---
 
 # Guardrail Types

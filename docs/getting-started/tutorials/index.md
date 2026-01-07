@@ -2,9 +2,9 @@
 title:
   page: "NeMo Guardrails Tutorials"
   nav: "Tutorials"
-description: "Follow hands-on tutorials to deploy content safety, topic control, and jailbreak detection."
+description: "Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect NIMs."
 topics: ["Get Started", "AI Safety"]
-tags: ["Tutorial", "Content Safety", "Jailbreak", "Topic Control"]
+tags: ["Tutorial", "Content Safety", "Jailbreak", "Topic Control", "Nemotron", "NIM"]
 content:
   type: "Tutorial"
   difficulty: "Beginner"
@@ -18,32 +18,32 @@ This section contains tutorials that help you get started with the NeMo Guardrai
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Content Safety
+:::{grid-item-card} Check Harmful Content
 :link: nemotron-safety-guard-deployment
 :link-type: doc
 
-Deploy Nemotron Safety Guard to detect harmful content in multilingual text inputs and outputs.
+Check text inputs and outputs for harmful content using Nemotron Content Safety NIM.
 :::
 
-:::{grid-item-card} Topic Control
+:::{grid-item-card} Restrict Topics
 :link: nemoguard-topiccontrol-deployment
 :link-type: doc
 
-Deploy NeMo Topic Control NIM to restrict conversations to allowed topics.
+Restrict conversations to allowed topics using Nemotron Topic Control NIM.
 :::
 
-:::{grid-item-card} Jailbreak Detection
+:::{grid-item-card} Detect Jailbreak Attempts
 :link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
-Deploy NeMo Jailbreak Detect NIM to block adversarial prompts and jailbreak attempts.
+Detect and block adversarial prompts and jailbreak attempts using Nemotron Jailbreak Detect NIM.
 :::
 
-:::{grid-item-card} Multimodal
+:::{grid-item-card} Add Multimodal Content Safety
 :link: multimodal
 :link-type: doc
 
-Add safety checks to images and text using vision models as LLM-as-a-judge.
+Add safety checks to images and text using a vision model as LLM-as-a-Judge.
 :::
 
 ::::
@@ -52,8 +52,8 @@ Add safety checks to images and text using vision models as LLM-as-a-judge.
 :hidden:
 :maxdepth: 2
 
-Content Safety <nemotron-safety-guard-deployment>
-Topic Control <nemoguard-topiccontrol-deployment>
-Jailbreak Detection <nemoguard-jailbreakdetect-deployment>
-Multimodal Data <multimodal>
+Check Harmful Content <nemotron-safety-guard-deployment>
+Restrict Topics <nemoguard-topiccontrol-deployment>
+Detect Jailbreak Attempts <nemoguard-jailbreakdetect-deployment>
+Add Multimodal Content Safety <multimodal>
 ```

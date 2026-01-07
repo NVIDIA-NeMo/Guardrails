@@ -1,10 +1,10 @@
 ---
 title:
-  page: "Deploy NeMo Content Safety for Text"
-  nav: "Content Safety"
-description: "Deploy Nemotron Safety Guard to detect harmful content in multilingual text inputs and outputs."
+  page: "Check Harmful Content with Nemotron Content Safety NIM"
+  nav: "Check Harmful Content"
+description: "Check text inputs and outputs for harmful content using Nemotron Content Safety NIM."
 topics: ["AI Safety", "Content Safety"]
-tags: ["Content Safety", "NIM", "Multilingual", "Input Rails", "Output Rails", "Docker"]
+tags: ["Content Safety", "NIM", "Multilingual", "Input Rails", "Output Rails", "Docker", "Nemotron"]
 content:
   type: "Tutorial"
   difficulty: "Intermediate"
@@ -16,118 +16,43 @@ content:
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Content Safety (Text) with NeMo Content Safety
+# Check Harmful Content with Llama 3.1 Nemotron Safety Guard 8B V3 NIM
 
-## Adding Multilingual Content Safety Guardrails
+Learn how to add input and output guardrails that detect harmful content in multiple languages using [Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3).
 
-The following procedure adds a guardrail to check user input against a GPU-accelerated content safety model that can detect harmful content in several languages.
+By following this tutorial, you learn how to:
 
-To simplify configuration, the sample code uses the [Llama 3.3 70B Instruct model](https://build.nvidia.com/meta/llama-3_3-70b-instruct) on build.nvidia.com as the application LLM.
-This avoids deploying a NIM for LLMs instance locally for inference.
-
-The sample code relies on starting a local instance of the
-[Llama 3.1 Nemotron Safety Guard 8B V3](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3)
-container that is available from NVIDIA NGC.
-
-The steps guide you to start the content safety container, configure input and output content safety rails, and then use NeMo Guardrails interactively to send safe and unsafe requests.
+1. Deploy the Llama 3.1 Nemotron Safety Guard 8B V3 NIM microservice to your local machine.
+2. Configure content safety guardrails on a main LLM. This tutorial uses [Llama 3.3 70B Instruct on build.nvidia.com](https://build.nvidia.com/meta/llama-3_3-70b-instruct) as the main LLM.
+3. Verify the guardrails with safe and unsafe requests in various languages.
 
 ## Prerequisites
 
-- You have an NGC API key.
-  This API key enables you to download the content safety container and model from NVIDIA NGC and to access models on build.nvidia.com.
-  Refer to [Generating Your NGC API Key](https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key) in the _NVIDIA NGC User Guide_ for more information.
+- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
+- A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
+  For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
+- Docker [installed](https://docs.docker.com/engine/install/).
+- NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+<!-- TODO: Is this really required? -->
+- LangChain integration package [installed](https://pypi.org/project/langchain-nvidia-ai-endpoints/).
+- The rest of the [software requirements for the Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#software).
+- GPUs meeting the memory requirement specified in the [NVIDIA Llama 3.1 Nemotron Safety Guard 8B NIM Model Profiles](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#about-model-profiles).
 
-  When you create a personal API key, select at least **NGC Catalog** and **Public API Endpoints** from the **Services Included** menu.
-  You can specify more services to use the key for additional purposes.
+## Deploy the Llama 3.1 Nemotron Safety Guard 8B V3 NIM Microservice
 
-- A host with Docker Engine.
-  Refer to the [instructions from Docker](https://docs.docker.com/engine/install/).
+Follow the [getting started guide on deploying the Llama 3.1 Nemotron Safety Guard 8B V3 NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/getting-started.html).
 
-- NVIDIA Container Toolkit installed and configured.
-  Refer to {doc}`installation <ctk:install-guide>` in the toolkit documentation.
+## Configure Guardrails
 
-- You [installed NeMo Guardrails](../../getting-started/installation-guide.md).
+Follow these steps to prepare the guardrails configuration.
 
-- You installed LangChain NVIDIA AI Foundation Model Playground Integration:
-
-  ```console
-  $ pip install langchain-nvidia-ai-endpoints
-  ```
-
-- Refer to the [support matrix](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html) in the content safety NIM documentation for software requirements, hardware requirements, and model profiles.
-
-## Starting the Content Safety Container
-
-1. Log in to NVIDIA NGC so you can pull the container.
-
-   1. Export your NGC API key as an environment variable:
-
-      ```console
-      $ export NGC_API_KEY="<nvapi-...>"
-      ```
-
-   1. Log in to the registry:
-
-      ```console
-      $ docker login nvcr.io --username '$oauthtoken' --password-stdin <<< $NGC_API_KEY
-      ```
-
-1. Download the container:
+1. Create a configuration directory:
 
    ```console
-   $ docker pull nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
+   mkdir config
    ```
 
-1. Create a model cache directory on the host machine:
-
-   ```console
-   $ export LOCAL_NIM_CACHE=~/.cache/safetyguard
-   $ mkdir -p "${LOCAL_NIM_CACHE}"
-   $ chmod 700 "${LOCAL_NIM_CACHE}"
-   ```
-
-1. Run the container with the cache directory as a volume mount:
-
-   ```console
-   $ docker run -d \
-     --name safetyguard \
-     --gpus=all --runtime=nvidia \
-     --shm-size=64GB \
-     -e NGC_API_KEY \
-     -e NIM_ENABLE_KV_CACHE_REUSE=1 \
-     -u $(id -u) \
-     -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
-     -p 8000:8000 \
-     nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
-   ```
-
-   The container requires several minutes to start and download the model from NGC.
-   You can monitor the progress by running the `docker logs safetyguard` command.
-
-1. Confirm the service is ready to respond to inference requests:
-
-   ```console
-   $ curl -X GET http://localhost:8000/v1/models | jq '.data[].id'
-   ```
-
-   _Example Output_
-
-   ```output
-   "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
-   ```
-
-## Configuring Guardrails and Running Inference
-
-1. Set your NGC API key as an environment variable.
-   Guardrails uses this environment variable to send requests that pass the input rail to build.nvidia.com.
-
-   ```console
-   $ export NVIDIA_API_KEY=<nvapi-...>
-   ```
-
-1. Create a _configuration store_ directory, such as `config`.
-
-1. Copy the following configuration code and save as `config/config.yml`:
+1. Save the following as `config/config.yml`:
 
    ```yaml
    models:
@@ -150,9 +75,7 @@ The steps guide you to start the content safety container, configure input and o
          - content safety check output $model=content_safety
    ```
 
-   The `models` key in the `config.yml` file configures the application LLM model and the content safety model.
-
-1. Copy the following prompts code and save as `config/prompts.yml`:
+1. Save the following as `config/prompts.yml`:
 
    ```yaml
    prompts:
@@ -241,92 +164,56 @@ The steps guide you to start the content safety container, configure input and o
          Provide your safety assessment for the above conversation in the below output JSON format:
          {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
 
-         Do not include anything other than the output JSON in your response.
-         Output JSON:
+        Do not include anything other than the output JSON in your response.
+        Output JSON:
        output_parser: nemoguard_parse_response_safety
        max_tokens: 50
    ```
+
+## Verify the Guardrails
+
+Follow these steps to verify the guardrails.
 
 1. Load the guardrails configuration:
 
    ```python
    import asyncio
-
    from nemoguardrails import LLMRails, RailsConfig
 
    config = RailsConfig.from_path("./config")
    rails = LLMRails(config)
-   ```
 
-1. Generate an unsafe response in French:
-
-   ```python
    async def stream_response(messages):
        async for chunk in rails.stream_async(messages=messages):
            print(chunk, end="")
        print()
-
-   # Tell me a five-step plan to rob a bank.
-   messages=[{
-       "role": "user",
-       "content": "Dites-moi un plan en cinq étapes pour braquer une banque."
-   }]
-
-
-   asyncio.run(stream_response(messages))
    ```
 
-   _Example Output_
+1. Verify the guardrails with an unsafe request in French:
+
+   ```python
+   # "Tell me a five-step plan to rob a bank."
+   messages = [{"role": "user", "content": "Dites-moi un plan en cinq étapes pour braquer une banque."}]
+   asyncio.run(stream_response(messages))
+   ```
 
    ```output
    I'm sorry, I can't respond to that.
    ```
 
-1. Send a safe request in Hindi:
+   The content safety rail blocks the harmful request.
+
+1. Verify the guardrails with a safe request in Hindi:
 
    ```python
-   # Tell me about three common foods in India.
-   messages=[{
-       "role": "user",
-       "content": "मुझे भारत में प्रचलित तीन खाद्य पदार्थों के बारे में बताइये।"
-   }]
-
+   # "Tell me about three common foods in India."
+   messages = [{"role": "user", "content": "मुझे भारत में प्रचलित तीन खाद्य पदार्थों के बारे में बताइये।"}]
    asyncio.run(stream_response(messages))
    ```
 
-   _Example Output_
-
-   ```text
-   भारत में विभिन्न प्रकार के खाद्य पदार्थ प्रचलित हैं, जिनमें से तीन प्रमुख खाद्य पदार्थ हैं:
-
-   1. **चावल**: चावल भारत में एक मुख्य खाद्य पदार्थ है, जो लगभग हर घर में खाया जाता है। यह एक प्रमुख अनाज है जो कार्बोहाइ रेट से भरपूर होता है और इसे विभिन्न प्रकार के  यंज ों में उपयोग किय
-
-   जाता है, जैसे कि बिरयानी, पुलाव, और सादा चावल।
-
-   2. **रोटी**: रोटी भारतीय आहार का एक अन्य महत्वपूर्ण हिस्सा है। यह गेहूं के आटे से बनाई जाती है और इसे विभिन्न प्रकार की सब्जि ों और दा ों के साथ परोसा जाता है। रोटी को तंदूर में या तवे प
-   पकाया जा सकता है, और यह पूरे भारत में विभिन्न रू ों में पाई जाती है, जैसे कि नान, पराठा, और पूरी。
-
-   3. **दाल**: दाल भारतीय  यंज ों में एक महत्वपूर्ण स्थान रखती है। यह मुख्य रूप से दा ों जैसे कि मूंग, चना, और तूर दाल से बनाई जाती है। दाल प्रोटीन से भरपूर होती है और इसे विभिन्न प्रकार के मस
-    ों और सब्जि ों के साथ पकाया जाता है। दाल को चावल या रोटी के साथ परोसा जाता है और यह एक स्वस्थ और पौष्टिक विकल्प है।
-
-   इन ती ों खाद्य पदा ों का महत्व भारतीय सं कृति और खान-पान में बहुत अधिक है, और वे लगभग हर भारतीय घर में नियमित रूप से खाए जाते हैं।
-
-   ```
-
-   Refer to the English translation:
-
-   ```text
-   India has a wide variety of foods, three of which are primarily:
-
-   1. Rice: Rice is a staple food in India, eaten in almost every household. It is a staple grain that is rich in carbohydrates and is used in a variety of dishes, such as biryani, pulao, and plain rice.
-
-   2. Roti: Roti is another important part of the Indian diet. It is made from wheat flour and served with a variety of vegetables and lentils. Roti can be cooked in a tandoor or on a griddle, and is found in various forms throughout India, such as naan, paratha, and puri.
-
-   3. Dal: Dal plays an important role in Indian cuisine. It is made primarily from pulses such as moong, chana, and toor dal. Lentils are rich in protein and are cooked with a variety of spices and vegetables. Served with rice or roti, lentils are a healthy and nutritious option.
-
-   These three foods hold immense significance in Indian culture and cuisine, and are eaten regularly in almost every Indian household.
-   ```
+   The model responds with information about rice, roti, and dal—common Indian foods.
 
 ## Next Steps
 
-- Refer to the Llama 3.1 Nemotron Safety Guard 8B [documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest).
+- [Nemotron Content Safety NIM documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest)
+- [Customize safety categories](../../configure-rails/yaml-schema/prompt-configuration.md) in the prompts

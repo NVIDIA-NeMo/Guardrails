@@ -28,6 +28,6 @@ Enable KV cache reuse in NVIDIA NIM for LLMs to reduce inference latency for Nem
 :maxdepth: 1
 :hidden:
 
-Caching Instructions <model-memory-cache.md>
-KV Cache Reuse for LLM NIM <kv-cache-reuse.md>
+Memory Model Cache <model-memory-cache.md>
+KV Cache Reuse for NemoGuard NIM <kv-cache-reuse.md>
 ```

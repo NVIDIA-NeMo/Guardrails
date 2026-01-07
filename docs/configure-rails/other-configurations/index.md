@@ -30,7 +30,7 @@ Raise and handle exceptions in guardrails flows to control error behavior and cu
 :hidden:
 :maxdepth: 2
 
-knowledge-base
-embedding-search-providers
-exceptions
+Knowledge Base <knowledge-base>
+Embedding Search Providers <embedding-search-providers>
+Exceptions and Error Handling <exceptions>
 ```

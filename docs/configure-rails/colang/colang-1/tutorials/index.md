@@ -10,11 +10,11 @@ This section contains tutorials for Colang 1.0.
 ```{toctree}
 :hidden:
 
-1-hello-world/README
-2-core-colang-concepts/README
-3-demo-use-case/README
-4-input-rails/README
-5-output-rails/README
-6-topical-rails/README
-7-rag/README
+Hello World <1-hello-world/README>
+Core Colang Concepts <2-core-colang-concepts/README>
+Demo Use Case <3-demo-use-case/README>
+Input Rails <4-input-rails/README>
+Output Rails <5-output-rails/README>
+Topical Rails <6-topical-rails/README>
+Retrieval-Augmented Generation <7-rag/README>
 ```

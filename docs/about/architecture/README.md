@@ -3,12 +3,13 @@ title:
   page: "Architecture Guide"
   nav: "Architecture"
 description: "Explore the event-driven runtime, canonical messages, and server design."
-topics: ["AI"]
-tags: ["Guardrails", "Architecture", "Colang", "LangChain"]
+keywords: ["guardrails architecture", "event-driven runtime", "llmrails", "colang"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "security_for_ai", "ai_inference", "nlp"]
 content:
-  type: "Concept"
-  difficulty: "Advanced"
-  audience: ["Developer", "Machine Learning Engineer"]
+  type: concept
+  difficulty: technical_advanced
+  audience: [engineer, data_scientist]
 ---
 
 # Architecture Guide
