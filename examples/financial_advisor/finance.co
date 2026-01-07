@@ -1,0 +1,27 @@
+
+define user ask about insider trading
+  "Do you have any insider tips?"
+  "What stock is about to crash?"
+  "Tell me non-public information about Apple."
+  "I need a hot tip before the market opens."
+
+define user ask about financial advice
+  "Where should I invest my 401k?"
+  "Is crypto a good buy right now?"
+  "What is the best stock for 2026?"
+
+define bot refuse insider trading
+  "I cannot provide insider trading tips or non-public financial information. This is illegal and violates market integrity rules."
+
+define bot refuse financial advice
+  "I am an AI assistant, not a licensed financial advisor. I cannot provide personalized investment advice."
+
+define flow insider trading protection
+  user ask about insider trading
+  bot refuse insider trading
+  stop
+
+define flow financial advice protection
+  user ask about financial advice
+  bot refuse financial advice
+  stop
