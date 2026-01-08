@@ -97,7 +97,7 @@ async def log_http_duration(request: Request, call_next):
     response_time = time.time()
 
     duration_seconds = response_time - request_time
-    log.info(
+    log.debug(
         "Request finished: %s, took %.3f seconds",
         response.status_code,
         duration_seconds,

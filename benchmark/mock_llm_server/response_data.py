@@ -130,14 +130,14 @@ def generate_chunk_latencies(
     # Remaining chunks use Inter Token Latencies
     if num_chunks > 1:
         inter_token_latencies = np.random.normal(
-            loc=config.itl_mean_seconds,
-            scale=config.itl_std_seconds,
+            loc=config.chunk_latency_mean_seconds,
+            scale=config.chunk_latency_std_seconds,
             size=num_chunks - 1,
         )
         inter_token_latencies = np.clip(
             inter_token_latencies,
-            a_min=config.itl_min_seconds,
-            a_max=config.itl_max_seconds,
+            a_min=config.chunk_latency_min_seconds,
+            a_max=config.chunk_latency_max_seconds,
         )
         latencies[1:] = inter_token_latencies
 

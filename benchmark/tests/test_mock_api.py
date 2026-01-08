@@ -41,10 +41,10 @@ def get_test_settings():
         ttft_max_seconds=0,
         ttft_mean_seconds=0,
         ttft_std_seconds=0,
-        itl_min_seconds=0,
-        itl_max_seconds=0,
-        itl_mean_seconds=0,
-        itl_std_seconds=0,
+        chunk_latency_min_seconds=0,
+        chunk_latency_max_seconds=0,
+        chunk_latency_mean_seconds=0,
+        chunk_latency_std_seconds=0,
     )
 
 
@@ -387,10 +387,10 @@ def get_safe_only_settings():
         ttft_max_seconds=0,
         ttft_mean_seconds=0,
         ttft_std_seconds=0,
-        itl_min_seconds=0,
-        itl_max_seconds=0,
-        itl_mean_seconds=0,
-        itl_std_seconds=0,
+        chunk_latency_min_seconds=0,
+        chunk_latency_max_seconds=0,
+        chunk_latency_mean_seconds=0,
+        chunk_latency_std_seconds=0,
     )
 
 
@@ -409,10 +409,10 @@ def get_unsafe_only_settings():
         ttft_max_seconds=0,
         ttft_mean_seconds=0,
         ttft_std_seconds=0,
-        itl_min_seconds=0,
-        itl_max_seconds=0,
-        itl_mean_seconds=0,
-        itl_std_seconds=0,
+        chunk_latency_min_seconds=0,
+        chunk_latency_max_seconds=0,
+        chunk_latency_mean_seconds=0,
+        chunk_latency_std_seconds=0,
     )
 
 

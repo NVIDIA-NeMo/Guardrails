@@ -49,12 +49,12 @@ class ModelSettings(BaseSettings):
     ttft_mean_seconds: float = Field(default=0.1, description="Average TTFT in seconds")
     ttft_std_seconds: float = Field(default=0.02, description="Standard deviation of TTFT")
 
-    # Streaming latency: Inter-Token Latency (ITL)
+    # Streaming latency: Chunk Latency
     # https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#inter-token-latency-itl
-    itl_min_seconds: float = Field(default=0.01, description="Minimum ITL in seconds")
-    itl_max_seconds: float = Field(default=0.1, description="Maximum ITL in seconds")
-    itl_mean_seconds: float = Field(default=0.03, description="Average ITL in seconds")
-    itl_std_seconds: float = Field(default=0.01, description="Standard deviation of ITL")
+    chunk_latency_min_seconds: float = Field(default=0.01, description="Minimum chunk latency in seconds")
+    chunk_latency_max_seconds: float = Field(default=0.1, description="Maximum chunk latency in seconds")
+    chunk_latency_mean_seconds: float = Field(default=0.03, description="Average chunk latency in seconds")
+    chunk_latency_std_seconds: float = Field(default=0.01, description="Standard deviation of chunk latency")
 
     model_config = SettingsConfigDict(env_file=CONFIG_FILE)
 

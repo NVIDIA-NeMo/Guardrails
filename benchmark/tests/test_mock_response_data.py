@@ -293,10 +293,10 @@ class TestGenerateChunkLatencies:
             ttft_max_seconds=4.0,
             ttft_mean_seconds=1.3,
             ttft_std_seconds=0.96,
-            itl_min_seconds=0.01,
-            itl_max_seconds=0.12,
-            itl_mean_seconds=0.05,
-            itl_std_seconds=0.02,
+            chunk_latency_min_seconds=0.01,
+            chunk_latency_max_seconds=0.12,
+            chunk_latency_mean_seconds=0.05,
+            chunk_latency_std_seconds=0.02,
         )
 
     def test_generate_latencies_zero_chunks(self, streaming_settings: ModelSettings):
@@ -382,11 +382,11 @@ class TestGenerateChunkLatencies:
         """Test multiple chunks calls TTFT then ITL normal and clip."""
         num_chunks = 5
         ttft_value = np.array([streaming_settings.ttft_mean_seconds])
-        itl_values = np.array([0.01, 0.02, 0.03, 0.04])
+        chunk_values = np.array([0.01, 0.02, 0.03, 0.04])
 
         # First call returns TTFT, second call returns ITL values
-        mock_normal.side_effect = [ttft_value, itl_values]
-        mock_clip.side_effect = [ttft_value, itl_values]
+        mock_normal.side_effect = [ttft_value, chunk_values]
+        mock_clip.side_effect = [ttft_value, chunk_values]
 
         latencies = generate_chunk_latencies(streaming_settings, num_chunks)
 
@@ -403,11 +403,11 @@ class TestGenerateChunkLatencies:
         assert ttft_normal_call_kwargs["size"] == 1
 
         # Check the ITL Normal distribution call (for all but the first chunk)
-        itl_normal_call_args, itl_normal_call_kwargs = mock_normal.call_args_list[1]
-        assert itl_normal_call_args == ()  # All arguments are passed as kwargs, so args list is empty
-        assert itl_normal_call_kwargs["loc"] == streaming_settings.itl_mean_seconds
-        assert itl_normal_call_kwargs["scale"] == streaming_settings.itl_std_seconds
-        assert itl_normal_call_kwargs["size"] == num_chunks - 1
+        chunk_normal_call_args, chunk_normal_call_kwargs = mock_normal.call_args_list[1]
+        assert chunk_normal_call_args == ()  # All arguments are passed as kwargs, so args list is empty
+        assert chunk_normal_call_kwargs["loc"] == streaming_settings.chunk_latency_mean_seconds
+        assert chunk_normal_call_kwargs["scale"] == streaming_settings.chunk_latency_std_seconds
+        assert chunk_normal_call_kwargs["size"] == num_chunks - 1
 
         # Check TTFT clip calls
         ttft_clip_call_args, ttft_clip_call_kwargs = mock_clip.call_args_list[0]
@@ -416,10 +416,10 @@ class TestGenerateChunkLatencies:
         assert ttft_clip_call_kwargs["a_min"] == streaming_settings.ttft_min_seconds
 
         # Check ITL clip calls
-        itl_clip_call_args, itl_clip_call_kwargs = mock_clip.call_args_list[1]
-        np.testing.assert_array_equal(itl_clip_call_args[0], itl_values)
-        assert itl_clip_call_kwargs["a_max"] == streaming_settings.itl_max_seconds
-        assert itl_clip_call_kwargs["a_min"] == streaming_settings.itl_min_seconds
+        chunk_clip_call_args, chunk_clip_call_kwargs = mock_clip.call_args_list[1]
+        np.testing.assert_array_equal(chunk_clip_call_args[0], chunk_values)
+        assert chunk_clip_call_kwargs["a_max"] == streaming_settings.chunk_latency_max_seconds
+        assert chunk_clip_call_kwargs["a_min"] == streaming_settings.chunk_latency_min_seconds
 
     @patch("benchmark.mock_llm_server.response_data.np.random.seed")
     @patch("benchmark.mock_llm_server.response_data.np.random.normal")
@@ -435,10 +435,10 @@ class TestGenerateChunkLatencies:
         num_chunks = 3
         seed_value = 12345
         ttft_value = np.array([streaming_settings.ttft_mean_seconds])
-        itl_values = np.array([streaming_settings.itl_mean_seconds] * (num_chunks - 1))
+        chunk_values = np.array([streaming_settings.chunk_latency_mean_seconds] * (num_chunks - 1))
 
-        mock_normal.side_effect = [ttft_value, itl_values]
-        mock_clip.side_effect = [ttft_value, itl_values]
+        mock_normal.side_effect = [ttft_value, chunk_values]
+        mock_clip.side_effect = [ttft_value, chunk_values]
 
         latencies = generate_chunk_latencies(streaming_settings, num_chunks, seed=seed_value)
 
@@ -461,13 +461,13 @@ class TestGenerateChunkLatencies:
         """Test that returned latencies contain the clipped values."""
         num_chunks = 3
         ttft_clipped = np.array([0.25])
-        itl_clipped = np.array([0.04, 0.06])
+        chunk_clipped = np.array([0.04, 0.06])
 
         mock_normal.side_effect = [np.array([0.3]), np.array([0.05, 0.07])]
-        mock_clip.side_effect = [ttft_clipped, itl_clipped]
+        mock_clip.side_effect = [ttft_clipped, chunk_clipped]
 
         latencies = generate_chunk_latencies(streaming_settings, num_chunks)
 
         assert len(latencies) == num_chunks
         assert latencies[0] == ttft_clipped[0]
-        np.testing.assert_array_equal(latencies[1:], itl_clipped)
+        np.testing.assert_array_equal(latencies[1:], chunk_clipped)
