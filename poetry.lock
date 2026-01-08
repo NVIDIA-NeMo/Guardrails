@@ -1010,29 +1010,33 @@ standard-no-fastapi-cloud-cli = ["email-validator (>=2.0.0)", "fastapi-cli[stand
 
 [[package]]
 name = "fastembed"
-version = "0.6.0"
+version = "0.7.4"
 description = "Fast, light, accurate library built for retrieval embedding generation"
 optional = false
 python-versions = ">=3.9.0"
 files = [
-    {file = "fastembed-0.6.0-py3-none-any.whl", hash = "sha256:a08385e9388adea0529a586004f2d588c9787880a510e4e5d167127a11e75328"},
-    {file = "fastembed-0.6.0.tar.gz", hash = "sha256:5c9ead25f23449535b07243bbe1f370b820dcc77ec2931e61674e3fe7ff24733"},
+    {file = "fastembed-0.7.4-py3-none-any.whl", hash = "sha256:79250a775f70bd6addb0e054204df042b5029ecae501e40e5bbd08e75844ad83"},
+    {file = "fastembed-0.7.4.tar.gz", hash = "sha256:8b8a4ea860ca295002f4754e8f5820a636e1065a9444959e18d5988d7f27093b"},
 ]
 
 [package.dependencies]
-huggingface-hub = ">=0.20,<1.0"
+huggingface-hub = ">=0.20,<2.0"
 loguru = ">=0.7.2,<0.8.0"
 mmh3 = ">=4.1.0,<6.0.0"
 numpy = [
-    {version = ">=1.21", markers = "python_version >= \"3.10\" and python_version < \"3.12\""},
+    {version = ">=1.21,<2.3.0", markers = "python_version == \"3.10\""},
+    {version = ">=1.21", markers = "python_version == \"3.11\""},
     {version = ">=1.26", markers = "python_version == \"3.12\""},
-    {version = ">=2.1.0", markers = "python_version >= \"3.13\""},
+    {version = ">=2.1.0", markers = "python_version == \"3.13\""},
 ]
 onnxruntime = [
     {version = ">=1.17.0,<1.20.0 || >1.20.0", markers = "python_version >= \"3.10\" and python_version < \"3.13\""},
     {version = ">1.20.0", markers = "python_version >= \"3.13\""},
 ]
-pillow = ">=10.3.0,<12.0.0"
+pillow = [
+    {version = ">=10.3.0,<12.0", markers = "python_version >= \"3.10\" and python_version < \"3.13\""},
+    {version = ">=11.0.0,<12.0", markers = "python_version >= \"3.13\""},
+]
 py-rust-stemmers = ">=0.1.0,<0.2.0"
 requests = ">=2.31,<3.0"
 tokenizers = ">=0.15,<1.0"
@@ -6609,4 +6613,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "5f621add3bdfe92f78c38e14702f22cef7adb3a98b6ca6e494bb44ed834bdd97"
+content-hash = "71a1c479d1f46c7cfe01c64eec3ada1a035a7e07e65f90482db991cbbc31d8a2"
