@@ -19,10 +19,12 @@ These tests verify that the modified parser interface (list format instead of tu
 works correctly with the actual content safety actions and their iterable unpacking logic.
 """
 
+import textwrap
 from unittest.mock import MagicMock
 
 import pytest
 
+from nemoguardrails import RailsConfig
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input,
     content_safety_check_output,
@@ -31,8 +33,10 @@ from nemoguardrails.llm.output_parsers import (
     is_content_safe,
     nemoguard_parse_prompt_safety,
     nemoguard_parse_response_safety,
+    nemotron_reasoning_parse_prompt_safety,
+    nemotron_reasoning_parse_response_safety,
 )
-from tests.utils import FakeLLM
+from tests.utils import FakeLLM, TestChat
 
 
 def _create_mock_setup(llm_responses, parsed_result):
@@ -284,3 +288,141 @@ class TestIterableUnpackingIntegration:
         is_safe, *violated_policies = result
         assert is_safe is False
         assert violated_policies == ["S1", "S8"]
+
+
+class TestReasoningEnabledEndToEnd:
+    """End-to-end tests using TestChat and rails.explain() to verify prompt rendering."""
+
+    @pytest.mark.parametrize(
+        "reasoning_enabled,expected_token,is_harmful,safety_response,expected_response",
+        [
+            (True, "/think", False, "Prompt harm: unharmful", "Hello! How can I help you?"),
+            (False, "/no_think", False, "Prompt harm: unharmful", "Hello! How can I help you?"),
+            (True, "/think", True, "Prompt harm: harmful", "I'm sorry, I can't respond to that."),
+            (False, "/no_think", True, "Prompt harm: harmful", "I'm sorry, I can't respond to that."),
+        ],
+    )
+    def test_content_safety_input_renders_reasoning_token(
+        self, reasoning_enabled, expected_token, is_harmful, safety_response, expected_response
+    ):
+        """Test content_safety_check_input renders correct token and handles safe/harmful input."""
+        content_safety_llm = FakeLLM(responses=[safety_response])
+
+        config = RailsConfig.from_content(
+            yaml_content=textwrap.dedent(
+                f"""
+                models:
+                  - type: main
+                    engine: openai
+                    model: gpt-4o-mini
+                  - type: content_safety_reasoning
+                    engine: openai
+                    model: placeholder
+
+                rails:
+                  input:
+                    flows:
+                      - content safety check input $model=content_safety_reasoning
+                  config:
+                    content_safety:
+                      reasoning:
+                        enabled: {str(reasoning_enabled)}
+
+                prompts:
+                  - task: content_safety_check_input $model=content_safety_reasoning
+                    content: |
+                      Check: {{{{ user_input }}}}. {{% if reasoning_enabled %}}/think{{% else %}}/no_think{{% endif %}}
+                    output_parser: nemotron_reasoning_parse_prompt_safety
+                """
+            ),
+            colang_content=textwrap.dedent(
+                """
+                define flow content safety check input $model
+                  $result = execute content_safety_check_input(model_name=$model)
+                """
+            ),
+        )
+
+        config.models = [m for m in config.models if m.type == "main"]
+
+        chat = TestChat(
+            config,
+            llm_completions=["Hello! How can I help you?"],
+        )
+
+        chat.app.runtime.registered_action_params["llms"] = {"content_safety_reasoning": content_safety_llm}
+
+        user_message = "Hello"
+        response = chat.app.generate(messages=[{"role": "user", "content": user_message}])
+        info = chat.app.explain()
+
+        assert len(info.llm_calls) >= 1
+        content_safety_prompt = info.llm_calls[0].prompt
+        assert expected_token in content_safety_prompt
+        assert user_message in content_safety_prompt
+
+        assert content_safety_llm.i == 1
+
+        assert response is not None
+        assert response["content"] == expected_response
+
+        if is_harmful:
+            assert len(info.llm_calls) == 1
+        else:
+            assert len(info.llm_calls) >= 2
+
+
+class TestNemotronReasoningParserIntegration:
+    """Integration tests for Nemotron reasoning parsers with content safety actions."""
+
+    @pytest.mark.parametrize(
+        "response,expected_allowed",
+        [
+            ("Prompt harm: unharmful\nResponse Harm: unharmful", True),
+            ("Prompt harm: harmful\nResponse Harm: unharmful", False),
+            ("<think>reasoning</think>\nPrompt harm: unharmful", True),
+            ("<think>reasoning</think>\nPrompt harm: harmful", False),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_content_safety_input_with_nemotron_reasoning_parser(self, response, expected_allowed):
+        """Test input action with nemotron_reasoning_parse_prompt_safety parser."""
+        parsed_result = nemotron_reasoning_parse_prompt_safety(response)
+        llms, mock_task_manager = _create_mock_setup([response], parsed_result)
+        context = _create_input_context()
+
+        result = await content_safety_check_input(
+            llms=llms,
+            llm_task_manager=mock_task_manager,
+            model_name="test_model",
+            context=context,
+        )
+
+        assert result["allowed"] is expected_allowed
+        assert result["policy_violations"] == []
+
+    @pytest.mark.parametrize(
+        "response,expected_allowed",
+        [
+            ("Prompt harm: unharmful\nResponse Harm: unharmful", True),
+            ("Prompt harm: unharmful\nResponse Harm: harmful", False),
+            ("<think>reasoning</think>\nResponse Harm: unharmful", True),
+            ("<think>reasoning</think>\nResponse Harm: harmful", False),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_content_safety_output_with_nemotron_reasoning_parser(self, response, expected_allowed):
+        """Test output action with nemotron_reasoning_parse_response_safety parser."""
+        parsed_result = nemotron_reasoning_parse_response_safety(response)
+        llms, mock_task_manager = _create_mock_setup([response], parsed_result)
+        context = _create_output_context()
+
+        result = await content_safety_check_output(
+            llms=llms,
+            llm_task_manager=mock_task_manager,
+            model_name="test_model",
+            context=context,
+        )
+
+        assert result["allowed"] is expected_allowed
+        assert result["policy_violations"] == []

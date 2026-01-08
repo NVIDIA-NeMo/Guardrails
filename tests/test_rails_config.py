@@ -1037,6 +1037,7 @@ class TestContentSafetyConfigModel:
         config = ContentSafetyConfig()
         assert config.multilingual.enabled is False
         assert config.multilingual.refusal_messages is None
+        assert config.reasoning.enabled is False
 
     def test_with_multilingual(self):
         custom = {"en": "Custom"}
