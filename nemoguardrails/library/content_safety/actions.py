@@ -35,6 +35,10 @@ from nemoguardrails.logging.explain import LLMCallInfo
 log = logging.getLogger(__name__)
 
 
+def _get_reasoning_enabled(llm_task_manager: LLMTaskManager) -> bool:
+    return llm_task_manager.config.rails.config.content_safety.reasoning.enabled
+
+
 @action()
 async def content_safety_check_input(
     llms: Dict[str, BaseLLM],
@@ -74,6 +78,7 @@ async def content_safety_check_input(
         task=task,
         context={
             "user_input": user_input,
+            "reasoning_enabled": _get_reasoning_enabled(llm_task_manager),
         },
     )
 
@@ -177,6 +182,7 @@ async def content_safety_check_output(
         context={
             "user_input": user_input,
             "bot_response": bot_response,
+            "reasoning_enabled": _get_reasoning_enabled(llm_task_manager),
         },
     )
 

@@ -165,7 +165,7 @@ prompts:
 
       Only output the answer in the format specified above after thinking about the request and
       response. If there is no response, output "Response harm: <harmful/unharmful>" as None.
-      {% if config.content_safety.reasoning.enabled %}/think{% else %}/no_think{% endif %}
+      {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 
     output_parser: nemotron_reasoning_parse_prompt_safety
     max_tokens: 400
@@ -211,13 +211,13 @@ prompts:
 
       Only output the answer in the format specified above after thinking about the request and
       response. If there is no response, output "Response harm: <harmful/unharmful>" as None.
-      {% if config.content_safety.reasoning.enabled %}/think{% else %}/no_think{% endif %}
+      {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 
     output_parser: nemotron_reasoning_parse_response_safety
     max_tokens: 400
 ```
 
-The `config` object is automatically available in prompt templates, allowing you to access configuration settings like `config.content_safety.reasoning.enabled` directly.
+The `reasoning_enabled` variable is automatically passed to prompt templates by the content safety action, based on the `rails.config.content_safety.reasoning.enabled` setting.
 ## Running Inference
 
 ### Load the Configuration
@@ -347,7 +347,7 @@ content: |
   "Prompt harm: <harmful/unharmful>"
 
   Use "harmful" for off-topic requests, "unharmful" for on-topic requests.
-  {% if config.content_safety.reasoning.enabled %}/think{% else %}/no_think{% endif %}
+  {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 ```
 
 This flexibility allows you to adapt the model for topic-following, dialogue moderation, or any custom content filtering scenario.

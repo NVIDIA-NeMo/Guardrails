@@ -133,9 +133,6 @@ class LLMTaskManager:
             "general_instructions": self._get_general_instructions(),
             "sample_conversation": self.config.sample_conversation,
             "sample_conversation_two_turns": self.config.sample_conversation,
-            # Make rails config available in templates for accessing settings like
-            # content_safety.reasoning.enabled, content_safety.multilingual.enabled, etc.
-            "config": self.config.rails.config,
         }
 
         # Copy the context variables to the render context.

@@ -39,7 +39,7 @@ prompts:
       Response harm: <harmful/unharmful>"
 
       Only output the answer in the format specified above after thinking about the request and
-      response. If there is no response, output "Response harm: <harmful/unharmful>" as None. {% if config.content_safety.reasoning.enabled %}/think{% else %}/no_think{% endif %}
+      response. If there is no response, output "Response harm: <harmful/unharmful>" as None. {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 
     output_parser: nemotron_reasoning_parse_prompt_safety
     max_tokens: 400
@@ -84,7 +84,7 @@ prompts:
       Response harm: <harmful/unharmful>"
 
       Only output the answer in the format specified above after thinking about the request and
-      response. If there is no response, output "Response harm: <harmful/unharmful>" as None. {% if config.content_safety.reasoning.enabled %}/think{% else %}/no_think{% endif %}
+      response. If there is no response, output "Response harm: <harmful/unharmful>" as None. {% if reasoning_enabled %}/think{% else %}/no_think{% endif %}
 
     output_parser: nemotron_reasoning_parse_response_safety
     max_tokens: 400
