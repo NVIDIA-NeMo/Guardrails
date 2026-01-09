@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Optional
 
 TRANSFORMERS_AVAILABLE = True
 try:
-    from transformers.generation.streamers import (
+    from transformers.generation.streamers import (  # type: ignore
         TextStreamer,  # type: ignore
     )
 except ImportError:
