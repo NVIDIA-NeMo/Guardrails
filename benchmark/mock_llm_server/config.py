@@ -37,10 +37,24 @@ class ModelSettings(BaseSettings):
     # Config with default values
     # Latency sampled from a truncated-normal distribution.
     # Plain Normal distributions have infinite support, and can be negative
-    latency_min_seconds: float = Field(default=0.1, description="Minimum latency in seconds")
-    latency_max_seconds: float = Field(default=5, description="Maximum latency in seconds")
-    latency_mean_seconds: float = Field(default=0.5, description="The average response time in seconds")
-    latency_std_seconds: float = Field(default=0.1, description="Standard deviation of response time")
+    e2e_latency_min_seconds: float = Field(default=0.1, description="Minimum latency in seconds")
+    e2e_latency_max_seconds: float = Field(default=5, description="Maximum latency in seconds")
+    e2e_latency_mean_seconds: float = Field(default=0.5, description="The average response time in seconds")
+    e2e_latency_std_seconds: float = Field(default=0.1, description="Standard deviation of response time")
+
+    # Streaming latency: Time to First Token (TTFT)
+    # https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#time-to-first-token-ttft
+    ttft_min_seconds: float = Field(default=0.05, description="Minimum TTFT in seconds")
+    ttft_max_seconds: float = Field(default=0.5, description="Maximum TTFT in seconds")
+    ttft_mean_seconds: float = Field(default=0.1, description="Average TTFT in seconds")
+    ttft_std_seconds: float = Field(default=0.02, description="Standard deviation of TTFT")
+
+    # Streaming latency: Chunk Latency
+    # https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html#inter-token-latency-itl
+    chunk_latency_min_seconds: float = Field(default=0.01, description="Minimum chunk latency in seconds")
+    chunk_latency_max_seconds: float = Field(default=0.1, description="Maximum chunk latency in seconds")
+    chunk_latency_mean_seconds: float = Field(default=0.03, description="Average chunk latency in seconds")
+    chunk_latency_std_seconds: float = Field(default=0.01, description="Standard deviation of chunk latency")
 
     model_config = SettingsConfigDict(env_file=CONFIG_FILE)
 

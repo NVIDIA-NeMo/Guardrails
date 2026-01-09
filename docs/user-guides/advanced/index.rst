@@ -6,7 +6,7 @@ Advanced
 .. toctree::
    :maxdepth: 2
 
-   align-score-deployment
+   AlignScore <align-score-deployment>
    bot-message-instructions
    embedding-search-providers
    event-based-api
@@ -21,4 +21,4 @@ Advanced
    vertexai-setup
    nemotron-safety-guard-deployment
    nemoguard-topiccontrol-deployment
-   safeguarding-ai-virtual-assistant-blueprint
+   Blueprint Integration <safeguarding-ai-virtual-assistant-blueprint>

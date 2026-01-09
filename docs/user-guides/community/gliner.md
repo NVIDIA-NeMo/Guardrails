@@ -1,10 +1,12 @@
 # GLiNER Integration
 
-[GLiNER](https://github.com/urchade/GLiNER) is a Generalist and Lightweight Model for Named Entity Recognition that can detect a wide range of entity types, including comprehensive PII (Personally Identifiable Information) categories. This integration enables NeMo Guardrails to use a GLiNER-compatible server for PII detection and masking in input, output, and retrieval flows.
+[GLiNER](https://github.com/urchade/GLiNER) is a generalist and lightweight model for named entity recognition. [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) is an adaptation of this base model that can detect a wide range of entity types, including comprehensive PII (Personally Identifiable Information) categories.
+This integration enables the NeMo Guardrails library to use a GLiNER-compatible server for PII detection and masking in input, output, and retrieval flows.
 
-## Setup
+## Server Setup
 
-1. Deploy a GLiNER-compatible server. An example implementation is provided at [`examples/deployment/gliner_server/`](../../../examples/deployment/gliner_server/):
+Deploy a GLiNER-compatible server.
+   Refer to the example implementation at [`examples/deployment/gliner_server/`](../../../examples/deployment/gliner_server/):
 
 ```bash
 cd examples/deployment/gliner_server
@@ -20,9 +22,13 @@ pip install -e .
 gliner-server --host 0.0.0.0 --port 1235
 ```
 
-2. Update your `config.yml` file to include the GLiNER settings:
+## Guardrails Configuration
+
+Update your `config.yml` file to include the GLiNER settings:
 
 **PII detection config**
+
+The detection flow blocks the input, output, and retrieval text if it detects PII.
 
 ```yaml
 rails:
@@ -50,9 +56,10 @@ rails:
       - gliner detect pii on output
 ```
 
-The detection flow will block the input/output/retrieval text if PII is detected.
-
 **PII masking config**
+
+The masking flow replaces detected PII with labels.
+For example, `Hi John, my email is john@example.com` becomes `Hi [FIRST_NAME], my email is [EMAIL]`.
 
 ```yaml
 rails:
@@ -77,8 +84,6 @@ rails:
       - gliner mask pii on output
 ```
 
-The masking flow will replace detected PII with labels. For example, `Hi John, my email is john@example.com` will be converted to `Hi [FIRST_NAME], my email is [EMAIL]`.
-
 ## API Specification
 
 The GLiNER integration expects a server that implements the following API:
@@ -99,6 +104,7 @@ Extract entities from text.
 | `flat_ner` | bool | No | false | Whether to use flat NER mode |
 
 **Example Request:**
+
 ```json
 {
   "text": "Hello, my name is John and my email is john@example.com",
@@ -126,6 +132,7 @@ Extract entities from text.
 | `score` | float | Confidence score |
 
 **Example Response:**
+
 ```json
 {
   "entities": [
@@ -176,28 +183,30 @@ The example GLiNER server (using the `nvidia/gliner-PII` model) supports a compr
 
 Once configured, the GLiNER integration can automatically:
 
-1. Detect or mask PII in user inputs before they are processed by the LLM.
-2. Detect or mask PII in LLM outputs before they are sent back to the user.
-3. Detect or mask PII in retrieved chunks before they are sent to the LLM.
+1. Detect or mask PII in user inputs before the LLM processes them.
+2. Detect or mask PII in LLM outputs before sending them back to the user.
+3. Detect or mask PII in retrieved chunks before sending them to the LLM.
 
 ## Example Deployment
 
-An example GLiNER server implementation is provided at [`examples/deployment/gliner_server/`](../../../examples/deployment/gliner_server/). This implementation:
+The [`examples/deployment/gliner_server/`](../../../examples/deployment/gliner_server/) directory provides an example GLiNER server implementation.
+This implementation:
 
-- Uses the `nvidia/gliner-PII` model for comprehensive PII detection
-- Supports GPU acceleration (CUDA, MPS on Apple Silicon)
-- Implements text chunking with overlap for long documents
-- Provides entity deduplication
-- Structured as a proper Python package with `src/` layout
-- CLI entry point (`gliner-server`) for easy startup
-- Unit tests for PII utility functions (no server required)
-- Integration test script for end-to-end validation
+- Uses the [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) model for comprehensive PII detection.
+- Supports GPU acceleration (CUDA, MPS on Apple Silicon).
+- Implements text chunking with overlap for long documents.
+- Provides entity deduplication.
+- Structured as a proper Python package with `src/` layout.
+- CLI entry point (`gliner-server`) for easy startup.
+- Unit tests for PII utility functions (no server required).
+- Integration test script for end-to-end validation.
 
-See the [deployment README](../../../examples/deployment/gliner_server/README.md) for detailed instructions.
+Refer to the [deployment README](../../../examples/deployment/gliner_server/README.md) for detailed instructions.
 
 ## Testing
 
-The NeMo Guardrails GLiNER integration tests (`tests/test_gliner.py`) use mocked API responses, so they don't require a running server. To run them:
+The GLiNER integration tests in `tests/test_gliner.py` use mocked API responses, so they don't require a running server.
+To run them:
 
 ```bash
 pytest tests/test_gliner.py -v
@@ -217,10 +226,10 @@ cd examples/deployment/gliner_server
 ./test_integration.sh
 ```
 
-## Notes
+## Summary
 
-- Ensure a GLiNER-compatible server is running and accessible from your NeMo Guardrails environment.
-- You can use the provided example server or implement your own server following the API specification above.
+- Ensure a GLiNER-compatible server is running and accessible from your NeMo Guardrails application environment.
+- You can use the provided [example server](#example-deployment) or implement your own server following the [API specification](#api-specification).
 - For production deployments, consider containerizing the server.
 
-For more information on GLiNER, see the [GLiNER GitHub repository](https://github.com/urchade/GLiNER).
+For more information on GLiNER, refer to the [GLiNER GitHub repository](https://github.com/urchade/GLiNER).

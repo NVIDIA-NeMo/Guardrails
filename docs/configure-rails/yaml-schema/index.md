@@ -1,7 +1,7 @@
 ---
 title:
-  page: "Core Configurations for Guardrails"
-  nav: "Core Configuration"
+  page: "Configuring YAML File"
+  nav: "Configuring YAML File"
 description: "Define models, guardrails, prompts, and tracing settings in the config.yml file."
 topics: ["Configuration", "AI Safety"]
 tags: ["YAML", "Configuration", "Models", "Prompts", "Tracing"]
@@ -11,7 +11,7 @@ content:
   audience: ["Developer", "AI Engineer"]
 ---
 
-# Core Configurations for Guardrails
+# Configuring YAML File
 
 This section describes the `config.yml` file schema used to configure the NeMo Guardrails library.
 The `config.yml` file is the primary configuration file for defining LLM models, guardrails behavior, prompts, knowledge base settings, and tracing options.
@@ -41,6 +41,7 @@ rails:
   output:
     flows:
       - self check output
+  ... # Other rail configurations
 
 # Prompt customization
 prompts:
@@ -61,23 +62,16 @@ tracing:
       filepath: "./logs/traces.jsonl"
 ```
 
-## Quick Reference
+## Configuration YAML Schema Reference
 
-For a complete, consolidated reference of all configuration options, see the [Configuration Reference](configuration-reference.md).
+For a complete, consolidated reference of all configuration options, see the [](../configuration-reference.md).
 
 ## Configuration Sections
 
-The following guides provide detailed documentation for each configuration section of the overall `config.yml` file:
+The following sections provide detailed documentation for each configuration section of the overall `config.yml` file:
 
 ::::{grid} 1 1 2 2
 :gutter: 3
-
-:::{grid-item-card} Configuration Reference
-:link: configuration-reference
-:link-type: doc
-
-Complete reference for all config.yml options including models, rails, prompts, and advanced settings.
-:::
 
 :::{grid-item-card} Models
 :link: model-configuration
@@ -86,7 +80,7 @@ Complete reference for all config.yml options including models, rails, prompts, 
 Configure LLM engines, embedding models, and task-specific models in config.yml.
 :::
 
-:::{grid-item-card} Guardrails Configuration
+:::{grid-item-card} Guardrails
 :link: guardrails-configuration/index
 :link-type: doc
 
@@ -118,7 +112,7 @@ Configure streaming for LLM token generation and output rail processing in confi
 
 ## File Organization
 
-Configuration files are typically organized in a `config` folder:
+Configuration files should be organized in a `config` folder with the following structure:
 
 ```text
 .
@@ -136,21 +130,12 @@ Configuration files are typically organized in a `config` folder:
 │   └── config.py         # Custom initialization (optional)
 ```
 
-Once you have finished crafting your overall `config.yml` file, refer to the following guides for detailed information each of the optional components as needed:
-
-- [Core Configuration](yaml-schema/index.md) - A complete guide to writing your `config.yml` file.
-- [Colang Rails](colang/index.md) - `.co` flow files.
-- [Custom Actions](actions/index.md) - `actions.py` for callable actions.
-- [Custom Initialization](custom-initialization/index.md) - `config.py` for provider registration.
-- [Knowledge Base Documents](other-configurations/knowledge-base.md) - `kb/` folder for RAG.
-
 ```{toctree}
 :hidden:
 :maxdepth: 2
 
-Configuration Reference <configuration-reference>
 Models <model-configuration>
-Guardrails Configuration <guardrails-configuration/index>
+Guardrails <guardrails-configuration/index>
 Prompts <prompt-configuration>
 Tracing <tracing-configuration>
 Streaming <streaming/index>

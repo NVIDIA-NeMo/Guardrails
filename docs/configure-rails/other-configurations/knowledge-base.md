@@ -150,7 +150,7 @@ class CustomEmbeddingSearchProvider(EmbeddingsIndex):
         pass
 ```
 
-For more details, refer to [Embedding Search Providers](../../user-guides/advanced/embedding-search-providers.md).
+For more details, refer to [Embedding Search Providers](embedding-search-providers.md).
 
 ## Passing Context Directly
 
@@ -275,6 +275,5 @@ Unused sick days do not carry over to the next year.
 
 ## Related Resources
 
-- [RAG Getting Started Guide](../../getting-started/7-rag/README.md)
-- [Embedding Search Providers](../../user-guides/advanced/embedding-search-providers.md)
+- [Embedding Search Providers](embedding-search-providers.md)
 - [Model Configuration](../yaml-schema/model-configuration.md)

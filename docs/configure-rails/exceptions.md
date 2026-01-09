@@ -29,9 +29,11 @@ define flow input rail example
 }
 ```
 
+---
+
 ## Guardrails Library Exception
 
-By default, all the guardrails included in the [Guardrails Library](../guardrails-library.md) return a predefined message
+By default, all the guardrails included in the [](guardrail-catalog.md) return a predefined message
 when a rail is triggered. You can change this behavior by setting the `enable_rails_exceptions` key to `True` in your
 `config.yml` file:
 
@@ -71,6 +73,8 @@ When the `self check input` rail is triggered, the following exception is return
   }
 }
 ```
+
+---
 
 ## Exception Types
 
@@ -116,6 +120,8 @@ define flow retrieval validation
     create event RetrievalRailException(message="No relevant information found for the query.")
 ```
 
+---
+
 ## Custom Exception Handling
 
 You can create custom exception types by following the naming convention of ending with `Exception`:
@@ -125,6 +131,8 @@ define flow custom validation
   if not $custom_condition
     create event CustomValidationException(message="Custom validation failed.")
 ```
+
+---
 
 ## Exception Response Format
 
@@ -150,6 +158,8 @@ All exceptions follow a consistent JSON format:
 - **event_created_at**: Timestamp when the exception was created
 - **source_uid**: Identifier for the source that created the exception
 - **message**: Human-readable description of what went wrong
+
+---
 
 ## Handling Exceptions in Applications
 
@@ -184,6 +194,8 @@ except Exception as e:
     print(f"Error: {e}")
 ```
 
+---
+
 ## Best Practices
 
 1. **Use Descriptive Messages**: Provide clear, actionable error messages in your exceptions.
@@ -197,6 +209,8 @@ except Exception as e:
 5. **Exception Categories**: Use appropriate exception types to categorize different kinds of errors.
 
 6. **Configuration Control**: Use the `enable_rails_exceptions` setting to control whether rails return exceptions or predefined messages.
+
+---
 
 ## Integration with Tracing
 

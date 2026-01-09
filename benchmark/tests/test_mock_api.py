@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import time
 
 import pytest
@@ -21,17 +22,29 @@ from fastapi.testclient import TestClient
 from benchmark.mock_llm_server.api import app
 from benchmark.mock_llm_server.config import ModelSettings, get_settings
 
+UNSAFE_RESPONSE = "I cannot help with that request"
+SAFE_RESPONSE = "This is a safe response, with many words to test streaming where we split on whitespace"
+
 
 def get_test_settings():
     return ModelSettings(
         model="gpt-3.5-turbo",
-        unsafe_probability=0.1,
-        unsafe_text="I cannot help with that request",
-        safe_text="This is a safe response",
-        latency_min_seconds=0,
-        latency_max_seconds=0,
-        latency_mean_seconds=0,
-        latency_std_seconds=0,
+        unsafe_probability=0.0,
+        unsafe_text=UNSAFE_RESPONSE,
+        safe_text=SAFE_RESPONSE,
+        e2e_latency_min_seconds=0,
+        e2e_latency_max_seconds=0,
+        e2e_latency_mean_seconds=0,
+        e2e_latency_std_seconds=0,
+        # Streaming latency settings (set to 0 for fast tests)
+        ttft_min_seconds=0,
+        ttft_max_seconds=0,
+        ttft_mean_seconds=0,
+        ttft_std_seconds=0,
+        chunk_latency_min_seconds=0,
+        chunk_latency_max_seconds=0,
+        chunk_latency_mean_seconds=0,
+        chunk_latency_std_seconds=0,
     )
 
 
@@ -359,6 +372,66 @@ class TestValidateRequestModel:
         assert "gpt-3.5-turbo" in response.json()["detail"]
 
 
+def get_safe_only_settings():
+    """Settings with unsafe_probability=0 (always safe response)."""
+    return ModelSettings(
+        model="gpt-3.5-turbo",
+        unsafe_probability=0.0,
+        unsafe_text=UNSAFE_RESPONSE,
+        safe_text=SAFE_RESPONSE,
+        e2e_latency_min_seconds=0,
+        e2e_latency_max_seconds=0,
+        e2e_latency_mean_seconds=0,
+        e2e_latency_std_seconds=0,
+        ttft_min_seconds=0,
+        ttft_max_seconds=0,
+        ttft_mean_seconds=0,
+        ttft_std_seconds=0,
+        chunk_latency_min_seconds=0,
+        chunk_latency_max_seconds=0,
+        chunk_latency_mean_seconds=0,
+        chunk_latency_std_seconds=0,
+    )
+
+
+def get_unsafe_only_settings():
+    """Settings with unsafe_probability=1.0 (always unsafe response)."""
+    return ModelSettings(
+        model="gpt-3.5-turbo",
+        unsafe_probability=1.0,
+        unsafe_text=UNSAFE_RESPONSE,
+        safe_text=SAFE_RESPONSE,
+        e2e_latency_min_seconds=0,
+        e2e_latency_max_seconds=0,
+        e2e_latency_mean_seconds=0,
+        e2e_latency_std_seconds=0,
+        ttft_min_seconds=0,
+        ttft_max_seconds=0,
+        ttft_mean_seconds=0,
+        ttft_std_seconds=0,
+        chunk_latency_min_seconds=0,
+        chunk_latency_max_seconds=0,
+        chunk_latency_mean_seconds=0,
+        chunk_latency_std_seconds=0,
+    )
+
+
+@pytest.fixture
+def safe_client():
+    """Create a test client that always returns safe responses."""
+    app.dependency_overrides[get_settings] = get_safe_only_settings
+    yield TestClient(app)
+    app.dependency_overrides[get_settings] = get_test_settings
+
+
+@pytest.fixture
+def unsafe_client():
+    """Create a test client that always returns unsafe responses."""
+    app.dependency_overrides[get_settings] = get_unsafe_only_settings
+    yield TestClient(app)
+    app.dependency_overrides[get_settings] = get_test_settings
+
+
 class TestResponseContent:
     """Test that responses contain expected content."""
 
@@ -373,7 +446,7 @@ class TestResponseContent:
 
         content = data["choices"][0]["message"]["content"]
         # Should be one of the configured responses
-        assert content in ["This is a safe response", "I cannot help with that request"]
+        assert content == SAFE_RESPONSE
 
     def test_completion_response_content_type(self, client):
         """Test that completion response contains expected text."""
@@ -386,4 +459,297 @@ class TestResponseContent:
 
         text = data["choices"][0]["text"]
         # Should be one of the configured responses
-        assert text in ["This is a safe response", "I cannot help with that request"]
+        assert text in {SAFE_RESPONSE, UNSAFE_RESPONSE}
+
+    def test_chat_completions_safe_response_when_probability_zero(self, safe_client):
+        """Test that chat completions returns safe response when unsafe_probability=0."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Test"}],
+        }
+        response = safe_client.post("/v1/chat/completions", json=payload)
+        data = response.json()
+
+        content = data["choices"][0]["message"]["content"]
+        assert content == SAFE_RESPONSE
+
+    def test_chat_completions_unsafe_response_when_probability_one(self, unsafe_client):
+        """Test that chat completions returns unsafe response when unsafe_probability=1.0."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Test"}],
+        }
+        response = unsafe_client.post("/v1/chat/completions", json=payload)
+        data = response.json()
+
+        content = data["choices"][0]["message"]["content"]
+        assert content == UNSAFE_RESPONSE
+
+    def test_completions_safe_response_when_probability_zero(self, safe_client):
+        """Test that completions returns safe response when unsafe_probability=0."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+        }
+        response = safe_client.post("/v1/completions", json=payload)
+        data = response.json()
+
+        text = data["choices"][0]["text"]
+        assert text == SAFE_RESPONSE
+
+    def test_completions_unsafe_response_when_probability_one(self, unsafe_client):
+        """Test that completions returns unsafe response when unsafe_probability=1.0."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+        }
+        response = unsafe_client.post("/v1/completions", json=payload)
+        data = response.json()
+
+        text = data["choices"][0]["text"]
+        assert text == UNSAFE_RESPONSE
+
+
+class TestChatCompletionsStreaming:
+    """Test the /v1/chat/completions endpoint with streaming."""
+
+    def test_chat_completions_streaming_returns_sse(self, client):
+        """Test that streaming returns Server-Sent Events format."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+    def test_chat_completions_streaming_chunks_format(self, client):
+        """Test that streaming chunks have correct SSE format."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+
+        # Each chunk should start with "data: "
+        lines = [line for line in content.split("\n") if line.strip()]
+        for line in lines:
+            assert line.startswith("data: ")
+
+        # Should end with [DONE]
+        assert "data: [DONE]" in content
+
+    def test_chat_completions_streaming_first_chunk_has_role(self, client):
+        """Test that first streaming chunk contains role."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+
+        # Get first data chunk (skip empty lines)
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+        first_chunk = json.loads(lines[0].replace("data: ", ""))
+
+        assert first_chunk["object"] == "chat.completion.chunk"
+        assert first_chunk["choices"][0]["delta"]["role"] == "assistant"
+        assert first_chunk["choices"][0]["delta"]["content"] == ""
+
+    def test_chat_completions_streaming_content_chunks(self, client):
+        """Test that content chunks only have content field."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+
+        # Skip first chunk (role) and last chunk (finish_reason)
+        content_chunks = lines[1:-1]
+        for line in content_chunks:
+            chunk = json.loads(line.replace("data: ", ""))
+            delta = chunk["choices"][0]["delta"]
+            # Should only have content, no role
+            assert "content" in delta
+            assert "role" not in delta
+
+    def test_chat_completions_streaming_final_chunk(self, client):
+        """Test that final chunk has finish_reason and empty delta."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+        last_chunk = json.loads(lines[-1].replace("data: ", ""))
+
+        assert last_chunk["choices"][0]["finish_reason"] == "stop"
+        assert last_chunk["choices"][0]["delta"] == {}
+
+    def test_chat_completions_streaming_reconstructs_response(self, client):
+        """Test that concatenating chunks reconstructs the full response."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+
+        # Reconstruct content from all chunks
+        full_content = ""
+        for line in lines:
+            chunk = json.loads(line.replace("data: ", ""))
+            delta = chunk["choices"][0]["delta"]
+            if "content" in delta and delta["content"]:
+                full_content += delta["content"]
+
+        # Should be one of the configured responses
+        assert full_content == SAFE_RESPONSE
+
+    def test_chat_completions_streaming_consistent_id(self, client):
+        """Test that all chunks have the same ID."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+
+        ids = set()
+        for line in lines:
+            chunk = json.loads(line.replace("data: ", ""))
+            ids.add(chunk["id"])
+
+        # All chunks should have the same ID
+        assert len(ids) == 1
+        # ID should have correct prefix
+        assert list(ids)[0].startswith("chatcmpl-")
+
+
+class TestCompletionsStreaming:
+    """Test the /v1/completions endpoint with streaming."""
+
+    def test_completions_streaming_returns_sse(self, client):
+        """Test that streaming returns Server-Sent Events format."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Once upon a time",
+            "stream": True,
+        }
+        response = client.post("/v1/completions", json=payload)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+    def test_completions_streaming_chunks_format(self, client):
+        """Test that streaming chunks have correct SSE format."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+            "stream": True,
+        }
+        response = client.post("/v1/completions", json=payload)
+        content = response.text
+
+        # Each chunk should start with "data: "
+        lines = [line for line in content.split("\n") if line.strip()]
+        for line in lines:
+            assert line.startswith("data: ")
+
+        # Should end with [DONE]
+        assert "data: [DONE]" in content
+
+    def test_completions_streaming_content_chunks(self, client):
+        """Test that content chunks have text field."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+            "stream": True,
+        }
+        response = client.post("/v1/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+
+        # All chunks except last should have text content
+        content_chunks = lines[:-1]
+        for line in content_chunks:
+            chunk = json.loads(line.replace("data: ", ""))
+            assert chunk["object"] == "text_completion"
+            assert "text" in chunk["choices"][0]
+
+    def test_completions_streaming_final_chunk(self, client):
+        """Test that final chunk has finish_reason."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+            "stream": True,
+        }
+        response = client.post("/v1/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+        last_chunk = json.loads(lines[-1].replace("data: ", ""))
+
+        assert last_chunk["choices"][0]["finish_reason"] == "stop"
+
+    def test_completions_streaming_reconstructs_response(self, client):
+        """Test that concatenating chunks reconstructs the full response."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+            "stream": True,
+        }
+        response = client.post("/v1/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+
+        # Reconstruct content from all chunks
+        full_content = ""
+        for line in lines:
+            chunk = json.loads(line.replace("data: ", ""))
+            text = chunk["choices"][0]["text"]
+            if text:
+                full_content += text
+
+        # Should be one of the configured responses
+        assert full_content == SAFE_RESPONSE
+
+    def test_completions_streaming_consistent_id(self, client):
+        """Test that all chunks have the same ID."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Test",
+            "stream": True,
+        }
+        response = client.post("/v1/completions", json=payload)
+        content = response.text
+
+        lines = [line for line in content.split("\n") if line.startswith("data: ") and line != "data: [DONE]"]
+
+        ids = set()
+        for line in lines:
+            chunk = json.loads(line.replace("data: ", ""))
+            ids.add(chunk["id"])
+
+        # All chunks should have the same ID
+        assert len(ids) == 1
+        # ID should have correct prefix
+        assert list(ids)[0].startswith("cmpl-")

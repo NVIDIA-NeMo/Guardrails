@@ -1,6 +1,14 @@
 ---
-title: Custom Configuration Data
-description: Pass and access custom data from config.yml in your initialization code and actions.
+title:
+  page: "Custom Configuration Data for NeMo Guardrails"
+  nav: "Custom Data"
+description: "Pass and access custom data from config.yml in your initialization code and actions."
+topics: ["Configuration", "Customization"]
+tags: ["custom_data", "config.yml", "Environment Variables", "Python"]
+content:
+  type: "Guide"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Custom Configuration Data

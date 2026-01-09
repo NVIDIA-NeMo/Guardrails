@@ -1,6 +1,14 @@
 ---
-title: Guardrails Configuration
-description: Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior.
+title:
+  page: "Guardrails Configuration"
+  nav: "Guardrails"
+description: "Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior."
+topics: ["Configuration", "AI Safety"]
+tags: ["Rails", "Input Rails", "Output Rails", "Dialog Rails", "YAML"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Guardrails Configuration
@@ -66,16 +74,23 @@ rails:
       - mask sensitive data on input  # PII masking
 ```
 
-### Available Flows for Input Rails
+For a complete list of available input flows, refer to the [](../configuration-reference.md#input-rails).
 
-| Flow | Description |
-|------|-------------|
-| `self check input` | LLM-based policy compliance check |
-| `check jailbreak` | Detect jailbreak attempts |
-| `mask sensitive data on input` | Mask PII in user input |
-| `detect sensitive data on input` | Detect and block PII |
-| `llama guard check input` | LlamaGuard content moderation |
-| `content safety check input` | NVIDIA content safety model |
+## Output Rails
+
+Output rails process LLM responses before returning to users:
+
+```yaml
+rails:
+  output:
+    flows:
+      - self check output          # LLM-based output validation
+      - self check facts           # Fact verification
+      - self check hallucination   # Hallucination detection
+      - mask sensitive data on output  # PII masking
+```
+
+For a complete list of available output flows, refer to the [](../configuration-reference.md#output-rails).
 
 ## Retrieval Rails
 
@@ -87,6 +102,8 @@ rails:
     flows:
       - check retrieval sensitive data
 ```
+
+For a complete list of available retrieval flows, refer to the [](../configuration-reference.md#retrieval-rails).
 
 ## Dialog Rails
 
@@ -103,13 +120,7 @@ rails:
       embeddings_only: false
 ```
 
-### Dialog Configuration Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `single_call.enabled` | Use single LLM call for intent, next step, and message | `false` |
-| `single_call.fallback_to_multiple_calls` | Fall back to multiple calls if single call fails | `true` |
-| `user_messages.embeddings_only` | Use only embeddings for user intent matching | `false` |
+For a complete list of available dialog flows, refer to the [](../configuration-reference.md#dialog-rails).
 
 ## Execution Rails
 
@@ -122,31 +133,6 @@ rails:
       - check tool input
       - check tool output
 ```
-
-## Output Rails
-
-Output rails process LLM responses before returning to users:
-
-```yaml
-rails:
-  output:
-    flows:
-      - self check output          # LLM-based output validation
-      - self check facts           # Fact verification
-      - self check hallucination   # Hallucination detection
-      - mask sensitive data on output  # PII masking
-```
-
-### Available Flows for Output Rails
-
-| Flow | Description |
-|------|-------------|
-| `self check output` | LLM-based policy compliance check |
-| `self check facts` | Verify factual accuracy |
-| `self check hallucination` | Detect hallucinations |
-| `mask sensitive data on output` | Mask PII in output |
-| `llama guard check output` | LlamaGuard content moderation |
-| `content safety check output` | NVIDIA content safety model |
 
 ## Rail-Specific Configuration
 
@@ -178,7 +164,9 @@ rails:
         endpoint: "http://localhost:5000"
 ```
 
-## Example Configuration
+---
+
+## YAML Schema
 
 Complete guardrails configuration example:
 
@@ -221,15 +209,9 @@ rails:
           - EMAIL_ADDRESS
 ```
 
-## Related Topics
+```{include}
+parallel-rails.md
+```
 
-- [Built-in Guardrails](built-in-guardrails.md) - Complete list of built-in rails
-- [Parallel Rails](parallel-rails.md) - How to invoke rails in parallel
-
-```{toctree}
-:hidden:
-:maxdepth: 2
-
-Built-in Guardrails <built-in-guardrails>
-Parallel Execution of Rails <parallel-rails.md>
+```{include} parallel-rails.md
 ```

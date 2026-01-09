@@ -78,6 +78,21 @@ class ChatCompletionChoice(BaseModel):
     finish_reason: str = Field(..., description="The reason the model stopped generating")
 
 
+class DeltaMessage(BaseModel):
+    """Delta message for streaming responses."""
+
+    role: Optional[str] = Field(default=None, description="The role of the message author")
+    content: Optional[str] = Field(default=None, description="The content delta")
+
+
+class ChatCompletionStreamChoice(BaseModel):
+    """Chat completion streaming choice - https://platform.openai.com/docs/api-reference/chat/streaming"""
+
+    index: int = Field(..., description="The index of this choice")
+    delta: DeltaMessage = Field(..., description="The delta message content")
+    finish_reason: Optional[str] = Field(None, description="The reason the model stopped generating")
+
+
 class CompletionChoice(BaseModel):
     """Text completion choice."""
 
@@ -85,6 +100,15 @@ class CompletionChoice(BaseModel):
     index: int = Field(..., description="The index of this choice")
     logprobs: Optional[dict[str, Any]] = Field(None, description="Log probability information")
     finish_reason: str = Field(..., description="The reason the model stopped generating")
+
+
+class CompletionStreamChoice(BaseModel):
+    """Text completion streaming choice."""
+
+    text: str = Field(..., description="The generated text delta")
+    index: int = Field(..., description="The index of this choice")
+    logprobs: Optional[dict[str, Any]] = Field(None, description="Log probability information")
+    finish_reason: Optional[str] = Field(None, description="The reason the model stopped generating")
 
 
 class ChatCompletionResponse(BaseModel):
@@ -98,6 +122,16 @@ class ChatCompletionResponse(BaseModel):
     usage: Usage = Field(..., description="Token usage information")
 
 
+class ChatCompletionStreamResponse(BaseModel):
+    """Chat completion streaming response chunk - https://platform.openai.com/docs/api-reference/chat/streaming"""
+
+    id: str = Field(..., description="Unique identifier for the completion")
+    object: str = Field("chat.completion.chunk", description="Object type")
+    created: int = Field(..., description="Unix timestamp when the completion was created")
+    model: str = Field(..., description="The model used for completion")
+    choices: list[ChatCompletionStreamChoice] = Field(..., description="List of completion choices")
+
+
 class CompletionResponse(BaseModel):
     """Text completion response. https://platform.openai.com/docs/api-reference/completions/object"""
 
@@ -107,6 +141,16 @@ class CompletionResponse(BaseModel):
     model: str = Field(..., description="The model used for completion")
     choices: list[CompletionChoice] = Field(..., description="List of completion choices")
     usage: Usage = Field(..., description="Token usage information")
+
+
+class CompletionStreamResponse(BaseModel):
+    """Text completion streaming response chunk."""
+
+    id: str = Field(..., description="Unique identifier for the completion")
+    object: str = Field("text_completion", description="Object type")
+    created: int = Field(..., description="Unix timestamp when the completion was created")
+    model: str = Field(..., description="The model used for completion")
+    choices: list[CompletionStreamChoice] = Field(..., description="List of completion choices")
 
 
 class Model(BaseModel):

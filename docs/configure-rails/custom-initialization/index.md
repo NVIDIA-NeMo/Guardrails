@@ -1,9 +1,17 @@
 ---
-title: Custom Initialization
-description: Use config.py to register custom LLM providers, embedding providers, and shared resources at startup.
+title:
+  page: "Configuring Custom Initialization"
+  nav: "Custom Initialization"
+description: "Use config.py to register custom LLM providers, embedding providers, and shared resources at startup."
+topics: ["Configuration", "Customization"]
+tags: ["config.py", "Initialization", "LLM Providers", "Embedding Providers", "Python"]
+content:
+  type: "Guide"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
-# Custom Initialization
+# Configuring Custom Initialization
 
 The `config.py` file contains initialization code that runs **once at startup**, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
 
@@ -23,28 +31,28 @@ The `config.py` file contains initialization code that runs **once at startup**,
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} The Init Function
+:::{grid-item-card} Init Function
 :link: init-function
 :link-type: doc
 
 Define the init() function to initialize resources and register action parameters at startup.
 :::
 
-:::{grid-item-card} Custom LLM Providers
+:::{grid-item-card} LLM Providers
 :link: custom-llm-providers
 :link-type: doc
 
 Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.
 :::
 
-:::{grid-item-card} Custom Embedding Providers
+:::{grid-item-card} Embedding Providers
 :link: custom-embedding-providers
 :link-type: doc
 
 Register custom embedding providers for vector similarity search in NeMo Guardrails.
 :::
 
-:::{grid-item-card} Custom Configuration Data
+:::{grid-item-card} Custom Data
 :link: custom-data
 :link-type: doc
 
@@ -62,8 +70,8 @@ Pass and access custom data from config.yml in your initialization code and acti
 :hidden:
 :maxdepth: 2
 
-The Init Function <init-function>
-Custom LLM Providers <custom-llm-providers>
-Custom Embedding Providers <custom-embedding-providers>
-Custom Configuration Data <custom-data>
+Init Function <init-function>
+LLM Providers <custom-llm-providers>
+Embedding Providers <custom-embedding-providers>
+Custom Data <custom-data>
 ```

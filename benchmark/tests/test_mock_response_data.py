@@ -22,10 +22,12 @@ import pytest
 from benchmark.mock_llm_server.config import ModelSettings
 from benchmark.mock_llm_server.response_data import (
     calculate_tokens,
+    generate_chunk_latencies,
     generate_id,
     get_latency_seconds,
     get_response,
     is_unsafe,
+    split_response_into_chunks,
 )
 
 
@@ -102,10 +104,10 @@ def model_settings() -> ModelSettings:
         unsafe_probability=0.5,
         unsafe_text="Sorry Dave, I'm afraid I can't do that.",
         safe_text="I'm an AI assistant and am happy to help",
-        latency_min_seconds=0.2,
-        latency_max_seconds=1.0,
-        latency_mean_seconds=0.5,
-        latency_std_seconds=0.1,
+        e2e_latency_min_seconds=0.2,
+        e2e_latency_max_seconds=1.0,
+        e2e_latency_mean_seconds=0.5,
+        e2e_latency_std_seconds=0.1,
     )
     return settings
 
@@ -182,22 +184,22 @@ def test_get_response_unsafe(model_settings: ModelSettings):
 def test_get_latency_seconds_mocks_no_seed(mock_clip, mock_normal, mock_seed, model_settings: ModelSettings):
     """Check we call the correct numpy functions (not including seed)"""
 
-    mock_normal.return_value = np.array([model_settings.latency_mean_seconds])
-    mock_clip.return_value = np.array([model_settings.latency_max_seconds])
+    mock_normal.return_value = np.array([model_settings.e2e_latency_mean_seconds])
+    mock_clip.return_value = np.array([model_settings.e2e_latency_max_seconds])
 
     result = get_latency_seconds(model_settings)
 
     assert result == mock_clip.return_value
     assert mock_seed.call_count == 0
     mock_normal.assert_called_once_with(
-        loc=model_settings.latency_mean_seconds,
-        scale=model_settings.latency_std_seconds,
+        loc=model_settings.e2e_latency_mean_seconds,
+        scale=model_settings.e2e_latency_std_seconds,
         size=1,
     )
     mock_clip.assert_called_once_with(
         mock_normal.return_value,
-        a_min=model_settings.latency_min_seconds,
-        a_max=model_settings.latency_max_seconds,
+        a_min=model_settings.e2e_latency_min_seconds,
+        a_max=model_settings.e2e_latency_max_seconds,
     )
 
 
@@ -209,20 +211,263 @@ def test_get_latency_seconds_mocks_with_seed(
 ):
     """Check we call the correct numpy functions (not including seed)"""
 
-    mock_normal.return_value = np.array([model_settings.latency_mean_seconds])
-    mock_clip.return_value = np.array([model_settings.latency_max_seconds])
+    mock_normal.return_value = np.array([model_settings.e2e_latency_mean_seconds])
+    mock_clip.return_value = np.array([model_settings.e2e_latency_max_seconds])
 
     result = get_latency_seconds(model_settings, seed=random_seed)
 
     assert result == mock_clip.return_value
     mock_seed.assert_called_once_with(random_seed)
     mock_normal.assert_called_once_with(
-        loc=model_settings.latency_mean_seconds,
-        scale=model_settings.latency_std_seconds,
+        loc=model_settings.e2e_latency_mean_seconds,
+        scale=model_settings.e2e_latency_std_seconds,
         size=1,
     )
     mock_clip.assert_called_once_with(
         mock_normal.return_value,
-        a_min=model_settings.latency_min_seconds,
-        a_max=model_settings.latency_max_seconds,
+        a_min=model_settings.e2e_latency_min_seconds,
+        a_max=model_settings.e2e_latency_max_seconds,
     )
+
+
+class TestSplitResponseIntoChunks:
+    """Test the split_response_into_chunks function."""
+
+    def test_split_simple_sentence(self):
+        """Test splitting a simple sentence into word chunks."""
+        text = "Hello world"
+        chunks = split_response_into_chunks(text)
+        assert chunks == ["Hello ", "world"]
+
+    def test_split_multiple_words(self):
+        """Test splitting multiple words preserves spacing."""
+        text = "I can help you"
+        chunks = split_response_into_chunks(text)
+        assert chunks == ["I ", "can ", "help ", "you"]
+
+    def test_split_empty_string(self):
+        """Test splitting an empty string returns empty list."""
+        text = ""
+        chunks = split_response_into_chunks(text)
+        assert chunks == []
+
+    def test_split_single_word(self):
+        """Test splitting a single word returns it without trailing space."""
+        text = "Hello"
+        chunks = split_response_into_chunks(text)
+        assert chunks == ["Hello"]
+
+    def test_split_preserves_punctuation(self):
+        """Test that punctuation stays attached to words."""
+        text = "Hello, world!"
+        chunks = split_response_into_chunks(text)
+        assert chunks == ["Hello, ", "world!"]
+
+    def test_split_reconstructs_original(self):
+        """Test that joining chunks reconstructs the original text."""
+        text = "I can provide information and help with a wide range of topics."
+        chunks = split_response_into_chunks(text)
+        reconstructed = "".join(chunks)
+        assert reconstructed == text
+
+    def test_split_whitespace_only(self):
+        """Test splitting whitespace-only string returns empty list."""
+        text = "   "
+        chunks = split_response_into_chunks(text)
+        assert chunks == []
+
+
+class TestGenerateChunkLatencies:
+    """Test the generate_chunk_latencies function."""
+
+    @pytest.fixture
+    def streaming_settings(self) -> ModelSettings:
+        """Generate config data with streaming latency settings.
+        Each value should be unique to make sure we pass the correct configs to numpy functions
+        """
+        return ModelSettings(
+            model="test-model",
+            unsafe_text="Unsafe",
+            safe_text="Safe",
+            ttft_min_seconds=0.1,
+            ttft_max_seconds=4.0,
+            ttft_mean_seconds=1.3,
+            ttft_std_seconds=0.96,
+            chunk_latency_min_seconds=0.01,
+            chunk_latency_max_seconds=0.12,
+            chunk_latency_mean_seconds=0.05,
+            chunk_latency_std_seconds=0.02,
+        )
+
+    def test_generate_latencies_zero_chunks(self, streaming_settings: ModelSettings):
+        """Test generating latencies for zero chunks returns empty array."""
+        latencies = generate_chunk_latencies(streaming_settings, 0)
+        assert len(latencies) == 0
+        assert isinstance(latencies, np.ndarray)
+
+    def test_generate_latencies_negative_chunks(self, streaming_settings: ModelSettings):
+        """Test generating latencies for negative chunks returns empty array."""
+        latencies = generate_chunk_latencies(streaming_settings, -1)
+        assert len(latencies) == 0
+
+    @patch("benchmark.mock_llm_server.response_data.np.random.seed")
+    @patch("benchmark.mock_llm_server.response_data.np.random.normal")
+    @patch("benchmark.mock_llm_server.response_data.np.clip")
+    def test_generate_latencies_single_chunk_no_seed(
+        self,
+        mock_clip: MagicMock,
+        mock_normal: MagicMock,
+        mock_seed: MagicMock,
+        streaming_settings: ModelSettings,
+    ):
+        """Test single chunk calls TTFT normal and clip, no seed call."""
+        mock_normal.return_value = np.array([streaming_settings.ttft_mean_seconds])
+        mock_clip.return_value = np.array([streaming_settings.ttft_mean_seconds])
+
+        latencies = generate_chunk_latencies(streaming_settings, 1)
+
+        assert len(latencies) == 1
+        assert mock_seed.call_count == 0
+        mock_normal.assert_called_once_with(
+            loc=streaming_settings.ttft_mean_seconds,
+            scale=streaming_settings.ttft_std_seconds,
+            size=1,
+        )
+        mock_clip.assert_called_once_with(
+            mock_normal.return_value,
+            a_min=streaming_settings.ttft_min_seconds,
+            a_max=streaming_settings.ttft_max_seconds,
+        )
+
+    @patch("benchmark.mock_llm_server.response_data.np.random.seed")
+    @patch("benchmark.mock_llm_server.response_data.np.random.normal")
+    @patch("benchmark.mock_llm_server.response_data.np.clip")
+    def test_generate_latencies_single_chunk_with_seed(
+        self,
+        mock_clip: MagicMock,
+        mock_normal: MagicMock,
+        mock_seed: MagicMock,
+        streaming_settings: ModelSettings,
+    ):
+        """Test single chunk with seed calls np.random.seed."""
+        mock_normal.return_value = np.array([streaming_settings.ttft_mean_seconds])
+        mock_clip.return_value = np.array([streaming_settings.ttft_min_seconds])
+        seed_value = 42
+
+        latencies = generate_chunk_latencies(streaming_settings, 1, seed=seed_value)
+
+        assert len(latencies) == 1
+        mock_seed.assert_called_once_with(seed_value)
+        mock_normal.assert_called_once_with(
+            loc=streaming_settings.ttft_mean_seconds,
+            scale=streaming_settings.ttft_std_seconds,
+            size=1,
+        )
+        mock_clip.assert_called_once_with(
+            mock_normal.return_value,
+            a_min=streaming_settings.ttft_min_seconds,
+            a_max=streaming_settings.ttft_max_seconds,
+        )
+
+    @patch("benchmark.mock_llm_server.response_data.np.random.seed")
+    @patch("benchmark.mock_llm_server.response_data.np.random.normal")
+    @patch("benchmark.mock_llm_server.response_data.np.clip")
+    def test_generate_latencies_multiple_chunks_no_seed(
+        self,
+        mock_clip: MagicMock,
+        mock_normal: MagicMock,
+        mock_seed: MagicMock,
+        streaming_settings: ModelSettings,
+    ):
+        """Test multiple chunks calls TTFT then ITL normal and clip."""
+        num_chunks = 5
+        ttft_value = np.array([streaming_settings.ttft_mean_seconds])
+        chunk_values = np.array([0.01, 0.02, 0.03, 0.04])
+
+        # First call returns TTFT, second call returns ITL values
+        mock_normal.side_effect = [ttft_value, chunk_values]
+        mock_clip.side_effect = [ttft_value, chunk_values]
+
+        latencies = generate_chunk_latencies(streaming_settings, num_chunks)
+
+        assert len(latencies) == num_chunks
+        assert mock_seed.call_count == 0
+        assert mock_normal.call_count == 2
+        assert mock_clip.call_count == 2
+
+        # Check the TTFT Normal distribution
+        ttft_normal_call_args, ttft_normal_call_kwargs = mock_normal.call_args_list[0]
+        assert ttft_normal_call_args == ()  # All arguments are passed as kwargs, so args list is empty
+        assert ttft_normal_call_kwargs["loc"] == streaming_settings.ttft_mean_seconds
+        assert ttft_normal_call_kwargs["scale"] == streaming_settings.ttft_std_seconds
+        assert ttft_normal_call_kwargs["size"] == 1
+
+        # Check the ITL Normal distribution call (for all but the first chunk)
+        chunk_normal_call_args, chunk_normal_call_kwargs = mock_normal.call_args_list[1]
+        assert chunk_normal_call_args == ()  # All arguments are passed as kwargs, so args list is empty
+        assert chunk_normal_call_kwargs["loc"] == streaming_settings.chunk_latency_mean_seconds
+        assert chunk_normal_call_kwargs["scale"] == streaming_settings.chunk_latency_std_seconds
+        assert chunk_normal_call_kwargs["size"] == num_chunks - 1
+
+        # Check TTFT clip calls
+        ttft_clip_call_args, ttft_clip_call_kwargs = mock_clip.call_args_list[0]
+        assert ttft_clip_call_args[0] == ttft_value
+        assert ttft_clip_call_kwargs["a_max"] == streaming_settings.ttft_max_seconds
+        assert ttft_clip_call_kwargs["a_min"] == streaming_settings.ttft_min_seconds
+
+        # Check ITL clip calls
+        chunk_clip_call_args, chunk_clip_call_kwargs = mock_clip.call_args_list[1]
+        np.testing.assert_array_equal(chunk_clip_call_args[0], chunk_values)
+        assert chunk_clip_call_kwargs["a_max"] == streaming_settings.chunk_latency_max_seconds
+        assert chunk_clip_call_kwargs["a_min"] == streaming_settings.chunk_latency_min_seconds
+
+    @patch("benchmark.mock_llm_server.response_data.np.random.seed")
+    @patch("benchmark.mock_llm_server.response_data.np.random.normal")
+    @patch("benchmark.mock_llm_server.response_data.np.clip")
+    def test_generate_latencies_multiple_chunks_with_seed(
+        self,
+        mock_clip: MagicMock,
+        mock_normal: MagicMock,
+        mock_seed: MagicMock,
+        streaming_settings: ModelSettings,
+    ):
+        """Test multiple chunks with seed calls np.random.seed once."""
+        num_chunks = 3
+        seed_value = 12345
+        ttft_value = np.array([streaming_settings.ttft_mean_seconds])
+        chunk_values = np.array([streaming_settings.chunk_latency_mean_seconds] * (num_chunks - 1))
+
+        mock_normal.side_effect = [ttft_value, chunk_values]
+        mock_clip.side_effect = [ttft_value, chunk_values]
+
+        latencies = generate_chunk_latencies(streaming_settings, num_chunks, seed=seed_value)
+
+        assert len(latencies) == num_chunks
+        mock_seed.assert_called_once_with(seed_value)
+
+        # Exact call arguments are tested in test_generate_latencies_multiple_chunks_no_seed, no need to retest
+        assert mock_normal.call_count == 2
+        assert mock_clip.call_count == 2
+
+    @patch("benchmark.mock_llm_server.response_data.np.random.seed")
+    @patch("benchmark.mock_llm_server.response_data.np.random.normal")
+    @patch("benchmark.mock_llm_server.response_data.np.clip")
+    def test_generate_latencies_returns_correct_values(
+        self,
+        mock_clip: MagicMock,
+        mock_normal: MagicMock,
+        streaming_settings: ModelSettings,
+    ):
+        """Test that returned latencies contain the clipped values."""
+        num_chunks = 3
+        ttft_clipped = np.array([0.25])
+        chunk_clipped = np.array([0.04, 0.06])
+
+        mock_normal.side_effect = [np.array([0.3]), np.array([0.05, 0.07])]
+        mock_clip.side_effect = [ttft_clipped, chunk_clipped]
+
+        latencies = generate_chunk_latencies(streaming_settings, num_chunks)
+
+        assert len(latencies) == num_chunks
+        assert latencies[0] == ttft_clipped[0]
+        np.testing.assert_array_equal(latencies[1:], chunk_clipped)

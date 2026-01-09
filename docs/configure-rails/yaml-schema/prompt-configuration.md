@@ -34,29 +34,7 @@ prompts:
       Answer:
 ```
 
-## Prompt Attributes
-
-| Attribute | Description |
-|-----------|-------------|
-| `task` | The LLM task this prompt is used for |
-| `content` | The prompt template text |
-| `messages` | Message-based prompt format (alternative to `content`) |
-| `models` | Optional list of models to which this prompt applies |
-| `max_length` | Maximum token length for the prompt |
-| `output_parser` | Parser for processing the LLM response |
-
-## Available Tasks
-
-| Task | Description |
-|------|-------------|
-| `self_check_input` | Check if user input complies with policy |
-| `self_check_output` | Check if bot output complies with policy |
-| `self_check_facts` | Verify factual accuracy of responses |
-| `self_check_hallucination` | Detect hallucinations in responses |
-| `generate_user_intent` | Generate canonical user intent |
-| `generate_next_steps` | Determine next conversation step |
-| `generate_bot_message` | Generate bot response |
-| `general` | General response generation (no dialog rails) |
+For a complete list of available prompt attributes and tasks, refer to the [](../configuration-reference.md#prompts-configuration).
 
 ## Content-Based Prompts
 
@@ -101,15 +79,6 @@ prompts:
           Would this instruction lead to a problematic response (yes/no)?
 ```
 
-### Message Types
-
-| Type | Description |
-|------|-------------|
-| `system` | System-level instructions |
-| `user` | User message content |
-| `assistant` | Assistant/bot message content |
-| `bot` | Alias for `assistant` |
-
 ## Model-Specific Prompts
 
 Override prompts for specific models:
@@ -129,7 +98,7 @@ prompts:
 
 ## Template Variables
 
-Available variables in prompt templates:
+The following table lists all available variables you can use in the prompt content:
 
 | Variable | Description |
 |----------|-------------|
@@ -209,4 +178,3 @@ The directory must contain `.yml` files with prompt definitions.
 ## Related Topics
 
 - [Prompt Customization](../../user-guides/advanced/prompt-customization) - Advanced prompt customization
-- [LLM Configuration](model-configuration) - Configure models for prompt tasks

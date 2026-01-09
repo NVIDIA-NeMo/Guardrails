@@ -215,7 +215,6 @@ The `{% if bot_thinking %}` conditional ensures that the prompt works with both 
 
 Use the following guides to learn more about the features used in this guide.
 
-- [LLM Configuration - Using LLMs with Reasoning Traces](../configuration-guide/llm-configuration.md#using-llms-with-reasoning-traces): API response handling and breaking changes.
-- [Output Rails](../../getting-started/5-output-rails/README.md): General guide on output rails.
+- [Model Configuration](../../yaml-schema/model-configuration.md): Configure LLM models in config.yml.
 - [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration example in the NeMo Guardrails library repository.
-- [Custom Actions](../../colang-language-syntax-guide.md#actions): Guide on writing custom actions.
+- [Custom Actions](../../actions/creating-actions.md): Guide on writing custom actions.

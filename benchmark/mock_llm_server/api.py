@@ -17,18 +17,24 @@
 import asyncio
 import logging
 import time
-from typing import Annotated, Union
+from typing import Annotated, AsyncGenerator, Union
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from benchmark.mock_llm_server.config import ModelSettings, get_settings
 from benchmark.mock_llm_server.models import (
     ChatCompletionChoice,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    ChatCompletionStreamChoice,
+    ChatCompletionStreamResponse,
     CompletionChoice,
     CompletionRequest,
     CompletionResponse,
+    CompletionStreamChoice,
+    CompletionStreamResponse,
+    DeltaMessage,
     Message,
     Model,
     ModelsResponse,
@@ -36,9 +42,11 @@ from benchmark.mock_llm_server.models import (
 )
 from benchmark.mock_llm_server.response_data import (
     calculate_tokens,
+    generate_chunk_latencies,
     generate_id,
     get_latency_seconds,
     get_response,
+    split_response_into_chunks,
 )
 
 # Create a console logging handler
@@ -89,7 +97,7 @@ async def log_http_duration(request: Request, call_next):
     response_time = time.time()
 
     duration_seconds = response_time - request_time
-    log.info(
+    log.debug(
         "Request finished: %s, took %.3f seconds",
         response.status_code,
         duration_seconds,
@@ -120,8 +128,149 @@ async def list_models(config: ModelSettingsDep):
     return response
 
 
-@app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
-async def chat_completions(request: ChatCompletionRequest, config: ModelSettingsDep) -> ChatCompletionResponse:
+async def stream_chat_completion(
+    completion_id: str,
+    model: str,
+    response_content: str,
+    config: ModelSettings,
+    n_choices: int = 1,
+) -> AsyncGenerator[str, None]:
+    """Generate Server-Sent Events for streaming chat completions.
+
+    Args:
+        completion_id: Unique ID for this completion
+        model: Model name
+        response_content: Full response text to stream
+        config: Model settings for latency configuration
+        n_choices: Number of choices to generate
+    """
+    created_timestamp = int(time.time())
+    chunks = split_response_into_chunks(response_content)
+    latencies = generate_chunk_latencies(config, len(chunks))
+
+    # First chunk with role
+    for i in range(n_choices):
+        first_response = ChatCompletionStreamResponse(
+            id=completion_id,
+            object="chat.completion.chunk",
+            created=created_timestamp,
+            model=model,
+            choices=[
+                ChatCompletionStreamChoice(
+                    index=i,
+                    delta=DeltaMessage(role="assistant", content=""),
+                    finish_reason=None,
+                )
+            ],
+        )
+        yield f"data: {first_response.model_dump_json(exclude_none=True)}\n\n"
+
+    # Stream content chunks
+    for chunk_idx, chunk in enumerate(chunks):
+        await asyncio.sleep(latencies[chunk_idx])
+
+        for i in range(n_choices):
+            chunk_response = ChatCompletionStreamResponse(
+                id=completion_id,
+                object="chat.completion.chunk",
+                created=created_timestamp,
+                model=model,
+                choices=[
+                    ChatCompletionStreamChoice(
+                        index=i,
+                        delta=DeltaMessage(content=chunk),
+                        finish_reason=None,
+                    )
+                ],
+            )
+            yield f"data: {chunk_response.model_dump_json(exclude_none=True)}\n\n"
+
+    # Final chunk with finish_reason
+    for i in range(n_choices):
+        final_response = ChatCompletionStreamResponse(
+            id=completion_id,
+            object="chat.completion.chunk",
+            created=created_timestamp,
+            model=model,
+            choices=[
+                ChatCompletionStreamChoice(
+                    index=i,
+                    delta=DeltaMessage(),
+                    finish_reason="stop",
+                )
+            ],
+        )
+        yield f"data: {final_response.model_dump_json(exclude_none=True)}\n\n"
+
+    yield "data: [DONE]\n\n"
+
+
+async def stream_completion(
+    completion_id: str,
+    model: str,
+    response_text: str,
+    config: ModelSettings,
+    n: int = 1,
+) -> AsyncGenerator[str, None]:
+    """Generate Server-Sent Events for streaming text completions.
+
+    Args:
+        completion_id: Unique ID for this completion
+        model: Model name
+        response_text: Full response text to stream
+        config: Model settings for latency configuration
+        n: Number of choices to generate
+    """
+    created_timestamp = int(time.time())
+    chunks = split_response_into_chunks(response_text)
+    latencies = generate_chunk_latencies(config, len(chunks))
+
+    # Stream content chunks
+    for chunk_idx, chunk in enumerate(chunks):
+        await asyncio.sleep(latencies[chunk_idx])
+
+        for i in range(n):
+            chunk_response = CompletionStreamResponse(
+                id=completion_id,
+                object="text_completion",
+                created=created_timestamp,
+                model=model,
+                choices=[
+                    CompletionStreamChoice(
+                        text=chunk,
+                        index=i,
+                        logprobs=None,
+                        finish_reason=None,
+                    )
+                ],
+            )
+            yield f"data: {chunk_response.model_dump_json(exclude_none=True)}\n\n"
+
+    # Final chunk with finish_reason
+    for i in range(n):
+        final_response = CompletionStreamResponse(
+            id=completion_id,
+            object="text_completion",
+            created=created_timestamp,
+            model=model,
+            choices=[
+                CompletionStreamChoice(
+                    text="",
+                    index=i,
+                    logprobs=None,
+                    finish_reason="stop",
+                )
+            ],
+        )
+        yield f"data: {final_response.model_dump_json(exclude_none=True)}\n\n"
+
+    yield "data: [DONE]\n\n"
+
+
+@app.post("/v1/chat/completions", response_model=None)
+async def chat_completions(
+    request: ChatCompletionRequest, config: ModelSettingsDep
+) -> Union[ChatCompletionResponse, StreamingResponse]:
     """Create a chat completion."""
 
     log.debug("/v1/chat/completions request: %s", request)
@@ -131,6 +280,23 @@ async def chat_completions(request: ChatCompletionRequest, config: ModelSettings
 
     # Generate dummy response
     response_content = get_response(config)
+    completion_id = generate_id("chatcmpl")
+
+    # Handle streaming response
+    if request.stream:
+        log.debug("/v1/chat/completions streaming response for id: %s", completion_id)
+        return StreamingResponse(
+            stream_chat_completion(
+                completion_id=completion_id,
+                model=request.model,
+                response_content=response_content,
+                config=config,
+                n_choices=request.n or 1,
+            ),
+            media_type="text/event-stream",
+        )
+
+    # Non-streaming response
     response_latency_seconds = get_latency_seconds(config)
 
     # Calculate token usage
@@ -139,7 +305,6 @@ async def chat_completions(request: ChatCompletionRequest, config: ModelSettings
     completion_tokens = calculate_tokens(response_content)
 
     # Create response
-    completion_id = generate_id("chatcmpl")
     created_timestamp = int(time.time())
 
     choices = []
@@ -168,8 +333,10 @@ async def chat_completions(request: ChatCompletionRequest, config: ModelSettings
     return response
 
 
-@app.post("/v1/completions", response_model=CompletionResponse)
-async def completions(request: CompletionRequest, config: ModelSettingsDep) -> CompletionResponse:
+@app.post("/v1/completions", response_model=None)
+async def completions(
+    request: CompletionRequest, config: ModelSettingsDep
+) -> Union[CompletionResponse, StreamingResponse]:
     """Create a text completion."""
 
     log.debug("/v1/completions request: %s", request)
@@ -185,6 +352,23 @@ async def completions(request: CompletionRequest, config: ModelSettingsDep) -> C
 
     # Generate dummy response
     response_text = get_response(config)
+    completion_id = generate_id("cmpl")
+
+    # Handle streaming response
+    if request.stream:
+        log.debug("/v1/completions streaming response for id: %s", completion_id)
+        return StreamingResponse(
+            stream_completion(
+                completion_id=completion_id,
+                model=request.model,
+                response_text=response_text,
+                config=config,
+                n=request.n or 1,
+            ),
+            media_type="text/event-stream",
+        )
+
+    # Non-streaming response
     response_latency_seconds = get_latency_seconds(config)
 
     # Calculate token usage
@@ -192,7 +376,6 @@ async def completions(request: CompletionRequest, config: ModelSettingsDep) -> C
     completion_tokens = calculate_tokens(response_text)
 
     # Create response
-    completion_id = generate_id("cmpl")
     created_timestamp = int(time.time())
 
     choices = []

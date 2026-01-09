@@ -1,43 +1,13 @@
 ---
-title: Built-in Guardrails
+title: Guardrail Catalog
 description: Reference for pre-built guardrails including content safety, jailbreak detection, PII handling, and fact checking.
 ---
 
-# Built-in Guardrails
+# Guardrail Catalog
 
-NeMo Guardrails comes with a set of built-in guardrails that you can use out of the box.
+The NeMo Guardrails library comes with a set of guardrails that you can use out of the box. This page provides a comprehensive reference for all the guardrails and their configurations.
 
-1. LLM Self-Checking
-   - [Input Checking](#self-check-input)
-   - [Output Checking](#self-check-output)
-   - [Dialog Rails](#dialog-rails)
-   - [Fact Checking](#fact-checking)
-   - [Hallucination Detection](#hallucination-detection)
-   - [Content Safety](#content-safety)
-
-2. Threat Detection
-   - [Jailbreak Detection](#jailbreak-detection)
-   - [Injection Detection](#injection-detection)
-
-3. Community Models and Libraries
-   - [AlignScore-based Fact Checking](#alignscore-based-fact-checking)
-   - [LlamaGuard-based Content Moderation](#llama-guard-based-content-moderation)
-   - [Patronus Lynx-based RAG Hallucination Detection](#patronus-lynx-based-rag-hallucination-detection)
-   - [Presidio-based Sensitive Data Detection](#presidio-based-sensitive-data-detection)
-
-4. Third-Party APIs
-   - [ActiveFence Moderation](#activefence)
-   - [AutoAlign](#autoalign)
-   - [Clavata.ai](#clavata)
-   - [Cleanlab Trustworthiness Score](#cleanlab)
-   - [GCP Text Moderation](#gcp-text-moderation)
-   - [GuardrailsAI Integration](#guardrailsai-integration)
-   - [Private AI PII detection](#private-ai-pii-detection)
-   - [Fiddler Guardrails for Safety and Hallucination Detection](#fiddler-guardrails-for-safety-and-hallucination-detection)
-   - [Prompt Security Protection](#prompt-security-protection)
-   - [Pangea AI Guard](#pangea-ai-guard)
-   - [Trend Micro Vision One AI Application Security](#trend-micro-vision-one-ai-application-security)
-   - [Cisco AI Defense](#cisco-ai-defense)
+---
 
 ## LLM Self-Checking
 
@@ -288,7 +258,7 @@ When the `single_llm_call.enabled` is set to `True`, the dialog rails flow will 
 
 The goal of the self-check fact-checking output rail is to ensure that the answer to a RAG (Retrieval Augmented Generation) query is grounded in the provided evidence extracted from the knowledge base (KB).
 
-NeMo Guardrails uses the concept of **relevant chunks** (which are stored in the `$relevant_chunks` context variable) as the evidence against which fact-checking should be performed. The relevant chunks can be extracted automatically, if the built-in knowledge base support is used, or provided directly alongside the query (see the [Getting Started Guide example](../getting-started/7-rag/README.md)).
+The NeMo Guardrails library uses the concept of **relevant chunks** (which are stored in the `$relevant_chunks` context variable) as the evidence against which fact-checking should be performed. The relevant chunks can be extracted automatically, if the built-in knowledge base support is used, or provided directly alongside the query.
 
 **IMPORTANT**: The performance of this rail is strongly dependent on the capability of the LLM to follow the instructions in the `self_check_facts` prompt.
 
@@ -305,7 +275,7 @@ rails:
       - self check facts
 ```
 
-2. Define the `self_check_facts` prompt in the `prompts.yml` file:
+1. Define the `self_check_facts` prompt in the `prompts.yml` file:
 
 ```yaml
 prompts:
@@ -377,7 +347,7 @@ rails:
       - self check hallucination
 ```
 
-2. Define a `self_check_hallucination` prompt in the `prompts.yml` file:
+1. Define a `self_check_hallucination` prompt in the `prompts.yml` file:
 
 ```yaml
 prompts:
@@ -458,9 +428,11 @@ The implementation for the self-check hallucination rail uses a slight variation
 
 Similar to the self-check fact-checking, we formulate the consistency checking similar to an NLI task with the original bot response as the *hypothesis* (`{{ statement }}`) and the extra generated responses as the context or *evidence* (`{{ paragraph }}`).
 
+---
+
 ## NVIDIA Models
 
-NeMo Guardrails provides out of the box connectivity for safety models trained by NVIDIA for specialized use cases. These models are provided as both HuggingFace checkpoints and as NVIDIA NIM containers that provide out of the box TRTLLM support with lower latency.
+The NeMo Guardrails library provides out of the box connectivity for safety models trained by NVIDIA for specialized use cases. These models are provided as both HuggingFace checkpoints and as NVIDIA NIM containers that provide out of the box TRTLLM support with lower latency.
 
 ### Content Safety
 
@@ -493,7 +465,7 @@ models:
 The `type` is a unique idenfier for the model that will be passed to the input and output rails as a parameter.
 ```
 
-2. Include the content safety check in the input and output rails section of the `config.yml` file:
+1. Include the content safety check in the input and output rails section of the `config.yml` file:
 
 ```yaml
 rails:
@@ -507,7 +479,7 @@ rails:
 
 It is important to note that you must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safety check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns set of policy violations. Please refer to the [content safety example](../../examples/configs/content_safety/README.md) for more details.
 
-3. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
+1. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
 
 ```yaml
 prompts:
@@ -543,7 +515,7 @@ prompts:
 
 >WARNING: If a prompt is not defined, an exception will be raised when the configuration is loaded.
 
-4. You must specify the output parser. You can use your own parser and register it or use the off-the-shelf `is_content_safe` output parser as shown above.
+1. You must specify the output parser. You can use your own parser and register it or use the off-the-shelf `is_content_safe` output parser as shown above.
 
     This parser works by checking for specific keywords in the response:
     - If the response includes "safe", the content is considered safe.
@@ -561,7 +533,7 @@ The `content safety check input` and `content safety check output` rails execute
 #### Multilingual Refusal Messages
 
 <!-- TODO: should we mention nvidia/llama-3.1-nemotron-safety-guard-8b-v3  -->
-When content safety rails block unsafe content, you can configure NeMo Guardrails to automatically detect the user's input language and return refusal messages in that same language. This provides a better user experience for multilingual applications.
+When content safety rails block unsafe content, you can configure the NeMo Guardrails library to automatically detect the user's input language and return refusal messages in that same language. This provides a better user experience for multilingual applications.
 
 ##### Supported Languages
 
@@ -583,7 +555,7 @@ If the detected language is not in this list, English is used as the fallback.
 
 ##### Installation
 
-To use multilingual refusal messages, install NeMo Guardrails with the `multilingual` extra:
+To use multilingual refusal messages, install the NeMo Guardrails library with the `multilingual` extra:
 
 ```bash
 pip install nemoguardrails[multilingual]
@@ -699,7 +671,7 @@ models:
       model_name: "llama-3.1-nemoguard-8b-topic-control"
 ```
 
-2. Include the topic safety check in your rails configuration:
+1. Include the topic safety check in your rails configuration:
 
 ```yaml
 rails:
@@ -708,7 +680,7 @@ rails:
       - topic safety check input $model=topic_control
 ```
 
-3. Define your topic rules in the system prompt. Here's an example prompt that enforces specific conversation boundaries:
+1. Define your topic rules in the system prompt. Here's an example prompt that enforces specific conversation boundaries:
 
 ```yaml
 prompts:
@@ -748,11 +720,81 @@ prompts:
 
 The 'topic safety check input' flow uses the [`topic_safety_check_input`](../../nemoguardrails/library/topic_safety/actions.py) action. The model returns a boolean value indicating whether the user input is on-topic or not. Please refer to the [topic safety example](../../examples/configs/topic_safety/README.md) for more details.
 
+---
+
+## PII Detection
+
+The NeMo Guardrails library supports various PII detection models.
+
+To activate the PII detection, you need to set up the server endpoint of the PII detection model in your `config.yml` and specify the entities that you want to detect and mask. For example, the following configuration uses the [GLiNER](https://github.com/NVIDIA/GLiNER) PII detection model, where the GLiNER server endpoint is `http://localhost:1235/v1/extract`:
+
+**PII detection config**
+
+The detection flow blocks the input, output, and retrieval text if it detects PII.
+
+```yaml
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:1235/v1/extract
+      threshold: 0.5  # Confidence threshold (0.0 to 1.0)
+      input:
+        entities:  # If no entity is specified, all default PII categories are detected
+          - email
+          - phone_number
+          - ssn
+          - first_name
+          - last_name
+      output:
+        entities:
+          - email
+          - phone_number
+          - credit_debit_card
+  input:
+    flows:
+      - gliner detect pii on input
+  output:
+    flows:
+      - gliner detect pii on output
+```
+
+**PII masking config**
+
+The masking flow replaces detected PII with labels.
+For example, `Hi John, my email is john@example.com` becomes `Hi [FIRST_NAME], my email is [EMAIL]`.
+
+```yaml
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:1235/v1/extract
+      input:
+        entities:
+          - email
+          - first_name
+          - last_name
+      output:
+        entities:
+          - email
+          - first_name
+          - last_name
+  input:
+    flows:
+      - gliner mask pii on input
+  output:
+    flows:
+      - gliner mask pii on output
+```
+
+For a detailed example, please refer to the [](../user-guides/community/gliner.md) page.
+
+---
+
 ## Threat Detection
 
 ### Jailbreak Detection
 
-NeMo Guardrails supports jailbreak detection using a set of heuristics. Currently, two heuristics are supported:
+The NeMo Guardrails library supports jailbreak detection using a set of heuristics. Currently, two heuristics are supported:
 
 1. [Length per Perplexity](#length-per-perplexity)
 2. [Prefix and Suffix Perplexity](#prefix-and-suffix-perplexity)
@@ -833,7 +875,7 @@ There is currently one available model-based detection, using a random forest-ba
 
 #### Setup
 
-The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](advanced/jailbreak-detection-deployment.md) separately.
+The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](../user-guides/jailbreak-detection-heuristics/README.md) separately.
 
 For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `tourch`.
 
@@ -855,7 +897,7 @@ Times reported below in are **averages** and are reported in milliseconds.
 
 ### Injection Detection
 
-NeMo Guardrails offers detection of potential exploitation attempts by using injection such as code injection, cross-site scripting, SQL injection, and template injection.
+The NeMo Guardrails library offers detection of potential exploitation attempts by using injection such as code injection, cross-site scripting, SQL injection, and template injection.
 Injection detection is primarily intended to be used in agentic systems to enhance other security controls as part of a defense-in-depth strategy.
 
 The first part of injection detection is [YARA rules](https://yara.readthedocs.io/en/stable/index.html).
@@ -869,7 +911,7 @@ As an alternative to rejecting the output, you can specify to *omit* the trigger
 
 #### About the Default Rules
 
-By default, NeMo Guardrails provides the following rules:
+By default, the NeMo Guardrails library provides the following rules:
 
 - Code injection (Python): Recommended if the LLM output is used as an argument to downstream functions or passed to a code interpreter.
 - SQL injection: Recommended if the LLM output is used as part of a SQL query to a database.
@@ -988,13 +1030,15 @@ Before you begin, install the `yara-python` package or you can install the NeMo 
    :end-before: "# end-unsafe-response"
    ```
 
+---
+
 ## Community Models and Libraries
 
 This category of rails relies on open-source models and libraries.
 
 ### AlignScore-based Fact-Checking
 
-NeMo Guardrails provides out-of-the-box support for the [AlignScore metric (Zha et al.)](https://aclanthology.org/2023.acl-long.634.pdf), which uses a RoBERTa-based model for scoring factual consistency in model responses with respect to the knowledge base.
+The NeMo Guardrails library provides out-of-the-box support for the [AlignScore metric (Zha et al.)](https://aclanthology.org/2023.acl-long.634.pdf), which uses a RoBERTa-based model for scoring factual consistency in model responses with respect to the knowledge base.
 
 #### Example usage
 
@@ -1011,11 +1055,11 @@ rails:
       - alignscore check facts
 ```
 
-For more details, check out the [AlignScore Integration](./community/alignscore.md) page.
+For more details, check out the [AlignScore Integration](../user-guides/community/alignscore.md) page.
 
 ### Llama Guard-based Content Moderation
 
-NeMo Guardrails provides out-of-the-box support for content moderation using Meta's [Llama Guard](https://ai.meta.com/research/publications/llama-guard-llm-based-input-output-safeguard-for-human-ai-conversations/) model.
+The NeMo Guardrails library provides out-of-the-box support for content moderation using Meta's [Llama Guard](https://ai.meta.com/research/publications/llama-guard-llm-based-input-output-safeguard-for-human-ai-conversations/) model.
 
 #### Example usage
 
@@ -1029,11 +1073,11 @@ rails:
       - llama guard check output
 ```
 
-For more details, check out the [Llama-Guard Integration](./community/llama-guard.md) page.
+For more details, check out the [Llama-Guard Integration](../user-guides/community/llama-guard.md) page.
 
 ### Patronus Lynx-based RAG Hallucination Detection
 
-NeMo Guardrails supports hallucination detection in RAG systems using [Patronus AI](www.patronus.ai)'s Lynx model. The model is hosted on Hugging Face and comes in both a 70B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-70B-Instruct)) and 8B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-8B-Instruct)) variant.
+The NeMo Guardrails library supports hallucination detection in RAG systems using [Patronus AI](www.patronus.ai)'s Lynx model. The model is hosted on Hugging Face and comes in both a 70B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-70B-Instruct)) and 8B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-8B-Instruct)) variant.
 
 #### Example usage
 
@@ -1044,11 +1088,11 @@ rails:
       - patronus lynx check output hallucination
 ```
 
-For more details, check out the [Patronus Lynx Integration](./community/patronus-lynx.md) page.
+For more details, check out the [Patronus Lynx Integration](../user-guides/community/patronus-lynx.md) page.
 
 ### Presidio-based Sensitive Data Detection
 
-NeMo Guardrails supports detecting sensitive data out-of-the-box using [Presidio](https://github.com/Microsoft/presidio), which provides fast identification and anonymization modules for private entities in text such as credit card numbers, names, locations, social security numbers, bitcoin wallets, US phone numbers, financial data and more. You can detect sensitive data on user input, bot output, or the relevant chunks retrieved from the knowledge base.
+The NeMo Guardrails library supports detecting sensitive data out-of-the-box using [Presidio](https://github.com/Microsoft/presidio), which provides fast identification and anonymization modules for private entities in text such as credit card numbers, names, locations, social security numbers, bitcoin wallets, US phone numbers, financial data and more. You can detect sensitive data on user input, bot output, or the relevant chunks retrieved from the knowledge base.
 
 To activate a sensitive data detection input rail, you have to configure the entities that you want to detect:
 
@@ -1078,7 +1122,9 @@ rails:
       - mask sensitive data on retrieval
 ```
 
-For more details, check out the [Presidio Integration](./community/presidio.md) page.
+For more details, check out the [Presidio Integration](../user-guides/community/presidio.md) page.
+
+---
 
 ## Third-Party APIs
 
@@ -1086,7 +1132,7 @@ This category of rails relies on 3rd party APIs for various guardrailing tasks.
 
 ### ActiveFence
 
-NeMo Guardrails supports using the [ActiveFence ActiveScore API](https://docs.activefence.com/index.html) as an input and output rail out-of-the-box (you need to have the `ACTIVEFENCE_API_KEY` environment variable set).
+The NeMo Guardrails library supports using the [ActiveFence ActiveScore API](https://docs.activefence.com/index.html) as an input and output rail out-of-the-box (you need to have the `ACTIVEFENCE_API_KEY` environment variable set).
 
 #### Example usage
 
@@ -1100,11 +1146,11 @@ rails:
       - activefence moderation on output
 ```
 
-For more details, check out the [ActiveFence Integration](./community/active-fence.md) page.
+For more details, check out the [ActiveFence Integration](../user-guides/community/active-fence.md) page.
 
 ### AutoAlign
 
-NeMo Guardrails supports using the AutoAlign's guardrails API (you need to have the `AUTOALIGN_API_KEY` environment variable set).
+The NeMo Guardrails library supports using the AutoAlign's guardrails API (you need to have the `AUTOALIGN_API_KEY` environment variable set).
 
 #### Example usage
 
@@ -1118,11 +1164,11 @@ rails:
       - autoalign check output
 ```
 
-For more details, check out the [AutoAlign Integration](./community/auto-align.md) page.
+For more details, check out the [AutoAlign Integration](../user-guides/community/auto-align.md) page.
 
 ### Clavata
 
-NeMo Guardrails supports using [Clavata AI](https://www.clavata.ai/blogs/partner-nvidia) as an input and output rail out-of-the-box (you need to have the CLAVATA_API_KEY environment variable set).
+The NeMo Guardrails library supports using [Clavata AI](https://www.clavata.ai/blogs/partner-nvidia) as an input and output rail out-of-the-box (you need to have the CLAVATA_API_KEY environment variable set).
 
 #### Example usage
 
@@ -1141,7 +1187,7 @@ For more details, check out the [Clavata Integration](https://docs.nvidia.com/ne
 
 ### Cleanlab
 
-NeMo Guardrails supports using the [Cleanlab Trustworthiness Score API](https://cleanlab.ai/blog/trustworthy-language-model/) as an output rail (you need to have the `CLEANLAB_API_KEY` environment variable set).
+The NeMo Guardrails library supports using the [Cleanlab Trustworthiness Score API](https://cleanlab.ai/blog/trustworthy-language-model/) as an output rail (you need to have the `CLEANLAB_API_KEY` environment variable set).
 
 #### Example usage
 
@@ -1156,7 +1202,7 @@ For more details, check out the [Cleanlab Integration](https://github.com/NVIDIA
 
 ### GCP Text Moderation
 
-NeMo Guardrails supports using the GCP Text Moderation. You need to be authenticated with GCP, refer [here](https://cloud.google.com/docs/authentication/application-default-credentials) for auth details.
+The NeMo Guardrails library supports using the GCP Text Moderation. You need to be authenticated with GCP, refer [here](https://cloud.google.com/docs/authentication/application-default-credentials) for auth details.
 
 #### Example usage
 
@@ -1171,7 +1217,7 @@ For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA/
 
 ### GuardrailsAI Integration
 
-NeMo Guardrails supports using [GuardrailsAI validators](https://github.com/guardrails-ai/guardrails) for comprehensive input and output validation. GuardrailsAI provides a wide range of validators for content safety, PII detection, toxic language filtering, jailbreak detection, and more.
+The NeMo Guardrails library supports using [GuardrailsAI validators](https://github.com/guardrails-ai/guardrails) for comprehensive input and output validation. GuardrailsAI provides a wide range of validators for content safety, PII detection, toxic language filtering, jailbreak detection, and more.
 
 #### Example usage
 
@@ -1194,11 +1240,11 @@ rails:
       - guardrailsai check output $validator="toxic_language"
 ```
 
-For more details, check out the [GuardrailsAI Integration](./community/guardrails-ai.md) page.
+For more details, check out the [GuardrailsAI Integration](../user-guides/community/guardrails-ai.md) page.
 
 ### Private AI PII Detection
 
-NeMo Guardrails supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection and masking input, output and retrieval flows.
+The NeMo Guardrails library supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection and masking input, output and retrieval flows.
 
 To activate the PII detection or masking, you need specify `server_endpoint`, and the entities that you want to detect or mask. You'll also need to set the `PAI_API_KEY` environment variable if you're using the Private AI cloud API.
 
@@ -1240,7 +1286,7 @@ For more details, check out the [Private AI Integration](https://github.com/NVID
 
 ### Fiddler Guardrails for Safety and Hallucination Detection
 
-NeMo Guardrails supports using [Fiddler Guardrails](https://docs.fiddler.ai/product-guide/llm-monitoring/guardrails) for safety and hallucination detection in input and output flows.
+The NeMo Guardrails library supports using [Fiddler Guardrails](https://docs.fiddler.ai/product-guide/llm-monitoring/guardrails) for safety and hallucination detection in input and output flows.
 
 In order to access Fiddler guardrails, you need access to a valid Fiddler environment, and a [Fiddler environment key](https://docs.fiddler.ai/ui-guide/administration-ui/settings#credentials). You'll need to set the `FIDDLER_API_KEY` environment variable to authenticate into the Fiddler service.
 
@@ -1269,11 +1315,11 @@ rails:
 
 ```
 
-For more details, check out the [Fiddler Integration](./community/fiddler.md) page.
+For more details, check out the [Fiddler Integration](../user-guides/community/fiddler.md) page.
 
 ### Prompt Security Protection
 
-NeMo Guardrails supports using [Prompt Security API](https://prompt.security/?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output retrieval flows.
+The NeMo Guardrails library supports using [Prompt Security API](https://prompt.security/?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output retrieval flows.
 
 To activate the protection, you need to set the `PS_PROTECT_URL` and `PS_APP_ID` environment variables.
 
@@ -1289,11 +1335,11 @@ rails:
       - protect response
 ```
 
-For more details, check out the [Prompt Security Integration](./community/prompt-security.md) page.
+For more details, check out the [Prompt Security Integration](../user-guides/community/prompt-security.md) page.
 
 ### Pangea AI Guard
 
-NeMo Guardrails supports using [Pangea AI Guard](https://pangea.cloud/services/ai-guard/) for protecting data and
+The NeMo Guardrails library supports using [Pangea AI Guard](https://pangea.cloud/services/ai-guard/) for protecting data and
 interactions with LLMs within AI-powered applications.
 
 #### Example usage
@@ -1309,14 +1355,14 @@ rails:
       - pangea ai guard output
 ```
 
-For more details, check out the [Pangea AI Guard Integration](./community/pangea.md) page.
+For more details, check out the [Pangea AI Guard Integration](../user-guides/community/pangea.md) page.
 
 ### Trend Micro Vision One AI Application Security
 
-NeMo Guardrails supports using
+The NeMo Guardrails library supports using
 [Trend Micro Vision One AI Guard](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-ai-scanner-ai-guard) for protecting input and output flows within AI-powered applications.
 
-See [Trend Micro](community/trend-micro.md) for more details.
+See [Trend Micro](../user-guides/community/trend-micro.md) for more details.
 
 #### Example usage
 
@@ -1330,11 +1376,11 @@ rails:
       - trend ai guard output
 ```
 
-For more details, check out the [Trend Micro Vision One AI Application Security](./community/trend-micro.md) page.
+For more details, check out the [Trend Micro Vision One AI Application Security](../user-guides/community/trend-micro.md) page.
 
 ### Cisco AI Defense
 
-NeMo Guardrails supports using [Cisco AI Defense Inspection](https://www.cisco.com/site/us/en/products/security/ai-defense/index.html?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output flows.
+The NeMo Guardrails library supports using [Cisco AI Defense Inspection](https://www.cisco.com/site/us/en/products/security/ai-defense/index.html?utm_medium=github&utm_campaign=nemo-guardrails) for protecting input and output flows.
 
 To activate the protection, you need to set the `AI_DEFENSE_API_KEY` and `AI_DEFENSE_API_ENDPOINT` environment variables.
 
@@ -1351,4 +1397,4 @@ rails:
       - ai defense inspect response
 ```
 
-For more details, check out the [Cisco AI Defense Integration](./community/ai-defense.md) page.
+For more details, check out the [Cisco AI Defense Integration](../user-guides/community/ai-defense.md) page.

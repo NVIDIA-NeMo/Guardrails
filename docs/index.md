@@ -78,7 +78,7 @@ Once you've completed the get-started tutorials, explore the following areas to 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Configure Rails
+:::{grid-item-card} Overview
 :link: configure-rails/overview
 :link-type: doc
 
@@ -113,7 +113,7 @@ Debug guardrails with verbose mode, explain method, and generation log options.
 Deploy guardrails using the local server, Docker containers, or production microservices.
 :::
 
-:::{grid-item-card} LangChain
+:::{grid-item-card} LangChain Frameworks
 :link: integration/langchain/index
 :link-type: doc
 
@@ -145,23 +145,27 @@ Integrate <getting-started/integrate-into-application.md>
 ```
 
 ```{toctree}
-:caption: Configure Rails
-:name: Configure Rails
+:caption: Configure Guardrails
+:name: Configure Guardrails
 :hidden:
 
-Before You Begin <configure-rails/before-configuration.md>
-Configure Rails <configure-rails/overview.md>
-Core Configuration <configure-rails/yaml-schema/index.md>
-Actions <configure-rails/actions/index.md>
+About Configuring Guardrails <configure-rails/index.md>
+Overview <configure-rails/overview.md>
+Prerequisites <configure-rails/before-configuration.md>
+Configuring YAML File <configure-rails/yaml-schema/index.md>
+YAML Schema Reference <configure-rails/configuration-reference.md>
+Guardrail Catalog <configure-rails/guardrail-catalog.md>
+Custom Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
 Colang <configure-rails/colang/index.md>
 Other Configurations <configure-rails/other-configurations/index.md>
 Caching Instructions and Prompts <configure-rails/caching/index.md>
+Exceptions and Error Handling <configure-rails/exceptions.md>
 ```
 
 ```{toctree}
-:caption: Run Rails
-:name: Run Rails
+:caption: Run Guardrailed Inference
+:name: Run Guardrailed Inference
 :hidden:
 
 Run Rails <run-rails/index.md>
@@ -204,7 +208,7 @@ Blueprint Integration <integration/safeguarding-ai-virtual-assistant-blueprint>
 :caption: Integration with Third-Party Libraries
 :hidden:
 
-LangChain <integration/langchain/index.md>
+LangChain Frameworks <integration/langchain/index.md>
 AlignScore <integration/align-score-deployment>
 Tools Integration <integration/tools-integration.md>
 ```

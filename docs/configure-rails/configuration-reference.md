@@ -1,8 +1,8 @@
 ---
 title:
-  page: "Complete Configuration Reference for config.yml"
-  nav: "Configuration Reference"
-description: "Complete reference for all config.yml options including models, rails, prompts, and advanced settings."
+  page: "Configuration YAML Schema Reference"
+  nav: "YAML Schema Reference"
+description: "Reference for all config.yml options including models, rails, prompts, and advanced settings."
 topics: ["Configuration", "Reference"]
 tags: ["config.yml", "Models", "Rails", "YAML", "Reference"]
 content:
@@ -18,33 +18,9 @@ content:
   Source of truth: nemoguardrails/rails/llm/config.py
 -->
 
-# Complete Configuration Reference
+# Configuration YAML Schema Reference
 
 This reference documents all configuration options for `config.yml`, derived from the authoritative Pydantic schema in [`nemoguardrails/rails/llm/config.py`](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/rails/llm/config.py).
-
-## Configuration Structure
-
-```yaml
-models:           # LLM and embedding model configurations
-  - type: main
-    engine: openai
-    model: gpt-4
-
-rails:            # Guardrail configurations
-  input:
-    flows: []
-  output:
-    flows: []
-  config: {}
-
-prompts:          # Task-specific prompts
-  - task: self_check_input
-    content: "..."
-
-instructions:     # System instructions
-  - type: general
-    content: "..."
-```
 
 ---
 
@@ -73,13 +49,13 @@ models:
 
 | Attribute | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `type` | string | ✓ | Model type: `main`, `embeddings`, or task-specific |
-| `engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
-| `model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
-| `mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
-| `api_key_env_var` | string | | Environment variable containing API key |
-| `parameters` | object | | Provider-specific parameters passed to LangChain |
-| `cache` | object | | Cache configuration for this model |
+| `models.type` | string | ✓ | Model type: `main`, `embeddings`, or task-specific |
+| `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
+| `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
+| `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
+| `models.api_key_env_var` | string | | Environment variable containing API key |
+| `models.parameters` | object | | Provider-specific parameters passed to LangChain |
+| `models.cache` | object | | Cache configuration for this model |
 
 ### Model Types
 
@@ -146,10 +122,10 @@ models:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable caching for this model |
-| `maxsize` | integer | `50000` | Maximum cache entries |
-| `stats.enabled` | boolean | `false` | Enable cache statistics tracking |
-| `stats.log_interval` | float | `null` | Seconds between stats logging |
+| `models.cache.enabled` | boolean | `false` | Enable caching for this model |
+| `models.cache.maxsize` | integer | `50000` | Maximum cache entries |
+| `models.cache.stats.enabled` | boolean | `false` | Enable cache statistics tracking |
+| `models.cache.stats.log_interval` | float | `null` | Seconds between stats logging |
 
 ---
 
@@ -203,6 +179,26 @@ rails:
     # Rail-specific configurations
 ```
 
+### Rail Types
+
+The following table summarizes the available rail types and their trigger points.
+
+| Rail Type | Trigger Point | Purpose |
+|----------|---------------|---------|
+| **Input rails** | When user input is received | Validate, filter, or modify user input |
+| **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
+| **Dialog rails** | After canonical form is computed | Control conversation flow |
+| **Execution rails** | Before/after action execution | Control tool and action calls |
+| **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
+
+The following diagram shows the guardrails process described in the table above in detail.
+
+```{image} ../_static/images/programmable_guardrails_flow.png
+:alt: "Diagram showing the programmable guardrails flow"
+:width: 800px
+:align: center
+```
+
 ### Input Rails
 
 Process user messages before they reach the LLM.
@@ -219,8 +215,8 @@ rails:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `parallel` | boolean | `false` | Execute input rails in parallel |
-| `flows` | list | `[]` | Names of flows that implement input rails |
+| `rails.input.parallel` | boolean | `false` | Execute input rails in parallel |
+| `rails.input.flows` | list | `[]` | Names of flows that implement input rails |
 
 #### Built-in Input Flows
 
@@ -255,18 +251,18 @@ rails:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `parallel` | boolean | `false` | Execute output rails in parallel |
-| `flows` | list | `[]` | Names of flows that implement output rails |
-| `streaming` | object | | Streaming output configuration |
+| `rails.output.parallel` | boolean | `false` | Execute output rails in parallel |
+| `rails.output.flows` | list | `[]` | Names of flows that implement output rails |
+| `rails.output.streaming` | object | | Streaming output configuration |
 
 #### Output Streaming Configuration
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable streaming mode |
-| `chunk_size` | integer | `200` | Tokens per processing chunk |
-| `context_size` | integer | `50` | Tokens carried from previous chunk |
-| `stream_first` | boolean | `true` | Stream before applying output rails |
+| `rails.output.streaming.enabled` | boolean | `false` | Enable streaming mode |
+| `rails.output.streaming.chunk_size` | integer | `200` | Tokens per processing chunk |
+| `rails.output.streaming.context_size` | integer | `50` | Tokens carried from previous chunk |
+| `rails.output.streaming.stream_first` | boolean | `true` | Stream before applying output rails |
 
 #### Built-in Output Flows
 
@@ -308,11 +304,15 @@ rails:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `single_call.enabled` | boolean | `false` | Use single LLM call for intent + response |
-| `single_call.fallback_to_multiple_calls` | boolean | `true` | Fall back if single call fails |
-| `user_messages.embeddings_only` | boolean | `false` | Use only embeddings for intent matching |
+| `rails.dialog.single_call.enabled` | boolean | `false` | Use single LLM call for intent + response |
+| `rails.dialog.single_call.fallback_to_multiple_calls` | boolean | `true` | Fall back if single call fails |
+| `rails.dialog.user_messages.embeddings_only` | boolean | `false` | Use only embeddings for intent matching |
 
-### Action Rails
+### Execution Rails
+
+Control tool and action invocations.
+
+#### Action Rails
 
 Control custom action and tool invocations.
 
@@ -324,7 +324,7 @@ rails:
       - action_name_2
 ```
 
-### Tool Rails
+#### Tool Rails
 
 Control tool input/output processing.
 
@@ -341,13 +341,11 @@ rails:
     parallel: false
 ```
 
----
-
-## Rails Config Section
+### Rails Config Section
 
 The `rails.config` section contains configuration for specific built-in rails.
 
-### Jailbreak Detection
+#### Jailbreak Detection
 
 ```yaml
 rails:
@@ -366,15 +364,15 @@ rails:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `server_endpoint` | string | `null` | Heuristics model endpoint |
-| `length_per_perplexity_threshold` | float | `89.79` | Length/perplexity threshold |
-| `prefix_suffix_perplexity_threshold` | float | `1845.65` | Prefix/suffix perplexity threshold |
-| `nim_base_url` | string | `null` | NIM base URL (e.g., `http://localhost:8000/v1`) |
-| `nim_server_endpoint` | string | `"classify"` | NIM endpoint path |
-| `api_key_env_var` | string | `null` | Environment variable for API key |
-| `api_key` | string | `null` | API key (not recommended) |
+| `rails.config.jailbreak_detection.server_endpoint` | string | `null` | Heuristics model endpoint |
+| `rails.config.jailbreak_detection.length_per_perplexity_threshold` | float | `89.79` | Length/perplexity threshold |
+| `rails.config.jailbreak_detection.prefix_suffix_perplexity_threshold` | float | `1845.65` | Prefix/suffix perplexity threshold |
+| `rails.config.jailbreak_detection.nim_base_url` | string | `null` | NIM base URL (e.g., `http://localhost:8000/v1`) |
+| `rails.config.jailbreak_detection.nim_server_endpoint` | string | `"classify"` | NIM endpoint path |
+| `rails.config.jailbreak_detection.api_key_env_var` | string | `null` | Environment variable for API key |
+| `rails.config.jailbreak_detection.api_key` | string | `null` | API key (not recommended) |
 
-### Sensitive Data Detection (Presidio)
+#### Sensitive Data Detection (Presidio)
 
 ```yaml
 rails:
@@ -399,12 +397,12 @@ rails:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `recognizers` | list | `[]` | Custom Presidio recognizers |
-| `input/output/retrieval.entities` | list | `[]` | Entity types to detect |
-| `input/output/retrieval.mask_token` | string | `"*"` | Token for masking |
-| `input/output/retrieval.score_threshold` | float | `0.2` | Detection confidence threshold |
+| `rails.config.sensitive_data_detection.recognizers` | list | `[]` | Custom Presidio recognizers |
+| `rails.config.sensitive_data_detection.input/output/retrieval.entities` | list | `[]` | Entity types to detect |
+| `rails.config.sensitive_data_detection.input/output/retrieval.mask_token` | string | `"*"` | Token for masking |
+| `rails.config.sensitive_data_detection.input/output/retrieval.score_threshold` | float | `0.2` | Detection confidence threshold |
 
-### Injection Detection
+#### Injection Detection
 
 ```yaml
 rails:
@@ -422,12 +420,12 @@ rails:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `injections` | list | `[]` | Injection types: `sqli`, `template`, `code`, `xss` |
-| `action` | string | `"reject"` | Action: `reject` or `omit` |
-| `yara_path` | string | `""` | Custom YARA rules path |
-| `yara_rules` | object | `{}` | Inline YARA rules |
+| `rails.config.injection_detection.injections` | list | `[]` | Injection types: `sqli`, `template`, `code`, `xss` |
+| `rails.config.injection_detection.action` | string | `"reject"` | Action: `reject` or `omit` |
+| `rails.config.injection_detection.yara_path` | string | `""` | Custom YARA rules path |
+| `rails.config.injection_detection.yara_rules` | object | `{}` | Inline YARA rules |
 
-### Fact Checking
+#### Fact Checking
 
 ```yaml
 rails:
@@ -438,7 +436,7 @@ rails:
       fallback_to_self_check: false
 ```
 
-### Content Safety
+#### Content Safety
 
 ```yaml
 rails:
@@ -451,9 +449,9 @@ rails:
           es: "Lo siento, no puedo ayudar con eso."
 ```
 
-### Third-Party Integrations
+#### Third-Party Integrations
 
-#### AutoAlign
+##### AutoAlign
 
 ```yaml
 rails:
@@ -466,7 +464,9 @@ rails:
         guardrails_config: {}
 ```
 
-#### Patronus
+For more information, refer to [AutoAlign Integration](../user-guides/community/auto-align.md).
+
+##### Patronus
 
 ```yaml
 rails:
@@ -482,7 +482,9 @@ rails:
           params: {}
 ```
 
-#### Clavata
+For more information, refer to [Patronus Evaluate API Integration](../user-guides/community/patronus-evaluate-api.md).
+
+##### Clavata
 
 ```yaml
 rails:
@@ -499,7 +501,9 @@ rails:
         labels: []
 ```
 
-#### Pangea AI Guard
+For more information, refer to [Clavata Integration](../user-guides/community/clavata.md).
+
+##### Pangea AI Guard
 
 ```yaml
 rails:
@@ -511,7 +515,9 @@ rails:
         recipe: "recipe_key"
 ```
 
-#### Trend Micro
+For more information, refer to [Pangea AI Guard Integration](../user-guides/community/pangea.md).
+
+##### Trend Micro
 
 ```yaml
 rails:
@@ -521,7 +527,9 @@ rails:
       api_key_env_var: "TREND_MICRO_API_KEY"
 ```
 
-#### Cisco AI Defense
+For more information, refer to [Trend Micro Integration](../user-guides/community/trend-micro.md).
+
+##### Cisco AI Defense
 
 ```yaml
 rails:
@@ -531,7 +539,9 @@ rails:
       fail_open: false
 ```
 
-#### Private AI
+For more information, refer to [Cisco AI Defense Integration](../user-guides/community/ai-defense.md).
+
+##### Private AI
 
 ```yaml
 rails:
@@ -546,7 +556,9 @@ rails:
         entities: []
 ```
 
-#### Fiddler Guardrails
+For more information, refer to [Private AI Integration](../user-guides/community/privateai.md).
+
+##### Fiddler Guardrails
 
 ```yaml
 rails:
@@ -557,7 +569,9 @@ rails:
       faithfulness_threshold: 0.05
 ```
 
-#### Guardrails AI
+For more information, refer to [Fiddler Guardrails Integration](../user-guides/community/fiddler.md).
+
+##### Guardrails AI
 
 ```yaml
 rails:
@@ -574,6 +588,8 @@ rails:
           - name: pii
             parameters: {}
 ```
+
+For more information, refer to [Guardrails AI Integration](../user-guides/community/guardrails-ai.md).
 
 ---
 
@@ -598,15 +614,41 @@ prompts:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `task` | string | ✓ | Task identifier |
-| `content` | string | | Prompt template (mutually exclusive with `messages`) |
-| `messages` | list | | Chat messages (mutually exclusive with `content`) |
-| `output_parser` | string | `null` | Output parser name |
-| `max_length` | integer | `16000` | Maximum prompt length (characters) |
-| `max_tokens` | integer | `null` | Maximum response tokens |
-| `mode` | string | `"standard"` | Prompting mode |
-| `stop` | list | `null` | Stop tokens |
-| `models` | list | `null` | Restrict to engines/models (e.g., `["openai", "nim/llama-3.1"]`) |
+| `prompts.task` | string | ✓ | Task identifier |
+| `prompts.content` | string | | Prompt template (mutually exclusive with `messages`) |
+| `prompts.messages` | list | | Chat messages (mutually exclusive with `content`) |
+| `prompts.output_parser` | string | `null` | Output parser name |
+| `prompts.max_length` | integer | `16000` | Maximum prompt length (characters) |
+| `prompts.max_tokens` | integer | `null` | Maximum response tokens |
+| `prompts.mode` | string | `"standard"` | Prompting mode |
+| `prompts.stop` | list | `null` | Stop tokens |
+| `prompts.models` | list | `null` | Restrict to engines/models (e.g., `["openai", "nim/llama-3.1"]`) |
+
+### Available Tasks
+
+The following table lists all available tasks you can specify to `prompts.task`.
+
+| Task | Description |
+|------|-------------|
+| `self_check_input` | Check if user input complies with policy |
+| `self_check_output` | Check if bot output complies with policy |
+| `self_check_facts` | Verify factual accuracy of responses |
+| `self_check_hallucination` | Detect hallucinations in responses |
+| `generate_user_intent` | Generate canonical user intent |
+| `generate_next_steps` | Determine next conversation step |
+| `generate_bot_message` | Generate bot response |
+| `general` | General response generation (no dialog rails) |
+
+### Available Prompt Message Types
+
+The following table lists all available message types you can specify to `prompts.messages.type`.
+
+| Type | Description |
+|------|-------------|
+| `system` | System-level instructions |
+| `user` | User message content |
+| `assistant` | Assistant/bot message content |
+| `bot` | Alias for `assistant` |
 
 ---
 
@@ -683,6 +725,8 @@ import_paths:
 
 ## Complete Example
 
+The following YAML example demonstrates a complete `config.yml` file that wires together a main language model, a dedicated content safety model, and an embeddings model. It configures rails for input and output content safety checks, points to a local NIM service for jailbreak detection, defines a content safety prompt, provides general instructions for the assistant, and enables response streaming from both the main and content safety models.
+
 ```yaml
 models:
   # Main application LLM
@@ -712,6 +756,8 @@ rails:
   output:
     flows:
       - content safety check output $model=content_safety
+    streaming:
+      enabled: true
 
   config:
     jailbreak_detection:
@@ -732,13 +778,3 @@ instructions:
 streaming:
   enabled: true
 ```
-
----
-
-## Related Topics
-
-- [Model Configuration](model-configuration.md)
-- [Guardrails Configuration](guardrails-configuration/index.md)
-- [Built-in Guardrails](guardrails-configuration/built-in-guardrails.md)
-- [Prompt Configuration](prompt-configuration.md)
-- [Streaming Configuration](streaming/index.md)

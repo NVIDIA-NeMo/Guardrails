@@ -1,7 +1,7 @@
 ---
 title:
-  page: "Custom Actions"
-  nav: "Actions"
+  page: "Configuring Custom Actions"
+  nav: "Custom Actions"
 description: "Create Python actions to extend guardrails with external APIs and validation logic."
 topics: ["Configuration", "AI Safety"]
 tags: ["Actions", "Python", "API", "Validation", "Customization"]
@@ -11,14 +11,12 @@ content:
   audience: ["Developer", "AI Engineer"]
 ---
 
-# Custom Actions
+# Configuring Custom Actions
 
 This section describes the `actions.py` file used to define custom Python actions for the NeMo Guardrails library.
-Custom actions enable you to execute Python code within guardrails flows, extending the library with custom logic, external API integrations, and complex validation.
+By configuring custom actions, you can execute Python code within guardrails flows, extending the library with custom logic, external API integrations, and complex validation.
 
-## Overview
-
-A typical `actions.py` file defines custom action functions using the `@action` decorator. A decorator is a callable that takes a function and returns a new function, usually adding behavior or attaching metadata.
+An `actions.py` file defines custom action functions using the `@action` decorator. A decorator is a callable that takes a function and returns a new function, usually adding behavior or attaching metadata.
 
 ```python
 from typing import Optional

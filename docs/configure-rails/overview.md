@@ -1,7 +1,7 @@
 ---
 title:
   page: "NeMo Guardrails Library Configuration Overview"
-  nav: "Configure Rails"
+  nav: "Overview"
 description: "Learn to write config.yml, Colang flows, and custom actions for guardrails."
 topics: ["Configuration", "AI Safety"]
 tags: ["Configuration", "YAML", "Colang", "Actions", "Setup"]
@@ -13,7 +13,7 @@ content:
 
 # NeMo Guardrails Library Configuration Overview
 
-Before using the NeMo Guardrails library, you need to prepare configuration files that define your guardrails behavior. When you initialize the library's core classes or the `nemoguardrails` CLI chat or server, it will load the configuration files you'll create in the next chapter [Run Rails](../run-rails/index.md). This section provides complete instructions on preparing your configuration files and executable scripts.
+Before using the NeMo Guardrails library, you need to prepare configuration files that define your guardrails behavior. When you initialize the library's core classes or the `nemoguardrails` CLI chat or server, it will load these configuration files as shown in the next chapter [](../run-rails/index.md). This section provides complete instructions on preparing your configuration files and executable scripts.
 
 A guardrails configuration includes the following components. You can start with a basic configuration and add more components as needed. All the components should be placed in the `config` folder, and the locations in the following table are relative to the `config` folder.
 
@@ -24,6 +24,8 @@ A guardrails configuration includes the following components. You can start with
 | **Custom Actions**           | Optional          | Python functions decorated with `@action()` that can be called from Colang flows during request processing (for example, external API calls, validation logic).                                 | `actions.py` or `actions/` folder |
 | **Custom Initialization**    | Optional          | Python code that runs once at startup to register custom LLM providers, embedding providers, or shared resources (for example, database connections).                                            | `config.py`            |
 | **Knowledge Base Documents** | Optional          | Documents (`.md` files) that can be used in a RAG (Retrieval-Augmented Generation) scenario (i.e. Retrieval rail) using the built-in Knowledge Base support.                                           | `kb` folder            |
+
+---
 
 ## Example Configuration Folder Structures
 
@@ -80,16 +82,17 @@ The following are example configuration folder structures.
         └── ...
     ```
 
+---
+
 ## Next Steps
 
 For each component, refer to the following sections for more details:
 
-- [Core Configuration](yaml-schema/index.md) - A complete guide to writing your `config.yml` file.
-- [Colang Rails](colang/index.md) - `.co` flow files.
-- [Custom Actions](actions/index.md) - `actions.py` for callable actions.
-- [Custom Initialization](custom-initialization/index.md) - `config.py` for provider registration.
-- [Knowledge Base Documents](other-configurations/knowledge-base.md) - `kb/` folder for RAG.
+- [](yaml-schema/index.md) - A complete guide to writing your `config.yml` file.
+- [](colang/index.md) - `.co` flow files in `rails` folder.
+- [](actions/index.md) - `actions.py` or `actions/` folder for callable actions.
+- [](custom-initialization/index.md) - `config.py` for custom initialization.
+- [](other-configurations/knowledge-base.md) - `kb/` folder for RAG.
 
-After preparing your configuration files, use the NeMo Guardrails SDK to instantiate the core classes (`RailsConfig` and `LLMRails`) and run guardrails on your LLM applications.
-
-For detailed SDK usage, including loading configurations, generating responses, streaming, and debugging, refer to [Run Rails](../run-rails/index.md).
+After preparing your configuration files, you can use the NeMo Guardrails SDK to instantiate the core classes (`RailsConfig` and `LLMRails`) and run guardrails on your LLM applications.
+For detailed SDK usage, including loading configurations, generating responses, streaming, and debugging, refer to [](../run-rails/index.md).
