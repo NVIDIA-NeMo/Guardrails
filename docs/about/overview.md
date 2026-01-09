@@ -188,6 +188,8 @@ The `generate` method accepts the same message format as the OpenAI Chat Complet
 nemoguardrails server --config ./config --port 8000
 ```
 
+The server exposes an HTTP API compatible with OpenAI's `/v1/chat/completions` endpoint.
+
 ## Next Steps
 
 To get started with NeMo Guardrails, begin by [installing the library](../getting-started/installation-guide.md) and try out one of the [tutorials](../getting-started/tutorials/index.md).
