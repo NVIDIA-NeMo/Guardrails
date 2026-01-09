@@ -18,7 +18,6 @@ import textwrap
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.imports import check_optional_dependency
 from tests.utils import TestChat
 
 BASE_CONFIG = textwrap.dedent("""
@@ -297,40 +296,23 @@ class TestFastEmbedNotDownloadedForSimpleRails:
                 del os.environ["FASTEMBED_CACHE_PATH"]
 
 
-_has_fastembed = check_optional_dependency("fastembed")
+class TestIndexInitializedAfterGenerate:
+    def test_user_message_index_initialized_after_generate(self):
+        config = RailsConfig.from_content(
+            yaml_content=BASE_CONFIG,
+            colang_content=USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS,
+        )
+        chat = TestChat(
+            config,
+            llm_completions=["express greeting", "Hello! How can I help you?"],
+        )
+        actions = chat.app.llm_generation_actions
 
+        assert actions.user_message_index is None, "Index should be None before generate"
 
-@pytest.mark.skipif(not _has_fastembed, reason="fastembed not installed")
-class TestFastEmbedDownloadedForDialogRails:
-    def test_dialog_rails_cache_created_on_generate(self, tmp_path):
-        import os
+        chat.app.generate(messages=[{"role": "user", "content": "hello"}])
 
-        cache_dir = tmp_path / "fastembed_cache"
-        cache_dir.mkdir()
-        os.environ["FASTEMBED_CACHE_PATH"] = str(cache_dir)
-
-        try:
-            config = RailsConfig.from_content(
-                yaml_content=BASE_CONFIG,
-                colang_content=USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS,
-            )
-            chat = TestChat(
-                config,
-                llm_completions=["express greeting", "Hello! How can I help you?"],
-            )
-
-            cache_before = list(cache_dir.iterdir())
-            assert len(cache_before) == 0, "Cache should be empty before generate"
-
-            response = chat.app.generate(messages=[{"role": "user", "content": "hello"}])
-
-            assert response is not None
-
-            cache_after = list(cache_dir.iterdir())
-            assert len(cache_after) > 0, "FastEmbed cache should have models after generate with dialog rails"
-        finally:
-            if "FASTEMBED_CACHE_PATH" in os.environ:
-                del os.environ["FASTEMBED_CACHE_PATH"]
+        assert actions.user_message_index is not None, "Index should be initialized after generate"
 
 
 class TestConcurrentInitialization:
