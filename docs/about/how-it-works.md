@@ -14,7 +14,7 @@ content:
 
 # How It Works
 
-NeMo Guardrails acts as an intermediary between application code and LLM requests and responses. Once  Guardrails is integrated in an application, all LLM inference requests are first checked by Guardrails to ensure user requests are safe and not malicious. If they are, the request is passed to the LLM for inference. Guardrails also checks the LLM response once it's available, making sure it's appropriate before being passed back to the user.
+NeMo Guardrails acts as an intermediary between application code and LLM requests and responses. Once Guardrails is integrated in an application, all LLM inference requests are first checked by Guardrails to ensure user requests are safe and not malicious. If they are, the request is passed to the LLM for inference. Guardrails also checks the LLM response once it's available, making sure it's appropriate before being passed back to the user.
 
 ```{image} ../_static/images/programmable_guardrails.png
 :alt: "Programmable Guardrails Flow"
