@@ -90,7 +90,7 @@ For practical examples, try the following tutorial:
 Personally Identifiable Information (PII) detection helps protect user privacy by detecting and masking sensitive data in user inputs, LLM outputs, and retrieved content.
 The NeMo Guardrails library supports PII detection through multiple integrations:
 
-- **GLiNER-PII**: Use NVIDIA's [GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) model to identify and remove PII,
+- **Gliner**: Use [NVIDIA GLiNER-PII](../user-guides/community/gliner.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
 - **Presidio-based detection**: Use [Microsoft Presidio](../user-guides/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
 - **Private AI**: Integrate with [Private AI](../user-guides/community/privateai.md) for advanced PII detection and masking.
 - **AutoAlign**: Use [AutoAlign PII detection](../user-guides/community/auto-align.md) with customizable entity types.
@@ -111,6 +111,13 @@ This includes:
 - **Secure tool integration**: Review guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](../security/guidelines.md)).
 - **Action monitoring**: Monitor detailed logging and tracing of agent actions.
 
+Key security considerations for agent systems:
+
+1. Isolate all authentication information from the LLM.
+2. Validate and sanitize all tool inputs.
+3. Apply execution rails to tool calls.
+4. Monitor agent behavior for unexpected actions.
+
 For more information, refer to the [Tools Integration Guide](../integration/tools-integration.md), [Security Guidelines](../security/guidelines.md), and [LangGraph Integration](../integration/langchain/langgraph-integration.md).
 :::
 
@@ -126,7 +133,60 @@ If you have a script or tool that runs a custom guardrail, you can use it in NeM
 3. **Third-party API integration**: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to the [](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#third-party-apis) section in the built-in Guardrails library.
 :::
 
+:::{dropdown} 🔌 Integrate NeMo Guardrails Library into Your Application
+
+You can integrate the NeMo Guardrails library into your application using the tools provided by the library.
+
+1. **Python SDK**: Use the Python SDK to add guardrails directly into your Python application.
+
+    ```python
+    from nemoguardrails import LLMRails, RailsConfig
+
+    config = RailsConfig.from_path("./config")
+    rails = LLMRails(config)
+
+    response = rails.generate(
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+    ```
+
+    The `generate` method accepts the same message format as the OpenAI Chat Completions API.
+
+2. **Server API**: You can solely set up a guardrails server after programming guardrails using the Python SDK. You can then start a local NeMo Guardrails server with the following command. This server exposes an HTTP API compatible with OpenAI's `/v1/chat/completions` endpoint.
+
+    ```bash
+    nemoguardrails server --config ./config --port 8000
+    ```
+
+    The server exposes HTTP APIs compatible with OpenAI's `/v1/chat/completions` endpoint. You can then use the server in your application by sending requests to the server's endpoint.
+:::
+
 ---
+
+## Tools
+
+The following are the tools you can use to interact with the NeMo Guardrails library and integrate it into your application.
+
+### Python SDK
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("./config")
+rails = LLMRails(config)
+
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+The `generate` method accepts the same message format as the OpenAI Chat Completions API.
+
+### CLI Server
+
+```bash
+nemoguardrails server --config ./config --port 8000
+```
 
 ## Next Steps
 
