@@ -122,11 +122,11 @@ res = rails.generate(messages=[{
 
 The response will be the exact bot message provided, if allowed, an altered version if an output rail decides to change it, for example, to remove sensitive information, or the predefined message for `bot refuse to respond`, if the message was blocked.
 
-For more details on what rails was triggered, use the `log.activated_rails` generation option.
+For receive details on what rails are triggered, use the `log.activated_rails` generation option.
 
 ### Output Rails Only
 
-If you want to apply only the output rails to an LLM output, you must disable the input rails as well and provide an empty input.
+To apply output rails exclusively to an LLM response, disable the input rails and provide an empty input.
 
 ```python
 res = rails.generate(messages=[{
@@ -211,7 +211,7 @@ rails.generate(messages=messages, options={
 })
 ```
 
-The returned data will be included in the `output_data` key of the response:
+You can find the returned data in the `output_data` key of the response:
 
 ```json
 {
@@ -225,7 +225,7 @@ The returned data will be included in the `output_data` key of the response:
 
 ## Additional LLM Parameters
 
-You can pass additional parameters to the LLM call that is used to generate the final message by using the `llm_params` generation option. For example, to use a lower temperature than the default one:
+To supply additional parameters to the LLM call during final message generation, utilize the `llm_params` option. The following example demonstrates how to apply a lower value for `temperature`:
 
 ```python
 rails.generate(messages=messages, options={
@@ -235,11 +235,11 @@ rails.generate(messages=messages, options={
 })
 ```
 
-The supported parameters depend on the underlying LLM engine. The NeMo Guardrails library passes them "as is".
+The available parameters are determined by the specific LLM engine in use. The NeMo Guardrails library transmits values defined in the options parameter without modification.
 
 ## Additional LLM Output
 
-You can receive the additional output from the LLM generation by using the `llm_output` generation options.
+You can receive additional output from the LLM generation by setting `llm_output` to `True` through the `options` parameter.
 
 ```python
 rails.generate(messages=messages, options={
@@ -248,7 +248,7 @@ rails.generate(messages=messages, options={
 ```
 
 ```{note}
-The data that is returned is highly dependent on the underlying implementation of the LangChain connector for the LLM provider. For example, for OpenAI, it only returns `token_usage` and `model_name`.
+The returned data is highly dependent on the underlying implementation of the LangChain connector for the LLM provider. For example, for OpenAI, it only returns `token_usage` and `model_name`.
 ```
 
 ## Limitations

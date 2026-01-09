@@ -222,14 +222,14 @@ response = rails.generate(messages=[
 ])
 ```
 
-Context variables can be accessed in Colang flows using `$variable_name` syntax:
+You can access context variables in Colang flows using `$variable_name` syntax:
 
 ```colang
 define bot explain permissions
     "Hello {$user_name}! As an {$user_role}, you have full system access."
 ```
 
-Or in Python actions through the `context` parameter:
+Alternatively, you can access context variables through the `context` parameter. For example, you can set up an action function that uses a variable extracted from the `context` parameter as follows:
 
 ```python
 @action()

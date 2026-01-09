@@ -148,7 +148,7 @@ async for chunk in app.stream_async(
     print(chunk, end="", flush=True)
 ```
 
-This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of **output rails**.
+This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of output rails.
 
 ## Token Usage Tracking
 
