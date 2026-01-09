@@ -34,6 +34,26 @@ rails:
 
 For more details, check out the [ActiveFence Integration](community/active-fence.md) page.
 
+## PolicyAI
+
+The NeMo Guardrails library supports using [PolicyAI](https://musubilabs.ai) by Musubi Labs as an input and output rail out-of-the-box (you need to have the `POLICYAI_API_KEY` environment variable set).
+
+PolicyAI provides policy-based content moderation, allowing you to define custom policies and organize them with tags for environment-based management.
+
+### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - policyai moderation on input
+  output:
+    flows:
+      - policyai moderation on output
+```
+
+For more details, check out the [PolicyAI Integration](community/policyai.md) page.
+
 ## AutoAlign
 
 The NeMo Guardrails library supports using the AutoAlign's guardrails API (you need to have the `AUTOALIGN_API_KEY` environment variable set).
@@ -283,6 +303,7 @@ Llama Guard <community/llama-guard>
 Pangea AI Guard <community/pangea>
 Patronus Evaluate API <community/patronus-evaluate-api>
 Patronus Lynx <community/patronus-lynx>
+PolicyAI <community/policyai>
 Presidio <community/presidio>
 Private AI <community/privateai>
 Prompt Security <community/prompt-security>
