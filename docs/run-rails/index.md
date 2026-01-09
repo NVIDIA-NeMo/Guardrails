@@ -1,7 +1,7 @@
 ---
 title:
-  page: "Run the NeMo Guardrails Library with the Python APIs"
-  nav: "Run Rails"
+  page: "About Running Guardrailed Inference"
+  nav: "About Running Guardrailed Inference"
 description: "Use RailsConfig and LLMRails classes to load configurations and generate guarded responses."
 topics: ["AI Safety", "LLM Guardrails"]
 tags: ["Python", "SDK", "API", "Streaming", "Events"]
@@ -11,11 +11,13 @@ content:
   audience: ["Developer", "AI Engineer"]
 ---
 
-# Run the NeMo Guardrails Library with the Python APIs
+# About Running Guardrailed Inference Using the Library Tools
 
-This section covers how to use the NeMo Guardrails library programmatically through the Python API. Learn about the core classes, generation methods, and advanced features for integrating guardrails into your applications.
+This section covers how to use the NeMo Guardrails library tools to run guardrailed inference. Learn about the core classes, generation methods, and advanced features for integrating guardrails into your applications.
 
-## Core Classes
+## Python API
+
+### Core Classes
 
 The NeMo Guardrails library provides two core classes for running guardrails:
 
@@ -24,7 +26,7 @@ The NeMo Guardrails library provides two core classes for running guardrails:
 
 Upon initializing the core classes (`RailsConfig` and `LLMRails`) or starting the `nemoguardrails` CLI chat or server, the toolkit loads the configuration files you created in the previous chapter [Configure Rails](../configuration-guide/index.md).
 
-## Quick Start
+### Quick Start
 
 The following example shows the minimal code to load the prepared configuration files in the `config` directory and generate a response using the `LLMRails` class.
 
@@ -44,7 +46,7 @@ response = rails.generate(messages=[
 print(response["content"])
 ```
 
-## Sections
+### Sections
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -79,7 +81,7 @@ Use generate_events for low-level control over guardrails execution and event ha
 
 ::::
 
-## When to Use Each API
+### When to Use Each API
 
 | API | Use Case |
 |-----|----------|
@@ -87,7 +89,7 @@ Use generate_events for low-level control over guardrails execution and event ha
 | `stream_async()` | Real-time token streaming |
 | `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations |
 
-## Synchronous vs Asynchronous
+### Synchronous vs Asynchronous
 
 The NeMo Guardrails library provides both synchronous and asynchronous methods:
 

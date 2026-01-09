@@ -35,7 +35,7 @@ Apply input, retrieval, dialog, execution, and output rails to protect LLM appli
 :link: about/how-it-works
 :link-type: doc
 
-Learn the sequence diagrams and architecture for building guardrails.
+High level explanation of how Guardrails works.
 :::
 
 :::{grid-item-card} Supported LLMs
@@ -85,7 +85,7 @@ Once you've completed the get-started tutorials, explore the following areas to 
 Learn to write config.yml, Colang flows, and custom actions for guardrails.
 :::
 
-:::{grid-item-card} Run Rails
+:::{grid-item-card} About Running Guardrailed Inference
 :link: run-rails/index
 :link-type: doc
 
@@ -168,7 +168,7 @@ Exceptions and Error Handling <configure-rails/exceptions.md>
 :name: Run Guardrailed Inference
 :hidden:
 
-Run Rails <run-rails/index.md>
+About Running Guardrailed Inference <run-rails/index.md>
 Core Classes <run-rails/core-classes.md>
 Generation Options <run-rails/generation-options.md>
 Streaming <run-rails/streaming.md>
@@ -214,6 +214,18 @@ Tools Integration <integration/tools-integration.md>
 ```
 
 ```{toctree}
+:caption: Reference
+:name: Reference
+:hidden:
+
+Architecture <reference/colang-architecture-guide.md>
+Sequence Diagrams <reference/guardrails-sequence-diagrams.md>
+Use Case Diagrams <resources/use-case-diagrams.md>
+Python API <python-api/index>
+CLI <cli/index>
+```
+
+```{toctree}
 :caption: Troubleshooting
 :name: Troubleshooting
 :hidden:
@@ -222,23 +234,11 @@ Troubleshooting <troubleshooting>
 ```
 
 ```{toctree}
-:caption: Reference
-:name: Reference
-:hidden:
-
-Colang Architecture Guide <reference/colang-architecture-guide.md>
-Guardrails Sequence Diagrams <reference/guardrails-sequence-diagrams.md>
-```
-
-```{toctree}
 :caption: Resources
 :name: Resources
 :hidden:
 
 faqs
-Python API <python-api/index>
-CLI <cli/index>
-Use Case Diagrams <resources/use-case-diagrams.md>
 glossary
 Security <security/guidelines>
 ```
