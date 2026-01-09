@@ -32,7 +32,7 @@ Apply input, retrieval, dialog, execution, and output rails to protect LLM appli
 :::
 
 :::{grid-item-card} How It Works
-:link: about/how-it-works/index
+:link: about/how-it-works
 :link-type: doc
 
 Learn the sequence diagrams and architecture for building guardrails.
