@@ -146,9 +146,14 @@ async def call_policyai_api(
                     reason = result.get("reason", "Policy violation detected")
                     break  # Stop at first UNSAFE result
 
+            # Pre-format exception message for Colang 1.x compatibility
+            # (Colang 1.x doesn't support string concatenation in create event)
+            exception_message = f"PolicyAI moderation triggered. Content violated policy: {triggered_category}"
+
             return {
                 "assessment": overall_assessment,
                 "category": triggered_category,
                 "severity": max_severity,
                 "reason": reason,
+                "exception_message": exception_message,
             }

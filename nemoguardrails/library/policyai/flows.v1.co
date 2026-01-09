@@ -16,7 +16,7 @@ define subflow policyai moderation on input
 
   if $result.assessment == "UNSAFE"
     if $config.enable_rails_exceptions
-      create event PolicyAIModerationRailException(message="PolicyAI moderation triggered. Content violated policy.")
+      create event PolicyAIModerationRailException(message=$result.exception_message)
     else
       bot refuse to respond
     stop
@@ -27,7 +27,7 @@ define subflow policyai moderation on output
 
   if $result.assessment == "UNSAFE"
     if $config.enable_rails_exceptions
-      create event PolicyAIModerationRailException(message="PolicyAI moderation triggered. Content violated policy.")
+      create event PolicyAIModerationRailException(message=$result.exception_message)
     else
       bot refuse to respond
     stop
