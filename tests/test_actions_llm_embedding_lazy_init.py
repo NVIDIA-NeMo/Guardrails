@@ -15,7 +15,10 @@
 
 import textwrap
 
-from nemoguardrails import LLMRails, RailsConfig
+import pytest
+
+from nemoguardrails import RailsConfig
+from nemoguardrails.imports import check_optional_dependency
 from tests.utils import TestChat
 
 BASE_CONFIG = textwrap.dedent("""
@@ -113,98 +116,100 @@ FLOW_DEFINITIONS = textwrap.dedent("""
 """)
 
 
-def _create_rails(yaml_content: str, colang_content: str = ""):
+def _create_test_chat(yaml_content: str, colang_content: str = "", llm_completions=None):
+    if llm_completions is None:
+        llm_completions = ["Hello!"]
     config = RailsConfig.from_content(
         yaml_content=yaml_content,
         colang_content=colang_content if colang_content else None,
     )
-    return LLMRails(config)
+    return TestChat(config, llm_completions=llm_completions)
 
 
 class TestEmbeddingIndexesNotCreatedAtInit:
     def test_main_model_only(self):
-        rails = _create_rails(BASE_CONFIG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_input_rails_only(self):
-        rails = _create_rails(BASE_CONFIG + INPUT_RAILS_CONFIG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG + INPUT_RAILS_CONFIG, llm_completions=["yes", "Hello!"])
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_output_rails_only(self):
-        rails = _create_rails(BASE_CONFIG + OUTPUT_RAILS_CONFIG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG + OUTPUT_RAILS_CONFIG, llm_completions=["Hello!", "yes"])
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_input_output_rails(self):
-        rails = _create_rails(BASE_CONFIG + INPUT_OUTPUT_RAILS_CONFIG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG + INPUT_OUTPUT_RAILS_CONFIG, llm_completions=["yes", "Hello!", "yes"])
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_passthrough(self):
-        rails = _create_rails(PASSTHROUGH_CONFIG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(PASSTHROUGH_CONFIG)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_user_definitions_only(self):
-        rails = _create_rails(BASE_CONFIG, USER_DEFINITIONS)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_bot_definitions_only(self):
-        rails = _create_rails(BASE_CONFIG, BOT_DEFINITIONS)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, BOT_DEFINITIONS)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_user_and_bot_definitions(self):
-        rails = _create_rails(BASE_CONFIG, USER_DEFINITIONS + BOT_DEFINITIONS)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS + BOT_DEFINITIONS)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_flow_definitions_only(self):
-        rails = _create_rails(BASE_CONFIG, FLOW_DEFINITIONS)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, FLOW_DEFINITIONS)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_full_dialog_rails(self):
-        rails = _create_rails(BASE_CONFIG, USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
         assert actions.flows_index is None
 
     def test_input_rails_with_user_definitions(self):
-        rails = _create_rails(BASE_CONFIG + INPUT_RAILS_CONFIG, USER_DEFINITIONS)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG + INPUT_RAILS_CONFIG, USER_DEFINITIONS, llm_completions=["yes", "Hello!"])
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -213,16 +218,16 @@ class TestEmbeddingIndexesNotCreatedAtInit:
 
 class TestConfigDataPresent:
     def test_user_messages_present_in_config(self):
-        rails = _create_rails(BASE_CONFIG, USER_DEFINITIONS)
-        assert len(rails.config.user_messages) == 2
+        chat = _create_test_chat(BASE_CONFIG, USER_DEFINITIONS)
+        assert len(chat.app.config.user_messages) == 2
 
     def test_bot_messages_include_library_defaults(self):
-        rails = _create_rails(BASE_CONFIG)
-        assert len(rails.config.bot_messages) >= 9
+        chat = _create_test_chat(BASE_CONFIG)
+        assert len(chat.app.config.bot_messages) >= 9
 
     def test_non_system_flows_counted_correctly(self):
-        rails = _create_rails(BASE_CONFIG, FLOW_DEFINITIONS)
-        non_system = [f for f in rails.config.flows if not f.get("is_system_flow", False)]
+        chat = _create_test_chat(BASE_CONFIG, FLOW_DEFINITIONS)
+        non_system = [f for f in chat.app.config.flows if not f.get("is_system_flow", False)]
         assert len(non_system) == 2
 
 
@@ -292,6 +297,10 @@ class TestFastEmbedNotDownloadedForSimpleRails:
                 del os.environ["FASTEMBED_CACHE_PATH"]
 
 
+_has_fastembed = check_optional_dependency("fastembed")
+
+
+@pytest.mark.skipif(not _has_fastembed, reason="fastembed not installed")
 class TestFastEmbedDownloadedForDialogRails:
     def test_dialog_rails_cache_created_on_generate(self, tmp_path):
         import os
@@ -322,3 +331,57 @@ class TestFastEmbedDownloadedForDialogRails:
         finally:
             if "FASTEMBED_CACHE_PATH" in os.environ:
                 del os.environ["FASTEMBED_CACHE_PATH"]
+
+
+class TestConcurrentInitialization:
+    @pytest.mark.asyncio
+    async def test_concurrent_ensure_user_message_index_calls_init_once(self):
+        import asyncio
+
+        config = RailsConfig.from_content(
+            yaml_content=BASE_CONFIG,
+            colang_content=USER_DEFINITIONS,
+        )
+        chat = TestChat(config, llm_completions=["Hello!"])
+        actions = chat.app.llm_generation_actions
+
+        init_call_count = 0
+
+        async def counting_init():
+            nonlocal init_call_count
+            init_call_count += 1
+            await asyncio.sleep(0.05)
+            actions.user_message_index = "initialized"
+
+        actions._init_user_message_index = counting_init
+
+        tasks = [actions._ensure_user_message_index() for _ in range(10)]
+        await asyncio.gather(*tasks)
+
+        assert init_call_count == 1, f"Expected 1 init call, got {init_call_count}"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_ensure_flows_index_calls_init_once(self):
+        import asyncio
+
+        config = RailsConfig.from_content(
+            yaml_content=BASE_CONFIG,
+            colang_content=USER_DEFINITIONS + BOT_DEFINITIONS + FLOW_DEFINITIONS,
+        )
+        chat = TestChat(config, llm_completions=["Hello!"])
+        actions = chat.app.llm_generation_actions
+
+        init_call_count = 0
+
+        async def counting_init():
+            nonlocal init_call_count
+            init_call_count += 1
+            await asyncio.sleep(0.05)
+            actions.flows_index = "initialized"
+
+        actions._init_flows_index = counting_init
+
+        tasks = [actions._ensure_flows_index() for _ in range(10)]
+        await asyncio.gather(*tasks)
+
+        assert init_call_count == 1, f"Expected 1 init call, got {init_call_count}"

@@ -96,6 +96,7 @@ class LLMGenerationActions:
         self.user_message_index = None
         self.bot_message_index = None
         self.flows_index = None
+        self._init_lock = asyncio.Lock()
 
         self.get_embedding_search_provider_instance = get_embedding_search_provider_instance
 
@@ -290,15 +291,21 @@ class LLMGenerationActions:
 
     async def _ensure_user_message_index(self):
         if self.user_message_index is None and self.user_messages:
-            await self._init_user_message_index()
+            async with self._init_lock:
+                if self.user_message_index is None:
+                    await self._init_user_message_index()
 
     async def _ensure_bot_message_index(self):
         if self.bot_message_index is None and self.bot_messages and self.user_messages:
-            await self._init_bot_message_index()
+            async with self._init_lock:
+                if self.bot_message_index is None:
+                    await self._init_bot_message_index()
 
     async def _ensure_flows_index(self):
         if self.flows_index is None and self.config.flows:
-            await self._init_flows_index()
+            async with self._init_lock:
+                if self.flows_index is None:
+                    await self._init_flows_index()
 
     def _get_general_instructions(self):
         """Helper to extract the general instruction."""

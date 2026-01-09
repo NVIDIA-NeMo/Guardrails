@@ -151,12 +151,16 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
     async def _ensure_flows_index(self):
         if self.flows_index is None and self.config.flows:
-            await self._init_flows_index()
+            async with self._init_lock:
+                if self.flows_index is None:
+                    await self._init_flows_index()
 
     async def _ensure_instruction_flows_index(self):
         if not hasattr(self, "instruction_flows_index") or self.instruction_flows_index is None:
-            if self.config.flows:
-                await self._init_flows_index()
+            async with self._init_lock:
+                if not hasattr(self, "instruction_flows_index") or self.instruction_flows_index is None:
+                    if self.config.flows:
+                        await self._init_flows_index()
 
     async def _collect_user_intent_and_examples(
         self, state: State, user_action: str, max_example_flows: int

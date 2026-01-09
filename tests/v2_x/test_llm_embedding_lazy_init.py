@@ -15,7 +15,10 @@
 
 import textwrap
 
-from nemoguardrails import LLMRails, RailsConfig
+import pytest
+
+from nemoguardrails import RailsConfig
+from nemoguardrails.imports import check_optional_dependency
 from tests.utils import TestChat
 
 BASE_CONFIG = textwrap.dedent("""
@@ -70,18 +73,20 @@ DIALOG_COLANG = textwrap.dedent("""
 """)
 
 
-def _create_rails(yaml_content: str, colang_content: str = ""):
+def _create_test_chat(yaml_content: str, colang_content: str = "", llm_completions=None):
+    if llm_completions is None:
+        llm_completions = ["Hello!"]
     config = RailsConfig.from_content(
         yaml_content=yaml_content,
         colang_content=colang_content if colang_content else None,
     )
-    return LLMRails(config)
+    return TestChat(config, llm_completions=llm_completions)
 
 
 class TestEmbeddingIndexesNotCreatedAtInit:
     def test_main_model_only(self):
-        rails = _create_rails(BASE_CONFIG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, MINIMAL_COLANG)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -89,8 +94,8 @@ class TestEmbeddingIndexesNotCreatedAtInit:
         assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
 
     def test_passthrough(self):
-        rails = _create_rails(PASSTHROUGH_CONFIG, PASSTHROUGH_COLANG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(PASSTHROUGH_CONFIG, PASSTHROUGH_COLANG)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -98,8 +103,8 @@ class TestEmbeddingIndexesNotCreatedAtInit:
         assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
 
     def test_minimal_colang(self):
-        rails = _create_rails(BASE_CONFIG, MINIMAL_COLANG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, MINIMAL_COLANG)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -107,8 +112,8 @@ class TestEmbeddingIndexesNotCreatedAtInit:
         assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
 
     def test_dialog_colang(self):
-        rails = _create_rails(BASE_CONFIG, DIALOG_COLANG)
-        actions = rails.llm_generation_actions
+        chat = _create_test_chat(BASE_CONFIG, DIALOG_COLANG)
+        actions = chat.app.llm_generation_actions
 
         assert actions.user_message_index is None
         assert actions.bot_message_index is None
@@ -142,6 +147,10 @@ class TestFastEmbedNotDownloadedForSimpleRails:
                 del os.environ["FASTEMBED_CACHE_PATH"]
 
 
+_has_fastembed = check_optional_dependency("fastembed")
+
+
+@pytest.mark.skipif(not _has_fastembed, reason="fastembed not installed")
 class TestFastEmbedDownloadedForDialogRails:
     def test_dialog_rails_cache_created_on_generate(self, tmp_path):
         import os
