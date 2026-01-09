@@ -24,7 +24,7 @@ NeMo Guardrails can also call models for a specific guardrail on behalf of the c
 
 ## Application LLM Providers
 
-The NeMo Guardrails library supports all the major LLM providers, including:
+The NeMo Guardrails library supports major LLM providers, including:
 
 - OpenAI
 - Azure OpenAI
