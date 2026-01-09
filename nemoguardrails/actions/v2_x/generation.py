@@ -149,9 +149,20 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         if self.instruction_flows_index is None:
             self.instruction_flows_index = self.flows_index
 
+    async def _ensure_flows_index(self):
+        if self.flows_index is None and self.config.flows:
+            await self._init_flows_index()
+
+    async def _ensure_instruction_flows_index(self):
+        if not hasattr(self, "instruction_flows_index") or self.instruction_flows_index is None:
+            if self.config.flows:
+                await self._init_flows_index()
+
     async def _collect_user_intent_and_examples(
         self, state: State, user_action: str, max_example_flows: int
     ) -> Tuple[List[str], str, bool]:
+        await self._ensure_user_message_index()
+
         # We search for the most relevant similar user intents
         examples = ""
         potential_user_intents = []
@@ -479,6 +490,8 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
     ) -> dict:
         """Generate a flow from the provided instructions."""
 
+        await self._ensure_instruction_flows_index()
+
         if self.instruction_flows_index is None:
             raise RuntimeError("No instruction flows index has been created.")
 
@@ -549,6 +562,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
     ) -> str:
         """Generate a flow from the provided NAME."""
 
+        await self._ensure_flows_index()
+        await self._ensure_instruction_flows_index()
+
         if self.flows_index is None:
             raise RuntimeError("No flows index has been created.")
 
@@ -608,6 +624,9 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
 
         if temperature is None:
             temperature = 0.0
+
+        await self._ensure_flows_index()
+        await self._ensure_instruction_flows_index()
 
         if self.instruction_flows_index is None:
             raise RuntimeError("No instruction flows index has been created.")
@@ -734,6 +753,8 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         """
         # Use action specific llm if registered else fallback to main llm
         generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
+
+        await self._ensure_flows_index()
 
         # We search for the most relevant flows.
         examples = ""

@@ -20,7 +20,6 @@ import logging
 import random
 import re
 import sys
-import threading
 from dataclasses import asdict
 from functools import lru_cache
 from time import time
@@ -59,12 +58,10 @@ from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
-from nemoguardrails.patch_asyncio import check_sync_call_from_async_loop
 from nemoguardrails.rails.llm.config import EmbeddingSearchProvider, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.streaming import StreamingHandler
 from nemoguardrails.utils import (
-    get_or_create_event_loop,
     new_event_dict,
     new_uuid,
     safe_eval,
@@ -102,13 +99,8 @@ class LLMGenerationActions:
 
         self.get_embedding_search_provider_instance = get_embedding_search_provider_instance
 
-        # There are still some edge cases not covered by nest_asyncio.
-        # Using a separate thread always for now.
-        loop = get_or_create_event_loop()
-        if True or check_sync_call_from_async_loop():
-            t = threading.Thread(target=asyncio.run, args=(self.init(),))
-            t.start()
-            t.join()
+        if self.config.colang_version == "2.x":
+            self._process_flows()
 
         self.llm_task_manager = llm_task_manager
 
@@ -120,10 +112,6 @@ class LLMGenerationActions:
         self.passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
 
     async def init(self):
-        # For Colang 2.x we need to do some initial processing
-        if self.config.colang_version == "2.x":
-            self._process_flows()
-
         await asyncio.gather(
             self._init_user_message_index(),
             self._init_bot_message_index(),
@@ -247,6 +235,9 @@ class LLMGenerationActions:
         if not self.bot_messages:
             return
 
+        if not self.user_messages:
+            return
+
         items = []
         for intent, utterances in self.bot_messages.items():
             for text in utterances:
@@ -296,6 +287,18 @@ class LLMGenerationActions:
 
         # NOTE: this should be very fast, otherwise needs to be moved to separate thread.
         await self.flows_index.build()
+
+    async def _ensure_user_message_index(self):
+        if self.user_message_index is None and self.user_messages:
+            await self._init_user_message_index()
+
+    async def _ensure_bot_message_index(self):
+        if self.bot_message_index is None and self.bot_messages and self.user_messages:
+            await self._init_bot_message_index()
+
+    async def _ensure_flows_index(self):
+        if self.flows_index is None and self.config.flows:
+            await self._init_flows_index()
 
     def _get_general_instructions(self):
         """Helper to extract the general instruction."""
@@ -369,6 +372,8 @@ class LLMGenerationActions:
         generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         streaming_handler = streaming_handler_var.get()
+
+        await self._ensure_user_message_index()
 
         # TODO: check for an explicit way of enabling the canonical form detection
 
@@ -620,6 +625,8 @@ class LLMGenerationActions:
                 return ActionResult(events=[bot_intent_event])
 
             user_intent = event["intent"]
+
+            await self._ensure_flows_index()
 
             # We search for the most relevant similar flows
             examples = ""
@@ -919,6 +926,8 @@ class LLMGenerationActions:
                 # Otherwise, we go through the process of creating the altered prompt,
                 # which includes examples, relevant chunks, etc.
 
+                await self._ensure_bot_message_index()
+
                 # We search for the most relevant similar bot utterance
                 examples = ""
                 # NOTE: disabling bot message index when there are no user messages
@@ -1042,6 +1051,8 @@ class LLMGenerationActions:
         if not var_name:
             var_name = last_event["action_result_key"]
 
+        await self._ensure_flows_index()
+
         # We search for the most relevant flows.
         examples = ""
         if self.flows_index:
@@ -1118,6 +1129,10 @@ class LLMGenerationActions:
         generation_llm: Optional[Union[BaseLLM, BaseChatModel]] = llm if llm else self.llm
 
         streaming_handler = streaming_handler_var.get()
+
+        await self._ensure_user_message_index()
+        await self._ensure_bot_message_index()
+        await self._ensure_flows_index()
 
         if self.config.user_messages:
             # TODO: based on the config we can use a specific canonical forms model

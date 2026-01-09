@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import textwrap
+
+from nemoguardrails import LLMRails, RailsConfig
+from tests.utils import TestChat
+
+BASE_CONFIG = textwrap.dedent("""
+    colang_version: "2.x"
+    models:
+      - type: main
+        engine: openai
+        model: gpt-4o
+""")
+
+PASSTHROUGH_CONFIG = textwrap.dedent("""
+    colang_version: "2.x"
+    models:
+      - type: main
+        engine: openai
+        model: gpt-4o
+
+    passthrough: true
+""")
+
+PASSTHROUGH_COLANG = textwrap.dedent("""
+    import core
+    import llm
+
+    flow main
+        activate passthrough mode
+""")
+
+MINIMAL_COLANG = textwrap.dedent("""
+    import core
+    import llm
+
+    flow main
+        activate llm continuation
+""")
+
+DIALOG_COLANG = textwrap.dedent("""
+    import core
+    import llm
+
+    flow main
+        activate llm continuation
+        activate greeting
+
+    flow greeting
+        user expressed greeting
+        bot say "Hello! How can I help you?"
+
+    flow user expressed greeting
+        \"\"\"User expressed greeting in any way or form.\"\"\"
+        user said "hi"
+""")
+
+
+def _create_rails(yaml_content: str, colang_content: str = ""):
+    config = RailsConfig.from_content(
+        yaml_content=yaml_content,
+        colang_content=colang_content if colang_content else None,
+    )
+    return LLMRails(config)
+
+
+class TestEmbeddingIndexesNotCreatedAtInit:
+    def test_main_model_only(self):
+        rails = _create_rails(BASE_CONFIG)
+        actions = rails.llm_generation_actions
+
+        assert actions.user_message_index is None
+        assert actions.bot_message_index is None
+        assert actions.flows_index is None
+        assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
+
+    def test_passthrough(self):
+        rails = _create_rails(PASSTHROUGH_CONFIG, PASSTHROUGH_COLANG)
+        actions = rails.llm_generation_actions
+
+        assert actions.user_message_index is None
+        assert actions.bot_message_index is None
+        assert actions.flows_index is None
+        assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
+
+    def test_minimal_colang(self):
+        rails = _create_rails(BASE_CONFIG, MINIMAL_COLANG)
+        actions = rails.llm_generation_actions
+
+        assert actions.user_message_index is None
+        assert actions.bot_message_index is None
+        assert actions.flows_index is None
+        assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
+
+    def test_dialog_colang(self):
+        rails = _create_rails(BASE_CONFIG, DIALOG_COLANG)
+        actions = rails.llm_generation_actions
+
+        assert actions.user_message_index is None
+        assert actions.bot_message_index is None
+        assert actions.flows_index is None
+        assert not hasattr(actions, "instruction_flows_index") or actions.instruction_flows_index is None
+
+
+class TestFastEmbedNotDownloadedForSimpleRails:
+    def test_passthrough_no_cache_created(self, tmp_path):
+        import os
+
+        cache_dir = tmp_path / "fastembed_cache"
+        cache_dir.mkdir()
+        os.environ["FASTEMBED_CACHE_PATH"] = str(cache_dir)
+
+        try:
+            config = RailsConfig.from_content(
+                yaml_content=PASSTHROUGH_CONFIG,
+                colang_content=PASSTHROUGH_COLANG,
+            )
+            chat = TestChat(config, llm_completions=["Hello!"])
+
+            response = chat.app.generate(messages=[{"role": "user", "content": "Hello"}])
+
+            assert response is not None
+
+            cache_contents = list(cache_dir.iterdir())
+            assert len(cache_contents) == 0, f"FastEmbed cache should be empty but found: {cache_contents}"
+        finally:
+            if "FASTEMBED_CACHE_PATH" in os.environ:
+                del os.environ["FASTEMBED_CACHE_PATH"]
+
+
+class TestFastEmbedDownloadedForDialogRails:
+    def test_dialog_rails_cache_created_on_generate(self, tmp_path):
+        import os
+
+        cache_dir = tmp_path / "fastembed_cache"
+        cache_dir.mkdir()
+        os.environ["FASTEMBED_CACHE_PATH"] = str(cache_dir)
+
+        try:
+            config = RailsConfig.from_content(
+                yaml_content=BASE_CONFIG,
+                colang_content=DIALOG_COLANG,
+            )
+            chat = TestChat(
+                config,
+                llm_completions=["user expressed greeting"],
+            )
+
+            cache_before = list(cache_dir.iterdir())
+            assert len(cache_before) == 0, "Cache should be empty before generate"
+
+            response = chat.app.generate(messages=[{"role": "user", "content": "hello"}])
+
+            assert response is not None
+
+            cache_after = list(cache_dir.iterdir())
+            assert len(cache_after) > 0, "FastEmbed cache should have models after generate with dialog rails"
+        finally:
+            if "FASTEMBED_CACHE_PATH" in os.environ:
+                del os.environ["FASTEMBED_CACHE_PATH"]
