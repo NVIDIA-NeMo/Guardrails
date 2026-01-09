@@ -18,7 +18,7 @@ This guide provides an overview of the process of invoking guardrails.
 
 The following diagram depicts the guardrails process in detail:
 
-```{image} ../../_static/puml/master_rails_flow.png
+```{image} ../_static/puml/master_rails_flow.png
 :alt: "Sequence diagram showing the complete guardrails process in NeMo Guardrails: 1) Input Validation stage where user messages are processed by input rails that can use actions and LLM to validate or alter input, 2) Dialog stage where messages are processed by dialog rails that can interact with a knowledge base, use retrieval rails to filter retrieved information, and use execution rails to perform custom actions, 3) Output Validation stage where bot responses are processed by output rails that can use actions and LLM to validate or alter output. The diagram shows all optional components and their interactions, including knowledge base queries, custom actions, and LLM calls at various stages."
 :width: 800px
 :align: center

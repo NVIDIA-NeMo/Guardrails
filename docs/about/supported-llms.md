@@ -14,23 +14,17 @@ content:
 
 # Supported LLMs
 
-The NeMo Guardrails library supports a wide range of LLM providers and their models.
+The NeMo Guardrails library supports a wide range of LLM providers and models. This includes base models, instruct-tuned, and reasoning models. These models can be served locally on the same machine as NeMo Guardrails, or at a remote endpoint accessible from Guardrails over a network. This flexible approach allows Guardrails to be used for a range of applications: from edge deployments on resource-constrained devices, to horizontally-scalable backend clusters.
 
-## LLM Providers
+## LLM Types
 
-The NeMo Guardrails library supports the following LLM providers:
+Integrating NeMo Guardrails improves safety and security of an Application LLM, which is responsible for generating responses to the end-user. Guardrails can also use the same Application LLM to run guardrails, simplifying deployments and reducing friction to on-ramp. Two examples of this are self-check rails, and dialog rails. Self-check rails use the Application LLM to decide whether a user request or LLM response is safe. Dialog rails use the Application LLM to guide the user through a pre-defined conversational flow.
 
-### NVIDIA NIM
+NeMo Guardrails can also call models for a specific guardrail on behalf of the client. Having guardrail-specific models allows the use of smaller fine-tuned models, which are specialized on the guardrails task. For example the NVIDIA Nemoguard collection of models includes [content-safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [topic-control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [jailbreak-detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) models. These models can be accessed on [build.nvidia.com](https://build.nvidia.com/) for rapid prototyping, with NIM Docker containers for deployment on [NGC Catalog](https://catalog.ngc.nvidia.com/).
 
-The NeMo Guardrails library supports NVIDIA NIM microservices for local deployment and NVIDIA API Catalog for hosted models.
+## Application LLM Providers
 
-- **Locally-deployed LLM NIM Microservices**: LLMs deployed on your own infrastructure.
-- **NVIDIA API Catalog**: Hosted LLMs on [build.nvidia.com](https://build.nvidia.com/models).
-- **Specialized NIM Microservices**: Nemo Content Safety, NeMo Topic Control, and NeMo Jailbreak Detect.
-
-### External LLM Providers
-
-The NeMo Guardrails library supports the following external LLM providers:
+The NeMo Guardrails library supports all the major LLM providers, including:
 
 - OpenAI
 - Azure OpenAI

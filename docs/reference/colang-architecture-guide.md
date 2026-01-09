@@ -1,6 +1,6 @@
 ---
 title:
-  page: "Architecture Guide"
+  page: "Colang Architecture Guide"
   nav: "Architecture"
 description: "Explore the event-driven runtime, canonical messages, and server design."
 keywords: ["guardrails architecture", "event-driven runtime", "llmrails", "colang"]
@@ -12,7 +12,7 @@ content:
   audience: [engineer, data_scientist]
 ---
 
-# Architecture Guide
+# Colang Architecture Guide
 
 This document provides more details on the architecture and the approach that the NeMo Guardrails library takes for implementing guardrails.
 
