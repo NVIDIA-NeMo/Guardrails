@@ -506,3 +506,136 @@ async def test_partial_policy_failures(monkeypatch):
 
         result = await call_policyai_api(text="Hello!")
         assert result["assessment"] == "SAFE"
+
+
+@pytest.mark.asyncio
+async def test_custom_base_url_with_trailing_slash(monkeypatch):
+    """Test that custom base URL with trailing slash is handled correctly."""
+    monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
+    monkeypatch.setenv("POLICYAI_BASE_URL", "https://custom.api.example.com/")
+    monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
+
+    with aioresponses() as m:
+        # URL should have trailing slash stripped
+        m.post(
+            "https://custom.api.example.com/policyai/v1/decisions/evaluate/test",
+            payload={
+                "data": [
+                    {
+                        "status": "success",
+                        "assessment": "SAFE",
+                        "category": "Safe",
+                        "severity": 0,
+                        "reason": "Content is safe",
+                    }
+                ]
+            },
+        )
+
+        result = await call_policyai_api(text="Hello!")
+        assert result["assessment"] == "SAFE"
+
+
+@pytest.mark.asyncio
+async def test_tag_name_parameter_overrides_env(monkeypatch):
+    """Test that tag_name parameter overrides environment variable."""
+    monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
+    monkeypatch.setenv("POLICYAI_TAG_NAME", "env-tag")
+
+    with aioresponses() as m:
+        # Should use parameter tag, not env var tag
+        m.post(
+            "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/param-tag",
+            payload={
+                "data": [
+                    {
+                        "status": "success",
+                        "assessment": "SAFE",
+                        "category": "Safe",
+                        "severity": 0,
+                        "reason": "Content is safe",
+                    }
+                ]
+            },
+        )
+
+        result = await call_policyai_api(text="Hello!", tag_name="param-tag")
+        assert result["assessment"] == "SAFE"
+
+
+@pytest.mark.asyncio
+async def test_unsafe_with_missing_fields(monkeypatch):
+    """Test UNSAFE response with missing optional fields uses defaults."""
+    monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
+    monkeypatch.setenv("POLICYAI_TAG_NAME", "test")
+
+    with aioresponses() as m:
+        # UNSAFE response without category, severity, or reason
+        m.post(
+            "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/test",
+            payload={
+                "data": [
+                    {
+                        "status": "success",
+                        "assessment": "UNSAFE",
+                    }
+                ]
+            },
+        )
+
+        result = await call_policyai_api(text="Bad content")
+        assert result["assessment"] == "UNSAFE"
+        assert result["category"] == "Unknown"
+        assert result["severity"] == 0
+        assert result["reason"] == "Policy violation detected"
+
+
+def test_mapping_function_safe():
+    """Test the output mapping function returns False for SAFE."""
+    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
+
+    result = call_policyai_api_mapping({"assessment": "SAFE"})
+    assert result is False
+
+
+def test_mapping_function_unsafe():
+    """Test the output mapping function returns True for UNSAFE."""
+    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
+
+    result = call_policyai_api_mapping({"assessment": "UNSAFE"})
+    assert result is True
+
+
+def test_mapping_function_missing_assessment():
+    """Test the output mapping function defaults to SAFE when assessment is missing."""
+    from nemoguardrails.library.policyai.actions import call_policyai_api_mapping
+
+    result = call_policyai_api_mapping({})
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_default_tag_name_prod(monkeypatch):
+    """Test that default tag 'prod' is used when env var is not set."""
+    monkeypatch.setenv("POLICYAI_API_KEY", "test-api-key")
+    monkeypatch.delenv("POLICYAI_TAG_NAME", raising=False)
+
+    with aioresponses() as m:
+        # Should use default "prod" tag
+        m.post(
+            "https://api.musubilabs.ai/policyai/v1/decisions/evaluate/prod",
+            payload={
+                "data": [
+                    {
+                        "status": "success",
+                        "assessment": "SAFE",
+                        "category": "Safe",
+                        "severity": 0,
+                        "reason": "Content is safe",
+                    }
+                ]
+            },
+        )
+
+        result = await call_policyai_api(text="Hello!")
+        assert result["assessment"] == "SAFE"
