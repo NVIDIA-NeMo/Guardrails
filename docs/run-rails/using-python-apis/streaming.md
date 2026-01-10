@@ -18,8 +18,8 @@ If the application LLM supports streaming, the NeMo Guardrails library can strea
 
 For information about configuring streaming with output guardrails, refer to the following:
 
-- For configuration, refer to [streaming output configuration](../user-guides/configuration-guide.md#streaming-output-configuration).
-- For sample Python client code, refer to [streaming output](../getting-started/5-output-rails/README.md#streaming-output).
+- For configuration, refer to [streaming output configuration](../../configure-rails/yaml-schema/streaming/output-rail-streaming.md).
+- For sample Python client code, refer to the [Getting Started Tutorials](../../getting-started/tutorials/index.md).
 
 ## Usage
 
@@ -185,28 +185,13 @@ info = rails.explain()
 info.print_llm_calls_summary()
 ```
 
-For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see the [Generation Options](generation-options.md#detailed-logging-information) and [Detailed Logging](../user-guides/detailed-logging/README.md) documentation.
+For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options](generation-options.md#detailed-logging-information) and [Logging](../../observability/logging/index.md).
 
-### Server API
-
-To make a call to the NeMo Guardrails library Server in streaming mode, you have to set the `stream` parameter to `True` inside the JSON body. For example, to get the completion for a chat session using the `/v1/chat/completions` endpoint:
-
-```text
-POST /v1/chat/completions
+```{note}
+For streaming while using the FastAPI server, refer to [](../using-fastapi-server/chat-with-guardrailed-model.md#streaming-responses).
 ```
 
-```json
-{
-    "config_id": "some_config_id",
-    "messages": [{
-      "role":"user",
-      "content":"Hello! What can you do for me?"
-    }],
-    "stream": true
-}
-```
-
-### Streaming for LLMs deployed using HuggingFacePipeline
+### Streaming for LLMs Deployed Using HuggingFacePipeline
 
 We also support streaming for LLMs deployed using `HuggingFacePipeline`.
 One example is provided in the [HF Pipeline Dolly](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md) configuration.

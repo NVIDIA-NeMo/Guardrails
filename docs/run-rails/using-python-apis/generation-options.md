@@ -16,9 +16,7 @@ content:
 
 The NeMo Guardrails library exposes a set of **generation options** that give you fine-grained control over how the LLM generation is performed (for example, what rails are enabled, additional parameters that should be passed to the LLM, what context data should be returned, what logging information should be returned).
 
-The **generation options** can be used both in the Python API and through the server API.
-
-To use the generation options through the Python API, you must provide the `options` keyword argument:
+To use generation options, provide the `options` keyword argument to the `generate()` or `generate_async()` methods:
 
 ```python
 messages = [{
@@ -28,23 +26,8 @@ messages = [{
 rails.generate(messages=messages, options={...})
 ```
 
-To use the generation options through the server API, you must provide the `options` as part of the request body:
-
-```text
-POST /v1/chat/completions
-```
-
-```json
-{
-    "config_id": "...",
-    "messages": [{
-      "role":"user",
-      "content":"..."
-    }],
-    "options": {
-      ...
-    }
-}
+```{note}
+Generation options are also available through the [FastAPI server](../using-fastapi-server/chat-with-guardrailed-model.md#control-generation-options).
 ```
 
 ## Disabling Rails
@@ -204,7 +187,7 @@ res.log.print_summary()
 
 ## Output Variables
 
-Some rails can store additional information in [context variables](../configuration-guide/colang/colang-language-syntax-guide.md#variables). You can return the content of these variables by setting the `output_vars` generation option to the list of names for all the variables that you are interested in. If you want to return the complete context (this will also include some predefined variables), you can set `output_vars` to `True`.
+Some rails can store additional information in [context variables](../../configure-rails/colang/colang-1/colang-language-syntax-guide.md#variables). You can return the content of these variables by setting the `output_vars` generation option to the list of names for all the variables that you are interested in. If you want to return the complete context (this will also include some predefined variables), you can set `output_vars` to `True`.
 
 ```python
 rails.generate(messages=messages, options={

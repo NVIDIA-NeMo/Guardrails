@@ -14,7 +14,7 @@ content:
 
 # NeMo Guardrails Library Event-Based API
 
-You can use a guardrails configuration through an event-based API using [`LLMRails.generate_events_async`](../api/nemoguardrails.rails.llm.llmrails.md#method-llmrailsgenerate_events_async) and [`LLMRails.generate_events`](../api/nemoguardrails.rails.llm.llmrails.md#method-llmrailsgenerate_events).
+You can use a guardrails configuration through an event-based API using `LLMRails.generate_events_async` and `LLMRails.generate_events`. For the full API reference, see [Python API Reference](../../reference/python-api/index.md).
 
 Example usage:
 

@@ -19,7 +19,7 @@ The NeMo Guardrails library Python API provides two core classes for running gua
 - **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
 - **`LLMRails`**: The main interface for generating responses with guardrails applied.
 
-Upon initializing the core classes (`RailsConfig` and `LLMRails`) or starting the `nemoguardrails` CLI chat or server, the library loads the configuration files you created in the previous chapter [Configure Rails](../../configure-rails/index.md).
+Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library loads the configuration files you created in the previous chapter [Configure Rails](../../configure-rails/index.md).
 
 ## Quick Start
 

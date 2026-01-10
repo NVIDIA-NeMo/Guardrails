@@ -18,7 +18,7 @@ This guide covers the two fundamental classes in the NeMo Guardrails library: `R
 
 ## RailsConfig
 
-The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings. This class requires to load the configuration from a directory or a single file you created in the previous chapter [Configure Rails](../configuration-guide/index.md).
+The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings. This class requires to load the configuration from a directory or a single file you created in the previous chapter [Configure Rails](../../configure-rails/index.md).
 
 ### Loading Configuration from a Directory
 
@@ -239,7 +239,7 @@ async def check_permissions(context: Optional[dict] = None):
     return user_role == "admin"
 ```
 
-For detailed information about context variables, see [Action Parameters](../configuration-guide/actions/action-parameters.md#the-context-parameter) and [Colang Variables](../configuration-guide/colang/colang-1/colang-language-syntax-guide.md#variables).
+For detailed information about context variables, see [Action Parameters](../../configure-rails/actions/action-parameters.md#the-context-parameter) and [Colang Variables](../../configure-rails/colang/colang-1/colang-language-syntax-guide.md#variables).
 
 ### Asynchronous Generation
 
@@ -337,7 +337,7 @@ rails = LLMRails(config)
 rails.register_action(get_weather, name="get_weather")
 ```
 
-For detailed action registration, refer to [Actions Guide](../configuration-guide/actions/index.md).
+For detailed action registration, refer to [Actions Guide](../../configure-rails/actions/index.md).
 
 ---
 
@@ -436,4 +436,4 @@ asyncio.run(main())
 - [Streaming](streaming.md) - Real-time token streaming
 - [Event-based API](event-based-api.md) - Low-level event control
 - [Tools Integration](tools-integration.md) - Integrating LangChain tools
-- [Configuration Guide](../configuration-guide/index.md) - Complete configuration reference
+- [Configuration Guide](../../configure-rails/index.md) - Complete configuration reference

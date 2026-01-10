@@ -182,9 +182,9 @@ The stream of events processed by the guardrails runtime (a simplified view with
 
 ### Extending the Default Process
 
-As shown in the examples [here](../../README.md#examples), the event-driven design allows us to hook into the process and add additional guardrails.
+The event-driven design allows us to hook into the process and add additional guardrails.
 
-For example, in the [grounding rail](../../examples/bots/abc/README.md) example, we can add an additional fact-checking guardrail (through the `check_facts` action) after a question about the report.
+For example, we can add an additional fact-checking guardrail (through the `check_facts` action) after a question about the report.
 
 ```colang
 define flow answer report question

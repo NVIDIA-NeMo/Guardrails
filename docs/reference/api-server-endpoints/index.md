@@ -10,7 +10,7 @@ Start the server using the CLI:
 nemoguardrails server --port 8000 --config /path/to/config
 ```
 
-For more information about server options, see [Local Server](../../deployment/local-server/index.md).
+For more information about server options, see [Run the Guardrails Server](../../run-rails/using-fastapi-server/run-guardrails-server.md).
 
 ---
 
@@ -452,4 +452,5 @@ The server supports the following environment variables:
 
 ## Related Topics
 
-- [Local Server Deployment](../../deployment/local-server/index.md)
+- [Run the Guardrails Server](../../run-rails/using-fastapi-server/run-guardrails-server.md)
+- [Deployment Guide](../../deployment/index.md)

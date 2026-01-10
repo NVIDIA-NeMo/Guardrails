@@ -30,7 +30,7 @@ Using an actions server is optional but highly recommended for production deploy
 If no actions server is configured, actions run in the same process as the guardrails server.
 ```
 
-For more details on security considerations, see [Security Guidelines](../../security/guidelines.md).
+For more details on security considerations, see [Security Guidelines](../../resources/security/guidelines.md).
 
 ## Start the Actions Server
 
@@ -320,5 +320,5 @@ For production deployments:
 ## Related Topics
 
 - [Run the Guardrails Server](run-guardrails-server.md)
-- [Security Guidelines](../../security/guidelines.md)
+- [Security Guidelines](../../resources/security/guidelines.md)
 - [Actions Reference](../../configure-rails/actions/index.md)
