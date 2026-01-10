@@ -2,7 +2,7 @@
 title:
   page: "Overview of the FastAPI Server"
   nav: "Overview"
-description: "The Fast API server is a tool for running guardrails in a secure, isolated environment."
+description: "The FastAPI server is a tool for running guardrails in a secure, isolated environment."
 keywords: ["NeMo Guardrails server", "FastAPI", "REST API", "chat completions", "guardrails HTTP"]
 topics: ["generative_ai", "developer_tools"]
 tags: ["llms", "ai_inference", "ai_platforms"]

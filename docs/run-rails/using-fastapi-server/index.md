@@ -24,7 +24,7 @@ This section covers how to run the server and interact with it.
 :link: overview
 :link-type: doc
 
-The Fast API server is a tool for running guardrails in a secure, isolated environment.
+The FastAPI server is a tool for running guardrails in a secure, isolated environment.
 :::
 
 :::{grid-item-card} Run the Server

@@ -39,14 +39,14 @@ After you've chosen the right tool, proceed to one of the following guides to le
 :gutter: 3
 
 :::{grid-item-card} Python API
-:link: python-api/index
+:link: using-python-apis/index
 :link-type: doc
 
 Use the Python API to run guardrailed inference.
 :::
 
 :::{grid-item-card} FastAPI Server
-:link: fastapi-server/index
+:link: using-fastapi-server/index
 :link-type: doc
 
 Use the FastAPI server to run guardrailed inference.
