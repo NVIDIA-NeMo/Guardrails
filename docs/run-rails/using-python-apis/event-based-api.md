@@ -1,14 +1,15 @@
 ---
 title:
-  page: "NeMo Guardrails Library Event-Based API"
+  page: "Event-Based API"
   nav: "Event-Based API"
-description: "Use generate_events for low-level control over guardrails execution and event handling."
-topics: ["AI Safety", "LLM Guardrails"]
-tags: ["Python", "Events", "API", "Advanced"]
+description: "Use generate_events for low-level control over guardrails execution."
+keywords: ["generate_events", "event-based API", "guardrails events", "low-level control", "custom integrations"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "ai_platforms"]
 content:
-  type: "Reference"
-  difficulty: "Advanced"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_advanced
+  audience: ["data_scientist", "engineer"]
 ---
 
 # NeMo Guardrails Library Event-Based API
@@ -241,7 +242,7 @@ You need to make sure that the guardrails logic can handle the custom event. You
 Typically, you will need to:
 
 1. Persist the events history for a particular user in a database.
-2. Whenever there is a new message or another event, you fetch the history and append the new event.
+2. Fetch the history and append the new event whenever there is a new message or another event.
 3. Use the guardrails API to generate the next events.
 4. Filter the `StartUtteranceBotAction` events and return them to the user.
 5. Persist the history of events back into the database.

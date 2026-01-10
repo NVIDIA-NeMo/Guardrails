@@ -1,14 +1,15 @@
 ---
 title:
-  page: "Streaming Generated Responses in Real-Time"
+  page: "Streaming Responses"
   nav: "Streaming"
-description: "Stream LLM responses in real-time with the stream_async method and output rails support."
-topics: ["AI Safety", "LLM Guardrails"]
-tags: ["Python", "Streaming", "Async", "Real-Time"]
+description: "Stream LLM responses in real-time with the stream_async method."
+keywords: ["stream_async", "streaming responses", "real-time LLM", "StreamingHandler", "async streaming"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "ai_platforms"]
 content:
-  type: "How-To"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: tutorial
+  difficulty: technical_intermediate
+  audience: ["data_scientist", "engineer"]
 ---
 
 # Streaming Generated Responses in Real-Time
@@ -84,9 +85,9 @@ print(result)
 
 You can also provide your own async generator that yields tokens, which is useful when:
 
-- You want to use a different LLM provider that has its own streaming API
-- You have pre-generated responses that you want to stream through guardrails
-- You want to implement custom token generation logic
+- You want to use a different LLM provider that has its own streaming API.
+- You have pre-generated responses that you want to stream through guardrails.
+- You want to implement custom token generation logic.
 - You want to test your output rails or its config in streaming mode on predefined responses without actually relying on an actual LLM generation.
 
 To use an external generator, pass it to the `generator` parameter of `stream_async`:
@@ -115,9 +116,9 @@ async for chunk in app.stream_async(
 
 When using an external generator:
 
-- The internal LLM generation is completely bypassed
-- Output rails are still applied to the LLM responses returned by the external generator, if configured
-- The generator should yield string tokens
+- The internal LLM generation is completely bypassed.
+- Output rails are still applied to the LLM responses returned by the external generator, if configured.
+- The generator should yield string tokens.
 
 Example with a real LLM API:
 

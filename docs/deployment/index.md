@@ -18,13 +18,6 @@ You can deploy the NeMo Guardrails library in the following ways.
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Local Server
-:link: local-server/index
-:link-type: doc
-
-Set up and run guardrails and actions servers locally for development and testing.
-:::
-
 :::{grid-item-card} Docker
 :link: using-docker
 :link-type: doc

@@ -1,25 +1,26 @@
 ---
 title:
-  page: "NeMo Guardrails Library Core Classes"
+  page: "Core Classes Reference"
   nav: "Core Classes"
-description: "Load guardrails configurations with RailsConfig and generate responses with LLMRails."
-topics: ["AI Safety", "LLM Guardrails"]
-tags: ["Python", "SDK", "RailsConfig", "LLMRails", "API"]
+description: "RailsConfig and LLMRails class reference for loading and running guardrails."
+keywords: ["RailsConfig", "LLMRails", "from_path", "from_content", "generate", "generate_async"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "ai_platforms"]
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience: ["data_scientist", "engineer"]
 ---
 
-# NeMo Guardrails Library Core Classes
+# Core Classes of the NeMo Guardrails Library
 
 This guide covers the two fundamental classes in the NeMo Guardrails library: `RailsConfig` for loading configurations and `LLMRails` for generating responses with guardrails.
 
 ## RailsConfig
 
-The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings.
+The `RailsConfig` class represents a complete guardrails configuration, including models, rails, flows, prompts, and other settings. This class requires to load the configuration from a directory or a single file you created in the previous chapter [Configure Rails](../configuration-guide/index.md).
 
-### Loading from a Directory
+### Loading Configuration from a Directory
 
 The most common way to load a configuration is from a directory containing `config.yml` and Colang files:
 
@@ -117,9 +118,9 @@ combined_config = base_config + additional_config
 
 This is useful for:
 
-- Adding rails to a base configuration
-- Layering environment-specific settings
-- Combining shared and application-specific configurations
+- Adding rails to a base configuration.
+- Layering environment-specific settings.
+- Combining shared and application-specific configurations.
 
 ### Key Configuration Properties
 

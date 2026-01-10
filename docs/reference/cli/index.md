@@ -15,28 +15,14 @@ content:
 
 # NeMo Guardrails Library CLI Reference
 
-**NOTE: THIS SECTION IS WORK IN PROGRESS.**
-
-For testing purposes, the NeMo Guardrails library provides a command line chat that can be used to interact with the LLM.
-
-```sh
-nemoguardrails chat --config examples/ [--verbose] [--verbose-llm-calls]
-```
-
-## Options
-
-- `--config`: The configuration that should be used. Can be a folder or a .co/.yml file.
-- `--verbose`: In verbose mode, detailed debugging information is also shown.
-- `--verbose-llm-calls`: In verbose LLM calls mode, the debugging information includes the entire prompt that is sent to the LLM and the completion.
-
 You should now be able to invoke the `nemoguardrails` CLI.
 
- ```bash
- > nemoguardrails --help
+```bash
+> nemoguardrails --help
 
- Usage: nemoguardrails [OPTIONS] COMMAND [ARGS]...
+Usage: nemoguardrails [OPTIONS] COMMAND [ARGS]...
 
- Options:
+Options:
   --install-completion [bash|zsh|fish|powershell|pwsh]
                                   Install completion for the specified shell.
   --show-completion [bash|zsh|fish|powershell|pwsh]
@@ -44,17 +30,29 @@ You should now be able to invoke the `nemoguardrails` CLI.
                                   copy it or customize the installation.
   --help                          Show this message and exit.
 
- Commands:
+Commands:
   actions-server  Starts a NeMo Guardrails actions server.
   chat            Starts an interactive chat session.
   convert         Convert a Colang 1.0 directory to Colang 2.0 format.
   evaluate        Run an evaluation task.
   server          Starts a NeMo Guardrails server.
- ```
+```
 
- You can also use the `--help` flag to learn more about each of the `nemoguardrails` commands:
+You can also use the `--help` flag to learn more about each of the `nemoguardrails` commands:
 
-### actions-server
+## Chat
+
+```sh
+nemoguardrails chat --config examples/ [--verbose] [--verbose-llm-calls]
+```
+
+### Options
+
+- `--config`: The configuration that should be used. Can be a folder or a .co/.yml file.
+- `--verbose`: In verbose mode, detailed debugging information is also shown.
+- `--verbose-llm-calls`: In verbose LLM calls mode, the debugging information includes the entire prompt that is sent to the LLM and the completion.
+
+## Actions Server
 
  ```bash
  > nemoguardrails actions-server --help

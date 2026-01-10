@@ -163,33 +163,6 @@ You can integrate the NeMo Guardrails library into your application using the to
 
 ---
 
-## Tools
-
-The following are the tools you can use to interact with the NeMo Guardrails library and integrate it into your application.
-
-### Python SDK
-
-```python
-from nemoguardrails import LLMRails, RailsConfig
-
-config = RailsConfig.from_path("./config")
-rails = LLMRails(config)
-
-response = rails.generate(
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-```
-
-The `generate` method accepts the same message format as the OpenAI Chat Completions API.
-
-### CLI Server
-
-```bash
-nemoguardrails server --config ./config --port 8000
-```
-
-The server exposes an HTTP API compatible with OpenAI's `/v1/chat/completions` endpoint.
-
 ## Next Steps
 
 To get started with NeMo Guardrails, begin by [installing the library](../getting-started/installation-guide.md) and try out one of the [tutorials](../getting-started/tutorials/index.md).

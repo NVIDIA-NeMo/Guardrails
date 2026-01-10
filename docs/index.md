@@ -89,7 +89,7 @@ Learn to write config.yml, Colang flows, and custom actions for guardrails.
 :link: run-rails/index
 :link-type: doc
 
-Use RailsConfig and LLMRails classes to load configurations and generate guarded responses.
+Run guardrailed inference using the Python API or FastAPI server.
 :::
 
 :::{grid-item-card} Evaluate
@@ -169,10 +169,8 @@ Exceptions and Error Handling <configure-rails/exceptions.md>
 :hidden:
 
 About Running Guardrailed Inference <run-rails/index.md>
-Core Classes <run-rails/core-classes.md>
-Generation Options <run-rails/generation-options.md>
-Streaming <run-rails/streaming.md>
-Event-Based API <run-rails/event-based-api.md>
+Python API <run-rails/using-python-apis/index.md>
+FastAPI Server <run-rails/using-fastapi-server/index.md>
 ```
 
 ```{toctree}
@@ -198,7 +196,6 @@ Tracing <observability/tracing/index.md>
 :hidden:
 
 Deploy <deployment/index>
-Local Server <deployment/local-server/index>
 Docker <deployment/using-docker>
 Microservice <deployment/using-microservice>
 Blueprint Integration <integration/safeguarding-ai-virtual-assistant-blueprint>
@@ -220,9 +217,10 @@ Tools Integration <integration/tools-integration.md>
 
 Architecture <reference/colang-architecture-guide.md>
 Sequence Diagrams <reference/guardrails-sequence-diagrams.md>
-Use Case Diagrams <resources/use-case-diagrams.md>
-Python API <python-api/index>
-CLI <cli/index>
+Use Case Diagrams <reference/use-case-diagrams.md>
+Python API <reference/python-api/index>
+CLI <reference/cli/index>
+FastAPI Server Endpoints <reference/api-server-endpoints/index>
 ```
 
 ```{toctree}
@@ -238,7 +236,7 @@ Troubleshooting <troubleshooting>
 :name: Resources
 :hidden:
 
-faqs
-glossary
-Security <security/guidelines>
+FAQs <resources/faqs.md>
+Glossary <resources/glossary.md>
+Security <resources/security/guidelines.md>
 ```

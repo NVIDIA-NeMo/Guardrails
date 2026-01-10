@@ -1,14 +1,15 @@
 ---
 title:
-  page: "Generation Options"
+  page: "Generation Options Reference"
   nav: "Generation Options"
-description: "Configure generation behavior with options for logging, LLM parameters, and rail selection."
-topics: ["AI Safety", "LLM Guardrails"]
-tags: ["Python", "API", "Configuration", "Logging"]
+description: "Configure logging, LLM parameters, and rail selection for generation."
+keywords: ["GenerationOptions", "rails options", "LLM parameters", "generation logging", "output_vars"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "ai_platforms"]
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience: ["data_scientist", "engineer"]
 ---
 
 # Generation Options
