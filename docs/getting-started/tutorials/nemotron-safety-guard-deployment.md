@@ -84,7 +84,7 @@ Follow these steps to prepare the guardrails configuration.
          S15: Manipulation.
          S16: Fraud/Deception.
          S17: Malware.
-         S18: High Risk Gov Decision
+         S18: High Risk Gov Decision Making.
          S19: Political/Misinformation/Conspiracy.
          S20: Copyright/Trademark/Plagiarism.
          S21: Unauthorized Advice.
@@ -177,20 +177,12 @@ Follow these steps to prepare the guardrails configuration.
        I'm sorry, I can't respond to that.
      ```
 
-1. Enter an safe prompt in Hindi ("Tell me about three common foods in India")
+1. Enter a safe prompt in Hindi ("Tell me about three common foods in India")
 
       ```console
       > मुझे भारत में तीन आम खाने की चीज़ज़ों के नाम बताओ।
-      भारत में आम खाने की चीज़ें बहुत विविध हैं, लेकिन यहहाँ तीन आम खाने :ी चीज़ज़ों के नाम हैं
 
-      1. **रोटी**: रोटी एक पारंपरिक भारतीय ब्रेड है, जो गेहूं के आटे से बनाई जाती है। यह अक्सर सब्जी, दाल, या अन्य     व्यंजननों   के साथ परोसी जाती है।
-
-      2. **चावल**: चावल एक मुख्य खाद्य पदार्थ है, जो भारत में बहुत पसंद किया जाता है। यह अक्सर सब्जी, दाल, या अन्य     व्यंजननों   के साथ परोसा जाता है।
-
-      3. **दाल**: दाल एपारंपरिक भारतीय व्यंजन है, जो मसूर, मूंग, या अन्य दाललों से बनाया जाता है। यह अक्सर चावल, रोटी, या       अन्य व्यंजननों के साथ परसी
-
-      इन तीननों खाने की चीज़ज़ों को भारत में बहुत पसंद किया जाता है, और वे आम तौर पर दैनिक भोजन में शामिल होती हैं।
-
+      [The model responds with information about rice, roti, and dal—common Indian foods.]
       ```
 
 ## Use Guardrails programmatically with the configuration created above

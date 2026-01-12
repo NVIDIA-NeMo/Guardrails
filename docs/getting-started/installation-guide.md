@@ -23,7 +23,7 @@ Verify your system meets the following requirements before installation.
 |-------------|---------|
 | **Operating System** | Windows, Linux, MacOS |
 | **Python** | 3.10, 3.11, 3.12, or 3.13 |
-| **Hardware** | 1 CPU with 4GB RAM. The NeMo Guardrails library runs on CPU. External models may require GPUs, which may be deployed separately to the library|
+| **Hardware** | 1 CPU with 4GB RAM. The NeMo Guardrails library runs on CPU. External models may require GPUs, which may be deployed separately to the library |
 
 ## Quick Start
 
@@ -53,7 +53,7 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
    ::::
 
-2. Install the Nemo Guardrails toolkit with support for NVIDIA-hosted models. Set NVDIA_API_KEY to your personal API Key generated on <https://build.nvidia.com/>.
+2. Install the Nemo Guardrails toolkit with support for NVIDIA-hosted models. Set NVIDIA_API_KEY to your personal API Key generated on <https://build.nvidia.com/>.
 
    ```bash
    pip install "nemoguardrails[nvidia]"
