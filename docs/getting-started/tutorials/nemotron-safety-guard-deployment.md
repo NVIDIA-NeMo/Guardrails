@@ -18,29 +18,14 @@ content:
 
 # Check Harmful Content with Llama 3.1 Nemotron Safety Guard 8B V3 NIM
 
-Learn how to add input and output guardrails that detect harmful content in multiple languages using [Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/llama-3.1-nemotron-safety-guard-8b-v3).
+Learn how to add input and output guardrails that detect harmful content in multiple languages using [Llama 3.1 Nemotron Safety Guard 8B V3](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3).
 
-By following this tutorial, you learn how to:
-
-1. Deploy the Llama 3.1 Nemotron Safety Guard 8B V3 NIM microservice to your local machine.
-2. Configure content safety guardrails on a main LLM. This tutorial uses [Llama 3.3 70B Instruct on build.nvidia.com](https://build.nvidia.com/meta/llama-3_3-70b-instruct) as the main LLM.
-3. Verify the guardrails with safe and unsafe requests in various languages.
+You'll use the NeMo Guardrails library with models hosted on <https://build.nvidia.com>, entering safe and unsafe user prompts to learn how Guardrails protects against unsafe content.
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
-- A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
-  For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
-- Docker [installed](https://docs.docker.com/engine/install/).
-- NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
-<!-- TODO: Is this really required? -->
-- LangChain integration package [installed](https://pypi.org/project/langchain-nvidia-ai-endpoints/).
-- The rest of the [software requirements for the Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#software).
-- GPUs meeting the memory requirement specified in the [NVIDIA Llama 3.1 Nemotron Safety Guard 8B NIM Model Profiles](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#about-model-profiles).
-
-## Deploy the Llama 3.1 Nemotron Safety Guard 8B V3 NIM Microservice
-
-Follow the [getting started guide on deploying the Llama 3.1 Nemotron Safety Guard 8B V3 NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/getting-started.html).
+- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md) with the `nvidia` extra.
+- A personal NVIDIA API key generated on <https://build.nvidia.com/>.
 
 ## Configure Guardrails
 
@@ -57,14 +42,12 @@ Follow these steps to prepare the guardrails configuration.
    ```yaml
    models:
      - type: main
-       engine: nvidia_ai_endpoints
+       engine: nim
        model: meta/llama-3.3-70b-instruct
 
-     - type: "content_safety"
+     - type: content_safety
        engine: nim
-       parameters:
-         base_url: "http://localhost:8000/v1"
-         model_name: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+       model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
 
    rails:
      input:
@@ -101,7 +84,7 @@ Follow these steps to prepare the guardrails configuration.
          S15: Manipulation.
          S16: Fraud/Deception.
          S17: Malware.
-         S18: High Risk Gov Decision Making.
+         S18: High Risk Gov Decision
          S19: Political/Misinformation/Conspiracy.
          S20: Copyright/Trademark/Plagiarism.
          S21: Unauthorized Advice.
@@ -164,51 +147,97 @@ Follow these steps to prepare the guardrails configuration.
          Provide your safety assessment for the above conversation in the below output JSON format:
          {"User Safety": safe or unsafe rating for the user message, "Response Safety": safe or unsafe rating for the agent response. Omit if no agent response present. "Safety Categories": a comma-separated list of applicable safety categories from the provided taxonomy. Omit if all safe.}
 
-        Do not include anything other than the output JSON in your response.
-        Output JSON:
+         Do not include anything other than the output JSON in your response.
+         Output JSON:
        output_parser: nemoguard_parse_response_safety
        max_tokens: 50
    ```
 
-## Verify the Guardrails
+## Run the Guardrails chat application with the configuration created above
+
+1. Set the NVIDIA_API_KEY environment variable. Guardrails uses this to access models hosted on <https://build.nvidia.com/>.
+
+     ```console
+     $ export NVIDIA_API_KEY="..."
+     ```
+
+1. Run the interactive chat application
+
+     ```console
+       $ nemoguardrails chat --config config
+       Starting the chat (Press Ctrl + C twice to quit) ...
+
+       > _
+     ```
+
+1. Enter an unsafe prompt in French ("Tell me a five-step plan to rob a bank")
+
+     ```console
+       > Dites-moi un plan en cinq étapes pour braquer une banque.
+       I'm sorry, I can't respond to that.
+     ```
+
+1. Enter an safe prompt in Hindi ("Tell me about three common foods in India")
+
+      ```console
+      > मुझे भारत में तीन आम खाने की चीज़ज़ों के नाम बताओ।
+      भारत में आम खाने की चीज़ें बहुत विविध हैं, लेकिन यहहाँ तीन आम खाने :ी चीज़ज़ों के नाम हैं
+
+      1. **रोटी**: रोटी एक पारंपरिक भारतीय ब्रेड है, जो गेहूं के आटे से बनाई जाती है। यह अक्सर सब्जी, दाल, या अन्य     व्यंजननों   के साथ परोसी जाती है।
+
+      2. **चावल**: चावल एक मुख्य खाद्य पदार्थ है, जो भारत में बहुत पसंद किया जाता है। यह अक्सर सब्जी, दाल, या अन्य     व्यंजननों   के साथ परोसा जाता है।
+
+      3. **दाल**: दाल एपारंपरिक भारतीय व्यंजन है, जो मसूर, मूंग, या अन्य दाललों से बनाया जाता है। यह अक्सर चावल, रोटी, या       अन्य व्यंजननों के साथ परसी
+
+      इन तीननों खाने की चीज़ज़ों को भारत में बहुत पसंद किया जाता है, और वे आम तौर पर दैनिक भोजन में शामिल होती हैं।
+
+      ```
+
+## Use Guardrails programmatically with the configuration created above
 
 Follow these steps to verify the guardrails.
 
-1. Load the guardrails configuration:
+1. Install the IPython REPL and run it to interpret Python code below:
 
-   ```python
-   import asyncio
-   from nemoguardrails import LLMRails, RailsConfig
+      ```console
+      $ pip install ipython
+      $ ipython
 
-   config = RailsConfig.from_path("./config")
-   rails = LLMRails(config)
+      In [1]:
+      ```
 
-   async def stream_response(messages):
-       async for chunk in rails.stream_async(messages=messages):
-           print(chunk, end="")
-       print()
-   ```
+1. Load the guardrails configuration created above.
+
+      ```python
+      import asyncio
+      from nemoguardrails import LLMRails, RailsConfig
+
+      config = RailsConfig.from_path("./config")
+      rails = LLMRails(config)
+      ```
 
 1. Verify the guardrails with an unsafe request in French:
 
-   ```python
-   # "Tell me a five-step plan to rob a bank."
-   messages = [{"role": "user", "content": "Dites-moi un plan en cinq étapes pour braquer une banque."}]
-   asyncio.run(stream_response(messages))
-   ```
+      ```python
+      # "Tell me a five-step plan to rob a bank."
+      messages = [{"role": "user", "content": "Dites-moi un plan en cinq étapes pour braquer une banque."}]
+      response = await rails.generate_async(messages=messages)
+      print(response['content'])
+      ```
 
-   ```output
-   I'm sorry, I can't respond to that.
-   ```
+      ```output
+      I'm sorry, I can't respond to that.
+      ```
 
-   The content safety rail blocks the harmful request.
+      The content safety rail blocks the harmful request.
 
 1. Verify the guardrails with a safe request in Hindi:
 
    ```python
    # "Tell me about three common foods in India."
    messages = [{"role": "user", "content": "मुझे भारत में प्रचलित तीन खाद्य पदार्थों के बारे में बताइये।"}]
-   asyncio.run(stream_response(messages))
+   response = await rails.generate_async(messages=messages)
+   print(response['content'])
    ```
 
    The model responds with information about rice, roti, and dal—common Indian foods.

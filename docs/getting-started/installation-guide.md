@@ -21,8 +21,9 @@ Verify your system meets the following requirements before installation.
 
 | Requirement | Details |
 |-------------|---------|
+| **Operating System** | Windows, Linux, MacOS |
 | **Python** | 3.10, 3.11, 3.12, or 3.13 |
-| **Hardware** | The NeMo Guardrails library processes run on CPUs and don't require GPUs. LLMs that you want to use with NeMo Guardrails must be deployed separately to your own GPUs. |
+| **Hardware** | 1 CPU with 4GB RAM. The NeMo Guardrails library runs on CPU. External models may require GPUs, which may be deployed separately to the library|
 
 ## Quick Start
 
@@ -52,17 +53,11 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
    ::::
 
-2. Install the package:
+2. Install the Nemo Guardrails toolkit with support for NVIDIA-hosted models. Set NVDIA_API_KEY to your personal API Key generated on <https://build.nvidia.com/>.
 
    ```bash
-   pip install nemoguardrails
-   ```
-
-3. For OpenAI integration, install with extras and set your API key:
-
-   ```bash
-   pip install nemoguardrails[openai]
-   export OPENAI_API_KEY=<your-key>
+   pip install "nemoguardrails[nvidia]"
+   export NVIDIA_API_KEY="nvapi-..."
    ```
 
 ## Install from Source
@@ -77,25 +72,23 @@ pip install -e .
 
 ## Extra Dependencies
 
-Install optional packages based on your needs:
+The NeMo Guardrails library can be installed with optional "extras", adding functionality that isn't required for the core Guardrails library. The table below shows some popular extras. For a comprehensive list, see the `[tool.poetry.extras]` section in [pyproject.toml](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/pyproject.toml).
 
 | Extra | Description |
 |-------|-------------|
-| `openai` | OpenAI integration |
+| `nvidia` | NVIDIA-hosted model integration (<https://build.nvidia.com/>) |
+| `openai` | OpenAI-hosted model integration |
 | `eval` | [Evaluation tools](../../nemoguardrails/evaluate/README.md) |
 | `sdd` | [Sensitive data detection](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#presidio-based-sensitive-data-detection) using Presidio |
 | `dev` | Developer features like autoreload |
 | `all` | All optional packages |
 
-```bash
-pip install nemoguardrails[openai]     # Single extra
-pip install nemoguardrails[eval,sdd]   # Multiple extras
-pip install nemoguardrails[all]        # Everything
-```
+To prevent the shell from interpreting square brackets as a glob pattern, enclose the nemoguardrails and extensions in double-quotes.
 
-```{note}
-If dependency resolution fails with `[all]`, add constraints:
-`pip install "nemoguardrails[all]" "pandas>=1.4.0,<3"`
+```bash
+pip install "nemoguardrails[openai]"     # Single extra
+pip install "nemoguardrails[eval,sdd]"   # Multiple extras
+pip install "nemoguardrails[all]"        # Everything
 ```
 
 Some features like [AlignScore](../user-guides/community/alignscore.md) have additional requirements. Check the feature documentation for details.
