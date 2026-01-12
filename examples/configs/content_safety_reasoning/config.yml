@@ -7,9 +7,9 @@ models:
   # Content Safety Model served via vLLM (OpenAI-compatible API)
   - type: content_safety_reasoning
     engine: openai
+    model: nvidia/Nemotron-Content-Safety-Reasoning-4B
     parameters:
       openai_api_base: http://localhost:8001/v1
-      model_name: nvidia/Nemotron-Content-Safety-Reasoning-4B
       temperature: 0.6
       top_p: 0.95
 

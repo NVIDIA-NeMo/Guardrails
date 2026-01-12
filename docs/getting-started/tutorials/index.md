@@ -25,11 +25,11 @@ This section contains tutorials that help you get started with the NeMo Guardrai
 Check text inputs and outputs for harmful content using Nemotron Content Safety NIM.
 :::
 
-:::{grid-item-card} Content Safety Reasoning
+:::{grid-item-card} Enforce Custom Safety and Dialogue Policies
 :link: nemotron-content-safety-reasoning-deployment
 :link-type: doc
 
-Deploy Nemotron-Content-Safety-Reasoning-4B for customizable content safety with reasoning traces.
+Enforce customizable content safety and dialogue policies for your use-case by using our reasoning guard model Nemotron-Content-Safety-Reasoning-4B.
 :::
 
 :::{grid-item-card} Restrict Topics

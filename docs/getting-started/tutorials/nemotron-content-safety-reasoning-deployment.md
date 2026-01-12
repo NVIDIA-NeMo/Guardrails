@@ -93,9 +93,9 @@ models:
   # Content Safety Model served via vLLM (OpenAI-compatible API)
   - type: content_safety_reasoning
     engine: openai
+    model: nvidia/Nemotron-Content-Safety-Reasoning-4B
     parameters:
       openai_api_base: http://localhost:8001/v1
-      model_name: nvidia/Nemotron-Content-Safety-Reasoning-4B
       temperature: 0.6
       top_p: 0.95
 
@@ -253,7 +253,7 @@ When reasoning mode is disabled, the model generates a safety prediction directl
 
 ```text
 Prompt harm: unharmful
-Response harm: None
+Response harm: unharmful
 ```
 
 ### Test with an Unsafe Request
@@ -304,7 +304,7 @@ rails:
 
 **Reasoning On (`/think`)**: Provides explicit reasoning traces for decisions. Better for complex or novel custom policies. Higher latency. See [example](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-1-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-on-mode).
 
-**Reasoning Off (`/no_think`)**: Fast classification without reasoning. Suitable for standard safety checks. Lower latency. See [example](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-2-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-off-mode).
+**Reasoning Off (`/no_think`)**: Fast classification without reasoning. Suitable for standard content safety policies. Lower latency. See [example](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#example-2-vanilla-safety-with-nemotron-content-safety-dataset-v2-taxonomy-reasoning-off-mode).
 
 ## Custom Safety Policies
 
