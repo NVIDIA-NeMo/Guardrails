@@ -11,62 +11,52 @@ content:
   audience: ["Developer", "AI Engineer"]
 ---
 
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 # Restrict Topics with Llama 3.1 NemoGuard 8B TopicControl NIM
 
 Learn how to restrict conversations to allowed topics using [Llama 3.1 NemoGuard 8B TopicControl NIM](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/index.html).
 
-By following this tutorial, you learn how to:
-
-1. Deploy the Llama 3.1 NemoGuard 8B TopicControl NIM microservice to your local machine.
-2. Configure topic control rails on a main LLM.
-3. Restrict conversations to specific allowed topics.
+By following this tutorial, you'll configure a set of topics which are allowed, and interact with both on and off-topic requests.
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
-- A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
-  For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
-- Docker [installed](https://docs.docker.com/engine/install/).
-- NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
-- GPUs meeting the memory requirement specified in the [NVIDIA Llama 3.1 NemoGuard 8B TopicControl NIM Model Profiles](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/support-matrix.html#nvidia-llama-3-1-nemoguard-8b-topicguard-model-profiles).
-
-## Deploy the Llama 3.1 NemoGuard 8B TopicControl NIM Microservice
-
-Follow the [getting started guide on deploying the Llama 3.1 NemoGuard 8B TopicControl NIM microservice](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/getting-started.html).
+- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md) with the `nvidia` extra.
+- A personal NVIDIA API key generated on <https://build.nvidia.com/>.
 
 ## Configure Guardrails
 
-1. Create a `config/config.yaml` file and add the following content. This sets up the following:
+1. Create a configuration directory:
 
-   - OpenAI's `gpt-3.5-turbo-instruct` as the main LLM model
-   - `llama-3.1-nemoguard-8b-topic-control` as the topic control model
+   ```console
+   mkdir config
+   ```
 
-   ```{code-block} yaml
-   :emphasize-lines: 9-10
+1. Create a `config/config.yaml` file and add the following content.
 
+   ```yaml
    models:
      - type: main
-       engine: openai
-       model: gpt-3.5-turbo-instruct
-
-     - type: "topic_control"
        engine: nim
-       parameters:
-         base_url: "http://localhost:8123/v1"
-         model_name: "llama-3.1-nemoguard-8b-topic-control"
+       model: meta/llama-3.3-70b-instruct
+
+     - type: topic_control
+       engine: nim
+       model: nvidia/llama-3.1-nemoguard-8b-topic-control
 
    rails:
      input:
        flows:
          - topic safety check input $model=topic_control
    ```
+   The `config.yml` file contains the models used by Guardrails in the `models` section, and `rails` controlling when to use these models.
+   The `models` section configures the type and name of each model, along with the engine used to perform LLM inference. The model with type `main` is used to generate responses to user queries.
+   The `rails` section configures `input` and `output` rails. Topic-control only operates on user input, so there is no output rail flow.
+   For more information on guardrail configurations see [Configure Rails](../../configure-rails/overview.md)
 
-   The following table explains the configuration parameters for the topic control model highlighted in the code above.
-
-   | Parameter | Requirement |
-   |-----------|-------------|
-   | `base_url` | Must match the NIM host and port (8123 in this example) |
-   | `model_name` | Must match `$MODEL_NAME` from the docker run command |
 
 1. Create a `config/prompts.yml` file with the topic control prompt template:
 
@@ -87,82 +77,104 @@ Follow the [getting started guide on deploying the Llama 3.1 NemoGuard 8B TopicC
           - allow user comments that are related to small talk and chit-chat.
     ```
 
-    Customize the guidelines to match your specific use case and allowed topics.
+    You can customize the guidelines to match your specific use case and allowed topics. These guidelines are passed to the Topic-Control model in the system prompt.
+    The User request is placed in the User prompt.
+    The Topic-Control model responds with either `on-topic` or `off-topic` depending on whether the user input matches one of the topics in the prompt.
 
-## Verify the Guardrails
+## Run the Guardrails chat application using the Topic-Control configuration
 
-1. Set your OpenAI API key for the main LLM:
+1. Set the NVIDIA_API_KEY environment variable. Guardrails uses this to access models hosted on <https://build.nvidia.com/>.
 
-   ```console
-   export OPENAI_API_KEY=<your-openai-api-key>
-   ```
+     ```console
+     $ export NVIDIA_API_KEY="..."
+     ```
+1. Run the interactive chat application.
 
-1. Load the guardrails configuration:
+     ```console
+       $ nemoguardrails chat --config config
+     ```
 
-   ```python
-   import asyncio
-   from nemoguardrails import LLMRails, RailsConfig
+     ```terminaloutput
+       Starting the chat (Press Ctrl + C twice to quit) ...
 
-   config = RailsConfig.from_path("./config")
-   rails = LLMRails(config)
+       > _
+     ```
 
-   async def generate_response(messages):
-       response = await rails.generate_async(messages=messages)
-       return response
-   ```
+1. Enter an off-topic request
 
-1. Verify the guardrails with an off-topic request:
+    The prompt specifically instructs the model not to respond to questions on politics.
+    The topic-control input rail detects a policy violation, and responds with the `I'm sorry, I can't respond to that.` refusal text.
+    Because this input rail blocked the user's input, an LLM response is not generated.
 
-   ```python
-   messages = [{"role": "user", "content": "What is the best political party to vote for?"}]
-   response = asyncio.run(generate_response(messages))
-   print(response["content"])
-   ```
+     ```console
+       > Which party should I vote for in the next election?
+       I'm sorry, I can't respond to that.
+     ```
 
-   ```output
-   I'm sorry, I can't respond to that.
-   ```
+1. Enter an on-topic request
 
-   The topic control rail blocks the off-topic request about politics.
+     This request is in-line with the topics in the prompt above, so the topic-control rail doesn't block the user input.
+     The user input is passed to the Application LLM for generation.
 
-1. Verify the guardrails with an allowed request:
+      ```console
+      > I'd like to cancel my subscription. Can I do this by phone or on the website?
+      I'd be happy to help you with canceling your subscription. You have a couple of options to do so, and I'll walk you
+      through them.
 
-   ```python
-   messages = [{"role": "user", "content": "What is your return policy?"}]
-   response = asyncio.run(generate_response(messages))
-   print(response["content"])
-   ```
+      [The NeMo Guardrails toolkit responds with instructions and information on subscription cancellations]
+      ```
 
-   The model responds normally with information about the return policy.
+## Import the NeMo Guardrails toolkit in Python and check Topic-Control programmatically
 
-## (Optional) Cache TensorRT-LLM Engines
+Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable/interactive/tutorial.html) REPL to import the NeMo Guardrails toolkit and issue some requests.
 
-Cache the optimized TensorRT-LLM engines to avoid rebuilding them on each container start.
+1. Install the IPython REPL and run it to interpret Python code below:
 
-1. Create a cache directory.
+      ```console
+      $ pip install ipython
+      $ ipython
 
-   ```bash
-   export LOCAL_NIM_CACHE=<path-to-cache-directory>
-   mkdir -p $LOCAL_NIM_CACHE
-   sudo chmod 666 $LOCAL_NIM_CACHE
-   ```
+      In [1]:
+      ```
 
-1. Run the container with the cache mounted.
+1. Load the guardrails configuration created above.
 
-   ```bash
-   docker run -it --name=$MODEL_NAME \
-       --gpus=all --runtime=nvidia \
-       -e NGC_API_KEY="$NGC_API_KEY" \
-       -e NIM_SERVED_MODEL_NAME=$MODEL_NAME \
-       -e NIM_CUSTOM_MODEL_NAME=$MODEL_NAME \
-       -v $LOCAL_NIM_CACHE:/opt/nim/.cache/ \
-       -u $(id -u) \
-       -p 8123:8000 \
-       $NIM_IMAGE
-   ```
+      ```python
+      import asyncio
+      from nemoguardrails import LLMRails, RailsConfig
+
+      config = RailsConfig.from_path("./config")
+      rails = LLMRails(config)
+      ```
+
+1. Verify the guardrails with an off-topic political question
+
+      ```python
+      messages = [{"role": "user", "content": "Which party should I vote for in the next election?"}]
+      response = await rails.generate_async(messages=messages)
+      print(response['content'])
+      ```
+
+      The model blocks the Application LLM from generating a response.
+
+      ```output
+      "I'm sorry, I can't respond to that."
+      ```
+
+1. Verify the guardrails with an on-topic question
+
+      ```python
+      messages = [{"role": "user", "content": "I'd like to cancel my subscription. Can I do this by phone or on the website?"}]
+      response = await rails.generate_async(messages=messages)
+      print(response['content'])
+      ```
+
+      The model responds with advice on how to cancel a subscription by phone or website.
+
 
 ## Next Steps
 
 - [Nemotron Safety models overview](../../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#nvidia-models)
 - [Topic safety example configuration](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/topic_safety)
 - [Topic Control research paper (EMNLP 2024)](https://arxiv.org/abs/2404.03820)
+- [NeMo Guardrails Toolkit Configuration Guide](../../configure-rails/overview.md)
