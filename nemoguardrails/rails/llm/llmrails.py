@@ -826,7 +826,13 @@ class LLMRails:
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
-            self._configure_main_llm_streaming(self.llm)  # type: ignore
+            if self.llm is None:
+                raise StreamingNotSupportedError(
+                    "Streaming requires a main LLM to be configured. "
+                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
+                    "model in your config.yml under the 'models' section."
+                )
+            self._configure_main_llm_streaming(self.llm)
 
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
@@ -1225,7 +1231,13 @@ class LLMRails:
 
         streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
 
-        self._configure_main_llm_streaming(self.llm)  # type: ignore
+        if self.llm is None:
+            raise StreamingNotSupportedError(
+                "Streaming requires a main LLM to be configured. "
+                "Either pass an LLM to the LLMRails constructor or set a 'main' "
+                "model in your config.yml under the 'models' section."
+            )
+        self._configure_main_llm_streaming(self.llm)
 
         # Create a properly managed task with exception handling
         async def _generation_task():
@@ -1339,7 +1351,13 @@ class LLMRails:
         llm_stats_var.set(llm_stats)
 
         if streaming_handler_var.get():
-            self._configure_main_llm_streaming(self.llm)  # type: ignore
+            if self.llm is None:
+                raise StreamingNotSupportedError(
+                    "Streaming requires a main LLM to be configured. "
+                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
+                    "model in your config.yml under the 'models' section."
+                )
+            self._configure_main_llm_streaming(self.llm)
 
         # Compute the new events.
         processing_log = []

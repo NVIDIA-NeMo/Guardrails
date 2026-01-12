@@ -91,9 +91,13 @@ def output_rails_streaming_config_default():
 async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     """Tests if stream_async returns does not return StreamingHandler instance when streaming is enabled"""
 
-    llmrails = LLMRails(output_rails_streaming_config)
+    chat = TestChat(
+        output_rails_streaming_config,
+        llm_completions=["test response"],
+        streaming=True,
+    )
 
-    result = llmrails.stream_async(prompt="test")
+    result = chat.app.stream_async(prompt="test")
     assert not isinstance(result, StreamingHandler), (
         "Did not expect StreamingHandler instance when streaming is enabled"
     )
