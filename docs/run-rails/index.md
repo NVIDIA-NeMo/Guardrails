@@ -16,8 +16,8 @@ content:
 
 After you [configure your guardrails](../configure-rails/index.md), you can run guardrailed inference using the tools provided by the NeMo Guardrails library: the Python API and the FastAPI server.
 
-These tools enable you to interact with your LLM as usual—sending prompts and receiving responses—while the guardrails system monitors and controls all communication in the background.
-The guardrails intercept inputs and outputs, apply your configured rails, and ensure that interactions remain within the boundaries you defined.
+These tools enable you to interact with your application's main LLM as usual by sending prompts and receiving responses while the guardrails system monitors and controls all communication in the background.
+The guardrails intercept inputs and outputs between uses and the LLM and the execution of actions done by the LLM. The tools apply your configured guardrails and ensure that any inputs, generated responses, or actions remain within the boundaries you defined.
 
 ---
 
@@ -49,7 +49,7 @@ This approach is best for:
 
 ### FastAPI Server for Networked and Multi-Client Applications
 
-The FastAPI server provides a RESTful API interface to the guardrails library. Instead of calling Python functions directly, you make HTTP requests to the server endpoints—making integration straightforward for any language or platform.
+The FastAPI server provides a RESTful API interface to the guardrails library. Instead of calling Python functions directly, you make HTTP requests to the server endpoints, making integration straightforward for any language or platform.
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
@@ -60,9 +60,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 This approach is best for:
 
 - Networked systems where multiple clients need access to guardrails.
-- Non-Python clients (JavaScript, Go, Java, etc.) that communicate through HTTP.
-- Microservices architectures where guardrails runs as an independent service.
-- Centralized guardrails management—update configurations once, and all clients benefit.
+- Non-Python clients such as JavaScript, Go, and Java that communicate through HTTP.
 
 ---
 
