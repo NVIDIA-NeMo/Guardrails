@@ -19,21 +19,56 @@ After you [configure your guardrails](../configure-rails/index.md), you can run 
 These tools enable you to interact with your LLM as usual—sending prompts and receiving responses—while the guardrails system monitors and controls all communication in the background.
 The guardrails intercept inputs and outputs, apply your configured rails, and ensure that interactions remain within the boundaries you defined.
 
+---
+
 ## Choosing the Right Tool
 
-| Use Case | Recommended Tool | Benefits |
-|----------|------------------|----------|
-| Embedding guardrails directly in a Python application | Python API | No network overhead; guardrails run in the same process as your application. |
-| Rapid prototyping and development | Python API | Less setup; test configurations in a notebook or script without starting a server. |
-| Fine-grained control over generation | Python API | Access to `generate_events()`, custom streaming handlers, and internal state. |
-| Production deployments with multiple clients | FastAPI Server | Handles concurrent requests; can be load-balanced and horizontally scaled. |
-| Non-Python clients (JavaScript, Go, Java, etc.) | FastAPI Server | Language-agnostic REST API; no Python dependencies required for clients. |
-| Microservices architecture | FastAPI Server | Independent service with single responsibility; enables separate scaling. |
-| Centralized guardrails management | FastAPI Server | Update configurations once; all clients benefit without redeployment. |
+Both the Python API and FastAPI server are production-ready approaches for integrating guardrails into your application.
+
+### Python API for Edge and Embedded Applications
+
+Build guardrails directly into your Python application. You call guardrails functions in your code, and everything runs in the same process with no network overhead.
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("path/to/config")
+rails = LLMRails(config)
+
+response = rails.generate(messages=[
+    {"role": "user", "content": "Hello!"}
+])
+```
+
+This approach is best for:
+
+- Edge deployments where no networked backend is available.
+- Applications that require low latency and no external dependencies.
+- Rapid prototyping and development in notebooks or scripts.
+- Fine-grained control over generation and custom streaming handlers.
+
+### FastAPI Server for Networked and Multi-Client Applications
+
+The FastAPI server provides a RESTful API interface to the guardrails library. Instead of calling Python functions directly, you make HTTP requests to the server endpoints—making integration straightforward for any language or platform.
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"config_id": "my-bot", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+This approach is best for:
+
+- Networked systems where multiple clients need access to guardrails.
+- Non-Python clients (JavaScript, Go, Java, etc.) that communicate through HTTP.
+- Microservices architectures where guardrails runs as an independent service.
+- Centralized guardrails management—update configurations once, and all clients benefit.
+
+---
 
 ## Next Steps
 
-After you've chosen the right tool, proceed to one of the following guides to learn how to run guardrailed inference.
+After choosing the right tool for your implementation model, proceed to the corresponding guide from the following.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
