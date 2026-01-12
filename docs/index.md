@@ -78,11 +78,11 @@ Once you've completed the get-started tutorials, explore the following areas to 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Overview
-:link: configure-rails/overview
+:::{grid-item-card} About Configuring Guardrails
+:link: configure-rails/index
 :link-type: doc
 
-Learn to write config.yml, Colang flows, and custom actions for guardrails.
+Configure YAML files, Colang flows, custom actions, and other components to control LLM behavior.
 :::
 
 :::{grid-item-card} About Running Guardrailed Inference
