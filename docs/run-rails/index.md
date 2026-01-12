@@ -75,13 +75,13 @@ After choosing the right tool for your implementation model, proceed to the corr
 :link: using-python-apis/index
 :link-type: doc
 
-Use the Python API to run guardrailed inference.
+Run guardrailed inference using the NeMo Guardrails Python API.
 :::
 
 :::{grid-item-card} FastAPI Server
 :link: using-fastapi-server/index
 :link-type: doc
 
-Use the FastAPI server to run guardrailed inference.
+Expose guardrails through an HTTP API using the FastAPI server.
 :::
 ::::

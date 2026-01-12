@@ -23,21 +23,13 @@ The Guardrails server:
 
 ## Quick Start
 
-1. Install the NeMo Guardrails library:
-
-   ```bash
-   pip install nemoguardrails
-   ```
-
-   For more information, see [](../../getting-started/installation-guide.md).
-
-2. **Start the server:**
+1. Start the server using the nemoguardrails CLI:
 
    ```bash
    nemoguardrails server --config ./my-config
    ```
 
-3. **Send a request:**
+2. Send a request to the server:
 
    ```bash
    curl -X POST http://localhost:8000/v1/chat/completions \
@@ -48,7 +40,7 @@ The Guardrails server:
      }'
    ```
 
-4. **View the Chat UI:** Open `http://localhost:8000` in your browser.
+3. View the Chat UI by opening `http://localhost:8000` in your browser.
 
 ## Related Topics
 
