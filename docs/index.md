@@ -106,11 +106,11 @@ Measure accuracy and performance of dialog, fact-checking, moderation, and hallu
 Debug guardrails with verbose mode, explain method, and generation log options.
 :::
 
-:::{grid-item-card} Deploy
+:::{grid-item-card} Deployment Options
 :link: deployment/index
 :link-type: doc
 
-Deploy guardrails using the local server, Docker containers, or production microservices.
+Deploy guardrails using the local API server, Docker containers, or production microservices.
 :::
 
 :::{grid-item-card} LangChain Frameworks
@@ -192,12 +192,12 @@ Tracing <observability/tracing/index.md>
 ```
 
 ```{toctree}
-:caption: Deployment Guides
+:caption: More Deployment Options
 :hidden:
 
-Deploy <deployment/index>
+Deployment Options <deployment/index>
 Docker <deployment/using-docker>
-Microservice <deployment/using-microservice>
+NeMo Microservice <deployment/using-microservice>
 Blueprint Integration <integration/safeguarding-ai-virtual-assistant-blueprint>
 ```
 
