@@ -935,7 +935,7 @@ files = [
 name = "distro"
 version = "1.9.0"
 description = "Distro - an OS platform information API"
-optional = true
+optional = false
 python-versions = ">=3.6"
 files = [
     {file = "distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"},
@@ -1841,7 +1841,7 @@ i18n = ["Babel (>=2.7)"]
 name = "jiter"
 version = "0.10.0"
 description = "Fast iterable JSON parser."
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "jiter-0.10.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:cd2fb72b02478f06a900a5782de2ef47e0396b3e1f7d5aba30daeb1fce66f303"},
@@ -2053,23 +2053,24 @@ tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10"
 
 [[package]]
 name = "langchain-core"
-version = "0.3.75"
+version = "0.3.83"
 description = "Building applications with LLMs through composability"
 optional = false
-python-versions = ">=3.9"
+python-versions = "<4.0.0,>=3.9.0"
 files = [
-    {file = "langchain_core-0.3.75-py3-none-any.whl", hash = "sha256:03ca1fadf955ee3c7d5806a841f4b3a37b816acea5e61a7e6ba1298c05eea7f5"},
-    {file = "langchain_core-0.3.75.tar.gz", hash = "sha256:ab0eb95a06ed6043f76162e6086b45037690cb70b7f090bd83b5ebb8a05b70ed"},
+    {file = "langchain_core-0.3.83-py3-none-any.whl", hash = "sha256:8c92506f8b53fc1958b1c07447f58c5783eb8833dd3cb6dc75607c80891ab1ae"},
+    {file = "langchain_core-0.3.83.tar.gz", hash = "sha256:a0a4c7b6ea1c446d3b432116f405dc2afa1fe7891c44140d3d5acca221909415"},
 ]
 
 [package.dependencies]
-jsonpatch = ">=1.33,<2.0"
-langsmith = ">=0.3.45"
-packaging = ">=23.2"
-pydantic = ">=2.7.4"
-PyYAML = ">=5.3"
+jsonpatch = ">=1.33.0,<2.0.0"
+langsmith = ">=0.3.45,<1.0.0"
+packaging = ">=23.2.0,<26.0.0"
+pydantic = ">=2.7.4,<3.0.0"
+PyYAML = ">=5.3.0,<7.0.0"
 tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10.0.0"
-typing-extensions = ">=4.7"
+typing-extensions = ">=4.7.0,<5.0.0"
+uuid-utils = ">=0.12.0,<1.0"
 
 [[package]]
 name = "langchain-nvidia-ai-endpoints"
@@ -2089,19 +2090,19 @@ langchain-core = ">=0.3.51,<0.4"
 
 [[package]]
 name = "langchain-openai"
-version = "0.3.32"
+version = "0.3.35"
 description = "An integration package connecting OpenAI and LangChain"
 optional = true
-python-versions = ">=3.9"
+python-versions = "<4.0.0,>=3.9.0"
 files = [
-    {file = "langchain_openai-0.3.32-py3-none-any.whl", hash = "sha256:3354f76822f7cc76d8069831fe2a77f9bc7ff3b4f13af788bd94e4c6e853b400"},
-    {file = "langchain_openai-0.3.32.tar.gz", hash = "sha256:782ad669bd1bdb964456d8882c5178717adcfceecb482cc20005f770e43d346d"},
+    {file = "langchain_openai-0.3.35-py3-none-any.whl", hash = "sha256:76d5707e6e81fd461d33964ad618bd326cb661a1975cef7c1cb0703576bdada5"},
+    {file = "langchain_openai-0.3.35.tar.gz", hash = "sha256:fa985fd041c3809da256a040c98e8a43e91c6d165b96dcfeb770d8bd457bf76f"},
 ]
 
 [package.dependencies]
-langchain-core = ">=0.3.74,<1.0.0"
-openai = ">=1.99.9,<2.0.0"
-tiktoken = ">=0.7,<1"
+langchain-core = ">=0.3.78,<1.0.0"
+openai = ">=1.104.2,<3.0.0"
+tiktoken = ">=0.7.0,<1.0.0"
 
 [[package]]
 name = "langchain-text-splitters"
@@ -3038,27 +3039,27 @@ sympy = "*"
 
 [[package]]
 name = "openai"
-version = "1.102.0"
+version = "2.15.0"
 description = "The official Python library for the openai API"
-optional = true
-python-versions = ">=3.8"
+optional = false
+python-versions = ">=3.9"
 files = [
-    {file = "openai-1.102.0-py3-none-any.whl", hash = "sha256:d751a7e95e222b5325306362ad02a7aa96e1fab3ed05b5888ce1c7ca63451345"},
-    {file = "openai-1.102.0.tar.gz", hash = "sha256:2e0153bcd64a6523071e90211cbfca1f2bbc5ceedd0993ba932a5869f93b7fc9"},
+    {file = "openai-2.15.0-py3-none-any.whl", hash = "sha256:6ae23b932cd7230f7244e52954daa6602716d6b9bf235401a107af731baea6c3"},
+    {file = "openai-2.15.0.tar.gz", hash = "sha256:42eb8cbb407d84770633f31bf727d4ffb4138711c670565a41663d9439174fba"},
 ]
 
 [package.dependencies]
 anyio = ">=3.5.0,<5"
 distro = ">=1.7.0,<2"
 httpx = ">=0.23.0,<1"
-jiter = ">=0.4.0,<1"
+jiter = ">=0.10.0,<1"
 pydantic = ">=1.9.0,<3"
 sniffio = "*"
 tqdm = ">4"
 typing-extensions = ">=4.11,<5"
 
 [package.extras]
-aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.8)"]
+aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.9)"]
 datalib = ["numpy (>=1)", "pandas (>=1.2.3)", "pandas-stubs (>=1.1.0.11)"]
 realtime = ["websockets (>=13,<16)"]
 voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
@@ -5846,6 +5847,37 @@ socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "uuid-utils"
+version = "0.13.0"
+description = "Fast, drop-in replacement for Python's uuid module, powered by Rust."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "uuid_utils-0.13.0-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:83628283e977fb212e756bc055df8fdd2f9f589a2e539ba1abe755b8ce8df7a4"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:c47638ed6334ab19d80f73664f153b04bbb04ab8ce4298d10da6a292d4d21c47"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:b276b538c57733ed406948584912da422a604313c71479654848b84b9e19c9b0"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-manylinux_2_24_armv7l.whl", hash = "sha256:bdaf2b77e34b199cf04cde28399495fd1ed951de214a4ece1f3919b2f945bb06"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-manylinux_2_24_i686.whl", hash = "sha256:eb2f0baf81e82f9769a7684022dca8f3bf801ca1574a3e94df1876e9d6f9271e"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-manylinux_2_24_ppc64le.whl", hash = "sha256:6be6c4d11275f5cc402a4fdba6c2b1ce45fd3d99bb78716cd1cc2cbf6802b2ce"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-manylinux_2_24_x86_64.whl", hash = "sha256:77621cf6ceca7f42173a642a01c01c216f9eaec3b7b65d093d2d6a433ca0a83d"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:9a5a9eb06c2bb86dd876cd7b2fe927fc8543d14c90d971581db6ffda4a02526f"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:775347c6110fb71360df17aac74132d8d47c1dbe71233ac98197fc872a791fd2"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-musllinux_1_2_i686.whl", hash = "sha256:cf95f6370ad1a0910ee7b5ad5228fd19c4ae32fe3627389006adaf519408c41e"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:5a88e23e0b2f4203fefe2ccbca5736ee06fcad10e61b5e7e39c8d7904bc13300"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-win32.whl", hash = "sha256:3e4f2cc54e6a99c0551158100ead528479ad2596847478cbad624977064ffce3"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-win_amd64.whl", hash = "sha256:046cb2756e1597b3de22d24851b769913e192135830486a0a70bf41327f0360c"},
+    {file = "uuid_utils-0.13.0-cp39-abi3-win_arm64.whl", hash = "sha256:5447a680df6ef8a5a353976aaf4c97cc3a3a22b1ee13671c44227b921e3ae2a9"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:e5182e2d95f38e65f2e5bce90648ef56987443da13e145afcd747e584f9bc69c"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-macosx_10_12_x86_64.whl", hash = "sha256:e3909a8a1fbd79d7c8bdc874eeb83e23ccb7a7cb0aa821a49596cc96c0cce84b"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-manylinux_2_24_aarch64.whl", hash = "sha256:5dc4c9f749bd2511b8dcbf0891e658d7d86880022963db050722ad7b502b5e22"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-manylinux_2_24_armv7l.whl", hash = "sha256:516adf07f5b2cdb88d50f489c702b5f1a75ae8b2639bfd254f4192d5f7ee261f"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-manylinux_2_24_i686.whl", hash = "sha256:aeee3bd89e8de6184a3ab778ce19f5ce9ad32849d1be549516e0ddb257562d8d"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-manylinux_2_24_ppc64le.whl", hash = "sha256:97985256c2e59b7caa51f5c8515f64d777328562a9c900ec65e9d627baf72737"},
+    {file = "uuid_utils-0.13.0-pp311-pypy311_pp73-manylinux_2_24_x86_64.whl", hash = "sha256:b7ccaa20e24c5f60f41a69ef571ed820737f9b0ade4cbeef56aaa8f80f5aa475"},
+    {file = "uuid_utils-0.13.0.tar.gz", hash = "sha256:4c17df6427a9e23a4cd7fb9ee1efb53b8abb078660b9bdb2524ca8595022dfe1"},
+]
+
+[[package]]
 name = "uvicorn"
 version = "0.35.0"
 description = "The lightning-fast ASGI server."
@@ -6610,4 +6642,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "356ebfd1819da1ad7635a90a6b6b65143d2f3393d958c13c9bbd3c229c2e4b17"
+content-hash = "fe5ef26d22670ad9013f5a8391f8cee653dfe0967b8894e7b3a37d6cb8004457"

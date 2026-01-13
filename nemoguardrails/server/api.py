@@ -42,8 +42,6 @@ from nemoguardrails.server.schemas.openai import (
     GuardrailsChatCompletionRequest,
     GuardrailsModel,
     GuardrailsModelsResponse,
-    OpenAIRequestFields,
-    ResponseBody,
 )
 from nemoguardrails.server.schemas.utils import (
     create_error_chat_completion,
@@ -101,9 +99,9 @@ async def lifespan(app: GuardrailsApp):
 
     # If there is a `config.yml` in the root `app.rails_config_path`, then
     # that means we are in single config mode.
-    if os.path.exists(
-        os.path.join(app.rails_config_path, "config.yml")
-    ) or os.path.exists(os.path.join(app.rails_config_path, "config.yaml")):
+    if os.path.exists(os.path.join(app.rails_config_path, "config.yml")) or os.path.exists(
+        os.path.join(app.rails_config_path, "config.yaml")
+    ):
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
     else:
@@ -395,9 +393,7 @@ def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRa
     llm_rails_instances[configs_cache_key] = llm_rails
 
     # If we have a cache for the events, we restore it
-    llm_rails.events_history_cache = llm_rails_events_history_cache.get(
-        configs_cache_key, {}
-    )
+    llm_rails.events_history_cache = llm_rails_events_history_cache.get(configs_cache_key, {})
 
     return llm_rails
 
@@ -457,11 +453,7 @@ def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
         Union[Any, StreamingError]: StreamingError instance for errors or the original chunk.
     """
     # Convert chunk to string for JSON parsing if needed
-    chunk_str = (
-        chunk
-        if isinstance(chunk, str)
-        else json.dumps(chunk) if isinstance(chunk, dict) else str(chunk)
-    )
+    chunk_str = chunk if isinstance(chunk, str) else json.dumps(chunk) if isinstance(chunk, dict) else str(chunk)
 
     try:
         validated_data = ChunkError.model_validate_json(chunk_str)
@@ -494,9 +486,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
     """
     log.info("Got request for config %s", body.guardrails.config_id)
     for logger in registered_loggers:
-        asyncio.get_event_loop().create_task(
-            logger({"endpoint": "/v1/chat/completions", "body": body.json()})
-        )
+        asyncio.get_event_loop().create_task(logger({"endpoint": "/v1/chat/completions", "body": body.json()}))
 
     # Save the request headers in a context variable.
     api_request_headers.set(request.headers)
@@ -594,7 +584,9 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             )
         else:
             res = await llm_rails.generate_async(
-                messages=messages, options=generation_options, state=body.guardrails.state
+                messages=messages,
+                options=generation_options,
+                state=body.guardrails.state,
             )
 
             # Extract bot message for thread storage if needed
@@ -690,9 +682,7 @@ def start_auto_reload_monitoring():
                     return None
 
                 elif event.event_type == "created" or event.event_type == "modified":
-                    log.info(
-                        f"Watchdog received {event.event_type} event for file {event.src_path}"
-                    )
+                    log.info(f"Watchdog received {event.event_type} event for file {event.src_path}")
 
                     # Compute the relative path
                     src_path_str = str(event.src_path)
@@ -716,9 +706,7 @@ def start_auto_reload_monitoring():
                                 # We save the events history cache, to restore it on the new instance
                                 llm_rails_events_history_cache[config_id] = val
 
-                            log.info(
-                                f"Configuration {config_id} has changed. Clearing cache."
-                            )
+                            log.info(f"Configuration {config_id} has changed. Clearing cache.")
 
         observer = Observer()
         event_handler = Handler()
@@ -733,9 +721,7 @@ def start_auto_reload_monitoring():
 
     except ImportError:
         # Since this is running in a separate thread, we just print the error.
-        print(
-            "The auto-reload feature requires `watchdog`. Please install using `pip install watchdog`."
-        )
+        print("The auto-reload feature requires `watchdog`. Please install using `pip install watchdog`.")
         # Force close everything.
         os._exit(-1)
 
