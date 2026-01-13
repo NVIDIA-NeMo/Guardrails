@@ -381,24 +381,6 @@ class LLMRails:
 
         return kwargs
 
-    def _configure_main_llm_streaming(
-        self,
-        llm: Union[BaseLLM, BaseChatModel],
-        model_name: Optional[str] = None,
-        provider_name: Optional[str] = None,
-    ):
-        """Configure streaming support for the main LLM.
-
-        Args:
-            llm (Union[BaseLLM, BaseChatModel]): The main LLM model instance.
-            model_name (Optional[str], optional): Optional model name for logging.
-            provider_name (Optional[str], optional): Optional provider name for logging.
-
-        """
-
-        if hasattr(llm, "streaming"):
-            setattr(llm, "streaming", True)
-
     def _init_llms(self):
         """
         Initializes the right LLM engines based on the configuration.
@@ -826,13 +808,6 @@ class LLMRails:
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
-            if self.llm is None:
-                raise StreamingNotSupportedError(
-                    "Streaming requires a main LLM to be configured. "
-                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
-                    "model in your config.yml under the 'models' section."
-                )
-            self._configure_main_llm_streaming(self.llm)
 
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
@@ -1231,14 +1206,6 @@ class LLMRails:
 
         streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
 
-        if self.llm is None:
-            raise StreamingNotSupportedError(
-                "Streaming requires a main LLM to be configured. "
-                "Either pass an LLM to the LLMRails constructor or set a 'main' "
-                "model in your config.yml under the 'models' section."
-            )
-        self._configure_main_llm_streaming(self.llm)
-
         # Create a properly managed task with exception handling
         async def _generation_task():
             try:
@@ -1349,15 +1316,6 @@ class LLMRails:
         # Initialize the LLM stats
         llm_stats = LLMStats()
         llm_stats_var.set(llm_stats)
-
-        if streaming_handler_var.get():
-            if self.llm is None:
-                raise StreamingNotSupportedError(
-                    "Streaming requires a main LLM to be configured. "
-                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
-                    "model in your config.yml under the 'models' section."
-                )
-            self._configure_main_llm_streaming(self.llm)
 
         # Compute the new events.
         processing_log = []
