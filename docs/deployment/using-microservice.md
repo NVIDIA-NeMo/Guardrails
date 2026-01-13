@@ -23,8 +23,8 @@ The NeMo microservices platform provides a fully-featured guardrails microservic
 | REST API for guardrailed chat completions            | ✓                      | ✓                           |
 | Guardrails configuration management  | By managing the config folder structure                      | Through the platform's config API endpoints                           |
 | NeMo microservices platform integration               | No need                     | Required                           |
-| Production-grade reliability             | Limited (self-managed and no high availability support)                | Supported by the platform                           |
-| Support                       | Open source community                      | NVIDIA AI enterprise plan                           |
+| Production-grade reliability             | Limited (self-managed and no high availability support out of the box)                | Supported by the platform                           |
+| Support                       | Open source community                      | NVIDIA AI Enterprise plan                           |
 
 ## When to Use Each Option
 
@@ -34,6 +34,7 @@ Use the following guidelines to decide when to use each option.
 
 The [FastAPI server](../run-rails/using-fastapi-server/index.md) included in the NeMo Guardrails library is suitable for:
 
+- Direct integration of guardrails into your application.
 - Proof-of-concept deployments.
 - Development and testing environments.
 - Evaluating guardrails configurations before production.
@@ -48,7 +49,6 @@ For this option, refer to the following topics:
 The NeMo Guardrails microservice is recommended for:
 
 - Production deployments requiring enterprise-grade reliability.
-- Environments that need API-based configuration management.
 - Organizations already using or planning to adopt the NeMo microservices platform.
 
 :::{important}
