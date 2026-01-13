@@ -270,4 +270,4 @@ This library provides a guardrails server with an interface similar to publicly 
 
 ![Guardrails Server](guardrails-server.png)
 
-The server is designed with high concurrency in mind, hence the async implementation using FastAPI.
+The server is designed with high concurrency in mind, hence the async implementation using the Guardrails API.

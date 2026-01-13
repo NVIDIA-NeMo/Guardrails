@@ -30,9 +30,9 @@ The NeMo microservices platform provides a fully-featured guardrails microservic
 
 Use the following guidelines to decide when to use each option.
 
-### NeMo Guardrails Library FastAPI Server
+### NeMo Guardrails Library API Server
 
-The [FastAPI server](../run-rails/using-fastapi-server/index.md) included in the NeMo Guardrails library is suitable for:
+The [Guardrails API server](../run-rails/using-fastapi-server/index.md) included in the NeMo Guardrails library is suitable for:
 
 - Direct integration of guardrails into your application.
 - Proof-of-concept deployments.

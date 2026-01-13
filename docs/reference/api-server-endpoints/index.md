@@ -1,6 +1,6 @@
-# NeMo Guardrails Library FastAPI Server Endpoints Reference
+# NeMo Guardrails Library API Server Endpoints Reference
 
-This reference documents the REST API endpoints provided by the NeMo Guardrails library FastAPI server.
+This reference documents the REST API endpoints provided by the NeMo Guardrails library API server.
 
 ## Starting the Server
 

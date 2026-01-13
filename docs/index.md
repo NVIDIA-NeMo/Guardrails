@@ -89,7 +89,7 @@ Configure YAML files, Colang flows, custom actions, and other components to cont
 :link: run-rails/index
 :link-type: doc
 
-Run guardrailed inference using the Python API or FastAPI server.
+Run guardrailed inference using the Python API or Guardrails API server.
 :::
 
 :::{grid-item-card} Evaluate
@@ -170,7 +170,7 @@ Exceptions and Error Handling <configure-rails/exceptions.md>
 
 About Running Guardrailed Inference <run-rails/index.md>
 Python API <run-rails/using-python-apis/index.md>
-FastAPI Server <run-rails/using-fastapi-server/index.md>
+Guardrails API Server <run-rails/using-fastapi-server/index.md>
 ```
 
 ```{toctree}
@@ -220,7 +220,7 @@ Sequence Diagrams <reference/guardrails-sequence-diagrams.md>
 Use Case Diagrams <reference/use-case-diagrams.md>
 Python API <reference/python-api/index>
 CLI <reference/cli/index>
-FastAPI Server Endpoints <reference/api-server-endpoints/index>
+Guardrails API Server Endpoints <reference/api-server-endpoints/index>
 ```
 
 ```{toctree}

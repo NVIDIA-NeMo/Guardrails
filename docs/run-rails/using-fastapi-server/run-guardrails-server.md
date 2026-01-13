@@ -2,8 +2,8 @@
 title:
   page: "Run the Guardrails Server"
   nav: "Run the Server"
-description: "Start the FastAPI server, configure CORS, and enable auto-reload."
-keywords: ["NeMo Guardrails server", "nemoguardrails server", "FastAPI", "CORS configuration", "auto-reload"]
+description: "Start the Guardrails API server, configure CORS, and enable auto-reload."
+keywords: ["NeMo Guardrails server", "nemoguardrails server", "Guardrails API", "CORS configuration", "auto-reload"]
 topics: ["generative_ai", "developer_tools"]
 tags: ["llms", "ai_inference", "ai_platforms"]
 content:

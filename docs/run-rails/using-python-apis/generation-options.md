@@ -27,7 +27,7 @@ rails.generate(messages=messages, options={...})
 ```
 
 ```{note}
-Generation options are also available through the [FastAPI server](../using-fastapi-server/chat-with-guardrailed-model.md#control-generation-options).
+Generation options are also available through the [Guardrails API server](../using-fastapi-server/chat-with-guardrailed-model.md#control-generation-options).
 ```
 
 ## Disabling Rails

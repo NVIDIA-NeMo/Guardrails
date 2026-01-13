@@ -1,8 +1,8 @@
 ---
 title:
-  page: "Use the FastAPI Server"
-  nav: "FastAPI Server"
-description: "Expose guardrails through an HTTP API using the FastAPI server."
+  page: "Use the Guardrails API Server"
+  nav: "Guardrails API Server"
+description: "Expose guardrails through an HTTP API using the Guardrails API server."
 keywords: ["NeMo Guardrails server", "FastAPI", "REST API", "chat completions", "guardrails HTTP"]
 topics: ["generative_ai", "developer_tools"]
 tags: ["llms", "ai_inference", "ai_platforms"]
@@ -12,9 +12,9 @@ content:
   audience: ["data_scientist", "engineer"]
 ---
 
-# Use the FastAPI Server
+# Use the Guardrails API Server
 
-The NeMo Guardrails library includes a FastAPI server that exposes guardrails through an HTTP API.
+The NeMo Guardrails library includes the Guardrails API server that exposes guardrails through an HTTP API.
 This section covers how to run the server and interact with it.
 
 ::::{grid} 1 1 2 2
@@ -24,14 +24,14 @@ This section covers how to run the server and interact with it.
 :link: overview
 :link-type: doc
 
-The FastAPI server is a tool for running guardrails in a secure, isolated environment.
+The Guardrails API server is a tool for running guardrails in a secure, isolated environment.
 :::
 
 :::{grid-item-card} Run the Server
 :link: run-guardrails-server
 :link-type: doc
 
-Start the FastAPI server, configure CORS, and enable auto-reload.
+Start the Guardrails API server, configure CORS, and enable auto-reload.
 :::
 
 :::{grid-item-card} Chat Completions

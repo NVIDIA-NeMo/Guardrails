@@ -188,7 +188,7 @@ info.print_llm_calls_summary()
 For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options](generation-options.md#detailed-logging-information) and [Logging](../../observability/logging/index.md).
 
 ```{note}
-For streaming while using the FastAPI server, refer to [](../using-fastapi-server/chat-with-guardrailed-model.md#streaming-responses).
+For streaming while using the Guardrails API server, refer to [](../using-fastapi-server/chat-with-guardrailed-model.md#streaming-responses).
 ```
 
 ### Streaming for LLMs Deployed Using HuggingFacePipeline

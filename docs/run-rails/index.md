@@ -2,8 +2,8 @@
 title:
   page: "About Running Guardrailed Inference"
   nav: "About Running Guardrailed Inference"
-description: "Run guardrailed inference using the Python API or FastAPI server."
-keywords: ["NeMo Guardrails", "guardrailed inference", "LLMRails", "RailsConfig", "FastAPI server"]
+description: "Run guardrailed inference using the Python API or Guardrails API server."
+keywords: ["NeMo Guardrails", "guardrailed inference", "LLMRails", "RailsConfig", "Guardrails API server"]
 topics: ["generative_ai", "developer_tools"]
 tags: ["llms", "ai_inference", "ai_platforms"]
 content:
@@ -14,7 +14,7 @@ content:
 
 # About Running Guardrailed Inference Using the NeMo Guardrails Library Tools
 
-After you [configure your guardrails](../configure-rails/index.md), you can run guardrailed inference using the tools provided by the NeMo Guardrails library: the Python API and the FastAPI server.
+After you [configure your guardrails](../configure-rails/index.md), you can run guardrailed inference using the tools provided by the NeMo Guardrails library: the Python API and the Guardrails API server.
 
 These tools enable you to interact with your application's main LLM as usual by sending prompts and receiving responses while the guardrails system monitors and controls all communication in the background.
 The guardrails intercept inputs and outputs between uses and the LLM and the execution of actions done by the LLM. The tools apply your configured guardrails and ensure that any inputs, generated responses, or actions remain within the boundaries you defined.
@@ -23,7 +23,7 @@ The guardrails intercept inputs and outputs between uses and the LLM and the exe
 
 ## Choosing the Right Tool
 
-Both the Python API and FastAPI server are production-ready approaches for integrating guardrails into your application.
+Both the Python API and the Guardrails API server are production-ready approaches for integrating guardrails into your application.
 
 ### Python API for Edge and Embedded Applications
 
@@ -47,9 +47,9 @@ This approach is best for:
 - Rapid prototyping and development in notebooks or scripts.
 - Fine-grained control over generation and custom streaming handlers.
 
-### FastAPI Server for Networked and Multi-Client Applications
+### Guardrails API Server for Networked and Multi-Client Applications
 
-The FastAPI server provides a RESTful API interface to the guardrails library. Instead of calling Python functions directly, you make HTTP requests to the server endpoints, making integration straightforward for any language or platform.
+The Guardrails API server provides a RESTful API interface to the guardrails library. Instead of calling Python functions directly, you make HTTP requests to the server endpoints, making integration straightforward for any language or platform.
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
@@ -78,10 +78,10 @@ After choosing the right tool for your implementation model, proceed to the corr
 Run guardrailed inference using the NeMo Guardrails Python API.
 :::
 
-:::{grid-item-card} FastAPI Server
+:::{grid-item-card} Guardrails API Server
 :link: using-fastapi-server/index
 :link-type: doc
 
-Expose guardrails through an HTTP API using the FastAPI server.
+Expose guardrails through an HTTP API using the Guardrails API server.
 :::
 ::::
