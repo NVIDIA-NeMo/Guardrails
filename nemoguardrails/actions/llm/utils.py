@@ -339,8 +339,10 @@ def _store_reasoning_traces(response) -> None:
         # both extraction methods to support different provider implementations.
         reasoning_content = _extract_and_remove_think_tags(response)
 
-    if reasoning_content:
-        reasoning_trace_var.set(reasoning_content)
+    # Always set the variable, even if reasoning_content is None.
+    # This ensures each LLM call has a clean slate and prevents stale reasoning
+    # traces from previous LLM calls (e.g., safety checks) from leaking through.
+    reasoning_trace_var.set(reasoning_content)
 
 
 def _extract_reasoning_from_content_blocks(response) -> Optional[str]:
