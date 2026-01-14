@@ -196,7 +196,7 @@ Follow these steps to prepare the guardrails configuration.
       [The NeMo Guardrails toolkit responds with information about rice, roti, and dal—common Indian foods]
       ```
 
-## Import the NeMo Guardrails toolkit in Python
+## Import the NeMo Guardrails Library in Python
 
 Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable/interactive/tutorial.html) REPL to import the NeMo Guardrails library and issue some requests.
 
@@ -343,7 +343,7 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
          "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
          ```
 
-1. Follow the steps in the [Run the Guardrails chat application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails toolkit in Python](#import-the-nemo-guardrails-toolkit-in-python) tutorial to run Guardrails with the local model.
+1. Follow the steps in [Run the Guardrails Chat Application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails Library in Python](#import-the-nemo-guardrails-library-in-python) to run Guardrails with the local model.
 
 ## Next Steps
 

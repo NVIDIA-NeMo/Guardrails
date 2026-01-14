@@ -86,7 +86,7 @@ You will secure an application LLM and test block prompt injection and jailbreak
 
    The model recognizes a jailbreak attempt and blocks it from the Application LLM.
 
-   ```
+   ```text
    I'm sorry, I can't respond to that.
    ```
 
@@ -98,13 +98,13 @@ You will secure an application LLM and test block prompt injection and jailbreak
 
    The model returns the following response.
 
-   ```
+   ```text
    The capital of France is Paris, a beautiful and historic city known for its iconic landmarks like the Eiffel Tower, Notre-Dame Cathedral, and the Louvre Museum, which attracts millions of visitors each year.
    ```
 
-## Import the NeMo Guardrails toolkit in Python
+## Import the NeMo Guardrails Library in Python
 
-Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable/interactive/tutorial.html) REPL to import the NeMo Guardrails toolkit and issue some requests.
+Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable/interactive/tutorial.html) REPL to import the NeMo Guardrails library and issue some requests.
 
 1. Install the IPython REPL and run it to interpret the Python code below.
 
@@ -243,7 +243,7 @@ To run the NVIDIA NemoGuard JailbreakDetect NIM in a Docker container, follow th
          {"object":"health-response","message":"ready"}
          ```
 
-1. Follow the steps in the [Run the Guardrails chat application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails toolkit in Python](#import-the-nemo-guardrails-toolkit-in-python) tutorial to run Guardrails with the local model.
+1. Follow the steps in [Run the Guardrails Chat Application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails Library in Python](#import-the-nemo-guardrails-library-in-python) to run Guardrails with the local model.
 
 ## Next Steps
 

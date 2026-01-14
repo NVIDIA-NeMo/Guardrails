@@ -110,10 +110,10 @@ Some models such as Llama Vision require base64-encoded images instead of URLs.
 import base64
 import json
 
-from nemoguardrails import RailsConfig, LLMRails
+from nemoguardrails import LLMRails, RailsConfig
 
 config = RailsConfig.from_path("./content_safety_vision")
-rails = LLMRails(config)from nemoguardrails import RailsConfig, LLMRails
+rails = LLMRails(config)
 
 with open("<path-to-image>", "rb") as image_file:
   base64_image = base64.b64encode(image_file.read()).decode()

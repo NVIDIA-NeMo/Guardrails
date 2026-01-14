@@ -266,7 +266,7 @@ To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the
          {"object":"health-response","message":"ready"}
          ```
 
-1. Follow the steps in the [](#run-the-guardrails-chat-application) and [](#import-the-nemo-guardrails-library-in-python) tutorial to run Guardrails with the local model.
+1. Follow the steps in [Run the Guardrails Chat Application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails Library in Python](#import-the-nemo-guardrails-library-in-python) to run Guardrails with the local model.
 
 ## Next Steps
 
