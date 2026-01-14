@@ -12,7 +12,7 @@ content:
 ---
 
 <!--
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -31,6 +31,11 @@ The NeMo Guardrails library supports multimodal content safety for input and out
 :::{important}
 Ensure image size and prompt length do not exceed the model's maximum context length.
 :::
+
+## Prerequisites
+
+- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md) with the `openai` extra.
+- A personal NVIDIA API key generated on <https://build.nvidia.com/>.
 
 ## Configure Guardrails
 
@@ -55,6 +60,15 @@ This example sends image requests to OpenAI endpoints and tests safety checks on
    ```console
    export OPENAI_API_KEY=<your-openai-api-key>
    ```
+
+1. Install the IPython REPL and run it to interpret Python code below:
+
+      ```console
+      $ pip install ipython
+      $ ipython
+
+      In [1]:
+      ```
 
 1. Import libraries:
 
@@ -93,8 +107,6 @@ This example sends image requests to OpenAI endpoints and tests safety checks on
 Some models such as Llama Vision require base64-encoded images instead of URLs.
 
 ```{code-block} python
-:emphasize-lines: 11, 23
-
 import base64
 import json
 

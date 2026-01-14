@@ -39,7 +39,7 @@ image_reasoning_message = [{
   {
     "type": "image_url",
     "image_url": {
-      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/SIG_Pro_by_Augustas_Didzgalvis.jpg/320px-SIG_Pro_by_Augustas_Didzgalvis.jpg"
+      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/SIG_Pro_by_Augustas_Didzgalvis.jpg/330px-SIG_Pro_by_Augustas_Didzgalvis.jpg"
     },
   }],
 }]
@@ -59,7 +59,7 @@ potentially_unsafe_message = [{
   {
     "type": "image_url",
     "image_url": {
-      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/SIG_Pro_by_Augustas_Didzgalvis.jpg/320px-SIG_Pro_by_Augustas_Didzgalvis.jpg"
+      "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/SIG_Pro_by_Augustas_Didzgalvis.jpg/330px-SIG_Pro_by_Augustas_Didzgalvis.jpg"
     },
   }],
 }]

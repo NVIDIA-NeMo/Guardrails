@@ -81,7 +81,7 @@ By following this tutorial, you'll configure a set of topics which are allowed, 
     The User request is placed in the User prompt.
     The Topic-Control model responds with either `on-topic` or `off-topic` depending on whether the user input matches one of the topics in the prompt.
 
-## Run the Guardrails chat application using the Topic-Control configuration
+## Run the Guardrails chat application
 
 1. Set the NVIDIA_API_KEY environment variable. Guardrails uses this to access models hosted on <https://build.nvidia.com/>.
 
@@ -124,7 +124,7 @@ By following this tutorial, you'll configure a set of topics which are allowed, 
       [The NeMo Guardrails toolkit responds with instructions and information on subscription cancellations]
       ```
 
-## Import the NeMo Guardrails toolkit in Python and check Topic-Control programmatically
+## Import the NeMo Guardrails toolkit in Python
 
 Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable/interactive/tutorial.html) REPL to import the NeMo Guardrails toolkit and issue some requests.
 

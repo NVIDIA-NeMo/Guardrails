@@ -37,32 +37,32 @@ Follow these steps to prepare the guardrails configuration.
    mkdir config
    ```
 
-   1. Save the following as `config/config.yml`:
+1. Save the following as `config/config.yml`:
 
-      ```yaml
-      models:
-        - type: main
-          engine: nim
-          model: meta/llama-3.3-70b-instruct
+   ```yaml
+   models:
+     - type: main
+       engine: nim
+       model: meta/llama-3.3-70b-instruct
 
-        - type: content_safety
-          engine: nim
-          model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+     - type: content_safety
+       engine: nim
+       model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
 
-      rails:
-        input:
-          flows:
-            - content safety check input $model=content_safety
-        output:
-          flows:
-            - content safety check output $model=content_safety
-      ```
+   rails:
+     input:
+       flows:
+         - content safety check input $model=content_safety
+     output:
+       flows:
+         - content safety check output $model=content_safety
+   ```
 
-      The `config.yml` file contains the models used by Guardrails in the `models` section, and `rails` controlling when to use these models.
-      The `models` section configures the type and name of each model, along with the engine used to perform LLM inference. The model with type `main` is used to generate responses to user queries.
-      The `rails` section configures `input` and `output` rails.
-      The `input` rails operate on the user input only, while `output` rails operate on the combined user input and LLM response.
-      For more information on guardrail configurations see [Configure Rails](../../configure-rails/overview.md)
+   The `config.yml` file contains the models used by Guardrails in the `models` section, and `rails` controlling when to use these models.
+   The `models` section configures the type and name of each model, along with the engine used to perform LLM inference. The model with type `main` is used to generate responses to user queries.
+   The `rails` section configures `input` and `output` rails.
+   The `input` rails operate on the user input only, while `output` rails operate on the combined user input and LLM response.
+   For more information on guardrail configurations see [Configure Rails](../../configure-rails/overview.md)
 
 
 1. Save the following as `config/prompts.yml`:
@@ -165,7 +165,7 @@ Follow these steps to prepare the guardrails configuration.
    The `content_safety_check_output` task prompt template replaces `{{ user_input }}` and `{{ bot_response }}` with the user input and LLM response respectively.
    For more information on guardrail configurations see [Configure Rails](../../configure-rails/overview.md)
 
-## Run the Guardrails chat application using the Content-Safety configuration
+## Run the Guardrails chat application
 
 1. Set the NVIDIA_API_KEY environment variable. Guardrails uses this to access models hosted on <https://build.nvidia.com/>.
 
@@ -197,7 +197,7 @@ Follow these steps to prepare the guardrails configuration.
       [The NeMo Guardrails toolkit responds with information about rice, roti, and dal—common Indian foods]
       ```
 
-## Import the NeMo Guardrails toolkit in Python and check Content-Safety programmatically
+## Import the NeMo Guardrails toolkit in Python
 
 Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable/interactive/tutorial.html) REPL to import the NeMo Guardrails toolkit and issue some requests.
 
@@ -229,11 +229,12 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
       print(response['content'])
       ```
 
+      The content safety rail blocks the harmful request.
+
       ```output
       I'm sorry, I can't respond to that.
       ```
 
-      The content safety rail blocks the harmful request.
 
 1. Verify the guardrails with a safe request in Hindi:
 
