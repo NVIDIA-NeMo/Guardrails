@@ -152,6 +152,98 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
    The capital of France is Paris, a beautiful and historic city known for its iconic landmarks like the Eiffel Tower, Notre-Dame Cathedral, and the Louvre Museum, which attracts millions of visitors each year.   ```
    ```
 
+## Deploy the Llama 3.1 NemoGuard 8B TopicControl NIM Microservice locally
+
+This section shows how to run the NVIDIA NemoGuard JailbreakDetect NIM locally, while still using the build.nvidia.com hosted main model. The pre-requisites are:
+
+- NVIDIA NGC API key with the necessary permissions.
+- OpenAI API key for the main LLM. This tutorial uses OpenAI's `gpt-3.5-turbo-instruct` as the main LLM. To create one, go to the [API Keys](https://platform.openai.com/api-keys) page in the OpenAI platform console.
+- Docker installed.
+- The NeMo Guardrails library [installed](../installation-guide.md).
+- System requirements specified in the [NVIDIA NemoGuard JailbreakDetect NIM Support Matrix](https://docs.nvidia.com/nim/nemoguard-jailbreakdetect/latest/support-matrix.html).
+
+To run the NVIDIA NemoGuard JailbreakDetect NIM in a Docker container, follow the steps below.
+
+1. Update the config.yml created above to point to a local NIM deployment rather than build.nvidia.com. The configuration below adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails toolkit to make requests to the `nvidia/llama-3.1-nemotron-safety-guard-8b-v3` model hosted at `http://localhost:8123/v1`. The Guardrails configuration below has to match the NIM Docker container configuration for them to communicate.
+
+   ```yaml
+   models:
+     - type: main
+       engine: nim
+       model: meta/llama-3.3-70b-instruct
+
+   rails:
+     input:
+       flows:
+         - jailbreak detection model
+     config:
+       jailbreak_detection:
+         nim_base_url: "http://localhost:8123/v1/"
+         nim_server_endpoint: "/v1/security/nvidia/nemoguard-jailbreak-detect"
+         api_key_env_var: NVIDIA_API_KEY
+   ```
+
+1. Start the oGuard JailbreakDetect NIM Docker Container. You'll store your personal NGC API Key in the `NGC_API_KEY` environment variable, then pull and run the NIM Docker image locally.
+
+     1. Log in to NVIDIA_NGC so you can pull the container.
+
+        Export your Personal NGC API Key to an environment variable
+
+        ```console
+        $ export NGC_API_KEY="..."
+        ```
+
+        Log in to the NGC registry
+
+        ```console
+        $ docker login nvcr.io --username '$oauthtoken' --password-stdin <<< $NGC_API_KEY
+        ```
+
+     1. Download the container
+
+           ```console
+           $ docker pull nvcr.io/nim/nvidia/nemoguard-jailbreak-detect:1.10.1
+           ```
+
+     1. Create a model cache directory on the host machine
+
+         ```console
+         $ export LOCAL_NIM_CACHE=~/.cache/nemoguard-jailbreakdetect
+         $ mkdir -p "${LOCAL_NIM_CACHE}"
+         $ chmod 777 "${LOCAL_NIM_CACHE}"
+         ```
+
+     1. Run the container with the cache directory mounted.
+
+        The `-p` argument maps the Docker container's port 8000 to 8123 to avoid any clashes with other servers running locally.
+
+          ```console
+          $ docker run -d \
+            --name nemoguard-jailbreakdetect \
+            --gpus=all --runtime=nvidia \
+            --shm-size=64GB \
+            -e NGC_API_KEY \
+             -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
+             -p 8123:8000 \
+             nvcr.io/nim/nvidia/nemoguard-jailbreak-detect:1.10.1
+           ```
+
+         The container requires several minutes to start and download the model from NGC. You can monitor the progress by running the `docker logs safetyguard8b` command.
+
+     1. Confirm the service is ready to respond to inference requests.
+
+         ```console
+         $ curl -X GET http://localhost:8000/v1/health/ready
+         ```
+
+         Example Output
+
+         ```console
+         {"object":"health-response","message":"ready"}
+         ```
+
+1. Follow the steps in the [Run the Guardrails chat application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails toolkit in Python](#import-the-nemo-guardrails-toolkit-in-python) tutorial to run Guardrails with the local model.
+
 ## Next Steps
 
 - [NVIDIA NemoGuard JailbreakDetect NIM documentation](https://docs.nvidia.com/nim/nemoguard-jailbreakdetect/latest/index.html)

@@ -64,7 +64,6 @@ Follow these steps to prepare the guardrails configuration.
    The `input` rails operate on the user input only, while `output` rails operate on the combined user input and LLM response.
    For more information on guardrail configurations see [Configure Rails](../../configure-rails/overview.md)
 
-
 1. Save the following as `config/prompts.yml`:
 
    ```yaml
@@ -235,7 +234,6 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
       I'm sorry, I can't respond to that.
       ```
 
-
 1. Verify the guardrails with a safe request in Hindi:
 
    ```python
@@ -246,6 +244,106 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
    ```
 
    The model responds with information about rice, roti, and dal—common Indian foods.
+
+## Deploy Llama 3.1 Nemotron Safety Guard 8B V3 NIM locally
+
+This section shows how to run the Nemotron Safety Guard 8B model locally, while still using the build.nvidia.com hosted main model. The pre-requisites are:
+
+- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
+- A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
+  For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
+- Docker [installed](https://docs.docker.com/engine/install/).
+- NVIDIA Container Toolkit [installed](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+- The rest of the [software requirements for the Llama 3.1 Nemotron Safety Guard 8B V3 NIM](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#software).
+- GPUs meeting the memory requirement specified in the [NVIDIA Llama 3.1 Nemotron Safety Guard 8B NIM Model Profiles](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/support-matrix.html#about-model-profiles).
+
+To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow the steps below.
+
+1. Update the config.yml created above to point to a local NIM deployment rather than build.nvidia.com. The configuration below adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails toolkit to make requests to the `nvidia/llama-3.1-nemotron-safety-guard-8b-v3` model hosted at `http://localhost:8123/v1`. The Guardrails configuration below has to match the NIM Docker container configuration for them to communicate.
+
+   ```yaml
+    models:
+     - type: main
+       engine: nim
+       model: meta/llama-3.3-70b-instruct
+
+     - type: content_safety
+       engine: nim
+       model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+       parameters:
+         base_url: "http://localhost:8123/v1"
+         model_name: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+
+   rails:
+     input:
+       flows:
+         - content safety check input $model=content_safety
+     output:
+       flows:
+         - content safety check output $model=content_safety
+   ```
+
+1. Start the Llama 3.1 Nemotron Safety Guard 8B V3 NIM Docker Container. You'll store your personal NGC API Key in the `NGC_API_KEY` environment variable, then pull and run the NIM Docker image locally.
+
+     1. Log in to NVIDIA_NGC so you can pull the container.
+
+        Export your Personal NGC API Key to an environment variable
+
+        ```console
+        $ export NGC_API_KEY="..."
+        ```
+
+        Log in to the NGC registry
+
+        ```console
+        $ docker login nvcr.io --username '$oauthtoken' --password-stdin <<< $NGC_API_KEY
+        ```
+
+     1. Download the container
+
+           ```console
+           $ docker pull nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
+           ```
+
+     1. Create a model cache directory on the host machine
+
+         ```console
+         $ export LOCAL_NIM_CACHE=~/.cache/safetyguard8b
+         $ mkdir -p "${LOCAL_NIM_CACHE}"
+         $ chmod 700 "${LOCAL_NIM_CACHE}"
+         ```
+
+     1. Run the container with the cache directory mounted.
+
+        The `-p` argument maps the Docker container's port 8000 to 8123 to avoid any clashes with other servers running locally.
+
+          ```console
+          $ docker run -d \
+            --name safetyguard8b \
+            --gpus=all --runtime=nvidia \
+            --shm-size=64GB \
+            -e NGC_API_KEY \
+             -u $(id -u) \
+             -v "${LOCAL_NIM_CACHE}:/opt/nim/.cache/" \
+             -p 8123:8000 \
+             nvcr.io/nim/nvidia/llama-3.1-nemotron-safety-guard-8b-v3:1.14.0
+           ```
+
+         The container requires several minutes to start and download the model from NGC. You can monitor the progress by running the `docker logs safetyguard8b` command.
+
+     1. Confirm the service is ready to respond to inference requests.
+
+         ```console
+         curl -X GET http://localhost:8123/v1/models | jq '.data[].id'
+         ```
+
+         Example Output
+
+         ```console
+         "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+         ```
+
+1. Follow the steps in the [Run the Guardrails chat application](#run-the-guardrails-chat-application) and [Import the NeMo Guardrails toolkit in Python](#import-the-nemo-guardrails-toolkit-in-python) tutorial to run Guardrails with the local model.
 
 ## Next Steps
 
