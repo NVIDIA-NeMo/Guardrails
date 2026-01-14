@@ -24,7 +24,7 @@ You'll use the NeMo Guardrails library with models hosted on <https://build.nvid
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md) with the `nvidia` extra.
+- The NeMo Guardrails library [installed](../installation-guide.md) with the `nvidia` extra.
 - A personal NVIDIA API key generated on <https://build.nvidia.com/>.
 
 ## Configure Guardrails
@@ -249,7 +249,7 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
 
 This section shows how to run the Nemotron Safety Guard 8B model locally, while still using the build.nvidia.com hosted main model. The pre-requisites are:
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
+- The NeMo Guardrails library [installed](../installation-guide.md).
 - A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
   For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
 - Docker [installed](https://docs.docker.com/engine/install/).
@@ -334,7 +334,7 @@ To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow t
      1. Confirm the service is ready to respond to inference requests.
 
          ```console
-         curl -X GET http://localhost:8123/v1/models | jq '.data[].id'
+         $ curl -X GET http://localhost:8123/v1/models | jq '.data[].id'
          ```
 
          Example Output

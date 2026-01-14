@@ -24,7 +24,7 @@ By following this tutorial, you'll configure a set of topics which are allowed, 
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md) with the `nvidia` extra.
+- The NeMo Guardrails library [installed](../installation-guide.md) with the `nvidia` extra.
 - A personal NVIDIA API key generated on <https://build.nvidia.com/>.
 
 ## Configure Guardrails
@@ -35,7 +35,7 @@ By following this tutorial, you'll configure a set of topics which are allowed, 
    mkdir config
    ```
 
-1. Create a `config/config.yaml` file and add the following content.
+1. Create a `config/config.yml` file and add the following content.
 
    ```yaml
    models:
@@ -176,7 +176,7 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
 
 This section shows how to run the NemoGuard 8B TopicControl model locally, while still using the build.nvidia.com hosted main model. The pre-requisites are:
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md).
+- The NeMo Guardrails library [installed](../installation-guide.md).
 - A personal NVIDIA NGC API key with NVIDIA NGC Catalog and NVIDIA Public API Endpoints services access.
   For more information, refer to [NGC API Keys](https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#ngc-api-keys) in the NVIDIA GPU cloud documentation.
 - Docker [installed](https://docs.docker.com/engine/install/).
@@ -185,7 +185,7 @@ This section shows how to run the NemoGuard 8B TopicControl model locally, while
 
 To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the steps below.
 
-1. Update the config.yml created above to point to a local NIM deployment rather than build.nvidia.com. The configuration below adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails toolkit to make requests to the `nvidia/llama-3.1-nemotron-safety-guard-8b-v3` model hosted at `http://localhost:8123/v1`. The Guardrails configuration below has to match the NIM Docker container configuration for them to communicate.
+1. Update the config.yml created above to point to a local NIM deployment rather than build.nvidia.com. The configuration below adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails toolkit to make requests to the `nvidia/llama-3.1-nemoguard-8b-topic-control` model hosted at `http://localhost:8123/v1`. The Guardrails configuration below has to match the NIM Docker container configuration for them to communicate.
 
    ```yaml
     models:
@@ -203,10 +203,7 @@ To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the
    rails:
      input:
        flows:
-         - content safety check input $model=content_safety
-     output:
-       flows:
-         - content safety check output $model=content_safety
+         - topic safety check input $model=topic_control
    ```
 
 1. Start the Llama 3.1 Topic Control NIM Docker Container. You'll store your personal NGC API Key in the `NGC_API_KEY` environment variable, then pull and run the NIM Docker image locally.
@@ -260,7 +257,7 @@ To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the
      1. Confirm the service is ready to respond to inference requests.
 
          ```console
-         curl -X GET http://localhost:8000/v1/health/ready
+         $ curl -X GET http://localhost:8123/v1/health/ready
          ```
 
          Example Output

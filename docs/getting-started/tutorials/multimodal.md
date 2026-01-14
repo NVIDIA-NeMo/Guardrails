@@ -34,7 +34,7 @@ Ensure image size and prompt length do not exceed the model's maximum context le
 
 ## Prerequisites
 
-- The NeMo Guardrails library [installed](../../getting-started/installation-guide.md) with the `openai` extra.
+- The NeMo Guardrails library [installed](../installation-guide.md) with the `openai` extra.
 - A personal NVIDIA API key generated on <https://build.nvidia.com/>.
 
 ## Configure Guardrails
