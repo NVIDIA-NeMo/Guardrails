@@ -209,7 +209,7 @@ Follow these steps to use the [IPython](https://ipython.readthedocs.io/en/stable
       In [1]:
       ```
 
-2. Load the guardrails configuration you created earlier.
+1. Load the guardrails configuration you created earlier.
 
       ```python
       import asyncio
