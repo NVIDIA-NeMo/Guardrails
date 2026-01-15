@@ -28,9 +28,9 @@ The endpoint returns an array of configuration objects, each with an `id` field:
 
 ```json
 [
-  {"id": "my-bot"},
-  {"id": "customer-service"},
-  {"id": "content-moderation"}
+  {"id": "content_safety"},
+  {"id": "jailbreak_detection"},
+  {"id": "topic_safety"}
 ]
 ```
 
@@ -53,9 +53,9 @@ for config in configs:
 
 ```text
 Available configurations:
-  - input_checking
-  - output_checking
-  - main
+  - content_safety
+  - jailbreak_detection
+  - topic_safety
 ```
 
 ## Use a Configuration
@@ -86,12 +86,12 @@ The server discovers configurations based on how it was started:
 Each sub-folder becomes an available configuration with its folder name as the ID.
 
 ```text
-configs/
-├── my-bot/           → config_id: "my-bot"
+examples/configs/
+├── content_safety/        → config_id: "content_safety"
 │   └── config.yml
-├── customer-service/ → config_id: "customer-service"
+├── jailbreak_detection/   → config_id: "jailbreak_detection"
 │   └── config.yml
-└── moderation/       → config_id: "moderation"
+└── topic_safety/          → config_id: "topic_safety"
     └── config.yml
 ```
 
@@ -99,13 +99,13 @@ configs/
 The folder name becomes the configuration ID.
 
 ```bash
-nemoguardrails server --config ./my-single-bot
+nemoguardrails server --config examples/configs/content_safety
 ```
 
 The endpoint returns:
 
 ```json
-[{"id": "my-single-bot"}]
+[{"id": "content_safety"}]
 ```
 
 ## Related Topics

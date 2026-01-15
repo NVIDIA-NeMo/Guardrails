@@ -24,7 +24,7 @@ Send a POST request to the chat completions endpoint:
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [
       {"role": "user", "content": "Hello! What can you do for me?"}
     ]
@@ -52,7 +52,7 @@ import requests
 base_url = "http://localhost:8000"
 
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [
         {"role": "user", "content": "Hello! What can you do for me?"}
     ]
@@ -135,7 +135,7 @@ import requests
 response = requests.post(
     f"{base_url}/v1/chat/completions",
     json={
-        "config_id": "my-bot",
+        "config_id": "content_safety",
         "messages": [{"role": "user", "content": "Tell me a story"}],
         "stream": True
     },
@@ -155,14 +155,14 @@ This is useful when you can only send the latest message rather than the full hi
 ```python
 # First message
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "thread_id": "user-session-12345678",
     "messages": [{"role": "user", "content": "My name is Alice."}]
 })
 
 # Follow-up message (server remembers the conversation)
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "thread_id": "user-session-12345678",
     "messages": [{"role": "user", "content": "What is my name?"}]
 })
@@ -205,7 +205,7 @@ Include additional context data in your request:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [{"role": "user", "content": "What is my account balance?"}],
     "context": {
         "user_id": "12345",
@@ -220,7 +220,7 @@ Use the `options` field to control which rails are applied and what information 
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [{"role": "user", "content": "Hello"}],
     "options": {
         "rails": {

@@ -85,35 +85,43 @@ If the server is pointed to a folder with a single `config.yml` file, only that 
 
 ## Examples
 
+The following examples show how to start the server with different options.
+
 ### Start with Default Settings
+
+The following command starts the server with default settings.
 
 ```bash
 nemoguardrails server
 ```
 
-The server starts on port 8000 and loads configurations from the `./config` folder.
+The server starts on port 8000 and looks for a `./config` folder in the current directory. If not found, it uses the built-in example configurations.
 
-### Start with Custom Configuration Path
+### Start with Custom Port
+
+You can use the `--port` flag to start the server on a custom port.
 
 ```bash
-nemoguardrails server --config /path/to/my-configs --port 8080
+nemoguardrails server --config examples/configs --port 8080
 ```
 
 ### Start with a Default Configuration
 
+Use the following command to start the server with a default configuration within a multi-config folder. For example, when you use the [provided example configurations (`examples/configs`)](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs), you can set the default configuration to `content_safety` as follows.
+
 ```bash
-nemoguardrails server --config ./configs --default-config-id my-bot
+nemoguardrails server --config examples/configs --default-config-id content_safety
 ```
 
-Requests without a `config_id` use the `my-bot` configuration.
+Chat completions requests without a `config_id` use the `content_safety` configuration by default.
 
 ### Start in Development Mode
+
+You can add the `--auto-reload` flag to the server to automatically reload when configuration files change.
 
 ```bash
 nemoguardrails server --config ./configs --auto-reload
 ```
-
-The server automatically reloads when configuration files change.
 
 ```{important}
 Use `--auto-reload` only in development environments. It is not recommended for production.
@@ -144,13 +152,6 @@ export NEMO_GUARDRAILS_SERVER_ENABLE_CORS=true
 export NEMO_GUARDRAILS_SERVER_ALLOWED_ORIGINS=http://localhost:3000,https://myapp.com
 nemoguardrails server --config ./configs
 ```
-
-## View API Documentation
-
-After starting the server, view the OpenAPI documentation at:
-
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
 
 ## Chat UI
 

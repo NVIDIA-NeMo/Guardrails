@@ -54,7 +54,7 @@ The Guardrails API server provides a RESTful API interface to the guardrails lib
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"config_id": "my-bot", "messages": [{"role": "user", "content": "Hello!"}]}'
+  -d '{"config_id": "content_safety", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
 This approach is best for:

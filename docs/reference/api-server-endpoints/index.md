@@ -258,7 +258,7 @@ The `options` field controls which rails are applied and what information is ret
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [
       {"role": "user", "content": "What is the capital of France?"}
     ]
@@ -271,7 +271,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [
       {"role": "user", "content": "Tell me a story"}
     ],
@@ -285,7 +285,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [
       {"role": "user", "content": "Hello"}
     ],
@@ -305,7 +305,7 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "my-bot",
+    "config_id": "content_safety",
     "messages": [
       {"role": "user", "content": "Hello"}
     ],
@@ -328,7 +328,7 @@ Returns an array of configuration objects.
 
 ```json
 [
-  {"id": "my-bot"},
+  {"id": "content_safety"},
   {"id": "customer-service"},
   {"id": "content-moderation"}
 ]

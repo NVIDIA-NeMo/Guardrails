@@ -257,53 +257,51 @@ curl http://localhost:8001/v1/actions/list
 
 This example demonstrates running both servers together.
 
-### 1. Start the Actions Server
+1. Start the Actions Server.
 
-```bash
-nemoguardrails actions-server --port 8001
-```
+    ```bash
+    nemoguardrails actions-server --port 8001
+    ```
 
-### 2. Configure Guardrails
+2. Configure a guardrails configuration to use the actions server.
 
-Create a configuration that uses the actions server:
+    ```yaml
+    # config/my-bot/config.yml
+    actions_server_url: "http://localhost:8001"
 
-```yaml
-# config/my-bot/config.yml
-actions_server_url: "http://localhost:8001"
+    models:
+      - type: main
+        engine: openai
+        model: gpt-4
 
-models:
-  - type: main
-    engine: openai
-    model: gpt-4
+    rails:
+      input:
+        flows:
+          - self check input
+    ```
 
-rails:
-  input:
-    flows:
-      - self check input
-```
+3. Start the guardrails server.
 
-### 3. Start the Guardrails Server
+    ```bash
+    nemoguardrails server --config ./config --port 8000
+    ```
 
-```bash
-nemoguardrails server --config ./config --port 8000
-```
+4. Test the servers.
 
-### 4. Test the Setup
+    ```python
+    import requests
 
-```python
-import requests
+    # Verify actions are available
+    actions = requests.get("http://localhost:8001/v1/actions/list").json()
+    print(f"Available actions: {len(actions)}")
 
-# Verify actions are available
-actions = requests.get("http://localhost:8001/v1/actions/list").json()
-print(f"Available actions: {len(actions)}")
-
-# Chat with the guardrailed model
-response = requests.post("http://localhost:8000/v1/chat/completions", json={
-    "config_id": "my-bot",
-    "messages": [{"role": "user", "content": "What's the weather in New York?"}]
-})
-print(response.json())
-```
+    # Chat with the guardrailed model
+    response = requests.post("http://localhost:8000/v1/chat/completions", json={
+        "config_id": "my-bot",
+        "messages": [{"role": "user", "content": "What's the weather in New York?"}]
+    })
+    print(response.json())
+    ```
 
 ---
 

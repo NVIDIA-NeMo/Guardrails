@@ -23,24 +23,87 @@ The Guardrails server:
 
 ## Quick Start
 
-1. Start the server using the nemoguardrails CLI:
+The following steps show how to start the guardrails server and use it to generate a response.
 
-   ```bash
-   nemoguardrails server --config ./my-config
-   ```
+### Prerequisites
 
-2. Send a request to the server:
+Install the NeMo Guardrails library using one of the following methods.
 
-   ```bash
-   curl -X POST http://localhost:8000/v1/chat/completions \
-     -H "Content-Type: application/json" \
-     -d '{
-       "config_id": "my-config",
-       "messages": [{"role": "user", "content": "Hello!"}]
-     }'
-   ```
+:::::{tab-set}
 
-3. View the Chat UI by opening `http://localhost:8000` in your browser.
+::::{tab-item} pip (recommended)
+Create a virtual environment, activate it, and install the library:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install nemoguardrails[nvidia]
+```
+
+::::
+
+::::{tab-item} Poetry (development)
+Clone the repository and install with Poetry:
+
+```bash
+git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+cd NeMo-Guardrails
+python -m venv .venv
+source .venv/bin/activate
+poetry install --extras "nvidia"
+```
+
+Prefix all commands with `poetry run` when using the nemoguardrails CLI:
+
+```bash
+poetry run nemoguardrails server --config examples/configs
+```
+
+::::
+
+:::::
+
+### Start the Server
+
+Point the server to a parent directory containing multiple configuration subdirectories:
+
+```console
+$ cd NeMo-Guardrails
+$ nemoguardrails server --config examples/configs
+```
+
+List available configurations:
+
+```console
+$ curl http://localhost:8000/v1/rails/configs
+
+[
+  {"id": "content_safety"},
+  {"id": "jailbreak_detection"},
+  {"id": "topic_safety"},
+  {"id": "llama_guard"},
+  ...
+]
+```
+
+Each subdirectory with a `config.yml` or `config.yaml` file becomes an available config ID.
+
+### Send a Request
+
+Send a chat completion request to the server:
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config_id": "content_safety",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+### View the Chat UI
+
+Open `http://localhost:8000` in your browser to access the built-in Chat UI for testing.
 
 ## Related Topics
 
