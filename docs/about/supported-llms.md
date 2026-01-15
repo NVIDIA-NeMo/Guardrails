@@ -41,14 +41,21 @@ The NeMo Guardrails library supports the following self-hosted LLM providers:
 - vLLM
 - Generic
 
-### Providers from LangChain Community
+### Providers from LangChain
 
-The NeMo Guardrails library supports any LLM provider from the LangChain Community. Refer to [All integration providers](https://docs.langchain.com/oss/python/integrations/providers/all_providers) in the LangChain documentation.
+The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to [Chat model integrations](https://docs.langchain.com/oss/python/integrations/chat) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](../cli/index.md#find-providers-command) CLI command to discover available providers.
 
 ## Embedding Providers
 
 The NeMo Guardrails library supports the following embedding providers:
 
 - NVIDIA NIM
+- NVIDIA AI Endpoints
 - FastEmbed
 - OpenAI
+- Azure OpenAI
+- Cohere
+- SentenceTransformers
+- Google
+
+For more information on configuring embedding providers, refer to [Embedding Search Providers](../configure-rails/other-configurations/embedding-search-providers.md).
