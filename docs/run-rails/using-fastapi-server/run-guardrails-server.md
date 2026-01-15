@@ -12,76 +12,88 @@ content:
   audience: ["data_scientist", "engineer"]
 ---
 
-# Run the Guardrails Server
+# Run the NeMo Guardrails Server
 
-The Guardrails server loads a predefined set of guardrails configurations at startup and exposes an HTTP API to use them.
+The NeMo Guardrails server loads a predefined set of guardrails configurations at startup and exposes an HTTP API to use them.
 The server uses [FastAPI](https://fastapi.tiangolo.com/) and includes a built-in Chat UI for testing.
 
 ## Start the Server
 
-Launch the server using the CLI:
+Launch the server using the `nemoguardrails` CLI:
 
 ```bash
-nemoguardrails server \
-  [--config PATH/TO/CONFIGS] \
-  [--port PORT] \
-  [--prefix PREFIX] \
-  [--disable-chat-ui] \
-  [--auto-reload] \
-  [--default-config-id DEFAULT_CONFIG_ID]
+nemoguardrails server --config examples/configs
 ```
 
-### Command Options
+For more information about the available options, see the [server command in the CLI Reference](../../reference/cli/index.md#server).
 
-```{list-table}
-:header-rows: 1
-:widths: 25 75
+## Link Guardrail Configurations to the Server
 
-* - Option
-  - Description
+The server supports two modes depending on your folder structure: **multi-config mode** and **single-config mode**.
 
-* - `--config`
-  - Path to the folder containing guardrails configurations.
-    If not specified, the server looks for a `config` folder in the current directory.
+### Multi-Config Mode
 
-* - `--port`
-  - Port number for the server. Default: `8000`.
-
-* - `--prefix`
-  - URL prefix for all server endpoints.
-    For example, `--prefix /api` makes endpoints available at `/api/v1/chat/completions`.
-
-* - `--disable-chat-ui`
-  - Disable the built-in Chat UI. Recommended for production deployments.
-
-* - `--auto-reload`
-  - Automatically reload configurations when files change.
-    Use only in development environments.
-
-* - `--default-config-id`
-  - Default configuration ID to use when none is specified in the request.
-```
-
-## Configuration Folder Structure
-
-The server can load multiple guardrails configurations.
-The configuration path must be a folder with sub-folders for each individual configuration:
+When the `--config` path points to a folder containing multiple sub-folders, each sub-folder with a `config.yml` file becomes an available configuration.
+The sub-folder name becomes the `config_id`.
 
 ```text
-.
-├── config
-│   ├── config_1
-│   │   ├── file_1.co
-│   │   └── config.yml
-│   ├── config_2
-│   │   ├── ...
-│   │   └── config.yml
-│   ...
+examples/configs/          # --config points here
+├── content_safety/        # config_id: "content_safety"
+│   ├── rails.co
+│   └── config.yml
+├── jailbreak_detection/   # config_id: "jailbreak_detection"
+│   ├── flows.co
+│   └── config.yml
+└── topic_safety/          # config_id: "topic_safety"
+    └── config.yml
 ```
 
-```{note}
-If the server is pointed to a folder with a single `config.yml` file, only that configuration is available.
+1. Start the server in multi-config mode:
+
+    ```bash
+    nemoguardrails server --config examples/configs
+    ```
+
+1. List available configurations.
+
+    ```bash
+    curl http://localhost:8000/v1/rails/configs
+    ```
+
+    The endpoint returns the list of available configurations.
+
+    ```json
+    [
+      {"id": "content_safety"},
+      {"id": "jailbreak_detection"},
+      {"id": "topic_safety"}
+    ]
+    ```
+
+### Single-Config Mode
+
+When the `--config` path points directly to a folder containing a `config.yml` file, the server runs in single-config mode.
+The folder name becomes the only available `config_id`.
+
+```text
+examples/configs/content_safety/   # --config points here
+├── rails.co
+└── config.yml                     # config_id: "content_safety"
 ```
+
+1. Start the server in single-config mode:
+
+    ```bash
+    nemoguardrails server --config examples/configs/content_safety
+    ```
+
+1. List available configurations.
+
+    ```bash
+    curl http://localhost:8000/v1/rails/configs
+    ```
+
+    The endpoint returns the list of available configurations.
 
 ## Examples
 
