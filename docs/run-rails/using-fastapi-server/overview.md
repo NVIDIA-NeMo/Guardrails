@@ -14,7 +14,7 @@ content:
 
 # Overview of the NeMo Guardrails Library API Server
 
-The Guardrails server:
+The NeMo Guardrails API server:
 
 - Loads guardrails configurations at startup.
 - Exposes a REST API compatible with OpenAI's chat completions format.
@@ -23,45 +23,29 @@ The Guardrails server:
 
 ## Quick Start
 
-The following steps show how to start the guardrails server and use it to generate a response.
+The following steps show how to start the NeMo Guardrails API server using the provided configuration files and test it by sending requests to the endpoints.
 
 ### Prerequisites
 
-Install the NeMo Guardrails library using one of the following methods.
+Meet the following prerequisites to use the NeMo Guardrails API server.
 
-:::::{tab-set}
+1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra.
 
-::::{tab-item} pip (recommended)
-Create a virtual environment, activate it, and install the library:
+    ```console
+    git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+    cd NeMo-Guardrails
+    python -m venv .venv
+    source .venv/bin/activate
+    poetry install --extras "nvidia"
+    ```
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install nemoguardrails[nvidia]
-```
+    For more information about installing the NeMo Guardrails library, see [Install the NeMo Guardrails Library](../../getting-started/installation-guide.md).
 
-::::
+1. Set up an environment variable for your NVIDIA API key.
 
-::::{tab-item} Poetry (development)
-Clone the repository and install with Poetry:
-
-```bash
-git clone https://github.com/NVIDIA/NeMo-Guardrails.git
-cd NeMo-Guardrails
-python -m venv .venv
-source .venv/bin/activate
-poetry install --extras "nvidia"
-```
-
-Prefix all commands with `poetry run` when using the nemoguardrails CLI:
-
-```bash
-poetry run nemoguardrails server --config examples/configs
-```
-
-::::
-
-:::::
+    ```console
+    export NVIDIA_API_KEY="nvapi-..."
+    ```
 
 ### Start the Server
 

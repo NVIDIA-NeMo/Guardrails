@@ -23,20 +23,50 @@ Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library l
 
 ## Quick Start
 
+The following steps show how to run a sample guardrailed chat request using the NeMo Guardrails library Python API.
+
+### Prerequisites
+
+Meet the following prerequisites to use the NeMo Guardrails library Python API.
+
+1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra.
+
+    ```console
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install nemoguardrails[nvidia]
+    ```
+
+    For more information about installing the NeMo Guardrails library, see [Install the NeMo Guardrails Library](../../getting-started/installation-guide.md).
+
+1. Set up an environment variable for your NVIDIA API key.
+
+    ```console
+    export NVIDIA_API_KEY="nvapi-..."
+    ```
+
+    This is required to access NVIDIA-hosted models.
+
+### Run a Sample Guardrailed Chat Request
+
 The following example shows the minimal code to load the prepared configuration files in the `config` directory and generate a response using the `LLMRails` class.
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
 
 # Load configuration from the config directory
-config = RailsConfig.from_path("path/to/config")
+config = RailsConfig.from_path("examples/configs")
 
 # Create the LLMRails instance
 rails = LLMRails(config)
 
 # Generate a response
 response = rails.generate(messages=[
-    {"role": "user", "content": "Hello! How are you?"}
+    {
+        "role": "user",
+        "content": "What is the capital of France?",
+        "config_id": "content_safety"
+    }
 ])
 print(response["content"])
 ```

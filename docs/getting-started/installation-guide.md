@@ -53,7 +53,7 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
    ::::
 
-2. Install the Nemo Guardrails toolkit with support for NVIDIA-hosted models. Set NVIDIA_API_KEY to your personal API Key generated on <https://build.nvidia.com/>.
+1. Install the NeMo Guardrails library with support for NVIDIA-hosted models. Set `NVIDIA_API_KEY` to your personal API key generated on <https://build.nvidia.com/>.
 
    ```bash
    pip install "nemoguardrails[nvidia]"
@@ -64,11 +64,50 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
 To use the latest development version:
 
+::::{tab-set}
+
+:::{tab-item} pip
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install nemoguardrails[nvidia]
+export NVIDIA_API_KEY="nvapi-..."
+```
+
+:::
+
+:::{tab-item} pip (development)
+
 ```bash
 git clone https://github.com/NVIDIA/NeMo-Guardrails.git
 cd NeMo-Guardrails
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
+
+:::
+
+:::{tab-item} Poetry (development)
+
+```bash
+git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+cd NeMo-Guardrails
+python -m venv .venv
+source .venv/bin/activate
+poetry install --extras "nvidia"
+```
+
+When using Poetry, prefix CLI commands with `poetry run`:
+
+```bash
+poetry run nemoguardrails server --config examples/configs
+```
+
+:::
+
+::::
 
 ## Extra Dependencies
 
@@ -76,28 +115,23 @@ The NeMo Guardrails library can be installed with optional "extras", adding func
 
 | Extra | Description |
 |-------|-------------|
-| `nvidia` | NVIDIA-hosted model integration (<https://build.nvidia.com/>) |
+| `nvidia` | NVIDIA-hosted model integration through [build.nvidia.com](https://build.nvidia.com/) |
 | `openai` | OpenAI-hosted model integration |
-| `eval` | [Evaluation tools](../../nemoguardrails/evaluate/README.md) |
 | `sdd` | [Sensitive data detection](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#presidio-based-sensitive-data-detection) using Presidio |
-| `dev` | Developer features like autoreload |
+| `eval` | [Evaluation tools](../evaluation/index.rst) for testing guardrails |
+| `tracing` | OpenTelemetry tracing support |
+| `gcp` | Google Cloud Platform language services |
+| `jailbreak` | YARA-based jailbreak detection heuristics |
+| `multilingual` | Language detection for multilingual content |
 | `all` | All optional packages |
 
-To prevent the shell from interpreting square brackets as a glob pattern, enclose the nemoguardrails and extensions in double-quotes.
-
-```bash
-pip install "nemoguardrails[openai]"     # Single extra
-pip install "nemoguardrails[eval,sdd]"   # Multiple extras
-pip install "nemoguardrails[all]"        # Everything
-```
-
-Some features like [AlignScore](../user-guides/community/alignscore.md) have additional requirements. Check the feature documentation for details.
+Some features such as [AlignScore](../user-guides/community/alignscore.md) have additional requirements. See the feature documentation for details.
 
 ## Docker
 
 You can run the NeMo Guardrails library in a Docker container. For containerized deployment, see [NeMo Guardrails with Docker](../deployment/using-docker.md).
 
-## Troubleshooting
+## Troubleshooting Installation Issues
 
 Use the following information to resolve common installation issues.
 

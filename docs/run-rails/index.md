@@ -21,6 +21,12 @@ The guardrails intercept inputs and outputs between uses and the LLM and the exe
 
 ---
 
+## Install the NeMo Guardrails Library
+
+To use the Python API or the Guardrails API server, you need to install the NeMo Guardrails library. See [Install the NeMo Guardrails Library](../getting-started/installation-guide.md) for instructions.
+
+---
+
 ## Choosing the Right Tool
 
 Both the Python API and the Guardrails API server are production-ready approaches for integrating guardrails into your application.
