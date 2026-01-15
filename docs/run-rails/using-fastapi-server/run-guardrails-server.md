@@ -93,7 +93,7 @@ examples/configs/content_safety/   # --config points here
     curl http://localhost:8000/v1/rails/configs
     ```
 
-    The endpoint returns the list of available configurations.
+    The endpoint returns the single configuration named `content_safety`.
 
 ## Examples
 
