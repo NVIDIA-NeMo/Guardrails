@@ -112,13 +112,6 @@ class LLMGenerationActions:
         # calling the LLM with the user input.
         self.passthrough_fn: Optional[Callable[..., Awaitable[str]]] = None
 
-    async def init(self):
-        await asyncio.gather(
-            self._init_user_message_index(),
-            self._init_bot_message_index(),
-            self._init_flows_index(),
-        )
-
     def _extract_user_message_example(self, flow: Flow) -> None:
         """Heuristic to extract user message examples from a flow."""
         elements = [item for item in flow.elements if item["_type"] != "doc_string_stmt" and item["_type"] != "stmt"]
