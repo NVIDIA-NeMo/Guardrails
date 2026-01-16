@@ -163,7 +163,7 @@ This approach provides better code organization and makes it easier to share val
 
 The following steps show how to use `bot_thinking` in a self-check output rail. This pattern provides reasoning traces to your moderation LLM, allowing it to make more informed decisions by evaluating both the response and the reasoning process.
 
-This extends the [self check thinking configuration examples](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails library repository.
+This extends the [self check thinking configuration examples](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/self_check_thinking) in the NeMo Guardrails library repository.
 
 1. Write the `config.yml` file as follows:
 
@@ -216,5 +216,5 @@ The `{% if bot_thinking %}` conditional ensures that the prompt works with both 
 Use the following guides to learn more about the features used in this guide.
 
 - [Model Configuration](../../yaml-schema/model-configuration.md): Configure LLM models in config.yml.
-- [Self-Check Output Example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration example in the NeMo Guardrails library repository.
+- [Self-Check Output Example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/self_check_thinking): Complete working configuration example in the NeMo Guardrails library repository.
 - [Custom Actions](../../actions/creating-actions.md): Guide on writing custom actions.

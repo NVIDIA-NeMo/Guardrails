@@ -159,4 +159,4 @@ The integration will automatically fetch validator information from the hub if i
 - Guard instances are reused when the same validator is called with identical parameters
 - Consider the latency impact when chaining multiple validators
 
-For a complete working example, see the [GuardrailsAI example configuration](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/guardrails_ai/).
+For a complete working example, see the [GuardrailsAI example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/guardrails_ai/).

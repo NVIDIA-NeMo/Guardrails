@@ -55,4 +55,4 @@ The NeMo Guardrails library can be integrated into applications in multiple ways
 4. **Docker deployment**: Deploy guardrails as a containerized service.
    For more information, refer to the [Using Docker Guide](../deployment/using-docker.md).
 
-For complete examples and detailed integration patterns, refer to the [examples directory](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples) in the GitHub repository.
+For complete examples and detailed integration patterns, refer to the [examples directory](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples) in the GitHub repository.

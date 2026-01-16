@@ -73,7 +73,7 @@ myst_url_schemes = {
     "http": None,
     "https": None,
     "pr": {
-        "url": "https://github.com/NVIDIA/NeMo-Guardrails/pull/{{path}}",
+        "url": "https://github.com/NVIDIA-NeMo/Guardrails/pull/{{path}}",
         "title": "PR #{{path}}",
     },
 }
@@ -100,7 +100,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/NVIDIA/NeMo-Guardrails",
+            "url": "https://github.com/NVIDIA-NeMo/Guardrails",
             "icon": "fa-brands fa-github",
             "type": "fontawesome",
         },

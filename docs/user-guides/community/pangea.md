@@ -76,9 +76,9 @@ flow output rails $output_text
 ## Next steps
 
 - Explore example configurations for integrating Pangea AI Guard with your preferred Colang version:
-  - [Pangea AI Guard for NeMo Guardrails v1](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/pangea)
-  - [Pangea AI Guard for NeMo Guardrails v2](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/pangea_v2)
-  - [Pangea AI Guard without LLM (guardrails only)](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/pangea_v2_no_llm) – Use this setup to evaluate AI Guard’s detection and response capabilities independently.
+  - [Pangea AI Guard for NeMo Guardrails v1](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/pangea)
+  - [Pangea AI Guard for NeMo Guardrails v2](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/pangea_v2)
+  - [Pangea AI Guard without LLM (guardrails only)](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/pangea_v2_no_llm) – Use this setup to evaluate AI Guard’s detection and response capabilities independently.
 - Adjust your detection policies to fit your application’s risk profile. See the [AI Guard Recipes](https://pangea.cloud/docs/ai-guard/recipes) documentation for configuration details.
 - Enable [AI Guard webhooks](https://pangea.cloud/docs/ai-guard/recipes#add-webhooks-to-detectors) to receive real-time alerts for detections in your NeMo Guardrails-powered application.
 - Monitor and analyze detection activity in the [AI Guard Activity Log](https://pangea.cloud/docs/ai-guard/activity-log) for auditing and attribution.

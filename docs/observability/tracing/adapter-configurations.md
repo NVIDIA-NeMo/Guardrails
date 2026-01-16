@@ -39,7 +39,7 @@ tracing:
       filepath: "./logs/traces.jsonl"
 ```
 
-For working examples, refer to the [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/1_tracing_quickstart.ipynb) notebook.
+For working examples, refer to the [Tracing Guardrails Quickstart](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/1_tracing_quickstart.ipynb) notebook.
 
 (opentelemetry-adapter)=
 
@@ -54,7 +54,7 @@ tracing:
     - name: OpenTelemetry
 ```
 
-For working examples, refer to the [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/2_tracing_with_jaeger.ipynb) notebook.
+For working examples, refer to the [Tracing Guardrails with Jaeger](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/2_tracing_with_jaeger.ipynb) notebook.
 
 (custom-adapter)=
 

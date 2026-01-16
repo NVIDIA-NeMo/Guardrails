@@ -32,7 +32,7 @@ Meet the following prerequisites to use the NeMo Guardrails API server.
 1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra.
 
     ```console
-    git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+    git clone https://github.com/NVIDIA-NeMo/Guardrails.git
     cd NeMo-Guardrails
     python -m venv .venv
     source .venv/bin/activate

@@ -20,7 +20,7 @@ content:
 
 # Configuration YAML Schema Reference
 
-This reference documents all configuration options for `config.yml`, derived from the authoritative Pydantic schema in [`nemoguardrails/rails/llm/config.py`](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/rails/llm/config.py).
+This reference documents all configuration options for `config.yml`, derived from the authoritative Pydantic schema in [`nemoguardrails/rails/llm/config.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/rails/llm/config.py).
 
 ---
 

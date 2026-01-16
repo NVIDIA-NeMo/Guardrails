@@ -15,7 +15,7 @@ rails:
 
 The `activefence moderation on input` flow uses the maximum risk score with an 0.85 threshold to decide if the text should be allowed or not (i.e., if the risk score is above the threshold, it is considered a violation). The `activefence moderation on input detailed` has individual scores per category of violation.
 
-To customize the scores, you have to overwrite the [default flows](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/activefence/flows.co) in your config. For example, to change the threshold for `activefence moderation on input` you can add the following flow to your config:
+To customize the scores, you have to overwrite the [default flows](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/activefence/flows.co) in your config. For example, to change the threshold for `activefence moderation on input` you can add the following flow to your config:
 
 ```colang
 define subflow activefence moderation on input

@@ -38,7 +38,7 @@ rails:
       - self check input
 ```
 
-2. Define the `self_check_input` prompt in the `prompts.yml` file:
+1. Define the `self_check_input` prompt in the `prompts.yml` file:
 
 ```yaml
 prompts:
@@ -55,7 +55,7 @@ If a prompt is not defined, an exception will be raised when the configuration i
 
 The above is an example prompt you can use with the *self check input rail*. See the [Example Prompts](#example-prompts) section below for more details. The `self_check_input` prompt has an input variable `{{ user_input }}` which includes the input from the user. The completion must be "yes" if the input should be blocked and "no" otherwise.
 
-The self-check input rail executes the [`self_check_input` action](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/self_check/input_check/actions.py), which returns `True` if the input should be allowed, and `False` otherwise:
+The self-check input rail executes the [`self_check_input` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/input_check/actions.py), which returns `True` if the input should be allowed, and `False` otherwise:
 
 ```colang
 define flow self check input
@@ -142,7 +142,7 @@ rails:
       - self check output
 ```
 
-2. Define the `self_check_output` prompt in the `prompts.yml` file:
+1. Define the `self_check_output` prompt in the `prompts.yml` file:
 
 ```yaml
 prompts:
@@ -161,7 +161,7 @@ If a prompt is not defined, an exception will be raised when the configuration i
 
 The above is an example prompt you can use with the *self check output rail*. See the [Example Prompts](#example-prompts-1) section below for more details. The `self_check_output` prompt has an input variable `{{ bot_response }}` which includes the output from the bot. The completion must be "yes" if the output should be blocked and "no" otherwise.
 
-The self-check output rail executes the [`self_check_output` action](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns `True` if the output should be allowed, and `False` otherwise:
+The self-check output rail executes the [`self_check_output` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns `True` if the output should be allowed, and `False` otherwise:
 
 ```colang
 define flow self check output
@@ -292,7 +292,7 @@ If a prompt is not defined, an exception will be raised when the configuration i
 
 The above is an example prompt that you can use with the *self check facts rail*. The `self_check_facts` prompt has two input variables: `{{ evidence }}`, which includes the relevant chunks, and `{{ response }}`, which includes the bot response that should be fact-checked. The completion must be "yes" if the response is factually correct and "no" otherwise.
 
-The self-check fact-checking rail executes the [`self_check_facts` action](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns a score between `0.0` (response is not accurate) and `1.0` (response is accurate). The reason a number is returned, instead of a boolean, is to keep a consistent API with other methods that return a score, e.g., the AlignScore method below.
+The self-check fact-checking rail executes the [`self_check_facts` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns a score between `0.0` (response is not accurate) and `1.0` (response is accurate). The reason a number is returned, instead of a boolean, is to keep a consistent API with other methods that return a score, e.g., the AlignScore method below.
 
 ```colang
 define subflow self check facts
@@ -328,7 +328,7 @@ define flow answer report question
   bot $answer
 ```
 
-Please refer to the [Custom RAG Output Rails example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/rag/custom_rag_output_rails/README.md).
+Please refer to the [Custom RAG Output Rails example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/rag/custom_rag_output_rails/README.md).
 
 ### Hallucination Detection
 
@@ -417,7 +417,7 @@ define flow answer report question
   bot $answer
 ```
 
-Please refer to the [Custom RAG Output Rails example](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/rag/custom_rag_output_rails/README.md).
+Please refer to the [Custom RAG Output Rails example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/rag/custom_rag_output_rails/README.md).
 
 #### Implementation Details
 
@@ -919,7 +919,7 @@ By default, the NeMo Guardrails library provides the following rules:
   This rule is usually paired with code injection rules.
 - Cross-site scripting (Markdown and Javascript): Recommended if the LLM output is rendered directly in HTML or Markdown.
 
-You can view the default rules in the [yara_rules directory](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/injection_detection/yara_rules) of the GitHub repository.
+You can view the default rules in the [yara_rules directory](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/injection_detection/yara_rules) of the GitHub repository.
 
 #### Configuring Injection Detection
 
@@ -1198,7 +1198,7 @@ rails:
       - cleanlab trustworthiness
 ```
 
-For more details, check out the [Cleanlab Integration](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/cleanlab.md) page.
+For more details, check out the [Cleanlab Integration](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/user-guides/community/cleanlab.md) page.
 
 ### GCP Text Moderation
 
@@ -1213,7 +1213,7 @@ rails:
       - gcpnlp moderation
 ```
 
-For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/gcp-text-moderations.md) page.
+For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/user-guides/community/gcp-text-moderations.md) page.
 
 ### GuardrailsAI Integration
 
@@ -1282,7 +1282,7 @@ rails:
       - detect pii on retrieval
 ```
 
-For more details, check out the [Private AI Integration](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/docs/user-guides/community/privateai.md) page.
+For more details, check out the [Private AI Integration](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/user-guides/community/privateai.md) page.
 
 ### Fiddler Guardrails for Safety and Hallucination Detection
 

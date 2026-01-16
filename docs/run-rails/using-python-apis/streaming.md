@@ -194,7 +194,7 @@ For streaming while using the Guardrails API server, refer to [](../using-fastap
 ### Streaming for LLMs Deployed Using HuggingFacePipeline
 
 We also support streaming for LLMs deployed using `HuggingFacePipeline`.
-One example is provided in the [HF Pipeline Dolly](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md) configuration.
+One example is provided in the [HF Pipeline Dolly](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md) configuration.
 
 To use streaming for HF Pipeline LLMs, you need to create an `nemoguardrails.llm.providers.huggingface.AsyncTextIteratorStreamer` streamer object,
 add it to the `kwargs` of the pipeline and to the `model_kwargs` of the `HuggingFacePipelineCompatible` object.

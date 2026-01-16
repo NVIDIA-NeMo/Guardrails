@@ -13,8 +13,8 @@ Currently, the Colang story designing and building environment is fairly limited
 Integrated Development Environment (IDE)
 -----------------------------------------
 
-- We suggest using `Visual Studio Code <https://code.visualstudio.com/>`_ and the Colang highlighting extension (`Github link <https://github.com/NVIDIA/NeMo-Guardrails/tree/main/vscode_extension>`_) to help with highlighting Colang code.
-- You can use the Visual Studio Code launch setting to run a Colang story with nemoguardrails in a python environment by pressing F5 (`launch.json <https://github.com/NVIDIA/NeMo-Guardrails/blob/main/.vscode/launch.json>`_).
+- We suggest using `Visual Studio Code <https://code.visualstudio.com/>`_ and the Colang highlighting extension (`Github link <https://github.com/NVIDIA-NeMo/Guardrails/tree/main/vscode_extension>`_) to help with highlighting Colang code.
+- You can use the Visual Studio Code launch setting to run a Colang story with nemoguardrails in a python environment by pressing F5 (`launch.json <https://github.com/NVIDIA-NeMo/Guardrails/blob/main/.vscode/launch.json>`_).
 - You can show generated and received events by adding the ``--verbose`` flag when starting nemoguardrails. This will also show all generated LLM prompts and responses.
 - To see even more details and show the internal run-time logs, use ``--debug-level=INFO`` or set it equal to ``DEBUG``.
 

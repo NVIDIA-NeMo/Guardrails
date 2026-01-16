@@ -96,8 +96,8 @@ Existing configurations will continue to work. However, it is strongly recommend
 
 ## Jupyter Notebooks
 
-- [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
-- [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/2_tracing_with_jaeger.ipynb) - A guide to visualize Guardrails traces in Jaeger.
+- [Tracing Guardrails Quickstart](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
+- [Tracing Guardrails with Jaeger](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/2_tracing_with_jaeger.ipynb) - A guide to visualize Guardrails traces in Jaeger.
 
 ```{toctree}
 :hidden:

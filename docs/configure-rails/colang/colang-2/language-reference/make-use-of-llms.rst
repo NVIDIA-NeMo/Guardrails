@@ -283,4 +283,4 @@ This loop will take care of matching user utterances to predefined user intents 
 Guardrailing
 -------------
 
-Checkout the examples in the :ref:`getting_started` section or refer to the `NeMo Guardrails documentation <https://github.com/NVIDIA/NeMo-Guardrails>`_ to learn more about how Colang can be used to guardrail LLM responses and user inputs.
+Checkout the examples in the :ref:`getting_started` section or refer to the `NeMo Guardrails documentation <https://github.com/NVIDIA-NeMo/Guardrails>`_ to learn more about how Colang can be used to guardrail LLM responses and user inputs.

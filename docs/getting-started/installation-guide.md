@@ -87,7 +87,7 @@ export NVIDIA_API_KEY="nvapi-..."
 :::{tab-item} pip (development)
 
 ```bash
-git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+git clone https://github.com/NVIDIA-NeMo/Guardrails.git
 cd NeMo-Guardrails
 python -m venv .venv
 source .venv/bin/activate
@@ -99,7 +99,7 @@ pip install -e .
 :::{tab-item} Poetry (development)
 
 ```bash
-git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+git clone https://github.com/NVIDIA-NeMo/Guardrails.git
 cd NeMo-Guardrails
 python -m venv .venv
 source .venv/bin/activate
