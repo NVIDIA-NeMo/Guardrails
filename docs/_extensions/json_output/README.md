@@ -6,7 +6,7 @@ Similar to Hugo's output formats, this creates parallel JSON files for each docu
 containing metadata, content, and other structured data that can be consumed by
 search engines, APIs, or other applications.
 
-The main use case is generating comprehensive search indexes for tools like Solr, 
+The main use case is generating comprehensive search indexes for tools like Solr,
 Lunr.js, or custom search implementations.
 
 ## Search Index Integration
@@ -24,50 +24,50 @@ The JSON structure includes search-optimized fields and global metadata from `co
 
 ```json
 {
-    "id": "guide/installation",
-    "title": "Installation Guide", 
-    "url": "/guide/installation.html",
-    "last_modified": "2025-01-15T10:30:00Z",
-    
+    "id": "getting-started/installation-guide",
+    "title": "Installation Guide",
+    "url": "/getting-started/installation-guide.html",
+    "last_modified": "2026-01-15T10:30:00Z",
+
     "book": {
-        "title": "NVIDIA NeMo Curator User Guide",
-        "version": "25.09"
+        "title": "NVIDIA NeMo Guardrails Library Developer Guide",
+        "version": "0.11.0"
     },
     "product": {
-        "name": "NeMo Curator",
+        "name": "NeMo Guardrails",
         "family": ["NeMo"],
-        "version": "25.09"
+        "version": "0.11.0"
     },
     "site": {
         "name": "NVIDIA Technical Documentation"
     },
-    
+
     "content": "Full markdown content here...",
     "content_length": 5420,
     "word_count": 850,
     "format": "text",
     "summary": "Quick summary for previews...",
     "doc_type": "tutorial",
-    "section_path": ["Guide", "Installation"],
+    "section_path": ["Getting Started", "Installation Guide"],
     "headings": [
         {"text": "Prerequisites", "level": 2, "id": "prerequisites"}
     ],
     "headings_text": "Prerequisites Installation Steps Troubleshooting",
-    "keywords": ["install", "setup", "prerequisites", "docker", "python"],
+    "keywords": ["install", "setup", "prerequisites", "pip", "python", "guardrails"],
     "code_blocks": [
-        {"content": "pip install package", "language": "bash"}
+        {"content": "pip install nemoguardrails", "language": "bash"}
     ],
     "links": [
         {
             "text": "Configuration Guide",
-            "url": "/guide/config.html",
+            "url": "/configure-rails/index.html",
             "type": "cross_reference",
             "ref_type": "doc",
-            "target_doc": "guide/config"
+            "target_doc": "configure-rails/index"
         },
         {
             "text": "GitHub Repository",
-            "url": "https://github.com/NVIDIA/...",
+            "url": "https://github.com/NVIDIA/NeMo-Guardrails",
             "type": "external"
         }
     ],
@@ -194,14 +194,14 @@ The extension can inject site-wide metadata from `conf.py` into every JSON file,
 
 By default, the extension auto-infers global metadata from standard Sphinx configuration:
 
-| JSON Field | Source |
-|------------|--------|
-| `book.title` | `project` |
-| `book.version` | `release` |
-| `product.name` | Extracted from `project` (strips "NVIDIA" prefix and doc suffixes) |
-| `product.version` | `release` |
-| `product.family` | `html_context["product_family"]` (if set) |
-| `site.name` | `html_context["site_name"]` (if set) |
+| JSON Field | Source | Example |
+|------------|--------|---------|
+| `book.title` | `project` | "NVIDIA NeMo Guardrails Library Developer Guide" |
+| `book.version` | `release` | "0.11.0" |
+| `product.name` | Extracted from `project` (strips "NVIDIA" prefix and doc suffixes) | "NeMo Guardrails" |
+| `product.version` | `release` | "0.11.0" |
+| `product.family` | `html_context["product_family"]` (if set) | ["NeMo"] |
+| `site.name` | `html_context["site_name"]` (if set) | "NVIDIA Technical Documentation" |
 
 ### Explicit Configuration
 
@@ -209,8 +209,8 @@ For full control, provide explicit `global_metadata`:
 
 ```python
 # conf.py
-project = "NVIDIA NeMo Curator User Guide"
-release = "25.09"
+project = "NVIDIA NeMo Guardrails Library Developer Guide"
+release = "0.11.0"
 
 json_output_settings = {
     "enabled": True,
@@ -220,7 +220,7 @@ json_output_settings = {
             "version": release,
         },
         "product": {
-            "name": "NeMo Curator",
+            "name": "NeMo Guardrails",
             "family": ["NeMo"],
             "version": release,
         },
@@ -237,8 +237,8 @@ You can also set values via `html_context` for auto-inference:
 
 ```python
 # conf.py
-project = "NVIDIA NeMo Curator User Guide"
-release = "25.09"
+project = "NVIDIA NeMo Guardrails Library Developer Guide"
+release = "0.11.0"
 
 html_context = {
     "product_name": "NeMo Guardrails",
@@ -269,12 +269,15 @@ json_output_settings = {
 This extension automatically respects content gating rules set by the content_gating extension at multiple levels:
 
 ### Document-Level Gating
+
 Documents with 'only' conditions in frontmatter that fail evaluation (e.g., 'only: not ga' when building with -t ga) will be excluded from JSON generation entirely, ensuring sensitive content doesn't leak into search indexes.
 
-### Content-Level Gating  
+### Content-Level Gating
+
 Content sections wrapped in `{conditional}` directives are also properly filtered. When conditions don't match, the content is excluded from the document tree and won't appear in the generated JSON.
 
 ### Integration Details
+
 - **Automatic Detection**: Detects if content_gating extension is loaded
 - **Exclude Pattern Sync**: Respects documents added to exclude_patterns by content gating
 - **Build Tag Awareness**: Logs current build tags for debugging
@@ -289,4 +292,4 @@ The integration works seamlessly - just enable both extensions and your JSON out
 3. **Set content length limits** for large documentation sites
 4. **Enable content filtering** to reduce JSON file sizes
 5. **Use batch processing** to control memory usage
-6. **Skip large files** to avoid processing massive documents 
+6. **Skip large files** to avoid processing massive documents
