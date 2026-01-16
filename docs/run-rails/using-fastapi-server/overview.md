@@ -29,25 +29,15 @@ The following steps show how to start the NeMo Guardrails API server using the p
 
 Meet the following prerequisites to use the NeMo Guardrails API server.
 
-1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra.
+1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra, following the instructions in [](../../getting-started/installation-guide.md).
 
-    ```console
-    git clone https://github.com/NVIDIA-NeMo/Guardrails.git
-    cd NeMo-Guardrails
-    python -m venv .venv
-    source .venv/bin/activate
-    poetry install --extras "nvidia"
-    ```
-
-    For more information about installing the NeMo Guardrails library, see [](../../getting-started/installation-guide.md).
-
-1. Set up an environment variable for your NVIDIA API key.
+2. Set up an environment variable for your NVIDIA API key.
 
     ```console
     export NVIDIA_API_KEY="your-nvidia-api-key"
     ```
 
-    This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The provided example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) in this library, which are used throughtout the code examples in this documentation, include configurations that use NVIDIA-hosted models, so you need to set this environment variable to fully use them.
+    This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The provided example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) and code examples throughout the documentation use NVIDIA-hosted models.
 
 ### Start the Server
 

@@ -29,23 +29,15 @@ The following steps show how to run a sample guardrailed chat request using the 
 
 Meet the following prerequisites to use the NeMo Guardrails library Python API.
 
-1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra.
-
-    ```console
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install nemoguardrails[nvidia]
-    ```
-
-    For more information about installing the NeMo Guardrails library, see [](../../getting-started/installation-guide.md).
+1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra, following the instructions in [](../../getting-started/installation-guide.md).
 
 1. Set up an environment variable for your NVIDIA API key.
 
     ```console
-    export NVIDIA_API_KEY="nvapi-..."
+    export NVIDIA_API_KEY="your-nvidia-api-key"
     ```
 
-    This is required to access NVIDIA-hosted models.
+    This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The provided example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) and code examples throughout the documentation use NVIDIA-hosted models.
 
 ### Run a Sample Guardrailed Chat Request
 
