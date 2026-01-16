@@ -14,7 +14,7 @@ content:
 
 # Run the NeMo Guardrails Server
 
-The NeMo Guardrails server loads a predefined set of guardrails configurations at startup and exposes an HTTP API to use them.
+The NeMo Guardrails server loads configurations from a local directory at startup and exposes an HTTP API to use them.
 The server uses [FastAPI](https://fastapi.tiangolo.com/) and includes a built-in Chat UI for testing.
 
 ## Start the Server
@@ -25,7 +25,7 @@ Launch the server using the `nemoguardrails` CLI:
 nemoguardrails server --config examples/configs
 ```
 
-For more information about the available options, see the [server command in the CLI Reference](../../reference/cli/index.md#server).
+For more information about the available options, see [](../../reference/cli/index.md#server).
 
 ## Link Guardrail Configurations to the Server
 
@@ -177,6 +177,6 @@ For production deployments, disable it using the `--disable-chat-ui` flag.
 
 ## Related Topics
 
-- [Chat with Guardrailed Model](chat-with-guardrailed-model.md)
-- [List Guardrail Configurations](list-guardrail-configs.md)
-- [Server Endpoints Reference](../../reference/api-server-endpoints/index.md)
+- [](chat-with-guardrailed-model.md)
+- [](list-guardrail-configs.md)
+- [](../../reference/api-server-endpoints/index.md)

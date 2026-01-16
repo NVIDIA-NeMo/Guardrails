@@ -18,8 +18,8 @@ If the application LLM supports streaming, the NeMo Guardrails library can strea
 
 For information about configuring streaming with output guardrails, refer to the following:
 
-- For configuration, refer to [streaming output configuration](../../configure-rails/yaml-schema/streaming/output-rail-streaming.md).
-- For sample Python client code, refer to the [Getting Started Tutorials](../../getting-started/tutorials/index.md).
+- For configuration, refer to [](../../configure-rails/yaml-schema/streaming/output-rail-streaming.md).
+- For sample Python client code, refer to [](../../getting-started/tutorials/index.md).
 
 ## Usage
 
@@ -185,7 +185,7 @@ info = rails.explain()
 info.print_llm_calls_summary()
 ```
 
-For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [Generation Options](generation-options.md#detailed-logging-information) and [Logging](../../observability/logging/index.md).
+For more information about streaming token usage support across different providers, refer to the [LangChain documentation on token usage tracking](https://python.langchain.com/docs/how_to/chat_token_usage_tracking/#streaming). For detailed information about accessing generation logs and token usage, see [](generation-options.md#detailed-logging-information) and [](../../observability/logging/index.md).
 
 ```{note}
 For streaming while using the Guardrails API server, refer to [](../using-fastapi-server/chat-with-guardrailed-model.md#streaming-responses).

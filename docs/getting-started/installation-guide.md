@@ -36,29 +36,36 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
    :::{tab-item} Linux/macOS
 
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   python3 -m venv .venv
+   source .venv/bin/activate
    ```
 
    :::
 
-   :::{tab-item} Windows
+   :::{tab-item} Windows (Git Bash)
 
    ```bash
-   python -m venv venv
-   venv\Scripts\activate
+   python -m venv .venv
+   .venv\Scripts\activate
    ```
 
    :::
 
    ::::
 
-1. Install the NeMo Guardrails library with support for NVIDIA-hosted models. Set `NVIDIA_API_KEY` to your personal API key generated on <https://build.nvidia.com/>.
+1. Install the NeMo Guardrails library with support for NVIDIA-hosted models. Set `NVIDIA_API_KEY` to your personal API key generated on [build.nvidia.com](https://build.nvidia.com/).
 
    ```bash
    pip install "nemoguardrails[nvidia]"
-   export NVIDIA_API_KEY="nvapi-..."
    ```
+
+1. Set up an environment variable for your NVIDIA API key.
+
+   ```bash
+   export NVIDIA_API_KEY="your-nvidia-api-key"
+   ```
+
+   This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The tutorials and example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) in this library include configurations that use NVIDIA-hosted models.
 
 ## Install from Source
 

@@ -39,13 +39,15 @@ Meet the following prerequisites to use the NeMo Guardrails API server.
     poetry install --extras "nvidia"
     ```
 
-    For more information about installing the NeMo Guardrails library, see [Install the NeMo Guardrails Library](../../getting-started/installation-guide.md).
+    For more information about installing the NeMo Guardrails library, see [](../../getting-started/installation-guide.md).
 
 1. Set up an environment variable for your NVIDIA API key.
 
     ```console
-    export NVIDIA_API_KEY="nvapi-..."
+    export NVIDIA_API_KEY="your-nvidia-api-key"
     ```
+
+    This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The provided example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) in this library, which are used throughtout the code examples in this documentation, include configurations that use NVIDIA-hosted models, so you need to set this environment variable to fully use them.
 
 ### Start the Server
 
@@ -91,5 +93,4 @@ Open `http://localhost:8000` in your browser to access the built-in Chat UI for 
 
 ## Related Topics
 
-- [Server Endpoints Reference](../../reference/api-server-endpoints/index.md)
-- [Local Server Deployment](../../deployment/local-server/index.md)
+- [](../../reference/api-server-endpoints/index.md)

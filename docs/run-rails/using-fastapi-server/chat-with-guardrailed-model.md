@@ -16,6 +16,10 @@ content:
 
 Use the `/v1/chat/completions` endpoint to send messages and receive guarded responses from the server.
 
+:::{note}
+While the endpoint is in the same format as the OpenAI's chat completions API endpoint, it is currently not compatible with the OpenAI API.
+:::
+
 ## Basic Request
 
 Send a POST request to the chat completions endpoint:
@@ -152,6 +156,10 @@ for line in response.iter_lines():
 Use `thread_id` to maintain conversation history on the server.
 This is useful when you can only send the latest message rather than the full history.
 
+```{tip}
+The `thread_id` must be at least 16 characters long for security reasons.
+```
+
 ```python
 # First message
 response = requests.post(f"{base_url}/v1/chat/completions", json={
@@ -169,9 +177,9 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 # The assistant remembers "Alice"
 ```
 
-```{note}
-The `thread_id` must be at least 16 characters long for security reasons.
-```
+:::{note}
+The `thread_id` is currently not implemented in the NeMo Guardrails microservices.
+:::
 
 ### Configure Thread Storage
 
@@ -235,10 +243,10 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 })
 ```
 
-For complete details on generation options, see the [Server Endpoints Reference](../../reference/api-server-endpoints/index.md).
+For complete details on generation options, see [](../../reference/api-server-endpoints/index.md).
 
 ## Related Topics
 
-- [Run the Guardrails Server](run-guardrails-server.md)
-- [List Guardrail Configurations](list-guardrail-configs.md)
-- [Server Endpoints Reference](../../reference/api-server-endpoints/index.md)
+- [](run-guardrails-server.md)
+- [](list-guardrail-configs.md)
+- [](../../reference/api-server-endpoints/index.md)

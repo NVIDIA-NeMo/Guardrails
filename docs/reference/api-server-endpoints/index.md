@@ -10,7 +10,7 @@ Start the server using the CLI:
 nemoguardrails server --port 8000 --config /path/to/config
 ```
 
-For more information about server options, see [Run the Guardrails Server](../../run-rails/using-fastapi-server/run-guardrails-server.md).
+For more information about server options, see [](../../run-rails/using-fastapi-server/run-guardrails-server.md).
 
 ---
 

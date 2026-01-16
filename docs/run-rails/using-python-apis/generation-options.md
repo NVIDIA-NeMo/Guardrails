@@ -27,7 +27,7 @@ rails.generate(messages=messages, options={...})
 ```
 
 ```{note}
-Generation options are also available through the [Guardrails API server](../using-fastapi-server/chat-with-guardrailed-model.md#control-generation-options).
+Generation options are also available through [](../using-fastapi-server/chat-with-guardrailed-model.md#control-generation-options).
 ```
 
 ## Disabling Rails
@@ -187,7 +187,7 @@ res.log.print_summary()
 
 ## Output Variables
 
-Some rails can store additional information in [context variables](../../configure-rails/colang/colang-1/colang-language-syntax-guide.md#variables). You can return the content of these variables by setting the `output_vars` generation option to the list of names for all the variables that you are interested in. If you want to return the complete context (this will also include some predefined variables), you can set `output_vars` to `True`.
+Some rails can store additional information in [](../../configure-rails/colang/colang-1/colang-language-syntax-guide.md#variables). You can return the content of these variables by setting the `output_vars` generation option to the list of names for all the variables that you are interested in. If you want to return the complete context (this will also include some predefined variables), you can set `output_vars` to `True`.
 
 ```python
 rails.generate(messages=messages, options={

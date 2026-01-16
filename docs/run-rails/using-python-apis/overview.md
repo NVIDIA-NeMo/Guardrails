@@ -19,7 +19,7 @@ The NeMo Guardrails library Python API provides two core classes for running gua
 - **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
 - **`LLMRails`**: The main interface for generating responses with guardrails applied.
 
-Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library loads the configuration files you created in the previous chapter [Configure Rails](../../configure-rails/index.md).
+Upon initializing the core classes (`RailsConfig` and `LLMRails`), the library loads the configuration files you created in the previous chapter [](../../configure-rails/index.md).
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ Meet the following prerequisites to use the NeMo Guardrails library Python API.
     pip install nemoguardrails[nvidia]
     ```
 
-    For more information about installing the NeMo Guardrails library, see [Install the NeMo Guardrails Library](../../getting-started/installation-guide.md).
+    For more information about installing the NeMo Guardrails library, see [](../../getting-started/installation-guide.md).
 
 1. Set up an environment variable for your NVIDIA API key.
 

@@ -110,6 +110,6 @@ The endpoint returns:
 
 ## Related Topics
 
-- [Run the Guardrails Server](run-guardrails-server.md)
-- [Chat with Guardrailed Model](chat-with-guardrailed-model.md)
-- [Server Endpoints Reference](../../reference/api-server-endpoints/index.md)
+- [](run-guardrails-server.md)
+- [](chat-with-guardrailed-model.md)
+- [](../../reference/api-server-endpoints/index.md)
