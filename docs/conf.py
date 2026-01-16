@@ -15,9 +15,14 @@
 
 # Copyright (c) 2024, NVIDIA CORPORATION.
 
+import sys
 from datetime import date
+from pathlib import Path
 
 from toml import load
+
+# Add local extensions to path
+sys.path.insert(0, str(Path(__file__).parent / "_extensions"))
 
 project = "NVIDIA NeMo Guardrails Library Developer Guide"
 this_year = date.today().year
@@ -35,6 +40,7 @@ extensions = [
     "sphinx_reredirects",
     "sphinx_design",
     "sphinxcontrib.mermaid",
+    "json_output",
 ]
 
 redirects = {
@@ -48,6 +54,8 @@ copybutton_exclude = ".linenos, .gp, .go"
 
 exclude_patterns = [
     "README.md",
+    "_build/**",
+    "_extensions/**",
 ]
 
 myst_linkify_fuzzy_links = False
@@ -64,10 +72,6 @@ myst_links_external_new_tab = True
 myst_substitutions = {
     "version": release,
 }
-
-exclude_patterns = [
-    "_build/**",
-]
 
 myst_url_schemes = {
     "http": None,
@@ -118,3 +122,9 @@ html_theme_options = {
 }
 
 html_baseurl = "https://docs.nvidia.com/nemo/guardrails/latest/"
+
+# JSON output extension settings
+json_output_settings = {
+    "enabled": True,
+    "verbose": True,
+}
