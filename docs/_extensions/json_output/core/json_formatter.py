@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """JSON data formatting and structure building."""
 
 from datetime import datetime, timezone
@@ -8,7 +23,6 @@ from sphinx.application import Sphinx
 from sphinx.util import logging
 
 from ..utils import get_document_url, get_setting
-
 from .document_discovery import DocumentDiscovery
 from .global_metadata import get_global_metadata
 
@@ -180,9 +194,7 @@ class JSONFormatter:
             if value:  # Only add non-empty values
                 data[key] = value
 
-    def _add_content_fields(
-        self, data: dict[str, Any], content_data: dict[str, Any], docname: str, title: str
-    ) -> None:
+    def _add_content_fields(self, data: dict[str, Any], content_data: dict[str, Any], docname: str, title: str) -> None:
         """Add content-related fields to JSON data."""
         self._add_primary_content(data, content_data)
         self._add_summary_content(data, content_data)
@@ -238,7 +250,9 @@ class JSONFormatter:
             if get_setting(self.config, "extract_keywords", True) and "keywords" in content_data:
                 keywords_max_count = get_setting(self.config, "keywords_max_count", 50)
                 keywords = (
-                    content_data["keywords"][:keywords_max_count] if keywords_max_count > 0 else content_data["keywords"]
+                    content_data["keywords"][:keywords_max_count]
+                    if keywords_max_count > 0
+                    else content_data["keywords"]
                 )
                 data["keywords"] = keywords
 
