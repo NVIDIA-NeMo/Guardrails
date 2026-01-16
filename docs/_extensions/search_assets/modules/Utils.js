@@ -7,7 +7,7 @@ class Utils {
     constructor() {
         // Utility class - no initialization needed
     }
-    
+
     /**
      * Debounce function to limit rapid function calls
      */
@@ -22,14 +22,14 @@ class Utils {
             timeout = setTimeout(later, wait);
         };
     }
-    
+
     /**
      * Escape special regex characters
      */
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
-    
+
     /**
      * Escape HTML to prevent XSS attacks
      */
@@ -41,26 +41,26 @@ class Utils {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
-    
+
     /**
      * Highlight search terms in text
      */
     highlightText(text, query, highlightClass = 'search-highlight') {
         if (!query || !text) return text;
-        
+
         const terms = query.toLowerCase().split(/\s+/);
         let highlighted = text;
-        
+
         terms.forEach(term => {
             if (term.length > 1) {
                 const regex = new RegExp(`(${this.escapeRegex(term)})`, 'gi');
                 highlighted = highlighted.replace(regex, `<mark class="${highlightClass}">$1</mark>`);
             }
         });
-        
+
         return highlighted;
     }
-    
+
     /**
      * Generate breadcrumb from document ID
      */
@@ -68,7 +68,7 @@ class Utils {
         const parts = docId.split('/').filter(part => part && part !== 'index');
         return parts.length > 0 ? parts.join(' › ') : 'Home';
     }
-    
+
     /**
      * Generate anchor link from heading text (Sphinx-style)
      */
@@ -79,7 +79,7 @@ class Utils {
             .replace(/\s+/g, '-')      // Replace spaces with hyphens
             .trim();
     }
-    
+
     /**
      * Get document URL from result object
      */
@@ -89,7 +89,7 @@ class Utils {
         }
         return `${result.id.replace(/^\/+/, '')}.html`;
     }
-    
+
     /**
      * Get appropriate icon for section type
      */
@@ -107,7 +107,7 @@ class Utils {
                 return '<i class="fa-solid fa-circle section-icon"></i>';
         }
     }
-    
+
     /**
      * Load external script (like Lunr.js)
      */
@@ -120,7 +120,7 @@ class Utils {
             document.head.appendChild(script);
         });
     }
-    
+
     /**
      * Safe substring with fallback
      */
@@ -128,14 +128,14 @@ class Utils {
         if (!str) return fallback;
         return str.length > maxLength ? str.substring(0, maxLength) : str;
     }
-    
+
     /**
      * Check if string is valid and not empty
      */
     isValidString(str) {
         return typeof str === 'string' && str.trim().length > 0;
     }
-    
+
     /**
      * Safe array access with fallback
      */
@@ -145,4 +145,4 @@ class Utils {
 }
 
 // Make Utils available globally
-window.Utils = Utils; 
+window.Utils = Utils;

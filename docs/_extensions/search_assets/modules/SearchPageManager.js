@@ -173,7 +173,7 @@ class SearchPageManager {
                         <i class="fa-solid fa-chevron-down filter-select-arrow"></i>
                     </div>
                 </div>
-                
+
                 <div class="filter-group">
                     <label class="filter-label" for="tag-filter">
                         <i class="fa-solid fa-tag"></i>
@@ -187,7 +187,7 @@ class SearchPageManager {
                         <i class="fa-solid fa-chevron-down filter-select-arrow"></i>
                     </div>
                 </div>
-                
+
                 <div class="filter-group">
                     <label class="filter-label" for="type-filter">
                         <i class="fa-solid fa-file-lines"></i>
@@ -201,7 +201,7 @@ class SearchPageManager {
                         <i class="fa-solid fa-chevron-down filter-select-arrow"></i>
                     </div>
                 </div>
-                
+
                 ${facetFilters}
             </div>
         `;
@@ -731,8 +731,8 @@ class SearchPageManager {
         if (!topics || topics.length === 0) return '';
 
         const topicBadges = topics.slice(0, 3).map(topic =>
-            `<span class="topic-badge clickable-badge" 
-                   data-filter-type="topic" 
+            `<span class="topic-badge clickable-badge"
+                   data-filter-type="topic"
                    data-filter-value="${this.escapeHtml(topic)}"
                    title="Click to filter by ${this.escapeHtml(topic)}">
                 📁 ${this.escapeHtml(topic)}
@@ -791,8 +791,8 @@ class SearchPageManager {
             : '';
 
         return `
-            <div class="search-result mb-4" 
-                 role="option" 
+            <div class="search-result mb-4"
+                 role="option"
                  aria-selected="false"
                  tabindex="-1"
                  id="result-${index}"
@@ -1201,4 +1201,4 @@ class SearchPageManager {
 
         console.log(`🤖 Emitted search-ai-request event for query: "${query}" with ${results.length} results`);
     }
-} 
+}

@@ -12,7 +12,7 @@ class SearchInterface {
         this.resultsContainer = null;
         this.statsContainer = null;
     }
-    
+
     /**
      * Create the search interface elements
      */
@@ -27,12 +27,12 @@ class SearchInterface {
         }
         console.log('✅ Search interface created');
     }
-    
+
     /**
      * Check if we're on the search page
      */
     isSearchPage() {
-        return window.location.pathname.includes('/search') || 
+        return window.location.pathname.includes('/search') ||
                window.location.pathname.includes('/search.html') ||
                window.location.pathname.endsWith('search/') ||
                document.querySelector('#search-results') !== null ||
@@ -41,7 +41,7 @@ class SearchInterface {
                document.title.toLowerCase().includes('search') ||
                document.querySelector('h1')?.textContent.toLowerCase().includes('search');
     }
-    
+
     /**
      * Enhance the existing search page using the template structure
      */
@@ -49,51 +49,51 @@ class SearchInterface {
         console.log('🔍 Enhancing search page using existing template...');
         console.log('📄 Page URL:', window.location.href);
         console.log('📋 Page title:', document.title);
-        
+
         // Use the template's existing elements
         this.input = document.querySelector('#enhanced-search-page-input');
         this.resultsContainer = document.querySelector('#enhanced-search-page-results');
-        
+
         console.log('🔎 Template search input found:', !!this.input);
         console.log('📦 Template results container found:', !!this.resultsContainer);
-        
+
         if (this.input && this.resultsContainer) {
             console.log('✅ Using existing template structure - no additional setup needed');
             // The template's JavaScript will handle everything
             return;
         }
-        
+
         // Fallback for non-template pages
         console.log('⚠️ Template elements not found, falling back to generic search page detection');
         this.fallbackToGenericSearchPage();
     }
-    
+
     /**
      * Fallback for pages that don't use the template
      */
     fallbackToGenericSearchPage() {
         // Find existing search elements on generic pages
-        this.input = document.querySelector('#searchbox input[type="text"]') || 
+        this.input = document.querySelector('#searchbox input[type="text"]') ||
                     document.querySelector('input[name="q"]') ||
                     document.querySelector('.search input[type="text"]');
-        
+
         // Find or create results container
         this.resultsContainer = document.querySelector('#search-results') ||
                                document.querySelector('.search-results') ||
                                this.createResultsContainer();
-        
+
         // Create stats container
         this.statsContainer = this.createStatsContainer();
-        
+
         // Hide default Sphinx search results if they exist
         this.hideDefaultResults();
-        
+
         // Initialize with empty state
         this.showEmptyState();
-        
+
         console.log('✅ Generic search page enhanced');
     }
-    
+
     /**
      * Create results container if it doesn't exist
      */
@@ -101,7 +101,7 @@ class SearchInterface {
         const container = document.createElement('div');
         container.id = 'enhanced-search-results';
         container.className = 'enhanced-search-results';
-        
+
         // Add basic styling to ensure proper positioning
         container.style.cssText = `
             width: 100%;
@@ -111,10 +111,10 @@ class SearchInterface {
             position: relative;
             z-index: 1;
         `;
-        
+
         // Find the best place to insert it within the main content area
         const insertLocation = this.findBestInsertLocation();
-        
+
         if (insertLocation.parent && insertLocation.method === 'append') {
             insertLocation.parent.appendChild(container);
             console.log(`✅ Results container added to: ${insertLocation.parent.className || insertLocation.parent.tagName}`);
@@ -125,10 +125,10 @@ class SearchInterface {
             // Last resort - create a wrapper in main content
             this.createInMainContent(container);
         }
-        
+
         return container;
     }
-    
+
     /**
      * Find the best location to insert search results
      */
@@ -138,13 +138,13 @@ class SearchInterface {
         if (searchResults) {
             return { parent: searchResults, method: 'append' };
         }
-        
+
         // Look for search form and place results after it
         let searchForm = document.querySelector('#searchbox, .search form, form[action*="search"]');
         if (searchForm) {
             return { parent: searchForm, method: 'after' };
         }
-        
+
         // Look for main content containers (common Sphinx/theme classes)
         const mainSelectors = [
             '.document .body',
@@ -157,23 +157,23 @@ class SearchInterface {
             '.rst-content',
             '.body-content'
         ];
-        
+
         for (const selector of mainSelectors) {
             const element = document.querySelector(selector);
             if (element) {
                 return { parent: element, method: 'append' };
             }
         }
-        
+
         // Try to find any container that's not the body
         const anyContainer = document.querySelector('.container, .wrapper, .page, #content');
         if (anyContainer) {
             return { parent: anyContainer, method: 'append' };
         }
-        
+
         return { parent: null, method: null };
     }
-    
+
     /**
      * Create container in main content as last resort
      */
@@ -186,22 +186,22 @@ class SearchInterface {
             margin: 2rem auto;
             padding: 0 1rem;
         `;
-        
+
         // Add a title
         const title = document.createElement('h1');
         title.textContent = 'Search Results';
         title.style.cssText = 'margin-bottom: 1rem;';
         wrapper.appendChild(title);
-        
+
         // Add the container
         wrapper.appendChild(container);
-        
+
         // Insert into body, but with proper styling
         document.body.appendChild(wrapper);
-        
+
         console.log('⚠️ Created search results in body with wrapper - consider improving page structure');
     }
-    
+
     /**
      * Create stats container
      */
@@ -209,15 +209,15 @@ class SearchInterface {
         const container = document.createElement('div');
         container.className = 'enhanced-search-stats';
         container.style.cssText = 'margin: 1rem 0; font-size: 0.9rem; color: #666;';
-        
+
         // Insert before results
         if (this.resultsContainer && this.resultsContainer.parentNode) {
             this.resultsContainer.parentNode.insertBefore(container, this.resultsContainer);
         }
-        
+
         return container;
     }
-    
+
     /**
      * Hide default Sphinx search results
      */
@@ -230,7 +230,7 @@ class SearchInterface {
             el.style.display = 'none';
         });
     }
-    
+
     /**
      * Create the main search modal (legacy - kept for compatibility)
      */
@@ -245,8 +245,8 @@ class SearchInterface {
                 <div class="enhanced-search-header">
                     <div class="enhanced-search-input-wrapper">
                         <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                        <input 
-                            type="text" 
+                        <input
+                            type="text"
                             id="enhanced-search-input"
                             class="enhanced-search-input"
                             placeholder="${this.options.placeholder}"
@@ -268,34 +268,34 @@ class SearchInterface {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(modal);
-        
+
         // Cache references
         this.modal = modal;
         this.input = modal.querySelector('#enhanced-search-input');
         this.resultsContainer = modal.querySelector('.enhanced-search-results');
         this.statsContainer = modal.querySelector('.enhanced-search-stats');
-        
+
         // Add event handlers for closing the modal
         const closeButton = modal.querySelector('.enhanced-search-close');
         const backdrop = modal.querySelector('.enhanced-search-backdrop');
-        
+
         if (closeButton) {
             closeButton.addEventListener('click', () => this.hideModal());
         }
-        
+
         if (backdrop) {
             backdrop.addEventListener('click', () => this.hideModal());
         }
-        
+
         // Hide modal by default
         modal.style.display = 'none';
-        
+
         // Initialize with empty state
         this.showEmptyState();
     }
-    
+
     /**
      * Replace or enhance existing search button to show modal
      */
@@ -304,7 +304,7 @@ class SearchInterface {
         const searchForm = document.querySelector('#searchbox form') ||
                           document.querySelector('.search form') ||
                           document.querySelector('form[action*="search"]');
-        
+
         if (searchForm) {
             // Prevent form submission and show modal instead
             searchForm.addEventListener('submit', (e) => {
@@ -313,7 +313,7 @@ class SearchInterface {
             });
             console.log('✅ Search form enhanced to show modal');
         }
-        
+
         // Find search button specifically and enhance it
         const existingButton = document.querySelector('.search-button-field, .search-button__button');
         if (existingButton) {
@@ -323,7 +323,7 @@ class SearchInterface {
             });
             console.log('✅ Search button enhanced to show modal');
         }
-        
+
         // Also look for search input fields and enhance them
         const searchInput = document.querySelector('#searchbox input[type="text"]') ||
                            document.querySelector('.search input[type="text"]');
@@ -334,7 +334,7 @@ class SearchInterface {
             console.log('✅ Search input enhanced to show modal on focus');
         }
     }
-    
+
     /**
      * Show the search interface (focus input or show modal)
      */
@@ -346,7 +346,7 @@ class SearchInterface {
             this.input.select();
         }
     }
-    
+
     /**
      * Hide the search interface (hide modal or blur input)
      */
@@ -357,7 +357,7 @@ class SearchInterface {
             this.input.blur();
         }
     }
-    
+
     /**
      * Show the modal
      */
@@ -376,7 +376,7 @@ class SearchInterface {
             console.log('🔍 Search modal shown');
         }
     }
-    
+
     /**
      * Hide the modal
      */
@@ -395,42 +395,42 @@ class SearchInterface {
             console.log('🔍 Search modal hidden');
         }
     }
-    
+
     /**
      * Get the search input element
      */
     getInput() {
         return this.input;
     }
-    
+
     /**
      * Get the results container
      */
     getResultsContainer() {
         return this.resultsContainer;
     }
-    
+
     /**
      * Get the stats container
      */
     getStatsContainer() {
         return this.statsContainer;
     }
-    
+
     /**
      * Get the modal element
      */
     getModal() {
         return this.modal;
     }
-    
+
     /**
      * Check if modal is visible
      */
     isModalVisible() {
         return this.isVisible && this.modal && this.modal.style.display !== 'none';
     }
-    
+
     /**
      * Show empty state in results
      */
@@ -452,7 +452,7 @@ class SearchInterface {
             `;
         }
     }
-    
+
     /**
      * Show no results state
      */
@@ -474,7 +474,7 @@ class SearchInterface {
             `;
         }
     }
-    
+
     /**
      * Show error state
      */
@@ -488,7 +488,7 @@ class SearchInterface {
             `;
         }
     }
-    
+
     /**
      * Update search statistics
      */
@@ -501,7 +501,7 @@ class SearchInterface {
             }
         }
     }
-    
+
     /**
      * Clear search statistics
      */
@@ -510,14 +510,14 @@ class SearchInterface {
             this.statsContainer.innerHTML = '';
         }
     }
-    
+
     /**
      * Get current search query
      */
     getQuery() {
         return this.input ? this.input.value.trim() : '';
     }
-    
+
     /**
      * Set search query
      */
@@ -526,7 +526,7 @@ class SearchInterface {
             this.input.value = query;
         }
     }
-    
+
     /**
      * Clear search query
      */
@@ -535,7 +535,7 @@ class SearchInterface {
             this.input.value = '';
         }
     }
-    
+
     /**
      * Focus the search input
      */
@@ -544,21 +544,21 @@ class SearchInterface {
             this.input.focus();
         }
     }
-    
+
     /**
      * Get close button for event binding
      */
     getCloseButton() {
         return this.modal ? this.modal.querySelector('.enhanced-search-close') : null;
     }
-    
+
     /**
      * Get backdrop for event binding
      */
     getBackdrop() {
         return this.modal ? this.modal.querySelector('.enhanced-search-backdrop') : null;
     }
-    
+
     /**
      * Escape HTML to prevent XSS
      */
@@ -570,7 +570,7 @@ class SearchInterface {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
-    
+
     /**
      * Add CSS class to modal
      */
@@ -579,7 +579,7 @@ class SearchInterface {
             this.modal.classList.add(className);
         }
     }
-    
+
     /**
      * Remove CSS class from modal
      */
@@ -588,14 +588,14 @@ class SearchInterface {
             this.modal.classList.remove(className);
         }
     }
-    
+
     /**
      * Check if modal has class
      */
     hasModalClass(className) {
         return this.modal ? this.modal.classList.contains(className) : false;
     }
-    
+
     /**
      * Destroy the search interface
      */
@@ -612,4 +612,4 @@ class SearchInterface {
 }
 
 // Make SearchInterface available globally
-window.SearchInterface = SearchInterface; 
+window.SearchInterface = SearchInterface;

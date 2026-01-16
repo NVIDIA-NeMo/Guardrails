@@ -18,7 +18,7 @@ class SearchEngine {
         // Dynamic facets - discovered from documents, not predefined
         this.facets = {}; // { facetKey: Set of values }
     }
-    
+
     /**
      * Initialize the search engine with documents
      */
@@ -33,7 +33,7 @@ class SearchEngine {
             throw error;
         }
     }
-    
+
     /**
      * Collect metadata for filtering using actual frontmatter values
      * Supports both new schema (topics, audience) and legacy (categories, personas)
@@ -47,7 +47,7 @@ class SearchEngine {
         this.audience = new Set();
         this.difficulties = new Set();
         this.facets = {}; // Reset dynamic facets
-        
+
         Object.values(this.documents).forEach(doc => {
             // Collect topics (new schema) or categories (legacy)
             const topicsField = doc.topics || doc.categories;
@@ -58,7 +58,7 @@ class SearchEngine {
                     topicsField.split(',').forEach(topic => this.topics.add(topic.trim()));
                 }
             }
-            
+
             // Collect actual frontmatter tags
             if (doc.tags) {
                 if (Array.isArray(doc.tags)) {
@@ -76,10 +76,10 @@ class SearchEngine {
                     });
                 } else if (typeof doc.tags === 'string') {
                     // Handle both comma-separated and space-separated tags
-                    const allTags = doc.tags.includes(',') 
+                    const allTags = doc.tags.includes(',')
                         ? doc.tags.split(',')
                         : doc.tags.split(' ');
-                    
+
                     allTags.forEach(tag => {
                         if (tag && tag.trim()) {
                             this.tags.add(tag.trim());
@@ -87,12 +87,12 @@ class SearchEngine {
                     });
                 }
             }
-            
+
             // Use actual content_type from frontmatter (not calculated doc_type)
             if (doc.content_type) {
                 this.documentTypes.add(doc.content_type);
             }
-            
+
             // Collect audience (new schema) or personas (legacy)
             const audienceField = doc.audience || doc.personas;
             if (audienceField) {
@@ -102,11 +102,11 @@ class SearchEngine {
                     this.audience.add(audienceField);
                 }
             }
-            
+
             if (doc.difficulty) {
                 this.difficulties.add(doc.difficulty);
             }
-            
+
             // Dynamically discover all facets from documents
             if (doc.facets && typeof doc.facets === 'object') {
                 Object.entries(doc.facets).forEach(([facetKey, facetValue]) => {
@@ -122,7 +122,7 @@ class SearchEngine {
                     }
                 });
             }
-            
+
             // Also check for flat facet fields (legacy modality, etc.)
             // These get added to facets dynamically
             if (doc.modality && !this.facets.modality) {
@@ -133,7 +133,7 @@ class SearchEngine {
             }
         });
     }
-    
+
     /**
      * Get available filter options using actual frontmatter taxonomy
      * Returns both new field names and legacy names for backwards compatibility
@@ -145,7 +145,7 @@ class SearchEngine {
         Object.entries(this.facets).forEach(([facetKey, facetSet]) => {
             facetOptions[facetKey] = Array.from(facetSet).sort();
         });
-        
+
         return {
             // New schema names
             topics: Array.from(this.topics).sort(),
@@ -161,7 +161,7 @@ class SearchEngine {
             facets: facetOptions
         };
     }
-    
+
     /**
      * Load Lunr.js library if not already loaded
      */
@@ -170,11 +170,11 @@ class SearchEngine {
             await this.utils.loadScript('https://unpkg.com/lunr@2.3.9/lunr.min.js');
         }
     }
-    
+
     /**
      * Build the Lunr search index
      * Supports both new schema (topics, audience) and legacy (categories, personas)
-     * 
+     *
      * Field boosting rationale:
      * - Title matches are almost always what users want (highest boost)
      * - Description (from frontmatter) is hand-crafted summary (high boost)
@@ -185,26 +185,26 @@ class SearchEngine {
     buildIndex() {
         const documentsArray = Object.values(this.documents);
         const self = this;
-        
+
         this.index = lunr(function() {
             // Define fields with optimized boosting for documentation search patterns
             this.ref('id');
-            
+
             // Primary fields - highest relevance
             this.field('title', { boost: 10 });           // Title matches most important
             this.field('description', { boost: 8 });      // Frontmatter description (hand-crafted)
-            
+
             // Secondary fields - structural relevance
             this.field('keywords', { boost: 7 });         // Explicit keywords
             this.field('headings_text', { boost: 5 });    // Section headings
             this.field('headings', { boost: 5 });         // Section headings (legacy format)
             this.field('tags', { boost: 4 });             // Taxonomy tags
-            
+
             // Tertiary fields - content matching
             this.field('summary', { boost: 3 });          // Summary field
             this.field('topics', { boost: 2 });           // Topic categorization
             this.field('content', { boost: 1 });          // Full content (low to prevent long docs dominating)
-            
+
             // Metadata fields - filtering support
             this.field('content_type', { boost: 1 });
             this.field('audience', { boost: 1 });
@@ -212,7 +212,7 @@ class SearchEngine {
             this.field('modality', { boost: 1 });
             this.field('section_path', { boost: 1 });
             this.field('author', { boost: 1 });
-            
+
             // Add documents to index
             documentsArray.forEach((doc) => {
                 try {
@@ -242,7 +242,7 @@ class SearchEngine {
             }, this);
         });
     }
-    
+
     /**
      * Convert array to string for indexing
      */
@@ -252,7 +252,7 @@ class SearchEngine {
         }
         return arr || '';
     }
-    
+
     /**
      * Extract text from headings array
      */
@@ -260,7 +260,7 @@ class SearchEngine {
         if (!Array.isArray(headings)) return '';
         return headings.map(h => h.text || '').join(' ');
     }
-    
+
     /**
      * Perform search with query and optional filters
      */
@@ -268,31 +268,31 @@ class SearchEngine {
         if (!this.isInitialized || !this.index) {
             return [];
         }
-        
+
         if (!query || query.trim().length < 2) {
             return [];
         }
-        
+
         try {
             // Enhanced search with multiple strategies
             const results = this.performMultiStrategySearch(query);
-            
+
             // Process and enhance results
             const enhancedResults = this.enhanceResults(results, query);
-            
+
             // Apply filters
             const filteredResults = this.applyFilters(enhancedResults, filters);
-            
+
             // Group and rank results
             const groupedResults = this.groupResultsByDocument(filteredResults, query);
-            
+
             return groupedResults.slice(0, maxResults);
-                
+
         } catch (error) {
             return [];
         }
     }
-    
+
     /**
      * Apply filters to search results
      * Supports both new schema (topic, audience) and legacy (category, persona) filter names
@@ -308,7 +308,7 @@ class SearchEngine {
                     return false;
                 }
             }
-            
+
             // Tag filter
             if (filters.tag && filters.tag !== '') {
                 const docTags = this.getDocumentTags(result);
@@ -316,14 +316,14 @@ class SearchEngine {
                     return false;
                 }
             }
-            
+
             // Document type filter (using actual frontmatter content_type)
             if (filters.type && filters.type !== '') {
                 if (result.content_type !== filters.type) {
                     return false;
                 }
             }
-            
+
             // Audience filter (new) or persona filter (legacy)
             const audienceFilter = filters.audience || filters.persona;
             if (audienceFilter && audienceFilter !== '') {
@@ -332,14 +332,14 @@ class SearchEngine {
                     return false;
                 }
             }
-            
+
             // Difficulty filter
             if (filters.difficulty && filters.difficulty !== '') {
                 if (result.difficulty !== filters.difficulty) {
                     return false;
                 }
             }
-            
+
             // Dynamic facet filters (e.g., filters.facets = { modality: 'text-only', framework: 'pytorch' })
             if (filters.facets && typeof filters.facets === 'object') {
                 for (const [facetKey, facetValue] of Object.entries(filters.facets)) {
@@ -351,7 +351,7 @@ class SearchEngine {
                     }
                 }
             }
-            
+
             // Legacy flat facet filters (e.g., filters.modality directly)
             // Check for any filter key that matches a known facet
             for (const facetKey of Object.keys(this.facets)) {
@@ -362,11 +362,11 @@ class SearchEngine {
                     }
                 }
             }
-            
+
             return true;
         });
     }
-    
+
     /**
      * Get a specific facet value for a document
      */
@@ -383,13 +383,13 @@ class SearchEngine {
         }
         return [];
     }
-    
+
     /**
      * Get topics for a document (supports new schema and legacy categories)
      */
     getDocumentTopics(doc) {
         const topics = [];
-        
+
         // From explicit topics (new schema) or categories (legacy)
         const topicsField = doc.topics || doc.categories;
         if (topicsField) {
@@ -399,34 +399,34 @@ class SearchEngine {
                 topics.push(...topicsField.split(',').map(t => t.trim()));
             }
         }
-        
+
         // From section path
         if (doc.section_path && Array.isArray(doc.section_path)) {
             topics.push(...doc.section_path);
         }
-        
+
         // From document ID path
         if (doc.id) {
             const pathParts = doc.id.split('/').filter(part => part && part !== 'index');
             topics.push(...pathParts);
         }
-        
+
         return [...new Set(topics)]; // Remove duplicates
     }
-    
+
     /**
      * Get categories for a document (legacy alias for getDocumentTopics)
      */
     getDocumentCategories(doc) {
         return this.getDocumentTopics(doc);
     }
-    
+
     /**
      * Get tags for a document
      */
     getDocumentTags(doc) {
         if (!doc.tags) return [];
-        
+
         if (Array.isArray(doc.tags)) {
             // Handle array of tags that might contain space-separated strings
             const flatTags = [];
@@ -444,12 +444,12 @@ class SearchEngine {
             });
             return flatTags;
         }
-        
+
         // Handle string tags - check for both comma and space separation
         if (typeof doc.tags === 'string') {
             const allTags = [];
             const tagString = doc.tags.trim();
-            
+
             if (tagString.includes(',')) {
                 // Comma-separated tags
                 tagString.split(',').forEach(tag => {
@@ -465,14 +465,14 @@ class SearchEngine {
                     }
                 });
             }
-            
+
             return allTags;
         }
-        
+
         return [];
     }
-    
-    
+
+
     /**
      * Get audience for a document (supports new schema and legacy personas)
      */
@@ -480,21 +480,21 @@ class SearchEngine {
         // Support both audience (new) and personas (legacy)
         const audienceField = doc.audience || doc.personas;
         if (!audienceField) return [];
-        
+
         if (Array.isArray(audienceField)) {
             return audienceField;
         }
-        
+
         return [audienceField];
     }
-    
+
     /**
      * Get personas for a document (legacy alias for getDocumentAudience)
      */
     getDocumentPersonas(doc) {
         return this.getDocumentAudience(doc);
     }
-    
+
     /**
      * Perform search with multiple strategies
      */
@@ -502,21 +502,21 @@ class SearchEngine {
         const strategies = [
             // Exact phrase search with wildcards
             `"${query}" ${query}*`,
-            // Fuzzy search with wildcards  
+            // Fuzzy search with wildcards
             `${query}* ${query}~2`,
             // Individual terms with boost
             query.split(/\s+/).map(term => `${term}*`).join(' '),
             // Fallback: just the query
             query
         ];
-        
+
         let allResults = [];
         const seenIds = new Set();
-        
+
         for (const strategy of strategies) {
             try {
                 const results = this.index.search(strategy);
-                
+
                 // Add new results (avoid duplicates)
                 results.forEach(result => {
                     if (!seenIds.has(result.ref)) {
@@ -527,40 +527,40 @@ class SearchEngine {
                         });
                     }
                 });
-                
+
                 // If we have enough good results, stop
                 if (allResults.length >= 30) break;
-                
+
             } catch (strategyError) {
                 console.warn(`Search strategy failed: ${strategy}`, strategyError);
             }
         }
-        
+
         return allResults;
     }
-    
+
     /**
      * Enhance search results with document data and apply re-ranking
      */
     enhanceResults(results, query) {
         const queryLower = query.toLowerCase().trim();
         const queryTerms = queryLower.split(/\s+/);
-        
+
         return results.map(result => {
             const doc = this.documents[result.ref];
             if (!doc) {
                 console.warn(`Document not found: ${result.ref}`);
                 return null;
             }
-            
+
             // Calculate additional relevance boost for title matches
             const titleBoost = this.calculateTitleBoost(doc, queryLower, queryTerms);
             const keywordBoost = this.calculateKeywordBoost(doc, queryTerms);
             const descriptionBoost = this.calculateDescriptionBoost(doc, queryTerms);
-            
+
             // Apply boosts to base score
             const enhancedScore = result.score * (1 + titleBoost + keywordBoost + descriptionBoost);
-            
+
             return {
                 ...doc,
                 score: enhancedScore,
@@ -574,17 +574,17 @@ class SearchEngine {
             };
         }).filter(Boolean); // Remove null results
     }
-    
+
     /**
      * Calculate boost for title matches
      * Heavily rewards exact and partial title matches
      */
     calculateTitleBoost(doc, queryLower, queryTerms) {
         if (!doc.title) return 0;
-        
+
         const titleLower = doc.title.toLowerCase();
         let boost = 0;
-        
+
         // Exact title match (highest boost)
         if (titleLower === queryLower) {
             boost += 10;
@@ -610,46 +610,46 @@ class SearchEngine {
                 boost += 2 * (matchingTerms.length / queryTerms.length);
             }
         }
-        
+
         // Additional boost if title contains query as a distinct word
         const titleWords = titleLower.split(/[\s\-_:]+/);
         if (titleWords.some(word => word === queryLower || word.startsWith(queryLower))) {
             boost += 2;
         }
-        
+
         return boost;
     }
-    
+
     /**
      * Calculate boost for keyword matches
      */
     calculateKeywordBoost(doc, queryTerms) {
         if (!doc.keywords) return 0;
-        
-        const keywords = Array.isArray(doc.keywords) 
+
+        const keywords = Array.isArray(doc.keywords)
             ? doc.keywords.map(k => k.toLowerCase())
             : doc.keywords.toLowerCase().split(/[\s,]+/);
-        
+
         let boost = 0;
-        
+
         queryTerms.forEach(term => {
             if (keywords.some(kw => kw === term || kw.startsWith(term))) {
                 boost += 1.5;
             }
         });
-        
+
         return boost;
     }
-    
+
     /**
      * Calculate boost for description matches
      */
     calculateDescriptionBoost(doc, queryTerms) {
         if (!doc.description) return 0;
-        
+
         const descLower = doc.description.toLowerCase();
         let boost = 0;
-        
+
         // Check if query terms appear early in description
         queryTerms.forEach(term => {
             const pos = descLower.indexOf(term);
@@ -658,23 +658,23 @@ class SearchEngine {
                 boost += pos < 50 ? 1 : 0.5;
             }
         });
-        
+
         return boost;
     }
-    
+
     /**
      * Group results by document and find matching sections
      */
     groupResultsByDocument(results, query) {
         const grouped = new Map();
-        
+
         results.forEach(result => {
             const docId = result.id;
-            
+
             if (!grouped.has(docId)) {
                 // Find matching sections within this document
                 const matchingSections = this.findMatchingSections(result, query);
-                
+
                 grouped.set(docId, {
                     ...result,
                     matchingSections,
@@ -685,30 +685,30 @@ class SearchEngine {
                 // Document already exists, combine scores and sections
                 const existing = grouped.get(docId);
                 const additionalSections = this.findMatchingSections(result, query);
-                
+
                 existing.matchingSections = this.mergeSections(existing.matchingSections, additionalSections);
                 existing.totalMatches += 1;
                 existing.combinedScore = Math.max(existing.combinedScore, result.score);
             }
         });
-        
+
         // Convert map to array and sort by combined score
         return Array.from(grouped.values())
             .sort((a, b) => b.combinedScore - a.combinedScore);
     }
-    
+
     /**
      * Find matching sections within a document
      */
     findMatchingSections(result, query) {
         const matchingSections = [];
         const queryTerms = query.toLowerCase().split(/\s+/);
-        
+
         // Check if title matches
         if (result.title) {
             const titleText = result.title.toLowerCase();
             const hasMatch = queryTerms.some(term => titleText.includes(term));
-            
+
             if (hasMatch) {
                 matchingSections.push({
                     type: 'title',
@@ -718,13 +718,13 @@ class SearchEngine {
                 });
             }
         }
-        
+
         // Check headings for matches
         if (result.headings && Array.isArray(result.headings)) {
             result.headings.forEach(heading => {
                 const headingText = heading.text?.toLowerCase() || '';
                 const hasMatch = queryTerms.some(term => headingText.includes(term));
-                
+
                 if (hasMatch) {
                     matchingSections.push({
                         type: 'heading',
@@ -735,7 +735,7 @@ class SearchEngine {
                 }
             });
         }
-        
+
         // If no specific sections found, add a general content match
         if (matchingSections.length === 0) {
             matchingSections.push({
@@ -745,43 +745,43 @@ class SearchEngine {
                 anchor: ''
             });
         }
-        
+
         return matchingSections;
     }
-    
+
     /**
      * Generate anchor link similar to how Sphinx does it
      */
     generateAnchor(headingText) {
         if (!headingText) return '';
-        
+
         return headingText
             .toLowerCase()
             .replace(/[^\w\s-]/g, '')  // Remove special chars
             .replace(/\s+/g, '-')      // Replace spaces with hyphens
             .trim();
     }
-    
+
     /**
      * Merge sections, avoiding duplicates
      */
     mergeSections(existing, additional) {
         const merged = [...existing];
-        
+
         additional.forEach(section => {
-            const isDuplicate = existing.some(existingSection => 
-                existingSection.text === section.text && 
+            const isDuplicate = existing.some(existingSection =>
+                existingSection.text === section.text &&
                 existingSection.type === section.type
             );
-            
+
             if (!isDuplicate) {
                 merged.push(section);
             }
         });
-        
+
         return merged;
     }
-    
+
     /**
      * Get search statistics
      */
@@ -791,7 +791,7 @@ class SearchEngine {
         Object.entries(this.facets).forEach(([key, valueSet]) => {
             facetStats[key] = valueSet.size;
         });
-        
+
         return {
             documentsIndexed: Object.keys(this.documents).length,
             topicsAvailable: this.topics.size,
@@ -804,7 +804,7 @@ class SearchEngine {
             isInitialized: this.isInitialized
         };
     }
-    
+
     /**
      * Check if the search engine is ready
      */
@@ -814,4 +814,4 @@ class SearchEngine {
 }
 
 // Make SearchEngine available globally
-window.SearchEngine = SearchEngine; 
+window.SearchEngine = SearchEngine;

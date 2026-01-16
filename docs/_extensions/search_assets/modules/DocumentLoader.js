@@ -8,7 +8,7 @@ class DocumentLoader {
         this.documents = {};
         this.isLoaded = false;
     }
-    
+
     /**
      * Load documents from JSON index files
      */
@@ -23,7 +23,7 @@ class DocumentLoader {
             throw error;
         }
     }
-    
+
     /**
      * Fetch document data from various possible paths
      */
@@ -31,11 +31,11 @@ class DocumentLoader {
         // Try different paths to account for different page depths
         const possiblePaths = [
             './index.json',
-            '../index.json', 
+            '../index.json',
             '../../index.json',
             '../../../index.json'
         ];
-        
+
         for (const path of possiblePaths) {
             try {
                 const response = await fetch(path);
@@ -48,10 +48,10 @@ class DocumentLoader {
                 console.log(`❌ Failed to load from ${path}: ${error.message}`);
             }
         }
-        
+
         throw new Error('Failed to load search data from any path');
     }
-    
+
     /**
      * Process and filter documents from raw data
      * Supports three formats:
@@ -71,29 +71,29 @@ class DocumentLoader {
             // Fallback: single document
             allDocs = [data];
         }
-        
+
         // Filter out problematic documents
         const filteredDocs = allDocs.filter(doc => this.isValidDocument(doc));
-        
+
         // Store documents by ID
         filteredDocs.forEach(doc => {
             this.documents[doc.id] = this.sanitizeDocument(doc);
         });
-        
+
         console.log(`Processed ${filteredDocs.length} documents (filtered from ${allDocs.length} total)`);
     }
-    
+
     /**
      * Check if a document is valid for indexing
      */
     isValidDocument(doc) {
         const docId = doc.id || '';
-        return !docId.toLowerCase().includes('readme') && 
-               !docId.startsWith('_') && 
-               doc.title && 
+        return !docId.toLowerCase().includes('readme') &&
+               !docId.startsWith('_') &&
+               doc.title &&
                doc.content;
     }
-    
+
     /**
      * Sanitize document content for safe indexing
      * Supports both new schema fields and legacy fields
@@ -122,20 +122,20 @@ class DocumentLoader {
             section_path: this.sanitizeArray(doc.section_path, 200),
             author: this.sanitizeText(doc.author, 100)
         };
-        
+
         // Preserve facets object (dynamic, user-defined keys)
         if (doc.facets && typeof doc.facets === 'object') {
             sanitized.facets = this.sanitizeFacets(doc.facets);
         }
-        
+
         // Preserve legacy flat modality if present and no facets.modality
         if (doc.modality && (!doc.facets || !doc.facets.modality)) {
             sanitized.modality = this.sanitizeText(doc.modality, 50);
         }
-        
+
         return sanitized;
     }
-    
+
     /**
      * Sanitize facets object (dynamic keys with string or array values)
      */
@@ -150,7 +150,7 @@ class DocumentLoader {
         });
         return sanitized;
     }
-    
+
     /**
      * Sanitize text content with length limits
      */
@@ -158,7 +158,7 @@ class DocumentLoader {
         if (!text || typeof text !== 'string') return '';
         return text.substring(0, maxLength);
     }
-    
+
     /**
      * Sanitize array content
      */
@@ -166,7 +166,7 @@ class DocumentLoader {
         if (!Array.isArray(arr)) return [];
         return arr.map(item => String(item)).join(' ').substring(0, maxLength);
     }
-    
+
     /**
      * Sanitize headings array
      */
@@ -177,49 +177,49 @@ class DocumentLoader {
             level: Number(heading.level) || 1
         }));
     }
-    
+
     /**
      * Get all loaded documents
      */
     getDocuments() {
         return this.documents;
     }
-    
+
     /**
      * Get a specific document by ID
      */
     getDocument(id) {
         return this.documents[id];
     }
-    
+
     /**
      * Get document count
      */
     getDocumentCount() {
         return Object.keys(this.documents).length;
     }
-    
+
     /**
      * Check if documents are loaded
      */
     isReady() {
         return this.isLoaded && Object.keys(this.documents).length > 0;
     }
-    
+
     /**
      * Get documents as array for indexing
      */
     getDocumentsArray() {
         return Object.values(this.documents);
     }
-    
+
     /**
      * Filter documents by criteria
      */
     filterDocuments(filterFn) {
         return this.getDocumentsArray().filter(filterFn);
     }
-    
+
     /**
      * Get document statistics
      */
@@ -236,4 +236,4 @@ class DocumentLoader {
 }
 
 // Make DocumentLoader available globally
-window.DocumentLoader = DocumentLoader; 
+window.DocumentLoader = DocumentLoader;
