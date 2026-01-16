@@ -241,7 +241,7 @@ project = "NVIDIA NeMo Curator User Guide"
 release = "25.09"
 
 html_context = {
-    "product_name": "NeMo Curator",
+    "product_name": "NeMo Guardrails",
     "product_family": ["NeMo"],
     "site_name": "NVIDIA Technical Documentation",
 }
