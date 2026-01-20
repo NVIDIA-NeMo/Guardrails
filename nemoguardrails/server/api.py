@@ -424,6 +424,7 @@ async def _format_streaming_response(
     """
     # Use "unknown" as default if model_name is None
     model = model_name or "unknown"
+    chunk_id = f"chatcmpl-{uuid.uuid4()}"
 
     try:
         async for chunk in stream_iterator:
@@ -434,7 +435,7 @@ async def _format_streaming_response(
                 yield f"data: {json.dumps(processed_chunk.model_dump())}\n\n"
                 return
             else:
-                yield format_streaming_chunk_as_sse(processed_chunk, model)
+                yield format_streaming_chunk_as_sse(processed_chunk, model, chunk_id)
 
     finally:
         # Always send [DONE] event when stream ends
