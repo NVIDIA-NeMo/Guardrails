@@ -55,22 +55,6 @@ def openai_client():
     return client
 
 
-def test_openai_client_list_models(openai_client):
-    models = openai_client.models.list()
-
-    # Verify the response structure matches the GuardrailsModel schema
-    assert len(models.data) > 0
-    model = models.data[0]
-    # Verify it's a valid model response with required fields
-    assert model.object == "model"
-    assert model.owned_by == "nemo-guardrails"
-    # Check the extra fields that GuardrailsModel adds
-    assert hasattr(model, "config_id")
-    assert hasattr(model, "engine")
-    assert hasattr(model, "base_url")
-    assert model.base_url == "https://localhost:8000/v1"
-
-
 def test_openai_client_chat_completion(openai_client):
     response = openai_client.chat.completions.create(
         model="gpt-4o",

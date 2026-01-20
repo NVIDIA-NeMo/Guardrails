@@ -54,53 +54,6 @@ def test_get():
     assert len(result) > 0
 
 
-def test_get_models_default_env_vars():
-    """Test the OpenAI-compatible /v1/models endpoint."""
-    saved_engine = os.environ.pop("MAIN_MODEL_ENGINE", None)
-    try:
-        response = client.get("/v1/models")
-        assert response.status_code == 200
-
-        result = response.json()
-
-        # Check OpenAI models list format
-        assert result["object"] == "list"
-        assert "data" in result
-        assert len(result["data"]) > 0
-
-        # Check each model has the required OpenAI format
-        for model in result["data"]:
-            assert "id" in model
-            assert "config_id" in model
-            assert model["object"] == "model"
-            assert "created" in model
-            assert model["owned_by"] == "nemo-guardrails"
-            assert model["engine"] == "nim"
-            assert model["base_url"] == "https://localhost:8000/v1"
-            assert model["api_key_env_var"] is None
-    finally:
-        if saved_engine is not None:
-            os.environ["MAIN_MODEL_ENGINE"] = saved_engine
-
-
-def test_get_models_with_custom_env_vars():
-    with patch.dict(
-        os.environ,
-        {
-            "MAIN_MODEL_ENGINE": "custom-engine",
-            "MAIN_MODEL_BASE_URL": "https://custom-api.example.com/v1",
-            "MAIN_MODEL_API_KEY": "custom-api-key",
-        },
-    ):
-        response = client.get("/v1/models")
-        assert response.status_code == 200
-        result = response.json()
-        for model in result["data"]:
-            assert model["engine"] == "custom-engine"
-            assert model["base_url"] == "https://custom-api.example.com/v1"
-            assert model["api_key_env_var"] == "custom-api-key"
-
-
 @pytest.mark.skipif(
     not LIVE_TEST_MODE,
     reason="This test requires LIVE_TEST_MODE or TEST_LIVE_MODE environment variable to be set for live testing",

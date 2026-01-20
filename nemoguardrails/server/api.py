@@ -40,8 +40,6 @@ from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.schemas.openai import (
     GuardrailsChatCompletion,
     GuardrailsChatCompletionRequest,
-    GuardrailsModel,
-    GuardrailsModelsResponse,
 )
 from nemoguardrails.server.schemas.utils import (
     create_error_chat_completion,
@@ -199,74 +197,6 @@ app.stop_signal = False
 # Whether the server is pointed to a directory containing a single config.
 app.single_config_mode = False
 app.single_config_id = None
-
-
-@app.get(
-    "/v1/models",
-    response_model=GuardrailsModelsResponse,
-    summary="List available models",
-    description="Lists the currently available models, mapping guardrails configurations to OpenAI-compatible model format.",
-)
-async def get_models():
-    """Returns the list of available models (guardrails configurations) in OpenAI-compatible format."""
-
-    # Use the same logic as get_rails_configs to find available configurations
-    if app.single_config_mode:
-        config_ids = [app.single_config_id] if app.single_config_id else []
-
-    else:
-        config_ids = [
-            f
-            for f in os.listdir(app.rails_config_path)
-            if os.path.isdir(os.path.join(app.rails_config_path, f))
-            and f[0] != "."
-            and f[0] != "_"
-            # Filter out all the configs for which there is no `config.yml` file.
-            and (
-                os.path.exists(os.path.join(app.rails_config_path, f, "config.yml"))
-                or os.path.exists(os.path.join(app.rails_config_path, f, "config.yaml"))
-            )
-        ]
-
-    models = []
-    for config_id in config_ids:
-        try:
-            # Load the RailsConfig to extract model information
-            if app.single_config_mode:
-                config_path = app.rails_config_path
-            else:
-                config_path = os.path.join(app.rails_config_path, config_id)
-
-            rails_config = RailsConfig.from_path(config_path)
-            # Extract all models from this config
-            config_models = rails_config.models
-
-            if len(config_models) == 0:
-                guardrails_model = GuardrailsModel(
-                    id=config_id,
-                    object="model",
-                    created=int(time.time()),
-                    owned_by="nemo-guardrails",
-                    config_id=config_id,
-                )
-                models.append(guardrails_model)
-            else:
-                for model in config_models:
-                    # Only include models with a model name
-                    if model.model:
-                        guardrails_model = GuardrailsModel(
-                            id=model.model,
-                            object="model",
-                            created=int(time.time()),
-                            owned_by="nemo-guardrails",
-                            config_id=config_id,
-                        )
-                        models.append(guardrails_model)
-        except Exception as ex:
-            log.warning(f"Could not load model info for config {config_id}: {ex}")
-            continue
-
-    return GuardrailsModelsResponse(data=models)
 
 
 @app.get(
