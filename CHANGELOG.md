@@ -356,7 +356,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix TypeError from attempting to unpack already-unpacked dictionary. ([#959](https://github.com/NVIDIA-NeMo/Guardrails/issues/959))
 - Fix token stats usage in LLM call info. ([#953](https://github.com/NVIDIA-NeMo/Guardrails/issues/953))
 - Handle unescaped quotes in generate_value using safe_eval ([#946](https://github.com/NVIDIA-NeMo/Guardrails/issues/946))
-- Handle non-relative file paths ([#897](https://github.co/NVIDIA/NeMo-Guardrails/issues/897))
+- Handle non-relative file paths ([#897](https://github.com/NVIDIA-NeMo/Guardrails/issues/897))
 - Set workdir to models and specify entrypoint explicitly ([#1001](https://github.com/NVIDIA-NeMo/Guardrails/pull/1001)).
 
 ### 📚 Documentation
