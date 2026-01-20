@@ -44,7 +44,7 @@ Meet the following prerequisites to use the NeMo Guardrails API server.
 Point the server to a parent directory containing multiple configuration subdirectories:
 
 ```console
-$ cd NeMo-Guardrails
+$ cd Guardrails
 $ nemoguardrails server --config examples/configs
 ```
 
