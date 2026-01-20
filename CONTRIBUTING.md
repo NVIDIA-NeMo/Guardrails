@@ -121,7 +121,7 @@ To get started quickly, follow the steps below.
 2. Clone the project repository:
 
    ```bash
-   git clone https://github.com/NVIDIA-NeMo/Guardrails nemoguardrails
+   git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
    ```
 
 3. Navigate to the project directory:
