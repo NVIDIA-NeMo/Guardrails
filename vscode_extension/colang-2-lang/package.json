@@ -1,7 +1,7 @@
 {
     "repository": {
         "type": "git",
-        "url": "https://github.com/NVIDIA/NeMo-Guardrails.git"
+        "url": "https://github.com/NVIDIA-NeMo/Guardrails.git"
     },
     "name": "colang",
     "displayName": "Colang 2 Lang",

@@ -106,7 +106,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
                 "No OpenTelemetry TracerProvider configured. Traces will not be exported. "
                 "Please configure OpenTelemetry in your application code before using NeMo Guardrails. "
                 "See setup guide at: "
-                "https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#opentelemetry-setup",
+                "https://github.com/NVIDIA-NeMo/Guardrails/blob/main/examples/configs/tracing/README.md#opentelemetry-setup",
                 UserWarning,
                 stacklevel=2,
             )
