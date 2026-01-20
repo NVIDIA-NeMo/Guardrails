@@ -57,7 +57,7 @@ def _test_call(config_id):
     print(res)
     assert len(res["choices"][0]["message"]) == 2
     assert res["choices"][0]["message"]["content"] == "Hello!"
-    assert res.get("state")
+    assert res["guardrails"]["state"]
 
     response = client.post(
         "/v1/chat/completions",
@@ -71,7 +71,7 @@ def _test_call(config_id):
             ],
             "guardrails": {
                 "config_id": config_id,
-                "state": res["state"],
+                "state": res["guardrails"]["state"],
             },
         },
     )

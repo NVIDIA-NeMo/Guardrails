@@ -86,17 +86,18 @@ def test_generation_response_to_chat_completion():
 
     assert result.object == "chat.completion"
     assert result.model == "test_model"
-    assert result.config_id == "test_config_id"
+    assert result.guardrails is not None
+    assert result.guardrails.config_id == "test_config_id"
     assert result.choices[0] == Choice(
         index=0,
         message=ChatCompletionMessage(role="assistant", content="This is a response"),
         finish_reason="stop",
         logprobs=None,
     )
-    assert result.llm_output == {"llm_output": "This is an LLM output"}
-    assert result.output_data == {"output_data": "This is output data"}
-    assert result.log is not None
-    assert result.state == {"state": "This is a state"}
+    assert result.guardrails.llm_output == {"llm_output": "This is an LLM output"}
+    assert result.guardrails.output_data == {"output_data": "This is output data"}
+    assert result.guardrails.log is not None
+    assert result.guardrails.state == {"state": "This is a state"}
 
 
 def test_generation_response_to_chat_completion_with_empty_content():
@@ -116,7 +117,8 @@ def test_create_error_chat_completion():
     result = create_error_chat_completion(model="test_model", error_message=error_message, config_id=config_id)
     assert result.choices[0].message.content == error_message
     assert result.model == "test_model"
-    assert result.config_id == config_id
+    assert result.guardrails is not None
+    assert result.guardrails.config_id == config_id
     assert result.object == "chat.completion"
     assert result.choices[0].message.role == "assistant"
     assert result.choices[0].finish_reason == "stop"
@@ -127,7 +129,7 @@ def test_create_error_chat_completion_without_config_id():
     result = create_error_chat_completion(model="gpt-4", error_message="Error occurred")
     assert result.choices[0].message.content == "Error occurred"
     assert result.model == "gpt-4"
-    assert result.config_id is None
+    assert result.guardrails is None
 
 
 # ===== Tests for format_streaming_chunk =====

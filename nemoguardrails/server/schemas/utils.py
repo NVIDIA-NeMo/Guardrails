@@ -24,7 +24,7 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
 from nemoguardrails.rails.llm.options import GenerationResponse
-from nemoguardrails.server.schemas.openai import GuardrailsChatCompletion
+from nemoguardrails.server.schemas.openai import GuardrailsChatCompletion, GuardrailsDataOutput
 
 
 def extract_bot_message_from_response(
@@ -116,11 +116,13 @@ def generation_response_to_chat_completion(
                 logprobs=None,
             )
         ],
-        config_id=config_id,
-        llm_output=response.llm_output,
-        output_data=response.output_data,
-        log=log_dict,
-        state=response.state,
+        guardrails=GuardrailsDataOutput(
+            config_id=config_id,
+            llm_output=response.llm_output,
+            output_data=response.output_data,
+            log=log_dict,
+            state=response.state,
+        ),
     )
 
 
@@ -156,7 +158,7 @@ def create_error_chat_completion(
                 logprobs=None,
             )
         ],
-        config_id=config_id,
+        guardrails=GuardrailsDataOutput(config_id=config_id) if config_id else None,
     )
 
 

@@ -419,7 +419,7 @@ def test_chat_completion_response_structure():
     assert res["choices"][0]["finish_reason"] == "stop"
     assert res["choices"][0]["message"]["role"] == "assistant"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
-    assert res["config_id"] == "with_custom_llm"
+    assert res["guardrails"]["config_id"] == "with_custom_llm"
 
 
 def test_chat_completion_with_context():
@@ -440,7 +440,7 @@ def test_chat_completion_with_context():
     assert res["object"] == "chat.completion"
     assert res["model"] == "gpt-4o"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
-    assert res["config_id"] == "with_custom_llm"
+    assert res["guardrails"]["config_id"] == "with_custom_llm"
 
 
 def test_chat_completion_with_options():
@@ -463,7 +463,7 @@ def test_chat_completion_with_options():
     assert res["object"] == "chat.completion"
     assert res["model"] == "gpt-4o"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
-    assert res["config_id"] == "with_custom_llm"
+    assert res["guardrails"]["config_id"] == "with_custom_llm"
 
 
 def test_chat_completion_with_all_guardrails_fields():
@@ -490,15 +490,15 @@ def test_chat_completion_with_all_guardrails_fields():
     assert res["object"] == "chat.completion"
     assert res["model"] == "gpt-4o"
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
-    assert res["config_id"] == "with_custom_llm"
+    assert res["guardrails"]["config_id"] == "with_custom_llm"
 
-    assert "log" in res
-    assert res["log"] is not None
-    assert "activated_rails" in res["log"]
-    assert isinstance(res["log"]["activated_rails"], list)
-    assert "stats" in res["log"]
-    assert isinstance(res["log"]["stats"], dict)
-    assert "total_duration" in res["log"]["stats"]
+    assert "log" in res["guardrails"]
+    assert res["guardrails"]["log"] is not None
+    assert "activated_rails" in res["guardrails"]["log"]
+    assert isinstance(res["guardrails"]["log"]["activated_rails"], list)
+    assert "stats" in res["guardrails"]["log"]
+    assert isinstance(res["guardrails"]["log"]["stats"], dict)
+    assert "total_duration" in res["guardrails"]["log"]["stats"]
 
 
 def test_chat_completion_with_log_llm_calls():
@@ -520,12 +520,12 @@ def test_chat_completion_with_log_llm_calls():
     res = response.json()
 
     assert res["choices"][0]["message"]["content"] == "Custom LLM response"
-    assert "log" in res
-    assert res["log"] is not None
-    assert "llm_calls" in res["log"]
-    assert isinstance(res["log"]["llm_calls"], list)
-    assert len(res["log"]["llm_calls"]) >= 1
-    llm_call = res["log"]["llm_calls"][0]
+    assert "log" in res["guardrails"]
+    assert res["guardrails"]["log"] is not None
+    assert "llm_calls" in res["guardrails"]["log"]
+    assert isinstance(res["guardrails"]["log"]["llm_calls"], list)
+    assert len(res["guardrails"]["log"]["llm_calls"]) >= 1
+    llm_call = res["guardrails"]["log"]["llm_calls"][0]
     assert "prompt" in llm_call
     assert "completion" in llm_call
 

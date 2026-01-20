@@ -25,8 +25,8 @@ from pydantic import BaseModel, Field, root_validator, validator
 from nemoguardrails.rails.llm.options import GenerationOptions
 
 
-class GuardrailsChatCompletion(ChatCompletion):
-    """OpenAI API response body with NeMo-Guardrails extensions."""
+class GuardrailsDataOutput(BaseModel):
+    """Guardrails-specific output data."""
 
     config_id: Optional[str] = Field(
         default=None,
@@ -38,13 +38,17 @@ class GuardrailsChatCompletion(ChatCompletion):
     log: Optional[dict] = Field(default=None, description="Generation log data.")
 
 
+class GuardrailsChatCompletion(ChatCompletion):
+    """OpenAI API response body with NeMo-Guardrails extensions."""
+
+    guardrails: Optional[GuardrailsDataOutput] = Field(
+        default=None, description="Guardrails specific output data."
+    )
+
+
 class GuardrailsModel(Model):
     """OpenAI API model with NeMo-Guardrails extensions."""
 
-    config_id: Optional[str] = Field(
-        default=None,
-        description="[NeMo Guardrails extension] The guardrails configuration ID associated with this model.",
-    )
     engine: Optional[str] = Field(
         default_factory=lambda: os.getenv("MAIN_MODEL_ENGINE", "nim"),
         description="[NeMo Guardrails extension] The engine associated with this model.",

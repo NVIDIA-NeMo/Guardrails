@@ -192,8 +192,8 @@ def test_openai_client_with_context(openai_client):
     assert response.choices[0].finish_reason == "stop"
     assert response.choices[0].message.role == "assistant"
     assert response.choices[0].message.content == "Custom LLM response"
-    assert hasattr(response, "config_id")
-    assert response.config_id == "with_custom_llm"
+    assert hasattr(response, "guardrails")
+    assert response.guardrails["config_id"] == "with_custom_llm"
 
 
 def test_openai_client_with_options(openai_client):
@@ -216,7 +216,7 @@ def test_openai_client_with_options(openai_client):
     assert response.object == "chat.completion"
     assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
-    assert response.config_id == "with_custom_llm"
+    assert response.guardrails["config_id"] == "with_custom_llm"
 
 
 def test_openai_client_with_empty_state(openai_client):
@@ -237,7 +237,7 @@ def test_openai_client_with_empty_state(openai_client):
     assert response.object == "chat.completion"
     assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
-    assert response.config_id == "with_custom_llm"
+    assert response.guardrails["config_id"] == "with_custom_llm"
 
 
 def test_openai_client_with_all_guardrails_fields(openai_client):
@@ -263,15 +263,15 @@ def test_openai_client_with_all_guardrails_fields(openai_client):
     assert response.object == "chat.completion"
     assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
-    assert response.config_id == "with_custom_llm"
+    assert response.guardrails["config_id"] == "with_custom_llm"
 
-    assert hasattr(response, "log")
-    assert response.log is not None
-    assert "activated_rails" in response.log
-    assert isinstance(response.log["activated_rails"], list)
-    assert "stats" in response.log
-    assert isinstance(response.log["stats"], dict)
-    assert "total_duration" in response.log["stats"]
+    assert "log" in response.guardrails
+    assert response.guardrails["log"] is not None
+    assert "activated_rails" in response.guardrails["log"]
+    assert isinstance(response.guardrails["log"]["activated_rails"], list)
+    assert "stats" in response.guardrails["log"]
+    assert isinstance(response.guardrails["log"]["stats"], dict)
+    assert "total_duration" in response.guardrails["log"]["stats"]
 
 
 def test_openai_client_with_multiple_configs(openai_client):
@@ -291,7 +291,7 @@ def test_openai_client_with_multiple_configs(openai_client):
     assert response.object == "chat.completion"
     assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "Custom LLM response"
-    assert response.config_id == "with_custom_llm"
+    assert response.guardrails["config_id"] == "with_custom_llm"
 
 
 def test_openai_client_with_rails_disabled(openai_client):
@@ -322,4 +322,4 @@ def test_openai_client_with_rails_disabled(openai_client):
     assert response.object == "chat.completion"
     assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "hi"
-    assert response.config_id == "with_custom_llm"
+    assert response.guardrails["config_id"] == "with_custom_llm"
