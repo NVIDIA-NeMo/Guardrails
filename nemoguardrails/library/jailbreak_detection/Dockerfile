@@ -24,11 +24,11 @@ COPY . .
 ENV JAILBREAK_CHECK_DEVICE=cpu
 
 # Predownload the GPT2 model.
-RUN python3 -c "from transformers import GPT2LMHeadModel, GPT2TokenizerFast; GPT2LMHeadModel.from_pretrained('gpt2-large'); GPT2TokenizerFast.from_pretrained('gpt2-large');"
+RUN python -c "from transformers import GPT2LMHeadModel, GPT2TokenizerFast; GPT2LMHeadModel.from_pretrained('gpt2-large'); GPT2TokenizerFast.from_pretrained('gpt2-large');"
 
 # Expose a port for the server
 EXPOSE 1337
 
 # Start the server as the default command
-ENTRYPOINT ["/usr/local/bin/python", "/app/server.py"]
+ENTRYPOINT ["python", "/app/server.py"]
 CMD ["--port=1337"]
