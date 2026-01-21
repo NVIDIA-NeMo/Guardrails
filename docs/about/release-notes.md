@@ -33,7 +33,7 @@ For a complete record of changes in a release, refer to the
 
 ### Key Features
 
-- Added support for multilingual language detection and refusal messages by integrating the [fast-langdetect package](https://github.com/LlmKira/fast-langdetect). To use this feature, install the NeMo Guardrails library with the `multilingual` extra.
+- Added support for multilingual refusal messages to complement multilingual content safety models such as [NVIDIA Nemotron Safety Guard 8B v3](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3). This feature uses the [fast-langdetect package](https://github.com/LlmKira/fast-langdetect) to detect the user's input language and return refusal messages in the appropriate language. To use this feature, install the NeMo Guardrails library with the `multilingual` extra.
 
   ```bash
   pip install nemoguardrails[multilingual]
