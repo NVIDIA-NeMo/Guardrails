@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,6 +45,21 @@ output_rail_config = RailsConfig.from_content(
           output:
             flows:
               - trend ai guard output
+    """
+)
+detailed_response_config = RailsConfig.from_content(
+    yaml_content="""
+        models: []
+        rails:
+          config:
+            trend_micro:
+              v1_url: "https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails"
+              api_key_env_var: "V1_API_KEY"
+              application_name: "test-app"
+              detailed_response: true
+          input:
+            flows:
+              - trend ai guard input
     """
 )
 
@@ -102,3 +117,29 @@ def test_trend_ai_guard_malformed_response(httpx_mock: HTTPXMock, monkeypatch: p
     # Should fail open
     chat >> "What is the air-speed velocity of an unladen swallow?"
     chat << "I'm sorry, an internal error has occurred."
+
+
+@pytest.mark.unit
+def test_trend_ai_guard_detailed_response(httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch):
+    """Test that detailed_response=true sets Prefer: return=representation header."""
+    monkeypatch.setenv("V1_API_KEY", "test-token")
+    httpx_mock.add_response(
+        is_reusable=True,
+        json={"action": "Allow", "reason": "No threats detected", "blocked": False},
+    )
+
+    chat = TestChat(
+        detailed_response_config,
+        llm_completions=[
+            "  Hi how can I help you today?",
+            '  "Hello there!"',
+        ],
+    )
+
+    chat >> "Hi!"
+    chat << "Hi how can I help you today?"
+
+    # Verify the Prefer header was set to return=representation
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert request.headers.get("Prefer") == "return=representation"
