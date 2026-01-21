@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+
+When a user asks you to prepare for a release of a new version v{version}, do the following:
+
+- Update the release version in docs/project.json and docs/versions1.json files.
+- Check the docs/about/release-notes.md file and remind the user to update the release notes for the new version, if not already done.

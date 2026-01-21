@@ -49,7 +49,7 @@ models:
 
 | Attribute | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `models.type` | string | ✓ | Model type: `main`, `embeddings`, or task-specific |
+| `models.type` | string | ✓ | Model identifier (see [Model Types](#model-types)) |
 | `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
 | `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
 | `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
@@ -59,19 +59,45 @@ models:
 
 ### Model Types
 
+The `type` field is a free-form string identifier. Certain types have special handling in the runtime, while custom types can be defined and referenced in flows via `$model=<type>`.
+
+#### Reserved Types
+
+These types have special handling in the NeMo Guardrails runtime:
+
 | Type | Description |
 |------|-------------|
-| `main` | Primary application LLM |
-| `embeddings` | Embedding generation model |
-| `self_check_input` | Input validation model |
-| `self_check_output` | Output validation model |
-| `content_safety` | Content safety model |
-| `topic_control` | Topic control model |
-| `generate_user_intent` | Canonical user intent generation |
-| `generate_next_steps` | Next step prediction |
-| `generate_bot_message` | Bot response generation |
-| `fact_checking` | Fact verification model |
-| `llama_guard` | LlamaGuard content moderation |
+| `main` | Primary application LLM for conversation |
+| `embeddings` | Embedding model for knowledge base and similarity search |
+| `jailbreak_detection` | Jailbreak detection model (used with NIM) |
+
+#### Commonly-Used Types
+
+The following types are commonly used with guardrails:
+
+| Type | Description | Usage Example in Flows |
+|------|-------------|---------|
+| `content_safety` | Content safety model | `content safety check input $model=content_safety` |
+| `topic_control` | Topic control model | `topic safety check input $model=topic_control` |
+| `llama_guard` | Llama Guard content moderation | `llama guard check input $model=llama_guard` |
+
+#### Custom Types
+
+You can define any custom type and reference it in flows. For example:
+
+```yaml
+models:
+  - type: my_safety_model
+    engine: self-hosted
+    model: my-org/custom-safety-model
+
+rails:
+  input:
+    flows:
+      - content safety check input $model=my_safety_model
+```
+
+The runtime validates that any `$model=<type>` reference in flows has a matching model defined in the configuration.
 
 ### Engines
 
@@ -448,6 +474,22 @@ rails:
           en: "Sorry, I cannot help with that."
           es: "Lo siento, no puedo ayudar con eso."
 ```
+
+The multilingual feature supports the following languages:
+
+| Language | Code |
+|----------|------|
+| English | `en` |
+| Spanish | `es` |
+| Chinese | `zh` |
+| German | `de` |
+| French | `fr` |
+| Hindi | `hi` |
+| Japanese | `ja` |
+| Arabic | `ar` |
+| Thai | `th` |
+
+If the detected language is not in this list, English is used as the fallback. For more details, refer to [Multilingual Refusal Messages](./guardrail-catalog.md#multilingual-refusal-messages).
 
 #### Third-Party Integrations
 

@@ -25,6 +25,25 @@ For a complete record of changes in a release, refer to the
 
 ---
 
+(v0-20-0)=
+
+## 0.20.0
+
+(v0-20-0-features)=
+
+### Key Features
+
+- Added support for multilingual language detection and refusal messages by integrating the [fast-langdetect package](https://github.com/LlmKira/fast-langdetect). To use this feature, install the NeMo Guardrails library with the `multilingual` extra.
+
+  ```bash
+  pip install nemoguardrails[multilingual]
+  ```
+
+  For more information, refer to [](../configure-rails/guardrail-catalog.md#multilingual-content-safety).
+- Added support for [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more. For more information, refer to [](../user-guides/community/gliner.md).
+
+---
+
 (v0-19-0)=
 
 ## 0.19.0
