@@ -42,6 +42,19 @@ For a complete record of changes in a release, refer to the
   For more information, refer to [](../configure-rails/guardrail-catalog.md#multilingual-content-safety).
 - Added support for [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more. For more information, refer to [](../user-guides/community/gliner.md).
 
+### Breaking Changes
+
+- A breaking change introduced in the main application LLM output streaming.
+  - For the Python SDK, `StreamingHandler` is deprecated in favor of `stream_async()`.
+    The `stream_async()` method is now the primary method for streaming LLM responses.
+    No YAML configuration is required for basic streaming of main LLM responses.
+  - For the nemoguardrails CLI, added the `--streaming` flag to the chat command.
+  For more information, refer to [](../run-rails/using-python-apis/streaming.md).
+
+### Other Changes
+
+- Restructured the documentation with improved navigation, clearer content organization, and updated configuration reference and user guides.
+
 ---
 
 (v0-19-0)=
