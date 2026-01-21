@@ -489,7 +489,7 @@ The multilingual feature supports the following languages:
 | Arabic | `ar` |
 | Thai | `th` |
 
-If the detected language is not in this list, English is used as the fallback. For more details, refer to [Multilingual Refusal Messages](./guardrail-catalog.md#multilingual-refusal-messages).
+If the detected language is not in this list, English is used as the fallback. For more details, refer to [Multilingual Content Safety](./guardrail-catalog.md#multilingual-content-safety).
 
 #### Third-Party Integrations
 
