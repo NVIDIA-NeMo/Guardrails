@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -847,7 +847,7 @@ class GuardrailsAIRailConfig(BaseModel):
 class TrendMicroRailConfig(BaseModel):
     """Configuration data for the Trend Micro AI Guard API"""
 
-    v1_url: Optional[str] = Field(
+    v1_url: str = Field(
         default="https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails",
         description="The endpoint for the Trend Micro AI Guard API. For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails where region is eu, jp, au, in, sg, or mea.",
     )
@@ -860,10 +860,11 @@ class TrendMicroRailConfig(BaseModel):
     application_name: str = Field(
         default="nemo-guardrails",
         description="Application name for TMV1-Application-Name header (REQUIRED). Must contain only letters, numbers, hyphens, and underscores, with a maximum length of 64 characters.",
+        pattern=r"^[a-zA-Z0-9_-]+$",
         max_length=64,
     )
 
-    detailed_response: Optional[bool] = Field(
+    detailed_response: bool = Field(
         default=False,
         description="If True, returns detailed AI Guard results with confidence scores (Prefer: return=representation). If False, returns minimal response with only action and reasons (Prefer: return=minimal).",
     )

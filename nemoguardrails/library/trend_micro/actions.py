@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import logging
-from typing import Literal, Optional
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, Field, model_validator
@@ -91,7 +91,7 @@ def trend_ai_guard_mapping(result: GuardResult) -> bool:
 
 
 @action(is_system_action=True, output_mapping=trend_ai_guard_mapping)
-async def trend_ai_guard(config: RailsConfig, text: Optional[str] = None):
+async def trend_ai_guard(config: RailsConfig, text: str):
     """
     Custom action to invoke the Trend Micro AI Guard API.
     """
