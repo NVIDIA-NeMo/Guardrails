@@ -436,7 +436,7 @@ The NeMo Guardrails library provides out of the box connectivity for safety mode
 
 ### Content Safety
 
-The content safety checks inside Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as Nvidia's [Nemotron Content Safety](https://docs.nvidia.com/nim/#nemoguard) model, Meta's [Llama Guard 3](https://www.llama.com/docs/model-cards-and-prompt-formats/llama-guard-3/), and Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma).
+The content safety checks inside Guardrails act as a robust set of guardrails designed to ensure the integrity and safety of both input and output text. This feature allows users to utilize a variety of advanced content safety models such as [NVIDIA Nemotron Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3)([documentation](https://docs.nvidia.com/nim/llama-3-1-nemotron-safety-guard-8b/latest/index.html)) model, Meta [Llama Guard 3](https://www.llama.com/docs/model-cards-and-prompt-formats/llama-guard-3/), and Google's [ShieldGemma](https://ai.google.dev/gemma/docs/shieldgemma).
 
 To use the content safety check, you should:
 
@@ -448,7 +448,7 @@ To use the content safety check, you should:
         engine: openai
         model: gpt-3.5-turbo-instruct
 
-      - type: "content_safety"
+      - type: content_safety
         engine: nim
         parameters:
           base_url: "http://localhost:8123/v1"
@@ -462,10 +462,14 @@ To use the content safety check, you should:
     ```
 
     ```{note}
-    The `type` is a unique idenfier for the model that will be passed to the input and output rails as a parameter.
+    The `type` is a unique idenfier for the model to be referred to in the input and output rails as a parameter.
     ```
 
-1. Include the content safety check in the input and output rails section of the `config.yml` file:
+    ```{note}
+    Llama Guard 3 is a gated model on Hugging Face. To use this model, you must [request access](https://huggingface.co/meta-llama/Llama-Guard-3-8B) and log in using the Hugging Face CLI with `huggingface-cli login`.
+    ```
+
+2. Include the content safety check in the input and output rails section of the `config.yml` file:
 
     ```yaml
     rails:
@@ -479,7 +483,7 @@ To use the content safety check, you should:
 
     It is important to note that you must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safety check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns set of policy violations. Please refer to the [content safety example](../../examples/configs/content_safety/README.md) for more details.
 
-1. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
+3. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
 
     ```yaml
     prompts:
@@ -515,7 +519,7 @@ To use the content safety check, you should:
 
     >WARNING: If a prompt is not defined, an exception will be raised when the configuration is loaded.
 
-1. You must specify the output parser. You can use your own parser and register it or use the off-the-shelf `is_content_safe` output parser as shown above.
+4. You must specify the output parser. You can use your own parser and register it or use the off-the-shelf `is_content_safe` output parser as shown above.
 
     This parser works by checking for specific keywords in the response:
     - If the response includes "safe", the content is considered safe.
@@ -532,7 +536,8 @@ The `content safety check input` and `content safety check output` rails execute
 
 #### Multilingual Content Safety
 
-<!-- TODO: should we mention nvidia/llama-3.1-nemotron-safety-guard-8b-v3  -->
+This feature is useful when using multilingual content safety models, such as [NVIDIA Nemotron Safety Guard](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3), to adapt the standard refusal message which is English only.
+
 When content safety rails block unsafe content, you can configure the NeMo Guardrails library to detect the user's input language and return refusal messages in that language.
 
 ##### Supported Languages and Default Refusal Messages
