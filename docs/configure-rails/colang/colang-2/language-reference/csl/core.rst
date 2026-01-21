@@ -89,7 +89,7 @@ User Event Flows
 
 .. py:function:: user started saying something
 
-    Wait for start of user utterance
+    Wait for start of user utterance.
 
     Example:
 
@@ -110,7 +110,7 @@ User Event Flows
 
     Wait for a user to have said something unexpected (no active match statement for the user utterance that
     matches the incoming event). This is a rather technical flow. If you are looking for a way to react to a
-    wide variety of user messages check out the flows in ``llm.co``.
+    wide variety of user messages, check out the flows in ``llm.co``.
 
     Example:
 
@@ -134,7 +134,7 @@ Bot Action Flows
 
 .. py:function:: bot say $text
 
-    Execute a bot utterance with the provided text and wait until the utterance is completed (e.g. for a voice bot this
+    Execute a bot utterance with the provided text and wait until the utterance is completed (e.g. for a voice bot, this
     flow will finish once the bot audio has finished).
 
     Example:
@@ -156,8 +156,8 @@ Bot Action Flows
 
     **Semantic variants**
 
-    For more expressive interaction histories and more advance use cases the ``core.co`` library provides several
-    semantic wrappers for ``bot say``. You can use them anywhere instead of a ``bot say`` to annotated the
+    For more expressive interaction histories and more advanced use cases, the ``core.co`` library provides several
+    semantic wrappers for ``bot say``. You can use them anywhere instead of a ``bot say`` to annotate the
     purpose of the bot utterance.
 
 
@@ -188,7 +188,7 @@ Bot Event Flows
 
 .. py:function:: bot started saying $text
 
-    Wait for the bot starting with the given utterance
+    Wait for the bot to start saying the given utterance
 
     Example:
 
@@ -207,7 +207,7 @@ Bot Event Flows
 
 .. py:function:: bot started saying something
 
-    Wait for the bot starting with any utterance
+    Wait for the bot to start saying any utterance
 
     Example:
 
@@ -226,7 +226,7 @@ Bot Event Flows
 
 .. py:function:: bot said $text
 
-    Wait for the bot to finish saying given utterance
+    Wait for the bot to finish saying the given utterance
 
     Example:
 
@@ -246,7 +246,7 @@ Bot Event Flows
 
 .. py:function:: bot said something -> $text
 
-    Wait for the bot to finish with any utterance
+    Wait for the bot to finish saying any utterance
 
     Example:
 
@@ -315,7 +315,7 @@ Utilities
 
 .. py:function:: it finished
 
-    Wait until a flow or action has finished. This will also check the action's or flow's state and if it has
+    Wait until a flow or action has finished. This will also check the action's or flow's state and, if it has
     already finished, continue immediately. If the awaited flow has already failed instead of finished, this flow
     will also fail.
 

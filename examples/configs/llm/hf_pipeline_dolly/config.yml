@@ -2,9 +2,6 @@ models:
   - type: main
     engine: hf_pipeline_dolly
 
-# Remove attribute / set to False if streaming is not required
-streaming: True
-
 instructions:
   - type: general
     content: |

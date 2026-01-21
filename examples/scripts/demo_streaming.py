@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,8 +34,6 @@ models:
   - type: main
     engine: openai
     model: gpt-4
-
-streaming: True
 """
 
 
@@ -99,8 +97,6 @@ async def demo_streaming_from_custom_action():
                 dialog:
                     user_messages:
                         embeddings_only: True
-
-            streaming: True
         """,
         colang_content="""
             # We need to have at least on canonical form to enable dialog rails.

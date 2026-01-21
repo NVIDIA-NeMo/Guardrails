@@ -1,0 +1,538 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Cursor" version="24.0.0" pages="8">
+  <!-- Page 1: Content Safety -->
+  <diagram id="content-safety" name="1. Content Safety">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="cs-title" value="Content Safety Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="400" y="30" width="300" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="cs-app" value="Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="cs-guardrails" value="NeMo Guardrails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="140" width="180" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-input" value="Input Content&#xa;Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="180" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-output" value="Output Content&#xa;Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="250" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Content Safety Options Container -->
+        <mxCell id="cs-options" value="Content Safety Options" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="100" width="200" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-opt1" value="LLM Self-Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="140" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-opt2" value="Llama 3.1 NemoGuard&#xa;Content Safety NIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="190" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-opt3" value="LlamaGuard / Fiddler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="245" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-opt4" value="ActiveFence / AI Defense" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="295" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <!-- LLM Box -->
+        <mxCell id="cs-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="cs-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="cs-app" target="cs-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="cs-guardrails" target="cs-options">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs-arr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="cs-options" target="cs-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="cs-caption" value="Content safety guardrails check both user inputs and LLM outputs for harmful content." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="280" y="380" width="500" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 2: Jailbreak Protection -->
+  <diagram id="jailbreak" name="2. Jailbreak Protection">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="jb-title" value="Jailbreak Protection Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="380" y="30" width="340" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="jb-app" value="Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="jb-guardrails" value="NeMo Guardrails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="160" width="180" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-input" value="Input Jailbreak&#xa;Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="200" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <!-- Jailbreak Detection Options Container -->
+        <mxCell id="jb-options" value="Jailbreak Detection Options" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6e6;strokeColor=#cc0000;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="100" width="200" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-opt1" value="Self-Check Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="140" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-opt2" value="Heuristic Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="190" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-opt3" value="NemoGuard Jailbreak&#xa;Detection NIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="240" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-opt4" value="Prompt Security /&#xa;Pangea AI Guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="295" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <!-- LLM Box -->
+        <mxCell id="jb-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="jb-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="jb-app" target="jb-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="jb-guardrails" target="jb-options">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="jb-arr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="jb-options" target="jb-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="jb-caption" value="Jailbreak protection prevents adversarial attempts from bypassing safety measures." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="280" y="380" width="500" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 3: Topic Control -->
+  <diagram id="topic-control" name="3. Topic Control">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="tc-title" value="Topic Control Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="400" y="30" width="300" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="tc-app" value="Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="tc-guardrails" value="NeMo Guardrails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="140" width="180" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-valid" value="Topic Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="180" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-dialog" value="Dialog Flow Control" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="250" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Topic Control Options Container -->
+        <mxCell id="tc-options" value="Topic Control Options" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f0ff;strokeColor=#0066cc;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="120" width="200" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-opt1" value="Dialog Rails (Colang)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#0066cc;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="160" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-opt2" value="Topical Rails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#0066cc;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="215" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-opt3" value="NemoGuard Topic&#xa;Control NIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#0066cc;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="265" width="160" height="45" as="geometry"/>
+        </mxCell>
+        <!-- LLM Box -->
+        <mxCell id="tc-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="tc-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="tc-app" target="tc-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="tc-guardrails" target="tc-options">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tc-arr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="tc-options" target="tc-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="tc-caption" value="Topic control ensures conversations stay within predefined subject boundaries." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="300" y="380" width="460" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 4: PII Detection -->
+  <diagram id="pii-detection" name="4. PII Detection">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="pii-title" value="PII Detection and Masking Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="350" y="30" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="pii-app" value="Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="pii-guardrails" value="NeMo Guardrails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="140" width="180" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-input" value="Input PII Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="180" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-output" value="Output PII Masking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="250" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <!-- PII Detection Options Container -->
+        <mxCell id="pii-options" value="PII Detection Options" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e6;strokeColor=#ff9900;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="100" width="200" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-opt1" value="Microsoft Presidio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff9900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="140" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-opt2" value="Private AI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff9900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="190" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-opt3" value="AutoAlign PII" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff9900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="240" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-opt4" value="GuardrailsAI Validators" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff9900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="290" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <!-- LLM Box -->
+        <mxCell id="pii-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="pii-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="pii-app" target="pii-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="pii-guardrails" target="pii-options">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pii-arr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="pii-options" target="pii-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="pii-caption" value="PII detection protects user privacy by detecting and masking sensitive data." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="300" y="380" width="460" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 5: Agentic Security -->
+  <diagram id="agentic-security" name="5. Agentic Security">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="ag-title" value="Agentic Security Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="380" y="30" width="340" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="ag-app" value="Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="ag-guardrails" value="NeMo Guardrails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="100" width="180" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-pre" value="Pre-Tool Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="140" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-post" value="Post-Tool Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="210" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-monitor" value="Action Monitoring" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="280" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <!-- LLM Agent Container -->
+        <mxCell id="ag-agent" value="LLM Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6e6fa;strokeColor=#6600cc;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="140" width="180" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6600cc;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="520" y="180" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-tools" value="Tool Calls" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6600cc;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="520" y="250" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <!-- External Tools Container -->
+        <mxCell id="ag-external" value="External Tools &amp; APIs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#cc6600;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="740" y="120" width="160" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-db" value="Database" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc6600;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="760" y="160" width="120" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-fs" value="File System" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc6600;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="760" y="210" width="120" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-api" value="External APIs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc6600;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="760" y="260" width="120" height="35" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="ag-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="ag-app" target="ag-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="ag-guardrails" target="ag-agent">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ag-arr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="ag-tools" target="ag-external">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="ag-caption" value="Agentic security provides guardrails for LLM agents using tools and external systems." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="280" y="380" width="520" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 6: Custom Guardrails -->
+  <diagram id="custom-guardrails" name="6. Custom Guardrails">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="cg-title" value="Custom and Third-Party Guardrails Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="320" y="30" width="460" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="cg-app" value="Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="cg-guardrails" value="NeMo Guardrails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="140" width="180" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-input" value="Custom Input Rails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="180" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-output" value="Custom Output Rails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="250" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Custom Options Container -->
+        <mxCell id="cg-options" value="Custom Guardrail Options" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6ffe6;strokeColor=#009900;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="100" width="200" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-opt1" value="Python Actions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#009900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="140" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-opt2" value="LangChain Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#009900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="190" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-opt3" value="Third-Party APIs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#009900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="240" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-opt4" value="Custom Scripts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#009900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="290" width="160" height="35" as="geometry"/>
+        </mxCell>
+        <!-- LLM Box -->
+        <mxCell id="cg-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="200" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="cg-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="cg-app" target="cg-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="cg-guardrails" target="cg-options">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cg-arr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="cg-options" target="cg-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="cg-caption" value="Build custom guardrails using Python actions, LangChain tools, or third-party APIs." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="290" y="380" width="500" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 7: Integration Options -->
+  <diagram id="integration" name="7. Integration Options">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="int-title" value="Integration Options" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="430" y="30" width="240" height="40" as="geometry"/>
+        </mxCell>
+        <!-- SDK Integration -->
+        <mxCell id="int-sdk-box" value="Python SDK Integration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="400" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-sdk-app" value="Python App" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="140" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-sdk-rails" value="LLMRails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="250" y="140" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-sdk-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="140" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-sdk-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="int-sdk-app" target="int-sdk-rails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-sdk-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="int-sdk-rails" target="int-sdk-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Server API Integration -->
+        <mxCell id="int-server-box" value="Server API Integration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f0ff;strokeColor=#0066cc;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="100" y="230" width="400" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-server-app" value="Any Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="120" y="270" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-server-rails" value="NeMo Guardrails&#xa;Server :8000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce0ff;strokeColor=#0066cc;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="250" y="265" width="100" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-server-llm" value="LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="270" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-server-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="int-server-app" target="int-server-rails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-server-label" value="HTTP API" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="220" y="250" width="60" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-server-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="int-server-rails" target="int-server-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- OpenAI Compatible -->
+        <mxCell id="int-openai-box" value="OpenAI-Compatible Endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e6;strokeColor=#ff9900;strokeWidth=2;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="100" y="360" width="400" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-openai-app" value="Existing OpenAI&#xa;Integration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="400" width="100" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-openai-endpoint" value="/v1/chat/completions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6b3;strokeColor=#ff9900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="280" y="405" width="140" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="int-openai-arr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="int-openai-app" target="int-openai-endpoint">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="int-caption" value="Multiple integration options: Python SDK, HTTP Server API, or OpenAI-compatible endpoint." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="240" y="480" width="560" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <!-- Page 8: Combined Overview -->
+  <diagram id="combined-overview" name="8. Combined Overview">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <!-- Title -->
+        <mxCell id="co-title" value="NeMo Guardrails - Complete Architecture Overview" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=20;fontStyle=1;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="500" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Application Box -->
+        <mxCell id="co-app" value="Application Code" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <!-- NeMo Guardrails Container -->
+        <mxCell id="co-guardrails" value="NVIDIA NeMo Guardrails Library" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7e6;strokeColor=#76b900;strokeWidth=3;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="260" y="80" width="480" height="500" as="geometry"/>
+        </mxCell>
+        <!-- Input Rails -->
+        <mxCell id="co-input-rails" value="Input Rails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=13;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="280" y="120" width="200" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-ir1" value="Content Safety" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="160" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-ir2" value="Jailbreak Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="200" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-ir3" value="PII Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-ir4" value="Topic Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="280" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <!-- Output Rails -->
+        <mxCell id="co-output-rails" value="Output Rails" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4d9;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=13;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="280" y="350" width="200" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-or1" value="Content Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="390" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-or2" value="PII Masking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="430" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-or3" value="Response Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#76b900;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="470" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <!-- NemoGuard NIMs -->
+        <mxCell id="co-nims" value="NemoGuard NIMs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9edf7;strokeColor=#31708f;fontFamily=NVIDIA Sans Medium;fontSize=13;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="520" y="120" width="200" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-nim1" value="Content Safety NIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#31708f;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="160" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-nim2" value="Jailbreak Detection NIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#31708f;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="200" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-nim3" value="Topic Control NIM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#31708f;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="240" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <!-- Third-Party Integrations -->
+        <mxCell id="co-third" value="Third-Party Integrations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcf8e3;strokeColor=#8a6d3b;fontFamily=NVIDIA Sans Medium;fontSize=13;fontStyle=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="520" y="320" width="200" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-tp1" value="Presidio / Private AI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8a6d3b;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="360" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-tp2" value="ActiveFence / AI Defense" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8a6d3b;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="400" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-tp3" value="LlamaGuard / Fiddler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#8a6d3b;fontFamily=NVIDIA Sans Medium;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="440" width="160" height="30" as="geometry"/>
+        </mxCell>
+        <!-- LLM Box -->
+        <mxCell id="co-llm" value="Large Language&#xa;Model (LLM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d8d8e8;strokeColor=#999999;fontFamily=NVIDIA Sans Medium;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="800" y="300" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <!-- Arrows -->
+        <mxCell id="co-arr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="co-app" target="co-guardrails">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="co-arr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="co-guardrails" target="co-llm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Caption -->
+        <mxCell id="co-caption" value="Complete architecture showing all guardrail types and integration options." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=2;fontFamily=NVIDIA Sans Medium;" vertex="1" parent="1">
+          <mxGeometry x="360" y="600" width="440" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

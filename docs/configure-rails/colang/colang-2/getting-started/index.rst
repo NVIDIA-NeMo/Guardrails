@@ -3,7 +3,7 @@
 Getting Started
 ===============
 
-This section is a getting started guide for Colang 2.0. It starts with a basic "Hello World" example and then goes into dialog rails, input rails, multimodal rails and other Colang 2.0 concepts like interaction loops and LLM flows. This guide does not assume any experience with Colang 1.0, and all the concepts are explained from scratch.
+This section is a getting started guide for Colang 2.0. It starts with a basic "Hello World" example and then goes into dialog rails, input rails, multimodal rails, and other Colang 2.0 concepts like interaction loops and LLM flows. This guide does not assume any experience with Colang 1.0, and all the concepts are explained from scratch.
 
 Prerequisites
 -------------

@@ -34,8 +34,8 @@ You can contribute to this project in several ways, including:
 
 When preparing to report a bug, please follow these steps to ensure efficiency:
 
-- **Review Existing Issues**: Search the [issue tracker](https://github.com/NVIDIA/NeMo-Guardrails/issues) to confirm that the problem you’re experiencing has not been reported already.
-- **Confirm the Nature of the Issue**: Ensure that what you are reporting is a genuine bug, not a support question or topic better suited for our [Discussions](https://github.com/NVIDIA/NeMo-Guardrails/discussions) page.
+- **Review Existing Issues**: Search the [issue tracker](https://github.com/NVIDIA-NeMo/Guardrails/issues) to confirm that the problem you’re experiencing has not been reported already.
+- **Confirm the Nature of the Issue**: Ensure that what you are reporting is a genuine bug, not a support question or topic better suited for our [Discussions](https://github.com/NVIDIA-NeMo/Guardrails/discussions) page.
 - **Reopen Related Issues**: If you discover a closed issue that mirrors your current experience, create a new issue and reference the closed one with a link to provide context.
 - **Check Release Updates**: Look at the latest release notes to see if your issue is mentioned, along with any upgrade instructions or known issues.
 
@@ -74,11 +74,11 @@ This section provides instructions on how to submit enhancement or feature sugge
 
 Before Submitting a Suggested Enhancement
 
-- **Review Existing Issues**: Ensure that your suggestion has not already been submitted by checking the [issue tracker](https://github.com/NVIDIA/NeMo-Guardrails/issues) for similar ideas or proposals.
+- **Review Existing Issues**: Ensure that your suggestion has not already been submitted by checking the [issue tracker](https://github.com/NVIDIA-NeMo/Guardrails/issues) for similar ideas or proposals.
 
 ### How to Submit an Enhancement Suggestion?
 
-Enhancement suggestions for NeMo Guardrails should be submitted through the main [issue tracker](https://github.com/NVIDIA/NeMo-Guardrails/issues), using the corresponding issue template provided. Follow these guidelines when submitting:
+Enhancement suggestions for NeMo Guardrails should be submitted through the main [issue tracker](https://github.com/NVIDIA-NeMo/Guardrails/issues), using the corresponding issue template provided. Follow these guidelines when submitting:
 
 - **Create a Clear, Descriptive Title**: Choose a title that clearly identifies the nature of your enhancement.
 - **Detailed Description**: Provide a comprehensive description of the proposed enhancement. Include specific steps, examples, or scenarios that illustrate how the feature would work or be implemented.
@@ -97,7 +97,7 @@ Improving the project documentation is a valuable way to contribute to NeMo Guar
 
 ## Code Contributions
 
-If you’re contributing for the first time and are searching for an issue to work on, we encourage you to check the [Contributing page](https://github.com/NVIDIA/NeMo-Guardrails/contribute) for suitable candidates. We strive to keep a selection of issues curated for first-time contributors, but sometimes there may be delays in updating. If you don’t find anything that fits, don’t hesitate to ask for guidance.
+If you’re contributing for the first time and are searching for an issue to work on, we encourage you to check the [Contributing page](https://github.com/NVIDIA-NeMo/Guardrails/contribute) for suitable candidates. We strive to keep a selection of issues curated for first-time contributors, but sometimes there may be delays in updating. If you don’t find anything that fits, don’t hesitate to ask for guidance.
 If you would like to take on an issue, feel free to comment on the issue. We are more than happy to discuss solutions on the issue.
 
 > **Note**: Before submitting a pull request, ensure that you have read and understood the [Contribution Workflow](#contribution-workflow) section. Always open an issue before submitting a pull request so that others can access it in future and potentially discuss the changes you plan to make. We do not accept pull requests without an associated issue.
@@ -121,7 +121,7 @@ To get started quickly, follow the steps below.
 2. Clone the project repository:
 
    ```bash
-   git clone https://github.com/NVIDIA/NeMo-Guardrails.git
+   git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
    ```
 
 3. Navigate to the project directory:
@@ -460,6 +460,6 @@ By following these guidelines, you help maintain the integrity and legal complia
 
 ## Community and Support
 
-For general questions or discussion about the project, use the [discussions](https://github.com/NVIDIA/NeMo-Guardrails/discussions) section.
+For general questions or discussion about the project, use the [discussions](https://github.com/NVIDIA-NeMo/Guardrails/discussions) section.
 
 Thank you for contributing to NeMo Guardrails!

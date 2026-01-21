@@ -1,8 +1,21 @@
-# Quick Start
+---
+title:
+  page: "Quick Start for Tracing Guardrails"
+  nav: "Quick Start"
+description: "Set up tracing in minutes with the OpenTelemetry SDK and console output."
+topics: ["Observability", "AI Safety"]
+tags: ["Tracing", "OpenTelemetry", "Quick Start", "Setup"]
+content:
+  type: "Get Started"
+  difficulty: "Beginner"
+  audience: ["Developer", "AI Engineer"]
+---
+
+# Quick Start for Tracing Guardrails
 
 The following is a minimal setup to enable tracing using the OpenTelemetry SDK.
 
-1. Install the NeMo Guardrails toolkit and the OpenTelemetry SDK.
+1. Install the NeMo Guardrails library and the OpenTelemetry SDK.
 
     ```bash
     pip install nemoguardrails[tracing] opentelemetry-sdk

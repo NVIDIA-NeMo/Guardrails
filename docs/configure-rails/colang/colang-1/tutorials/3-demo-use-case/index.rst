@@ -6,4 +6,4 @@
 .. toctree::
    :maxdepth: 2
 
-   README
+   Demo Use Case <README>

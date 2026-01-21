@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,13 @@
 
 
 from nemoguardrails.llm.output_parsers import (
+    _extract_harm_value,
+    _strip_think_tags,
     is_content_safe,
     nemoguard_parse_prompt_safety,
     nemoguard_parse_response_safety,
+    nemotron_reasoning_parse_prompt_safety,
+    nemotron_reasoning_parse_response_safety,
 )
 
 
@@ -362,3 +366,277 @@ class TestOutputParsersRealWorldScenarios:
         assert len(violated_policies) > 0
         assert "S1" in violated_policies
         assert "S8" in violated_policies
+
+
+class TestStripThinkTags:
+    """Test the _strip_think_tags helper function."""
+
+    def test_no_think_tags(self):
+        """Test input without think tags returns unchanged."""
+        response = "Prompt harm: unharmful\nResponse Harm: unharmful"
+        result = _strip_think_tags(response)
+        assert result == response
+
+    def test_single_line_think_tags(self):
+        """Test stripping single-line think tags."""
+        response = "<think>some reasoning</think>\nPrompt harm: harmful"
+        result = _strip_think_tags(response)
+        assert result == "Prompt harm: harmful"
+
+    def test_multiline_think_tags(self):
+        """Test stripping multi-line think tags."""
+        response = """<think>
+The user's request falls under S21 (Illegal Activity).
+This is clearly harmful content.
+</think>
+
+Prompt harm: harmful
+Response Harm: unharmful"""
+        result = _strip_think_tags(response)
+        assert "<think>" not in result
+        assert "</think>" not in result
+        assert "Prompt harm: harmful" in result
+        assert "Response Harm: unharmful" in result
+
+    def test_empty_think_tags(self):
+        """Test stripping empty think tags."""
+        response = "<think></think>Prompt harm: unharmful"
+        result = _strip_think_tags(response)
+        assert result == "Prompt harm: unharmful"
+
+    def test_whitespace_handling(self):
+        """Test that result is stripped of leading/trailing whitespace."""
+        response = "  <think>reasoning</think>  \n  Prompt harm: unharmful  "
+        result = _strip_think_tags(response)
+        assert result == "Prompt harm: unharmful"
+
+
+class TestExtractHarmValue:
+    """Test the _extract_harm_value helper function."""
+
+    def test_extract_harmful(self):
+        """Test extracting harmful value."""
+        response = "Prompt harm: harmful"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "harmful"
+
+    def test_extract_unharmful(self):
+        """Test extracting unharmful value."""
+        response = "Prompt harm: unharmful"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "unharmful"
+
+    def test_case_insensitive_field(self):
+        """Test case insensitive field matching."""
+        response = "PROMPT HARM: unharmful"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "unharmful"
+
+    def test_case_insensitive_value(self):
+        """Test value is lowercased."""
+        response = "Prompt harm: UNHARMFUL"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "unharmful"
+
+    def test_response_harm_field(self):
+        """Test extracting Response Harm field."""
+        response = "Response Harm: harmful"
+        result = _extract_harm_value(response, "Response Harm")
+        assert result == "harmful"
+
+    def test_missing_field_defaults_to_harmful(self):
+        """Test missing field defaults to harmful."""
+        response = "Some other text without the field"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "harmful"
+
+    def test_extra_whitespace_around_colon(self):
+        """Test handling of extra whitespace around colon."""
+        response = "Prompt harm  :   unharmful"
+        result = _extract_harm_value(response, "Prompt harm")
+        assert result == "unharmful"
+
+    def test_multiline_response(self):
+        """Test extracting from multiline response."""
+        response = "Prompt harm: harmful\nResponse Harm: unharmful"
+        result = _extract_harm_value(response, "Response Harm")
+        assert result == "unharmful"
+
+
+class TestNemotronReasoningParsePromptSafety:
+    """Test the nemotron_reasoning_parse_prompt_safety output parser."""
+
+    def test_unharmful_prompt_no_reasoning(self):
+        """Test parsing unharmful prompt without reasoning."""
+        response = "Prompt harm: unharmful\nResponse Harm: unharmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is True
+        assert violated_policies == []
+
+    def test_harmful_prompt_no_reasoning(self):
+        """Test parsing harmful prompt without reasoning."""
+        response = "Prompt harm: harmful\nResponse Harm: unharmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+        assert violated_policies == []
+
+    def test_unharmful_prompt_with_reasoning(self):
+        """Test parsing unharmful prompt with reasoning tags."""
+        response = """<think>
+The user is asking about exercise benefits, which is a safe topic.
+</think>
+
+Prompt harm: unharmful
+Response Harm: unharmful"""
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is True
+        assert violated_policies == []
+
+    def test_harmful_prompt_with_reasoning(self):
+        """Test parsing harmful prompt with reasoning tags."""
+        response = """<think>
+The user's request falls under S21 (Illegal Activity) as it seeks guidance
+on shoplifting, which is a criminal act.
+</think>
+
+Prompt harm: harmful
+Response Harm: unharmful"""
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+        assert violated_policies == []
+
+    def test_case_insensitive_parsing(self):
+        """Test parsing is case insensitive."""
+        response = "PROMPT HARM: UNHARMFUL"
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is True
+
+    def test_missing_field_defaults_to_unsafe(self):
+        """Test missing field defaults to unsafe (harmful)."""
+        response = "Response Harm: unharmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+
+    def test_empty_response_defaults_to_unsafe(self):
+        """Test empty response defaults to unsafe."""
+        response = ""
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+
+    def test_malformed_response_defaults_to_unsafe(self):
+        """Test malformed response defaults to unsafe."""
+        response = "The model refused to answer"
+        is_safe, *violated_policies = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+
+
+class TestNemotronReasoningParseResponseSafety:
+    """Test the nemotron_reasoning_parse_response_safety output parser."""
+
+    def test_unharmful_response_no_reasoning(self):
+        """Test parsing unharmful response without reasoning."""
+        response = "Prompt harm: unharmful\nResponse Harm: unharmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is True
+        assert violated_policies == []
+
+    def test_harmful_response_no_reasoning(self):
+        """Test parsing harmful response without reasoning."""
+        response = "Prompt harm: unharmful\nResponse Harm: harmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False
+        assert violated_policies == []
+
+    def test_unharmful_response_with_reasoning(self):
+        """Test parsing unharmful response with reasoning tags."""
+        response = """<think>
+The AI assistant's response provides helpful exercise information.
+This is safe content.
+</think>
+
+Prompt harm: unharmful
+Response Harm: unharmful"""
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is True
+        assert violated_policies == []
+
+    def test_harmful_response_with_reasoning(self):
+        """Test parsing harmful response with reasoning tags."""
+        response = """<think>
+The AI assistant's response contains violent content that falls under S1.
+</think>
+
+Prompt harm: unharmful
+Response Harm: harmful"""
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False
+        assert violated_policies == []
+
+    def test_case_insensitive_parsing(self):
+        """Test parsing is case insensitive."""
+        response = "RESPONSE HARM: UNHARMFUL"
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is True
+
+    def test_missing_field_defaults_to_unsafe(self):
+        """Test missing field defaults to unsafe (harmful)."""
+        response = "Prompt harm: unharmful"
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False
+
+    def test_empty_response_defaults_to_unsafe(self):
+        """Test empty response defaults to unsafe."""
+        response = ""
+        is_safe, *violated_policies = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False
+
+    def test_starred_unpacking_compatibility(self):
+        """Test parser output is compatible with starred unpacking."""
+        response = "Prompt harm: unharmful\nResponse Harm: unharmful"
+        result = nemotron_reasoning_parse_response_safety(response)
+        is_safe, *violated_policies = result
+        assert is_safe is True
+        assert violated_policies == []
+
+        response = "Response Harm: harmful"
+        result = nemotron_reasoning_parse_response_safety(response)
+        is_safe, *violated_policies = result
+        assert is_safe is False
+        assert violated_policies == []
+
+
+class TestNemotronReasoningRealWorldScenarios:
+    """Test nemotron reasoning parsers with real-world scenarios."""
+
+    def test_typical_safe_request_response(self):
+        """Test typical safe request with reasoning mode off."""
+        response = """Prompt harm: unharmful
+Response harm: unharmful"""
+        is_safe, *_ = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is True
+
+        is_safe, *_ = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is True
+
+    def test_typical_unsafe_request_with_reasoning(self):
+        """Test typical unsafe request with full reasoning trace."""
+        response = """<think>
+The human user's request falls under S21 (Illegal Activity) as it seeks guidance on theft,
+which is a criminal act. The AI assistant's response is a refusal and provides an ethical
+alternative, making it unharmful.
+</think>
+
+Prompt harm: harmful
+Response harm: unharmful"""
+
+        is_safe, *_ = nemotron_reasoning_parse_prompt_safety(response)
+        assert is_safe is False
+
+        is_safe, *_ = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is True
+
+    def test_response_harm_lowercase(self):
+        """Test parsing 'Response harm' (lowercase h) which is used in prompts."""
+        response = "Prompt harm: unharmful\nResponse harm: harmful"
+        is_safe, *_ = nemotron_reasoning_parse_response_safety(response)
+        assert is_safe is False

@@ -1,8 +1,21 @@
+---
+title:
+  page: "Tracing Guardrails"
+  nav: "Tracing"
+description: "Enable distributed tracing with OpenTelemetry to monitor guardrails execution and LLM calls."
+topics: ["Observability", "AI Safety"]
+tags: ["Tracing", "OpenTelemetry", "Monitoring", "Jaeger"]
+content:
+  type: "How-To"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer", "AI Engineer"]
+---
+
 (tracing)=
 
-# Tracing
+# Tracing Guardrails
 
-Tracing enhances the observability of guardrails execution. This section explains the configuration process for implementing tracing with NeMo Guardrails.
+Tracing enhances the observability of guardrails execution. This section explains the configuration process for implementing tracing with the NeMo Guardrails library.
 
 With tracing, you can:
 
@@ -13,7 +26,7 @@ With tracing, you can:
 
 ## Span Formats
 
-Starting with NeMo Guardrails v0.16.0, the tracing system has transitioned to OpenTelemetry semantic conventions for Generative AI (GenAI), moving away from the legacy span format. This change enhances observability standardization and improves monitoring capabilities for AI workloads.
+Starting with the NeMo Guardrails library v0.16.0, the tracing system has transitioned to OpenTelemetry semantic conventions for Generative AI (GenAI), moving away from the legacy span format. This change enhances observability standardization and improves monitoring capabilities for AI workloads.
 
 **Reference Documentation:**
 
@@ -23,7 +36,7 @@ Starting with NeMo Guardrails v0.16.0, the tracing system has transitioned to Op
 
 ### Supported Formats
 
-NeMo Guardrails support the following formats.
+The NeMo Guardrails library supports the following formats.
 
 - **OpenTelemetry** (`opentelemetry`) - **Recommended default format** following OpenTelemetry semantic conventions for GenAI
 - **Legacy** (`legacy`) - Previous format with simple metrics dictionary (deprecated)
@@ -79,21 +92,18 @@ Existing configurations will continue to work. However, it is strongly recommend
 - [](quick-start.md) - Minimal setup to enable tracing using the OpenTelemetry SDK
 - [](adapter-configurations.md) - Detailed configuration for FileSystem, OpenTelemetry, and Custom adapters
 - [](opentelemetry-integration.md) - Production-ready OpenTelemetry setup and ecosystem compatibility
-- [](common-integrations.md) - Setup examples for Jaeger, Zipkin, and OpenTelemetry Collector
 - [](troubleshooting.md) - Common issues and solutions
 
 ## Jupyter Notebooks
 
-- [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
-- [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/2_tracing_with_jaeger.ipynb) - A guide to visualize Guardrails traces in Jaeger.
+- [Tracing Guardrails Quickstart](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/1_tracing_quickstart.ipynb) - A quickstart guide to tracing Guardrails requests in sequential and parallel modes.
+- [Tracing Guardrails with Jaeger](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/2_tracing_with_jaeger.ipynb) - A guide to visualize Guardrails traces in Jaeger.
 
 ```{toctree}
 :hidden:
 
-quick-start
-adapter-types
-adapter-configurations
-opentelemetry-integration
-common-integrations
-troubleshooting
+Quick Start <quick-start>
+Adapters <adapter-configurations>
+OpenTelemetry <opentelemetry-integration>
+Troubleshooting <troubleshooting>
 ```

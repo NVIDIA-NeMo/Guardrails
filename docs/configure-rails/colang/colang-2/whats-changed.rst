@@ -9,7 +9,7 @@ This guide provides a non-comprehensive overview of the most important changes i
 Terminology
 -----------
 
-To limit the learning curve, Colang 2.0 borrows as much as possible the terminology from Python:
+To limit the learning curve, Colang 2.0 borrows as much terminology from Python as possible:
 
 - Every bit of Colang code is called a *script*.
 - A single ``.co`` file is called a *module*.
@@ -56,7 +56,9 @@ Similarly, for bot intents:
 Flow naming conventions
 -----------------------
 
-The flows modeling the events from "outside of the system" are named using the **past tense**, e.g., ``user said``, ``user expressed greeting``, etc. On the bot side, they represent actions that need to be taken and the **imperative form** is used, e.g., ``bot say``, ``bot express greeting``, ``bot refuse to respond``, etc. For more details see :ref:`flow-naming-conventions`.
+The flows modeling the events from "outside of the system" are named using the **past tense**, e.g., ``user said``, ``user expressed greeting``, etc. On the bot side, they represent actions that need to be taken and the **imperative form** is used, e.g., ``bot say``, ``bot express greeting``, ``bot refuse to respond``, etc.
+
+For more details see :ref:`flow-naming-conventions`.
 
 The Generation Operator
 -----------------------
@@ -74,7 +76,7 @@ In Colang 2.0, flows must be activated explicitly. There is also now a ``main`` 
 Entry Point
 -----------
 
-In Colang 1.0, there was no clear entry point for a Colang script. In Colang 2.0, the ``main`` flow is the entry point. The ``main`` flows triggers the activation of all other flows used in the Colang package.
+In Colang 1.0, there was no clear entry point for a Colang script. In Colang 2.0, the ``main`` flow is the entry point. The ``main`` flow triggers the activation of all other flows used in the Colang package.
 
 Import Mechanism
 ----------------
@@ -97,7 +99,7 @@ Colang 2.0 now has a standard library:
 Asynchronous Actions
 --------------------
 
-In Colang 1.0, actions could only be executed synchronously, blocking a flow. Also, there was no way to start two actions in parallel. This was particularly important, for example, if you wanted multiple input rails to run in parallel.
+In Colang 1.0, actions could only be executed synchronously, blocking a flow. Also, there was no way to start two actions in parallel. This was particularly troublesome, for example, if you wanted multiple input rails to run in parallel.
 
 In Colang 2.0, the ``execute`` keyword has been replaced with ``await``, similar to Python. Also, you can use ``start`` to start an action without blocking the flow.
 
@@ -105,6 +107,7 @@ Naming Conventions
 ------------------
 
 Colang 2.0 uses the following naming conventions:
+
 - Flow names: lower case, can have spaces, should read naturally.
 - Action names: camel case, must end with "Action".
 - Event names: camel case.
@@ -115,12 +118,12 @@ There are certain conventions for the events that mark the start and finish of a
 Multi-modal
 -----------
 
-Colang 2.0 supports modeling multi-modal interaction not just text-based interaction (e.g., ``user gesture``, ``bot gesture``, ``bot posture``, etc.)
+Colang 2.0 supports modeling multi-modal interaction, not just text-based interaction (e.g., ``user gesture``, ``bot gesture``, ``bot posture``, etc.)
 
 Variables
 ---------
 
-In Colang 1.0 all variables are global by default. In Colang 2.0, all variables are local by default. To make a variable global, you can use the ``global`` keyword.
+In Colang 1.0, all variables are global by default. In Colang 2.0, all variables are local by default. To make a variable global, you can use the ``global`` keyword.
 
 There are no default global variables in Colang 2.0.
 
@@ -169,7 +172,7 @@ Breaking changes from alpha to beta version
 * Colang function name changes
     * ``findall`` -> ``find_all``
 * Bot specific copies of the Colang Core Library
-    * ccl_*.co files are deprecated and should be removed from the bot folders. It is replaced by the Colang Standard Libraries that are included in NeMo Guardrails and can be imported (e.g. ``import core`` or ``import llm`` ). See next the new name mapping of standard library flows.
+    * ccl_*.co files are deprecated and should be removed from the bot folders. They are replaced by the Colang Standard Libraries that are included in NeMo Guardrails and can be imported (e.g. ``import core`` or ``import llm`` ). See next the new name mapping of standard library flows.
 * Standard library flow name changes
     * ``catch colang errors`` -> ``notification of colang errors`` (core.co)
     * ``catch undefined flows`` -> ``notification of undefined flow start`` (core.co)

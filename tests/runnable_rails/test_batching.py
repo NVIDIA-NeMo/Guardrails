@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -130,7 +130,7 @@ async def test_astream_output():
         ],
         streaming=True,
     )
-    config = RailsConfig.from_content(config={"models": [], "streaming": True})
+    config = RailsConfig.from_content(config={"models": []})
     model_with_rails = RunnableRails(config, llm=llm)
 
     # Collect all chunks from the stream

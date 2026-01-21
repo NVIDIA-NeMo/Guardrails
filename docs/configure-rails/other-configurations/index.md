@@ -17,11 +17,11 @@ This section provides additional configuration topics that are not covered in th
 Configure the knowledge base folder for RAG-based responses using markdown documents.
 :::
 
-:::{grid-item-card} Exceptions and Error Handling
-:link: exceptions
+:::{grid-item-card} Embedding Search Providers
+:link: embedding-search-providers
 :link-type: doc
 
-Raise and handle exceptions in guardrails flows to control error behavior and custom responses.
+Configure embedding search providers for vector similarity search using FastEmbed, OpenAI, or custom implementations.
 :::
 
 ::::
@@ -30,7 +30,6 @@ Raise and handle exceptions in guardrails flows to control error behavior and cu
 :hidden:
 :maxdepth: 2
 
-knowledge-base
-embedding-search-providers
-exceptions
+Knowledge Base <knowledge-base>
+Embedding Search Providers <embedding-search-providers>
 ```

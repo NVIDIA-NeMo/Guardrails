@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -254,47 +254,6 @@ async def test_token_usage_integration_multiple_calls(llm_calls_option):
     assert total_tokens == 30  # 10 + 20
     assert total_prompt_tokens == 18  # 6 + 12
     assert total_completion_tokens == 12  # 4 + 8
-
-
-@pytest.mark.asyncio
-async def test_token_usage_not_tracked_without_streaming(llm_calls_option):
-    """Integration test verifying token usage is NOT tracked when streaming is disabled."""
-
-    config = RailsConfig.from_content(
-        config={
-            "models": [
-                {
-                    "type": "main",
-                    "engine": "openai",
-                    "model": "gpt-4",
-                }
-            ],
-            "streaming": False,
-        }
-    )
-
-    token_usage_data = [{"total_tokens": 15, "prompt_tokens": 8, "completion_tokens": 7}]
-
-    chat = TestChat(
-        config,
-        llm_completions=["Hello there!"],
-        streaming=False,
-        token_usage=token_usage_data,
-    )
-
-    result = await chat.app.generate_async(messages=[{"role": "user", "content": "Hi!"}], options=llm_calls_option)
-
-    assert isinstance(result, GenerationResponse)
-    assert result.response[0]["content"] == "Hello there!"
-
-    assert result.log is not None
-    assert result.log.llm_calls is not None
-    assert len(result.log.llm_calls) > 0
-
-    llm_call = result.log.llm_calls[0]
-    assert llm_call.total_tokens == 0
-    assert llm_call.prompt_tokens == 0
-    assert llm_call.completion_tokens == 0
 
 
 @pytest.mark.asyncio

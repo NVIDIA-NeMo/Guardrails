@@ -1,11 +1,19 @@
 ---
-title: Guardrails Configuration
-description: Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior.
+title:
+  page: "Guardrails Configuration"
+  nav: "Guardrails"
+description: "Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior."
+topics: ["Configuration", "AI Safety"]
+tags: ["Rails", "Input Rails", "Output Rails", "Dialog Rails", "YAML"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Guardrails Configuration
 
-This section describes how to configure guardrails (rails) in the `config.yml` file to control LLM behavior.
+This section describes how to configure guardrails in the `config.yml` file to control LLM behavior.
 
 ## The `rails` Key
 
@@ -19,10 +27,10 @@ The following table summarizes the different rail categories and their trigger p
 | Category | Trigger Point | Purpose |
 |----------|---------------|---------|
 | **Input rails** | When user input is received | Validate, filter, or modify user input |
-| **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
-| **Dialog rails** | After canonical form is computed | Control conversation flow |
 | **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
+| **Dialog rails** | After canonical form is computed | Control conversation flow |
 | **Execution rails** | Before/after action execution | Control tool and action calls |
+| **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
 
 The following diagram shows the guardrails process described in the table above in detail.
 
@@ -66,16 +74,7 @@ rails:
       - mask sensitive data on input  # PII masking
 ```
 
-### Available Flows for Input Rails
-
-| Flow | Description |
-|------|-------------|
-| `self check input` | LLM-based policy compliance check |
-| `check jailbreak` | Detect jailbreak attempts |
-| `mask sensitive data on input` | Mask PII in user input |
-| `detect sensitive data on input` | Detect and block PII |
-| `llama guard check input` | LlamaGuard content moderation |
-| `content safety check input` | NVIDIA content safety model |
+For a complete list of available input flows, refer to the [](../configuration-reference.md#input-rails).
 
 ## Output Rails
 
@@ -91,16 +90,20 @@ rails:
       - mask sensitive data on output  # PII masking
 ```
 
-### Available Flows for Output Rails
+For a complete list of available output flows, refer to the [](../configuration-reference.md#output-rails).
 
-| Flow | Description |
-|------|-------------|
-| `self check output` | LLM-based policy compliance check |
-| `self check facts` | Verify factual accuracy |
-| `self check hallucination` | Detect hallucinations |
-| `mask sensitive data on output` | Mask PII in output |
-| `llama guard check output` | LlamaGuard content moderation |
-| `content safety check output` | NVIDIA content safety model |
+## Retrieval Rails
+
+Retrieval rails process chunks retrieved from the knowledge base:
+
+```yaml
+rails:
+  retrieval:
+    flows:
+      - check retrieval sensitive data
+```
+
+For a complete list of available retrieval flows, refer to the [](../configuration-reference.md#retrieval-rails).
 
 ## Dialog Rails
 
@@ -117,24 +120,7 @@ rails:
       embeddings_only: false
 ```
 
-### Dialog Configuration Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `single_call.enabled` | Use single LLM call for intent, next step, and message | `false` |
-| `single_call.fallback_to_multiple_calls` | Fall back to multiple calls if single call fails | `true` |
-| `user_messages.embeddings_only` | Use only embeddings for user intent matching | `false` |
-
-## Retrieval Rails
-
-Retrieval rails process chunks retrieved from the knowledge base:
-
-```yaml
-rails:
-  retrieval:
-    flows:
-      - check retrieval sensitive data
-```
+For a complete list of available dialog flows, refer to the [](../configuration-reference.md#dialog-rails).
 
 ## Execution Rails
 
@@ -178,7 +164,9 @@ rails:
         endpoint: "http://localhost:5000"
 ```
 
-## Example Configuration
+---
+
+## YAML Schema
 
 Complete guardrails configuration example:
 
@@ -221,15 +209,9 @@ rails:
           - EMAIL_ADDRESS
 ```
 
-## Related Topics
+```{include}
+parallel-rails.md
+```
 
-- [Guardrails Library](guardrails-library.md) - Complete list of built-in rails
-- [Guardrails Process](../../../user-guides/guardrails-process) - How rails are invoked
-
-```{toctree}
-:hidden:
-:maxdepth: 2
-
-built-in-guardrails
-Rails in Parallel <parallel-rails.md>
+```{include} parallel-rails.md
 ```

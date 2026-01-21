@@ -6,7 +6,7 @@ In question-answering or RAG applications: high trustworthiness is indicative of
 
 The trustworthiness score is further explained and comprehensively benchmarked in [Cleanlab's documentation](https://help.cleanlab.ai/tlm/).
 
-The `cleanlab trustworthiness` guardrail flow uses a default trustworthiness score threshold of 0.6 to determine if your LLM output should be allowed or not. When the trustworthiness score falls below the threshold, the corresponding LLM response is flagged as _unstrustworthy_. You can easily change the cutoff value for the trustworthiness score by adjusting the threshold in the [config](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/cleanlab/flows.co). For example, to change the threshold to 0.7, add the following flow to your config:
+The `cleanlab trustworthiness` guardrail flow uses a default trustworthiness score threshold of 0.6 to determine if your LLM output should be allowed or not. When the trustworthiness score falls below the threshold, the corresponding LLM response is flagged as _unstrustworthy_. You can easily change the cutoff value for the trustworthiness score by adjusting the threshold in the [config](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/cleanlab/flows.co). For example, to change the threshold to 0.7, add the following flow to your config:
 
 ```colang
 define subflow cleanlab trustworthiness

@@ -1,3 +1,8 @@
+---
+title: Memory Model Cache
+description: Configure in-memory caching to avoid repeated LLM calls for identical prompts using LFU eviction.
+---
+
 (model-memory-cache)=
 
 # Memory Model Cache

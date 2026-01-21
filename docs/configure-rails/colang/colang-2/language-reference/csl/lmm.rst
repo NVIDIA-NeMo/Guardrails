@@ -97,7 +97,7 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
 .. py:function:: unhandled user intent -> $intent
 
-    Wait for the end of an user intent flow
+    Wait for the end of a user intent flow
 
     Example:
 
@@ -175,12 +175,12 @@ Flow that will continue the current interaction for unhandled user actions/inten
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 More Advanced Flows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-This section describes more advanced flows defined in the ``llm.co`` library. When you get started with Colang you most
+This section describes more advanced flows defined in the ``llm.co`` library. When you get started with Colang, you most
 likely will not need to directly use these flows. These flows exist to support more advanced use cases.
 
 **Advanced Interaction Continuation**
 
-Flows with more advanced LLM based continuations
+Flows with more advanced LLM-based continuations
 
 .. code-block:: colang
 
@@ -190,7 +190,7 @@ Flows with more advanced LLM based continuations
 
 **Interaction History Logging**
 
-Flows to log interaction history to created required context for LLM prompts.
+Flows to log interaction history to create required context for LLM prompts.
 
 .. code-block:: colang
 

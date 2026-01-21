@@ -31,7 +31,7 @@ The achieve this, the ``main`` flow uses two pre-defined flows:
 - ``user said``: this flow is triggered when the user said something.
 - ``bot say``: this flow instructs the bot to say a specific message.
 
-The two flows are located in the ``core`` module, included in the Colang Standard Library, which is available by default (similarly to the Python Standard Library). The ``import`` statement at the beginning, imports all the flows from the ``core`` module.
+The two flows are located in the ``core`` module, included in the Colang Standard Library, which is available by default (similar to the Python Standard Library). The ``import`` statement at the beginning imports all the flows from the ``core`` module.
 
 .. note::
 

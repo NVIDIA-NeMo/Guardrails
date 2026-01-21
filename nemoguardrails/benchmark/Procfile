@@ -1,8 +1,0 @@
-# Procfile
-
-# NeMo Guardrails server
-gr: poetry run nemoguardrails server --config configs/guardrail_configs --default-config-id content_safety_colang1 --port 9000
-
-# Guardrails NIMs for inference
-app_llm: poetry run python mock_llm_server/run_server.py --workers 4 --port 8000 --config-file configs/mock_configs/meta-llama-3.3-70b-instruct.env
-cs_llm: poetry run python mock_llm_server/run_server.py --workers 4 --port 8001 --config-file configs/mock_configs/nvidia-llama-3.1-nemoguard-8b-content-safety.env

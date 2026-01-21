@@ -9,6 +9,7 @@ In our testing, we observe significantly improved input and output content moder
 To configure your bot to use Llama Guard for input/output checking, follow the below steps:
 
 1. Add a model of type `llama_guard` to the models section of the `config.yml` file (the example below uses a vLLM setup):
+
 ```yaml
 models:
   ...
@@ -20,7 +21,7 @@ models:
       model_name: "meta-llama/LlamaGuard-7b"
 ```
 
-2. Include the `llama guard check input` and `llama guard check output` flow names in the rails section of the `config.yml` file:
+1. Include the `llama guard check input` and `llama guard check output` flow names in the rails section of the `config.yml` file:
 
 ```yaml
 rails:
@@ -32,7 +33,7 @@ rails:
       - llama guard check output
 ```
 
-3. Define the `llama_guard_check_input` and the `llama_guard_check_output` prompts in the `prompts.yml` file:
+1. Define the `llama_guard_check_input` and the `llama_guard_check_output` prompts in the `prompts.yml` file:
 
 ```yaml
 prompts:
@@ -50,7 +51,7 @@ prompts:
       O2: ...
 ```
 
-The rails execute the [`llama_guard_check_*` actions](.https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/llama_guard/actions.py), which return `True` if the user input or the bot message should be allowed, and `False` otherwise, along with a list of the unsafe content categories as defined in the Llama Guard prompt.
+The rails execute the [`llama_guard_check_*` actions](.https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/llama_guard/actions.py), which return `True` if the user input or the bot message should be allowed, and `False` otherwise, along with a list of the unsafe content categories as defined in the Llama Guard prompt.
 
 ```colang
 define flow llama guard check input
@@ -65,4 +66,4 @@ define flow llama guard check input
 # (similar flow for checking output)
 ```
 
-A complete example configuration that uses Llama Guard for input and output moderation is provided in this [example folder](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/llama_guard/README.md).
+A complete example configuration that uses Llama Guard for input and output moderation is provided in this [example folder](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/llama_guard/README.md).

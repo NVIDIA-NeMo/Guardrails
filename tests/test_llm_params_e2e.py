@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -182,18 +182,18 @@ class TestLLMParamsOpenAI:
     async def test_openai_llm_params_streaming(self, openai_config_path):
         """Test llm_params work with streaming responses from OpenAI."""
         config = RailsConfig.from_path(openai_config_path)
-        config.streaming = True
         rails = LLMRails(config, verbose=False)
 
         prompt = "Count from 1 to 3."
 
-        response = await rails.generate_async(
+        chunks = []
+        async for chunk in rails.stream_async(
             messages=[{"role": "user", "content": prompt}],
             options={"llm_params": {"temperature": 0.0, "max_tokens": 20}},
-        )
+        ):
+            chunks.append(chunk)
 
-        assert response.response is not None
-        content = response.response[-1]["content"]
+        content = "".join(chunks)
         assert "1" in content
 
     @pytest.mark.asyncio

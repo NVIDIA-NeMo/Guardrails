@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,9 @@ import pytest
 
 from nemoguardrails.llm.prompts import TaskPrompt
 from nemoguardrails.rails.llm.config import (
+    ContentSafetyConfig,
     Model,
+    MultilingualConfig,
     RailsConfig,
     _get_flow_model,
     _validate_rail_prompts,
@@ -1015,3 +1017,117 @@ class TestCombinedConfig:
                     content: Verify the user input is on-topic
                 """
             )
+
+
+class TestMultilingualConfig:
+    def test_defaults(self):
+        config = MultilingualConfig()
+        assert config.enabled is False
+        assert config.refusal_messages is None
+
+    def test_with_custom_messages(self):
+        custom = {"en": "Custom", "es": "Personalizado"}
+        config = MultilingualConfig(enabled=True, refusal_messages=custom)
+        assert config.enabled is True
+        assert config.refusal_messages == custom
+
+
+class TestContentSafetyConfigModel:
+    def test_defaults(self):
+        config = ContentSafetyConfig()
+        assert config.multilingual.enabled is False
+        assert config.multilingual.refusal_messages is None
+        assert config.reasoning.enabled is False
+
+    def test_with_multilingual(self):
+        custom = {"en": "Custom"}
+        config = ContentSafetyConfig(multilingual=MultilingualConfig(enabled=True, refusal_messages=custom))
+        assert config.multilingual.enabled is True
+        assert config.multilingual.refusal_messages == custom
+
+
+class TestMultilingualConfigInRailsConfig:
+    BASE_YAML = """
+        models:
+          - type: content_safety
+            engine: nim
+            model: nvidia/llama-3.1-nemoguard-8b-content-safety
+        rails:
+          {rails_config}
+          input:
+            flows:
+              - content safety check input $model=content_safety
+        prompts:
+          - task: content_safety_check_input $model=content_safety
+            content: Check content safety
+    """
+
+    def test_multilingual_disabled_by_default(self):
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=""))
+        assert config.rails.config.content_safety.multilingual.enabled is False
+
+    def test_multilingual_enabled_with_custom_messages(self):
+        rails_config = """
+          config:
+            content_safety:
+              multilingual:
+                enabled: true
+                refusal_messages:
+                  en: "Custom English"
+                  es: "Personalizado"
+        """
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
+        assert config.rails.config.content_safety.multilingual.enabled is True
+        assert config.rails.config.content_safety.multilingual.refusal_messages["en"] == "Custom English"
+        assert config.rails.config.content_safety.multilingual.refusal_messages["es"] == "Personalizado"
+
+    def test_multilingual_enabled_no_custom_messages(self):
+        rails_config = """
+          config:
+            content_safety:
+              multilingual:
+                enabled: true
+        """
+        config = RailsConfig.from_content(yaml_content=self.BASE_YAML.format(rails_config=rails_config))
+        assert config.rails.config.content_safety.multilingual.enabled is True
+        assert config.rails.config.content_safety.multilingual.refusal_messages is None
+
+
+class TestDeprecatedStreamingConfig:
+    """Tests for deprecated streaming config field."""
+
+    def test_streaming_config_field_accepted(self):
+        """Test that the deprecated streaming: True config field is still accepted."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            streaming: True
+            """
+        )
+        assert config.streaming is True
+
+    def test_streaming_config_field_default_false(self):
+        """Test that streaming defaults to False when not specified."""
+        config = RailsConfig.from_content(
+            yaml_content="""
+            models: []
+            """
+        )
+        assert config.streaming is False
+
+    def test_streaming_config_field_shows_deprecation_warning(self):
+        """Test that using streaming: True shows a deprecation warning."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = RailsConfig.from_content(
+                yaml_content="""
+                models: []
+                streaming: True
+                """
+            )
+            assert config.streaming is True
+
+            deprecation_warnings = [warning for warning in w if "streaming" in str(warning.message).lower()]
+            assert len(deprecation_warnings) > 0, "Expected a deprecation warning for 'streaming' field"

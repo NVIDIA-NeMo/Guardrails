@@ -1,13 +1,19 @@
 # NeMo Guardrails
 
-[![Tests](https://img.shields.io/badge/Tests-passing-green)](#)
-[![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA/NeMo-Guardrails/blob/main/LICENSE.md)
-[![PyPI version](https://badge.fury.io/py/nemoguardrails.svg)](https://badge.fury.io/py/nemoguardrails)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-green)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![PyPI](https://img.shields.io/pypi/v/nemoguardrails)](https://pypi.org/project/nemoguardrails)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/nemoguardrails)](https://pypi.org/project/nemoguardrails)
+[![Tests/Linux](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/pr-tests.yml?logo=github&label=Tests%2FLinux)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/pr-tests.yml)
+[![Tests/Windows](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/full-tests.yml?logo=github&label=Tests%2FWindows)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/full-tests.yml)
+[![Tests/macOS](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/full-tests.yml?logo=github&label=Tests%2FmacOS)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/full-tests.yml)
+[![Lint](https://img.shields.io/github/actions/workflow/status/NVIDIA-NeMo/Guardrails/lint.yml?logo=github&label=Lint)](https://github.com/NVIDIA-NeMo/Guardrails/actions/workflows/lint.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![arXiv](https://img.shields.io/badge/arXiv-2310.10501-b31b1b.svg)](https://arxiv.org/abs/2310.10501)
+[![Documentation](https://img.shields.io/badge/docs-nvidia.com-blue.svg)](https://docs.nvidia.com/nemo/guardrails)
+[![arXiv](https://img.shields.io/badge/cs.CL-arXiv%3A2310.10501-b31b1b.svg)](https://arxiv.org/abs/2310.10501)
+[![Downloads](https://static.pepy.tech/badge/nemoguardrails)](https://pepy.tech/project/nemoguardrails)
+[![Downloads](https://static.pepy.tech/badge/nemoguardrails/month)](https://pepy.tech/project/nemoguardrails)
 
-> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA/NeMo-Guardrails/tree/main) branch tracks the latest released beta version: [0.19.0](https://github.com/NVIDIA/NeMo-Guardrails/tree/v0.19.0). For the latest development version, checkout the [develop](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop) branch.
+> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA-NeMo/Guardrails/tree/main) branch tracks the latest released beta version: [0.19.0](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.19.0). For the latest development version, checkout the [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch.
 
 ✨✨✨
 
@@ -42,7 +48,7 @@ For more detailed instructions, see the [Installation Guide](https://docs.nvidia
 NeMo Guardrails enables developers building LLM-based applications to easily add **programmable guardrails** between the application code and the LLM.
 
 <div align="center">
-  <img src="https://github.com/NVIDIA/NeMo-Guardrails/raw/develop/docs/_static/images/programmable_guardrails.png"  width="75%" alt="Programmable Guardrails">
+  <img src="https://github.com/NVIDIA-NeMo/Guardrails/raw/develop/docs/_static/images/programmable_guardrails.png"  width="75%" alt="Programmable Guardrails">
 </div>
 
 Key benefits of adding *programmable guardrails* include:
@@ -60,7 +66,7 @@ Key benefits of adding *programmable guardrails* include:
 NeMo Guardrails provides several mechanisms for protecting an LLM-powered chat application against common LLM vulnerabilities, such as jailbreaks and prompt injections. Below is a sample overview of the protection offered by different guardrails configuration for the example [ABC Bot](./examples/bots/abc) included in this repository. For more details, please refer to the [LLM Vulnerability Scanning](https://docs.nvidia.com/nemo/guardrails/evaluation/llm-vulnerability-scanning.html) page.
 
 <div align="center">
-<img src="https://github.com/NVIDIA/NeMo-Guardrails/raw/develop/docs/_static/images/abc-llm-vulnerability-scan-results.png" width="500">
+<img src="https://github.com/NVIDIA-NeMo/Guardrails/raw/develop/docs/_static/images/abc-llm-vulnerability-scan-results.png" width="500">
 </div>
 
 ### Use Cases
@@ -112,7 +118,7 @@ You can use NeMo Guardrails with multiple LLMs like OpenAI GPT-3.5, GPT-4, LLaMa
 NeMo Guardrails supports five main types of guardrails:
 
 <div align="center">
-  <img src="https://github.com/NVIDIA/NeMo-Guardrails/raw/develop/docs/_static/images/programmable_guardrails_flow.png"  width="75%" alt="Programmable Guardrails Flow">
+  <img src="https://github.com/NVIDIA-NeMo/Guardrails/raw/develop/docs/_static/images/programmable_guardrails_flow.png"  width="75%" alt="Programmable Guardrails Flow">
 </div>
 
 1. **Input rails**: applied to the input from the user; an input rail can reject the input, stopping any additional processing, or alter the input (e.g., to mask potentially sensitive data, to rephrase).

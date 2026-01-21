@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Optional
 
 TRANSFORMERS_AVAILABLE = True
 try:
-    from transformers.generation.streamers import (  # type: ignore[import-untyped]
-        TextStreamer,
+    from transformers.generation.streamers import (  # type: ignore
+        TextStreamer,  # type: ignore
     )
 except ImportError:
     # Fallback if transformers is not available

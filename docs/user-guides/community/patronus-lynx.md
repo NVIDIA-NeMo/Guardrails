@@ -29,7 +29,7 @@ models:
       model_name: "PatronusAI/Patronus-Lynx-70B-Instruct" # "PatronusAI/Patronus-Lynx-8B-Instruct"
 ```
 
-2. Add the guardrail name is `patronus lynx check output hallucination` to your output rails in `config.yml`:
+1. Add the guardrail name is `patronus lynx check output hallucination` to your output rails in `config.yml`:
 
 ```yaml
 rails:
@@ -38,7 +38,7 @@ rails:
       - patronus lynx check output hallucination
 ```
 
-3. Add a prompt for `patronus_lynx_check_output_hallucination` in the `prompts.yml` file:
+1. Add a prompt for `patronus_lynx_check_output_hallucination` in the `prompts.yml` file:
 
 ```yaml
 prompts:
@@ -48,9 +48,9 @@ prompts:
       ...
 ```
 
-We recommend you base your Lynx hallucination detection prompt off of the provided example [here](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples/configs/patronusai/prompts.yml).
+We recommend you base your Lynx hallucination detection prompt off of the provided example [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/patronusai/prompts.yml).
 
-Under the hood, the `patronus lynx check output hallucination` rail runs the `patronus_lynx_check_output_hallucination` action, which you can find [here](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/nemoguardrails/library/patronusai/actions.py). It returns whether a hallucination is detected (`True` or `False`) and potentially a reasoning trace explaining the decision. The bot's response will be blocked if hallucination is `True`. Note: If Lynx's outputs are misconfigured or a hallucination decision cannot be found, the action default is to return `True` for hallucination.
+Under the hood, the `patronus lynx check output hallucination` rail runs the `patronus_lynx_check_output_hallucination` action, which you can find [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/patronusai/actions.py). It returns whether a hallucination is detected (`True` or `False`) and potentially a reasoning trace explaining the decision. The bot's response will be blocked if hallucination is `True`. Note: If Lynx's outputs are misconfigured or a hallucination decision cannot be found, the action default is to return `True` for hallucination.
 
 Here's the `patronus lynx check output hallucination` flow, showing how the action is executed:
 

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -213,3 +213,108 @@ def nemoguard_parse_response_safety(response: str) -> Sequence[Union[bool, str]]
         return [True]
     else:
         return [False] + safety_categories
+
+
+def _strip_think_tags(response: str) -> str:
+    """Helper function to strip <think>...</think> tags from model response."""
+    # Remove <think>...</think> blocks (including multi-line)
+    cleaned = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL)
+    return cleaned.strip()
+
+
+def _extract_harm_value(response: str, field_name: str) -> str:
+    """Helper function to extract harmful/unharmful value for a given field.
+
+    Args:
+        response: The model response text (with think tags already stripped).
+        field_name: The field to look for (e.g., "Prompt harm" or "Response Harm").
+
+    Returns:
+        The extracted value ("harmful" or "unharmful"), or "harmful" if parsing fails.
+    """
+    # Look for the field pattern case-insensitively
+    pattern = rf"{re.escape(field_name)}\s*:\s*(\w+)"
+    match = re.search(pattern, response, re.IGNORECASE)
+    if match:
+        return match.group(1).lower()
+    return "harmful"  # Default to harmful if parsing fails
+
+
+def nemotron_reasoning_parse_prompt_safety(response: str) -> Sequence[Union[bool, str]]:
+    """Analyzes a response from Nemotron-Content-Safety-Reasoning-4B for prompt safety.
+
+    The function parses the following expected output format:
+
+    Reasoning Off mode:
+        Prompt harm: harmful/unharmful
+        Response Harm: harmful/unharmful
+
+    Reasoning On mode:
+        <think>
+        [Model's reasoning trace]
+        </think>
+
+        Prompt harm: harmful/unharmful
+        Response Harm: harmful/unharmful
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean
+        indicating the safety of the content (True if unharmful/safe, False if harmful).
+    """
+    # Strip <think> tags if present
+    cleaned_response = _strip_think_tags(response)
+
+    # Extract the prompt harm value
+    harm_value = _extract_harm_value(cleaned_response, "Prompt harm")
+
+    # "unharmful" means safe (True), "harmful" means unsafe (False)
+    is_safe = harm_value == "unharmful"
+
+    if is_safe:
+        return [True]
+    else:
+        return [False]
+
+
+def nemotron_reasoning_parse_response_safety(
+    response: str,
+) -> Sequence[Union[bool, str]]:
+    """Analyzes a response from Nemotron-Content-Safety-Reasoning-4B for response safety.
+
+    The function parses the following expected output format:
+
+    Reasoning Off mode:
+        Prompt harm: harmful/unharmful
+        Response Harm: harmful/unharmful
+
+    Reasoning On mode:
+        <think>
+        [Model's reasoning trace]
+        </think>
+
+        Prompt harm: harmful/unharmful
+        Response Harm: harmful/unharmful
+
+    Args:
+        response (str): The response string to analyze.
+
+    Returns:
+        Sequence[Union[bool, str]]: A sequence where the first element is a boolean
+        indicating the safety of the content (True if unharmful/safe, False if harmful).
+    """
+    # Strip <think> tags if present
+    cleaned_response = _strip_think_tags(response)
+
+    # Extract the response harm value
+    harm_value = _extract_harm_value(cleaned_response, "Response Harm")
+
+    # "unharmful" means safe (True), "harmful" means unsafe (False)
+    is_safe = harm_value == "unharmful"
+
+    if is_safe:
+        return [True]
+    else:
+        return [False]

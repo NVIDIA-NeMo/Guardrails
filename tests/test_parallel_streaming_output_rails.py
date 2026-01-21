@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from tests.utils import TestChat
 
 
@@ -585,8 +586,8 @@ async def test_parallel_streaming_output_rails_default_config_behavior(
 
     llmrails = LLMRails(parallel_output_rails_default_config)
 
-    with pytest.raises(ValueError) as exc_info:
-        async for chunk in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
+        async for _ in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
             pass
 
     assert str(exc_info.value) == (

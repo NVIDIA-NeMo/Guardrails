@@ -200,4 +200,4 @@ Actions **are not defined** in Colang. They are made available to the guardrails
 
 ## Conclusion
 
-This was a brief introduction to Colang 1.0. For more details, check out the [Examples folder](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/examples) document.
+This was a brief introduction to Colang 1.0. For more details, check out the [Examples folder](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples) document.

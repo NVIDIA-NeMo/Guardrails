@@ -5,7 +5,7 @@ description: Configure the knowledge base folder for RAG-based responses using m
 
 # Knowledge Base
 
-The NeMo Guardrails toolkit supports using a set of documents as context for generating bot responses through Retrieval-Augmented Generation (RAG). This guide explains how to configure and use the knowledge base folder.
+The NeMo Guardrails library supports using a set of documents as context for generating bot responses through Retrieval-Augmented Generation (RAG). This guide explains how to configure and use the knowledge base folder.
 
 ## Overview
 
@@ -150,7 +150,7 @@ class CustomEmbeddingSearchProvider(EmbeddingsIndex):
         pass
 ```
 
-For more details, refer to [Embedding Search Providers](../../user-guides/advanced/embedding-search-providers.md).
+For more details, refer to [Embedding Search Providers](embedding-search-providers.md).
 
 ## Passing Context Directly
 
@@ -275,6 +275,5 @@ Unused sick days do not carry over to the next year.
 
 ## Related Resources
 
-- [RAG Getting Started Guide](../../getting-started/7-rag/README.md)
-- [Embedding Search Providers](../../user-guides/advanced/embedding-search-providers.md)
+- [Embedding Search Providers](embedding-search-providers.md)
 - [Model Configuration](../yaml-schema/model-configuration.md)

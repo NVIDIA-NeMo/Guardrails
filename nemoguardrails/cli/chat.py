@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,7 @@ from nemoguardrails.cli import debugger
 from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
@@ -65,11 +66,6 @@ async def _run_chat_v1_0(
             raise RuntimeError("config_path cannot be None when server_url is None")
         rails_config = RailsConfig.from_path(config_path)
         rails_app = LLMRails(rails_config, verbose=verbose)
-        if streaming and not rails_config.streaming_supported:
-            console.print(
-                f"WARNING: The config `{config_path}` does not support streaming. Falling back to normal mode."
-            )
-            streaming = False
     else:
         rails_app = None
 
@@ -83,19 +79,33 @@ async def _run_chat_v1_0(
 
         if not server_url:
             # If we have streaming from a locally loaded config, we initialize the handler.
-            if streaming and not server_url and rails_app and rails_app.main_llm_supports_streaming:
-                bot_message_list = []
-                async for chunk in rails_app.stream_async(messages=history):
-                    if '{"event": "ABORT"' in chunk:
-                        dict_chunk = json.loads(chunk)
-                        console.print("\n\n[red]" + f"ABORT streaming. {dict_chunk['data']}" + "[/]")
-                        break
+            if streaming and not server_url and rails_app:
+                try:
+                    bot_message_list = []
+                    async for chunk in rails_app.stream_async(messages=history):
+                        if '{"event": "ABORT"' in chunk:
+                            dict_chunk = json.loads(chunk)
+                            console.print("\n\n[red]" + f"ABORT streaming. {dict_chunk['data']}" + "[/]")
+                            break
 
-                    console.print("[green]" + f"{chunk}" + "[/]", end="")
-                    bot_message_list.append(chunk)
+                        console.print("[green]" + f"{chunk}" + "[/]", end="")
+                        bot_message_list.append(chunk)
 
-                bot_message_text = "".join(bot_message_list)
-                bot_message = {"role": "assistant", "content": bot_message_text}
+                    bot_message_text = "".join(bot_message_list)
+                    bot_message = {"role": "assistant", "content": bot_message_text}
+                except StreamingNotSupportedError as e:
+                    raise StreamingNotSupportedError(
+                        f"Cannot use --streaming with config `{config_path}` because output rails "
+                        "are configured but streaming is not enabled for them.\n\n"
+                        "To fix this, either:\n"
+                        "  1. Enable streaming for output rails by adding to your config.yml:\n"
+                        "     rails:\n"
+                        "       output:\n"
+                        "         streaming:\n"
+                        "           enabled: True\n\n"
+                        "  2. Or run without the --streaming flag:\n"
+                        f"     nemoguardrails chat {config_path}"
+                    ) from e
 
             else:
                 if rails_app is None:
@@ -124,7 +134,7 @@ async def _run_chat_v1_0(
                     # String or other fallback case
                     bot_message = {"role": "assistant", "content": str(response)}
 
-                if not streaming or not rails_app.main_llm_supports_streaming:
+                if not streaming:
                     # We print bot messages in green.
                     content = bot_message.get("content", str(bot_message))
                     console.print("[green]" + f"{content}" + "[/]")

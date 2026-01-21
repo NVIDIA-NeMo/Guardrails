@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -204,7 +204,7 @@ def convert_colang_1_syntax(lines: List[str]) -> List[str]:
 
         # Check if the line matches the pattern $variable = ...
         # use of ellipsis in Colang 1.0
-        # Based on https://github.com/NVIDIA/NeMo-Guardrails/blob/ff17a88efe70ed61580a36aaae5739f5aac6dccc/
+        # Based on https://github.com/NVIDIA-NeMo/Guardrails/blob/ff17a88efe70ed61580a36aaae5739f5aac6dccc/
         # nemoguardrails/colang/v1_0/lang/coyml_parser.py#L610C1-L617C84
 
         if i > 0 and re.match(r"\s*\$\s*.*\s*=\s*\.\.\.", line):

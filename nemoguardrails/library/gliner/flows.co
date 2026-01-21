@@ -1,0 +1,62 @@
+#### GLiNER PII DETECTION RAILS ####
+
+# INPUT RAILS
+
+flow gliner detect pii on input
+  """Check if the user input has PII using GLiNER."""
+  $has_pii = await GlinerDetectPiiAction(source="input", text=$user_message)
+
+  if $has_pii
+    bot inform answer unknown
+    abort
+
+
+# OUTPUT RAILS
+
+flow gliner detect pii on output
+  """Check if the bot output has PII using GLiNER."""
+  $has_pii = await GlinerDetectPiiAction(source="output", text=$bot_message)
+
+  if $has_pii
+    bot inform answer unknown
+    abort
+
+
+# RETRIEVAL RAILS
+
+flow gliner detect pii on retrieval
+  """Check if the relevant chunks from the knowledge base have any PII using GLiNER."""
+  $has_pii = await GlinerDetectPiiAction(source="retrieval", text=$relevant_chunks)
+
+  if $has_pii
+    bot inform answer unknown
+    abort
+
+
+#######################################################
+
+
+#### GLiNER PII MASKING RAILS ####
+
+# INPUT RAILS
+
+flow gliner mask pii on input
+  """Mask any detected PII in the user input using GLiNER."""
+  $masked_input = await GlinerMaskPiiAction(source="input", text=$user_message)
+
+  global $user_message
+  $user_message = $masked_input
+
+
+# OUTPUT RAILS
+
+flow gliner mask pii on output
+  """Mask any detected PII in the bot output using GLiNER."""
+  $bot_message = await GlinerMaskPiiAction(source="output", text=$bot_message)
+
+
+# RETRIEVAL RAILS
+
+flow gliner mask pii on retrieval
+  """Mask any detected PII in the relevant chunks from the knowledge base using GLiNER."""
+  $relevant_chunks = await GlinerMaskPiiAction(source="retrieval", text=$relevant_chunks)

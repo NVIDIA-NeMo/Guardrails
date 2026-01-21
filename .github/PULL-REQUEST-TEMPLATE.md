@@ -12,7 +12,7 @@
 
 ## Checklist
 
-- [ ] I've read the [CONTRIBUTING](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/CONTRIBUTING.md) guidelines.
+- [ ] I've read the [CONTRIBUTING](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CONTRIBUTING.md) guidelines.
 - [ ] I've updated the documentation if applicable.
 - [ ] I've added tests if applicable.
 - [ ] @mentions of the person or team responsible for reviewing proposed changes.

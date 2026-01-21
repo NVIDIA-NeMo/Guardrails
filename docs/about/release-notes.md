@@ -1,4 +1,15 @@
 ---
+title:
+  page: "Release Notes"
+  nav: "Release Notes"
+description: "Review new features, breaking changes, and fixed issues for each release."
+keywords: ["nemo guardrails changelog", "release notes", "version history"]
+topics: ["generative_ai"]
+tags: ["llms", "security_for_ai"]
+content:
+  type: reference
+  difficulty: technical_beginner
+  audience: [engineer, data_scientist, it_operations]
 tocdepth: 2
 ---
 <!--
@@ -10,7 +21,7 @@ tocdepth: 2
 
 The following sections summarize and highlight the changes for each release.
 For a complete record of changes in a release, refer to the
-[CHANGELOG.md](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
+[CHANGELOG.md](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md) in the GitHub repository.
 
 ---
 
@@ -95,8 +106,8 @@ For a complete record of changes in a release, refer to the
 ### Key Features
 
 - Enhanced tracing system with [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). To learn more, refer to [](tracing). For usage examples, refer to the following notebooks
-  - [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb)
-  - [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/2_tracing_with_jaeger.ipynb)
+  - [Tracing Guardrails Quickstart](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb)
+  - [Tracing Guardrails with Jaeger](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/getting-started/8-tracing/2_tracing_with_jaeger.ipynb)
 - Community integration with [GuardrailsAI](https://www.guardrailsai.com/) and [Pangea AI Guard](https://pangea.cloud/services/ai-guard).
 
 (v0-16-0-other-changes)=

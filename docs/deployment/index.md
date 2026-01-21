@@ -1,34 +1,35 @@
 ---
-title: Deploy
-description: Deploy your guardrails using the toolkit's local server, Docker, or as a production microservice.
+title:
+  page: "About Deployment Options"
+  nav: "Deployment Options"
+description: "Deploy guardrails using the local API server, Docker containers, or production microservices."
+topics: ["Deployment", "AI Safety"]
+tags: ["Docker", "Server", "Microservices", "Production"]
+content:
+  type: "How-To"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer", "AI Engineer"]
 ---
 
-# Deployment Options
+# About Deployment Options
 
-You can deploy the NeMo Guardrails toolkit in the following ways.
+You can deploy the NeMo Guardrails library as a Docker container or use the production-ready, deployment-ready, pre-built microservice in the NeMo microservices platform.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Local Server Setup
-:link: local-server/index
-:link-type: doc
-
-The NeMo Guardrails toolkit enables you to create a guardrails local server and deploy it using a **guardrails server** and an **actions server**.
-:::
-
-:::{grid-item-card} NeMo Guardrails with Docker
+:::{grid-item-card} Docker
 :link: using-docker
 :link-type: doc
 
-This guide provides step-by-step instructions for running NeMo Guardrails using Docker. Docker offers a seamless and rapid deployment method for getting started with NeMo Guardrails.
+Build and run NeMo Guardrails Docker images for rapid deployment and testing.
 :::
 
-:::{grid-item-card} Using NeMo Guardrails Microservice for Production Deployment
+:::{grid-item-card} NeMo Microservice
 :link: using-microservice
 :link-type: doc
 
-You can also deploy the Guardrails server as a microservice. For more information, refer to the [NeMo Microservices Documentation](https://docs.nvidia.com/nemo/microservices/latest/about/index.html).
+Deploy guardrails as a production-ready microservice using the NeMo microservices platform.
 :::
 
 ::::

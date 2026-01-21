@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -88,6 +88,8 @@ _CUSTOM_CHAT_PROVIDERS = {"nim"}
 def _discover_langchain_partner_chat_providers() -> Set[str]:
     from langchain.chat_models.base import _SUPPORTED_PROVIDERS
 
+    if isinstance(_SUPPORTED_PROVIDERS, dict):
+        return set(_SUPPORTED_PROVIDERS.keys()) | _CUSTOM_CHAT_PROVIDERS
     return _SUPPORTED_PROVIDERS | _CUSTOM_CHAT_PROVIDERS
 
 

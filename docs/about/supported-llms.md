@@ -1,27 +1,30 @@
 ---
-title: Supported LLMs and Providers
-description: Browse the LLMs and their providers supported by the toolkit.
+title:
+  page: "Supported LLMs"
+  nav: "Supported LLMs"
+description: "Connect to NVIDIA NIM, OpenAI, Azure, Anthropic, HuggingFace, and LangChain providers."
+keywords: ["llm providers", "nvidia nim", "openai", "langchain", "embedding providers"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "pretrained_models", "nlp"]
+content:
+  type: reference
+  difficulty: technical_beginner
+  audience: [engineer, data_scientist]
 ---
 
 # Supported LLMs
 
-The NeMo Guardrails toolkit supports a wide range of LLM providers and their models.
+The NeMo Guardrails library supports a wide range of LLM providers and models. This includes base models, instruct-tuned, and reasoning models. These models can be served locally on the same machine as NeMo Guardrails, or at a remote endpoint accessible from Guardrails over a network. This flexible approach allows Guardrails to be used for a range of applications: from edge deployments on resource-constrained devices, to horizontally-scalable backend clusters.
 
-## LLM Providers
+## LLM Types
 
-The toolkit supports the following LLM providers.
+Integrating NeMo Guardrails improves safety and security of an Application LLM, which is responsible for generating responses to the end-user. NeMo Guardrails can also use the same Application LLM to run guardrails, simplifying deployments and reducing friction to on-ramp. Two examples of this are self-check rails and dialog rails. Self-check rails use the Application LLM to decide whether a user request or LLM response is safe. Dialog rails use the Application LLM to guide the user through a pre-defined conversational flow.
 
-### NVIDIA NIM
+NeMo Guardrails can also call models for a specific guardrail on behalf of the client. Having guardrail-specific models allows the use of smaller fine-tuned models, which are specialized on the guardrails task. For example the NVIDIA Nemoguard collection of models includes [content-safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3), [topic-control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [jailbreak-detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) models. These models can be accessed on [build.nvidia.com](https://build.nvidia.com/) for rapid prototyping, or on [NGC Catalog](https://catalog.ngc.nvidia.com/) for deployment with NIM Docker containers.
 
-The toolkit supports NVIDIA NIM microservices for local deployment and NVIDIA API Catalog for hosted models.
+## Application LLM Providers
 
-- **Locally-deployed LLM NIM Microservices**: LLMs deployed on your own infrastructure.
-- **NVIDIA API Catalog**: Hosted LLMs on [build.nvidia.com](https://build.nvidia.com/models).
-- **Specialized NIM Microservices**: NemoGuard Content Safety, Topic Control, and Jailbreak Detection.
-
-### External LLM Providers
-
-The toolkit supports the following external LLM providers.
+The NeMo Guardrails library supports major LLM providers, including:
 
 - OpenAI
 - Azure OpenAI
@@ -31,21 +34,28 @@ The toolkit supports the following external LLM providers.
 
 ### Self-Hosted
 
-The toolkit supports the following self-hosted LLM providers.
+The NeMo Guardrails library supports the following self-hosted LLM providers:
 
 - HuggingFace Hub
 - HuggingFace Endpoints
 - vLLM
 - Generic
 
-### Providers from LangChain Community
+### Providers from LangChain
 
-The toolkit supports any LLM providers from the LangChain Community. Refer to [All integration providers](https://docs.langchain.com/oss/python/integrations/providers/all_providers) in the LangChain documentation.
+The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to [Chat model integrations](https://docs.langchain.com/oss/python/integrations/chat) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](../cli/index.md#find-providers-command) CLI command to discover available providers.
 
 ## Embedding Providers
 
-The toolkit supports the following embedding providers.
+The NeMo Guardrails library supports the following embedding providers:
 
 - NVIDIA NIM
+- NVIDIA AI Endpoints
 - FastEmbed
 - OpenAI
+- Azure OpenAI
+- Cohere
+- SentenceTransformers
+- Google
+
+For more information on configuring embedding providers, refer to [Embedding Search Providers](../configure-rails/other-configurations/embedding-search-providers.md).

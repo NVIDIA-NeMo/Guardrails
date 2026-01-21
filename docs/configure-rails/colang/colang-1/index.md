@@ -10,7 +10,7 @@ Colang 1.0 is the original Colang syntax for defining user messages, bot message
 ```{toctree}
 :hidden:
 
-colang-language-syntax-guide
-tutorials/index
-bot-thinking-guardrails
+Colang 1.0 Language Syntax <colang-language-syntax-guide>
+Colang 1.0 Tutorials <tutorials/index>
+Guardrailing Bot Reasoning Content <bot-thinking-guardrails>
 ```

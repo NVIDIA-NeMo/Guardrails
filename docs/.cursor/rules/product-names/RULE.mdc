@@ -1,0 +1,6 @@
+---
+description: Referring to product names
+alwaysApply: true
+---
+
+- Refer to this package as "the NVIDIA NeMo Guardrails library" instead of "NVIDIA NeMo Guardrails" or "the NVIDIA NeMo Guardrails toolkit".

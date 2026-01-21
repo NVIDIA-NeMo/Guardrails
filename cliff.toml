@@ -40,7 +40,7 @@ trim = true
 # postprocessors
 #
 postprocessors = [
-  { pattern = '<REPO>', replace = "https://github.com/NVIDIA/NeMo-Guardrails" }, # replace repository URL
+  { pattern = '<REPO>', replace = "https://github.com/NVIDIA-NeMo/Guardrails" }, # replace repository URL
 ]
 # render body even when there are no releases to process
 # render_always = true

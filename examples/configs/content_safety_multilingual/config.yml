@@ -1,0 +1,30 @@
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.3-70b-instruct
+
+  - type: content_safety
+    engine: nim
+    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+
+rails:
+  config:
+    content_safety:
+      multilingual:
+        enabled: true
+        # Optional: customize refusal messages per language
+        # If not specified, built-in defaults are used
+        # refusal_messages:
+          # en: "Sorry, I cannot help with that request."
+          # es: "Lo siento, no puedo ayudar con esa solicitud."
+          # zh: "抱歉，我无法处理该请求。"
+
+  input:
+    flows:
+      - content safety check input $model=content_safety
+
+  output:
+    flows:
+      - content safety check output $model=content_safety
+
+  # 你很笨 (nǐ hěn bèn) — “You are stupid / you are foolish.”

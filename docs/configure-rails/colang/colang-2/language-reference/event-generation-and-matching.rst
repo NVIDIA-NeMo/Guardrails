@@ -11,7 +11,7 @@ Event Generation & Matching
 Introduction
 ----------------------------------------
 
-When working with Colang we assume to have a common event channel that contains all relevant events happening in the interactive system. From a Colang perspective relevant events are all events that are required to model the interaction between the user and the bot. With Colang you can listen for events on this channel as well as publish new events to the channel for other components to read:
+When working with Colang, we assume to have a common event channel that contains all relevant events happening in the interactive system. From a Colang perspective, relevant events are all events that are required to model the interaction between the user and the bot. With Colang, you can listen for events on this channel, as well as publish new events to the channel for other components to read:
 
 .. figure:: images/event_channel.jpg
   :scale: 35
@@ -72,7 +72,7 @@ The statements are processed in order, one by one. We will get to know the diffe
 
         send StartUtteranceBotAction(script="Hello") as $utterance_event_ref
 
-This generates an :ref:`UMIM <UMIM intro>` event on the event channel to be received again by other system components. We also introduce the event matching statement:
+This generates a :ref:`UMIM <UMIM intro>` event on the event channel to be received again by other system components. We also introduce the event matching statement:
 
 .. important::
     Event matching statement definition:
@@ -118,7 +118,7 @@ We see that the matching statements only progress if the right event is received
     > /Event2(param="a", other_param="b")
     Event: Success2
 
-From this we can see that as long as all the provided parameters in the statement match with the parameters of the event, the match statement is successful, even if some of the parameters of the event are missing in the statement. The `partial match` is considered a less specific match than when all parameters are specified.
+From this, we can see that as long as all the provided parameters in the statement match with the parameters of the event, the match statement is successful, even if some of the parameters of the event are missing in the statement. The `partial match` is considered a less specific match than when all parameters are specified.
 
 .. note::
     A `partial event` match is a match where the event matching statement does not specify all available parameters of an event. Such a statement matches a set of events for which the specified parameters are equal to the expected values.
@@ -140,7 +140,7 @@ We can assign a generated event to a reference to access its attributes at a lat
 
     Gesture: Smile
 
-Note, that we did not start the flow with an event matching statement but directly by generating an event instead. Therefore, the two events will be generated immediately at the start. Even though these two events get generated sequentially, from a user point of view they can be considered as concurrent events, since they will be sent out with almost no time difference. We added an event matching statement at the end such that the main flow does not repeat itself infinitely.
+Note, that we did not start the flow with an event matching statement, but rather directly by generating an event instead. Therefore, the two events will be generated immediately at the start. Even though these two events get generated sequentially, from a user point of view they can be considered as concurrent events, since they will be sent out with almost no time difference. We added an event matching statement at the end such that the main flow does not repeat itself infinitely.
 
 Similarly, any event matching statement can capture the observed event with the help of a reference:
 
@@ -157,7 +157,7 @@ Similarly, any event matching statement can capture the observed event with the 
 
     Hello!
 
-With this you can access event parameters like the final transcript of the user utterance and use it e.g. to let the bot repeat what the user said.
+With this you can access event parameters like the final transcript of the user utterance and use it, for example, to let the bot repeat what the user said.
 
 ----------------------------------------
 Event Grouping
@@ -194,7 +194,7 @@ Another powerful feature of Colang is the option to group events with the keywor
 
     Success2
 
-You see, how events combined with an ``and`` will only match once both events have been observed. On the other hand, the events that are grouped with the keyword ``or`` will match as soon as one of the events are observed. With this grouping, one can build much more complex event matching conditions, using brackets to enforce operator precedence (by default ``or`` has higher precedence than ``and``):
+Events combined with an ``and`` will only match once both events have been observed. Events that are grouped with the keyword ``or`` will match as soon as one of the events is observed. With this grouping, one can build much more complex event matching conditions, using brackets to enforce operator precedence (by default ``or`` has higher precedence than ``and``):
 
 .. code-block:: colang
     :caption: events/event_grouping_advanced/main.co
@@ -320,13 +320,13 @@ We see that only the last event where the parameter was equal to 42 matched with
 
 **List**:
 
-An event ``Event(list_param=<actual list>)`` with a list parameter ``list_param`` matches a match statement ``match Event(list_param=<expected list>)`` if
+An event ``Event(list_param=<actual list>)`` with a list parameter ``list_param`` matches a match statement ``match Event(list_param=<expected list>)`` if:
 
-- The length of the list ``<expected list>`` is equal or smaller than the length of the received list ``<actual list>`` that is part of the received event.
+- The length of the list ``<expected list>`` is equal to or smaller than the length of the received list ``<actual list>`` that is part of the received event.
 - All items in ``<expected list>`` match with the corresponding items in ``<actual list>``. Items at the same position in the list are compared. If an item is a container itself it will be recursively checked based on the rules for that container type.
 
 
-In the following example the main flow contains a single match statement that expects a match for an event ``Event``.
+In the following example, the main flow contains a single match statement that expects a match for an event ``Event``.
 
 
 .. code-block:: colang
@@ -352,12 +352,12 @@ Running this flow with the a few input events gives us the following sequence:
 
 **Set**:
 
-An event ``Event(set_param=<actual set>)`` with a set parameter ``set_param`` matches a match statement ``match Event(set_param=<expected set>)`` if
+An event ``Event(set_param=<actual set>)`` with a set parameter ``set_param`` matches a match statement ``match Event(set_param=<expected set>)`` if:
 
-- The size of the set ``<expected set>`` is equal or smaller than the size of the received set ``<actual set>`` of the received event.
-- All items in ``<expected set>`` match with an item in ``<actual set>``. The items in ``<expected set>`` will be compared with all items in ``<expected set>`` until a match has been found or not. If an item is a container itself it will be recursively checked based on the rules for that container type.
+- The size of the set ``<expected set>`` is equal to or smaller than the size of the received set ``<actual set>`` of the received event.
+- All items in ``<expected set>`` match with an item in ``<actual set>``. The items in ``<expected set>`` will be compared with all items in ``<expected set>`` until a match has been found or not. If an item is a container itself, it will be recursively checked based on the rules for that container type.
 
-In the following example the main flow contains a single match statement that expects a match for an event ``Event``.
+In the following example, the main flow contains a single match statement that expects a match for an event ``Event``.
 
 .. code-block:: colang
     :caption: events/set_parameters/main.co
@@ -376,16 +376,16 @@ Running this flow with the a few input events gives us the following sequence:
     Success
 
 - The first event does not match since the expected set has more items.
-- The second event matches since all expected items are available (the order does not matter)
+- The second event matches since all expected items are available (the order does not matter).
 
 **Dictionary**:
 
-An event ``Event(dict_param=<actual dictionary>)`` with a dictionary parameter ``dict_param`` matches a match statement ``match Event(dict_param=<expected dictionary>)`` if
+An event ``Event(dict_param=<actual dictionary>)`` with a dictionary parameter ``dict_param`` matches a match statement ``match Event(dict_param=<expected dictionary>)`` if:
 
-- The size of the dictionary ``<expected dictionary>`` is equal or smaller than the size of the received dictionary ``<actual dictionary>`` of the received event
-- All available dictionary items in ``<expected dictionary>`` match with a corresponding item in ``<actual dictionary>``. Items are compared based on their key and value. If a value is a container itself it will be recursively checked based on the rules for that value type
+- The size of the dictionary ``<expected dictionary>`` is equal to or smaller than the size of the received dictionary ``<actual dictionary>`` of the received event.
+- All available dictionary items in ``<expected dictionary>`` match with a corresponding item in ``<actual dictionary>``. Items are compared based on their key and value. If a value is a container itself, it will be recursively checked based on the rules for that value type.
 
-In the following example the main flow contains a single match statement that expects a match for an event ``Event``.
+In the following example, the main flow contains a single match statement that expects a match for an event ``Event``.
 
 .. code-block:: colang
     :caption: events/dictionary_parameters/main.co
@@ -412,7 +412,7 @@ Running this flow with the a few input events gives us the following sequence:
 Regular Expressions
 ----------------------------------------
 
-Furthermore, Colang also supports Python regular expressions for event parameter matching, using the Colang function ``regex()``. If used as a parameter value in a match statement it will check if the received event parameter contains at least one match with the defined pattern, like in Python's `re.search(pattern, parameter_value)`:
+Colang also supports Python regular expressions for event parameter matching using the Colang function ``regex()``. If used as a parameter value in a match statement it will check if the received event parameter contains at least one match with the defined pattern, like in Python's `re.search(pattern, parameter_value)`:
 
 .. code-block:: colang
     :caption: events/regular_expression_parameters/main.co
@@ -439,4 +439,4 @@ Furthermore, Colang also supports Python regular expressions for event parameter
 
     Success 3
 
-With this you can now build pretty powerful matching patterns!
+With this you can build powerful matching patterns.

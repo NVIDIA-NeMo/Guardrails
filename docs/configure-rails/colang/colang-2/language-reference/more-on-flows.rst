@@ -10,7 +10,7 @@ More on Flows
 ..     .. - CS: Add section about one time flow activation for specific instance (i.e. same parameters)
 ..     .. - CS: Add section about override decorator
 
-In section :ref:`Defining Flows<defining-flows>` we learned the core mechanisms of flows. In this section will look at more advanced topics that are related to flows.
+In section :ref:`Defining Flows<defining-flows>`, we learned the core mechanisms of flows. In this section will look at more advanced topics that are related to flows.
 
 .. _more-on-flows-activate-a-flow:
 
@@ -18,7 +18,7 @@ In section :ref:`Defining Flows<defining-flows>` we learned the core mechanisms 
 Activate a Flow
 ----------------------------------------
 
-We already have seen the ``start`` and ``await`` keywords to trigger a flow. We are now introducing the third keyword ``activate`` that can start a flow. The difference to ``start`` lies in the behavior of the flow when it has finished or failed. If a flow was activated it will always automatically restart a new instance of the flow as soon as it has ended. Furthermore, a specific flow configuration (with identical flow parameters) can only be activated once and will not start new instances, even if activated multiple times.
+We have already seen how the ``start`` and ``await`` keywords trigger a flow. Now, we are introducing the third keyword ``activate`` that can start a flow. The difference to ``start`` lies in the behavior of the flow when it has finished or failed. If a flow was activated, it will always automatically restart a new instance of the flow as soon as it has ended. Furthermore, a specific flow configuration (with identical flow parameters) can only be activated once and will not start new instances, even if activated multiple times.
 
 .. important::
     Flow activation statement syntax definition:
@@ -27,8 +27,8 @@ We already have seen the ``start`` and ``await`` keywords to trigger a flow. We 
 
         activate <Flow> [and <Flow>]…
 
-    - Reference assignments for activated flows is not supported since the instance will change after a restart
-    - Only and-groups are supported and not or-groups
+    - Reference assignments for activated flows are not supported since the instance will change after a restart
+    - Only and-groups are supported, not or-groups
 
     Examples:
 
@@ -61,7 +61,7 @@ We already have seen the ``start`` and ``await`` keywords to trigger a flow. We 
         user said "Hi"
         bot say "Hello again"
 
-By running this example you will see the bot responding with "Hello again" as long as you keep greeting with "Hi":
+By running this example, you will see the bot responding with "Hello again" as long as you keep greeting with "Hi":
 
 .. code-block:: text
 
@@ -110,12 +110,12 @@ Alternatively, you can use the ``@active`` decorator notation to activate a flow
         user said "Hi"
         bot say "Hello again"
 
-If you use the ``@active`` decorator for flows that were defined in a separate Colang library module, they will get automatically activated when the library is imported. But we advice you to use the ``activate`` statement if possible, since it is more explicit and result in better readability.
+If you use the ``@active`` decorator for flows that were defined in a separate Colang library module, they will get automatically activated when the library is imported. But we advise you to use the ``activate`` statement if possible, since it is more explicit and will result in better readability.
 
 .. important::
-    The main flow behaves also like an activated flow. As soon as it reaches the end it will restart automatically.
+    The main flow also behaves like an activated flow. As soon as it reaches the end, it will restart automatically.
 
-There is one exception though from this rule! If a flow does not contain any statement that waits for an event and immediately finishes, it will run only once when activated and it will stay activated since otherwise you would get an infinite loop.
+There is one exception though from this rule! If a flow does not contain any statement that waits for an event and immediately finishes, it will run only once when activated and it will stay activated, since otherwise you would get an infinite loop.
 
 .. code-block:: colang
     :caption: more_on_flows/non-repeating-flows/main.co
@@ -140,7 +140,7 @@ There is one exception though from this rule! If a flow does not contain any sta
 
     Hello again
 
-See, how the main flow does not require any match statement at the end and will continue to be activated without repeating, even though it reached the end.
+See how the main flow does not require any match statement at the end and will continue to be activated without repeating, even though it reached the end.
 
 .. important::
     An activated flow that immediately finished (does not wait for any event) will only be run once and will stay activated.
@@ -151,7 +151,7 @@ See, how the main flow does not require any match statement at the end and will 
 Start a new Flow Instance
 ----------------------------------------
 
-In some cases it is not enough to restart a flow only once it has finished since this can miss certain pattern repetitions:
+In some cases, it is not enough to restart a flow only once it has finished, since this can miss certain pattern repetitions:
 
 .. code-block:: colang
     :caption: more_on_flows/restart_flow_instance/main.co
@@ -169,7 +169,7 @@ In some cases it is not enough to restart a flow only once it has finished since
         user said "Bye"
         bot say "Goodbye"
 
-In the following interaction we see that the second "Hi" of the user does not trigger anything since the flow already advanced to the next statement ``user said "Bye"`` but did not yet start an new instance due to its activation:
+In the following interaction, we see that the second "Hi" of the user does not trigger anything. This is because the flow already advanced to the next statement ``user said "Bye"`` but did not yet start an new instance due to its activation:
 
 .. code-block:: text
 
@@ -227,7 +227,7 @@ We now see the correct behavior:
     > Bye
     >
 
-Note, that as soon as the second instance advances to the next match statement, a third instance is started, waiting for the next user input "Hi". The other two instances will advance in parallel.
+Note that as soon as the second instance advances to the next match statement, a third instance is started, waiting for the next user input "Hi". The other two instances will advance in parallel.
 Since the first instance already started a new instance (second one) it will not start another one such that we don't get a growing number of instances when progressing. Note how the second "Bye" will not trigger anything since the first and second instance have already finished and the third instance is still at the first statement waiting for a "Hi".
 
 .. note::
@@ -239,7 +239,7 @@ Since the first instance already started a new instance (second one) it will not
 Deactivate a Flow
 ----------------------------------------
 
-An activated flow will usually stay alive since it always restarts when it finishes or fails. To deactivate an activated flow you can use the `deactivate` keyword:
+An activated flow will usually stay alive since it always restarts when it finishes or fails. To deactivate an activated flow, you can use the `deactivate` keyword:
 
 .. important::
     Flow deactivation statement syntax definition:
@@ -283,7 +283,7 @@ A flow can be overridden by another flow with the same name by using the overrid
     flow bot greet
         bot say "Hello"
 
-In this example the second '`bot greet`' flow will override the first one. This is particularly useful when working with imported Colang modules from a library to override, e.g. the '`bot say`' flow from the core module of the standard library to include an additional log statement:
+In this example, the second '`bot greet`' flow will override the first one. This is particularly useful when working with imported Colang modules from a library to override. For example, you can extend the '`bot say`' flow from the core module of the standard library to include an additional log statement:
 
 .. code-block:: colang
 
@@ -297,7 +297,7 @@ In this example the second '`bot greet`' flow will override the first one. This 
         log "bot say {$text}"
         await UtteranceBotAction(script=$text) as $action
 
-At the moment the definition order of flows does not make a difference and therefore only two flows with the same name can be defined where one must have the override decorator.
+At the moment, the definition order of flows does not make a difference and therefore only two flows with the same name can be defined where one must have the override decorator.
 
 .. note::
 
@@ -353,7 +353,7 @@ By default, any flow without an explicit interaction loop inherits the interacti
         bot gesture "frown"
 
 
-The example implements two bot reaction flows that listen to the user saying "Hi" or "Bye". Whenever one of the two events happen the bot will show the corresponding gesture "smile" or "frown", respectively. Note how these flows inherit their interaction loop id from the parent flow `'handling bot gesture reaction'` that is different from the main flow. Therefore, bot gesture actions will never compete with the bot say actions from the main interaction flow and will be triggered in parallel:
+The example implements two bot reaction flows that listen to the user saying "Hi" or "Bye". Whenever one of the two events happen, the bot will show the corresponding gesture "smile" or "frown", respectively. Note how these flows inherit their interaction loop id from the parent flow `'handling bot gesture reaction'` that is different from the main flow. Therefore, bot gesture actions will never compete with the bot say actions from the main interaction flow and will be triggered in parallel:
 
 .. code-block:: text
 
@@ -375,7 +375,7 @@ The example implements two bot reaction flows that listen to the user saying "Hi
 
     Goodbye
 
-By default, parallel flows in different interaction loops advance in order of their start or activation. This might be an important detail if e.g a global variable is set in one flow and read in another. If the order is wrong, the global variable will not be set yet when read by the other flow. In order to enforce the processing order independent of the start or activation order, you can define the interaction loop priority level using an integer. By default, any interaction loop has priority 0. A higher number defines a higher priority, and lower (negative) number a lower processing priority.
+By default, parallel flows in different interaction loops advance in order of their start or activation. This might be an important detail if, for example, a global variable is set in one flow and read in another. If the order is wrong, the global variable will not be set yet when read by the other flow. In order to enforce the processing order independent of the start or activation order, you can define the interaction loop priority level using an integer. By default, any interaction loop has priority 0. A higher number defines a higher priority, and lower (negative) number a lower processing priority.
 
 
 .. _more-on-flows-flow-conflict-resolution-prioritization:
@@ -384,9 +384,9 @@ By default, parallel flows in different interaction loops advance in order of th
 Flow Conflict Resolution Prioritization
 ----------------------------------------
 
-In section :ref:`Defining Flows<defining-flows-concurrent-pattern-matching>` we have already learned a bit about the mechanics of resolving an action conflict between flows. We will now look at this in more detail.
+In section :ref:`Defining Flows<defining-flows-concurrent-pattern-matching>`, we have already learned a bit about the mechanics of resolving an action conflict between flows. We will now look at this in more detail.
 
-For every successful match statement a matching score is computed that is greater than :math:`0.0` (no match) and smaller or equal to :math:`1.0` (perfect match). A perfect match is when all parameters of the expected event match with all the parameters from the actual event. If the actual event has more parameters than the expected event the matching score will be decreased by multiplying it by a factor of :math:`0.9` for every missing parameter. So let's say we have a matching event containing five parameters, but we only specified two of them, the score would be :math:`0.9^{5-2} = 0.729`. Since a system event can trigger a chain of internal events we need to take into account all the generated matching scores in that sequence. Let's use the following example to better illustrate that:
+For every successful match statement, a matching score is computed that is greater than :math:`0.0` (no match) and smaller or equal to :math:`1.0` (perfect match). A perfect match is when all parameters of the expected event match with all the parameters from the actual event. If the actual event has more parameters than the expected event, the matching score will be decreased by multiplying it by a factor of :math:`0.9` for every missing parameter. So let's say we have a matching event containing five parameters, but we only specified two of them, the score would be :math:`0.9^{5-2} = 0.729`. Since a system event can trigger a chain of internal events, we need to take into account all the generated matching scores in that sequence. Let's use the following example to better illustrate that:
 
 .. code-block:: colang
 
@@ -431,7 +431,7 @@ Comparing these match statements to the events will result in the following matc
     1) 1.0 -> 1.0 -> 1.0
     2) 0.9 -> 1.0 -> 1.0
 
-In order to find the best event matching sequence we will compare each matching score from the different chains from left to right and determine the winner as soon as one score is higher than the other. You see that the first match in the second chain is not perfect and resulted in a value of :math:`0.9`. Therefore, the first chain is the winner and the second will fail, resulting in the following output:
+In order to find the best event matching sequence, we will compare each matching score from the different chains from left to right and determine the winner as soon as one score is higher than the other. You see that the first match in the second chain is not perfect and resulted in a value of :math:`0.9`. Therefore, the first chain is the winner and the second will fail, resulting in the following output:
 
 .. code-block:: text
 
@@ -439,7 +439,7 @@ In order to find the best event matching sequence we will compare each matching 
 
     Hello
 
-In some cases you might want to influence the matching score of some matches to change the conflict resolution outcome. You can do this by specifying a flow priority with the statement ``priority <float_value>`` where the value is between :math:`0.0` and :math:`1.0`. Each match in the flow will then be multiplied by the current flow priority. Since this approach currently can only reduce the matching score you cannot use it to increase the priority of a match. A work around that can sometimes be employed is to improve the matching score of a non-perfect match by adding missing parameters using a regular expression that matches any value like that ``regex(".*")``:
+In some cases, you might want to influence the matching score of some matches to change the conflict resolution outcome. You can do this by specifying a flow priority with the statement ``priority <float_value>`` where the value is between :math:`0.0` and :math:`1.0`. Each match in the flow will then be multiplied by the current flow priority. Since this approach currently can only reduce the matching score, you cannot use it to increase the priority of a match. A work around that can sometimes be employed is to improve the matching score of a non-perfect match by adding missing parameters using a regular expression that matches any value like that ``regex(".*")``:
 
 .. code-block:: colang
 
@@ -450,4 +450,4 @@ In some cases you might want to influence the matching score of some matches to 
 
     # ...
 
-In this example the conflict resolution between the actions will happen at random since all the matching scores are equal.
+In this example, the conflict resolution between the actions will happen at random since all the matching scores are equal.

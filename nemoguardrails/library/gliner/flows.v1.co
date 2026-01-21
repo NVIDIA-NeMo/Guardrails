@@ -1,0 +1,61 @@
+#### GLiNER PII DETECTION RAILS ####
+
+# INPUT RAILS
+
+define subflow gliner detect pii on input
+  """Check if the user input has PII using GLiNER."""
+  $has_pii = execute gliner_detect_pii(source="input", text=$user_message)
+
+  if $has_pii
+    bot inform answer unknown
+    stop
+
+
+# OUTPUT RAILS
+
+define subflow gliner detect pii on output
+  """Check if the bot output has PII using GLiNER."""
+  $has_pii = execute gliner_detect_pii(source="output", text=$bot_message)
+
+  if $has_pii
+    bot inform answer unknown
+    stop
+
+
+# RETRIEVAL RAILS
+
+define subflow gliner detect pii on retrieval
+  """Check if the relevant chunks from the knowledge base have any PII using GLiNER."""
+  $has_pii = execute gliner_detect_pii(source="retrieval", text=$relevant_chunks)
+
+  if $has_pii
+    bot inform answer unknown
+    stop
+
+
+#######################################################
+
+
+#### GLiNER PII MASKING RAILS ####
+
+# INPUT RAILS
+
+define subflow gliner mask pii on input
+  """Mask any detected PII in the user input using GLiNER."""
+  $masked_input = execute gliner_mask_pii(source="input", text=$user_message)
+
+  $user_message = $masked_input
+
+
+# OUTPUT RAILS
+
+define subflow gliner mask pii on output
+  """Mask any detected PII in the bot output using GLiNER."""
+  $bot_message = execute gliner_mask_pii(source="output", text=$bot_message)
+
+
+# RETRIEVAL RAILS
+
+define subflow gliner mask pii on retrieval
+  """Mask any detected PII in the relevant chunks from the knowledge base using GLiNER."""
+  $relevant_chunks = execute gliner_mask_pii(source="retrieval", text=$relevant_chunks)

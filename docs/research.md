@@ -25,6 +25,7 @@ Supported in NeMo Guardrails:
 - Zha, Y., Yang, Y., Li, R., & Hu, Z. (2023). AlignScore: Evaluating factual consistency with a unified alignment function. arXiv preprint arXiv:2305.16739. [paper](https://arxiv.org/pdf/2305.16739.pdf) | [repo](https://github.com/yuh-zha/AlignScore)
 
 Relevant papers:
+
 - Min, S., Krishna, K., Lyu, X., Lewis, M., Yih, W. T., Koh, P. W., ... & Hajishirzi, H. (2023). Factscore: Fine-grained atomic evaluation of factual precision in long form text generation. arXiv preprint arXiv:2305.14251. [paper](https://arxiv.org/pdf/2305.14251.pdf) | [repo](https://github.com/shmsw25/FActScore)
 
 ### Explicit hallucination rails
@@ -46,12 +47,15 @@ Relevant papers:
 ## Jailbreaking rails
 
 Relevant surveys:
+
 - Yao, Y., Duan, J., Xu, K., Cai, Y., Sun, Z., & Zhang, Y. (2024). A survey on large language model (llm) security and privacy: The good, the bad, and the ugly. High-Confidence Computing, 100211. paper
 
 Supported in NeMo Guardrails:
+
 - _(Similar to)_ Alon, G., & Kamfonas, M. (2023). Detecting language model attacks with perplexity. arXiv preprint arXiv:2308.14132. [paper](https://arxiv.org/pdf/2308.14132.pdf) | repo
 
 Relevant papers:
+
 - Kumar, A., Agarwal, C., Srinivas, S., Feizi, S., & Lakkaraju, H. (2023). Certifying llm safety against adversarial prompting. arXiv preprint arXiv:2309.02705. [paper](https://arxiv.org/pdf/2309.02705.pdf) | [repo](https://github.com/aounon/certified-llm-safety)
 - Wei, Z., Wang, Y., & Wang, Y. (2023). Jailbreak and guard aligned language models with only few in-context demonstrations. arXiv preprint arXiv:2310.06387. [paper](https://arxiv.org/pdf/2310.06387.pdf)
 - Zhang, Y., Ding, L., Zhang, L., & Tao, D. (2024). Intention analysis prompting makes large language models a good jailbreak defender. arXiv preprint arXiv:2401.06561. [paper](https://arxiv.org/pdf/2401.06561.pdf)
@@ -60,9 +64,10 @@ Relevant papers:
 
 ## Dialog rails
 
-
 Supported in NeMo Guardrails:
-- Rebedea, T., Dinu, R., Sreedhar, M., Parisien, C., & Cohen, J. (2023). Nemo guardrails: A toolkit for controllable and safe llm applications with programmable rails. arXiv preprint arXiv:2310.10501. [paper](https://arxiv.org/pdf/2310.10501.pdf) | [code](https://github.com/NVIDIA/NeMo-Guardrails)
+
+- Rebedea, T., Dinu, R., Sreedhar, M., Parisien, C., & Cohen, J. (2023). Nemo guardrails: A toolkit for controllable and safe llm applications with programmable rails. arXiv preprint arXiv:2310.10501. [paper](https://arxiv.org/pdf/2310.10501.pdf) | [code](https://github.com/NVIDIA-NeMo/Guardrails)
 
 Relevant papers:
+
 - Sun, A. Y., Nair, V., Schumacher, E., & Kannan, A. (2023). CONSCENDI: A Contrastive and Scenario-Guided Distillation Approach to Guardrail Models for Virtual Assistants. arXiv preprint arXiv:2304.14364. [paper](https://arxiv.org/pdf/2304.14364.pdf) | [code](https://github.com/curai/curai-research/tree/main/CONSCENDI)

@@ -1,8 +1,21 @@
+---
+title:
+  page: "Adapter Configurations"
+  nav: "Adapters"
+description: "Configure FileSystem, OpenTelemetry, or custom adapters for guardrails tracing."
+topics: ["Observability", "AI Safety"]
+tags: ["Tracing", "Adapters", "Configuration", "FileSystem", "OpenTelemetry"]
+content:
+  type: "Reference"
+  difficulty: "Intermediate"
+  audience: ["Developer", "DevOps Engineer"]
+---
+
 # Adapter Configurations
 
 You can set up the following adapters for tracing.
 
-The following table summarizes the list of adapters supported by NeMo Guardrails and their use cases.
+The following table summarizes the list of adapters supported by the NeMo Guardrails library and their use cases.
 
 | Adapter Type | Use Case | Configuration |
 |---------|----------|---------------|
@@ -26,7 +39,7 @@ tracing:
       filepath: "./logs/traces.jsonl"
 ```
 
-For working examples, refer to the [Tracing Guardrails Quickstart](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/1_tracing_quickstart.ipynb) notebook.
+For working examples, refer to the [Tracing Guardrails Quickstart](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/1_tracing_quickstart.ipynb) notebook.
 
 (opentelemetry-adapter)=
 
@@ -41,11 +54,7 @@ tracing:
     - name: OpenTelemetry
 ```
 
-For working examples, refer to the [Tracing Guardrails with Jaeger](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs/getting-started/8-tracing/2_tracing_with_jaeger.ipynb) notebook.
-
-```{important}
-OpenTelemetry requires additional SDK configuration in your application code. See the sections below for setup instructions.
-```
+For working examples, refer to the [Tracing Guardrails with Jaeger](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/configure-rails/colang/colang-1/tutorials/8-tracing/2_tracing_with_jaeger.ipynb) notebook.
 
 (custom-adapter)=
 

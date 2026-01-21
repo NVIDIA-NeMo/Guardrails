@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -106,7 +106,7 @@ class OpenTelemetryAdapter(InteractionLogAdapter):
                 "No OpenTelemetry TracerProvider configured. Traces will not be exported. "
                 "Please configure OpenTelemetry in your application code before using NeMo Guardrails. "
                 "See setup guide at: "
-                "https://github.com/NVIDIA/NeMo-Guardrails/blob/main/examples/configs/tracing/README.md#opentelemetry-setup",
+                "https://github.com/NVIDIA-NeMo/Guardrails/blob/main/examples/configs/tracing/README.md#opentelemetry-setup",
                 UserWarning,
                 stacklevel=2,
             )

@@ -6,10 +6,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Before** reporting an issue, make sure to read the [documentation](https://github.com/NVIDIA/NeMo-Guardrails/tree/develop/docs)
-        and search [existing issues](https://github.com/NVIDIA/NeMo-Guardrails/issues).
+        **Before** reporting an issue, make sure to read the [documentation](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs)
+        and search [existing issues](https://github.com/NVIDIA-NeMo/Guardrails/issues).
 
-        Usage questions such as ***"How do I...?"*** belong in [Discussions](https://github.com/NVIDIA/NeMo-Guardrails/discussions) and will be closed.
+        Usage questions such as ***"How do I...?"*** belong in [Discussions](https://github.com/NVIDIA-NeMo/Guardrails/discussions) and will be closed.
 
         Thanks for taking the time to fill out this bug report!
   - type: checkboxes

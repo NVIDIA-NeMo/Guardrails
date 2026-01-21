@@ -3,13 +3,16 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# NVIDIA NeMo Guardrails Toolkit Developer Guide
+# NVIDIA NeMo Guardrails Library Developer Guide
 
-The NeMo Guardrails toolkit is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
+{bdg-link-primary}`PyPI <https://pypi.org/project/nemoguardrails/>`
+{bdg-link-secondary}`GitHub <https://github.com/NVIDIA-NeMo/Guardrails>`
 
-## About the NeMo Guardrails Toolkit
+The NeMo Guardrails library is an open-source Python package for adding programmable guardrails to LLM-based applications. It intercepts inputs and outputs, applies configurable safety checks, and blocks or modifies content based on defined policies.
 
-Learn about the toolkit and its capabilities in the following sections.
+## About the NeMo Guardrails Library
+
+Learn about the library and its capabilities in the following sections.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -18,35 +21,35 @@ Learn about the toolkit and its capabilities in the following sections.
 :link: about/overview
 :link-type: doc
 
-Learn about the NeMo Guardrails toolkit and its capabilities.
+Add programmable guardrails to LLM applications with this open-source Python library.
 :::
 
-:::{grid-item-card} Use Cases
-:link: about/use-cases
+:::{grid-item-card} Guardrail Types
+:link: about/rail-types
 :link-type: doc
 
-Browse the different use cases of the NeMo Guardrails toolkit.
+Apply input, retrieval, dialog, execution, and output rails to protect LLM applications.
 :::
 
 :::{grid-item-card} How It Works
-:link: about/how-it-works/index
+:link: about/how-it-works
 :link-type: doc
 
-Learn how the NeMo Guardrails toolkit works.
+High level explanation of how Guardrails works.
 :::
 
-:::{grid-item-card} Supported LLMs and Providers
+:::{grid-item-card} Supported LLMs
 :link: about/supported-llms
 :link-type: doc
 
-Browse the LLMs and their providers supported by the toolkit.
+Connect to NVIDIA NIM, OpenAI, Azure, Anthropic, HuggingFace, and LangChain providers.
 :::
 
 ::::
 
 ## Get Started
 
-Follow these steps to start using the NeMo Guardrails toolkit.
+Follow these steps to start using the NeMo Guardrails library.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -55,14 +58,14 @@ Follow these steps to start using the NeMo Guardrails toolkit.
 :link: getting-started/installation-guide
 :link-type: doc
 
-Install the toolkit with pip and set up your environment.
+Install NeMo Guardrails with pip, configure your environment, and verify the installation.
 :::
 
 :::{grid-item-card} Tutorials
 :link: getting-started/tutorials/index
 :link-type: doc
 
-Follow hands-on tutorials to build your first guardrails configuration.
+Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect NIMs.
 :::
 ::::
 
@@ -75,58 +78,58 @@ Once you've completed the get-started tutorials, explore the following areas to 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Configure Rails
-:link: configure-rails/overview
+:::{grid-item-card} About Configuring Guardrails
+:link: configure-rails/index
 :link-type: doc
 
-Learn to write config.yml, Colang flows, and custom actions.
+Configure YAML files, Colang flows, custom actions, and other components to control LLM behavior.
 :::
 
-:::{grid-item-card} Run Rails
+:::{grid-item-card} About Running Guardrailed Inference
 :link: run-rails/index
 :link-type: doc
 
-Use the Python SDK and understand core classes like RailsConfig and LLMRails.
+Run guardrailed inference using the Python API or Guardrails API server.
 :::
 
 :::{grid-item-card} Evaluate
 :link: evaluation/README
 :link-type: doc
 
-Evaluate the performance of the rails.
+Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails.
 :::
 
-:::{grid-item-card} Observability
+:::{grid-item-card} Logging
 :link: observability/logging/index
 :link-type: doc
 
-Monitor and troubleshoot your guardrails applications.
+Debug guardrails with verbose mode, explain method, and generation log options.
 :::
 
-:::{grid-item-card} Deploy
+:::{grid-item-card} Deployment Options
 :link: deployment/index
 :link-type: doc
 
-Deploy your guardrails using the toolkit's local server, Docker, or as a production microservice.
+Deploy guardrails using the local API server, Docker containers, or production microservices.
 :::
 
-:::{grid-item-card} Integrate
+:::{grid-item-card} LangChain Frameworks
 :link: integration/langchain/index
 :link-type: doc
 
-Connect with LangChain, LangGraph, and other frameworks.
+Integrate NeMo Guardrails with LangChain chains, runnables, and LangGraph workflows.
 :::
 
 ::::
 
 ```{toctree}
-:caption: About NeMo Guardrails Toolkit
-:name: About NeMo Guardrails Toolkit
+:caption: About NeMo Guardrails Library
+:name: About NeMo Guardrails Library
 :hidden:
 
 Overview <about/overview.md>
-Use Cases <about/use-cases.md>
-How It Works <about/how-it-works/index.md>
+How It Works <about/how-it-works.md>
+Guardrail Types <about/rail-types.md>
 Supported LLMs <about/supported-llms.md>
 Release Notes <about/release-notes.md>
 ```
@@ -136,35 +139,38 @@ Release Notes <about/release-notes.md>
 :name: Get Started
 :hidden:
 
-getting-started/installation-guide
-getting-started/tutorials/index
+Install <getting-started/installation-guide>
+Tutorials <getting-started/tutorials/index>
+Integrate <getting-started/integrate-into-application.md>
 ```
 
 ```{toctree}
-:caption: Configure Rails
-:name: Configure Rails
+:caption: Configure Guardrails
+:name: Configure Guardrails
 :hidden:
 
-Before Configuring Rails <configure-rails/before-configuration.md>
-Configuration Overview <configure-rails/overview.md>
-Core Configuration <configure-rails/yaml-schema/index.md>
+About Configuring Guardrails <configure-rails/index.md>
+Overview <configure-rails/overview.md>
+Prerequisites <configure-rails/before-configuration.md>
+Configuring YAML File <configure-rails/yaml-schema/index.md>
+YAML Schema Reference <configure-rails/configuration-reference.md>
+Guardrail Catalog <configure-rails/guardrail-catalog.md>
 Custom Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
 Colang <configure-rails/colang/index.md>
 Other Configurations <configure-rails/other-configurations/index.md>
-Caching <configure-rails/caching/index.md>
+Caching Instructions and Prompts <configure-rails/caching/index.md>
+Exceptions and Error Handling <configure-rails/exceptions.md>
 ```
 
 ```{toctree}
-:caption: Run Rails
-:name: Run Rails
+:caption: Run Guardrailed Inference
+:name: Run Guardrailed Inference
 :hidden:
 
-Run Rails <run-rails/index.md>
-Core Classes <run-rails/core-classes.md>
-Generation Options <run-rails/generation-options.md>
-Streaming <run-rails/streaming.md>
-Event-based API <run-rails/event-based-api.md>
+About Running Guardrailed Inference <run-rails/index.md>
+Python API <run-rails/using-python-apis/index.md>
+Guardrails API Server <run-rails/using-fastapi-server/index.md>
 ```
 
 ```{toctree}
@@ -172,8 +178,8 @@ Event-based API <run-rails/event-based-api.md>
 :name: Evaluation
 :hidden:
 
-evaluation/README
-evaluation/llm-vulnerability-scanning
+Evaluate <evaluation/README>
+Vulnerability Scanning <evaluation/llm-vulnerability-scanning>
 ```
 
 ```{toctree}
@@ -186,31 +192,22 @@ Tracing <observability/tracing/index.md>
 ```
 
 ```{toctree}
-:caption: Deployment Guides
+:caption: More Deployment Options
 :hidden:
 
 Deployment Options <deployment/index>
-Local Server Setup <deployment/local-server/index>
-Using Docker <deployment/using-docker>
-Using NeMo Guardrails Microservice <deployment/using-microservice>
-Blueprint with NemoGuard NIMs <integration/safeguarding-ai-virtual-assistant-blueprint>
+Docker <deployment/using-docker>
+NeMo Microservice <deployment/using-microservice>
+Blueprint Integration <integration/safeguarding-ai-virtual-assistant-blueprint>
 ```
 
 ```{toctree}
 :caption: Integration with Third-Party Libraries
 :hidden:
 
-LangChain <integration/langchain/index.md>
+LangChain Frameworks <integration/langchain/index.md>
 AlignScore <integration/align-score-deployment>
-Integrate LangChain Tools <integration/tools-integration.md>
-```
-
-```{toctree}
-:caption: Security
-:name: Security
-:hidden:
-
-security/guidelines
+Tools Integration <integration/tools-integration.md>
 ```
 
 ```{toctree}
@@ -218,9 +215,28 @@ security/guidelines
 :name: Reference
 :hidden:
 
-troubleshooting
-faqs
-python-api/index
-cli/index
-glossary
+Architecture <reference/colang-architecture-guide.md>
+Sequence Diagrams <reference/guardrails-sequence-diagrams.md>
+Use Case Diagrams <reference/use-case-diagrams.md>
+Python API <reference/python-api/index>
+CLI <reference/cli/index>
+Guardrails API Server Endpoints <reference/api-server-endpoints/index>
+```
+
+```{toctree}
+:caption: Troubleshooting
+:name: Troubleshooting
+:hidden:
+
+Troubleshooting <troubleshooting>
+```
+
+```{toctree}
+:caption: Resources
+:name: Resources
+:hidden:
+
+FAQs <resources/faqs.md>
+Glossary <resources/glossary.md>
+Security <resources/security/guidelines.md>
 ```

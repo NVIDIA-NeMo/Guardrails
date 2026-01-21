@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,15 +19,16 @@ import math
 
 import pytest
 
-from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.streaming import StreamingHandler
-from tests.utils import FakeLLM, TestChat
+from tests.utils import TestChat
 
 
 @pytest.fixture
 def chat_1():
-    config: RailsConfig = RailsConfig.from_content(config={"models": [], "streaming": True})
+    config: RailsConfig = RailsConfig.from_content(config={"models": []})
     return TestChat(
         config,
         llm_completions=[
@@ -77,7 +78,7 @@ async def test_stream_async_api(chat_1):
 async def test_streaming_predefined_messages():
     """Predefined messages should be streamed as a single chunk."""
     config: RailsConfig = RailsConfig.from_content(
-        config={"models": [], "streaming": True},
+        config={"models": []},
         colang_content="""
         define user express greeting
           "hi"
@@ -110,7 +111,7 @@ async def test_streaming_predefined_messages():
 async def test_streaming_dynamic_bot_message():
     """Predefined messages should be streamed as a single chunk."""
     config: RailsConfig = RailsConfig.from_content(
-        config={"models": [], "streaming": True},
+        config={"models": []},
         colang_content="""
         define user express greeting
           "hi"
@@ -146,7 +147,6 @@ async def test_streaming_single_llm_call():
         config={
             "models": [],
             "rails": {"dialog": {"single_call": {"enabled": True}}},
-            "streaming": True,
         },
         colang_content="""
         define user express greeting
@@ -180,7 +180,6 @@ async def test_streaming_single_llm_call_with_message_override():
         config={
             "models": [],
             "rails": {"dialog": {"single_call": {"enabled": True}}},
-            "streaming": True,
         },
         colang_content="""
         define user express greeting
@@ -219,7 +218,6 @@ async def test_streaming_single_llm_call_with_next_step_override_and_dynamic_mes
         config={
             "models": [],
             "rails": {"dialog": {"single_call": {"enabled": True}}},
-            "streaming": True,
         },
         colang_content="""
         define user express greeting
@@ -267,7 +265,6 @@ def output_rails_streaming_config():
                     },
                 }
             },
-            "streaming": True,
             "prompts": [{"task": "self_check_output", "content": "a test template"}],
         },
         colang_content="""
@@ -479,7 +476,6 @@ async def test_streaming_with_output_rails_disabled_raises_error():
                     },
                 }
             },
-            "streaming": True,
             "prompts": [{"task": "self_check_output", "content": "a test template"}],
         },
         colang_content="""
@@ -498,7 +494,7 @@ async def test_streaming_with_output_rails_disabled_raises_error():
         streaming=True,
     )
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
         async for chunk in chat.app.stream_async(
             messages=[{"role": "user", "content": "Hi!"}],
         ):
@@ -522,7 +518,6 @@ async def test_streaming_with_output_rails_no_streaming_config_raises_error():
                     "flows": {"self check output"},
                 }
             },
-            "streaming": True,
             "prompts": [{"task": "self_check_output", "content": "a test template"}],
         },
         colang_content="""
@@ -541,7 +536,7 @@ async def test_streaming_with_output_rails_no_streaming_config_raises_error():
         streaming=True,
     )
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
         async for chunk in chat.app.stream_async(
             messages=[{"role": "user", "content": "Hi!"}],
         ):
@@ -568,7 +563,6 @@ async def test_streaming_error_handling():
                     "model": "non-existent-model",
                 }
             ],
-            "streaming": True,
         }
     )
 
@@ -695,123 +689,3 @@ def custom_streaming_providers():
     _chat_providers.pop("custom_none_streaming", None)
     _llm_providers.pop("custom_streaming_llm", None)
     _llm_providers.pop("custom_none_streaming_llm", None)
-
-
-@pytest.mark.parametrize(
-    "model_type,model_streaming,config_streaming,expected_result",
-    [
-        # Chat model tests
-        (
-            "chat",
-            False,
-            False,
-            False,
-        ),  # Case 1: model streaming=no, config streaming=no, result=no
-        (
-            "chat",
-            False,
-            True,
-            False,
-        ),  # Case 2: model streaming=no, config streaming=yes, result=no
-        (
-            "chat",
-            True,
-            False,
-            False,
-        ),  # Case 3: model streaming=yes, config streaming=no, result=no
-        (
-            "chat",
-            True,
-            True,
-            True,
-        ),  # Case 4: model streaming=yes, config streaming=yes, result=yes
-        # LLM tests
-        (
-            "llm",
-            False,
-            False,
-            False,
-        ),  # Case 1: model streaming=no, config streaming=no, result=no
-        (
-            "llm",
-            False,
-            True,
-            False,
-        ),  # Case 2: model streaming=no, config streaming=yes, result=no
-        (
-            "llm",
-            True,
-            False,
-            False,
-        ),  # Case 3: model streaming=yes, config streaming=no, result=no
-        (
-            "llm",
-            True,
-            True,
-            True,
-        ),  # Case 4: model streaming=yes, config streaming=yes, result=yes
-    ],
-)
-def test_main_llm_supports_streaming_flag_config_combinations(
-    custom_streaming_providers,
-    model_type,
-    model_streaming,
-    config_streaming,
-    expected_result,
-):
-    """Test all combinations of model streaming support and config streaming settings."""
-
-    # determine the engine name based on model type and streaming support
-    if model_type == "chat":
-        engine = "custom_streaming" if model_streaming else "custom_none_streaming"
-    else:
-        engine = "custom_streaming_llm" if model_streaming else "custom_none_streaming_llm"
-
-    config = RailsConfig.from_content(
-        config={
-            "models": [{"type": "main", "engine": engine, "model": "test-model"}],
-            "streaming": config_streaming,
-        }
-    )
-
-    rails = LLMRails(config)
-
-    assert rails.main_llm_supports_streaming == expected_result, (
-        f"main_llm_supports_streaming should be {expected_result} when "
-        f"model_type={model_type}, model_streaming={model_streaming}, config_streaming={config_streaming}"
-    )
-
-
-def test_main_llm_supports_streaming_flag_with_constructor():
-    """Test that main_llm_supports_streaming is properly set when LLM is provided via constructor."""
-    config = RailsConfig.from_content(
-        config={
-            "models": [],
-            "streaming": True,
-        }
-    )
-
-    fake_llm = FakeLLM(responses=["test"], streaming=True)
-    rails = LLMRails(config, llm=fake_llm)
-
-    assert rails.main_llm_supports_streaming is True, (
-        "main_llm_supports_streaming should be True when streaming is enabled "
-        "and LLM provided via constructor supports streaming"
-    )
-
-
-def test_main_llm_supports_streaming_flag_disabled_when_no_streaming():
-    """Test that main_llm_supports_streaming is False when streaming is disabled."""
-    config = RailsConfig.from_content(
-        config={
-            "models": [],
-            "streaming": False,
-        }
-    )
-
-    fake_llm = FakeLLM(responses=["test"], streaming=False)
-    rails = LLMRails(config, llm=fake_llm)
-
-    assert rails.main_llm_supports_streaming is False, (
-        "main_llm_supports_streaming should be False when streaming is disabled"
-    )

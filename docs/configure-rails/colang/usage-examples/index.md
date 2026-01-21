@@ -11,6 +11,6 @@ This section provides examples of how to use Colang flows to create guardrails.
 :hidden:
 :maxdepth: 2
 
-bot-message-instructions
-extract-user-provided-values
+Bot Message Instructions <bot-message-instructions>
+Extract User-provided Values <extract-user-provided-values>
 ```

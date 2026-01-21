@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -138,6 +138,35 @@ def _infer_model_name(llm: BaseLanguageModel):
     return "unknown"
 
 
+def _filter_params_for_openai_reasoning_models(llm: BaseLanguageModel, llm_params: Optional[dict]) -> Optional[dict]:
+    """Filter out unsupported parameters for OpenAI reasoning models.
+
+    OpenAI reasoning models (o1, o3, gpt-5 excluding gpt-5-chat) only support
+    temperature=1. When using .bind() with other temperature values, the API
+    returns an error. This function removes the temperature parameter for these
+    models to allow the API default to apply.
+
+    See: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
+    """
+    if not llm_params or "temperature" not in llm_params:
+        return llm_params
+
+    model_name = _infer_model_name(llm).lower()
+
+    is_openai_reasoning_model = (
+        model_name.startswith("o1")
+        or model_name.startswith("o3")
+        or (model_name.startswith("gpt-5") and "chat" not in model_name)
+    )
+
+    if is_openai_reasoning_model:
+        filtered = llm_params.copy()
+        filtered.pop("temperature", None)
+        return filtered
+
+    return llm_params
+
+
 async def llm_call(
     llm: Optional[BaseLanguageModel],
     prompt: Union[str, List[dict]],
@@ -166,7 +195,8 @@ async def llm_call(
     _setup_llm_call_info(llm, model_name, model_provider)
     all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
-    generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**llm_params) if llm_params else llm
+    filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params)
+    generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**filtered_params) if filtered_params else llm
 
     if isinstance(prompt, str):
         response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks, stop)
@@ -309,8 +339,10 @@ def _store_reasoning_traces(response) -> None:
         # both extraction methods to support different provider implementations.
         reasoning_content = _extract_and_remove_think_tags(response)
 
-    if reasoning_content:
-        reasoning_trace_var.set(reasoning_content)
+    # Always set the variable, even if reasoning_content is None.
+    # This ensures each LLM call has a clean slate and prevents stale reasoning
+    # traces from previous LLM calls (e.g., safety checks) from leaking through.
+    reasoning_trace_var.set(reasoning_content)
 
 
 def _extract_reasoning_from_content_blocks(response) -> Optional[str]:

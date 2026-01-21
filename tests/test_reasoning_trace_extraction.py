@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -126,6 +126,27 @@ class TestStoreReasoningTracesUnit:
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == new_trace
         assert stored_trace != initial_trace
+
+        reasoning_trace_var.set(None)
+
+    def test_store_reasoning_traces_clears_previous_when_no_new_reasoning(self):
+        """Test that previous reasoning traces are cleared when new response has no reasoning.
+
+        This prevents stale reasoning from previous LLM calls (e.g., safety checks)
+        from leaking into subsequent responses.
+        """
+        # Set up a previous reasoning trace (simulating a safety check)
+        previous_trace = "Previous safety check reasoning that should be cleared"
+        reasoning_trace_var.set(previous_trace)
+
+        # Simulate a response with NO reasoning content (like from gpt-4o-mini)
+        response = AIMessage(content="Regular response without reasoning", additional_kwargs={})
+
+        _store_reasoning_traces(response)
+
+        # The previous trace should be cleared, not persist
+        stored_trace = reasoning_trace_var.get()
+        assert stored_trace is None, "Previous reasoning trace should be cleared when new response has no reasoning"
 
         reasoning_trace_var.set(None)
 

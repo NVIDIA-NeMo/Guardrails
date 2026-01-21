@@ -1,6 +1,14 @@
 ---
-title: Colang Guide
-description: Learn Colang, the event-driven language for defining guardrails flows, user messages, and bot responses.
+title:
+  page: "Colang Guide"
+  nav: "Colang"
+description: "Learn Colang, the event-driven language for defining guardrails flows and bot behavior."
+topics: ["Configuration", "AI Safety"]
+tags: ["Colang", "Flows", "Events", "DSL", "Language"]
+content:
+  type: "Overview"
+  difficulty: "Intermediate"
+  audience: ["Developer", "AI Engineer"]
 ---
 
 # Colang Guide
@@ -8,10 +16,10 @@ description: Learn Colang, the event-driven language for defining guardrails flo
 Colang is an *event-driven interaction modeling language* that is interpreted by a Python runtime.
 This section describes how to use Colang to define guardrails flows in `.co` files.
 
-The initial releases of NeMo Guardrails (versions 0.1 through 0.7) use Colang 1.0.
-Beginning with version 0.8, NeMo Guardrails introduces support for Colang 2.0, while maintaining Colang 1.0 as the default until Colang completes its beta phase.
+The initial releases of the NeMo Guardrails library (versions 0.1 through 0.7) use Colang 1.0.
+Beginning with version 0.8, the NeMo Guardrails library introduces support for Colang 2.0, while maintaining Colang 1.0 as the default until Colang completes its beta phase.
 
-| NeMo Guardrails Version | Colang Version |
+| NeMo Guardrails Library Version | Colang Version |
 |-------------------------|----------------|
 | 0.1 - 0.7 | 1.0 |
 | 0.8 | 2.0-alpha |
@@ -36,7 +44,7 @@ Widely adopted approaches for achieving this include:
 3. Function calling and constrained output generation (for example, JSON mode) for models that support it.
 
 Retrieval Augmented Generation (RAG) plays a crucial role by integrating application-level and user-specific context into the generation.
-A comprehensive guardrails toolkit for LLMs should seamlessly accommodate all these interaction patterns.
+A comprehensive guardrails library for LLMs should seamlessly accommodate all these interaction patterns.
 
 ## Configuration Sections
 
@@ -49,14 +57,14 @@ The following sections provide detailed documentation for using Colang:
 :link: colang-2/index
 :link-type: doc
 
-whats-changed getting-started/index language-reference/index migration-guide
+Reference and tutorials for Colang 2.0 syntax for defining dialog flows and guardrails.
 :::
 
 :::{grid-item-card} Colang 1.0 Guide
-:link: colang-language-syntax-guide
+:link: colang-1/index
 :link-type: doc
 
-The original Colang syntax for defining user messages, bot messages, and dialog flows.
+Reference and tutorials for Colang 1.0 syntax for defining dialog flows and guardrails.
 :::
 
 :::{grid-item-card} Migrating from Colang 1 to Colang 2
@@ -75,7 +83,7 @@ The initial Colang 1.0 language and runtime have several limitations.
 
 **Language limitations:**
 
-- Primarily supports text-based interactions with specialized constructs for user and bot messages.
+- Primarily supports text-based interactions with specialized constructs for user and bot messages, rather than multi-modal interactions (e.g. using voice, gestures, posture, or images).
 - Limited support for natural language instructions, such as extracting user-provided values or bot message instructions.
 - Lack of support for executing multiple actions or initiating multiple interaction flows concurrently.
 - Does not allow the modeling of parallel interaction streams, such as simultaneous chat and avatar posture adjustments in interactive avatar systems.
@@ -122,14 +130,14 @@ You can migrate your Colang 2.0-alpha bots to 2.0-beta using the following comma
 nemoguardrails convert "path/to/2.0-alpha/version/bots" --from-version "2.0-alpha"
 ```
 
-Additionally, you can add the `--validate` flag to check if the migrated files do not raise any Colang syntax errors.
+Additionally, you can add the `--validate` flag to check if the migrated files raise any Colang syntax errors.
 
 ## Interaction Model
 
 While there are many changes in the syntax and the underlying mechanics between Colang 1.0 and Colang 2.0, one core element has remained the same: *interaction model*.
 
 In both Colang 1.0 and Colang 2.0, the interaction between the application (or user) and the LLM is an event-driven one.
-Examples of events include: user saying something, the LLM generating a response, triggering an action, the result of an action, the retrieval of additional info, the triggering of a guardrail, and more.
+Examples of events include: user saying something, the LLM generating a response, triggering an action, the result of an action, the retrieval of additional info, and the triggering of a guardrail.
 In other words, the evolution of a system is modeled as a series of events, with the guardrails layer responsible for recognizing and enforcing patterns within the stream.
 
 The diagram below depicts a simplified version of the role of the events stream (the boxes with yellow background represent events).
@@ -140,18 +148,18 @@ The diagram below depicts a simplified version of the role of the events stream 
 :alt: Event-driven interaction model showing the flow of events between user, guardrails, and LLM
 ```
 
-This event-driven interaction model is part of what makes Colang a powerful modeling language, enabling the description of any type of interaction (text-based, voice-based, multi-modal, agent, multi-agent, and so on) and adding guardrails to it.
+This event-driven interaction model is part of what makes Colang a powerful modeling language, enabling the description of any type of interaction (text-based, voice-based, multi-modal, agent, multi-agent, etc) and adding guardrails to it.
 
 ## Getting Started
 
-If you've used Colang 1.0 before, check out the [What's Changed](colang-2/whats-changed) page.
-If not, you can get started with the [Hello World](colang-2/getting-started/hello-world) example.
+If you've used Colang 1.0 before, check out the [What's Changed with Colang 2.0](colang-2/whats-changed) page.
+If not, you can get started with the Colang 2.0 [Hello World](colang-2/getting-started/hello-world) example.
 
 ```{toctree}
 :hidden:
 :maxdepth: 2
 
-colang-2/index
-colang-1/index
-usage-examples/index
+Colang 2.0 Guide <colang-2/index>
+Colang 1.0 Guide <colang-1/index>
+Colang Usage Examples <usage-examples/index>
 ```

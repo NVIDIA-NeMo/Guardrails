@@ -229,6 +229,6 @@ async def query_knowledge_base(query: str, top_k: int = 5):
 
 ## Related Topics
 
+- [Built-in Actions](built-in-actions) - Default actions in the library
 - [Action Parameters](action-parameters) - Special parameters provided automatically
 - [Registering Actions](registering-actions) - Different ways to register actions
-- [Built-in Actions](built-in-actions) - Default actions in the toolkit

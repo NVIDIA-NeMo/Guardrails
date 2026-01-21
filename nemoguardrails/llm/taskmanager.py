@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +43,8 @@ from nemoguardrails.llm.output_parsers import (
     is_content_safe,
     nemoguard_parse_prompt_safety,
     nemoguard_parse_response_safety,
+    nemotron_reasoning_parse_prompt_safety,
+    nemotron_reasoning_parse_response_safety,
     user_intent_parser,
     verbose_v1_parser,
 )
@@ -84,6 +86,8 @@ class LLMTaskManager:
             "is_content_safe": is_content_safe,
             "nemoguard_parse_prompt_safety": nemoguard_parse_prompt_safety,
             "nemoguard_parse_response_safety": nemoguard_parse_response_safety,
+            "nemotron_reasoning_parse_prompt_safety": nemotron_reasoning_parse_prompt_safety,
+            "nemotron_reasoning_parse_response_safety": nemotron_reasoning_parse_response_safety,
         }
 
         # The prompt context will hold additional variables that ce also be included

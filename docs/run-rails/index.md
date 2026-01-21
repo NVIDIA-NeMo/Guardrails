@@ -1,101 +1,93 @@
 ---
-title: Run Rails
-description: Use the Python SDK and understand core classes like RailsConfig and LLMRails.
+title:
+  page: "About Running Guardrailed Inference"
+  nav: "About Running Guardrailed Inference"
+description: "Run guardrailed inference using the Python API or Guardrails API server."
+keywords: ["NeMo Guardrails", "guardrailed inference", "LLMRails", "RailsConfig", "Guardrails API server"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "ai_platforms"]
+content:
+  type: get_started
+  difficulty: technical_intermediate
+  audience: ["data_scientist", "engineer"]
 ---
 
-# Run Rails
+# About Running Guardrailed Inference Using the NeMo Guardrails Library Tools
 
-This section covers how to use the NeMo Guardrails toolkit programmatically through the Python API. Learn about the core classes, generation methods, and advanced features for integrating guardrails into your applications.
+After you [configure your guardrails](../configure-rails/index.md), you can run guardrailed inference using the tools provided by the NeMo Guardrails library: the Python API and the Guardrails API server.
 
-## Core Classes
+These tools enable you to interact with your application's main LLM as usual by sending prompts and receiving responses while the guardrails system monitors and controls all communication in the background.
+The guardrails intercept inputs and outputs between uses and the LLM and the execution of actions done by the LLM. The tools apply your configured guardrails and ensure that any inputs, generated responses, or actions remain within the boundaries you defined.
 
-The NeMo Guardrails toolkit provides two core classes for running guardrails:
+---
 
-- **`RailsConfig`**: Loads and manages guardrails configuration from files or content.
-- **`LLMRails`**: The main interface for generating responses with guardrails applied.
+## Install the NeMo Guardrails Library
 
-Upon initializing the core classes (`RailsConfig` and `LLMRails`) or starting the `nemoguardrails` CLI chat or server, the toolkit loads the configuration files you created in the previous chapter [Configure Rails](../configuration-guide/index.md).
+To use the Python API or the Guardrails API server, you need to install the NeMo Guardrails library. See [](../getting-started/installation-guide.md) for instructions.
 
-## Quick Start
+---
 
-The following example shows the minimal code to load the prepared configuration files in the `config` directory and generate a response using the `LLMRails` class.
+## Choosing the Right Tool
+
+Both the Python API and the Guardrails API server are production-ready approaches for integrating guardrails into your application.
+
+### Python API for Edge and Embedded Applications
+
+Build guardrails directly into your Python application. You call guardrails functions in your code, and everything runs in the same process with no network overhead.
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
 
-# Load configuration from the config directory
 config = RailsConfig.from_path("path/to/config")
-
-# Create the LLMRails instance
 rails = LLMRails(config)
 
-# Generate a response
 response = rails.generate(messages=[
-    {"role": "user", "content": "Hello! How are you?"}
+    {"role": "user", "content": "Hello!"}
 ])
-print(response["content"])
 ```
 
-## Sections
+This approach is best for:
+
+- Edge deployments where no networked backend is available.
+- Applications that require low latency and no external dependencies.
+- Rapid prototyping and development in notebooks or scripts.
+- Fine-grained control over generation and custom streaming handlers.
+
+### Guardrails API Server for Networked and Multi-Client Applications
+
+The Guardrails API server provides a RESTful API interface to the guardrails library. Instead of calling Python functions directly, you make HTTP requests to the server endpoints, making integration straightforward for any language or platform.
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"config_id": "content_safety", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+This approach is best for:
+
+- Networked systems where multiple clients need access to guardrails.
+- Non-Python clients such as JavaScript, Go, and Java that communicate through HTTP.
+
+---
+
+## Next Steps
+
+After choosing the right tool for your implementation model, proceed to the corresponding guide from the following.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Core Classes
-:link: core-classes
+:::{grid-item-card} Python API
+:link: using-python-apis/index
 :link-type: doc
 
-This guide covers the two fundamental classes in the NeMo Guardrails toolkit: `RailsConfig` for loading configurations and `LLMRails` for generating responses with guardrails.
+Run guardrailed inference using the NeMo Guardrails Python API.
 :::
 
-:::{grid-item-card} Generation Options
-:link: generation-options
+:::{grid-item-card} Guardrails API Server
+:link: using-fastapi-server/index
 :link-type: doc
 
-NeMo Guardrails exposes a set of **generation options** that give you fine-grained control over how the LLM generation is performed (for example, what rails are enabled, additional parameters that...
+Expose guardrails through an HTTP API using the Guardrails API server.
 :::
-
-:::{grid-item-card} Streaming
-:link: streaming
-:link-type: doc
-
-If the application LLM supports streaming, you can configure NeMo Guardrails to stream tokens as well.
-:::
-
-:::{grid-item-card} Event-based API
-:link: event-based-api
-:link-type: doc
-
-You can use a guardrails configuration through an event-based API using [`LLMRails.generate_events_async`](../api/nemoguardrails.rails.llm.llmrails.md#method-llmrailsgenerate_events_async) and...
-:::
-
-:::{grid-item-card} Tools Integration with NeMo Guardrails
-:link: tools-integration
-:link-type: doc
-
-This guide provides comprehensive instructions for integrating and using tools within NeMo Guardrails via the LLMRails interface. It covers supported tools, configuration settings, practical...
-:::
-
 ::::
-
-## When to Use Each API
-
-| API | Use Case |
-|-----|----------|
-| `generate()` / `generate_async()` | Standard chat interactions with messages |
-| `stream_async()` | Real-time token streaming for responsive UIs |
-| `generate_events()` / `generate_events_async()` | Low-level event control for custom integrations |
-
-## Synchronous vs Asynchronous
-
-The NeMo Guardrails toolkit provides both synchronous and asynchronous methods:
-
-| Synchronous | Asynchronous | Description |
-|-------------|--------------|-------------|
-| `generate()` | `generate_async()` | Generate responses from messages |
-| `generate_events()` | `generate_events_async()` | Generate events from event history |
-| - | `stream_async()` | Stream tokens asynchronously |
-
-```{note}
-Use asynchronous methods (`generate_async`, `stream_async`) in async contexts for better performance. The synchronous `generate()` method cannot be called from within an async context.
-```

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This page provides solutions to issues you may encounter while using NeMo Guardrails. If you encounter an issue that is not listed here, [open an issue](https://github.com/NVIDIA/NeMo-Guardrails/issues) on GitHub.
+This page provides solutions to issues you may encounter while using NeMo Guardrails. If you encounter an issue that is not listed here, [open an issue](https://github.com/NVIDIA-NeMo/Guardrails/issues) on GitHub.
 
 ## Nested AsyncIO Loop
 

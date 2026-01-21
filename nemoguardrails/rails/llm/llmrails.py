@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,6 +73,7 @@ from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
+    StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
 from nemoguardrails.llm.cache import CacheInterface, LFUCache
@@ -154,9 +155,6 @@ class LLMRails:
         # TODO: when we update the interface to allow to return a "state object", this
         #   should be removed
         self.events_history_cache = {}
-
-        # Weather the main LLM supports streaming
-        self.main_llm_supports_streaming = False
 
         # We also load the default flows from the `default_flows.yml` file in the current folder.
         # But only for version 1.0.
@@ -377,10 +375,9 @@ class LLMRails:
             if api_key:
                 kwargs["api_key"] = api_key
 
-        # enable streaming token usage when streaming is enabled
+        # enable streaming token usage
         # providers that don't support this parameter will simply ignore it
-        if self.config.streaming:
-            kwargs["stream_usage"] = True
+        kwargs["stream_usage"] = True
 
         return kwargs
 
@@ -398,22 +395,9 @@ class LLMRails:
             provider_name (Optional[str], optional): Optional provider name for logging.
 
         """
-        if not self.config.streaming:
-            return
 
         if hasattr(llm, "streaming"):
             setattr(llm, "streaming", True)
-            self.main_llm_supports_streaming = True
-        else:
-            self.main_llm_supports_streaming = False
-            if model_name and provider_name:
-                log.warning(
-                    "Model %s from provider %s does not support streaming.",
-                    model_name,
-                    provider_name,
-                )
-            else:
-                log.warning("Provided main LLM does not support streaming.")
 
     def _init_llms(self):
         """
@@ -442,7 +426,6 @@ class LLMRails:
                 )
             self.runtime.register_action_param("llm", self.llm)
 
-            self._configure_main_llm_streaming(self.llm)
         else:
             # Otherwise, initialize the main LLM from the config
             main_model = next((model for model in self.config.models if model.type == "main"), None)
@@ -457,11 +440,6 @@ class LLMRails:
                 )
                 self.runtime.register_action_param("llm", self.llm)
 
-                self._configure_main_llm_streaming(
-                    self.llm,
-                    model_name=main_model.model,
-                    provider_name=main_model.engine,
-                )
             else:
                 log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
@@ -848,6 +826,13 @@ class LLMRails:
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
+            if self.llm is None:
+                raise StreamingNotSupportedError(
+                    "Streaming requires a main LLM to be configured. "
+                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
+                    "model in your config.yml under the 'models' section."
+                )
+            self._configure_main_llm_streaming(self.llm)
 
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
@@ -1189,7 +1174,7 @@ class LLMRails:
         if len(self.config.rails.output.flows) > 0 and (
             not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
         ):
-            raise InvalidRailsConfigurationError(
+            raise StreamingNotSupportedError(
                 "stream_async() cannot be used when output rails are configured but "
                 "rails.output.streaming.enabled is False. Either set "
                 "rails.output.streaming.enabled to True in your configuration, or use "
@@ -1245,6 +1230,14 @@ class LLMRails:
         self.explain_info = self._ensure_explain_info()
 
         streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
+
+        if self.llm is None:
+            raise StreamingNotSupportedError(
+                "Streaming requires a main LLM to be configured. "
+                "Either pass an LLM to the LLMRails constructor or set a 'main' "
+                "model in your config.yml under the 'models' section."
+            )
+        self._configure_main_llm_streaming(self.llm)
 
         # Create a properly managed task with exception handling
         async def _generation_task():
@@ -1356,6 +1349,15 @@ class LLMRails:
         # Initialize the LLM stats
         llm_stats = LLMStats()
         llm_stats_var.set(llm_stats)
+
+        if streaming_handler_var.get():
+            if self.llm is None:
+                raise StreamingNotSupportedError(
+                    "Streaming requires a main LLM to be configured. "
+                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
+                    "model in your config.yml under the 'models' section."
+                )
+            self._configure_main_llm_streaming(self.llm)
 
         # Compute the new events.
         processing_log = []

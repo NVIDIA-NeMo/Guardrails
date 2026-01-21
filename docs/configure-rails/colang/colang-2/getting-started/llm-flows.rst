@@ -6,9 +6,9 @@ LLM Flows
 
 This section explains how to create LLM-driven flows in Colang 2.0.
 
-Using Colang, you can describe complex patterns of interaction. However, as a developer, you will never be able to describe all the potential paths an interaction can take. And this is where an LLM can help, by generating *LLM-driven continuations* at runtime.
+Using Colang, you can describe complex patterns of interaction. However, as a developer, you will never be able to describe all the potential paths an interaction can take. This is where an LLM can help: by generating *LLM-driven continuations* at runtime.
 
-The :ref:`colang_2_getting_started_dialog_rails` and the :ref:`colang_2_getting_started_input_rails` examples, show how to use the LLM to generate continuations dynamically. The example below is similar to the dialog rails example, but it instructs the LLM to generate directly the bot response. Note, the quality of the response depends on the configured LLM model and can vary.
+The :ref:`colang_2_getting_started_dialog_rails` and the :ref:`colang_2_getting_started_input_rails` examples show how to use the LLM to generate continuations dynamically. The example below is similar to the dialog rails example, but it instructs the LLM to generate the bot response directly. Note, the quality of the response depends on the configured LLM model and can vary.
 
 
 .. code-block:: colang
@@ -30,7 +30,7 @@ The :ref:`colang_2_getting_started_dialog_rails` and the :ref:`colang_2_getting_
     $question = await user said something
     ...
 
-The ``main`` flow above waits for the ``user said something`` to match a user utterance, stores the result in the ``$question`` local variable and then invokes the LLM, through the ``...`` (generation operator) to generate the continuation of the flow.
+The ``main`` flow above waits for the ``user said something`` to match a user utterance, stores the result in the ``$question`` local variable, and then invokes the LLM through the ``...`` (generation operator) to generate the continuation of the flow.
 
 .. note::
 
@@ -47,7 +47,7 @@ Testing
 
   Hello! How can I assist you with cars today?
 
-  > what can yo udo?
+  > what can you do?
 
   I am an assistant that can talk to you about cars. Is there anything specific you would like to know?
 

@@ -7,7 +7,7 @@ Python Actions
 .. .. note::
 ..     Feedbacks & TODOs:
 
-In the section :ref:`working-with-actions` you have seen how actions can be used in the context of UMIM events. Additionally, you can also use the action concept to call custom python functions decorated as actions in the file ``actions.py`` or in any python file in the subfolder ``action``. This can be particularly useful if you need more complex functionality that cannot be done in Colang. Note, that all the python actions will run in the context of the Colang interpreter.
+In the section :ref:`working-with-actions`, you have seen how actions can be used in the context of UMIM events. Additionally, you can also use the action concept to call custom python functions decorated as actions in the file ``actions.py`` or in any python file in the subfolder ``action``. This can be particularly useful if you need more complex functionality that cannot be done in Colang. Note that all the python actions will run in the context of the Colang interpreter.
 
 Here is an example of such a Python action definition:
 
@@ -28,7 +28,7 @@ And here is how you can call it from a Colang flow:
         $result = await CustomTestAction(value=5)
         bot say "The result is: {$result}"
 
-Be aware that Python actions are blocking per default. That means if the action implements a long running task (e.g. an REST API request or) you will want to make the Python Action asynchronous. You can do this by adding the parameter ``execute_async=True`` to the function decorator :
+Be aware that Python actions are blocking by default. That means if the action implements a long running task (e.g. a REST API request), you will want to make the Python Action asynchronous. You can do this by adding the parameter ``execute_async=True`` to the function decorator :
 
 .. code-block:: python
 
@@ -58,7 +58,7 @@ And here is how you can call it from a Colang flow:
 
     All Python action names need to end with ``Action``.
 
-In addition to all the custom user defined parameters, the parameters listed below are available in a Python action. To make use of these parameters in your Python action implementation add the parameter to your function signature.
+In addition to all the custom user-defined parameters, the parameters listed below are available in a Python action. To make use of these parameters in your Python action implementation, add the parameter to your function signature.
 
 .. code-block:: python
 

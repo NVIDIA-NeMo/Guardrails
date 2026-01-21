@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.streaming import StreamingHandler
 from tests.utils import TestChat
@@ -90,9 +91,13 @@ def output_rails_streaming_config_default():
 async def test_stream_async_streaming_enabled(output_rails_streaming_config):
     """Tests if stream_async returns does not return StreamingHandler instance when streaming is enabled"""
 
-    llmrails = LLMRails(output_rails_streaming_config)
+    chat = TestChat(
+        output_rails_streaming_config,
+        llm_completions=["test response"],
+        streaming=True,
+    )
 
-    result = llmrails.stream_async(prompt="test")
+    result = chat.app.stream_async(prompt="test")
     assert not isinstance(result, StreamingHandler), (
         "Did not expect StreamingHandler instance when streaming is enabled"
     )
@@ -164,7 +169,7 @@ async def test_streaming_output_rails_blocked_default_config(
 
     llmrails = LLMRails(output_rails_streaming_config_default)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(StreamingNotSupportedError) as exc_info:
         async for chunk in llmrails.stream_async(messages=[{"role": "user", "content": "Hi!"}]):
             pass
 

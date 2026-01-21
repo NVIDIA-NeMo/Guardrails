@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ __all__ = [
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
     "LLMCallException",
+    "StreamingNotSupportedError",
 ]
 
 
@@ -45,6 +46,12 @@ class InvalidRailsConfigurationError(ConfigurationError):
         - Missing required prompt template
         - Invalid rail parameters
     """
+
+    pass
+
+
+class StreamingNotSupportedError(InvalidRailsConfigurationError):
+    """Raised when streaming is requested but not supported by the configuration."""
 
     pass
 
