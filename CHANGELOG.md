@@ -30,25 +30,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - *(streaming)* [**breaking**] Drop streaming field from config ([#1538](https://github.com/NVIDIA-NeMo/Guardrails/issues/1538))
 
-### 📚 Documentation
-
-- Restructuring and add local build automation ([#1528](https://github.com/NVIDIA-NeMo/Guardrails/issues/1528))
-- *(streaming)* Update streaming configuration documentation ([#1542](https://github.com/NVIDIA-NeMo/Guardrails/issues/1542))
-- Add multilingual refusal messages documentation ([#1541](https://github.com/NVIDIA-NeMo/Guardrails/issues/1541))
-- PM updates to Guardrails library docs ([#1543](https://github.com/NVIDIA-NeMo/Guardrails/issues/1543))
-- Add frontmatter and card updates ([#1549](https://github.com/NVIDIA-NeMo/Guardrails/issues/1549))
-- More updates in the top pages ([#1552](https://github.com/NVIDIA-NeMo/Guardrails/issues/1552))
-- Update top pages, add use case diagrams, refresh frontmatter and align with cards and nav ([#1554](https://github.com/NVIDIA-NeMo/Guardrails/issues/1554))
-- *(integrations)* Reorg langchain and move alignscore and safeguarding guides ([#1563](https://github.com/NVIDIA-NeMo/Guardrails/issues/1563))
-- *(observability)* Fix broken links ([#1561](https://github.com/NVIDIA-NeMo/Guardrails/issues/1561))
-- Improve doc ([#1568](https://github.com/NVIDIA-NeMo/Guardrails/issues/1568))
-- *(about)* About NeMo Guardrails Library ([#1573](https://github.com/NVIDIA-NeMo/Guardrails/issues/1573))
-- *(run-rails)* Updates for clarity and correctness ([#1560](https://github.com/NVIDIA-NeMo/Guardrails/issues/1560))
-- *(readme)* Update badges to use dynamic PyPI and GitHub Actions sources ([#1535](https://github.com/NVIDIA-NeMo/Guardrails/issues/1535))
-- *(get-started)* Install, Tutorials, Integrate ([#1581](https://github.com/NVIDIA-NeMo/Guardrails/issues/1581))
-- *(llms)* Update supported LLM and embedding providers ([#1586](https://github.com/NVIDIA-NeMo/Guardrails/issues/1586))
-- Enhance run guardrails inference section and other improvements ([#1579](https://github.com/NVIDIA-NeMo/Guardrails/issues/1579))
-
 ### ⚙️ Miscellaneous Tasks
 
 - *(test)* Reduce default pytest log level from DEBUG to WARNING ([#1523](https://github.com/NVIDIA-NeMo/Guardrails/issues/1523))
