@@ -13,55 +13,49 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### 🚀 Features
 
-- Propagate model and base URL in LLMCallException; improve error handling ([#1502](https://github.com/NVIDIA-NeMo/Guardrails/issues/1502)) 
-- *(content_safety)* Add support to auto select multilingual refusal bot messages ([#1530](https://github.com/NVIDIA-NeMo/Guardrails/issues/1530)) 
-- *(library)* Adding GLiNER for PII detection (open alternative to PrivateAI) ([#1545](https://github.com/NVIDIA-NeMo/Guardrails/issues/1545)) 
-- *(benchmark)* Implement Mock LLM streaming ([#1564](https://github.com/NVIDIA-NeMo/Guardrails/issues/1564)) 
-- Add reasoning guardrail connector ([#1565](https://github.com/NVIDIA-NeMo/Guardrails/issues/1565)) 
+- *(llm)* Propagate model and base URL in LLMCallException; improve error handling ([#1502](https://github.com/NVIDIA-NeMo/Guardrails/issues/1502))
+- *(content_safety)* Add support to auto select multilingual refusal bot messages ([#1530](https://github.com/NVIDIA-NeMo/Guardrails/issues/1530))
+- *(library)* Adding GLiNER for PII detection (open alternative to PrivateAI) ([#1545](https://github.com/NVIDIA-NeMo/Guardrails/issues/1545))
+- *(benchmark)* Implement Mock LLM streaming ([#1564](https://github.com/NVIDIA-NeMo/Guardrails/issues/1564))
+- *(library)* Add reasoning guardrail connector ([#1565](https://github.com/NVIDIA-NeMo/Guardrails/issues/1565))
 
 ### 🐛 Bug Fixes
 
-- Surface relevant exception when initializing langchain model ([#1516](https://github.com/NVIDIA-NeMo/Guardrails/issues/1516)) 
-- *(llm)* Filter temperature parameter for OpenAI reasoning models ([#1526](https://github.com/NVIDIA-NeMo/Guardrails/issues/1526)) 
-- *(bot-thinking)* Tackle bug with reasoning trace leak across llm calls ([#1582](https://github.com/NVIDIA-NeMo/Guardrails/issues/1582)) 
-- *(providers)* Handle langchain 1.2.1 dict type for _SUPPORTED_PROVIDERS ([#1589](https://github.com/NVIDIA-NeMo/Guardrails/issues/1589)) 
+- *(models)* Surface relevant exception when initializing langchain model ([#1516](https://github.com/NVIDIA-NeMo/Guardrails/issues/1516))
+- *(llm)* Filter temperature parameter for OpenAI reasoning models ([#1526](https://github.com/NVIDIA-NeMo/Guardrails/issues/1526))
+- *(bot-thinking)* Tackle bug with reasoning trace leak across llm calls ([#1582](https://github.com/NVIDIA-NeMo/Guardrails/issues/1582))
+- *(providers)* Handle langchain 1.2.1 dict type for _SUPPORTED_PROVIDERS ([#1589](https://github.com/NVIDIA-NeMo/Guardrails/issues/1589))
 
 ### 🚜 Refactor
 
-- *(streaming)* [**breaking**] Drop streaming field from config ([#1538](https://github.com/NVIDIA-NeMo/Guardrails/issues/1538)) 
+- *(streaming)* [**breaking**] Drop streaming field from config ([#1538](https://github.com/NVIDIA-NeMo/Guardrails/issues/1538))
 
 ### 📚 Documentation
 
-- Restructuring and add local build automation ([#1528](https://github.com/NVIDIA-NeMo/Guardrails/issues/1528)) 
-- *(streaming)* Update streaming configuration documentation ([#1542](https://github.com/NVIDIA-NeMo/Guardrails/issues/1542)) 
-- Add multilingual refusal messages documentation ([#1541](https://github.com/NVIDIA-NeMo/Guardrails/issues/1541)) 
-- PM updates to Guardrails library docs ([#1543](https://github.com/NVIDIA-NeMo/Guardrails/issues/1543)) 
-- Add frontmatter and card updates ([#1549](https://github.com/NVIDIA-NeMo/Guardrails/issues/1549)) 
-- More updates in the top pages ([#1552](https://github.com/NVIDIA-NeMo/Guardrails/issues/1552)) 
-- Update top pages, add use case diagrams, refresh frontmatter and align with cards and nav ([#1554](https://github.com/NVIDIA-NeMo/Guardrails/issues/1554)) 
-- *(integrations)* Reorg langchain and move alignscore and safeguarding guides ([#1563](https://github.com/NVIDIA-NeMo/Guardrails/issues/1563)) 
-- *(observability)* Fix broken links ([#1561](https://github.com/NVIDIA-NeMo/Guardrails/issues/1561)) 
-- Improve doc ([#1568](https://github.com/NVIDIA-NeMo/Guardrails/issues/1568)) 
-- *(about)* About NeMo Guardrails Library ([#1573](https://github.com/NVIDIA-NeMo/Guardrails/issues/1573)) 
-- *(run-rails)* Updates for clarity and correctness ([#1560](https://github.com/NVIDIA-NeMo/Guardrails/issues/1560)) 
-- *(readme)* Update badges to use dynamic PyPI and GitHub Actions sources ([#1535](https://github.com/NVIDIA-NeMo/Guardrails/issues/1535)) 
-- *(get-started)* Install, Tutorials, Integrate ([#1581](https://github.com/NVIDIA-NeMo/Guardrails/issues/1581)) 
-- *(llms)* Update supported LLM and embedding providers ([#1586](https://github.com/NVIDIA-NeMo/Guardrails/issues/1586)) 
-- Enhance run guardrails inference section and other improvements ([#1579](https://github.com/NVIDIA-NeMo/Guardrails/issues/1579)) 
-
-### 🧪 Testing
-
-- Remove temp files created in aiperf unit-tests ([#1539](https://github.com/NVIDIA-NeMo/Guardrails/issues/1539)) 
-- *(llm)* Add model initialization scenario tests ([#1544](https://github.com/NVIDIA-NeMo/Guardrails/issues/1544)) 
+- Restructuring and add local build automation ([#1528](https://github.com/NVIDIA-NeMo/Guardrails/issues/1528))
+- *(streaming)* Update streaming configuration documentation ([#1542](https://github.com/NVIDIA-NeMo/Guardrails/issues/1542))
+- Add multilingual refusal messages documentation ([#1541](https://github.com/NVIDIA-NeMo/Guardrails/issues/1541))
+- PM updates to Guardrails library docs ([#1543](https://github.com/NVIDIA-NeMo/Guardrails/issues/1543))
+- Add frontmatter and card updates ([#1549](https://github.com/NVIDIA-NeMo/Guardrails/issues/1549))
+- More updates in the top pages ([#1552](https://github.com/NVIDIA-NeMo/Guardrails/issues/1552))
+- Update top pages, add use case diagrams, refresh frontmatter and align with cards and nav ([#1554](https://github.com/NVIDIA-NeMo/Guardrails/issues/1554))
+- *(integrations)* Reorg langchain and move alignscore and safeguarding guides ([#1563](https://github.com/NVIDIA-NeMo/Guardrails/issues/1563))
+- *(observability)* Fix broken links ([#1561](https://github.com/NVIDIA-NeMo/Guardrails/issues/1561))
+- Improve doc ([#1568](https://github.com/NVIDIA-NeMo/Guardrails/issues/1568))
+- *(about)* About NeMo Guardrails Library ([#1573](https://github.com/NVIDIA-NeMo/Guardrails/issues/1573))
+- *(run-rails)* Updates for clarity and correctness ([#1560](https://github.com/NVIDIA-NeMo/Guardrails/issues/1560))
+- *(readme)* Update badges to use dynamic PyPI and GitHub Actions sources ([#1535](https://github.com/NVIDIA-NeMo/Guardrails/issues/1535))
+- *(get-started)* Install, Tutorials, Integrate ([#1581](https://github.com/NVIDIA-NeMo/Guardrails/issues/1581))
+- *(llms)* Update supported LLM and embedding providers ([#1586](https://github.com/NVIDIA-NeMo/Guardrails/issues/1586))
+- Enhance run guardrails inference section and other improvements ([#1579](https://github.com/NVIDIA-NeMo/Guardrails/issues/1579))
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(test)* Reduce default pytest log level from DEBUG to WARNING ([#1523](https://github.com/NVIDIA-NeMo/Guardrails/issues/1523)) 
-- *(docker)* Upgrade to Python 3.12-slim base image ([#1522](https://github.com/NVIDIA-NeMo/Guardrails/issues/1522)) 
-- Run pre-commits to update license date for 2026 ([#1562](https://github.com/NVIDIA-NeMo/Guardrails/issues/1562)) 
-- Move Benchmark code to top-level ([#1559](https://github.com/NVIDIA-NeMo/Guardrails/issues/1559)) 
-- Update repo to https://github.com/NVIDIA-NeMo/Guardrails ([#1594](https://github.com/NVIDIA-NeMo/Guardrails/issues/1594)) 
-
+- *(test)* Reduce default pytest log level from DEBUG to WARNING ([#1523](https://github.com/NVIDIA-NeMo/Guardrails/issues/1523))
+- *(docker)* Upgrade to Python 3.12-slim base image ([#1522](https://github.com/NVIDIA-NeMo/Guardrails/issues/1522))
+- Run pre-commits to update license date for 2026 ([#1562](https://github.com/NVIDIA-NeMo/Guardrails/issues/1562))
+- Move Benchmark code to top-level ([#1559](https://github.com/NVIDIA-NeMo/Guardrails/issues/1559))
+- Update repo to <https://github.com/NVIDIA-NeMo/Guardrails> ([#1594](https://github.com/NVIDIA-NeMo/Guardrails/issues/1594))
 
 ## [0.19.0] - 2025-12-03
 
