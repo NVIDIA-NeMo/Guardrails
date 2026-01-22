@@ -59,11 +59,60 @@ For a complete record of changes in a release, refer to the
 
 ### Breaking Changes
 
-- A breaking change introduced in the main application LLM output streaming.
-  - For the Python SDK, `StreamingHandler` is deprecated in favor of `stream_async()`.
-    The `stream_async()` method is now the primary method for streaming LLM responses.
-    No YAML configuration is required for basic streaming of main LLM responses.
-  - For the nemoguardrails CLI, added the `--streaming` flag to the chat command.
+- A breaking change removes redundant streaming configuration for output rails. Prior to the change, streaming had to be enabled in two places: `streaming` and `rails.output.streaming.enabled`. This change removes the top-level `streaming` configuration.
+  - Example `config.yml` before the change:
+
+    ```{code-block} yaml
+    :emphasize-lines: 21
+
+    models:
+      - type: main
+        engine: nvidia_ai_endpoints
+        model: meta/llama-3.3-70b-instruct
+      - type: content_safety
+        engine: nvidia_ai_endpoints
+        model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+    rails:
+      input:
+        flows:
+          - content safety check input $model=content_safety
+      output:
+        flows:
+          - content safety check output $model=content_safety
+        streaming:
+          enabled: True
+          chunk_size: 200
+          context_size: 50
+
+    streaming: True # No longer needed starting from v0.20.0
+    ```
+
+  - Example `config.yml` after the change:
+
+    ```yaml
+    models:
+      - type: main
+        engine: nvidia_ai_endpoints
+        model: meta/llama-3.3-70b-instruct
+
+      - type: content_safety
+        engine: nvidia_ai_endpoints
+        model: nvidia/llama-3.1-nemoguard-8b-content-safety
+
+    rails:
+      input:
+        flows:
+          - content safety check input $model=content_safety
+      output:
+        flows:
+          - content safety check output $model=content_safety
+        streaming:
+          enabled: True
+          chunk_size: 200
+          context_size: 50
+    ```
+
   For more information, refer to [](../run-rails/using-python-apis/streaming.md).
 
 ### Other Changes
