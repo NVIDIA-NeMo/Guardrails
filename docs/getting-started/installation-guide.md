@@ -118,7 +118,7 @@ poetry run nemoguardrails server --config examples/configs
 
 ## Extra Dependencies
 
-The NeMo Guardrails library can be installed with optional "extras", adding functionality that isn't required for the core Guardrails library. The table below shows some popular extras. For a comprehensive list, see the `[tool.poetry.extras]` section in [pyproject.toml](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/pyproject.toml).
+You can install the NeMo Guardrails library with optional extra packages to add useful functionalities. The table below shows a comprehensive list.
 
 | Extra | Description |
 |-------|-------------|

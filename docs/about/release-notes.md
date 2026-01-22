@@ -33,10 +33,25 @@ For a complete record of changes in a release, refer to the
 
 ### Key Features
 
-- Added support for multilingual refusal messages to complement multilingual content safety models such as [NVIDIA Nemotron Safety Guard 8B v3](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3). This feature uses the [fast-langdetect package](https://github.com/LlmKira/fast-langdetect) to detect the user's input language and return refusal messages in the appropriate language. To use this feature, install the NeMo Guardrails library with the `multilingual` extra.
+- Added support for multilingual content safety models such as [NVIDIA Nemotron Safety Guard 8B v3](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3). This feature uses the [fast-langdetect package](https://github.com/LlmKira/fast-langdetect) to detect the user's input language and return refusal messages in the appropriate language. To use this feature, install the NeMo Guardrails library with the `multilingual` extra.
 
   ```bash
   pip install nemoguardrails[multilingual]
+  ```
+
+- Added support for configuring custom refusal messages per language to complement multilingual content safety models. You can enable multilingual refusal messages and specify custom refusal messages in the `rails.config.content_safety` section of the `config.yml` file.
+
+  ```yaml
+  rails:
+    config:
+      content_safety:
+        multilingual:
+          enabled: true
+          refusal_messages:
+            en: "Sorry, I cannot help with that request."
+            es: "Lo siento, no puedo ayudar con esa solicitud."
+            zh: "抱歉，我无法处理该请求。"
+            # Add other languages as needed
   ```
 
   For more information, refer to [](../configure-rails/guardrail-catalog.md#multilingual-content-safety).
