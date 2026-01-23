@@ -16,12 +16,12 @@
 import logging
 import os
 from collections.abc import Mapping
-from typing import Any, Optional, TypedDict
+from typing import Any, Optional
 
 import httpx
 from pydantic import BaseModel
 from pydantic_core import to_json
-from typing_extensions import Literal
+from typing_extensions import Literal, TypedDict
 
 from nemoguardrails.actions import action
 from nemoguardrails.rails.llm.config import RailsConfig
