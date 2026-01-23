@@ -1,0 +1,16 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+instructions:
+  - type: general
+    content: You are a helpful assistant.
+
+rails:
+  input:
+    flows:
+      - crowdstrike aidr guard input
+  output:
+    flows:
+      - crowdstrike aidr guard output

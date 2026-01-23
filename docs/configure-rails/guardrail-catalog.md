@@ -1321,6 +1321,26 @@ rails:
 
 For more details, check out the [Prompt Security Integration](../user-guides/community/prompt-security.md) page.
 
+### CrowdStrike AIDR
+
+The NeMo Guardrails library supports using CrowdStrike AIDR for protecting data and interactions with LLMs within
+AI-powered applications.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - crowdstrike aidr guard input
+
+  output:
+    flows:
+      - crowdstrike aidr guard output
+```
+
+For more details, check out the [CrowdStrike AIDR Integration](../user-guides/community/crowdstrike-aidr.md) page.
+
 ### Pangea AI Guard
 
 The NeMo Guardrails library supports using [Pangea AI Guard](https://pangea.cloud/services/ai-guard/) for protecting data and
