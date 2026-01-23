@@ -19,7 +19,7 @@ import os
 from typing import Any, List, Optional, Union
 
 from openai.types.chat.chat_completion import ChatCompletion
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from nemoguardrails.rails.llm.options import GenerationOptions
 
@@ -40,9 +40,7 @@ class GuardrailsDataOutput(BaseModel):
 class GuardrailsChatCompletion(ChatCompletion):
     """OpenAI API response body with NeMo-Guardrails extensions."""
 
-    guardrails: Optional[GuardrailsDataOutput] = Field(
-        default=None, description="Guardrails specific output data."
-    )
+    guardrails: Optional[GuardrailsDataOutput] = Field(default=None, description="Guardrails specific output data.")
 
 
 class OpenAIChatCompletionRequest(BaseModel):
@@ -129,17 +127,19 @@ class GuardrailsDataInput(BaseModel):
         description="State object to continue the interaction.",
     )
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def validate_config_ids(cls, data: Any) -> Any:
         if isinstance(data, dict):
             if data.get("config_id") is not None and data.get("config_ids") is not None:
                 raise ValueError("Only one of config_id or config_ids should be specified")
         return data
 
-    @validator("config_ids", pre=True, always=True)
-    def ensure_config_ids(cls, v, values):
-        if v is None and values.get("config_id") and values.get("config_ids") is None:
-            return [values["config_id"]]
+    @field_validator("config_ids", mode="before")
+    @classmethod
+    def ensure_config_ids(cls, v: Any, info: ValidationInfo) -> Any:
+        if v is None and info.data.get("config_id"):
+            return [info.data["config_id"]]
         return v
 
 
