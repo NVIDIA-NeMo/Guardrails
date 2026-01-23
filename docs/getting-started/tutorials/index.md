@@ -36,14 +36,14 @@ Deploy Nemotron-Content-Safety-Reasoning-4B for customizable content safety with
 :link: nemoguard-topiccontrol-deployment
 :link-type: doc
 
-Restrict conversations to allowed topics using Nemotron Topic Control NIM.
+Restrict conversations to allowed topics using Llama 3.1 NemoGuard 8B TopicControl NIM.
 :::
 
 :::{grid-item-card} Detect Jailbreak Attempts
 :link: nemoguard-jailbreakdetect-deployment
 :link-type: doc
 
-Detect and block adversarial prompts and jailbreak attempts using Nemotron Jailbreak Detect NIM.
+Detect and block adversarial prompts and jailbreak attempts using NemoGuard JailbreakDetect NIM.
 :::
 
 :::{grid-item-card} Add Multimodal Content Safety

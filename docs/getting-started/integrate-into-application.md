@@ -1,7 +1,7 @@
 ---
 title:
-  page: "Integrate the NeMo Guardrails Library into Your Application"
-  nav: "Integrate"
+  page: "Integrate Guardrails into Your Application"
+  nav: "Integrate Guardrails"
 description: "Add guardrails to existing applications using the Python SDK, LangChain, or HTTP API."
 topics: ["Get Started", "AI Safety"]
 tags: ["Integration", "Python", "LangChain", "SDK", "API"]
@@ -11,17 +11,11 @@ content:
   audience: ["Developer", "AI Engineer"]
 ---
 
-# Integrate the NeMo Guardrails Library into Your Application
+# Integrate Guardrails into Your Application
 
-If you have an existing application, you can integrate NeMo Guardrails into it using the NeMo Guardrails library.
+The NeMo Guardrails library provides the following tools to integrate guardrails into your applications.
 
----
-
-## Integrate Guardrails into LLM-based Applications
-
-The NeMo Guardrails library can be integrated into applications in multiple ways:
-
-1. **Python SDK integration**: Add guardrails directly into your Python application.
+- Use the NeMo Guardrails Python SDK to add guardrails directly into your Python application.
 
    ```python
    from nemoguardrails import LLMRails, RailsConfig
@@ -33,7 +27,7 @@ The NeMo Guardrails library can be integrated into applications in multiple ways
    response = rails.generate(messages=[...])
    ```
 
-2. **LangChain integration**: Wrap guardrails around LangChain chains or use chains within guardrails.
+- Use the NeMo Guardrails LangChain integration capabilities to wrap guardrails around LangChain chains or use chains within guardrails.
 
    ```python
    from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
@@ -44,15 +38,26 @@ The NeMo Guardrails library can be integrated into applications in multiple ways
 
    For more information, refer to the [LangChain Integration Guide](../integration/langchain/langchain-integration.md).
 
-3. **HTTP API integration**: Use the guardrails server to add protection to applications in any programming language.
+- Integrate the NeMo Guardrails API server into your application to add protection to applications in any programming language.
 
    ```bash
    nemoguardrails server --config path/to/configs
    ```
 
-   For more information, refer to the [Server Guide](../deployment/local-server/index.md).
+   You can then use the API server in your application by sending requests to the server's endpoint.
 
-4. **Docker deployment**: Deploy guardrails as a containerized service.
-   For more information, refer to the [Using Docker Guide](../deployment/using-docker.md).
+   ```bash
+   curl -X POST http://localhost:8000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "config_id": "content_safety",
+       "messages": [{"role": "user", "content": "Hello!"}]
+     }'
+   ```
 
-For complete examples and detailed integration patterns, refer to the [examples directory](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples) in the GitHub repository.
+   For more information, refer to [](../run-rails/using-fastapi-server/index.md).
+
+- Use the NeMo Guardrails Docker deployment capabilities to deploy guardrails as a containerized service.
+   For more information, refer to [](../deployment/using-docker.md).
+
+For more examples and detailed integration patterns, refer to the [examples directory](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples) in the NeMo Guardrails GitHub repository.

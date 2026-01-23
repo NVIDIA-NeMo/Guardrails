@@ -48,7 +48,7 @@ The NeMo Guardrails library provides multiple approaches to content safety:
 - **LLM self-checking**: Use the LLM itself to check inputs and outputs for harmful content.
 - **NVIDIA safety models**: Integrate with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3) for robust content moderation.
 - **Community models**: Use [LlamaGuard](../user-guides/community/llama-guard.md), [Fiddler Guardrails](../user-guides/community/fiddler.md), and other community content safety solutions.
-- **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#activefence), [Cisco AI Defense](../user-guides/community/ai-defense.md), and other moderation services.
+- **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/guardrail-catalog.md#activefence), [Cisco AI Defense](../user-guides/community/ai-defense.md), and other moderation services.
 
 For practical examples, try the following tutorials:
 
@@ -98,7 +98,7 @@ The NeMo Guardrails library supports PII detection through multiple integrations
 
 PII detection can be configured to either detect and block content containing PII or to mask PII entities before processing.
 
-For more information, refer to the [Presidio Integration](../user-guides/community/presidio.md) and [Sensitive Data Detection section](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#presidio-based-sensitive-data-detection) in the built-in Guardrails library.
+For more information, refer to the [Presidio Integration](../user-guides/community/presidio.md) and [Sensitive Data Detection section](../configure-rails/guardrail-catalog.md#presidio-based-sensitive-data-detection) in the Guardrail Catalog.
 :::
 
 :::{dropdown} 🤖 Add Agentic Security
@@ -108,7 +108,7 @@ This includes:
 
 - **Tool call validation**: Execute rails that validate tool inputs and outputs before and after invocation.
 - **Agent workflow protection**: Integrate with [LangGraph](../integration/langchain/langgraph-integration.md) for multi-agent safety.
-- **Secure tool integration**: Review guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](../security/guidelines.md)).
+- **Secure tool integration**: Review guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](../resources/security/guidelines.md)).
 - **Action monitoring**: Monitor detailed logging and tracing of agent actions.
 
 Key security considerations for agent systems:
@@ -118,7 +118,7 @@ Key security considerations for agent systems:
 3. Apply execution rails to tool calls.
 4. Monitor agent behavior for unexpected actions.
 
-For more information, refer to the [Tools Integration Guide](../integration/tools-integration.md), [Security Guidelines](../security/guidelines.md), and [LangGraph Integration](../integration/langchain/langgraph-integration.md).
+For more information, refer to the [Tools Integration Guide](../integration/tools-integration.md), [Security Guidelines](../resources/security/guidelines.md), and [LangGraph Integration](../integration/langchain/langgraph-integration.md).
 :::
 
 :::{dropdown} 🔧 Build Your Own or Use Third-party Guardrail Solutions
@@ -130,7 +130,7 @@ If you have a script or tool that runs a custom guardrail, you can use it in NeM
 
 2. **LangChain tool integration**: Register LangChain tools as custom actions. For more information, refer to the [](../integration/tools-integration.md).
 
-3. **Third-party API integration**: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to the [](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#third-party-apis) section in the built-in Guardrails library.
+3. **Third-party API integration**: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to the [Third-Party APIs](../configure-rails/guardrail-catalog.md#third-party-apis) section in the Guardrail Catalog.
 :::
 
 :::{dropdown} 🔌 Integrate NeMo Guardrails Library into Your Application

@@ -54,7 +54,7 @@ Follow these steps to start using the NeMo Guardrails library.
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Install
+:::{grid-item-card} Installation
 :link: getting-started/installation-guide
 :link-type: doc
 
@@ -139,9 +139,9 @@ Release Notes <about/release-notes.md>
 :name: Get Started
 :hidden:
 
-Install <getting-started/installation-guide>
+Installation <getting-started/installation-guide>
 Tutorials <getting-started/tutorials/index>
-Integrate <getting-started/integrate-into-application.md>
+Integrate Guardrails <getting-started/integrate-into-application.md>
 ```
 
 ```{toctree}

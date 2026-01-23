@@ -42,7 +42,7 @@ See the full [Model Architecture](https://huggingface.co/nvidia/Nemotron-Content
 ## Prerequisites
 
 - Python 3.10 or later
-- [NeMo Guardrails installed](../../getting-started/installation-guide.md)
+- [NeMo Guardrails installed](../installation-guide.md)
 - GPU with at least 16GB VRAM (see [Hardware Requirements](https://huggingface.co/nvidia/Nemotron-Content-Safety-Reasoning-4B#hardware-and-software-requirements) on HuggingFace)
 - vLLM installed:
 
@@ -218,6 +218,7 @@ prompts:
 ```
 
 The `reasoning_enabled` variable is automatically passed to prompt templates by the content safety action, based on the `rails.config.content_safety.reasoning.enabled` setting.
+
 ## Running Inference
 
 ### Load the Configuration

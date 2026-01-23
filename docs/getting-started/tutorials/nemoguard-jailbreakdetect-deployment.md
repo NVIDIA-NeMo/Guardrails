@@ -2,7 +2,7 @@
 title:
   page: "Detect Jailbreak Attempts with NVIDIA NemoGuard JailbreakDetect NIM"
   nav: "Detect Jailbreak Attempts"
-description: "Detect and block adversarial prompts and jailbreak attempts using Nemotron Jailbreak Detect NIM."
+description: "Detect and block adversarial prompts and jailbreak attempts using NemoGuard JailbreakDetect NIM."
 topics: ["AI Safety", "Security"]
 tags: ["Jailbreak", "NIM", "Security", "Input Rails", "Docker", "Nemotron"]
 content:
@@ -57,7 +57,7 @@ You will secure an application LLM and test block prompt injection and jailbreak
 
    The [Nemoguard Jailbreak Detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) model does not use any prompts, so you don't need to create a `prompts.yml` file for this model.
 
-   For more information about the configuration parameters, refer to the [Configuration Reference](../../configure-rails/yaml-schema/configuration-reference.md).
+   For more information about the configuration parameters, refer to the [Configuration Reference](../../configure-rails/configuration-reference.md).
 
 ## Run the Guardrails chat application
 
@@ -165,7 +165,7 @@ This section shows how to run the NVIDIA NemoGuard JailbreakDetect NIM microserv
 
 To run the NVIDIA NemoGuard JailbreakDetect NIM in a Docker container, follow these steps:
 
-1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration updates the `nim_base_url` to point to `http://localhost:8123`, which tells the NeMo Guardrails toolkit to make requests to the local NIM deployment. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
+1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration updates the `nim_base_url` to point to `http://localhost:8123`, which tells the NeMo Guardrails library to make requests to the local NIM deployment. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
 
    ```yaml
    models:
@@ -249,4 +249,4 @@ To run the NVIDIA NemoGuard JailbreakDetect NIM in a Docker container, follow th
 
 - [NVIDIA NemoGuard JailbreakDetect NIM documentation](https://docs.nvidia.com/nim/nemoguard-jailbreakdetect/latest/index.html)
 - [Jailbreak Detection Heuristics](../../user-guides/jailbreak-detection-heuristics/README.md) for detection without a NIM
-- [Configuration Reference](../../configure-rails/yaml-schema/configuration-reference.md) for all configuration options
+- [Configuration Reference](../../configure-rails/configuration-reference.md) for all configuration options

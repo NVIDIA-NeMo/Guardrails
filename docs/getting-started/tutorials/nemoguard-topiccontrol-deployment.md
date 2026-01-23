@@ -1,8 +1,8 @@
 ---
 title:
-  page: "Restrict Topics with Nemotron Topic Control NIM"
+  page: "Restrict Topics with Llama 3.1 NemoGuard 8B TopicControl NIM"
   nav: "Restrict Topics"
-description: "Restrict conversations to allowed topics using Nemotron Topic Control NIM."
+description: "Restrict conversations to allowed topics using Llama 3.1 NemoGuard 8B TopicControl NIM."
 topics: ["AI Safety", "Content Moderation"]
 tags: ["Topic Control", "NIM", "Input Rails", "LoRA", "Docker", "Nemotron"]
 content:
@@ -122,7 +122,7 @@ By following this tutorial, you learn how to configure a set of allowed topics a
       I'd be happy to help you with canceling your subscription. You have a couple of options to do so, and I'll walk you
       through them.
 
-      [The NeMo Guardrails toolkit responds with instructions and information on subscription cancellations]
+      [The NeMo Guardrails library responds with instructions and information on subscription cancellations]
       ```
 
 ## Import the NeMo Guardrails Library in Python
@@ -185,7 +185,7 @@ This section shows how to run the NemoGuard 8B TopicControl model locally while 
 
 To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow these steps:
 
-1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails toolkit to make requests to the `nvidia/llama-3.1-nemoguard-8b-topic-control` model hosted at `http://localhost:8123/v1`. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
+1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails library to make requests to the `nvidia/llama-3.1-nemoguard-8b-topic-control` model hosted at `http://localhost:8123/v1`. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
 
    ```yaml
     models:
@@ -270,7 +270,7 @@ To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the
 
 ## Next Steps
 
-- [Nemotron Safety models overview](../../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#nvidia-models)
+- [Topic Safety overview](../../configure-rails/guardrail-catalog.md#topic-safety)
 - [Topic safety example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/topic_safety)
 - [Topic Control research paper (EMNLP 2024)](https://arxiv.org/abs/2404.03820)
-- [NeMo Guardrails Toolkit Configuration Guide](../../configure-rails/overview.md)
+- [NeMo Guardrails Library Configuration Guide](../../configure-rails/overview.md)

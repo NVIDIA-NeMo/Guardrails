@@ -1,7 +1,7 @@
 ---
 title:
   page: "Install the NeMo Guardrails Library"
-  nav: "Install"
+  nav: "Installation"
 description: "Install NeMo Guardrails with pip, configure your environment, and verify the installation."
 topics: ["Get Started", "AI Safety"]
 tags: ["Installation", "Python", "pip", "Docker", "Setup"]
@@ -15,7 +15,7 @@ content:
 
 Follow these steps to install the NeMo Guardrails library.
 
-## Requirements
+## Prerequisites
 
 Verify your system meets the following requirements before installation.
 
@@ -46,7 +46,7 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
    ```bash
    python -m venv .venv
-   .venv\Scripts\activate
+   source .venv/Scripts/activate
    ```
 
    :::
@@ -67,24 +67,13 @@ Use the following steps to install the NeMo Guardrails library in a virtual envi
 
    This is required to access NVIDIA-hosted models on [build.nvidia.com](https://build.nvidia.com). The tutorials and example configurations ([examples/configs](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs)) in this library include configurations that use NVIDIA-hosted models.
 
-## Install from Source
+## Alternative Installation Methods
 
-To use the latest development version:
+Install the NeMo Guardrails library from source using pip or Poetry. Choose this method if you want to contribute to the library or use the latest development version.
 
 ::::{tab-set}
 
 :::{tab-item} pip
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install nemoguardrails[nvidia]
-export NVIDIA_API_KEY="nvapi-..."
-```
-
-:::
-
-:::{tab-item} pip (development)
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
@@ -96,7 +85,7 @@ pip install -e .
 
 :::
 
-:::{tab-item} Poetry (development)
+:::{tab-item} Poetry
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Guardrails.git nemoguardrails
@@ -124,7 +113,7 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 |-------|-------------|
 | `nvidia` | NVIDIA-hosted model integration through [build.nvidia.com](https://build.nvidia.com/) |
 | `openai` | OpenAI-hosted model integration |
-| `sdd` | [Sensitive data detection](../configure-rails/yaml-schema/guardrails-configuration/built-in-guardrails.md#presidio-based-sensitive-data-detection) using Presidio |
+| `sdd` | [Sensitive data detection](../configure-rails/guardrail-catalog.md#presidio-based-sensitive-data-detection) using Presidio |
 | `eval` | [Evaluation tools](../evaluation/index.rst) for testing guardrails |
 | `tracing` | OpenTelemetry tracing support |
 | `gcp` | Google Cloud Platform language services |

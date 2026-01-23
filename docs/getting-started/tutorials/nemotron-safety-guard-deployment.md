@@ -193,7 +193,7 @@ Follow these steps to prepare the guardrails configuration.
       ```console
       > मुझे भारत में तीन आम खाने की चीज़ज़ों के नाम बताओ।
 
-      [The NeMo Guardrails toolkit responds with information about rice, roti, and dal—common Indian foods]
+      [The NeMo Guardrails library responds with information about rice, roti, and dal—common Indian foods]
       ```
 
 ## Import the NeMo Guardrails Library in Python
@@ -259,7 +259,7 @@ This section shows how to run the Nemotron Safety Guard 8B model locally while s
 
 To run the Llama 3.1 Nemotron Safety Guard 8B V3 in a Docker container, follow these steps:
 
-1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails toolkit to make requests to the `nvidia/llama-3.1-nemotron-safety-guard-8b-v3` model hosted at `http://localhost:8123/v1`. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
+1. Update the `config.yml` file you created earlier to point to a local NIM deployment rather than build.nvidia.com. The following configuration adds a `base_url` and `model_name` field under `parameters`, which tells the NeMo Guardrails library to make requests to the `nvidia/llama-3.1-nemotron-safety-guard-8b-v3` model hosted at `http://localhost:8123/v1`. The Guardrails configuration must match the NIM Docker container configuration for them to communicate.
 
    ```yaml
     models:
