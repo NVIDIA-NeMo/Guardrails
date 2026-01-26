@@ -1343,6 +1343,9 @@ For more details, check out the [CrowdStrike AIDR Integration](../user-guides/co
 
 ### Pangea AI Guard
 
+> **Warning:** The Pangea AI Guard integration is deprecated and will be removed in a future release.
+> Users should migrate to the CrowdStrike AIDR integration.
+
 The NeMo Guardrails library supports using [Pangea AI Guard](https://pangea.cloud/services/ai-guard/) for protecting data and
 interactions with LLMs within AI-powered applications.
 

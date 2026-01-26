@@ -1,5 +1,8 @@
 # Pangea AI Guard integration
 
+> **Warning:** The Pangea AI Guard integration is deprecated and will be removed in a future release.
+> Users should migrate to the CrowdStrike AIDR integration.
+
 The Pangea guardrail uses configurable detection policies (called *recipes*) from the [AI Guard service](https://pangea.cloud/docs/ai-guard/) to identify and mitigate risks in AI application traffic, including:
 
 - Prompt injection attacks (with over 99% efficacy)
