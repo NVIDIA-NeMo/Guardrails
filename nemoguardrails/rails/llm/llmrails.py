@@ -1482,7 +1482,8 @@ class LLMRails:
             last_content = messages[-1].get("content", "") if messages else ""
             return RailsResult(status=RailStatus.PASSED, content=last_content)
 
-        original_content = _get_last_user_or_assistant_content(messages)
+        target_role = "assistant" if "output" in options["rails"] else "user"
+        original_content = _get_content_by_role(messages, target_role)
         messages = _normalize_messages_for_rails(messages, options["rails"])
         options["log"] = {"activated_rails": True}
 
@@ -1860,6 +1861,13 @@ def _normalize_messages_for_rails(
 def _get_last_user_or_assistant_content(messages: List[dict]) -> str:
     for msg in reversed(messages):
         if msg.get("role") in ("user", "assistant"):
+            return msg.get("content", "")
+    return ""
+
+
+def _get_content_by_role(messages: List[dict], role: str) -> str:
+    for msg in reversed(messages):
+        if msg.get("role") == role:
             return msg.get("content", "")
     return ""
 
