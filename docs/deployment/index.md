@@ -16,8 +16,8 @@ content:
   difficulty: technical_intermediate
   audience:
   - engineer
-  - DevOps Engineer
-  - AI Engineer
+  - devops_engineer
+  - ai_engineer
 ---
 
 # About Deployment Options
