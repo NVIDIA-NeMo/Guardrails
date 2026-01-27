@@ -16,8 +16,8 @@ content:
   difficulty: technical_advanced
   audience:
   - data_scientist
-  - AI Researcher
-  - AI Engineer
+  - ai_researcher
+  - ai_engineer
 ---
 
 # Evaluate NeMo Guardrails Library Performance
