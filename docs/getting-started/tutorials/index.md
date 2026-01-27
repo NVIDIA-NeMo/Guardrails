@@ -19,7 +19,7 @@ content:
   difficulty: technical_beginner
   audience:
   - engineer
-  - AI Engineer
+  - ai_engineer
 ---
 
 # Tutorials
