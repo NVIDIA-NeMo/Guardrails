@@ -1,14 +1,23 @@
 ---
 title:
-  page: "NeMo Guardrails Library CLI Reference"
-  nav: "CLI"
-description: "Use the nemoguardrails command-line interface to chat, serve, evaluate, and convert configurations."
-topics: ["AI Safety", "LLM Guardrails"]
-tags: ["CLI", "Python", "Server", "Evaluation", "Colang"]
+  page: NeMo Guardrails Library CLI Reference
+  nav: CLI
+description: Use the nemoguardrails command-line interface to chat, serve, evaluate, and convert configurations.
+topics:
+- AI Safety
+- LLM Guardrails
+tags:
+- CLI
+- Python
+- Server
+- Evaluation
+- Colang
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 (nemoguardrails-cli)=

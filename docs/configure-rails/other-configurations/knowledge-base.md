@@ -1,6 +1,15 @@
 ---
-title: Knowledge Base
-description: Configure the knowledge base folder for RAG-based responses using markdown documents.
+title:
+  page: "Knowledge Base Configuration"
+  nav: "Knowledge Base"
+description: "Configure the knowledge base folder for RAG-based responses using markdown documents."
+keywords: ["nemo guardrails knowledge base", "RAG configuration", "document retrieval", "vector search"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "rag"]
+content:
+  type: how_to
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 # Knowledge Base

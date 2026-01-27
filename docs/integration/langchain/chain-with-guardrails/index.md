@@ -1,14 +1,22 @@
 ---
 title:
-  page: "Add Guardrails to a LangChain Chain"
-  nav: "Chain with Guardrails"
-description: "Protect LangChain chains from jailbreak attempts using input rails and RunnableRails."
-topics: ["Integration", "AI Safety"]
-tags: ["LangChain", "LCEL", "Jailbreak", "Input Rails"]
+  page: Add Guardrails to a LangChain Chain
+  nav: Chain with Guardrails
+description: Protect LangChain chains from jailbreak attempts using input rails and RunnableRails.
+topics:
+- Integration
+- AI Safety
+tags:
+- LangChain
+- LCEL
+- Jailbreak
+- Input Rails
 content:
-  type: "Tutorial"
-  difficulty: "Beginner"
-  audience: ["Developer", "AI Engineer"]
+  type: tutorial
+  difficulty: technical_beginner
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Chain with Guardrails

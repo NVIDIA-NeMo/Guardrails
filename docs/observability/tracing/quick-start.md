@@ -1,14 +1,22 @@
 ---
 title:
-  page: "Quick Start for Tracing Guardrails"
-  nav: "Quick Start"
-description: "Set up tracing in minutes with the OpenTelemetry SDK and console output."
-topics: ["Observability", "AI Safety"]
-tags: ["Tracing", "OpenTelemetry", "Quick Start", "Setup"]
+  page: Quick Start for Tracing Guardrails
+  nav: Quick Start
+description: Set up tracing in minutes with the OpenTelemetry SDK and console output.
+topics:
+- Observability
+- AI Safety
+tags:
+- Tracing
+- OpenTelemetry
+- Quick Start
+- Setup
 content:
-  type: "Get Started"
-  difficulty: "Beginner"
-  audience: ["Developer", "AI Engineer"]
+  type: get_started
+  difficulty: technical_beginner
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Quick Start for Tracing Guardrails

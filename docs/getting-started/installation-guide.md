@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Install the NeMo Guardrails Library"
-  nav: "Installation"
-description: "Install NeMo Guardrails with pip, configure your environment, and verify the installation."
-topics: ["Get Started", "AI Safety"]
-tags: ["Installation", "Python", "pip", "Docker", "Setup"]
+  page: Install the NeMo Guardrails Library
+  nav: Installation
+description: Install NeMo Guardrails with pip, configure your environment, and verify the installation.
+topics:
+- Get Started
+- AI Safety
+tags:
+- Installation
+- Python
+- pip
+- Docker
+- Setup
 content:
-  type: "Get Started"
-  difficulty: "Beginner"
-  audience: ["Developer", "AI Engineer"]
+  type: get_started
+  difficulty: technical_beginner
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Install the NeMo Guardrails Library

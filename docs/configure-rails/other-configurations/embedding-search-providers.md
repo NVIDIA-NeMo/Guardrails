@@ -1,6 +1,15 @@
 ---
-title: Embedding Search Providers
-description: Configure embedding search providers for vector similarity search using FastEmbed, OpenAI, or custom implementations.
+title:
+  page: "Embedding Search Providers"
+  nav: "Embedding Search Providers"
+description: "Configure embedding search providers for vector similarity search using FastEmbed, OpenAI, or custom implementations."
+keywords: ["nemo guardrails embeddings", "vector search", "FastEmbed", "OpenAI embeddings", "custom embedding provider"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "embeddings"]
+content:
+  type: reference
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 # Embedding Search Providers

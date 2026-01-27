@@ -1,14 +1,23 @@
 ---
 title:
-  page: "NeMo Guardrails Library Python API Reference"
-  nav: "Python API"
-description: "Use the Python SDK to integrate guardrails, generate responses, and register custom actions."
-topics: ["AI Safety", "LLM Guardrails"]
-tags: ["Python", "SDK", "API", "LangChain", "Actions"]
+  page: NeMo Guardrails Library Python API Reference
+  nav: Python API
+description: Use the Python SDK to integrate guardrails, generate responses, and register custom actions.
+topics:
+- AI Safety
+- LLM Guardrails
+tags:
+- Python
+- SDK
+- API
+- LangChain
+- Actions
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # NeMo Guardrails Library Python API Reference

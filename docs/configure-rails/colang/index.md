@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Colang Guide"
-  nav: "Colang"
-description: "Learn Colang, the event-driven language for defining guardrails flows and bot behavior."
-topics: ["Configuration", "AI Safety"]
-tags: ["Colang", "Flows", "Events", "DSL", "Language"]
+  page: Colang Guide
+  nav: Colang
+description: Learn Colang, the event-driven language for defining guardrails flows and bot behavior.
+topics:
+- Configuration
+- AI Safety
+tags:
+- Colang
+- Flows
+- Events
+- DSL
+- Language
 content:
-  type: "Overview"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: concept
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Colang Guide

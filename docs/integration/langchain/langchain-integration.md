@@ -1,14 +1,22 @@
 ---
 title:
-  page: "LangChain Integration"
-  nav: "LangChain Integration"
-description: "Add guardrails to LangChain chains or use chains as actions inside guardrails configurations."
-topics: ["Integration", "AI Safety"]
-tags: ["LangChain", "RunnableRails", "Actions", "LangSmith"]
+  page: LangChain Integration
+  nav: LangChain Integration
+description: Add guardrails to LangChain chains or use chains as actions inside guardrails configurations.
+topics:
+- Integration
+- AI Safety
+tags:
+- LangChain
+- RunnableRails
+- Actions
+- LangSmith
 content:
-  type: "How-To"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # LangChain Integration

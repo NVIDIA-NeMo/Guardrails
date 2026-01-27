@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Evaluate NeMo Guardrails Library Performance"
-  nav: "Evaluate"
-description: "Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails."
-topics: ["Evaluation", "AI Safety"]
-tags: ["Evaluation", "Benchmarking", "Accuracy", "LLM Testing"]
+  page: Evaluate NeMo Guardrails Library Performance
+  nav: Evaluate Guardrails
+description: Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails.
+topics:
+- Evaluation
+- AI Safety
+tags:
+- Evaluation
+- Benchmarking
+- Accuracy
+- LLM Testing
 content:
-  type: "How-To"
-  difficulty: "Advanced"
-  audience: ["Data Scientist", "AI Researcher", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - data_scientist
+  - AI Researcher
+  - AI Engineer
 ---
 
 # Evaluate NeMo Guardrails Library Performance

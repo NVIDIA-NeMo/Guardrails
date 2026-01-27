@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Configuring YAML File"
-  nav: "Configuring YAML File"
-description: "Define models, guardrails, prompts, and tracing settings in the config.yml file."
-topics: ["Configuration", "AI Safety"]
-tags: ["YAML", "Configuration", "Models", "Prompts", "Tracing"]
+  page: Configuring YAML File
+  nav: Configuring YAML File
+description: Define models, guardrails, prompts, and tracing settings in the config.yml file.
+topics:
+- Configuration
+- AI Safety
+tags:
+- YAML
+- Configuration
+- Models
+- Prompts
+- Tracing
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Configuring YAML File
@@ -78,6 +87,8 @@ The following sections provide detailed documentation for each configuration sec
 :link-type: doc
 
 Configure LLM engines, embedding models, and task-specific models in config.yml.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Guardrails
@@ -85,6 +96,8 @@ Configure LLM engines, embedding models, and task-specific models in config.yml.
 :link-type: doc
 
 Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Prompts
@@ -92,6 +105,8 @@ Configure input, output, dialog, retrieval, and execution rails in config.yml to
 :link-type: doc
 
 Customize prompts for self-check, fact-checking, and intent generation tasks.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Tracing
@@ -99,6 +114,8 @@ Customize prompts for self-check, fact-checking, and intent generation tasks.
 :link-type: doc
 
 Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Streaming
@@ -106,6 +123,8 @@ Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails.
 :link-type: doc
 
 Configure streaming for LLM token generation and output rail processing in config.yml.
++++
+{bdg-secondary}`Reference`
 :::
 
 ::::

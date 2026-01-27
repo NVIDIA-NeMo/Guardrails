@@ -1,14 +1,25 @@
 ---
 title:
-  page: "Deploy Nemotron Content Safety Reasoning 4B"
-  nav: "Content Safety Reasoning"
-description: "Deploy Nemotron-Content-Safety-Reasoning-4B for customizable content safety with reasoning traces."
-topics: ["AI Safety", "Content Safety", "Reasoning"]
-tags: ["Content Safety", "vLLM", "HuggingFace", "Input Rails", "Output Rails", "Custom Policy"]
+  page: Deploy Nemotron Content Safety Reasoning 4B
+  nav: Content Safety Reasoning
+description: Deploy Nemotron-Content-Safety-Reasoning-4B for customizable content safety with reasoning traces.
+topics:
+- AI Safety
+- Content Safety
+- Reasoning
+tags:
+- Content Safety
+- vLLM
+- HuggingFace
+- Input Rails
+- Output Rails
+- Custom Policy
 content:
-  type: "Tutorial"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: tutorial
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Content Safety with Nemotron-Content-Safety-Reasoning-4B

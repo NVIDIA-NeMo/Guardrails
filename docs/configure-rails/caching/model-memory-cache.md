@@ -1,6 +1,15 @@
 ---
-title: Memory Model Cache
-description: Configure in-memory caching to avoid repeated LLM calls for identical prompts using LFU eviction.
+title:
+  page: "Memory Model Cache"
+  nav: "Memory Model Cache"
+description: "Configure in-memory caching to avoid repeated LLM calls for identical prompts using LFU eviction."
+keywords: ["nemo guardrails memory cache", "LLM caching", "LFU cache", "prompt caching", "NemoGuard cache"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "performance", "caching"]
+content:
+  type: how_to
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 (model-memory-cache)=

@@ -1,6 +1,15 @@
 ---
-title: KV Cache Reuse for NemoGuard NIM
-description: Enable KV cache reuse in NVIDIA NIM for LLMs to reduce inference latency for NemoGuard models.
+title:
+  page: "KV Cache Reuse for NemoGuard NIM"
+  nav: "KV Cache Reuse"
+description: "Enable KV cache reuse in NVIDIA NIM for LLMs to reduce inference latency for NemoGuard models."
+keywords: ["KV cache reuse", "NemoGuard NIM", "inference latency", "prefix caching", "NIM optimization"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "performance", "nim"]
+content:
+  type: how_to
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 (kv-cache-reuse)=

@@ -1,14 +1,22 @@
 ---
 title:
-  page: "Logging and Debugging Guardrails Generated Responses"
-  nav: "Logging"
-description: "Debug guardrails with verbose mode, explain method, and generation log options."
-topics: ["Observability", "AI Safety"]
-tags: ["Logging", "Debugging", "Verbose", "Monitoring"]
+  page: Logging and Debugging Guardrails Generated Responses
+  nav: Logging
+description: Debug guardrails with verbose mode, explain method, and generation log options.
+topics:
+- Observability
+- AI Safety
+tags:
+- Logging
+- Debugging
+- Verbose
+- Monitoring
 content:
-  type: "How-To"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Logging and Debugging Guardrails Generated Responses

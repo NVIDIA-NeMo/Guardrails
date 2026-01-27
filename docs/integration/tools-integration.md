@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Tools Integration with the NeMo Guardrails Library"
-  nav: "Tools Integration"
-description: "Integrate LangChain tools with guardrails using passthrough mode and output rail validation."
-topics: ["Integration", "AI Safety"]
-tags: ["Tools", "LangChain", "Tool Calling", "Passthrough", "Security"]
+  page: Tools Integration with the NeMo Guardrails Library
+  nav: Tools Integration
+description: Integrate LangChain tools with guardrails using passthrough mode and output rail validation.
+topics:
+- Integration
+- AI Safety
+tags:
+- Tools
+- LangChain
+- Tool Calling
+- Passthrough
+- Security
 content:
-  type: "How-To"
-  difficulty: "Advanced"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Tools Integration with the NeMo Guardrails Library

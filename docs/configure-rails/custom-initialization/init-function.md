@@ -1,14 +1,23 @@
 ---
 title:
-  page: "The Init Function for NeMo Guardrails"
-  nav: "Init Function"
-description: "Define the init() function to initialize resources and register action parameters at startup."
-topics: ["Configuration", "Customization"]
-tags: ["init", "config.py", "Action Parameters", "Python", "Initialization"]
+  page: The Init Function for NeMo Guardrails
+  nav: Init Function
+description: Define the init() function to initialize resources and register action parameters at startup.
+topics:
+- Configuration
+- Customization
+tags:
+- init
+- config.py
+- Action Parameters
+- Python
+- Initialization
 content:
-  type: "Guide"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # The Init Function

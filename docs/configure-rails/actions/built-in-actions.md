@@ -1,6 +1,28 @@
 ---
-title: Built-in Actions
-description: Reference for default actions included in the NeMo Guardrails library for common operations.
+title:
+  page: Built-in Actions Reference
+  nav: Built-in Actions
+description: Reference for default actions included in the NeMo Guardrails library.
+keywords:
+  - nemo guardrails built-in actions
+  - guardrails self check input
+  - guardrails self check output
+  - llama guard check
+  - jailbreak detection action
+topics:
+  - generative_ai
+  - developer_tools
+  - cybersecurity
+tags:
+  - llms
+  - ai_inference
+  - security_for_ai
+  - nlp
+content:
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+    - engineer
 ---
 
 # Built-in Actions

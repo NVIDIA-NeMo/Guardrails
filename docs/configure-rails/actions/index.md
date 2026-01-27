@@ -1,19 +1,30 @@
 ---
 title:
-  page: "Configuring Custom Actions"
-  nav: "Custom Actions"
-description: "Create Python actions to extend guardrails with external APIs and validation logic."
-topics: ["Configuration", "AI Safety"]
-tags: ["Actions", "Python", "API", "Validation", "Customization"]
+  page: Configuring Custom Actions
+  nav: Custom Actions
+description: Create Python actions to extend guardrails with external APIs and validation logic.
+keywords:
+  - nemo guardrails custom actions
+  - python actions guardrails
+  - guardrails action decorator
+  - llm safety actions
+topics:
+  - generative_ai
+  - developer_tools
+tags:
+  - llms
+  - ai_inference
+  - security_for_ai
 content:
-  type: "How-To"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+    - engineer
 ---
 
 # Configuring Custom Actions
 
-This section describes the `actions.py` file used to define custom Python actions for the NeMo Guardrails library.
+This section guides you through how to create the `actions.py` file to define custom Python actions and integrate them into the NeMo Guardrails library.
 By configuring custom actions, you can execute Python code within guardrails flows, extending the library with custom logic, external API integrations, and complex validation.
 
 An `actions.py` file defines custom action functions using the `@action` decorator. A decorator is a callable that takes a function and returns a new function, usually adding behavior or attaching metadata.
@@ -49,32 +60,40 @@ The following sections provide detailed documentation for creating and using cus
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Creating Custom Actions
+:::{grid-item-card} Creating Actions
 :link: creating-actions
 :link-type: doc
 
-Create custom actions using the @action decorator to integrate Python logic into guardrails flows.
+Create custom actions using the @action decorator to integrate Python logic.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} Built-in Actions
 :link: built-in-actions
 :link-type: doc
 
-Reference for default actions included in the NeMo Guardrails library for common operations.
+Reference for default actions included in the NeMo Guardrails library.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Action Parameters
 :link: action-parameters
 :link-type: doc
 
-Reference for special parameters like context, llm, and config automatically provided to actions.
+Reference for special parameters like context, llm, and config provided to actions.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Registering Actions
 :link: registering-actions
 :link-type: doc
 
-Register custom actions via actions.py, LLMRails.register_action(), or init.py for different use cases.
+Register custom actions via actions.py, LLMRails.register_action(), or config.py.
++++
+{bdg-secondary}`How To`
 :::
 
 ::::
@@ -166,7 +185,7 @@ For detailed information about each topic, refer to the individual pages linked 
 :hidden:
 :maxdepth: 2
 
-Creating Custom Actions <creating-actions>
+Creating Actions <creating-actions>
 Built-in Actions <built-in-actions>
 Action Parameters <action-parameters>
 Registering Actions <registering-actions>

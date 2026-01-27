@@ -24,6 +24,8 @@ This section covers how to use the NeMo Guardrails library Python API to run gua
 :link-type: doc
 
 RailsConfig and LLMRails core classes for generating guarded responses.
++++
+{bdg-secondary}`Concept`
 :::
 
 :::{grid-item-card} Core Classes
@@ -31,6 +33,8 @@ RailsConfig and LLMRails core classes for generating guarded responses.
 :link-type: doc
 
 RailsConfig and LLMRails class reference for loading and running guardrails.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Generation Options
@@ -38,6 +42,8 @@ RailsConfig and LLMRails class reference for loading and running guardrails.
 :link-type: doc
 
 Configure logging, LLM parameters, and rail selection for generation.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Streaming
@@ -45,6 +51,8 @@ Configure logging, LLM parameters, and rail selection for generation.
 :link-type: doc
 
 Stream LLM responses in real-time with the stream_async method.
++++
+{bdg-secondary}`Tutorial`
 :::
 
 :::{grid-item-card} Event-Based API
@@ -52,6 +60,8 @@ Stream LLM responses in real-time with the stream_async method.
 :link-type: doc
 
 Use generate_events for low-level control over guardrails execution.
++++
+{bdg-secondary}`Reference`
 :::
 ::::
 

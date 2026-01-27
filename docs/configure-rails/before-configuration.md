@@ -3,12 +3,13 @@ title:
   page: "Prerequisites for Configuring the NeMo Guardrails Library"
   nav: "Prerequisites"
 description: "Prepare LLM endpoints, NemoGuard NIMs, and knowledge base documents before configuration."
-topics: ["Configuration", "AI Safety"]
-tags: ["Prerequisites", "Setup", "LLM", "NIM", "Planning"]
+keywords: ["nemo guardrails prerequisites", "guardrails setup", "LLM configuration", "NIM deployment"]
+topics: ["generative_ai", "cybersecurity"]
+tags: ["llms", "security_for_ai", "ai_inference"]
 content:
-  type: "Overview"
-  difficulty: "Beginner"
-  audience: ["Developer", "AI Engineer"]
+  type: get_started
+  difficulty: technical_beginner
+  audience: ["engineer"]
 ---
 
 # Prerequisites for Configuring the NeMo Guardrails Library

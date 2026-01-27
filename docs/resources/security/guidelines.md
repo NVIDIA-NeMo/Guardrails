@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Security Guidelines for LLM Integrations"
-  nav: "Security"
-description: "Follow security best practices when integrating LLMs with external resources and APIs."
-topics: ["AI Safety", "Security"]
-tags: ["Security", "API Design", "Best Practices", "Authorization"]
+  page: Security Guidelines for LLM Integrations
+  nav: Security
+description: Follow security best practices when integrating LLMs with external resources and APIs.
+topics:
+- AI Safety
+- Security
+tags:
+- Security
+- API Design
+- Best Practices
+- Authorization
 content:
-  type: "Best Practice"
-  difficulty: "Advanced"
-  audience: ["Developer", "Security Engineer", "AI Engineer"]
+  type: Best Practice
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - Security Engineer
+  - AI Engineer
 ---
 
 # Security Guidelines for LLM Integrations

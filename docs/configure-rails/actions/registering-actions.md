@@ -1,6 +1,26 @@
 ---
-title: Registering Actions
-description: Register custom actions via actions.py, LLMRails.register_action(), or init.py for different use cases.
+title:
+  page: Registering Custom Actions
+  nav: Registering Actions
+description: Register custom actions via actions.py, LLMRails.register_action(), or config.py.
+keywords:
+  - nemo guardrails register action
+  - guardrails actions.py
+  - LLMRails register_action
+  - langchain tool registration
+  - actions server guardrails
+topics:
+  - generative_ai
+  - developer_tools
+tags:
+  - llms
+  - ai_inference
+  - security_for_ai
+content:
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+    - engineer
 ---
 
 # Registering Actions

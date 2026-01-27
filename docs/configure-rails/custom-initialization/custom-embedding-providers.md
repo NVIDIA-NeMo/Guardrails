@@ -1,14 +1,24 @@
 ---
 title:
-  page: "Custom Embedding Providers for NeMo Guardrails"
-  nav: "Embedding Providers"
-description: "Register custom embedding providers for vector similarity search in NeMo Guardrails."
-topics: ["Configuration", "Customization", "Embeddings"]
-tags: ["Embeddings", "Providers", "Vector Search", "Python", "config.py"]
+  page: Custom Embedding Providers for NeMo Guardrails
+  nav: Embedding Providers
+description: Register custom embedding providers for vector similarity search in NeMo Guardrails.
+topics:
+- Configuration
+- Customization
+- Embeddings
+tags:
+- Embeddings
+- Providers
+- Vector Search
+- Python
+- config.py
 content:
-  type: "Guide"
-  difficulty: "Advanced"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Custom Embedding Providers

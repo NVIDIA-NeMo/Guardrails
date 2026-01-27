@@ -22,6 +22,8 @@ Learn about the library and its capabilities in the following sections.
 :link-type: doc
 
 Add programmable guardrails to LLM applications with this open-source Python library.
++++
+{bdg-secondary}`Concept`
 :::
 
 :::{grid-item-card} Guardrail Types
@@ -29,6 +31,8 @@ Add programmable guardrails to LLM applications with this open-source Python lib
 :link-type: doc
 
 Apply input, retrieval, dialog, execution, and output rails to protect LLM applications.
++++
+{bdg-secondary}`Concept`
 :::
 
 :::{grid-item-card} How It Works
@@ -36,6 +40,8 @@ Apply input, retrieval, dialog, execution, and output rails to protect LLM appli
 :link-type: doc
 
 High level explanation of how Guardrails works.
++++
+{bdg-secondary}`Concept`
 :::
 
 :::{grid-item-card} Supported LLMs
@@ -43,6 +49,8 @@ High level explanation of how Guardrails works.
 :link-type: doc
 
 Connect to NVIDIA NIM, OpenAI, Azure, Anthropic, HuggingFace, and LangChain providers.
++++
+{bdg-secondary}`Reference`
 :::
 
 ::::
@@ -59,13 +67,17 @@ Follow these steps to start using the NeMo Guardrails library.
 :link-type: doc
 
 Install NeMo Guardrails with pip, configure your environment, and verify the installation.
++++
+{bdg-secondary}`Get Started`
 :::
 
 :::{grid-item-card} Tutorials
 :link: getting-started/tutorials/index
 :link-type: doc
 
-Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect NIMs.
+Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect
++++
+{bdg-secondary}`Tutorial`
 :::
 ::::
 
@@ -83,6 +95,8 @@ Once you've completed the get-started tutorials, explore the following areas to 
 :link-type: doc
 
 Configure YAML files, Colang flows, custom actions, and other components to control LLM behavior.
++++
+{bdg-secondary}`Concept`
 :::
 
 :::{grid-item-card} About Running Guardrailed Inference
@@ -90,6 +104,8 @@ Configure YAML files, Colang flows, custom actions, and other components to cont
 :link-type: doc
 
 Run guardrailed inference using the Python API or Guardrails API server.
++++
+{bdg-secondary}`Get Started`
 :::
 
 :::{grid-item-card} Evaluate
@@ -97,6 +113,8 @@ Run guardrailed inference using the Python API or Guardrails API server.
 :link-type: doc
 
 Measure accuracy and performance of dialog, fact-checking, moderation, and hallucination rails.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} Logging
@@ -104,6 +122,8 @@ Measure accuracy and performance of dialog, fact-checking, moderation, and hallu
 :link-type: doc
 
 Debug guardrails with verbose mode, explain method, and generation log options.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} Deployment Options
@@ -111,6 +131,8 @@ Debug guardrails with verbose mode, explain method, and generation log options.
 :link-type: doc
 
 Deploy guardrails using the local API server, Docker containers, or production microservices.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} LangChain Frameworks
@@ -118,6 +140,8 @@ Deploy guardrails using the local API server, Docker containers, or production m
 :link-type: doc
 
 Integrate NeMo Guardrails with LangChain chains, runnables, and LangGraph workflows.
++++
+{bdg-secondary}`How To`
 :::
 
 ::::
@@ -159,8 +183,8 @@ Custom Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
 Colang <configure-rails/colang/index.md>
 Other Configurations <configure-rails/other-configurations/index.md>
-Caching Instructions and Prompts <configure-rails/caching/index.md>
-Exceptions and Error Handling <configure-rails/exceptions.md>
+Caching <configure-rails/caching/index.md>
+Exceptions <configure-rails/exceptions.md>
 ```
 
 ```{toctree}
@@ -178,7 +202,7 @@ Guardrails API Server <run-rails/using-fastapi-server/index.md>
 :name: Evaluation
 :hidden:
 
-Evaluate <evaluation/README>
+Evaluate Guardrails <evaluation/evaluate-guardrails.md>
 Vulnerability Scanning <evaluation/llm-vulnerability-scanning>
 ```
 
@@ -198,7 +222,6 @@ Tracing <observability/tracing/index.md>
 Deployment Options <deployment/index>
 Docker <deployment/using-docker>
 NeMo Microservice <deployment/using-microservice>
-Blueprint Integration <integration/safeguarding-ai-virtual-assistant-blueprint>
 ```
 
 ```{toctree}

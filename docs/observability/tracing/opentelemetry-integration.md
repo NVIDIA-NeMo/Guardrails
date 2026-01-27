@@ -1,14 +1,23 @@
 ---
 title:
-  page: "OpenTelemetry Integration"
-  nav: "OpenTelemetry"
-description: "Configure OpenTelemetry SDK with OTLP exporters for production monitoring backends."
-topics: ["Observability", "AI Safety"]
-tags: ["OpenTelemetry", "OTLP", "Production", "Jaeger", "Zipkin"]
+  page: OpenTelemetry Integration
+  nav: OpenTelemetry
+description: Configure OpenTelemetry SDK with OTLP exporters for production monitoring backends.
+topics:
+- Observability
+- AI Safety
+tags:
+- OpenTelemetry
+- OTLP
+- Production
+- Jaeger
+- Zipkin
 content:
-  type: "How-To"
-  difficulty: "Advanced"
-  audience: ["DevOps Engineer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - DevOps Engineer
+  - AI Engineer
 ---
 
 # OpenTelemetry Integration

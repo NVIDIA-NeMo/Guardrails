@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Prompt Configuration for NeMo Guardrails"
-  nav: "Prompts"
-description: "Customize prompts for self-check, fact-checking, and intent generation tasks."
-topics: ["Configuration", "AI Safety"]
-tags: ["Prompts", "Jinja2", "Templates", "YAML", "Customization"]
+  page: Prompt Configuration for NeMo Guardrails
+  nav: Prompts
+description: Customize prompts for self-check, fact-checking, and intent generation tasks.
+topics:
+- Configuration
+- AI Safety
+tags:
+- Prompts
+- Jinja2
+- Templates
+- YAML
+- Customization
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Prompt Configuration

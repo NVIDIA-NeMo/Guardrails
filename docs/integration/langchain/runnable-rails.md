@@ -1,14 +1,23 @@
 ---
 title:
-  page: "RunnableRails"
-  nav: "RunnableRails"
-description: "Use RunnableRails to wrap LLMs and chains with guardrails using the Runnable Protocol."
-topics: ["Integration", "AI Safety"]
-tags: ["LangChain", "RunnableRails", "Streaming", "Batch", "Tool Calling"]
+  page: RunnableRails
+  nav: RunnableRails
+description: Use RunnableRails to wrap LLMs and chains with guardrails using the Runnable Protocol.
+topics:
+- Integration
+- AI Safety
+tags:
+- LangChain
+- RunnableRails
+- Streaming
+- Batch
+- Tool Calling
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # RunnableRails

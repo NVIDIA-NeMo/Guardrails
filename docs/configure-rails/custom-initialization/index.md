@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Configuring Custom Initialization"
-  nav: "Custom Initialization"
-description: "Use config.py to register custom LLM providers, embedding providers, and shared resources at startup."
-topics: ["Configuration", "Customization"]
-tags: ["config.py", "Initialization", "LLM Providers", "Embedding Providers", "Python"]
+  page: Configuring Custom Initialization
+  nav: Custom Initialization
+description: Use config.py to register custom LLM providers, embedding providers, and shared resources at startup.
+topics:
+- Configuration
+- Customization
+tags:
+- config.py
+- Initialization
+- LLM Providers
+- Embedding Providers
+- Python
 content:
-  type: "Guide"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Configuring Custom Initialization
@@ -36,6 +45,8 @@ The `config.py` file contains initialization code that runs **once at startup**,
 :link-type: doc
 
 Define the init() function to initialize resources and register action parameters at startup.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} LLM Providers
@@ -43,6 +54,8 @@ Define the init() function to initialize resources and register action parameter
 :link-type: doc
 
 Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} Embedding Providers
@@ -50,6 +63,8 @@ Register custom text completion (BaseLLM) and chat models (BaseChatModel) for us
 :link-type: doc
 
 Register custom embedding providers for vector similarity search in NeMo Guardrails.
++++
+{bdg-secondary}`How To`
 :::
 
 :::{grid-item-card} Custom Data
@@ -57,6 +72,8 @@ Register custom embedding providers for vector similarity search in NeMo Guardra
 :link-type: doc
 
 Pass and access custom data from config.yml in your initialization code and actions.
++++
+{bdg-secondary}`How To`
 :::
 
 ::::

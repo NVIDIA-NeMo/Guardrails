@@ -1,14 +1,22 @@
 ---
 title:
-  page: "Deploy NeMo Guardrails Library with Docker"
-  nav: "Docker"
-description: "Build and run NeMo Guardrails Docker images for rapid deployment and testing."
-topics: ["Deployment", "AI Safety"]
-tags: ["Docker", "Container", "Deployment", "AlignScore"]
+  page: Deploy NeMo Guardrails Library with Docker
+  nav: Docker
+description: Build and run NeMo Guardrails Docker images for rapid deployment and testing.
+topics:
+- Deployment
+- AI Safety
+tags:
+- Docker
+- Container
+- Deployment
+- AlignScore
 content:
-  type: "How-To"
-  difficulty: "Intermediate"
-  audience: ["Developer", "DevOps Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - DevOps Engineer
 ---
 
 # Deploy NeMo Guardrails Library with Docker

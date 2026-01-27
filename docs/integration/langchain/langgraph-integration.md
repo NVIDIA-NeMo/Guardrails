@@ -1,14 +1,23 @@
 ---
 title:
-  page: "LangGraph Integration"
-  nav: "LangGraph"
-description: "Build safe multi-agent workflows with LangGraph and NeMo Guardrails protection."
-topics: ["Integration", "AI Safety"]
-tags: ["LangGraph", "Multi-Agent", "Stateful", "Tool Calling", "Workflows"]
+  page: LangGraph Integration
+  nav: LangGraph
+description: Build safe multi-agent workflows with LangGraph and NeMo Guardrails protection.
+topics:
+- Integration
+- AI Safety
+tags:
+- LangGraph
+- Multi-Agent
+- Stateful
+- Tool Calling
+- Workflows
 content:
-  type: "How-To"
-  difficulty: "Advanced"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # LangGraph Integration

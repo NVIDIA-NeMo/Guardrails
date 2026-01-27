@@ -1,6 +1,25 @@
 ---
-title: Creating Custom Actions
-description: Create custom actions using the @action decorator to integrate Python logic into guardrails flows.
+title:
+  page: Creating Custom Actions
+  nav: Creating Actions
+description: Create custom actions using the @action decorator to integrate Python logic.
+keywords:
+  - nemo guardrails create action
+  - guardrails action decorator
+  - custom python action guardrails
+  - async action guardrails
+topics:
+  - generative_ai
+  - developer_tools
+tags:
+  - llms
+  - ai_inference
+  - security_for_ai
+content:
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+    - engineer
 ---
 
 # Creating Custom Actions

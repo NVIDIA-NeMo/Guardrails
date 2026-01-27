@@ -3,12 +3,13 @@ title:
   page: "Configuration YAML Schema Reference"
   nav: "YAML Schema Reference"
 description: "Reference for all config.yml options including models, rails, prompts, and advanced settings."
-topics: ["Configuration", "Reference"]
-tags: ["config.yml", "Models", "Rails", "YAML", "Reference"]
+keywords: ["nemo guardrails config.yml", "guardrails yaml schema", "LLM configuration reference", "rails configuration"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "ai_inference", "security_for_ai"]
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 <!--

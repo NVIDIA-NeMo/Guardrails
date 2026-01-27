@@ -82,6 +82,8 @@ After choosing the right tool for your implementation model, proceed to the corr
 :link-type: doc
 
 Run guardrailed inference using the NeMo Guardrails Python API.
++++
+{bdg-secondary}`Get Started`
 :::
 
 :::{grid-item-card} Guardrails API Server
@@ -89,5 +91,7 @@ Run guardrailed inference using the NeMo Guardrails Python API.
 :link-type: doc
 
 Expose guardrails through an HTTP API using the Guardrails API server.
++++
+{bdg-secondary}`Get Started`
 :::
 ::::

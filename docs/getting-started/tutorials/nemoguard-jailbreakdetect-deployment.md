@@ -1,14 +1,25 @@
 ---
 title:
-  page: "Detect Jailbreak Attempts with NVIDIA NemoGuard JailbreakDetect NIM"
-  nav: "Detect Jailbreak Attempts"
-description: "Detect and block adversarial prompts and jailbreak attempts using NemoGuard JailbreakDetect NIM."
-topics: ["AI Safety", "Security"]
-tags: ["Jailbreak", "NIM", "Security", "Input Rails", "Docker", "Nemotron"]
+  page: Detect Jailbreak Attempts with NVIDIA NemoGuard JailbreakDetect NIM
+  nav: Detect Jailbreak Attempts
+description: Detect and block adversarial prompts and jailbreak attempts using NemoGuard JailbreakDetect NIM.
+topics:
+- AI Safety
+- Security
+tags:
+- Jailbreak
+- NIM
+- Security
+- Input Rails
+- Docker
+- Nemotron
 content:
-  type: "Tutorial"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer", "Security Engineer"]
+  type: tutorial
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
+  - Security Engineer
 ---
 
 <!--

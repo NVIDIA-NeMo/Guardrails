@@ -1,6 +1,25 @@
 ---
-title: Action Parameters
-description: Reference for special parameters like context, llm, and config automatically provided to actions.
+title:
+  page: Action Parameters Reference
+  nav: Action Parameters
+description: Reference for special parameters like context, llm, and config provided to actions.
+keywords:
+  - nemo guardrails action parameters
+  - guardrails context parameter
+  - guardrails llm parameter
+  - action events parameter
+topics:
+  - generative_ai
+  - developer_tools
+tags:
+  - llms
+  - ai_inference
+  - security_for_ai
+content:
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+    - engineer
 ---
 
 # Action Parameters

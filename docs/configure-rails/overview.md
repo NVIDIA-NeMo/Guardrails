@@ -3,12 +3,13 @@ title:
   page: "NeMo Guardrails Library Configuration Overview"
   nav: "Overview"
 description: "Learn to write config.yml, Colang flows, and custom actions for guardrails."
-topics: ["Configuration", "AI Safety"]
-tags: ["Configuration", "YAML", "Colang", "Actions", "Setup"]
+keywords: ["nemo guardrails overview", "guardrails configuration structure", "config folder layout", "Colang files"]
+topics: ["generative_ai", "cybersecurity"]
+tags: ["llms", "security_for_ai", "ai_inference"]
 content:
-  type: "Overview"
-  difficulty: "Beginner"
-  audience: ["Developer", "AI Engineer"]
+  type: concept
+  difficulty: technical_beginner
+  audience: ["engineer"]
 ---
 
 # NeMo Guardrails Library Configuration Overview

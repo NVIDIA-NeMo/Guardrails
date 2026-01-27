@@ -1,14 +1,25 @@
 ---
 title:
-  page: "Custom LLM Providers for NeMo Guardrails"
-  nav: "LLM Providers"
-description: "Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails."
-topics: ["Configuration", "Customization", "LLM"]
-tags: ["LLM", "Providers", "BaseLLM", "BaseChatModel", "LangChain", "Python"]
+  page: Custom LLM Providers for NeMo Guardrails
+  nav: LLM Providers
+description: Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.
+topics:
+- Configuration
+- Customization
+- LLM
+tags:
+- LLM
+- Providers
+- BaseLLM
+- BaseChatModel
+- LangChain
+- Python
 content:
-  type: "Guide"
-  difficulty: "Advanced"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Custom LLM Providers

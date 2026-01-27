@@ -1,14 +1,22 @@
 ---
 title:
-  page: "Streaming LLM Responses in Real-Time"
-  nav: "Streaming LLM Responses"
-description: "Enable and use streaming mode for LLM responses in real-time in the NeMo Guardrails library."
-topics: ["Configuration", "Streaming"]
-tags: ["Streaming", "LLM", "stream_async", "Python API"]
+  page: Streaming LLM Responses in Real-Time
+  nav: Streaming LLM Responses
+description: Enable and use streaming mode for LLM responses in real-time in the NeMo Guardrails library.
+topics:
+- Configuration
+- Streaming
+tags:
+- Streaming
+- LLM
+- stream_async
+- Python API
 content:
-  type: "How-To"
-  difficulty: "Beginner"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_beginner
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Streaming LLM Responses in Real-Time

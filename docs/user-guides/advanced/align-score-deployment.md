@@ -1,14 +1,22 @@
 ---
 title:
-  page: "AlignScore Deployment"
-  nav: "AlignScore"
-description: "Deploy an AlignScore server for fact-checking rails with high-accuracy entailment predictions."
-topics: ["Integration", "AI Safety"]
-tags: ["AlignScore", "Fact-Checking", "Deployment", "NLI"]
+  page: AlignScore Deployment
+  nav: AlignScore
+description: Deploy an AlignScore server for fact-checking rails with high-accuracy entailment predictions.
+topics:
+- Integration
+- AI Safety
+tags:
+- AlignScore
+- Fact-Checking
+- Deployment
+- NLI
 content:
-  type: "How-To"
-  difficulty: "Advanced"
-  audience: ["Developer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # AlignScore Deployment

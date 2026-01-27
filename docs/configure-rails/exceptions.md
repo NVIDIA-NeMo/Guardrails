@@ -1,6 +1,15 @@
 ---
-title: Exceptions and Error Handling
-description: Raise and handle exceptions in guardrails flows to control error behavior and custom responses.
+title:
+  page: "Exceptions and Error Handling"
+  nav: "Exceptions"
+description: "Raise and handle exceptions in guardrails flows to control error behavior and custom responses."
+keywords: ["nemo guardrails exceptions", "guardrails error handling", "InputRailException", "OutputRailException"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "security_for_ai"]
+content:
+  type: reference
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 # Exceptions and Error Handling

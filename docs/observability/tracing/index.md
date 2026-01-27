@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Tracing Guardrails"
-  nav: "Tracing"
-description: "Enable distributed tracing with OpenTelemetry to monitor guardrails execution and LLM calls."
-topics: ["Observability", "AI Safety"]
-tags: ["Tracing", "OpenTelemetry", "Monitoring", "Jaeger"]
+  page: Tracing Guardrails
+  nav: Tracing
+description: Enable distributed tracing with OpenTelemetry to monitor guardrails execution and LLM calls.
+topics:
+- Observability
+- AI Safety
+tags:
+- Tracing
+- OpenTelemetry
+- Monitoring
+- Jaeger
 content:
-  type: "How-To"
-  difficulty: "Intermediate"
-  audience: ["Developer", "DevOps Engineer", "AI Engineer"]
+  type: how_to
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - DevOps Engineer
+  - AI Engineer
 ---
 
 (tracing)=

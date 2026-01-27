@@ -1,14 +1,25 @@
 ---
 title:
-  page: "Check Harmful Content with Nemotron Content Safety NIM"
-  nav: "Check Harmful Content"
-description: "Check text inputs and outputs for harmful content using Nemotron Content Safety NIM."
-topics: ["AI Safety", "Content Safety"]
-tags: ["Content Safety", "NIM", "Multilingual", "Input Rails", "Output Rails", "Docker", "Nemotron"]
+  page: Check Harmful Content with Nemotron Content Safety NIM
+  nav: Check Harmful Content
+description: Check text inputs and outputs for harmful content using Nemotron Content Safety NIM.
+topics:
+- AI Safety
+- Content Safety
+tags:
+- Content Safety
+- NIM
+- Multilingual
+- Input Rails
+- Output Rails
+- Docker
+- Nemotron
 content:
-  type: "Tutorial"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: tutorial
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 <!--

@@ -25,6 +25,8 @@ This section covers how to run the server and interact with it.
 :link-type: doc
 
 The Guardrails API server is a tool for running guardrails in a secure, isolated environment.
++++
+{bdg-secondary}`Concept`
 :::
 
 :::{grid-item-card} Run the Server
@@ -32,6 +34,8 @@ The Guardrails API server is a tool for running guardrails in a secure, isolated
 :link-type: doc
 
 Start the Guardrails API server, configure CORS, and enable auto-reload.
++++
+{bdg-secondary}`Tutorial`
 :::
 
 :::{grid-item-card} Chat Completions
@@ -39,6 +43,8 @@ Start the Guardrails API server, configure CORS, and enable auto-reload.
 :link-type: doc
 
 Send chat requests, use streaming, and manage conversation threads.
++++
+{bdg-secondary}`Tutorial`
 :::
 
 :::{grid-item-card} List Configurations
@@ -46,6 +52,8 @@ Send chat requests, use streaming, and manage conversation threads.
 :link-type: doc
 
 Retrieve available guardrails configurations from the server.
++++
+{bdg-secondary}`Reference`
 :::
 
 :::{grid-item-card} Actions Server
@@ -53,6 +61,8 @@ Retrieve available guardrails configurations from the server.
 :link-type: doc
 
 Run guardrail actions in a secure, isolated environment.
++++
+{bdg-secondary}`Tutorial`
 :::
 
 ::::

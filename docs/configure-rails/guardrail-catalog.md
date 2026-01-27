@@ -1,6 +1,15 @@
 ---
-title: Guardrail Catalog
-description: Reference for pre-built guardrails including content safety, jailbreak detection, PII handling, and fact checking.
+title:
+  page: "Guardrail Catalog"
+  nav: "Guardrail Catalog"
+description: "Reference for pre-built guardrails including content safety, jailbreak detection, and PII handling."
+keywords: ["nemo guardrails catalog", "content safety guardrails", "jailbreak detection", "PII detection", "fact checking"]
+topics: ["generative_ai", "cybersecurity"]
+tags: ["llms", "security_for_ai", "nlp"]
+content:
+  type: reference
+  difficulty: technical_intermediate
+  audience: ["engineer"]
 ---
 
 # Guardrail Catalog

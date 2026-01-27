@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Tracing Configuration for NeMo Guardrails"
-  nav: "Tracing"
-description: "Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails."
-topics: ["Configuration", "Observability"]
-tags: ["Tracing", "OpenTelemetry", "Monitoring", "YAML", "Configuration"]
+  page: Tracing Configuration for NeMo Guardrails
+  nav: Tracing
+description: Configure FileSystem and OpenTelemetry tracing adapters to monitor guardrails.
+topics:
+- Configuration
+- Observability
+tags:
+- Tracing
+- OpenTelemetry
+- Monitoring
+- YAML
+- Configuration
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "DevOps Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - DevOps Engineer
 ---
 
 # Tracing Configuration

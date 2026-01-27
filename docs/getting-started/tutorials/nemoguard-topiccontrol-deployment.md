@@ -1,14 +1,24 @@
 ---
 title:
-  page: "Restrict Topics with Llama 3.1 NemoGuard 8B TopicControl NIM"
-  nav: "Restrict Topics"
-description: "Restrict conversations to allowed topics using Llama 3.1 NemoGuard 8B TopicControl NIM."
-topics: ["AI Safety", "Content Moderation"]
-tags: ["Topic Control", "NIM", "Input Rails", "LoRA", "Docker", "Nemotron"]
+  page: Restrict Topics with Llama 3.1 NemoGuard 8B TopicControl NIM
+  nav: Restrict Topics
+description: Restrict conversations to allowed topics using Llama 3.1 NemoGuard 8B TopicControl NIM.
+topics:
+- AI Safety
+- Content Moderation
+tags:
+- Topic Control
+- NIM
+- Input Rails
+- LoRA
+- Docker
+- Nemotron
 content:
-  type: "Tutorial"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: tutorial
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 <!--

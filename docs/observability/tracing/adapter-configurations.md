@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Adapter Configurations"
-  nav: "Adapters"
-description: "Configure FileSystem, OpenTelemetry, or custom adapters for guardrails tracing."
-topics: ["Observability", "AI Safety"]
-tags: ["Tracing", "Adapters", "Configuration", "FileSystem", "OpenTelemetry"]
+  page: Adapter Configurations
+  nav: Adapters
+description: Configure FileSystem, OpenTelemetry, or custom adapters for guardrails tracing.
+topics:
+- Observability
+- AI Safety
+tags:
+- Tracing
+- Adapters
+- Configuration
+- FileSystem
+- OpenTelemetry
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "DevOps Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - DevOps Engineer
 ---
 
 # Adapter Configurations

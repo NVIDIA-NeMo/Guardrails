@@ -1,14 +1,23 @@
 ---
 title:
-  page: "Guardrails Configuration"
-  nav: "Guardrails"
-description: "Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior."
-topics: ["Configuration", "AI Safety"]
-tags: ["Rails", "Input Rails", "Output Rails", "Dialog Rails", "YAML"]
+  page: Guardrails Configuration
+  nav: Guardrails
+description: Configure input, output, dialog, retrieval, and execution rails in config.yml to control LLM behavior.
+topics:
+- Configuration
+- AI Safety
+tags:
+- Rails
+- Input Rails
+- Output Rails
+- Dialog Rails
+- YAML
 content:
-  type: "Reference"
-  difficulty: "Intermediate"
-  audience: ["Developer", "AI Engineer"]
+  type: reference
+  difficulty: technical_intermediate
+  audience:
+  - engineer
+  - AI Engineer
 ---
 
 # Guardrails Configuration
