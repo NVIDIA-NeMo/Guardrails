@@ -121,7 +121,7 @@ class TestSpanOpentelemetryOTelAttributes:
 
         rail = ActivatedRail(
             type="dialog",
-            name="generate_next_step",
+            name="generate_next_steps",
             started_at=1.0,
             finished_at=2.0,
             duration=1.0,

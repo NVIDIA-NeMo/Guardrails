@@ -78,7 +78,7 @@ define flow generate next step
   priority 0.9
 
   user ...
-  execute generate_next_step
+  execute generate_next_steps
 
 
 define parallel extension flow generate bot message
