@@ -96,6 +96,8 @@ from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationOptions,
     GenerationResponse,
+    RailsResult,
+    RailStatus,
 )
 from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
@@ -1443,6 +1445,61 @@ class LLMRails:
         loop = get_or_create_event_loop()
         return loop.run_until_complete(self.process_events_async(events, state, blocking))
 
+    async def check_async(self, messages: List[dict]) -> RailsResult:
+        """Run rails on messages based on their content (asynchronous).
+
+        Automatically determines which rails to run:
+        - Only user messages: runs input rails
+        - Only assistant messages: runs output rails
+        - Both user and assistant messages: runs both input and output rails
+        - No user/assistant messages: logs warning and returns passing result
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' fields.
+                     Supported roles: user, assistant, system, context, tool.
+
+        Returns:
+            RailsResult containing:
+            - status: PASSED, MODIFIED, or BLOCKED
+            - content: The final content after rails processing
+            - rail: Name of the rail that blocked (if blocked)
+
+        Examples:
+            Check user input:
+                result = await rails.check_async([{"role": "user", "content": "Hello!"}])
+                if result.status == RailStatus.BLOCKED:
+                    print(f"Blocked by: {result.rail}")
+
+            Check bot output with context:
+                result = await rails.check_async([
+                    {"role": "user", "content": "Hello!"},
+                    {"role": "assistant", "content": "Hi there!"}
+                ])
+        """
+        options = _determine_rails_from_messages(messages)
+
+        if options is None:
+            last_content = messages[-1].get("content", "") if messages else ""
+            return RailsResult(status=RailStatus.PASSED, content=last_content)
+
+        original_content = _get_last_user_or_assistant_content(messages)
+        messages = _normalize_messages_for_rails(messages, options["rails"])
+        options["log"] = {"activated_rails": True}
+
+        response = await self.generate_async(messages=messages, options=options)
+
+        if not isinstance(response, GenerationResponse):
+            raise RuntimeError(f"Expected GenerationResponse, got {type(response).__name__}")
+
+        blocking_rail = _get_blocking_rail(response)
+        result_content = _get_response_content(response)
+
+        if blocking_rail:
+            return RailsResult(status=RailStatus.BLOCKED, content=result_content, rail=blocking_rail)
+        if result_content != original_content:
+            return RailsResult(status=RailStatus.MODIFIED, content=result_content)
+        return RailsResult(status=RailStatus.PASSED, content=result_content)
+
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""
         self.runtime.register_action(action, name)
@@ -1766,3 +1823,58 @@ class LLMRails:
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
+
+
+def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:
+    roles = {msg.get("role") for msg in reversed(messages)}
+    has_user = "user" in roles
+    has_assistant = "assistant" in roles
+
+    if not has_user and not has_assistant:
+        log.warning(
+            "check() called with no user or assistant messages. "
+            "Only system, context, or tool messages found. "
+            "Returning passing result without running rails."
+        )
+        return None
+
+    if has_user and has_assistant:
+        return {"rails": ["input", "output"]}
+    if has_user:
+        return {"rails": ["input"]}
+    return {"rails": ["output"]}
+
+
+def _normalize_messages_for_rails(
+    messages: List[dict],
+    rails: List[str],
+) -> List[dict]:
+    if rails == ["output"]:
+        has_user = any(msg.get("role") == "user" for msg in messages)
+        if not has_user:
+            return [{"role": "user", "content": ""}] + messages
+
+    return messages
+
+
+def _get_last_user_or_assistant_content(messages: List[dict]) -> str:
+    for msg in reversed(messages):
+        if msg.get("role") in ("user", "assistant"):
+            return msg.get("content", "")
+    return ""
+
+
+def _get_blocking_rail(response: "GenerationResponse") -> Optional[str]:
+    if response.log and response.log.activated_rails:
+        for rail in response.log.activated_rails:
+            if rail.stop:
+                return rail.name
+    return None
+
+
+def _get_response_content(response: "GenerationResponse") -> str:
+    if isinstance(response.response, list) and response.response:
+        return response.response[-1].get("content", "")
+    if isinstance(response.response, str):
+        return response.response
+    return ""
