@@ -19,7 +19,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
     _get_blocking_rail,
-    _get_last_user_or_assistant_content,
+    _get_content_by_role,
     _get_response_content,
     _normalize_messages_for_rails,
 )
@@ -141,46 +141,32 @@ class TestNormalizeMessagesForRails:
         assert result[0] == {"role": "user", "content": ""}
 
 
-class TestGetLastUserOrAssistantContent:
-    def test_single_user_message(self):
+class TestGetContentByRole:
+    def test_get_user_content(self):
         messages = [{"role": "user", "content": "hello"}]
-        assert _get_last_user_or_assistant_content(messages) == "hello"
+        assert _get_content_by_role(messages, "user") == "hello"
 
-    def test_single_assistant_message(self):
+    def test_get_assistant_content(self):
         messages = [{"role": "assistant", "content": "hi there"}]
-        assert _get_last_user_or_assistant_content(messages) == "hi there"
+        assert _get_content_by_role(messages, "assistant") == "hi there"
 
-    def test_user_and_assistant_returns_last(self):
+    def test_returns_last_matching_role(self):
         messages = [
-            {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "hi there"},
+            {"role": "user", "content": "first"},
+            {"role": "user", "content": "second"},
         ]
-        assert _get_last_user_or_assistant_content(messages) == "hi there"
+        assert _get_content_by_role(messages, "user") == "second"
 
-    def test_assistant_then_user_returns_user(self):
-        messages = [
-            {"role": "assistant", "content": "hi there"},
-            {"role": "user", "content": "hello"},
-        ]
-        assert _get_last_user_or_assistant_content(messages) == "hello"
-
-    def test_only_system_returns_empty(self):
+    def test_role_not_found_returns_empty(self):
         messages = [{"role": "system", "content": "Be helpful"}]
-        assert _get_last_user_or_assistant_content(messages) == ""
+        assert _get_content_by_role(messages, "user") == ""
 
     def test_empty_messages_returns_empty(self):
-        assert _get_last_user_or_assistant_content([]) == ""
-
-    def test_system_before_user(self):
-        messages = [
-            {"role": "system", "content": "Be helpful"},
-            {"role": "user", "content": "hello"},
-        ]
-        assert _get_last_user_or_assistant_content(messages) == "hello"
+        assert _get_content_by_role([], "user") == ""
 
     def test_missing_content_returns_empty(self):
         messages = [{"role": "user"}]
-        assert _get_last_user_or_assistant_content(messages) == ""
+        assert _get_content_by_role(messages, "user") == ""
 
 
 class TestGetBlockingRail:

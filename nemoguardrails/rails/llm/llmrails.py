@@ -1863,13 +1863,6 @@ def _normalize_messages_for_rails(
     return messages
 
 
-def _get_last_user_or_assistant_content(messages: List[dict]) -> str:
-    for msg in reversed(messages):
-        if msg.get("role") in ("user", "assistant"):
-            return msg.get("content", "")
-    return ""
-
-
 def _get_content_by_role(messages: List[dict], role: str) -> str:
     for msg in reversed(messages):
         if msg.get("role") == role:
