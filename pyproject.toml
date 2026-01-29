@@ -173,7 +173,6 @@ include = [
 ]
 exclude = [
   "nemoguardrails/llm/providers/trtllm/**",
-  "nemoguardrails/llm/providers/_langchain_nvidia_ai_endpoints_patch.py",
 ]
 
 [tool.poetry.group.docs]

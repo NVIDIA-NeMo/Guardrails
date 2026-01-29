@@ -308,24 +308,8 @@ def _init_gpt35_turbo_instruct(model_name: str, provider_name: str, kwargs: Dict
 
 
 def _init_nvidia_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseChatModel:
-    """Initialize NVIDIA AI Endpoints model.
-
-    Args:
-        model_name: Name of the model to initialize
-        provider_name: Name of the provider to use
-        **kwargs: Additional arguments to pass to the model initialization
-
-    Returns:
-        An initialized chat model
-
-    Raises:
-        ImportError: If langchain_nvidia_ai_endpoints is not installed
-        ModelInitializationError: If model initialization fails
-    """
     try:
-        from nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch import (
-            ChatNVIDIA,
-        )
+        from langchain_nvidia_ai_endpoints import ChatNVIDIA  # type: ignore[import-not-found]
 
         package_version = version("langchain_nvidia_ai_endpoints")
 
@@ -336,20 +320,18 @@ def _init_nvidia_model(model_name: str, provider_name: str, kwargs: Dict[str, An
             )
 
         return ChatNVIDIA(model=model_name, **kwargs)
-    except ImportError as e:
+    except ImportError:
         raise ImportError(
             "Could not import langchain_nvidia_ai_endpoints, please install it with "
             "`pip install langchain-nvidia-ai-endpoints`."
         )
 
 
-# special model handlers
 _SPECIAL_MODEL_INITIALIZERS = {
     "gpt-3.5-turbo-instruct": _init_gpt35_turbo_instruct,
 }
 
-# provider-specific handlers
-_PROVIDER_INITIALIZERS = {
+_PROVIDER_INITIALIZERS: Dict[str, Any] = {
     "nvidia_ai_endpoints": _init_nvidia_model,
     "nim": _init_nvidia_model,
 }

@@ -66,10 +66,6 @@ class MockUnknownLLM:
     __module__ = "some_custom_package.models"
 
 
-class MockNVIDIAOriginal:
-    __module__ = "langchain_nvidia_ai_endpoints.chat_models"
-
-
 class MockTRTLLM:
     __module__ = "nemoguardrails.llm.providers.trtllm.llm"
 
@@ -86,10 +82,6 @@ class MockLLMWithClient:
 
     def __init__(self):
         self.client = self._MockClient()
-
-
-class MockPatchedNVIDIA(MockNVIDIAOriginal):
-    __module__ = "nemoguardrails.llm.providers._langchain_nvidia_ai_endpoints_patch"
 
 
 def test_infer_provider_openai():
@@ -120,12 +112,6 @@ def test_infer_provider_unknown():
     llm = MockUnknownLLM()
     provider = _infer_provider_from_module(llm)
     assert provider is None
-
-
-def test_infer_provider_from_patched_class():
-    llm = MockPatchedNVIDIA()
-    provider = _infer_provider_from_module(llm)
-    assert provider == "nvidia_ai_endpoints"
 
 
 def test_infer_provider_checks_base_classes():
