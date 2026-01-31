@@ -140,9 +140,19 @@ class Model(BaseModel):
             model_from_params = parameters.get("model_name") or parameters.get("model")
 
             if model_field and model_from_params:
-                raise InvalidModelConfigurationError(
-                    "Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`).",
-                )
+                if model_field.strip() != model_from_params.strip():
+                    raise InvalidModelConfigurationError(
+                        "Conflicting model names: `model` and `parameters.model/model_name` must match if both are provided."
+                    )
+                    
+                if "model_name" in parameters:
+                    parameters.pop("model_name")
+                if "model" in parameters:
+                    parameters.pop("model")
+                    
+                data["parameters"] = parameters
+                return data
+                
             if not model_field and model_from_params:
                 data["model"] = model_from_params
                 if "model_name" in parameters and parameters["model_name"] == model_from_params:
