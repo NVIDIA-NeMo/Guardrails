@@ -95,9 +95,7 @@ class TestGuardrailsAIIntegration:
         mock_get_guard.return_value = mock_guard
 
         mock_config = Mock()
-        mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(
-            parameters={}, metadata={}
-        )
+        mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(parameters={}, metadata={})
 
         result = validate_guardrails_ai_input(
             validator="toxic_language",
@@ -122,9 +120,7 @@ class TestGuardrailsAIIntegration:
         mock_get_guard.return_value = mock_guard
 
         mock_config = Mock()
-        mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(
-            parameters={}, metadata={}
-        )
+        mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(parameters={}, metadata={})
 
         result = validate_guardrails_ai_output(
             validator="toxic_language",
