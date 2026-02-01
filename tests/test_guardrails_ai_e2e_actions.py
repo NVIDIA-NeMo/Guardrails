@@ -19,6 +19,8 @@ These tests run against actual Guardrails validators when installed.
 They can be skipped in CI/environments where validators aren't available.
 """
 
+from unittest.mock import Mock
+
 import pytest
 
 from nemoguardrails.imports import check_optional_dependency
@@ -147,7 +149,7 @@ class TestGuardrailsAIE2EIntegration:
 
     @pytest.mark.skipif(not GUARDRAILS_AVAILABLE, reason="Guardrails not installed")
     def test_validation_mapping_e2e(self):
-        """E2E test: Validation mapping with real validation results."""
+        """E2E test: Validation mapping returns boolean (validation_passed)."""
         from nemoguardrails.library.guardrails_ai.actions import (
             guardrails_ai_validation_mapping,
             validate_guardrails_ai,
@@ -162,8 +164,7 @@ class TestGuardrailsAIE2EIntegration:
             )
 
             mapped = guardrails_ai_validation_mapping(result)
-            assert mapped["valid"] is True
-            assert "validation_result" in mapped
+            assert mapped is True
 
             result_fail = validate_guardrails_ai(
                 validator_name="regex_match",
@@ -173,7 +174,39 @@ class TestGuardrailsAIE2EIntegration:
             )
 
             mapped_fail = guardrails_ai_validation_mapping(result_fail)
-            assert mapped_fail["valid"] is False
+            assert mapped_fail is False
+
+    @pytest.mark.skipif(not GUARDRAILS_AVAILABLE, reason="Guardrails not installed")
+    def test_action_returns_valid_for_colang_flows_e2e(self):
+        """E2E test: Actions return both validation_result and valid for Colang flows."""
+        from nemoguardrails.library.guardrails_ai.actions import (
+            validate_guardrails_ai_input,
+            validate_guardrails_ai_output,
+        )
+
+        if VALIDATORS_AVAILABLE.get("regex_match", False):
+            mock_config = Mock()
+            mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(
+                parameters={"regex": "^[A-Z].*", "on_fail": "noop"}, metadata={}
+            )
+
+            result_input = validate_guardrails_ai_input(
+                validator="regex_match",
+                config=mock_config,
+                text="Hello world",
+            )
+            assert "validation_result" in result_input
+            assert "valid" in result_input
+            assert result_input["valid"] is True
+
+            result_output = validate_guardrails_ai_output(
+                validator="regex_match",
+                config=mock_config,
+                text="hello world",
+            )
+            assert "validation_result" in result_output
+            assert "valid" in result_output
+            assert result_output["valid"] is False
 
     @pytest.mark.skipif(not GUARDRAILS_AVAILABLE, reason="Guardrails not installed")
     def test_metadata_parameter_e2e(self):

@@ -25,6 +25,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - *(llm)* Filter temperature parameter for OpenAI reasoning models ([#1526](https://github.com/NVIDIA-NeMo/Guardrails/issues/1526))
 - *(bot-thinking)* Tackle bug with reasoning trace leak across llm calls ([#1582](https://github.com/NVIDIA-NeMo/Guardrails/issues/1582))
 - *(providers)* Handle langchain 1.2.1 dict type for _SUPPORTED_PROVIDERS ([#1589](https://github.com/NVIDIA-NeMo/Guardrails/issues/1589))
+- *(guardrails_ai)* Add `valid` alias to action results for Colang flows
 
 ### 🚜 Refactor
 
