@@ -107,7 +107,7 @@ class TestConvertToMessages:
 
     def test_messages_single_message(self):
         """Test conversion with single message."""
-        messages = [{"user": "What is the weather?"}]
+        messages = [{"role": "user", "content": "What is the weather?"}]
         result = Guardrails._convert_to_messages(messages=messages)
 
         expected = [{"role": "user", "content": "What is the weather?"}]
@@ -116,9 +116,9 @@ class TestConvertToMessages:
     def test_messages_multiple_messages(self):
         """Test conversion with multiple messages."""
         messages = [
-            {"user": "What is AI?"},
-            {"assistant": "AI is artificial intelligence."},
-            {"user": "Tell me more."},
+            {"role": "user", "content": "What is AI?"},
+            {"role": "assistant", "content": "AI is artificial intelligence."},
+            {"role": "user", "content": "Tell me more."},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
@@ -132,8 +132,8 @@ class TestConvertToMessages:
     def test_messages_with_system_message(self):
         """Test conversion with system message."""
         messages = [
-            {"system": "You are a helpful assistant."},
-            {"user": "Hello!"},
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello!"},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
@@ -146,8 +146,8 @@ class TestConvertToMessages:
     def test_messages_with_context_message(self):
         """Test conversion with context message."""
         messages = [
-            {"context": "Context information here"},
-            {"user": "Question based on context"},
+            {"role": "context", "content": "Context information here"},
+            {"role": "user", "content": "Question based on context"},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
@@ -160,8 +160,8 @@ class TestConvertToMessages:
     def test_messages_with_system_message_string_role(self):
         """Test conversion with system message using string role."""
         messages = [
-            {"system": "You are a helpful assistant."},
-            {"user": "Hello!"},
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello!"},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
@@ -174,8 +174,8 @@ class TestConvertToMessages:
     def test_messages_with_context_message_string_role(self):
         """Test conversion with context message using string role."""
         messages = [
-            {"context": "Context information here"},
-            {"user": "Question based on context"},
+            {"role": "context", "content": "Context information here"},
+            {"role": "user", "content": "Question based on context"},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
@@ -194,7 +194,7 @@ class TestConvertToMessages:
 
     def test_prompt_takes_priority_over_messages(self):
         """Test that messages parameter takes priority when both are provided."""
-        messages = [{"user": "From messages"}]
+        messages = [{"role": "user", "content": "From messages"}]
         result = Guardrails._convert_to_messages(prompt="From prompt", messages=messages)
 
         # Messages should take priority
@@ -257,9 +257,9 @@ class TestGenerate:
 
         guardrails = Guardrails(config=mock_rails_config)
         messages = [
-            {"user": "What is AI?"},
-            {"assistant": "AI is artificial intelligence."},
-            {"user": "Tell me more."},
+            {"role": "user", "content": "What is AI?"},
+            {"role": "assistant", "content": "AI is artificial intelligence."},
+            {"role": "user", "content": "Tell me more."},
         ]
         result = guardrails.generate(messages=messages)
 
@@ -383,9 +383,9 @@ class TestGenerateAsync:
 
         guardrails = Guardrails(config=mock_rails_config)
         messages = [
-            {"user": "First message"},
-            {"assistant": "First response"},
-            {"user": "Second message"},
+            {"role": "user", "content": "First message"},
+            {"role": "assistant", "content": "First response"},
+            {"role": "user", "content": "Second message"},
         ]
         result = await guardrails.generate_async(messages=messages)
 
@@ -533,9 +533,9 @@ class TestStreamAsync:
 
         guardrails = Guardrails(config=mock_rails_config)
         messages = [
-            {"user": "Message 1"},
-            {"assistant": "Response 1"},
-            {"user": "Message 2"},
+            {"role": "user", "content": "Message 1"},
+            {"role": "assistant", "content": "Response 1"},
+            {"role": "user", "content": "Message 2"},
         ]
 
         chunks = []

@@ -70,30 +70,16 @@ class Guardrails:
 
         Converts from Guardrails simplified format to LLMRails standard format:
         - Simplified: [{"user": "text"}]
-        - Standard: [{"role": "user", "content": "text"}]
+        - Standard: [{"role": "user", "content": "Hello"}]
         """
 
         # Priority: messages first, then prompt
         if messages:
-            # Convert from simplified format to standard format
-            converted = []
-            for msg in messages:
-                if not msg:  # Skip empty dicts
-                    continue
-
-                # Get the role and content from simplified format
-                # Simplified: {"user": "text"} or {"assistant": "text"}
-                # Standard: {"role": "user", "content": "text"}
-                role = list(msg.keys())[0]  # Get the first (and only) key
-                content = msg[role]
-
-                converted.append({"role": role, "content": content})
-
-            return converted
+            return messages
 
         if prompt:
             # Convert string prompt to standard format
-            return [{"role": MessageRole.USER, "content": prompt}]
+            return [{"role": "user", "content": prompt}]
 
         raise ValueError("Neither prompt nor messages provided for generation")
 
