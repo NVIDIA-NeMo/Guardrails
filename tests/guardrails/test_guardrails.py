@@ -54,7 +54,7 @@ class TestGuardrailsInit:
         guardrails = Guardrails(config=mock_rails_config, verbose=False)
 
         # Verify LLMRails was instantiated with config only
-        mock_llmrails_class.assert_called_once_with(mock_rails_config)
+        mock_llmrails_class.assert_called_once_with(mock_rails_config, None, False)
 
         # Verify attributes are set correctly
         assert guardrails.config == mock_rails_config
@@ -70,7 +70,7 @@ class TestGuardrailsInit:
         guardrails = Guardrails(config=mock_rails_config, llm=mock_llm, verbose=True)
 
         # Verify LLMRails was instantiated with both config and llm
-        mock_llmrails_class.assert_called_once_with(mock_rails_config, llm=mock_llm)
+        mock_llmrails_class.assert_called_once_with(mock_rails_config, mock_llm, True)
 
         # Verify attributes are set correctly
         assert guardrails.config == mock_rails_config
@@ -545,7 +545,7 @@ class TestIntegration:
         guardrails = Guardrails(config=mock_rails_config, llm=mock_llm)
 
         # Verify the custom LLM was passed to LLMRails
-        mock_llmrails_class.assert_called_once_with(mock_rails_config, llm=mock_llm)
+        mock_llmrails_class.assert_called_once_with(mock_rails_config, mock_llm, False)
         assert guardrails.llm == mock_llm
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")

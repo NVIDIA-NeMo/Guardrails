@@ -59,10 +59,8 @@ class Guardrails:
         self.config = config
         self.llm = llm
         self.verbose = verbose
-        if llm:
-            self.llmrails = LLMRails(config, llm=llm)
-        else:
-            self.llmrails = LLMRails(config)
+
+        self.llmrails = LLMRails(config, llm, verbose)
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
