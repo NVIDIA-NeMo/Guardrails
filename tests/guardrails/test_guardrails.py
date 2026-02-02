@@ -116,9 +116,9 @@ class TestConvertToMessages:
     def test_messages_multiple_messages(self):
         """Test conversion with multiple messages."""
         messages = [
-            {"user": "What is AI?"},
-            {"assistant": "AI is artificial intelligence."},
-            {"user": "Tell me more."},
+            {"role": "user", "content": "What is AI?"},
+            {"role": "assistant", "content": "AI is artificial intelligence."},
+            {"role": "user", "content": "Tell me more."},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
@@ -132,8 +132,8 @@ class TestConvertToMessages:
     def test_messages_with_system_message(self):
         """Test conversion with system message."""
         messages = [
-            {"system": "You are a helpful assistant."},
-            {"user": "Hello!"},
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello!"},
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
