@@ -15,11 +15,9 @@
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 
-from langchain_core.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
 from langchain_core.language_models import BaseLanguageModel
-from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.base import Runnable
 
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
@@ -27,13 +25,14 @@ from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEven
 from nemoguardrails.context import (
     llm_call_info_var,
     llm_response_metadata_var,
+    llm_stats_var,
     reasoning_trace_var,
     tool_calls_var,
 )
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
-from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.logging.llm_tracker import track_llm_call
 
 if TYPE_CHECKING:
     from nemoguardrails.streaming import StreamingHandler
@@ -184,13 +183,13 @@ def _filter_params_for_openai_reasoning_models(llm: BaseLanguageModel, llm_param
     return llm_params
 
 
+@track_llm_call
 async def llm_call(
     llm: Optional[BaseLanguageModel],
     prompt: Union[str, List[dict]],
     model_name: Optional[str] = None,
     model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
-    custom_callback_handlers: Optional[Sequence[AsyncCallbackHandler]] = None,
     llm_params: Optional[dict] = None,
     streaming_handler: Optional["StreamingHandler"] = None,
 ) -> str:
@@ -205,7 +204,6 @@ async def llm_call(
         model_name: Optional model name for tracking
         model_provider: Optional model provider for tracking
         stop: Optional list of stop tokens
-        custom_callback_handlers: Optional list of callback handlers (not used when streaming; logging callbacks remain active)
         llm_params: Optional configuration dictionary to pass to the LLM (e.g., temperature, max_tokens)
         streaming_handler: Optional StreamingHandler to receive streaming chunks
 
@@ -215,6 +213,7 @@ async def llm_call(
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
     _setup_llm_call_info(llm, model_name, model_provider)
+    _log_prompt(prompt)
 
     llm_params_with_stop: Optional[dict]
     if stop:
@@ -229,13 +228,13 @@ async def llm_call(
     if streaming_handler:
         return await _stream_llm_call(generation_llm, prompt, streaming_handler)
     else:
-        all_callbacks = _prepare_callbacks(custom_callback_handlers)
-
         if isinstance(prompt, str):
-            response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks)
+            response = await _invoke_with_string_prompt(generation_llm, prompt)
         else:
-            response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks)
+            response = await _invoke_with_message_list(generation_llm, prompt)
 
+        _log_completion(response)
+        _update_token_stats(response)
         _store_reasoning_traces(response)
         _store_tool_calls(response)
         _store_response_metadata(response)
@@ -266,8 +265,11 @@ async def _stream_llm_call(
     handler.stop = stop
     accumulated_metadata: Dict[str, Any] = {}
 
+    last_chunk = None
+
     try:
-        async for chunk in llm.astream(messages, config=RunnableConfig(callbacks=logging_callbacks)):
+        async for chunk in llm.astream(messages):
+            last_chunk = chunk
             if hasattr(chunk, "content"):
                 content = chunk.content
             else:
@@ -283,6 +285,14 @@ async def _stream_llm_call(
             llm_response_metadata_var.set(accumulated_metadata)
 
         await handler.finish()
+
+        llm_call_info = llm_call_info_var.get()
+        if llm_call_info:
+            llm_call_info.completion = handler.completion
+
+        if last_chunk is not None:
+            _update_token_stats_from_chunk(last_chunk)
+
         return handler.completion
 
     except Exception as e:
@@ -309,16 +319,196 @@ def _setup_llm_call_info(llm: BaseLanguageModel, model_name: Optional[str], mode
     llm_call_info.llm_provider_name = model_provider or _infer_provider_from_module(llm)
 
 
-def _prepare_callbacks(
-    custom_callback_handlers: Optional[Sequence[AsyncCallbackHandler]],
-) -> BaseCallbackManager:
-    """Prepare callback manager with custom handlers if provided."""
-    if custom_callback_handlers and custom_callback_handlers != [None]:
-        return BaseCallbackManager(
-            handlers=logging_callbacks.handlers + list(custom_callback_handlers),
-            inheritable_handlers=logging_callbacks.handlers + list(custom_callback_handlers),
+def _log_prompt(prompt: Union[str, List[dict]]) -> None:
+    """Log the prompt to LLM call info."""
+    llm_call_info = llm_call_info_var.get()
+    if llm_call_info is None:
+        return
+
+    if isinstance(prompt, str):
+        llm_call_info.prompt = prompt
+        logger.info("Prompt :: %s", prompt, extra={"id": llm_call_info.id, "task": llm_call_info.task})
+    else:
+        type_map = {
+            "human": "User",
+            "ai": "Bot",
+            "tool": "Tool",
+            "system": "System",
+            "developer": "Developer",
+            "user": "User",
+            "assistant": "Bot",
+        }
+        formatted_prompt = "\n" + "\n".join(
+            [
+                "[cyan]"
+                + type_map.get(msg.get("role", msg.get("type", "")), msg.get("role", msg.get("type", "")).title())
+                + "[/]"
+                + "\n"
+                + (msg.get("content", "") if isinstance(msg.get("content", ""), str) else "")
+                for msg in prompt
+            ]
         )
-    return logging_callbacks
+        llm_call_info.prompt = formatted_prompt
+        logger.info(
+            "Prompt Messages :: %s",
+            formatted_prompt,
+            extra={"id": llm_call_info.id, "task": llm_call_info.task},
+        )
+
+
+def _log_completion(response) -> None:
+    """Log the completion from the response."""
+    llm_call_info = llm_call_info_var.get()
+    if llm_call_info is None:
+        return
+
+    completion_text = _extract_content(response)
+    llm_call_info.completion = completion_text
+
+    reasoning_content = None
+    if hasattr(response, "additional_kwargs"):
+        reasoning_content = response.additional_kwargs.get("reasoning_content")
+
+    if reasoning_content:
+        full_completion = f"{reasoning_content}\n---\n{completion_text}"
+    else:
+        full_completion = completion_text
+
+    logger.info(
+        "Completion :: %s",
+        full_completion,
+        extra={"id": llm_call_info.id, "task": llm_call_info.task},
+    )
+
+
+def _update_token_stats(response) -> None:
+    """Update token usage statistics from the response."""
+    llm_call_info = llm_call_info_var.get()
+    llm_stats = llm_stats_var.get()
+
+    if llm_call_info is None:
+        return
+
+    if not llm_call_info.total_tokens:
+        llm_call_info.total_tokens = 0
+    if not llm_call_info.prompt_tokens:
+        llm_call_info.prompt_tokens = 0
+    if not llm_call_info.completion_tokens:
+        llm_call_info.completion_tokens = 0
+
+    token_stats_found = False
+
+    if hasattr(response, "usage_metadata") and response.usage_metadata:
+        token_stats_found = True
+        usage = response.usage_metadata
+        total = usage.get("total_tokens", 0)
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+
+        llm_call_info.total_tokens += total
+        llm_call_info.prompt_tokens += input_tokens
+        llm_call_info.completion_tokens += output_tokens
+
+        if llm_stats:
+            llm_stats.inc("total_tokens", total)
+            llm_stats.inc("total_prompt_tokens", input_tokens)
+            llm_stats.inc("total_completion_tokens", output_tokens)
+
+    if not token_stats_found and hasattr(response, "response_metadata") and response.response_metadata:
+        token_usage = response.response_metadata.get("token_usage", {})
+        if token_usage:
+            token_stats_found = True
+            total = token_usage.get("total_tokens", 0)
+            prompt_tokens = token_usage.get("prompt_tokens", 0)
+            completion_tokens = token_usage.get("completion_tokens", 0)
+
+            llm_call_info.total_tokens = total
+            llm_call_info.prompt_tokens = prompt_tokens
+            llm_call_info.completion_tokens = completion_tokens
+
+            if llm_stats:
+                llm_stats.inc("total_tokens", total)
+                llm_stats.inc("total_prompt_tokens", prompt_tokens)
+                llm_stats.inc("total_completion_tokens", completion_tokens)
+
+    if not token_stats_found:
+        logger.info("Token stats in LLM call info cannot be computed for current model!")
+
+
+def _update_token_stats_from_chunk(chunk) -> None:
+    """Update token usage statistics from a streaming chunk.
+
+    For streaming, token usage is often provided in the last chunk's response_metadata,
+    usage_metadata, or generation_info with a slightly different format than non-streaming.
+    """
+    llm_call_info = llm_call_info_var.get()
+    llm_stats = llm_stats_var.get()
+
+    if llm_call_info is None:
+        return
+
+    if not llm_call_info.total_tokens:
+        llm_call_info.total_tokens = 0
+    if not llm_call_info.prompt_tokens:
+        llm_call_info.prompt_tokens = 0
+    if not llm_call_info.completion_tokens:
+        llm_call_info.completion_tokens = 0
+
+    token_stats_found = False
+
+    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+        token_stats_found = True
+        usage = chunk.usage_metadata
+        total = usage.get("total_tokens", 0)
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+
+        llm_call_info.total_tokens = total
+        llm_call_info.prompt_tokens = input_tokens
+        llm_call_info.completion_tokens = output_tokens
+
+        if llm_stats:
+            llm_stats.inc("total_tokens", total)
+            llm_stats.inc("total_prompt_tokens", input_tokens)
+            llm_stats.inc("total_completion_tokens", output_tokens)
+
+    if not token_stats_found and hasattr(chunk, "response_metadata") and chunk.response_metadata:
+        token_usage = chunk.response_metadata.get("token_usage", {})
+        if not token_usage:
+            token_usage = chunk.response_metadata.get("usage", {})
+        if token_usage:
+            token_stats_found = True
+            total = token_usage.get("total_tokens", 0)
+            prompt_tokens = token_usage.get("prompt_tokens", token_usage.get("input_tokens", 0))
+            completion_tokens = token_usage.get("completion_tokens", token_usage.get("output_tokens", 0))
+
+            llm_call_info.total_tokens = total
+            llm_call_info.prompt_tokens = prompt_tokens
+            llm_call_info.completion_tokens = completion_tokens
+
+            if llm_stats:
+                llm_stats.inc("total_tokens", total)
+                llm_stats.inc("total_prompt_tokens", prompt_tokens)
+                llm_stats.inc("total_completion_tokens", completion_tokens)
+
+    if not token_stats_found and hasattr(chunk, "generation_info") and chunk.generation_info:
+        token_usage = chunk.generation_info.get("token_usage", {})
+        if not token_usage:
+            token_usage = chunk.generation_info.get("usage", {})
+        if token_usage:
+            token_stats_found = True
+            total = token_usage.get("total_tokens", 0)
+            prompt_tokens = token_usage.get("prompt_tokens", token_usage.get("input_tokens", 0))
+            completion_tokens = token_usage.get("completion_tokens", token_usage.get("output_tokens", 0))
+
+            llm_call_info.total_tokens = total
+            llm_call_info.prompt_tokens = prompt_tokens
+            llm_call_info.completion_tokens = completion_tokens
+
+            if llm_stats:
+                llm_stats.inc("total_tokens", total)
+                llm_stats.inc("total_prompt_tokens", prompt_tokens)
+                llm_stats.inc("total_completion_tokens", completion_tokens)
 
 
 def _raise_llm_call_exception(
@@ -376,11 +566,10 @@ def _raise_llm_call_exception(
 async def _invoke_with_string_prompt(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: str,
-    callbacks: BaseCallbackManager,
 ):
     """Invoke LLM with string prompt."""
     try:
-        return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks))
+        return await llm.ainvoke(prompt)
     except Exception as e:
         _raise_llm_call_exception(e, llm)
 
@@ -388,13 +577,12 @@ async def _invoke_with_string_prompt(
 async def _invoke_with_message_list(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: List[dict],
-    callbacks: BaseCallbackManager,
 ):
     """Invoke LLM with message list after converting to LangChain format."""
     messages = _convert_messages_to_langchain_format(prompt)
 
     try:
-        return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks))
+        return await llm.ainvoke(messages)
     except Exception as e:
         _raise_llm_call_exception(e, llm)
 

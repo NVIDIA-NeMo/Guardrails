@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,22 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import patch
-from uuid import uuid4
+from unittest.mock import MagicMock
 
 import pytest
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
-from langchain_core.outputs import ChatGeneration, Generation, LLMResult
+from langchain_core.messages import AIMessage
 
-from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
-from nemoguardrails.logging.callbacks import LoggingCallbackHandler
-from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
+from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
+from nemoguardrails.context import llm_call_info_var, llm_stats_var
+from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats
 
 
@@ -53,11 +45,7 @@ async def test_token_usage_tracking_with_usage_metadata():
         usage_metadata={"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
     )
 
-    chat_generation = ChatGeneration(message=ai_message)
-    llm_result = LLMResult(generations=[[chat_generation]])
-
-    # call the on_llm_end method
-    await handler.on_llm_end(llm_result, run_id=uuid4())
+    _update_token_stats(response)
 
     assert llm_call_info.total_tokens == 16
     assert llm_call_info.prompt_tokens == 10
@@ -69,34 +57,25 @@ async def test_token_usage_tracking_with_usage_metadata():
 
 
 @pytest.mark.asyncio
-async def test_token_usage_tracking_with_llm_output_fallback():
-    """Test token usage tracking with legacy llm_output format."""
-
+async def test_token_usage_tracking_with_response_metadata_fallback():
+    """Test token usage tracking with response_metadata format."""
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
 
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
-    explain_info = ExplainInfo()
-    explain_info_var.set(explain_info)
+    response = MagicMock()
+    response.usage_metadata = None
+    response.response_metadata = {
+        "token_usage": {
+            "total_tokens": 20,
+            "prompt_tokens": 12,
+            "completion_tokens": 8,
+        }
+    }
 
-    handler = LoggingCallbackHandler()
-
-    # simulate LLM response with token usage in llm_output (fallback scenario)
-    generation = Generation(text="Fallback response")
-    llm_result = LLMResult(
-        generations=[[generation]],
-        llm_output={
-            "token_usage": {
-                "total_tokens": 20,
-                "prompt_tokens": 12,
-                "completion_tokens": 8,
-            }
-        },
-    )
-
-    await handler.on_llm_end(llm_result, run_id=uuid4())
+    _update_token_stats(response)
 
     assert llm_call_info.total_tokens == 20
     assert llm_call_info.prompt_tokens == 12
@@ -110,17 +89,15 @@ async def test_token_usage_tracking_with_llm_output_fallback():
 @pytest.mark.asyncio
 async def test_no_token_usage_tracking_without_metadata():
     """Test that no token usage is tracked when metadata is not available."""
-
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
 
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
-    explain_info = ExplainInfo()
-    explain_info_var.set(explain_info)
+    response = AIMessage(content="Hello! How can I help you?")
 
-    handler = LoggingCallbackHandler()
+    _update_token_stats(response)
 
     # simulate LLM response without usage metadata
     ai_message = AIMessage(content="Hello! How can I help you?")
@@ -135,126 +112,51 @@ async def test_no_token_usage_tracking_without_metadata():
 
 
 @pytest.mark.asyncio
-async def test_multiple_generations_token_accumulation():
-    """Test that token usage accumulates across multiple generations."""
-
+async def test_log_prompt_with_string():
+    """Test that string prompts are logged correctly."""
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
 
-    llm_stats = LLMStats()
-    llm_stats_var.set(llm_stats)
+    _log_prompt("Hello, how are you?")
 
-    explain_info = ExplainInfo()
-    explain_info_var.set(explain_info)
-
-    handler = LoggingCallbackHandler()
-
-    ai_message1 = AIMessage(
-        content="First response",
-        usage_metadata={"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
-    )
-
-    ai_message2 = AIMessage(
-        content="Second response",
-        usage_metadata={"input_tokens": 7, "output_tokens": 4, "total_tokens": 11},
-    )
-
-    chat_generation1 = ChatGeneration(message=ai_message1)
-    chat_generation2 = ChatGeneration(message=ai_message2)
-    llm_result = LLMResult(generations=[[chat_generation1, chat_generation2]])
-
-    await handler.on_llm_end(llm_result, run_id=uuid4())
-
-    assert llm_call_info.total_tokens == 19  # 8 + 11
-    assert llm_call_info.prompt_tokens == 12  # 5 + 7
-    assert llm_call_info.completion_tokens == 7  # 3 + 4
-
-    assert llm_stats.get_stat("total_tokens") == 19
-    assert llm_stats.get_stat("total_prompt_tokens") == 12
-    assert llm_stats.get_stat("total_completion_tokens") == 7
+    assert llm_call_info.prompt == "Hello, how are you?"
 
 
 @pytest.mark.asyncio
-async def test_tool_message_labeling_in_logging():
-    """Test that tool messages are labeled as 'Tool' in logging output."""
+async def test_log_prompt_with_message_list():
+    """Test that message list prompts are logged correctly."""
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
-
-    llm_stats = LLMStats()
-    llm_stats_var.set(llm_stats)
-
-    explain_info = ExplainInfo()
-    explain_info_var.set(explain_info)
-
-    handler = LoggingCallbackHandler()
 
     messages = [
-        HumanMessage(content="Hello"),
-        AIMessage(content="Hi there"),
-        SystemMessage(content="System message"),
-        ToolMessage(content="Tool result", tool_call_id="test_tool_call"),
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi there"},
     ]
 
-    with patch("nemoguardrails.logging.callbacks.log") as mock_log:
-        await handler.on_chat_model_start(
-            serialized={},
-            messages=[messages],
-            run_id=uuid4(),
-        )
+    _log_prompt(messages)
 
-        mock_log.info.assert_called()
-
-        logged_prompt = None
-        for call in mock_log.info.call_args_list:
-            if "Prompt Messages" in str(call):
-                logged_prompt = call[0][1]
-                break
-
-        assert logged_prompt is not None
-        assert "[cyan]User[/]" in logged_prompt
-        assert "[cyan]Bot[/]" in logged_prompt
-        assert "[cyan]System[/]" in logged_prompt
-        assert "[cyan]Tool[/]" in logged_prompt
+    assert llm_call_info.prompt is not None
+    assert "[cyan]System[/]" in llm_call_info.prompt
+    assert "[cyan]User[/]" in llm_call_info.prompt
+    assert "[cyan]Bot[/]" in llm_call_info.prompt
+    assert "You are a helpful assistant." in llm_call_info.prompt
+    assert "Hello" in llm_call_info.prompt
+    assert "Hi there" in llm_call_info.prompt
 
 
 @pytest.mark.asyncio
-async def test_unknown_message_type_labeling():
-    """Test that unknown message types display their actual type name."""
+async def test_log_prompt_with_tool_message():
+    """Test that tool messages are labeled correctly."""
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
 
-    llm_stats = LLMStats()
-    llm_stats_var.set(llm_stats)
-
-    explain_info = ExplainInfo()
-    explain_info_var.set(explain_info)
-
-    handler = LoggingCallbackHandler()
-
-    class CustomMessage(BaseMessage):
-        def __init__(self, content, msg_type):
-            super().__init__(content=content, type=msg_type)
-
-    messages: list[BaseMessage] = [
-        CustomMessage("Custom message", "custom"),
-        CustomMessage("Function message", "function"),
+    messages = [
+        {"role": "user", "content": "Hello"},
+        {"type": "tool", "content": "Tool result"},
     ]
 
-    with patch("nemoguardrails.logging.callbacks.log") as mock_log:
-        await handler.on_chat_model_start(
-            serialized={},
-            messages=[messages],
-            run_id=uuid4(),
-        )
+    _log_prompt(messages)
 
-        mock_log.info.assert_called()
-
-        logged_prompt = None
-        for call in mock_log.info.call_args_list:
-            if "Prompt Messages" in str(call):
-                logged_prompt = call[0][1]
-                break
-
-        assert logged_prompt is not None
-        assert "[cyan]Custom[/]" in logged_prompt
-        assert "[cyan]Function[/]" in logged_prompt
+    assert llm_call_info.prompt is not None
+    assert "[cyan]Tool[/]" in llm_call_info.prompt

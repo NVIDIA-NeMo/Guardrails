@@ -29,7 +29,6 @@ from nemoguardrails.actions.llm.utils import (
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
-from nemoguardrails.logging.callbacks import logging_callback_manager_for_chain
 from nemoguardrails.logging.explain import LLMCallInfo
 
 log = logging.getLogger(__name__)
@@ -77,13 +76,8 @@ async def self_check_hallucination(
         # Format the prompt manually
         formatted_prompt = last_bot_prompt.format(text=last_bot_prompt_string)
 
-        # Generate multiple responses with temperature 1.
-        # Bind the config parameters to the LLM for this call
         llm_with_config = llm.bind(temperature=1.0, n=num_responses)
-        extra_llm_response = await llm_with_config.agenerate(
-            [formatted_prompt],
-            callbacks=logging_callback_manager_for_chain.handlers,
-        )
+        extra_llm_response = await llm_with_config.agenerate([formatted_prompt])
 
         extra_llm_completions = []
         if len(extra_llm_response.generations) > 0:
