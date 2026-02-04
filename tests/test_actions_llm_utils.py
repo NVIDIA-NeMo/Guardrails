@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from langchain_core.language_models import BaseLanguageModel
@@ -27,13 +27,17 @@ from nemoguardrails.actions.llm.utils import (
     _extract_tool_calls_from_content_blocks,
     _filter_params_for_openai_reasoning_models,
     _infer_provider_from_module,
+    _log_completion,
     _store_reasoning_traces,
     _store_tool_calls,
     _stream_llm_call,
+    _update_token_stats_from_chunk,
     llm_call,
 )
-from nemoguardrails.context import reasoning_trace_var, tool_calls_var
+from nemoguardrails.context import llm_call_info_var, llm_stats_var, reasoning_trace_var, tool_calls_var
 from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.logging.stats import LLMStats
 from tests.utils import get_bound_llm_magic_mock
 
 
@@ -758,3 +762,66 @@ class TestStreamLlmCallStopCoercion:
         await _stream_llm_call(llm, "prompt", handler)
 
         assert handler.stop == ["User:"]
+
+
+class TestLogCompletion:
+    def test_logs_completion_to_llm_call_info(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info_var.set(llm_call_info)
+
+        response = AIMessage(content="This is the response")
+        _log_completion(response)
+
+        assert llm_call_info.completion == "This is the response"
+
+    def test_handles_reasoning_content(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info_var.set(llm_call_info)
+
+        response = AIMessage(
+            content="Final answer",
+            additional_kwargs={"reasoning_content": "Step 1: Think"},
+        )
+        _log_completion(response)
+
+        assert llm_call_info.completion == "Final answer"
+
+
+class TestUpdateTokenStatsFromChunk:
+    def test_extracts_from_generation_info(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info_var.set(llm_call_info)
+
+        llm_stats = LLMStats()
+        llm_stats_var.set(llm_stats)
+
+        chunk = MagicMock()
+        chunk.usage_metadata = None
+        chunk.response_metadata = None
+        chunk.generation_info = {
+            "usage": {"total_tokens": 25, "prompt_tokens": 15, "completion_tokens": 10}
+        }
+
+        _update_token_stats_from_chunk(chunk)
+
+        assert llm_call_info.total_tokens == 25
+        assert llm_call_info.prompt_tokens == 15
+        assert llm_call_info.completion_tokens == 10
+
+    def test_extracts_from_usage_metadata(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info_var.set(llm_call_info)
+
+        llm_stats = LLMStats()
+        llm_stats_var.set(llm_stats)
+
+        chunk = MagicMock()
+        chunk.usage_metadata = {"total_tokens": 30, "input_tokens": 20, "output_tokens": 10}
+        chunk.response_metadata = None
+        chunk.generation_info = None
+
+        _update_token_stats_from_chunk(chunk)
+
+        assert llm_call_info.total_tokens == 30
+        assert llm_call_info.prompt_tokens == 20
+        assert llm_call_info.completion_tokens == 10

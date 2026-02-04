@@ -19,8 +19,10 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
-from nemoguardrails.context import llm_call_info_var, llm_stats_var
-from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
+from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
+from nemoguardrails.logging.llm_tracker import track_llm_call
+from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
 
 
@@ -160,3 +162,63 @@ async def test_log_prompt_with_tool_message():
 
     assert llm_call_info.prompt is not None
     assert "[cyan]Tool[/]" in llm_call_info.prompt
+
+
+class TestTrackLlmCallDecorator:
+    @pytest.mark.asyncio
+    async def test_tracks_timing_and_appends_to_processing_log(self):
+        llm_call_info_var.set(None)
+        llm_stats_var.set(None)
+        processing_log_var.set([])
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        result = await mock_llm_call()
+
+        assert result == "response"
+
+        llm_call_info = llm_call_info_var.get()
+        assert llm_call_info is not None
+        assert llm_call_info.started_at is not None
+        assert llm_call_info.finished_at is not None
+        assert llm_call_info.duration > 0
+
+        llm_stats = llm_stats_var.get()
+        assert llm_stats.get_stat("total_calls") == 1
+
+        processing_log = processing_log_var.get()
+        assert len(processing_log) == 1
+        assert processing_log[0]["type"] == "llm_call_info"
+
+    @pytest.mark.asyncio
+    async def test_appends_to_explain_info_when_present(self):
+        llm_call_info_var.set(None)
+        llm_stats_var.set(None)
+
+        explain_info = ExplainInfo()
+        explain_info_var.set(explain_info)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        assert len(explain_info.llm_calls) == 1
+        assert explain_info.llm_calls[0].started_at is not None
+
+    @pytest.mark.asyncio
+    async def test_increments_total_time_stat(self):
+        llm_call_info_var.set(None)
+        llm_stats_var.set(None)
+
+        @track_llm_call
+        async def mock_llm_call():
+            return "response"
+
+        await mock_llm_call()
+
+        llm_stats = llm_stats_var.get()
+        assert llm_stats.get_stat("total_time") > 0
