@@ -308,6 +308,20 @@ def _init_gpt35_turbo_instruct(model_name: str, provider_name: str, kwargs: Dict
 
 
 def _init_nvidia_model(model_name: str, provider_name: str, kwargs: Dict[str, Any]) -> BaseChatModel:
+    """Initialize NVIDIA AI Endpoints model.
+
+    Args:
+        model_name: Name of the model to initialize
+        provider_name: Name of the provider to use
+        **kwargs: Additional arguments to pass to the model initialization
+
+    Returns:
+        An initialized chat model
+
+    Raises:
+        ImportError: If langchain_nvidia_ai_endpoints is not installed
+        ModelInitializationError: If model initialization fails
+    """
     try:
         from langchain_nvidia_ai_endpoints import ChatNVIDIA  # type: ignore[import-not-found]
 
