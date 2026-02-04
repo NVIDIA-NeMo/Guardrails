@@ -379,17 +379,15 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            # Await to get the iterator, then iterate
-            stream = await guardrails.stream_async(prompt="Stream this")
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
+        guardrails = Guardrails(config=mock_rails_config)
+        chunks = []
+        async for chunk in guardrails.stream_async(prompt="Stream this"):
+            chunks.append(chunk)
 
-            # Verify stream_async was called with correct messages
-            expected_messages = [{"role": "user", "content": "Stream this"}]
-            mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages)
-            assert chunks == ["chunk1", "chunk2", "chunk3"]
+        # Verify stream_async was called with correct messages
+        expected_messages = [{"role": "user", "content": "Stream this"}]
+        mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages)
+        assert chunks == ["chunk1", "chunk2", "chunk3"]
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -405,25 +403,24 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            messages = [
-                {"role": "user", "content": "Message 1"},
-                {"role": "assistant", "content": "Response 1"},
-                {"role": "user", "content": "Message 2"},
-            ]
+        guardrails = Guardrails(config=mock_rails_config)
+        messages = [
+            {"role": "user", "content": "Message 1"},
+            {"role": "assistant", "content": "Response 1"},
+            {"role": "user", "content": "Message 2"},
+        ]
 
-            stream = await guardrails.stream_async(messages=messages)
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
+        chunks = []
+        async for chunk in guardrails.stream_async(messages=messages):
+            chunks.append(chunk)
 
-            expected_messages = [
-                {"role": "user", "content": "Message 1"},
-                {"role": "assistant", "content": "Response 1"},
-                {"role": "user", "content": "Message 2"},
-            ]
-            mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages)
-            assert chunks == ["Response ", "to ", "conversation"]
+        expected_messages = [
+            {"role": "user", "content": "Message 1"},
+            {"role": "assistant", "content": "Response 1"},
+            {"role": "user", "content": "Message 2"},
+        ]
+        mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages)
+        assert chunks == ["Response ", "to ", "conversation"]
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -437,15 +434,14 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            stream = await guardrails.stream_async(prompt="Test", temperature=0.8)
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
+        guardrails = Guardrails(config=mock_rails_config)
+        chunks = []
+        async for chunk in guardrails.stream_async(prompt="Test", temperature=0.8):
+            chunks.append(chunk)
 
-            # Verify kwargs were passed through
-            expected_messages = [{"role": "user", "content": "Test"}]
-            mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages, temperature=0.8)
+        # Verify kwargs were passed through
+        expected_messages = [{"role": "user", "content": "Test"}]
+        mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages, temperature=0.8)
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -461,17 +457,16 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            stream = await guardrails.stream_async(prompt="Stream dict")
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
+        guardrails = Guardrails(config=mock_rails_config)
+        chunks = []
+        async for chunk in guardrails.stream_async(prompt="Stream dict"):
+            chunks.append(chunk)
 
-            assert chunks == [
-                {"type": "start", "data": "beginning"},
-                {"type": "content", "data": "middle"},
-                {"type": "end", "data": "finish"},
-            ]
+        assert chunks == [
+            {"type": "start", "data": "beginning"},
+            {"type": "content", "data": "middle"},
+            {"type": "end", "data": "finish"},
+        ]
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -487,13 +482,12 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            stream = await guardrails.stream_async(prompt="Empty stream")
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
+        guardrails = Guardrails(config=mock_rails_config)
+        chunks = []
+        async for chunk in guardrails.stream_async(prompt="Empty stream"):
+            chunks.append(chunk)
 
-            assert chunks == []
+        assert chunks == []
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -507,13 +501,12 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            stream = await guardrails.stream_async(prompt="Single chunk test")
-            chunks = []
-            async for chunk in stream:
-                chunks.append(chunk)
+        guardrails = Guardrails(config=mock_rails_config)
+        chunks = []
+        async for chunk in guardrails.stream_async(prompt="Single chunk test"):
+            chunks.append(chunk)
 
-            assert chunks == ["single chunk"]
+        assert chunks == ["single chunk"]
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -522,10 +515,10 @@ class TestStreamAsync:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        async with Guardrails(config=mock_rails_config) as guardrails:
-            with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
-                # Error raised during stream creation, before iteration
-                await guardrails.stream_async()
+        guardrails = Guardrails(config=mock_rails_config)
+        with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
+            # Error raised during stream creation, before iteration
+            guardrails.stream_async()
 
 
 class TestIntegration:

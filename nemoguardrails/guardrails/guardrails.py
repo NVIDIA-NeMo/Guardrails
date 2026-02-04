@@ -70,22 +70,16 @@ class Guardrails:
 
         self.llmrails = LLMRails(config, llm, verbose)
 
-        # Async work queues for managing concurrent requests
+        # Async work queue for managing concurrent generate_async requests
         self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
             name="generate_async_queue",
             max_queue_size=MAX_QUEUE_SIZE,
             max_concurrency=MAX_CONCURRENCY,
             reject_on_full=True,
         )
-        self._stream_async_queue: AsyncWorkQueue = AsyncWorkQueue(
-            name="stream_async_queue",
-            max_queue_size=MAX_QUEUE_SIZE,
-            max_concurrency=MAX_CONCURRENCY,
-            reject_on_full=True,
-        )
 
         # List of all queues for lifecycle management
-        self._queues = [self._generate_async_queue, self._stream_async_queue]
+        self._queues = [self._generate_async_queue]
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
@@ -143,23 +137,13 @@ class Guardrails:
         response = await self._generate_async_queue.submit(self.llmrails.generate_async, messages=messages, **kwargs)
         return response
 
-    async def stream_async(
+    def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
-        """Generate an LLM response asynchronously with streaming support.
-
-        Note: This method queues the stream initiation for concurrency control,
-        then returns the async iterator for the caller to consume.
-        """
+        """Generate an LLM response asynchronously with streaming support."""
 
         messages = self._convert_to_messages(prompt, messages)
-
-        # Queue the stream initiation (returns the AsyncIterator)
-        async def initiate_stream() -> AsyncIterator[str | dict]:
-            return self.llmrails.stream_async(messages=messages, **kwargs)
-
-        stream_iterator = await self._stream_async_queue.submit(initiate_stream)
-        return stream_iterator
+        return self.llmrails.stream_async(messages=messages, **kwargs)
 
     def explain(self) -> ExplainInfo:
         """Get the latest ExplainInfo object for debugging."""
