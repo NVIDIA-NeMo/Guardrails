@@ -19,8 +19,8 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.llmrails import (
     _determine_rails_from_messages,
     _get_blocking_rail,
-    _get_content_by_role,
-    _get_response_content,
+    _get_last_content_by_role,
+    _get_last_response_content,
     _normalize_messages_for_rails,
 )
 from nemoguardrails.rails.llm.options import ActivatedRail, GenerationLog, GenerationResponse, RailStatus
@@ -144,29 +144,29 @@ class TestNormalizeMessagesForRails:
 class TestGetContentByRole:
     def test_get_user_content(self):
         messages = [{"role": "user", "content": "hello"}]
-        assert _get_content_by_role(messages, "user") == "hello"
+        assert _get_last_content_by_role(messages, "user") == "hello"
 
     def test_get_assistant_content(self):
         messages = [{"role": "assistant", "content": "hi there"}]
-        assert _get_content_by_role(messages, "assistant") == "hi there"
+        assert _get_last_content_by_role(messages, "assistant") == "hi there"
 
     def test_returns_last_matching_role(self):
         messages = [
             {"role": "user", "content": "first"},
             {"role": "user", "content": "second"},
         ]
-        assert _get_content_by_role(messages, "user") == "second"
+        assert _get_last_content_by_role(messages, "user") == "second"
 
     def test_role_not_found_returns_empty(self):
         messages = [{"role": "system", "content": "Be helpful"}]
-        assert _get_content_by_role(messages, "user") == ""
+        assert _get_last_content_by_role(messages, "user") == ""
 
     def test_empty_messages_returns_empty(self):
-        assert _get_content_by_role([], "user") == ""
+        assert _get_last_content_by_role([], "user") == ""
 
     def test_missing_content_returns_empty(self):
         messages = [{"role": "user"}]
-        assert _get_content_by_role(messages, "user") == ""
+        assert _get_last_content_by_role(messages, "user") == ""
 
 
 class TestGetBlockingRail:
@@ -204,11 +204,11 @@ class TestGetBlockingRail:
 class TestGetResponseContent:
     def test_string_response(self):
         response = GenerationResponse(response="hello world")
-        assert _get_response_content(response) == "hello world"
+        assert _get_last_response_content(response) == "hello world"
 
     def test_list_response_with_content(self):
         response = GenerationResponse(response=[{"role": "assistant", "content": "hello"}])
-        assert _get_response_content(response) == "hello"
+        assert _get_last_response_content(response) == "hello"
 
     def test_list_response_multiple_messages(self):
         response = GenerationResponse(
@@ -217,15 +217,15 @@ class TestGetResponseContent:
                 {"role": "assistant", "content": "second"},
             ]
         )
-        assert _get_response_content(response) == "second"
+        assert _get_last_response_content(response) == "second"
 
     def test_empty_list_response(self):
         response = GenerationResponse(response=[])
-        assert _get_response_content(response) == ""
+        assert _get_last_response_content(response) == ""
 
     def test_list_response_missing_content(self):
         response = GenerationResponse(response=[{"role": "assistant"}])
-        assert _get_response_content(response) == ""
+        assert _get_last_response_content(response) == ""
 
 
 @pytest.fixture
@@ -334,6 +334,16 @@ class TestCheckAsyncIntegration:
         assert result.status == RailStatus.BLOCKED
 
     @pytest.mark.asyncio
+    async def test_input_output_input_modified_returns_passed(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "modify"},
+            {"role": "assistant", "content": "hi there"},
+        ]
+        result = await mock_rails.check_async(messages)
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hi there"
+
+    @pytest.mark.asyncio
     async def test_no_user_or_assistant_returns_passed(self, mock_rails):
         messages = [{"role": "system", "content": "Be helpful"}]
         result = await mock_rails.check_async(messages)
@@ -376,3 +386,9 @@ class TestCheckAsyncIntegration:
         result = await mock_rails.check_async(messages)
         assert result.status == RailStatus.PASSED
         assert result.content == "fine"
+
+    def test_check_sync_wrapper(self, mock_rails):
+        messages = [{"role": "user", "content": "hello"}]
+        result = mock_rails.check(messages)
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hello"

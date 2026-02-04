@@ -1485,9 +1485,9 @@ class LLMRails:
 
         rails_to_run = options["rails"]
         if "output" in rails_to_run:
-            original_content = _get_content_by_role(messages, "assistant")
+            original_content = _get_last_content_by_role(messages, "assistant")
         else:
-            original_content = _get_content_by_role(messages, "user")
+            original_content = _get_last_content_by_role(messages, "user")
 
         messages = _normalize_messages_for_rails(messages, rails_to_run)
         options["log"] = {"activated_rails": True}
@@ -1498,7 +1498,7 @@ class LLMRails:
             raise RuntimeError(f"Expected GenerationResponse, got {type(response).__name__}")
 
         blocking_rail = _get_blocking_rail(response)
-        result_content = _get_response_content(response)
+        result_content = _get_last_response_content(response)
 
         if blocking_rail:
             return RailsResult(status=RailStatus.BLOCKED, content=result_content, rail=blocking_rail)
@@ -1864,7 +1864,7 @@ def _normalize_messages_for_rails(
     return messages
 
 
-def _get_content_by_role(messages: List[dict], role: str) -> str:
+def _get_last_content_by_role(messages: List[dict], role: str) -> str:
     for msg in reversed(messages):
         if msg.get("role") == role:
             return msg.get("content", "")
@@ -1879,7 +1879,7 @@ def _get_blocking_rail(response: "GenerationResponse") -> Optional[str]:
     return None
 
 
-def _get_response_content(response: "GenerationResponse") -> str:
+def _get_last_response_content(response: "GenerationResponse") -> str:
     if isinstance(response.response, list) and response.response:
         return response.response[-1].get("content", "")
     if isinstance(response.response, str):
