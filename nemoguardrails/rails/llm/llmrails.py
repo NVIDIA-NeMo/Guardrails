@@ -1456,7 +1456,8 @@ class LLMRails:
 
         Args:
             messages: List of message dicts with 'role' and 'content' fields.
-                     Supported roles: user, assistant, system, context, tool.
+                     Messages can contain any roles, but only user/assistant roles
+                     determine which rails execute.
 
         Returns:
             RailsResult containing:
