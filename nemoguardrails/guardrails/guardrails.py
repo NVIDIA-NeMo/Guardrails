@@ -64,7 +64,6 @@ class Guardrails:
     ):
         """Initialize a Guardrails instance."""
 
-        print("TIM: Creating Guardrails top-level wrapper")
         self.config = config
         self.llm = llm
         self.verbose = verbose
