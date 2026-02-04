@@ -413,17 +413,26 @@ class TestLifecycle:
         assert len(completed) < 10
 
     @pytest.mark.asyncio
-    async def test_submit_before_start_raises_error(self):
-        """Test that submitting before start raises RuntimeError."""
+    async def test_lazy_initialization_on_first_submit(self):
+        """Test that queue auto-starts on first submission (lazy initialization)."""
 
         async def task():
             return 42
 
         queue = AsyncWorkQueue[int](name="test_queue", max_queue_size=10, max_concurrency=2)
 
-        # Don't start the queue
-        with pytest.raises(RuntimeError, match="is not running"):
-            await queue.submit(task)
+        # Queue should not be running yet
+        assert not queue._running
+
+        # First submission should auto-start the queue
+        result = await queue.submit(task)
+
+        # Queue should now be running
+        assert queue._running
+        assert result == 42
+
+        # Cleanup
+        await queue.stop()
 
     @pytest.mark.asyncio
     async def test_double_start_is_idempotent(self):

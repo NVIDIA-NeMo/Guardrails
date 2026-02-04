@@ -103,9 +103,13 @@ class AsyncWorkQueue(Generic[T]):
         If queue is full:
             - self._reject_on_full=True  -> Raises asyncio.QueueFull
             - self._reject_on_full=False -> Blocks caller until slot opens
+
+        Note: Automatically starts the queue on first submission (lazy initialization).
         """
+        # Lazy initialization: auto-start on first use
         if not self._running:
-            raise RuntimeError("AdmissionController is not running. Call start() first.")
+            log.info("AsyncWorkQueue %s not running on first task submit, starting now", self._name)
+            await self.start()
 
         loop = asyncio.get_running_loop()
         future = loop.create_future()
