@@ -14,10 +14,13 @@
 # limitations under the License.
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Generic, List, Tuple, TypeVar
 
 T = TypeVar("T")
+
+log = logging.getLogger(__name__)
 
 
 # --- IMMUTABLE WORK ITEM ---
@@ -34,6 +37,10 @@ class WorkItem(Generic[T]):
 class AsyncWorkQueue(Generic[T]):
     """Async Work Queue with static concurrency and queue size"""
 
+    # Time (seconds) to wait before restarting a crashed worker loop.
+    # Prevents CPU spin if the error is persistent.
+    WORKER_ERROR_BACKOFF_SECONDS: float = 0.1
+
     def __init__(self, name: str, max_queue_size: int, max_concurrency: int, reject_on_full: bool = False) -> None:
         self._name = name  # Used in logging to identify overflows
         self._max_queue_size = max_queue_size
@@ -43,13 +50,31 @@ class AsyncWorkQueue(Generic[T]):
         # Internal state
         self._queue: asyncio.Queue[WorkItem[T]] = asyncio.Queue(maxsize=max_queue_size)
         self._workers: List[asyncio.Task] = []
+        self._busy_count = 0
         self._running = False
+
+    def num_busy_workers(self) -> int:
+        """Returns the number of workers currently executing a task."""
+        return self._busy_count
+
+    def is_queue_full(self) -> bool:
+        """Returns True if the queue is currently full."""
+        return self._queue.full()
+
+    def is_queue_empty(self) -> bool:
+        """Returns True if the queue has zero pending items."""
+        return self._queue.empty()
+
+    def is_busy(self) -> bool:
+        """Returns True if any worker is currently executing a task."""
+        return self._busy_count > 0
 
     async def start(self) -> None:
         """Starts the worker pool. Call this during service startup."""
         if self._running:
             return
         self._running = True
+        self._busy_count = 0
         self._workers = []
         for i in range(self._max_concurrency):
             task = asyncio.create_task(self._worker_loop(), name=f"{self._name}_worker_id{i}")
@@ -70,6 +95,7 @@ class AsyncWorkQueue(Generic[T]):
         # Swallow cancellations to prevent noise during shutdown
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers = []
+        self._busy_count = 0
 
     async def submit(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """
@@ -105,6 +131,7 @@ class AsyncWorkQueue(Generic[T]):
                     continue
 
                 try:
+                    self._busy_count += 1  # No race condition since it's not await'ed
                     result = await item.func(*item.args, **item.kwargs)
                     if not item.future.cancelled():
                         item.future.set_result(result)
@@ -112,13 +139,19 @@ class AsyncWorkQueue(Generic[T]):
                     if not item.future.cancelled():
                         item.future.set_exception(e)
                 finally:
+                    self._busy_count -= 1  # No race condition since it's not await'ed
                     self._queue.task_done()
 
             except asyncio.CancelledError:
                 break
-            except Exception:
-                # In production, use logger.exception("Worker error") here
-                pass
+
+            except Exception as e:
+                task = asyncio.current_task()
+                worker_name = task.get_name() if task else "unknown-worker"
+                log.critical(f"{worker_name} crashed due to {type(e).__name__}: {e}", exc_info=True)
+
+                # Wait before the worker goes back to waiting for new work queue items
+                await asyncio.sleep(self.WORKER_ERROR_BACKOFF_SECONDS)
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""
