@@ -1507,6 +1507,25 @@ class LLMRails:
             return RailsResult(status=RailStatus.MODIFIED, content=result_content)
         return RailsResult(status=RailStatus.PASSED, content=result_content)
 
+    def check(self, messages: List[dict]) -> RailsResult:
+        """Run rails on messages based on their content (synchronous).
+
+        This is a synchronous wrapper around check_async().
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' fields.
+
+        Returns:
+            RailsResult containing status, content, and optional blocking rail name.
+        """
+        if check_sync_call_from_async_loop():
+            raise RuntimeError(
+                "You are using the sync `check` inside async code. You should replace with `await check_async(...)`."
+            )
+
+        loop = get_or_create_event_loop()
+        return loop.run_until_complete(self.check_async(messages))
+
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""
         self.runtime.register_action(action, name)
