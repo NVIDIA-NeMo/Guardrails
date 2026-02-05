@@ -112,12 +112,7 @@ class TestConvertToMessages:
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
-        expected = [
-            {"role": "user", "content": "What is AI?"},
-            {"role": "assistant", "content": "AI is artificial intelligence."},
-            {"role": "user", "content": "Tell me more."},
-        ]
-        assert result == expected
+        assert result == messages
 
     def test_messages_with_system_message(self):
         """Test conversion with system message."""
@@ -127,12 +122,7 @@ class TestConvertToMessages:
         ]
         result = Guardrails._convert_to_messages(messages=messages)
 
-        expected = [
-            {"role": "user", "content": "What is AI?"},
-            {"role": "assistant", "content": "AI is artificial intelligence."},
-            {"role": "user", "content": "Tell me more."},
-        ]
-        assert result == expected
+        assert result == messages
 
     def test_empty_messages_list(self):
         """Test conversion with empty messages list raises ValueError."""
@@ -141,14 +131,11 @@ class TestConvertToMessages:
         with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
             Guardrails._convert_to_messages(messages=messages)
 
-    def test_prompt_takes_priority_over_messages(self):
+    def test_messages_take_priority_over_prompt(self):
         """Test that messages parameter takes priority when both are provided."""
         messages = [{"role": "user", "content": "From messages"}]
         result = Guardrails._convert_to_messages(prompt="From prompt", messages=messages)
-
-        # Messages should take priority
-        expected = [{"role": "user", "content": "From messages"}]
-        assert result == expected
+        assert result == messages
 
     def test_neither_prompt_nor_messages_raises_error(self):
         """Test that providing neither prompt nor messages raises ValueError."""
@@ -206,14 +193,7 @@ class TestGenerate:
             {"role": "user", "content": "Tell me more."},
         ]
         result = guardrails.generate(messages=messages)
-
-        # Verify generate was called with converted messages
-        expected_messages = [
-            {"role": "user", "content": "What is AI?"},
-            {"role": "assistant", "content": "AI is artificial intelligence."},
-            {"role": "user", "content": "Tell me more."},
-        ]
-        mock_llmrails_instance.generate.assert_called_once_with(messages=expected_messages)
+        mock_llmrails_instance.generate.assert_called_once_with(messages=messages)
         assert result == "Response to conversation"
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
@@ -450,10 +430,16 @@ class TestStreamAsync:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
+        return_chunks = [
+            {"type": "start", "data": "beginning"},
+            {"type": "content", "data": "middle"},
+            {"type": "end", "data": "finish"},
+        ]
+
         async def mock_stream():
-            yield {"type": "start", "data": "beginning"}
-            yield {"type": "content", "data": "middle"}
-            yield {"type": "end", "data": "finish"}
+            yield return_chunks[0]
+            yield return_chunks[1]
+            yield return_chunks[2]
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
@@ -462,11 +448,7 @@ class TestStreamAsync:
         async for chunk in guardrails.stream_async(prompt="Stream dict"):
             chunks.append(chunk)
 
-        assert chunks == [
-            {"type": "start", "data": "beginning"},
-            {"type": "content", "data": "middle"},
-            {"type": "end", "data": "finish"},
-        ]
+        assert chunks == return_chunks
 
     @pytest.mark.asyncio
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
