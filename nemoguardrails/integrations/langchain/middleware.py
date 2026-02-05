@@ -13,12 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from langchain.agents.middleware.types import AgentMiddleware, AgentState, hook_config
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
+if TYPE_CHECKING:
+    from langgraph.runtime import Runtime as LangGraphRuntime
 from nemoguardrails.integrations.langchain.exceptions import GuardrailViolation
 from nemoguardrails.integrations.langchain.message_utils import (
     create_ai_message,
@@ -99,7 +103,7 @@ class GuardrailsMiddleware(AgentMiddleware):
             log.warning(failure_message)
 
     @hook_config(can_jump_to=["end"])
-    async def abefore_model(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    async def abefore_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         if not self.enable_input_rails or not self._has_input_rails():
             return None
 
@@ -137,7 +141,7 @@ class GuardrailsMiddleware(AgentMiddleware):
             blocked_msg = create_ai_message(self.blocked_input_message)
             return {"messages": messages + [blocked_msg], "jump_to": "end"}
 
-    async def aafter_model(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    async def aafter_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         if not self.enable_output_rails or not self._has_output_rails():
             return None
 
@@ -182,7 +186,7 @@ class GuardrailsMiddleware(AgentMiddleware):
             return {"messages": new_messages}
 
     @hook_config(can_jump_to=["end"])
-    def before_model(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    def before_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         if not self.enable_input_rails or not self._has_input_rails():
             return None
 
@@ -193,7 +197,7 @@ class GuardrailsMiddleware(AgentMiddleware):
         loop = get_or_create_event_loop()
         return loop.run_until_complete(self.abefore_model(state, runtime))
 
-    def after_model(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    def after_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         if not self.enable_output_rails or not self._has_output_rails():
             return None
 
@@ -227,10 +231,10 @@ class InputRailsMiddleware(GuardrailsMiddleware):
             enable_output_rails=False,
         )
 
-    async def aafter_model(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    async def aafter_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         return None
 
-    def after_agent(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    def after_agent(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         return None
 
 
@@ -253,9 +257,9 @@ class OutputRailsMiddleware(GuardrailsMiddleware):
         )
 
     @hook_config(can_jump_to=["end"])
-    async def abefore_model(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    async def abefore_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         return None
 
     @hook_config(can_jump_to=["end"])
-    def before_agent(self, state: AgentState, runtime: Any) -> Optional[Dict[str, Any]]:
+    def before_agent(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         return None
