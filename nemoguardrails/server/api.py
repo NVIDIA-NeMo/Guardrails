@@ -313,7 +313,13 @@ def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRa
         if not engine:
             engine = "openai"
             log.warning("MAIN_MODEL_ENGINE not set, defaulting to 'openai'. ")
-        main_model = Model(model=model_name, type="main", engine=engine)
+
+        parameters = {}
+        base_url = os.environ.get("MAIN_MODEL_BASE_URL")
+        if base_url:
+            parameters["base_url"] = base_url
+
+        main_model = Model(model=model_name, type="main", engine=engine, parameters=parameters)
         full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
 
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
