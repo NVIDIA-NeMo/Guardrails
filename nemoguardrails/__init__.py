@@ -35,7 +35,7 @@ nemoguardrails.patch_asyncio.apply()
 warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
 
 # Use Guardrails top-level if this environment variable is set
-_use_guardrails_wrapper = os.environ.get("NEMO_USE_GUARDRAILS_WRAPPER", "").lower() in (
+_use_guardrails_wrapper = os.environ.get("NEMO_GUARDRAILS_IORAILS_ENGINE", "").lower() in (
     "true",
     "1",
     "yes",
