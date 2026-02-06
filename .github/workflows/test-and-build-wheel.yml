@@ -104,7 +104,8 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install poetry==1.8.2
-          pip install ./*.whl
+          WHEEL=$(ls nemoguardrails-*.whl)
+          pip install "${WHEEL}[server]"
 
       - name: Start server in the background
         run: |
