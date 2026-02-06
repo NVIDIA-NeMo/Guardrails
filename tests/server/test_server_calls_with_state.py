@@ -15,6 +15,8 @@
 import os
 
 import pytest
+
+pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
 from nemoguardrails.server import api

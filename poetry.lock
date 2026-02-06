@@ -935,7 +935,7 @@ files = [
 name = "distro"
 version = "1.9.0"
 description = "Distro - an OS platform information API"
-optional = true
+optional = false
 python-versions = ">=3.6"
 files = [
     {file = "distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"},
@@ -1841,7 +1841,7 @@ i18n = ["Babel (>=2.7)"]
 name = "jiter"
 version = "0.10.0"
 description = "Fast iterable JSON parser."
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "jiter-0.10.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:cd2fb72b02478f06a900a5782de2ef47e0396b3e1f7d5aba30daeb1fce66f303"},
@@ -3041,7 +3041,7 @@ sympy = "*"
 name = "openai"
 version = "2.15.0"
 description = "The official Python library for the openai API"
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "openai-2.15.0-py3-none-any.whl", hash = "sha256:6ae23b932cd7230f7244e52954daa6602716d6b9bf235401a107af731baea6c3"},
@@ -6642,4 +6642,4 @@ tracing = ["aiofiles", "opentelemetry-api"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "ad9330eed607f0fe11b9143663657b65e2b0957b63213fd06210b5ae1ceec7c3"
+content-hash = "095bfe5df1e2f0090df62d769e7beb893efd526ec485b46d49ba9ad7b90b12af"
