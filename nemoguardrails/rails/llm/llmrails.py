@@ -96,6 +96,8 @@ from nemoguardrails.rails.llm.options import (
     GenerationLog,
     GenerationOptions,
     GenerationResponse,
+    RailsResult,
+    RailStatus,
 )
 from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
@@ -380,24 +382,6 @@ class LLMRails:
         kwargs["stream_usage"] = True
 
         return kwargs
-
-    def _configure_main_llm_streaming(
-        self,
-        llm: Union[BaseLLM, BaseChatModel],
-        model_name: Optional[str] = None,
-        provider_name: Optional[str] = None,
-    ):
-        """Configure streaming support for the main LLM.
-
-        Args:
-            llm (Union[BaseLLM, BaseChatModel]): The main LLM model instance.
-            model_name (Optional[str], optional): Optional model name for logging.
-            provider_name (Optional[str], optional): Optional provider name for logging.
-
-        """
-
-        if hasattr(llm, "streaming"):
-            setattr(llm, "streaming", True)
 
     def _init_llms(self):
         """
@@ -826,13 +810,6 @@ class LLMRails:
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
-            if self.llm is None:
-                raise StreamingNotSupportedError(
-                    "Streaming requires a main LLM to be configured. "
-                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
-                    "model in your config.yml under the 'models' section."
-                )
-            self._configure_main_llm_streaming(self.llm)
 
         # Initialize the object with additional explanation information.
         # We allow this to also be set externally. This is useful when multiple parallel
@@ -1231,14 +1208,6 @@ class LLMRails:
 
         streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
 
-        if self.llm is None:
-            raise StreamingNotSupportedError(
-                "Streaming requires a main LLM to be configured. "
-                "Either pass an LLM to the LLMRails constructor or set a 'main' "
-                "model in your config.yml under the 'models' section."
-            )
-        self._configure_main_llm_streaming(self.llm)
-
         # Create a properly managed task with exception handling
         async def _generation_task():
             try:
@@ -1350,15 +1319,6 @@ class LLMRails:
         llm_stats = LLMStats()
         llm_stats_var.set(llm_stats)
 
-        if streaming_handler_var.get():
-            if self.llm is None:
-                raise StreamingNotSupportedError(
-                    "Streaming requires a main LLM to be configured. "
-                    "Either pass an LLM to the LLMRails constructor or set a 'main' "
-                    "model in your config.yml under the 'models' section."
-                )
-            self._configure_main_llm_streaming(self.llm)
-
         # Compute the new events.
         processing_log = []
         new_events = await self.runtime.generate_events(events, processing_log=processing_log)
@@ -1442,6 +1402,87 @@ class LLMRails:
 
         loop = get_or_create_event_loop()
         return loop.run_until_complete(self.process_events_async(events, state, blocking))
+
+    async def check_async(self, messages: List[dict]) -> RailsResult:
+        """Run rails on messages based on their content (asynchronous).
+
+        Automatically determines which rails to run:
+        - Only user messages: runs input rails
+        - Only assistant messages: runs output rails
+        - Both user and assistant messages: runs both input and output rails
+        - No user/assistant messages: logs warning and returns passing result
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' fields.
+                     Messages can contain any roles, but only user/assistant roles
+                     determine which rails execute.
+
+        Returns:
+            RailsResult containing:
+            - status: PASSED, MODIFIED, or BLOCKED
+            - content: The final content after rails processing
+            - rail: Name of the rail that blocked (if blocked)
+
+        Examples:
+            Check user input:
+                result = await rails.check_async([{"role": "user", "content": "Hello!"}])
+                if result.status == RailStatus.BLOCKED:
+                    print(f"Blocked by: {result.rail}")
+
+            Check bot output with context:
+                result = await rails.check_async([
+                    {"role": "user", "content": "Hello!"},
+                    {"role": "assistant", "content": "Hi there!"}
+                ])
+        """
+        options = _determine_rails_from_messages(messages)
+
+        if options is None:
+            last_content = messages[-1].get("content", "") if messages else ""
+            return RailsResult(status=RailStatus.PASSED, content=last_content)
+
+        rails_to_run = options["rails"]
+        if "output" in rails_to_run:
+            original_content = _get_last_content_by_role(messages, "assistant")
+        else:
+            original_content = _get_last_content_by_role(messages, "user")
+
+        messages = _normalize_messages_for_rails(messages, rails_to_run)
+        options["log"] = {"activated_rails": True}
+
+        response = await self.generate_async(messages=messages, options=options)
+
+        if not isinstance(response, GenerationResponse):
+            raise RuntimeError(f"Expected GenerationResponse, got {type(response).__name__}")
+
+        blocking_rail = _get_blocking_rail(response)
+        result_content = _get_last_response_content(response)
+
+        if blocking_rail:
+            return RailsResult(status=RailStatus.BLOCKED, content=result_content, rail=blocking_rail)
+
+        if result_content != original_content:
+            return RailsResult(status=RailStatus.MODIFIED, content=result_content)
+        return RailsResult(status=RailStatus.PASSED, content=result_content)
+
+    def check(self, messages: List[dict]) -> RailsResult:
+        """Run rails on messages based on their content (synchronous).
+
+        This is a synchronous wrapper around check_async().
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' fields.
+
+        Returns:
+            RailsResult containing status, content, and optional blocking rail name.
+        """
+        if check_sync_call_from_async_loop():
+            raise RuntimeError(
+                "You are using the sync `check` inside async code. You should replace with `await check_async(...)`."
+            )
+
+        loop = get_or_create_event_loop()
+        return loop.run_until_complete(self.check_async(messages))
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""
@@ -1766,3 +1807,58 @@ class LLMRails:
                 # yield the individual chunks directly from the buffer strategy
                 for chunk in user_output_chunks:
                     yield chunk
+
+
+def _determine_rails_from_messages(messages: List[dict]) -> Optional[dict]:
+    roles = {msg.get("role") for msg in reversed(messages)}
+    has_user = "user" in roles
+    has_assistant = "assistant" in roles
+
+    if not has_user and not has_assistant:
+        log.warning(
+            "check() called with no user or assistant messages. "
+            "Only system, context, or tool messages found. "
+            "Returning passing result without running rails."
+        )
+        return None
+
+    if has_user and has_assistant:
+        return {"rails": ["input", "output"]}
+    if has_user:
+        return {"rails": ["input"]}
+    return {"rails": ["output"]}
+
+
+def _normalize_messages_for_rails(
+    messages: List[dict],
+    rails: List[str],
+) -> List[dict]:
+    if rails == ["output"]:
+        has_user = any(msg.get("role") == "user" for msg in messages)
+        if not has_user:
+            return [{"role": "user", "content": ""}] + messages
+
+    return messages
+
+
+def _get_last_content_by_role(messages: List[dict], role: str) -> str:
+    for msg in reversed(messages):
+        if msg.get("role") == role:
+            return msg.get("content", "")
+    return ""
+
+
+def _get_blocking_rail(response: "GenerationResponse") -> Optional[str]:
+    if response.log and response.log.activated_rails:
+        for rail in response.log.activated_rails:
+            if rail.stop:
+                return rail.name
+    return None
+
+
+def _get_last_response_content(response: "GenerationResponse") -> str:
+    if isinstance(response.response, list) and response.response:
+        return response.response[-1].get("content", "")
+    if isinstance(response.response, str):
+        return response.response
+    return ""

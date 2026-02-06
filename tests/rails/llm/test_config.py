@@ -13,14 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
 
 import pytest
-from langchain_core.language_models import BaseLLM
 from pydantic import ValidationError
 
 from nemoguardrails.rails.llm.config import Model, RailsConfig, TaskPrompt
-from nemoguardrails.rails.llm.llmrails import LLMRails
 
 
 def test_task_prompt_valid_content():
@@ -298,18 +295,3 @@ def test_rails_config_none_config_path():
 
     result2 = config3 + config4
     assert result2.config_path == ""
-
-
-def test_llm_rails_configure_streaming_with_attr():
-    """Check LLM has the streaming attribute set when _configure_main_llm_streaming is called"""
-
-    mock_llm = MagicMock(spec=BaseLLM)
-    config = RailsConfig(
-        models=[],
-    )
-
-    rails = LLMRails(config, llm=mock_llm)
-    setattr(mock_llm, "streaming", None)
-    rails._configure_main_llm_streaming(llm=mock_llm)
-
-    assert mock_llm.streaming

@@ -15,7 +15,7 @@
 
 import logging
 import re
-from typing import Dict, List, NoReturn, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Sequence, Union
 
 from langchain_core.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
 from langchain_core.language_models import BaseLanguageModel
@@ -34,6 +34,9 @@ from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
 from nemoguardrails.logging.callbacks import logging_callbacks
 from nemoguardrails.logging.explain import LLMCallInfo
+
+if TYPE_CHECKING:
+    from nemoguardrails.streaming import StreamingHandler
 
 logger = logging.getLogger(__name__)
 
@@ -175,8 +178,12 @@ async def llm_call(
     stop: Optional[List[str]] = None,
     custom_callback_handlers: Optional[Sequence[AsyncCallbackHandler]] = None,
     llm_params: Optional[dict] = None,
+    streaming_handler: Optional["StreamingHandler"] = None,
 ) -> str:
     """Calls the LLM with a prompt and returns the generated text.
+
+    If streaming_handler is provided, uses astream() to push chunks to the handler
+    as they arrive. The handler can be iterated over concurrently by other code.
 
     Args:
         llm: The language model instance to use
@@ -184,8 +191,9 @@ async def llm_call(
         model_name: Optional model name for tracking
         model_provider: Optional model provider for tracking
         stop: Optional list of stop tokens
-        custom_callback_handlers: Optional list of callback handlers
+        custom_callback_handlers: Optional list of callback handlers (not used when streaming; logging callbacks remain active)
         llm_params: Optional configuration dictionary to pass to the LLM (e.g., temperature, max_tokens)
+        streaming_handler: Optional StreamingHandler to receive streaming chunks
 
     Returns:
         The generated text response
@@ -193,20 +201,62 @@ async def llm_call(
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
     _setup_llm_call_info(llm, model_name, model_provider)
-    all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
     filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params)
     generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**filtered_params) if filtered_params else llm
 
-    if isinstance(prompt, str):
-        response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks, stop)
+    if streaming_handler:
+        return await _stream_llm_call(generation_llm, prompt, streaming_handler, stop)
     else:
-        response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks, stop)
+        all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
-    _store_reasoning_traces(response)
-    _store_tool_calls(response)
-    _store_response_metadata(response)
-    return _extract_content(response)
+        if isinstance(prompt, str):
+            response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks, stop)
+        else:
+            response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks, stop)
+
+        _store_reasoning_traces(response)
+        _store_tool_calls(response)
+        _store_response_metadata(response)
+        return _extract_content(response)
+
+
+async def _stream_llm_call(
+    llm: Union[BaseLanguageModel, Runnable],
+    prompt: Union[str, List[dict]],
+    handler: "StreamingHandler",
+    stop: Optional[List[str]],
+) -> str:
+    """Stream LLM response using astream().
+
+    Pushes each chunk to the handler's queue. Another consumer can
+    iterate over the handler concurrently to receive chunks.
+    """
+    if isinstance(prompt, list):
+        messages = _convert_messages_to_langchain_format(prompt)
+    else:
+        messages = prompt
+
+    handler.stop = stop or []
+
+    try:
+        async for chunk in llm.astream(messages, stop=stop, config=RunnableConfig(callbacks=logging_callbacks)):
+            if hasattr(chunk, "content"):
+                content = chunk.content
+            else:
+                content = str(chunk)
+
+            generation_info = None
+            if hasattr(chunk, "response_metadata"):
+                generation_info = chunk.response_metadata
+
+            await handler.push_chunk(content, generation_info)
+
+        await handler.finish()
+        return handler.completion
+
+    except Exception as e:
+        _raise_llm_call_exception(e, llm)
 
 
 def _setup_llm_call_info(llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]) -> None:

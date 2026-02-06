@@ -22,8 +22,23 @@ from nemoguardrails.server.api import register_datastore
 from nemoguardrails.server.datastore.memory_store import MemoryStore
 
 register_datastore(MemoryStore())
-api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "test_configs", "simple_server")
 client = TestClient(api.app)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_test_env():
+    original_path = api.app.rails_config_path
+    original_engine = os.environ.get("MAIN_MODEL_ENGINE")
+    api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server")
+    os.environ["MAIN_MODEL_ENGINE"] = "custom_llm"
+    api.llm_rails_instances.clear()
+    yield
+    api.app.rails_config_path = original_path
+    api.llm_rails_instances.clear()
+    if original_engine is not None:
+        os.environ["MAIN_MODEL_ENGINE"] = original_engine
+    else:
+        os.environ.pop("MAIN_MODEL_ENGINE", None)
 
 
 def test_get():
@@ -39,38 +54,43 @@ def test_1():
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "config_1",
-            "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
+            "model": "gpt-4o",
             "messages": [
                 {
                     "content": "hi",
                     "role": "user",
                 }
             ],
+            "guardrails": {
+                "config_id": "config_1",
+                "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
+            },
         },
     )
     assert response.status_code == 200
     res = response.json()
-    assert len(res["messages"]) == 1
-    assert res["messages"][0]["content"] == "Hello!"
+    assert "choices" in res
+    assert "message" in res["choices"][0]
+    assert res["choices"][0]["message"]["content"] == "Hello!"
 
-    # When making a second call with the same thread_id, the conversations should continue
-    # and we should get the "Hello again!" message.
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "config_1",
-            "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
+            "model": "gpt-4o",
             "messages": [
                 {
                     "content": "hi",
                     "role": "user",
                 }
             ],
+            "guardrails": {
+                "config_id": "config_1",
+                "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
+            },
         },
     )
     res = response.json()
-    assert res["messages"][0]["content"] == "Hello again!"
+    assert res["choices"][0]["message"]["content"] == "Hello again!"
 
 
 @pytest.mark.parametrize(
@@ -84,12 +104,15 @@ def test_1():
     ],
 )
 def test_thread_id(thread_id, status_code):
+    guardrails_data = {"config_id": "config_1"}
+    if thread_id is not None:
+        guardrails_data["thread_id"] = thread_id
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "config_1",
-            "thread_id": thread_id,
+            "model": "gpt-4o",
             "messages": [{"content": "hi", "role": "user"}],
+            "guardrails": guardrails_data,
         },
     )
     assert response.status_code == status_code
@@ -103,14 +126,16 @@ def test_with_redis():
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "config_1",
-            "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
             "messages": [
                 {
                     "content": "hi",
                     "role": "user",
                 }
             ],
+            "guardrails": {
+                "config_id": "config_1",
+                "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
+            },
         },
     )
     assert response.status_code == 200
@@ -118,24 +143,22 @@ def test_with_redis():
     assert len(res["messages"]) == 1
     assert res["messages"][0]["content"] == "Hello!"
 
-    # Because of an issue with aiohttp and how the TestClient closes the event loop,
-    # We have to register this again here to make the test work.
     register_datastore(RedisStore("redis://localhost/1"))
 
-    # When making a second call with the same thread_id, the conversations should continue
-    # and we should get the "Hello again!" message.
     response = client.post(
         "/v1/chat/completions",
         json={
-            "config_id": "config_1",
-            "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
             "messages": [
                 {
                     "content": "hi",
                     "role": "user",
                 }
             ],
+            "guardrails": {
+                "config_id": "config_1",
+                "thread_id": "as9d8f7s9d8f7a9s8df79asdf879",
+            },
         },
     )
     res = response.json()
-    assert res["messages"][0]["content"] == "Hello again!"
+    assert res["choices"][0]["message"]["content"] == "Hello again!"

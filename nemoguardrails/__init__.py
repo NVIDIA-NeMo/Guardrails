@@ -26,13 +26,27 @@ if not os.environ.get("TOKENIZERS_PARALLELISM"):
 
 import warnings
 
-from . import patch_asyncio
-from .rails import LLMRails, RailsConfig
+import nemoguardrails.patch_asyncio
+from nemoguardrails.rails import RailsConfig
 
-patch_asyncio.apply()
+nemoguardrails.patch_asyncio.apply()
 
 # Ignore a warning message from torch.
 warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
+
+# Use Guardrails top-level if this environment variable is set
+_use_guardrails_wrapper = os.environ.get("NEMO_GUARDRAILS_IORAILS_ENGINE", "").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
+if _use_guardrails_wrapper:
+    # Use the Guardrails wrapper class (aliased as LLMRails for compatibility)
+    from nemoguardrails.guardrails.guardrails import Guardrails as LLMRails
+else:
+    # Use the original LLMRails class
+    from nemoguardrails.rails import LLMRails
 
 __version__ = version("nemoguardrails")
 __all__ = ["LLMRails", "RailsConfig"]

@@ -98,19 +98,39 @@ class FakeLLM(LLM):
 
         self.i += 1
 
-        if self.streaming and run_manager:
-            # To mock streaming, we just split in chunk by spaces
-            chunks = response.split(" ")
-            for i in range(len(chunks)):
-                if i < len(chunks) - 1:
-                    chunk = chunks[i] + " "
-                else:
-                    chunk = chunks[i]
-
-                await asyncio.sleep(0.05)
-                await run_manager.on_llm_new_token(token=chunk, chunk=chunk)
-
         return response
+
+    async def _astream(
+        self,
+        prompt: str,
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ):
+        from langchain_core.outputs import GenerationChunk
+
+        if self.i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {self.i + 1} in FakeLLM. "
+                "Most likely, too many LLM calls are made or additional responses need to be provided."
+            )
+
+        response = self.responses[self.i]
+        self.i += 1
+
+        if self.exception:
+            raise self.exception
+
+        # To mock streaming, we just split in chunk by spaces
+        chunks = response.split(" ")
+        for i in range(len(chunks)):
+            if i < len(chunks) - 1:
+                chunk = chunks[i] + " "
+            else:
+                chunk = chunks[i]
+
+            await asyncio.sleep(0.05)
+            yield GenerationChunk(text=chunk)
 
     def _get_token_usage_for_response(self, response_index: int, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Get token usage data for the given response index if conditions are met."""

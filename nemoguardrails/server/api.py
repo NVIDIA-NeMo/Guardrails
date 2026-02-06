@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import asyncio
 import contextvars
 import importlib.util
@@ -20,23 +21,32 @@ import logging
 import os.path
 import re
 import time
-import warnings
+import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Callable, List, Optional
+from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, root_validator, validator
+from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from pydantic import BaseModel, ValidationError
 from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from nemoguardrails import LLMRails, RailsConfig, utils
-from nemoguardrails.rails.llm.options import (
-    GenerationLog,
-    GenerationOptions,
-    GenerationResponse,
-)
+from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
+from nemoguardrails.server.schemas.openai import (
+    GuardrailsChatCompletion,
+    GuardrailsChatCompletionRequest,
+)
+from nemoguardrails.server.schemas.utils import (
+    create_error_chat_completion,
+    extract_bot_message_from_response,
+    format_streaming_chunk_as_sse,
+    generation_response_to_chat_completion,
+)
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -189,81 +199,6 @@ app.single_config_mode = False
 app.single_config_id = None
 
 
-class RequestBody(BaseModel):
-    config_id: Optional[str] = Field(
-        default=os.getenv("DEFAULT_CONFIG_ID", None),
-        description="The id of the configuration to be used. If not set, the default configuration will be used.",
-    )
-    config_ids: Optional[List[str]] = Field(
-        default=None,
-        description="The list of configuration ids to be used. If set, the configurations will be combined.",
-        # alias="guardrails",
-        validate_default=True,
-    )
-    thread_id: Optional[str] = Field(
-        default=None,
-        min_length=16,
-        max_length=255,
-        description="The id of an existing thread to which the messages should be added.",
-    )
-    messages: Optional[List[dict]] = Field(
-        default=None, description="The list of messages in the current conversation."
-    )
-    context: Optional[dict] = Field(
-        default=None,
-        description="Additional context data to be added to the conversation.",
-    )
-    stream: Optional[bool] = Field(
-        default=False,
-        description="If set, partial message deltas will be sent, like in ChatGPT. "
-        "Tokens will be sent as data-only server-sent events as they become "
-        "available, with the stream terminated by a data: [DONE] message.",
-    )
-    options: GenerationOptions = Field(
-        default_factory=GenerationOptions,
-        description="Additional options for controlling the generation.",
-    )
-    state: Optional[dict] = Field(
-        default=None,
-        description="A state object that should be used to continue the interaction.",
-    )
-
-    @root_validator(pre=True)
-    def ensure_config_id(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if data.get("config_id") is not None and data.get("config_ids") is not None:
-                raise ValueError("Only one of config_id or config_ids should be specified")
-            if data.get("config_id") is None and data.get("config_ids") is not None:
-                data["config_id"] = None
-            if data.get("config_id") is None and data.get("config_ids") is None:
-                warnings.warn("No config_id or config_ids provided, using default config_id")
-        return data
-
-    @validator("config_ids", pre=True, always=True)
-    def ensure_config_ids(cls, v, values):
-        if v is None and values.get("config_id") and values.get("config_ids") is None:
-            # populate config_ids with config_id if only config_id is provided
-            return [values["config_id"]]
-        return v
-
-
-class ResponseBody(BaseModel):
-    messages: Optional[List[dict]] = Field(default=None, description="The new messages in the conversation")
-    llm_output: Optional[dict] = Field(
-        default=None,
-        description="Contains any additional output coming from the LLM.",
-    )
-    output_data: Optional[dict] = Field(
-        default=None,
-        description="The output data, i.e. a dict with the values corresponding to the `output_vars`.",
-    )
-    log: Optional[GenerationLog] = Field(default=None, description="Additional logging information.")
-    state: Optional[dict] = Field(
-        default=None,
-        description="A state object that should be used to continue the interaction in the future.",
-    )
-
-
 @app.get(
     "/v1/rails/configs",
     summary="Get List of available rails configurations.",
@@ -298,17 +233,45 @@ llm_rails_instances: dict[str, LLMRails] = {}
 llm_rails_events_history_cache: dict[str, dict] = {}
 
 
-def _generate_cache_key(config_ids: List[str]) -> str:
-    """Generates a cache key for the given config ids."""
+def _generate_cache_key(config_ids: List[str], model_name: Optional[str] = None) -> str:
+    """Generates a cache key for the given config ids and model name."""
+    key = "-".join(config_ids)
+    if model_name:
+        key = f"{key}:{model_name}"
+    return key
 
-    return "-".join((config_ids))  # remove sorted
+
+def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsConfig:
+    """Update the main model in the RailsConfig.
+
+    If a model with type="main" exists, it replaces it. Otherwise, adds it.
+    """
+    models = config.models.copy()
+    main_model_index = None
+
+    for index, model in enumerate(models):
+        if model.type == main_model.type:
+            main_model_index = index
+            break
+
+    if main_model_index is not None:
+        parameters = {**models[main_model_index].parameters, **main_model.parameters}
+        models[main_model_index] = main_model
+        models[main_model_index].parameters = parameters
+    else:
+        models.append(main_model)
+
+    return config.model_copy(update={"models": models})
 
 
-def _get_rails(config_ids: List[str]) -> LLMRails:
-    """Returns the rails instance for the given config id."""
+def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
+    """Returns the rails instance for the given config id and model.
 
-    # If we have a single config id, we just use it as the key
-    configs_cache_key = _generate_cache_key(config_ids)
+    Args:
+        config_ids: List of configuration IDs to load
+        model_name: The model name from the request (overrides config's main model)
+    """
+    configs_cache_key = _generate_cache_key(config_ids, model_name)
 
     if configs_cache_key in llm_rails_instances:
         return llm_rails_instances[configs_cache_key]
@@ -345,6 +308,20 @@ def _get_rails(config_ids: List[str]) -> LLMRails:
     if full_llm_rails_config is None:
         raise ValueError("No valid rails configuration found.")
 
+    if model_name:
+        engine = os.environ.get("MAIN_MODEL_ENGINE")
+        if not engine:
+            engine = "openai"
+            log.warning("MAIN_MODEL_ENGINE not set, defaulting to 'openai'. ")
+
+        parameters = {}
+        base_url = os.environ.get("MAIN_MODEL_BASE_URL")
+        if base_url:
+            parameters["base_url"] = base_url
+
+        main_model = Model(model=model_name, type="main", engine=engine, parameters=parameters)
+        full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
+
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
     llm_rails_instances[configs_cache_key] = llm_rails
 
@@ -354,17 +331,94 @@ def _get_rails(config_ids: List[str]) -> LLMRails:
     return llm_rails
 
 
+class ChunkErrorMetadata(BaseModel):
+    message: str
+    type: str
+    param: str
+    code: str
+
+
+class ChunkError(BaseModel):
+    error: ChunkErrorMetadata
+
+
+async def _format_streaming_response(
+    stream_iterator: AsyncIterator[Union[str, dict]], model_name: str
+) -> AsyncIterator[str]:
+    """
+    Format streaming chunks from LLMRails.stream_async() as SSE events.
+
+    Args:
+        stream_iterator: AsyncIterator from stream_async() that yields str or dict chunks
+        model_name: The model name to include in the chunks
+
+    Yields:
+        SSE-formatted strings (data: {...}\n\n)
+    """
+    # Use "unknown" as default if model_name is None
+    model = model_name or "unknown"
+    chunk_id = f"chatcmpl-{uuid.uuid4()}"
+
+    try:
+        async for chunk in stream_iterator:
+            # Format the chunk as SSE using the utility function
+            processed_chunk = process_chunk(chunk)
+            if isinstance(processed_chunk, ChunkError):
+                # Yield the error and stop streaming
+                yield f"data: {json.dumps(processed_chunk.model_dump())}\n\n"
+                return
+            else:
+                yield format_streaming_chunk_as_sse(processed_chunk, model, chunk_id)
+
+    finally:
+        # Always send [DONE] event when stream ends
+        yield "data: [DONE]\n\n"
+
+
+def process_chunk(chunk: Any) -> Union[Any, ChunkError]:
+    """
+    Processes a single chunk from the stream.
+
+    Args:
+        chunk: A single chunk from the stream (can be str, dict, or other type).
+        model: The model name (not used in processing but kept for signature consistency).
+
+    Returns:
+        Union[Any, StreamingError]: StreamingError instance for errors or the original chunk.
+    """
+    # Convert chunk to string for JSON parsing if needed
+    chunk_str = chunk if isinstance(chunk, str) else json.dumps(chunk) if isinstance(chunk, dict) else str(chunk)
+
+    try:
+        validated_data = ChunkError.model_validate_json(chunk_str)
+        return validated_data  # Return the StreamingError instance directly
+    except ValidationError:
+        # Not an error, just a normal token
+        pass
+    except json.JSONDecodeError:
+        # Invalid JSON format, treat as normal token
+        pass
+    except Exception as e:
+        log.warning(
+            f"Unexpected error processing stream chunk: {type(e).__name__}: {str(e)}",
+            extra={"chunk": chunk_str},
+        )
+
+    # Return the original chunk
+    return chunk
+
+
 @app.post(
     "/v1/chat/completions",
-    response_model=ResponseBody,
+    response_model=GuardrailsChatCompletion,
     response_model_exclude_none=True,
 )
-async def chat_completion(body: RequestBody, request: Request):
+async def chat_completion(body: GuardrailsChatCompletionRequest, request: Request):
     """Chat completion for the provided conversation.
 
     TODO: add support for explicit state object.
     """
-    log.info("Got request for config %s", body.config_id)
+    log.info("Got request for config %s", body.guardrails.config_id)
     for logger in registered_loggers:
         asyncio.get_event_loop().create_task(logger({"endpoint": "/v1/chat/completions", "body": body.json()}))
 
@@ -373,101 +427,146 @@ async def chat_completion(body: RequestBody, request: Request):
 
     # Use Request config_ids if set, otherwise use the FastAPI default config.
     # If neither is available we can't generate any completions as we have no config_id
-    config_ids = body.config_ids
+    config_ids = body.guardrails.config_ids
+
     if not config_ids:
         if app.default_config_id:
             config_ids = [app.default_config_id]
         else:
-            raise GuardrailsConfigurationError("No request config_ids provided and server has no default configuration")
+            raise HTTPException(
+                status_code=422,
+                detail="No guardrails config_id provided and server has no default configuration",
+            )
 
     try:
-        llm_rails = _get_rails(config_ids)
+        llm_rails = _get_rails(config_ids, model_name=body.model)
+
     except ValueError as ex:
         log.exception(ex)
-        return ResponseBody(
-            messages=[
-                {
-                    "role": "assistant",
-                    "content": f"Could not load the {config_ids} guardrails configuration. "
-                    f"An internal error has occurred.",
-                }
-            ]
+        return create_error_chat_completion(
+            model=body.model,
+            error_message=f"Could not load the {config_ids} guardrails configuration. An internal error has occurred.",
+            config_id=config_ids[0] if config_ids else None,
         )
 
     try:
         messages = body.messages or []
-        if body.context:
-            messages.insert(0, {"role": "context", "content": body.context})
+        if body.guardrails.context:
+            messages.insert(0, {"role": "context", "content": body.guardrails.context})
 
         # If we have a `thread_id` specified, we need to look up the thread
         datastore_key = None
 
-        if body.thread_id:
+        if body.guardrails.thread_id:
             if datastore is None:
                 raise RuntimeError("No DataStore has been configured.")
-
             # We make sure the `thread_id` meets the minimum complexity requirement.
-            if len(body.thread_id) < 16:
-                return ResponseBody(
-                    messages=[
-                        {
-                            "role": "assistant",
-                            "content": "The `thread_id` must have a minimum length of 16 characters.",
-                        }
-                    ]
+            if len(body.guardrails.thread_id) < 16:
+                return create_error_chat_completion(
+                    model=body.model,
+                    error_message="The `thread_id` must have a minimum length of 16 characters.",
+                    config_id=config_ids[0] if config_ids else None,
                 )
 
             # Fetch the existing thread messages. For easier management, we prepend
             # the string `thread-` to all thread keys.
-            datastore_key = "thread-" + body.thread_id
+            datastore_key = "thread-" + body.guardrails.thread_id
             thread_messages = json.loads(await datastore.get(datastore_key) or "[]")
 
             # And prepend them.
             messages = thread_messages + messages
 
+        generation_options = body.guardrails.options
+
+        # Validate state format if provided
+        if body.guardrails.state is not None and body.guardrails.state != {}:
+            if "events" not in body.guardrails.state and "state" not in body.guardrails.state:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Invalid state format: state must contain 'events' or 'state' key. Use an empty dict {} to start a new conversation.",
+                )
+
+        # Initialize llm_params if not already set
+        if generation_options.llm_params is None:
+            generation_options.llm_params = {}
+
+        # Set OpenAI-compatible parameters in llm_params
+        if body.max_tokens:
+            generation_options.llm_params["max_tokens"] = body.max_tokens
+        if body.temperature is not None:
+            generation_options.llm_params["temperature"] = body.temperature
+        if body.top_p is not None:
+            generation_options.llm_params["top_p"] = body.top_p
+        if body.stop:
+            generation_options.llm_params["stop"] = body.stop
+        if body.presence_penalty is not None:
+            generation_options.llm_params["presence_penalty"] = body.presence_penalty
+        if body.frequency_penalty is not None:
+            generation_options.llm_params["frequency_penalty"] = body.frequency_penalty
+
         if body.stream:
-            streaming_handler = llm_rails.stream_async(
+            # Use stream_async for streaming with output rails support
+            stream_iterator = llm_rails.stream_async(
                 messages=messages,
-                options=body.options,
-                state=body.state,
+                options=generation_options,
+                state=body.guardrails.state,
             )
 
-            # TODO: Add support for thread_ids in streaming mode
-
-            return StreamingResponse(streaming_handler)
+            return StreamingResponse(
+                _format_streaming_response(stream_iterator, model_name=body.model),
+                media_type="text/event-stream",
+            )
         else:
-            res = await llm_rails.generate_async(messages=messages, options=body.options, state=body.state)
+            res = await llm_rails.generate_async(
+                messages=messages,
+                options=generation_options,
+                state=body.guardrails.state,
+            )
 
-            if isinstance(res, GenerationResponse):
-                bot_message_content = res.response[0]
-                # Ensure bot_message is always a dict
-                if isinstance(bot_message_content, str):
-                    bot_message = {"role": "assistant", "content": bot_message_content}
-                else:
-                    bot_message = bot_message_content
-            else:
-                assert isinstance(res, dict)
-                bot_message = res
+            # Extract bot message for thread storage if needed
+            bot_message = extract_bot_message_from_response(res)
 
             # If we're using threads, we also need to update the data before returning
             # the message.
-            if body.thread_id and datastore is not None and datastore_key is not None:
+            if body.guardrails.thread_id and datastore is not None and datastore_key is not None:
                 await datastore.set(datastore_key, json.dumps(messages + [bot_message]))
 
-            result = ResponseBody(messages=[bot_message])
-
-            # If we have additional GenerationResponse fields, we return as well
+            # Build the response with OpenAI-compatible format using utility function
             if isinstance(res, GenerationResponse):
-                result.llm_output = res.llm_output
-                result.output_data = res.output_data
-                result.log = res.log
-                result.state = res.state
+                return generation_response_to_chat_completion(
+                    response=res,
+                    model=body.model,
+                    config_id=config_ids[0] if config_ids else None,
+                )
+            else:
+                # For dict responses, convert to basic chat completion
+                return GuardrailsChatCompletion(
+                    id=f"chatcmpl-{uuid.uuid4()}",
+                    object="chat.completion",
+                    created=int(time.time()),
+                    model=body.model,
+                    choices=[
+                        Choice(
+                            index=0,
+                            message=ChatCompletionMessage(
+                                role="assistant",
+                                content=bot_message.get("content", ""),
+                            ),
+                            finish_reason="stop",
+                            logprobs=None,
+                        )
+                    ],
+                )
 
-            return result
-
+    except HTTPException:
+        raise
     except Exception as ex:
         log.exception(ex)
-        return ResponseBody(messages=[{"role": "assistant", "content": "Internal server error."}])
+        return create_error_chat_completion(
+            model=body.model,
+            error_message="Internal server error",
+            config_id=config_ids[0] if config_ids else None,
+        )
 
 
 # By default, there are no challenges

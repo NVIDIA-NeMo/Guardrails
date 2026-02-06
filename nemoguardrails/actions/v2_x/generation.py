@@ -443,13 +443,12 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         generation_options: Optional[GenerationOptions] = generation_options_var.get()
 
         streaming_handler: Optional[StreamingHandler] = streaming_handler_var.get()
-        custom_callback_handlers = [streaming_handler] if streaming_handler else None
 
         generation_llm_params = generation_options and generation_options.llm_params
         text = await llm_call(
             llm,
             user_message,
-            custom_callback_handlers=custom_callback_handlers,
+            streaming_handler=streaming_handler,
             llm_params=generation_llm_params,
         )
 

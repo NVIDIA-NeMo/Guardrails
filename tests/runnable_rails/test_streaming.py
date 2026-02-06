@@ -47,13 +47,26 @@ class StreamingFakeLLM(FakeLLM):
 
     async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
         """Async stream the response by breaking it into tokens."""
-        response = await self._acall(messages, stop, run_manager, **kwargs)
+        from langchain_core.outputs import GenerationChunk
+
+        if self.exception:
+            raise self.exception
+
+        if self.i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {self.i + 1} in FakeLLM. "
+                "Most likely, too many LLM calls are made or additional responses need to be provided."
+            )
+
+        response = self.responses[self.i]
+        self.i += 1
+
         tokens = response.split()
         for i, token in enumerate(tokens):
             if i == 0:
-                yield token
+                yield GenerationChunk(text=token)
             else:
-                yield " " + token
+                yield GenerationChunk(text=" " + token)
 
 
 def test_runnable_rails_basic_streaming():
