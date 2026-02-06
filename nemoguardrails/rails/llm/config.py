@@ -144,15 +144,15 @@ class Model(BaseModel):
                     raise InvalidModelConfigurationError(
                         "Conflicting model names: `model` and `parameters.model/model_name` must match if both are provided."
                     )
-                    
+
                 if "model_name" in parameters:
                     parameters.pop("model_name")
                 if "model" in parameters:
                     parameters.pop("model")
-                    
+
                 data["parameters"] = parameters
                 return data
-                
+
             if not model_field and model_from_params:
                 data["model"] = model_from_params
                 if "model_name" in parameters and parameters["model_name"] == model_from_params:
