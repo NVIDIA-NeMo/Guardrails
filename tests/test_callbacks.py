@@ -34,7 +34,7 @@ from nemoguardrails.logging.stats import LLMStats
 
 @pytest.mark.asyncio
 async def test_token_usage_tracking_with_usage_metadata():
-    """Test that token usage is tracked when usage_metadata is available (stream_usage=True scenario)."""
+    """Test that token usage is tracked when usage_metadata is available."""
 
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
@@ -47,7 +47,7 @@ async def test_token_usage_tracking_with_usage_metadata():
 
     handler = LoggingCallbackHandler()
 
-    # simulate the LLM response with usage metadata (as would happen with stream_usage=True)
+    # simulate the LLM response with usage metadata
     ai_message = AIMessage(
         content="Hello! How can I help you?",
         usage_metadata={"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
@@ -122,7 +122,7 @@ async def test_no_token_usage_tracking_without_metadata():
 
     handler = LoggingCallbackHandler()
 
-    # simulate LLM response without usage metadata (stream_usage=False scenario)
+    # simulate LLM response without usage metadata
     ai_message = AIMessage(content="Hello! How can I help you?")
     chat_generation = ChatGeneration(message=ai_message)
     llm_result = LLMResult(generations=[[chat_generation]])

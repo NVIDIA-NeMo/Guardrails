@@ -15,7 +15,7 @@
 
 import logging
 import re
-from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Sequence, Union
 
 from langchain_core.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
 from langchain_core.language_models import BaseLanguageModel
@@ -238,6 +238,7 @@ async def _stream_llm_call(
         messages = prompt
 
     handler.stop = stop or []
+    accumulated_metadata: Dict[str, Any] = {}
 
     try:
         async for chunk in llm.astream(messages, stop=stop, config=RunnableConfig(callbacks=logging_callbacks)):
@@ -246,17 +247,29 @@ async def _stream_llm_call(
             else:
                 content = str(chunk)
 
-            generation_info = None
-            if hasattr(chunk, "response_metadata"):
-                generation_info = chunk.response_metadata
+            chunk_metadata = _extract_chunk_metadata(chunk)
+            if chunk_metadata:
+                accumulated_metadata.update(chunk_metadata)
 
-            await handler.push_chunk(content, generation_info)
+            await handler.push_chunk(content, chunk_metadata)
+
+        if accumulated_metadata:
+            llm_response_metadata_var.set(accumulated_metadata)
 
         await handler.finish()
         return handler.completion
 
     except Exception as e:
         _raise_llm_call_exception(e, llm)
+
+
+def _extract_chunk_metadata(chunk) -> Optional[Dict[str, Any]]:
+    metadata: Dict[str, Any] = {}
+    if hasattr(chunk, "response_metadata") and chunk.response_metadata:
+        metadata["response_metadata"] = chunk.response_metadata
+    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+        metadata["usage_metadata"] = chunk.usage_metadata
+    return metadata if metadata else None
 
 
 def _setup_llm_call_info(llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]) -> None:
