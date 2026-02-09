@@ -2,29 +2,35 @@
 
 This directory contains a Locust-based load testing framework for the NeMo Guardrails OpenAI-compatible server.
 
-## Overview
+## Introduction
 
-The load tester simulates concurrent users making API calls to the `/v1/chat/completions` endpoint with configurable parameters. It's designed to test the performance of guardrails processing including input rails, generation, and output rails.
+The [Locust](https://locust.io/) stress-testing tool ramps up concurrent users making API calls to the `/v1/chat/completions` endpoint of an OpenAI-compatible LLM with configurable parameters.
+This complements [ai-perf](https://github.com/ai-dynamo/aiperf), which measures steady-state performance.  Locust instead focuses on ramping up load potentially beyond what a system can handle, and measure how gracefully it degrades under higher-than-expected load.
 
-## Installation
+## Getting Started
 
-Install the required dependencies:
+### Prerequisites
 
-```bash
-pip install locust pyyaml httpx
-```
+These steps have been tested with Python 3.11.11.
 
-Or install from the benchmark requirements:
+1. **Create a virtual environment in which to install Locust and other benchmarking tools**
 
-```bash
-pip install -r benchmark/requirements.txt
-```
+   ```bash
+   $ mkdir ~/env
+   $ python -m venv ~/env/benchmark_env
+   ```
 
-## Usage
+2. **Install dependencies in the virtual environment**
+
+   ```bash
+   $ pip install -r benchmark/requirements.txt
+   ```
+
+## Running Benchmarks
 
 ### Run with YAML Configuration (Required)
 
-Create a YAML configuration file (see `configs/local.yaml` for a complete example):
+Create a YAML configuration file (see `benchmark/locust/configs/local.yaml` for a complete example):
 
 ```yaml
 host: "http://localhost:8000"
@@ -39,12 +45,6 @@ output_base_dir: "locust_results"
 ```
 
 Then run:
-
-```bash
-python -m benchmark.locust my-config.yaml
-```
-
-Or use the provided example:
 
 ```bash
 python -m benchmark.locust benchmark/locust/configs/local.yaml
@@ -68,23 +68,6 @@ python -m benchmark.locust my-config.yaml
 ```
 
 Then open http://localhost:8089 to control the test and view real-time metrics.
-
-### Direct Locust Invocation
-
-You can also run the locustfile directly with Locust CLI:
-
-```bash
-export LOCUST_CONFIG_ID=my-config
-export LOCUST_MODEL=mock-llm
-export LOCUST_MESSAGE="Hello, what can you do?"
-
-locust -f benchmark/locust/locustfile.py \
-  --host http://localhost:8000 \
-  --users 100 \
-  --spawn-rate 10 \
-  --run-time 60s \
-  --headless
-```
 
 ### CLI Options
 
@@ -137,10 +120,10 @@ When run in headless mode, results are saved to timestamped directories:
 locust_results/
 └── YYYYMMDD_HHMMSS/
     ├── report.html          # HTML report with charts
+    ├── run_metadata.json    # Test configuration metadata
     ├── stats.csv            # Request statistics
-    ├── stats_history.csv    # Statistics over time
     ├── stats_failures.csv   # Failure statistics
-    └── run_metadata.json    # Test configuration metadata
+    └── stats_history.csv    # Statistics over time
 ```
 
 ### Web UI Mode
@@ -151,108 +134,10 @@ Real-time metrics are displayed in the web interface at http://localhost:8089, i
 - Failure rate
 - Number of users
 
-## Testing with Mock LLM Server
-
-The load tests are designed to work with the Mock LLM server in `benchmark/mock_llm_server`. The mock server returns stock responses without actual LLM calls, allowing you to test guardrails processing performance.
-
-1. Start the Mock LLM server (see `benchmark/mock_llm_server/README.md`)
-2. Start the NeMo Guardrails server with a config that uses the mock LLM
-3. Run the load test pointing to the Guardrails server
-
-## Examples
-
-### Quick Test (10 users, 30 seconds)
-
-Create `quick-test.yaml`:
-```yaml
-host: "http://localhost:8000"
-config_id: "test-config"
-model: "mock-llm"
-users: 10
-spawn_rate: 2
-run_time: 30
-headless: true
-```
-
-Run:
-```bash
-python -m benchmark.locust quick-test.yaml
-```
-
-### Full Load Test (256 users, 5 minutes)
-
-Create `full-load-test.yaml`:
-```yaml
-host: "http://localhost:8000"
-config_id: "production-config"
-model: "mock-llm"
-users: 256
-spawn_rate: 10
-run_time: 300
-headless: true
-```
-
-Run:
-```bash
-python -m benchmark.locust full-load-test.yaml
-```
-
-### Interactive Testing
-
-Create `interactive-test.yaml`:
-```yaml
-host: "http://localhost:8000"
-config_id: "my-config"
-model: "mock-llm"
-headless: false
-```
-
-Run:
-```bash
-python -m benchmark.locust interactive-test.yaml
-```
-
-Then navigate to http://localhost:8089 to start and control the test interactively.
-
-## Troubleshooting
-
-### Server Connection Issues
-
-If you see "Can't connect to http://localhost:8000":
-- Ensure the NeMo Guardrails server is running
-- Verify the `host` URL is correct in your YAML config
-- Check that the `config_id` exists on the server
-
-### Import Errors
-
-If you see import errors for `locust`:
-```bash
-pip install locust
-```
-
-### Configuration Errors
+### Troubleshooting
 
 If you see validation errors:
 - Ensure all required fields (`config_id`, `model`) are present in your YAML config
 - Check that the `config_id` matches a configuration on your server
 - Verify that numeric values meet minimum requirements (e.g., `users >= 1`, `spawn_rate >= 0.1`)
 - Ensure `host` starts with `http://` or `https://`
-
-## Architecture
-
-The load tester consists of:
-
-- **`locust_models.py`**: Pydantic `LocustConfig` model for YAML configuration validation with field validators for host, users, spawn_rate, and run_time
-- **`locustfile.py`**: Locust `GuardrailsUser` class defining load test behavior (can be run standalone with environment variables)
-- **`run_locust.py`**: Typer CLI application (`LocustRunner` class) that loads YAML configs, validates server connectivity, builds Locust commands, and manages test execution
-- **`__main__.py`**: Module entry point for `python -m benchmark.locust`
-
-This follows the same YAML-first configuration pattern as `benchmark/aiperf` for consistency.
-
-### Key Design Choices
-
-- **YAML-first**: All configuration through YAML files rather than CLI flags for reproducibility
-- **Pydantic validation**: Configuration validated at load time with clear error messages
-- **Environment variables**: The locustfile receives configuration via environment variables, allowing standalone execution
-- **Service health check**: Validates server connectivity before starting load tests
-- **Timestamped results**: Headless mode saves results to timestamped directories with metadata

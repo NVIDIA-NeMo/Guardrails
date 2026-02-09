@@ -157,15 +157,9 @@ class LocustRunner:
 
         # Log test configuration
         log.info("Starting Locust load test")
-        log.info("Host: %s", self.config.host)
-        log.info("Config ID: %s", self.config.config_id)
-        log.info("Model: %s", self.config.model)
-        log.info("Users: %s", self.config.users)
-        log.info("Spawn rate: %s users/second", self.config.spawn_rate)
-        log.info("Run time: %s seconds", self.config.run_time or "unlimited")
-        log.info("Mode: %s", "headless" if self.config.headless else "web UI")
+        log.info("Config: %s", self.config.model_dump_json())
 
-        rampup_seconds = round(self.config.users / self.config.spawn_rate, 2)
+        rampup_seconds = int(self.config.users / self.config.spawn_rate)
         steady_state_seconds = self.config.run_time - rampup_seconds
         log.info("Duration: rampup: %fs, steady-state %fs", rampup_seconds, steady_state_seconds)
 
