@@ -1,7 +1,6 @@
 name: Build and Test Distribution
 
 on:
-  pull_request: # TODO: remove after verifying the fix
   push:
     branches:
       - main
