@@ -19,3 +19,6 @@ numpy>=2.3.2
 httpx>=0.24.1
 typer>=0.8
 pyyaml>=6.0
+
+# --- locust load testing dependencies ---
+locust>=2.0.0
