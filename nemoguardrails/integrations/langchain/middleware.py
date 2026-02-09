@@ -32,7 +32,7 @@ from nemoguardrails.integrations.langchain.message_utils import (
 )
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.rails.llm.options import RailsResult, RailStatus
+from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
 from nemoguardrails.utils import get_or_create_event_loop
 
 log = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ class GuardrailsMiddleware(AgentMiddleware):
         rails_messages = self._convert_to_rails_messages(messages)
 
         try:
-            result = await self.rails.check_async(rails_messages)
+            result = await self.rails.check_async(rails_messages, rail_types=[RailType.INPUT])
 
             if result.status == RailStatus.BLOCKED:
                 self._handle_guardrail_failure(
@@ -141,6 +141,12 @@ class GuardrailsMiddleware(AgentMiddleware):
             blocked_msg = create_ai_message(self.blocked_input_message)
             return {"messages": messages + [blocked_msg], "jump_to": "end"}
 
+    def _replace_last_ai_message(self, messages: list, replacement: AIMessage) -> list:
+        for i in range(len(messages) - 1, -1, -1):
+            if is_ai_message(messages[i]):
+                return messages[:i] + [replacement] + messages[i + 1 :]
+        return messages + [replacement]
+
     async def aafter_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:
         if not self.enable_output_rails or not self._has_output_rails():
             return None
@@ -156,7 +162,7 @@ class GuardrailsMiddleware(AgentMiddleware):
         rails_messages = self._convert_to_rails_messages(messages)
 
         try:
-            result = await self.rails.check_async(rails_messages)
+            result = await self.rails.check_async(rails_messages, rail_types=[RailType.OUTPUT])
 
             if result.status == RailStatus.BLOCKED:
                 self._handle_guardrail_failure(
@@ -165,8 +171,7 @@ class GuardrailsMiddleware(AgentMiddleware):
                     blocked_message=self.blocked_output_message,
                 )
                 blocked_msg = create_ai_message(self.blocked_output_message)
-                new_messages = messages[:-1] + [blocked_msg]
-                return {"messages": new_messages}
+                return {"messages": self._replace_last_ai_message(messages, blocked_msg)}
 
             return None
 
@@ -182,8 +187,7 @@ class GuardrailsMiddleware(AgentMiddleware):
                 )
 
             blocked_msg = create_ai_message(self.blocked_output_message)
-            new_messages = messages[:-1] + [blocked_msg]
-            return {"messages": new_messages}
+            return {"messages": self._replace_last_ai_message(messages, blocked_msg)}
 
     @hook_config(can_jump_to=["end"])
     def before_model(self, state: AgentState, runtime: LangGraphRuntime) -> Optional[Dict[str, Any]]:

@@ -98,6 +98,7 @@ from nemoguardrails.rails.llm.options import (
     GenerationResponse,
     RailsResult,
     RailStatus,
+    RailType,
 )
 from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
@@ -1403,19 +1404,30 @@ class LLMRails:
         loop = get_or_create_event_loop()
         return loop.run_until_complete(self.process_events_async(events, state, blocking))
 
-    async def check_async(self, messages: List[dict]) -> RailsResult:
+    async def check_async(
+        self,
+        messages: List[dict],
+        rail_types: Optional[List[RailType]] = None,
+    ) -> RailsResult:
         """Run rails on messages based on their content (asynchronous).
 
-        Automatically determines which rails to run:
+        When ``rail_types`` is not provided, automatically determines which rails
+        to run based on message roles:
         - Only user messages: runs input rails
         - Only assistant messages: runs output rails
         - Both user and assistant messages: runs both input and output rails
         - No user/assistant messages: logs warning and returns passing result
 
+        When ``rail_types`` is provided, runs exactly the specified rail types,
+        skipping the auto-detection logic.
+
         Args:
             messages: List of message dicts with 'role' and 'content' fields.
                      Messages can contain any roles, but only user/assistant roles
-                     determine which rails execute.
+                     determine which rails execute when ``rail_types`` is not provided.
+            rails: Optional list of rail types to run, e.g.
+                  ``[RailType.INPUT]`` or ``[RailType.OUTPUT]``.
+                  When provided, overrides automatic detection.
 
         Returns:
             RailsResult containing:
@@ -1424,18 +1436,24 @@ class LLMRails:
             - rail: Name of the rail that blocked (if blocked)
 
         Examples:
-            Check user input:
+            Check user input (auto-detected):
                 result = await rails.check_async([{"role": "user", "content": "Hello!"}])
                 if result.status == RailStatus.BLOCKED:
                     print(f"Blocked by: {result.rail}")
 
-            Check bot output with context:
+            Check bot output with context (auto-detected):
                 result = await rails.check_async([
                     {"role": "user", "content": "Hello!"},
                     {"role": "assistant", "content": "Hi there!"}
                 ])
+
+            Run only input rails explicitly:
+                result = await rails.check_async(messages, rail_types=[RailType.INPUT])
         """
-        options = _determine_rails_from_messages(messages)
+        if rail_types is not None:
+            options: Optional[dict] = {"rails": [r.value for r in rail_types]}
+        else:
+            options = _determine_rails_from_messages(messages)
 
         if options is None:
             last_content = messages[-1].get("content", "") if messages else ""
@@ -1465,13 +1483,18 @@ class LLMRails:
             return RailsResult(status=RailStatus.MODIFIED, content=result_content)
         return RailsResult(status=RailStatus.PASSED, content=result_content)
 
-    def check(self, messages: List[dict]) -> RailsResult:
+    def check(
+        self,
+        messages: List[dict],
+        rail_types: Optional[List[RailType]] = None,
+    ) -> RailsResult:
         """Run rails on messages based on their content (synchronous).
 
         This is a synchronous wrapper around check_async().
 
         Args:
             messages: List of message dicts with 'role' and 'content' fields.
+            rails: Optional list of rail types to run. See check_async() for details.
 
         Returns:
             RailsResult containing status, content, and optional blocking rail name.
@@ -1482,7 +1505,7 @@ class LLMRails:
             )
 
         loop = get_or_create_event_loop()
-        return loop.run_until_complete(self.check_async(messages))
+        return loop.run_until_complete(self.check_async(messages, rail_types=rail_types))
 
     def register_action(self, action: Callable, name: Optional[str] = None) -> Self:
         """Register a custom action for the rails configuration."""

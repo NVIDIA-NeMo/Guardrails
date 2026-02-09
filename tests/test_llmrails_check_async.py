@@ -23,7 +23,7 @@ from nemoguardrails.rails.llm.llmrails import (
     _get_last_response_content,
     _normalize_messages_for_rails,
 )
-from nemoguardrails.rails.llm.options import ActivatedRail, GenerationLog, GenerationResponse, RailStatus
+from nemoguardrails.rails.llm.options import ActivatedRail, GenerationLog, GenerationResponse, RailStatus, RailType
 
 
 class TestDetermineRailsFromMessages:
@@ -392,3 +392,144 @@ class TestCheckAsyncIntegration:
         result = mock_rails.check(messages)
         assert result.status == RailStatus.PASSED
         assert result.content == "hello"
+
+
+class TestCheckAsyncExplicitRails:
+    @pytest.mark.asyncio
+    async def test_explicit_input_rails_only(self, mock_rails):
+        messages = [{"role": "user", "content": "hello"}]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hello"
+
+    @pytest.mark.asyncio
+    async def test_explicit_output_rails_only(self, mock_rails):
+        messages = [{"role": "assistant", "content": "hello"}]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.OUTPUT])
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hello"
+
+    @pytest.mark.asyncio
+    async def test_explicit_input_blocks(self, mock_rails):
+        messages = [{"role": "user", "content": "block"}]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail is not None
+
+    @pytest.mark.asyncio
+    async def test_explicit_output_blocks(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.OUTPUT])
+        assert result.status == RailStatus.BLOCKED
+        assert result.rail is not None
+
+    @pytest.mark.asyncio
+    async def test_explicit_input_skips_output_rail(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_explicit_output_skips_input_rail(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "block"},
+            {"role": "assistant", "content": "hello"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.OUTPUT])
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_explicit_both_rails(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi there"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT, RailType.OUTPUT])
+        assert result.status == RailStatus.PASSED
+
+    @pytest.mark.asyncio
+    async def test_explicit_both_rails_input_blocked(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "block"},
+            {"role": "assistant", "content": "hi there"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT, RailType.OUTPUT])
+        assert result.status == RailStatus.BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_explicit_both_rails_output_blocked(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT, RailType.OUTPUT])
+        assert result.status == RailStatus.BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_explicit_input_modified(self, mock_rails):
+        messages = [{"role": "user", "content": "modify"}]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == "modified input"
+
+    @pytest.mark.asyncio
+    async def test_explicit_output_modified(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "modify output"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.OUTPUT])
+        assert result.status == RailStatus.MODIFIED
+        assert result.content == "modified output"
+
+    @pytest.mark.asyncio
+    async def test_none_rails_uses_auto_detection(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=None)
+        assert result.status == RailStatus.BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_explicit_input_with_tool_messages_skips_output(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+            {"role": "tool", "content": "tool result", "tool_call_id": "t1"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.INPUT])
+        assert result.status != RailStatus.BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_explicit_output_with_system_message(self, mock_rails):
+        messages = [
+            {"role": "system", "content": "Be helpful"},
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi there"},
+        ]
+        result = await mock_rails.check_async(messages, rail_types=[RailType.OUTPUT])
+        assert result.status == RailStatus.PASSED
+        assert result.content == "hi there"
+
+    def test_check_sync_with_explicit_rails(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+        ]
+        result = mock_rails.check(messages, rail_types=[RailType.INPUT])
+        assert result.status == RailStatus.PASSED
+
+    def test_check_sync_with_none_rails(self, mock_rails):
+        messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "block output"},
+        ]
+        result = mock_rails.check(messages, rail_types=None)
+        assert result.status == RailStatus.BLOCKED

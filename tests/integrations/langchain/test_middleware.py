@@ -31,7 +31,7 @@ from nemoguardrails.integrations.langchain.middleware import (
     InputRailsMiddleware,
     OutputRailsMiddleware,
 )
-from nemoguardrails.rails.llm.options import RailsResult, RailStatus
+from nemoguardrails.rails.llm.options import RailsResult, RailStatus, RailType
 
 
 @pytest.fixture
@@ -130,6 +130,7 @@ class TestMiddlewareWithCreateAgent:
 
         assert result is None
         mock_rails.check_async.assert_called_once()
+        assert mock_rails.check_async.call_args.kwargs["rail_types"] == [RailType.INPUT]
 
     @pytest.mark.asyncio
     async def test_with_agent_input_blocks(self, mock_rails_factory):
@@ -160,6 +161,7 @@ class TestMiddlewareWithCreateAgent:
 
         assert result is None
         mock_rails.check_async.assert_called_once()
+        assert mock_rails.check_async.call_args.kwargs["rail_types"] == [RailType.OUTPUT]
 
     @pytest.mark.asyncio
     async def test_with_agent_output_blocks(self, mock_rails_factory):
@@ -1193,3 +1195,150 @@ class TestRealWorldSecurityScenarios:
         assert result is not None
         assert isinstance(result["messages"][-1], AIMessage)
         assert result["messages"][-1].content == middleware.blocked_output_message
+
+
+class TestExplicitRailTypePassing:
+    @pytest.mark.asyncio
+    async def test_abefore_model_passes_input_rail_type(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.PASSED)
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Hi"),
+                HumanMessage(content="Follow up"),
+            ]
+        }
+        await middleware.abefore_model(state, None)
+
+        assert mock_rails.check_async.call_args.kwargs["rail_types"] == [RailType.INPUT]
+
+    @pytest.mark.asyncio
+    async def test_aafter_model_passes_output_rail_type(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.PASSED)
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Hi"),
+                HumanMessage(content="Follow up"),
+                AIMessage(content="Response"),
+            ]
+        }
+        await middleware.aafter_model(state, None)
+
+        assert mock_rails.check_async.call_args.kwargs["rail_types"] == [RailType.OUTPUT]
+
+    @pytest.mark.asyncio
+    async def test_abefore_model_does_not_pass_output_rail_type(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.BLOCKED, rail="guard", content="blocked")
+        middleware = create_middleware_with_rails(mock_rails, raise_on_violation=False)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Previous response"),
+                HumanMessage(content="New message"),
+            ]
+        }
+        await middleware.abefore_model(state, None)
+
+        rails_kwarg = mock_rails.check_async.call_args.kwargs["rail_types"]
+        assert RailType.OUTPUT not in rails_kwarg
+
+    @pytest.mark.asyncio
+    async def test_aafter_model_does_not_pass_input_rail_type(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.BLOCKED, rail="guard", content="blocked")
+        middleware = create_middleware_with_rails(mock_rails, raise_on_violation=False)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Response"),
+            ]
+        }
+        await middleware.aafter_model(state, None)
+
+        rails_kwarg = mock_rails.check_async.call_args.kwargs["rail_types"]
+        assert RailType.INPUT not in rails_kwarg
+
+
+class TestReplaceLastAIMessage:
+    @pytest.mark.asyncio
+    async def test_replaces_last_ai_message_when_it_is_last(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.BLOCKED, rail="guard", content="blocked")
+        middleware = create_middleware_with_rails(mock_rails, raise_on_violation=False)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Bad response"),
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert len(result["messages"]) == 2
+        assert result["messages"][0].content == "Hello"
+        assert result["messages"][1].content == middleware.blocked_output_message
+
+    @pytest.mark.asyncio
+    async def test_replaces_ai_message_not_at_end(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.BLOCKED, rail="guard", content="blocked")
+        middleware = create_middleware_with_rails(mock_rails, raise_on_violation=False)
+
+        trailing_msg = SystemMessage(content="injected by other middleware")
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Bad response"),
+                trailing_msg,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert len(result["messages"]) == 3
+        assert result["messages"][0].content == "Hello"
+        assert result["messages"][1].content == middleware.blocked_output_message
+        assert isinstance(result["messages"][1], AIMessage)
+        assert result["messages"][2] is trailing_msg
+
+    @pytest.mark.asyncio
+    async def test_replaces_correct_ai_message_with_multiple(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.BLOCKED, rail="guard", content="blocked")
+        middleware = create_middleware_with_rails(mock_rails, raise_on_violation=False)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="First AI response"),
+                HumanMessage(content="Follow up"),
+                AIMessage(content="Second AI response - bad"),
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert len(result["messages"]) == 4
+        assert result["messages"][1].content == "First AI response"
+        assert result["messages"][3].content == middleware.blocked_output_message
+
+    @pytest.mark.asyncio
+    async def test_error_handler_also_replaces_correctly(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(check_side_effect=RuntimeError("rails crashed"))
+        middleware = create_middleware_with_rails(mock_rails, raise_on_violation=False)
+
+        trailing_msg = SystemMessage(content="trailing")
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Response"),
+                trailing_msg,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert len(result["messages"]) == 3
+        assert result["messages"][1].content == middleware.blocked_output_message
+        assert isinstance(result["messages"][1], AIMessage)
+        assert result["messages"][2] is trailing_msg
