@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import Mock, patch
+from urllib.parse import urljoin
 
 import httpx
 import pytest
@@ -114,6 +115,10 @@ class TestLocustRunner:
         """Get a LocustRunner instance for testing."""
         return LocustRunner(valid_config)
 
+    def _service_health_endpoint(self, runner: LocustRunner):
+        """The endpoint used ot check if the service is healthy"""
+        return urljoin(runner.config.host, "health")
+
     def test_runner_init(self, valid_config):
         """Test LocustRunner initialization."""
         runner = LocustRunner(valid_config)
@@ -125,23 +130,67 @@ class TestLocustRunner:
         """Test _check_service with successful connection."""
         with patch("httpx.get") as mock_get:
             mock_response = Mock()
-            mock_response.status_code = 200
+            mock_response.is_error = False
+            mock_response.json.return_value = {"status": "healthy", "timestamp": 1770675471}
             mock_get.return_value = mock_response
 
             # Should not raise
             runner._check_service()
-            mock_get.assert_called_once()
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
 
     def test_check_service_connection_error(self, runner):
-        """Test _check_service with connection error."""
+        """Test _check_service with httpx.ConnectError"""
         with patch("httpx.get") as mock_get:
             mock_get.side_effect = httpx.ConnectError("Connection refused")
 
             with pytest.raises(RuntimeError) as exc_info:
                 runner._check_service()
 
-            assert "Can't connect to" in str(exc_info.value)
-            assert "http://localhost:8000" in str(exc_info.value)
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            assert (
+                exc_info.value.args[0]
+                == f"ConnectError accessing {self._service_health_endpoint(runner)}: Connection refused"
+            )
+
+    def test_check_service_error_response(self, runner):
+        """Test _check_service with non-200 response code"""
+        with patch("httpx.get") as mock_get:
+            mock_response = Mock()
+            mock_response.is_error = True
+            mock_response.status_code = 404
+            mock_response.text = '{"detail":"Not Found"}'
+            mock_response.json.return_value = json.dumps(mock_response.text)
+            mock_get.return_value = mock_response
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            assert (
+                exc_info.value.args[0]
+                == f"Error {mock_response.status_code} connecting to {self._service_health_endpoint(runner)}: {mock_response.text}"
+            )
+
+    def test_check_service_uinhealthy_response(self, runner):
+        """Test _check_service with 200 response from an unhealthy service"""
+        with patch("httpx.get") as mock_get:
+            mock_response = Mock()
+            mock_response.is_error = False
+            mock_response.status_code = 200  # Successful HTTP request ..
+            mock_response.text = (
+                '{"status":"unhealthy","timestamp":1770677847}'  # .. but the application itself is unhealthy
+            )
+            mock_response.json.return_value = json.loads(mock_response.text)
+            mock_get.return_value = mock_response
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            assert (
+                exc_info.value.args[0]
+                == f"Service at {self._service_health_endpoint(runner)} is unhealthy: {mock_response.text}"
+            )
 
     def test_build_locust_command_basic(self, runner):
         """Test building basic Locust command."""

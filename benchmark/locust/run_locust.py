@@ -62,16 +62,20 @@ class LocustRunner:
 
     def _check_service(self) -> None:
         """Check if the NeMo Guardrails server is up before running tests."""
-        url = f"{self.config.host}/v1/chat/completions"
+        url = f"{self.config.host}/health"
         log.debug("Checking service is up at %s", url)
 
         try:
             # Try a simple request to verify the server is accessible
-            response = httpx.get(self.config.host, timeout=5)
+            response = httpx.get(url)
         except httpx.ConnectError as e:
-            raise RuntimeError(
-                f"Can't connect to {self.config.host}: {e}\nPlease ensure the NeMo Guardrails server is running."
-            )
+            raise RuntimeError(f"ConnectError accessing {url}: {e}")
+
+        if response.is_error:
+            raise RuntimeError(f"Error {response.status_code} connecting to {url}: {response.text}")
+
+        if response.json().get("status") != "healthy":
+            raise RuntimeError(f"Service at {url} is unhealthy: {response.text}")
 
         log.info("Successfully connected to server at %s", self.config.host)
 
