@@ -20,54 +20,22 @@ These steps have been tested with Python 3.11.11.
    $ python -m venv ~/env/benchmark_env
    ```
 
-2. **Install dependencies in the virtual environment**
+2. **Activate environment and install dependencies in the virtual environment**
 
    ```bash
-   $ pip install -r benchmark/requirements.txt
+   $ source ~/env/benchmark_env/bin/activate
+   (benchmark_env) $ pip install -r benchmark/requirements.txt
    ```
 
 ## Running Benchmarks
 
-### Run with YAML Configuration (Required)
+The Locust benchmarks uses YAML configuration file to configure load-testing parameters.
+To get started and load-test a model hosted at `http://localhost:8000`, use the following command.
+Set `headless: false` in your YAML config to use Locust's interactive web UI. Then open http://localhost:8089 to control the test and view real-time metrics.
 
-Create a YAML configuration file (see `benchmark/locust/configs/local.yaml` for a complete example):
-
-```yaml
-host: "http://localhost:8000"
-config_id: "my-guardrails-config"
-model: "mock-llm"
-users: 256
-spawn_rate: 10
-run_time: 60
-message: "Hello, what can you do?"
-headless: true
-output_base_dir: "locust_results"
-```
-
-Then run:
-
-```bash
-python -m benchmark.locust benchmark/locust/configs/local.yaml
-```
-
-### Web UI Mode
-
-Set `headless: false` in your YAML config to use Locust's interactive web UI:
-
-```yaml
-host: "http://localhost:8000"
-config_id: "my-config"
-model: "mock-llm"
-users: 100
-spawn_rate: 10
-headless: false
-```
-
-```bash
-python -m benchmark.locust my-config.yaml
-```
-
-Then open http://localhost:8089 to control the test and view real-time metrics.
+   ```bash
+   (benchmark_env) $ python -m benchmark.locust benchmark/locust/configs/local.yaml
+   ```
 
 ### CLI Options
 

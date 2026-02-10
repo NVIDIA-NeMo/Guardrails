@@ -19,7 +19,6 @@ Pydantic models for Locust load test configuration validation.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -46,10 +45,10 @@ class LocustConfig(BaseModel):
         ge=0.1,
         description="Rate at which users are spawned (users/second)",
     )
-    run_time: Optional[int] = Field(
+    run_time: int = Field(
         default=60,
         ge=1,
-        description="Test duration in seconds (None for unlimited)",
+        description="Test duration in seconds",
     )
 
     # Request configuration
@@ -64,7 +63,7 @@ class LocustConfig(BaseModel):
         description="Run in headless mode without web UI",
     )
 
-    output_base_dir: Path = Field(
+    output_base_dir: str = Field(
         default="locust_results",
         description="Base directory for load test results",
     )

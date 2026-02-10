@@ -89,14 +89,12 @@ class LocustRunner:
         # User and spawn rate
         cmd.extend(["--users", str(self.config.users)])
         cmd.extend(["--spawn-rate", str(self.config.spawn_rate)])
-
-        # Run time
-        if self.config.run_time:
-            cmd.extend(["--run-time", f"{self.config.run_time}s"])
+        cmd.extend(["--run-time", f"{self.config.run_time}s"])
 
         # Headless mode
         if self.config.headless:
             cmd.append("--headless")
+            cmd.append("--only-summary")  # only print last latency table
 
             # Add output files for headless mode
             if output_dir:
@@ -113,7 +111,7 @@ class LocustRunner:
         metadata = {
             "start_time": start_time.isoformat(),
             "config": self.config.model_dump(),
-            "command": " ".join(command),
+            "command": " ".join([str(c) for c in command]),
         }
 
         metadata_file = output_dir / "run_metadata.json"
@@ -122,12 +120,12 @@ class LocustRunner:
 
         log.debug("Saved run metadata to %s", metadata_file)
 
-    def _create_output_dir(self, base_dir: Path) -> Path:
+    def _create_output_path(self, base_dir: str) -> Path:
         """Create timestamped output directory for test results."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = base_dir / Path(timestamp)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return output_dir
+        output_path = Path(base_dir) / Path(timestamp)
+        output_path.mkdir(parents=True, exist_ok=True)
+        return output_path
 
     def run(self, dry_run: bool) -> int:
         """Run the Locust load test."""
@@ -139,7 +137,7 @@ class LocustRunner:
             return 1
 
         # Build command
-        output_path = self._create_output_dir(self.config.output_base_dir)
+        output_path = self._create_output_path(self.config.output_base_dir)
         command = self._build_locust_command(output_path)
 
         # Save metadata
@@ -157,9 +155,9 @@ class LocustRunner:
         log.info("Starting Locust load test")
         log.info("Config: %s", self.config.model_dump_json())
 
-        rampup_seconds = int(self.config.users / self.config.spawn_rate)
+        rampup_seconds = min(int(self.config.users / self.config.spawn_rate), self.config.run_time)
         steady_state_seconds = self.config.run_time - rampup_seconds
-        log.info("Duration: rampup: %fs, steady-state %fs", rampup_seconds, steady_state_seconds)
+        log.info("Duration: rampup: %is, steady-state %is", rampup_seconds, steady_state_seconds)
 
         if not self.config.headless:
             log.info("Web UI will be available at: http://localhost:8089")

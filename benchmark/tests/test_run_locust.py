@@ -212,13 +212,6 @@ class TestLocustRunner:
         assert "--html" in cmd
         assert "--csv" in cmd
 
-    def test_build_locust_command_without_run_time(self, runner):
-        """Test building Locust command without run_time (unlimited)."""
-        runner.config.run_time = None
-        cmd = runner._build_locust_command()
-
-        assert "--run-time" not in cmd
-
     def test_save_run_metadata(self, runner, tmp_path):
         """Test saving run metadata to file."""
         output_dir = tmp_path / "output"
@@ -242,13 +235,13 @@ class TestLocustRunner:
 
     def test_create_output_dir(self, runner, tmp_path):
         """Test creating timestamped output directory."""
-        base_dir = tmp_path / "results"
+        base_dir = str(tmp_path) + "results"
 
-        output_dir = runner._create_output_dir(base_dir)
+        output_dir = runner._create_output_path(base_dir)
 
         assert output_dir.exists()
         assert output_dir.is_dir()
-        assert output_dir.parent == base_dir
+        assert output_dir.parent == Path(base_dir)
         # Check that directory name looks like a timestamp
         assert len(output_dir.name) == len("20250101_120000")
 

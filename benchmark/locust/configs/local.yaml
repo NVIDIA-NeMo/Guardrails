@@ -14,5 +14,5 @@ run_time: 120            # Test duration in seconds (or null for unlimited)
 message: "Hello, what can you do?"
 
 # Output configuration
-headless: false          # Set to true for headless mode, false for web UI
+headless: true          # Set to true for headless mode, false for web UI
 output_base_dir: "locust_results"  # Directory for test results
