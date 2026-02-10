@@ -66,7 +66,7 @@ All configuration is done via YAML files. The following fields are supported:
 - `host`: Server base URL (default: `http://localhost:8000`)
 - `users`: Maximum concurrent users (default: `256`, minimum: `1`)
 - `spawn_rate`: Users spawned per second (default: `10`, minimum: `0.1`)
-- `run_time`: Test duration in seconds (default: `60`, minimum: `1`, or `null` for unlimited)
+- `run_time`: Test duration in seconds (default: `60`, minimum: `1`)
 - `message`: Message content to send (default: `"Hello, what can you do?"`)
 - `headless`: Run without web UI (default: `true`)
 - `output_base_dir`: Directory for test results (default: `"locust_results"`)
