@@ -8,7 +8,7 @@ model: "meta/llama-3.3-70b-instruct"
 # Load test parameters
 users: 1024             # Maximum number of concurrent users
 spawn_rate: 16           # Users spawned per second
-run_time: 120            # Test duration in seconds (or null for unlimited)
+run_time: 120            # Test duration in seconds
 
 # Request configuration
 message: "Hello, what can you do?"
