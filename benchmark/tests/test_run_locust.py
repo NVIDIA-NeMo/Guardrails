@@ -20,6 +20,7 @@ Tests for Locust load test CLI runner.
 
 import json
 from datetime import datetime
+from json.decoder import JSONDecodeError
 from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import Mock, patch
@@ -136,7 +137,7 @@ class TestLocustRunner:
 
             # Should not raise
             runner._check_service()
-            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
 
     def test_check_service_connection_error(self, runner):
         """Test _check_service with httpx.ConnectError"""
@@ -146,10 +147,24 @@ class TestLocustRunner:
             with pytest.raises(RuntimeError) as exc_info:
                 runner._check_service()
 
-            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
             assert (
                 exc_info.value.args[0]
                 == f"ConnectError accessing {self._service_health_endpoint(runner)}: Connection refused"
+            )
+
+    def test_check_service_timeout_error(self, runner):
+        """Test _check_service when httpx.get times out"""
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = httpx.TimeoutException("httpx.ConnectTimeout: The connection operation timed out")
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
+            assert (
+                exc_info.value.args[0]
+                == f"HTTP Timeout accessing {self._service_health_endpoint(runner)}: httpx.ConnectTimeout: The connection operation timed out"
             )
 
     def test_check_service_error_response(self, runner):
@@ -165,13 +180,13 @@ class TestLocustRunner:
             with pytest.raises(RuntimeError) as exc_info:
                 runner._check_service()
 
-            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
             assert (
                 exc_info.value.args[0]
                 == f"Error {mock_response.status_code} connecting to {self._service_health_endpoint(runner)}: {mock_response.text}"
             )
 
-    def test_check_service_uinhealthy_response(self, runner):
+    def test_check_service_unhealthy_response(self, runner):
         """Test _check_service with 200 response from an unhealthy service"""
         with patch("httpx.get") as mock_get:
             mock_response = Mock()
@@ -186,10 +201,31 @@ class TestLocustRunner:
             with pytest.raises(RuntimeError) as exc_info:
                 runner._check_service()
 
-            mock_get.assert_called_once_with(self._service_health_endpoint(runner))
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
             assert (
                 exc_info.value.args[0]
                 == f"Service at {self._service_health_endpoint(runner)} is unhealthy: {mock_response.text}"
+            )
+
+    def test_check_service_invalid_json(self, runner):
+        """Test _check_service with an invalid JSON response"""
+        with patch("httpx.get") as mock_get:
+            mock_response = Mock()
+            mock_response.is_error = False
+            mock_response.status_code = 200
+            mock_response.text = "{'key': 'value'}"
+            mock_response.json.side_effect = JSONDecodeError(
+                "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)", "{'key': 'value'}", 1
+            )
+            mock_get.return_value = mock_response
+
+            with pytest.raises(RuntimeError) as exc_info:
+                runner._check_service()
+
+            mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
+            assert (
+                exc_info.value.args[0]
+                == "Error: response {'key': 'value'} couldn't be parsed as JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1): line 1 column 2 (char 1)"
             )
 
     def test_build_locust_command_basic(self, runner):

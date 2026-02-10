@@ -67,15 +67,20 @@ class LocustRunner:
 
         try:
             # Try a simple request to verify the server is accessible
-            response = httpx.get(url)
+            response = httpx.get(url, timeout=5)
         except httpx.ConnectError as e:
             raise RuntimeError(f"ConnectError accessing {url}: {e}")
+        except httpx.TimeoutException as e:
+            raise RuntimeError(f"HTTP Timeout accessing {url}: {e}")
 
         if response.is_error:
             raise RuntimeError(f"Error {response.status_code} connecting to {url}: {response.text}")
 
-        if response.json().get("status") != "healthy":
-            raise RuntimeError(f"Service at {url} is unhealthy: {response.text}")
+        try:
+            if response.json().get("status") != "healthy":
+                raise RuntimeError(f"Service at {url} is unhealthy: {response.text}")
+        except json.decoder.JSONDecodeError as e:
+            raise RuntimeError(f"Error: response {response.text} couldn't be parsed as JSON: {e}")
 
         log.info("Successfully connected to server at %s", self.config.host)
 
