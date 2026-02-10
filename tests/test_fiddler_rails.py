@@ -251,9 +251,7 @@ async def test_fiddler_safety_request_format_user_message(monkeypatch):
     assert "data" in request_payload
     assert request_payload["data"]["input"] == "Hello, how are you?"
     assert "prompt" not in request_payload["data"]  # Old format should not be present
-    assert not isinstance(
-        request_payload["data"]["input"], list
-    )  # Should be string, not list
+    assert not isinstance(request_payload["data"]["input"], list)  # Should be string, not list
 
 
 @pytest.mark.unit
@@ -315,9 +313,7 @@ async def test_fiddler_safety_request_format_bot_message(monkeypatch):
     assert "data" in request_payload
     assert request_payload["data"]["input"] == "I can help you with that."
     assert "prompt" not in request_payload["data"]  # Old format should not be present
-    assert not isinstance(
-        request_payload["data"]["input"], list
-    )  # Should be string, not list
+    assert not isinstance(request_payload["data"]["input"], list)  # Should be string, not list
 
 
 @pytest.mark.unit
@@ -367,10 +363,7 @@ async def test_fiddler_faithfulness_request_format(monkeypatch):
     request_payload = call_args[1]["json"]
     assert "data" in request_payload
     assert request_payload["data"]["response"] == "Shipping takes 2 days"
-    assert (
-        request_payload["data"]["context"]
-        == "Shipping takes at least 3 days. We ship worldwide."
-    )
+    assert request_payload["data"]["context"] == "Shipping takes at least 3 days. We ship worldwide."
     # Verify old format (lists) is not present
     assert not isinstance(request_payload["data"].get("response"), list)
     assert not isinstance(request_payload["data"].get("context"), list)
