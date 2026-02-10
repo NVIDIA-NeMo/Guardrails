@@ -64,7 +64,7 @@ class LocustConfig(BaseModel):
         description="Run in headless mode without web UI",
     )
 
-    output_base_dir: str = Field(
+    output_base_dir: Path = Field(
         default="locust_results",
         description="Base directory for load test results",
     )

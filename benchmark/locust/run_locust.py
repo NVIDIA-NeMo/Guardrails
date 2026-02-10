@@ -125,7 +125,7 @@ class LocustRunner:
     def _create_output_dir(self, base_dir: Path) -> Path:
         """Create timestamped output directory for test results."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = base_dir / timestamp
+        output_dir = base_dir / Path(timestamp)
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
 
@@ -138,20 +138,14 @@ class LocustRunner:
             log.error(str(e))
             return 1
 
-        # Create output directory if in headless mode
-        output_dir = None
-        if self.config.headless:
-            base_dir = Path("locust_results")
-            output_dir = self._create_output_dir(base_dir)
-            log.info("Results will be saved to: %s", output_dir)
-
         # Build command
-        command = self._build_locust_command(output_dir)
+        output_path = self._create_output_dir(self.config.output_base_dir)
+        command = self._build_locust_command(output_path)
 
         # Save metadata
         start_time = datetime.now()
-        if output_dir:
-            self._save_run_metadata(output_dir, command, start_time)
+        self._save_run_metadata(output_path, command, start_time)
+        log.info("Saving metadata to: %s", output_path)
 
         # Set environment variables for the locustfile
         env = os.environ.copy()
@@ -180,8 +174,8 @@ class LocustRunner:
 
             if result.returncode == 0:
                 log.info("Load test completed successfully")
-                if output_dir:
-                    log.info("Results saved to: %s", output_dir)
+                if output_path:
+                    log.info("Results saved to: %s", output_path)
             else:
                 log.error("Load test failed with exit code %s", result.returncode)
 
