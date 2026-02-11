@@ -34,7 +34,7 @@ The `GuardrailsMiddleware` class integrates NeMo Guardrails directly into LangCh
 
 ---
 
-## Overview
+## How It Works
 
 When a LangChain agent runs, it enters a loop:
 
@@ -51,8 +51,8 @@ User Input
 
 - **Input rails** run before every model call, not just the first.
 - **Output rails** run after every model response, including intermediate tool-calling responses.
-- If input rails block, the model is never called (`jump_to: "end"`).
-- If output rails block, the AIMessage is replaced with a policy message (no `tool_calls`), terminating the loop naturally.
+- If input rails block, the middleware skips the model call (`jump_to: "end"`).
+- If output rails block, the middleware replaces the AIMessage with a policy message (no `tool_calls`), terminating the loop naturally.
 
 ---
 
@@ -73,6 +73,8 @@ export OPENAI_API_KEY="your_openai_api_key"
 ---
 
 ## Quick Start
+
+The following example creates a tool-calling agent with guardrails applied to every model call.
 
 ```python
 from langchain.agents import create_agent
@@ -100,7 +102,11 @@ result = agent.invoke(
 
 ## Configuration
 
+Configure the middleware through constructor parameters and a standard NeMo Guardrails config directory.
+
 ### Constructor Parameters
+
+The `GuardrailsMiddleware` constructor accepts the following parameters.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -171,7 +177,11 @@ For the full NeMo Guardrails configuration reference, see the [Configuration Gui
 
 ## Usage Patterns
 
+The following examples demonstrate common integration patterns with `GuardrailsMiddleware`.
+
 ### Basic Agent with Tools
+
+Create an agent with a database search tool and observe how input rails block policy-violating requests.
 
 ```python
 from langchain.agents import create_agent
@@ -197,7 +207,8 @@ result = agent.invoke(
 
 Expected output:
 
-```Input blocked by self check input
+```text
+Input blocked by self check input
 ```
 
 ### Exception-Based Error Handling
@@ -226,6 +237,8 @@ except GuardrailViolation as e:
 ```
 
 ### Custom Blocked Messages
+
+Override the default policy messages returned when rails block input or output.
 
 ```python
 guardrails = GuardrailsMiddleware(
@@ -262,6 +275,8 @@ guardrails = GuardrailsMiddleware(
 
 ### Multi-Turn with Checkpointing
 
+Use LangGraph's `InMemorySaver` to maintain conversation state across multiple invocations while guardrails run on every turn.
+
 ```python
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -292,6 +307,8 @@ result2 = agent.invoke(
 
 ## Known Limitations
 
+Be aware of the following constraints when using `GuardrailsMiddleware` with tool-calling agents.
+
 ### Output Rails and Tool-Calling Responses
 
 LLM-based output rails (such as `self_check_output`) evaluate the `content` field of the model's response. Intermediate tool-calling responses often have **empty content** (the actual instructions are in the `tool_calls` field). Depending on the LLM used for the self-check, an empty content field may be flagged as a violation.
@@ -307,15 +324,17 @@ guardrails = GuardrailsMiddleware(
 
 ### Tool Call Arguments Are Not Inspected
 
-Rails evaluate the `content` field of messages, not the `tool_calls` arguments. This means PII or harmful content passed through tool call arguments (e.g., `send_email(body="SSN: 123-45-6789")`) is not checked by content-based rails.
+Rails evaluate the `content` field of messages, not the `tool_calls` arguments. Content-based rails do not inspect PII or harmful content passed through tool call arguments (e.g., `send_email(body="SSN: 123-45-6789")`).
 
 ### MODIFIED Status Is Ignored
 
-When a rail modifies content (returns `RailStatus.MODIFIED`), the middleware treats it as a pass-through. The original, unmodified content is used by the agent. This is by design — applying modifications to the agent's internal state could cause inconsistencies.
+When a rail modifies content (returns `RailStatus.MODIFIED`), the middleware treats it as a pass-through and the agent uses the original, unmodified content. This is by design — applying modifications to the agent's internal state could cause inconsistencies.
 
 ---
 
 ## API Reference
+
+Summary of the middleware classes and exception type.
 
 ### GuardrailsMiddleware
 
@@ -342,6 +361,8 @@ Exception raised when `raise_on_violation=True` and a rail blocks.
 
 ## Comparison with RunnableRails
 
+Choose between the two integration approaches based on your architecture.
+
 | Feature | `GuardrailsMiddleware` | `RunnableRails` |
 |---------|----------------------|-----------------|
 | Integration point | Agent loop hooks (`before_model`/`after_model`) | Chain composition (LCEL `\|` operator) |
@@ -352,3 +373,12 @@ Exception raised when `raise_on_violation=True` and a rail blocks.
 | LangGraph compatibility | Via `create_agent` | Via LCEL composition in graph nodes |
 
 Use `GuardrailsMiddleware` when building tool-calling agents with `create_agent`. Use `RunnableRails` when composing custom LangGraph graphs or wrapping individual chains.
+
+---
+
+## Related Resources
+
+- [](langchain-integration.md) - Overview of all LangChain integration approaches
+- [](runnable-rails.md) - Wrap chains with guardrails using the LCEL `|` operator
+- [](../../configure-rails/yaml-schema/index.md) - Full NeMo Guardrails configuration reference
+- [Checking Messages Against Rails](../../run-rails/using-python-apis/check-messages.md) - The `check_async` API used internally by the middleware

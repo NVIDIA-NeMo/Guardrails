@@ -23,7 +23,7 @@ content:
 
 There are three main ways in which you can use the NeMo Guardrails library with LangChain:
 
-1. Add guardrails to a LangChain agent via middleware hooks (LangChain v1).
+1. Add guardrails to a LangChain agent through the middleware hooks (LangChain v1).
 2. Add guardrails to a LangChain chain (or `Runnable`).
 3. Use a LangChain chain (or `Runnable`) inside a guardrails configuration.
 
