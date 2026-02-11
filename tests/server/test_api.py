@@ -16,8 +16,9 @@
 import json
 import os
 from typing import AsyncIterator, Union
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 pytest.importorskip("openai", reason="openai is required for server tests")
@@ -705,3 +706,250 @@ def test_chat_completion_with_streaming():
         assert chunk.startswith("data: ")
         assert chunk.endswith("\n\n")
     assert "data: [DONE]\n\n" in response.text
+
+
+def _make_httpx_response(json_data, status_code=200):
+    """Helper to create a mock httpx.Response."""
+    return httpx.Response(
+        status_code=status_code,
+        json=json_data,
+        request=httpx.Request("GET", "http://test/v1/models"),
+    )
+
+
+def test_list_models_no_base_url_known_engine():
+    """Test /v1/models returns 502 for a known engine when MAIN_MODEL_BASE_URL is missing."""
+    with patch.dict(os.environ, {"MAIN_MODEL_ENGINE": "openai"}, clear=False):
+        os.environ.pop("MAIN_MODEL_BASE_URL", None)
+        response = client.get("/v1/models")
+    assert response.status_code == 502
+    assert "MAIN_MODEL_BASE_URL" in response.json()["detail"]
+
+
+def test_list_models_unknown_engine_no_base_url():
+    """Test /v1/models returns empty list for an unknown engine with no base URL."""
+    with patch.dict(os.environ, {"MAIN_MODEL_ENGINE": "custom_llm"}, clear=False):
+        os.environ.pop("MAIN_MODEL_BASE_URL", None)
+        response = client.get("/v1/models")
+    assert response.status_code == 200
+    assert response.json()["data"] == []
+
+
+def test_list_models_success():
+    """Test /v1/models proxies and returns models from upstream."""
+    upstream_response = {
+        "data": [
+            {"id": "llama-3.1-8b", "object": "model", "created": 1700000000, "owned_by": "meta"},
+            {"id": "llama-3.1-70b", "object": "model", "created": 1700000001, "owned_by": "meta"},
+        ]
+    }
+    mock_response = _make_httpx_response(upstream_response)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "data" in data
+    assert len(data["data"]) == 2
+    assert data["data"][0]["id"] == "llama-3.1-8b"
+    assert data["data"][0]["object"] == "model"
+    assert data["data"][0]["created"] == 1700000000
+    assert data["data"][0]["owned_by"] == "meta"
+    assert data["data"][1]["id"] == "llama-3.1-70b"
+
+
+def test_list_models_empty_upstream():
+    """Test /v1/models handles empty model list from upstream."""
+    mock_response = _make_httpx_response({"data": []})
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["data"] == []
+
+
+def test_list_models_upstream_error():
+    """Test /v1/models returns upstream error status on HTTP error."""
+    mock_response = _make_httpx_response({"error": "unauthorized"}, status_code=401)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 401
+    assert "Error fetching models from upstream" in response.json()["detail"]
+
+
+def test_list_models_connection_error():
+    """Test /v1/models returns 502 on connection failure."""
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:9999"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 502
+    assert "Error connecting to upstream" in response.json()["detail"]
+
+
+def test_list_models_forwards_auth_header():
+    """Test /v1/models forwards the Authorization header from the request."""
+    mock_response = _make_httpx_response({"data": []})
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get(
+                "/v1/models",
+                headers={"Authorization": "Bearer my-token"},
+            )
+
+    assert response.status_code == 200
+    # Verify the upstream call received the forwarded auth header
+    call_kwargs = mock_client.get.call_args
+    assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer my-token"
+
+
+def test_list_models_uses_openai_api_key_fallback():
+    """Test /v1/models falls back to OPENAI_API_KEY when no auth header."""
+    mock_response = _make_httpx_response({"data": []})
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(
+        os.environ,
+        {
+            "MAIN_MODEL_BASE_URL": "http://localhost:8000",
+            "OPENAI_API_KEY": "sk-test-key",
+        },
+    ):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    call_kwargs = mock_client.get.call_args
+    assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer sk-test-key"
+
+
+def test_list_models_owned_by_fallback_to_engine():
+    """Test owned_by falls back to MAIN_MODEL_ENGINE when upstream doesn't provide it."""
+    upstream_response = {
+        "data": [
+            {"id": "my-model", "object": "model", "created": 1700000000},
+        ]
+    }
+    mock_response = _make_httpx_response(upstream_response)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(
+        os.environ,
+        {
+            "MAIN_MODEL_BASE_URL": "http://localhost:8000",
+            "MAIN_MODEL_ENGINE": "nim",
+        },
+    ):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["data"][0]["owned_by"] == "nim"
+
+
+def test_list_models_owned_by_defaults_to_system():
+    """Test owned_by defaults to 'system' when upstream and env are not set."""
+    upstream_response = {
+        "data": [
+            {"id": "my-model", "object": "model", "created": 1700000000},
+        ]
+    }
+    mock_response = _make_httpx_response(upstream_response)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    env = {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}
+    with patch.dict(os.environ, env, clear=False):
+        os.environ.pop("MAIN_MODEL_ENGINE", None)
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["data"][0]["owned_by"] == "system"
+
+
+def test_list_models_malformed_upstream_data():
+    """Test /v1/models handles malformed upstream response gracefully."""
+    # Upstream returns data items that aren't dicts — they should be skipped
+    upstream_response = {
+        "data": [
+            {"id": "valid-model", "object": "model", "created": 1700000000, "owned_by": "test"},
+            "not-a-dict",
+            42,
+            None,
+        ]
+    }
+    mock_response = _make_httpx_response(upstream_response)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    data = response.json()
+    # Only the valid dict model should be included
+    assert len(data["data"]) == 1
+    assert data["data"][0]["id"] == "valid-model"
+
+
+def test_list_models_upstream_missing_data_key():
+    """Test /v1/models handles upstream response without 'data' key."""
+    # Some APIs might not return the standard OpenAI format
+    upstream_response = {"models": ["model-a", "model-b"]}
+    mock_response = _make_httpx_response(upstream_response)
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["data"] == []

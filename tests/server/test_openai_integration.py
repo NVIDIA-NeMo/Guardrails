@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from openai import OpenAI
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.model import Model
 
 from nemoguardrails.server import api
 
@@ -309,3 +310,103 @@ def test_openai_client_with_rails_disabled(openai_client):
     assert response.model == "gpt-4o"
     assert response.choices[0].message.content == "hi"
     assert response.guardrails["config_id"] == "with_custom_llm"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY is required for this test.",
+)
+def test_list_models_openai(openai_client):
+    """List models from the OpenAI API."""
+    os.environ.setdefault("MAIN_MODEL_BASE_URL", "https://api.openai.com")
+    os.environ["MAIN_MODEL_ENGINE"] = "openai"
+
+    models = list(openai_client.models.list())
+
+    assert len(models) > 0
+    assert all(isinstance(m, Model) for m in models)
+    assert all(m.id for m in models)
+    assert all(m.object == "model" for m in models)
+    assert all(isinstance(m.created, int) for m in models)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY is required for this test.",
+)
+def test_list_models_openai_fields(openai_client):
+    """Verify that well-known OpenAI models appear with expected fields."""
+    os.environ.setdefault("MAIN_MODEL_BASE_URL", "https://api.openai.com")
+    os.environ["MAIN_MODEL_ENGINE"] = "openai"
+
+    models = {m.id: m for m in openai_client.models.list()}
+
+    # At least one GPT model should be present
+    gpt_models = [mid for mid in models if "gpt" in mid]
+    assert len(gpt_models) > 0, f"Expected GPT models, got: {list(models.keys())[:10]}"
+
+    sample = models[gpt_models[0]]
+    assert sample.owned_by  # non-empty string
+    assert sample.created > 0
+
+
+@pytest.mark.skipif(
+    not os.environ.get("ANTHROPIC_API_KEY"),
+    reason="ANTHROPIC_API_KEY is required for this test.",
+)
+def test_list_models_anthropic(openai_client):
+    """List models from the Anthropic API."""
+    os.environ["MAIN_MODEL_ENGINE"] = "anthropic"
+
+    models = list(openai_client.models.list())
+
+    assert len(models) > 0
+    assert all(isinstance(m, Model) for m in models)
+    # Anthropic model IDs typically contain "claude"
+    claude_models = [m for m in models if "claude" in m.id]
+    assert len(claude_models) > 0, f"Expected Claude models, got: {[m.id for m in models[:10]]}"
+    assert all(m.owned_by == "anthropic" for m in models)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("COHERE_API_KEY"),
+    reason="COHERE_API_KEY is required for this test.",
+)
+def test_list_models_cohere(openai_client):
+    """List models from the Cohere API."""
+    os.environ["MAIN_MODEL_ENGINE"] = "cohere"
+
+    models = list(openai_client.models.list())
+
+    assert len(models) > 0
+    assert all(isinstance(m, Model) for m in models)
+    # Cohere model IDs typically contain "command"
+    command_models = [m for m in models if "command" in m.id]
+    assert len(command_models) > 0, f"Expected Command models, got: {[m.id for m in models[:10]]}"
+    assert all(m.owned_by == "cohere" for m in models)
+
+
+@pytest.mark.skipif(
+    not (os.environ.get("AZURE_OPENAI_ENDPOINT") and os.environ.get("AZURE_OPENAI_API_KEY")),
+    reason="AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY are required for this test.",
+)
+def test_list_models_azure(openai_client):
+    """List models from Azure OpenAI."""
+    os.environ["MAIN_MODEL_ENGINE"] = "azure"
+
+    models = list(openai_client.models.list())
+
+    assert len(models) > 0
+    assert all(isinstance(m, Model) for m in models)
+    assert all(m.object == "model" for m in models)
+    assert all(m.owned_by == "azure" for m in models)
+
+
+def test_list_models_unknown_engine_no_url(openai_client):
+    """Unknown engine with no MAIN_MODEL_BASE_URL returns an empty list."""
+    os.environ["MAIN_MODEL_ENGINE"] = "some_custom_llm"
+    os.environ.pop("MAIN_MODEL_BASE_URL", None)
+
+    models = list(openai_client.models.list())
+
+    assert models == []

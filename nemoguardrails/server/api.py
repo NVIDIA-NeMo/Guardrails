@@ -18,13 +18,14 @@ import contextvars
 import importlib.util
 import json
 import logging
-import os.path
+import os
 import re
 import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
@@ -40,10 +41,12 @@ from nemoguardrails.server.datastore.datastore import DataStore
 from nemoguardrails.server.schemas.openai import (
     GuardrailsChatCompletion,
     GuardrailsChatCompletionRequest,
+    OpenAIModelsList,
 )
 from nemoguardrails.server.schemas.utils import (
     create_error_chat_completion,
     extract_bot_message_from_response,
+    fetch_models,
     format_streaming_chunk_as_sse,
     generation_response_to_chat_completion,
 )
@@ -226,6 +229,41 @@ async def get_rails_configs():
     ]
 
     return [{"id": config_id} for config_id in config_ids]
+
+
+@app.get(
+    "/v1/models",
+    response_model=OpenAIModelsList,
+    summary="Get list of available models.",
+)
+async def list_models(request: Request):
+    """Return the list of models available from the configured provider."""
+
+    engine = os.environ.get("MAIN_MODEL_ENGINE", "openai")
+
+    # Forward auth headers from the incoming request.
+    request_headers: dict[str, str] = {}
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        request_headers["Authorization"] = auth_header
+
+    try:
+        # Fetch the list of models from the configured provider
+        models = await fetch_models(engine, request_headers)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=exc.response.status_code,
+            detail=f"Error fetching models from upstream: {exc.response.text}",
+        )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error connecting to upstream model server: {str(exc)}",
+        )
+
+    return OpenAIModelsList(data=models)
 
 
 # One instance of LLMRails per config id

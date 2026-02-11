@@ -16,7 +16,7 @@
 """OpenAI API schema definitions for the NeMo Guardrails server."""
 
 import os
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from openai.types.chat.chat_completion import ChatCompletion
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
@@ -150,3 +150,18 @@ class GuardrailsChatCompletionRequest(OpenAIChatCompletionRequest):
         default_factory=GuardrailsDataInput,
         description="Guardrails specific options for the request.",
     )
+
+
+class OpenAIModel(BaseModel):
+    """Standard OpenAI model."""
+
+    id: str = Field(..., description="The model identifier.")
+    created: int = Field(..., description="The unix timestamp in seconds of the model's creation.")
+    object: Literal["model"] = Field("model", description="The object type which is always 'model'.")
+    owned_by: str | None = Field(..., description="The organization that owns the model.")
+
+
+class OpenAIModelsList(BaseModel):
+    """Standard OpenAI models list response."""
+
+    data: list[OpenAIModel] = Field(..., description="List of OpenAI model objects.")
