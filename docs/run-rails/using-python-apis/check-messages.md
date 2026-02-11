@@ -14,11 +14,15 @@ content:
 
 # Checking Messages Against Rails
 
-The `check_async()` and `check()` methods provide a simplified way to validate messages against input and output rails without triggering full LLM generation. This is the recommended alternative to using [generation options](generation-options.md) when you only need to run input and/or output rails.
+The `check_async()` and `check()` methods validate messages against input and output rails without triggering full LLM generation. Use these methods instead of [generation options](generation-options.md) when you only need to run rails without generating a response.
 
 ## Method Signatures
 
+Both methods accept the same parameters and return a `RailsResult` object.
+
 ### check_async()
+
+The primary asynchronous method for checking messages against rails.
 
 ```python
 async def check_async(
@@ -49,6 +53,8 @@ def check(
 
 ## Rail Type Selection
 
+The methods determine which rails to execute based on the message roles or an explicit `rail_types` parameter.
+
 ### Automatic Detection (Default)
 
 When `rail_types` is not provided, the methods automatically determine which rails to run based on the message roles:
@@ -61,7 +67,7 @@ When `rail_types` is not provided, the methods automatically determine which rai
 | No `user` or `assistant` messages | Returns PASSED status |
 
 ```{note}
-Other message roles (e.g., `system`, `context`, `tool`) are ignored when determining which rails to run, but they are still included in the validation context.
+The methods ignore other message roles such as `system`, `context`, `tool` when determining which rails to run but still include them in the validation context.
 ```
 
 ### Explicit Rail Types
@@ -84,6 +90,8 @@ result = await rails.check_async(
 
 ## RailsResult
 
+The `RailsResult` object contains the outcome of the rails check.
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `status` | `RailStatus` | `PASSED`, `MODIFIED`, or `BLOCKED` |
@@ -91,6 +99,8 @@ result = await rails.check_async(
 | `rail` | `Optional[str]` | Name of the rail that blocked the content (only when `BLOCKED`) |
 
 ### RailStatus Enum
+
+The `RailStatus` enum represents the three possible outcomes of a rails check.
 
 | Status | Description |
 |--------|-------------|
@@ -100,7 +110,11 @@ result = await rails.check_async(
 
 ## Usage Examples
 
+The following examples demonstrate common patterns for validating messages with `check_async()`.
+
 ### Validating User Input
+
+Check a single user message against input rails and handle each possible status.
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig
@@ -123,6 +137,8 @@ else:
 
 ### Validating a Full Conversation
 
+Pass both user and assistant messages to run input and output rails together.
+
 ```python
 result = await rails.check_async([
     {"role": "user", "content": "What's the weather like?"},
@@ -133,18 +149,10 @@ if result.status == RailStatus.BLOCKED:
     print(f"Conversation blocked by rail: {result.rail}")
 ```
 
-### Using Explicit Rail Types
-
-```python
-from nemoguardrails.rails.llm.options import RailType
-
-result = await rails.check_async(
-    [{"role": "user", "content": "Hello!"}],
-    rail_types=[RailType.INPUT]
-)
-```
-
 ### Including Context
+
+Pass context variables alongside user or assistant messages to provide additional information for rail evaluation.
+Context messages use the `context` role with a dictionary value for `content`.
 
 ```python
 result = await rails.check_async([
@@ -155,3 +163,12 @@ result = await rails.check_async([
     {"role": "user", "content": "I need help with my account"}
 ])
 ```
+
+For more information about context variables, refer to [](core-classes.md#passing-context).
+
+---
+
+## Related Resources
+
+- [](core-classes.md) - `LLMRails` and `RailsConfig` class reference
+- [](generation-options.md) - Fine-grained control over generation with the `options` parameter
