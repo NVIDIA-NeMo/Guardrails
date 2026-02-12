@@ -10,7 +10,8 @@ traffic, including:
 - **Language** - Language detection with optional use of an allowlist or denylist
 - **Topic violations** - Configurable content category restrictions
 
-All detections are logged in an audit trail for analysis, attribution, and incident response.
+All detections are logged in an audit trail for analysis, attribution, and incident response. Note that this guardrail
+operates in a fail-open mode.
 
 The following environment variable is required to use the CrowdStrike AIDR integration:
 
@@ -29,6 +30,10 @@ Colang v1:
 # config.yml
 
 rails:
+  config:
+    crowdstrike_aidr:
+      timeout: 30.0  # Optional request timeout in seconds. Defaults to 30 seconds.
+
   input:
     flows:
       - crowdstrike aidr guard input
@@ -44,6 +49,11 @@ Colang v2:
 # config.yml
 
 colang_version: "2.x"
+
+rails:
+  config:
+    crowdstrike_aidr:
+      timeout: 30.0  # Optional request timeout in seconds. Defaults to 30 seconds.
 ```
 
 ```

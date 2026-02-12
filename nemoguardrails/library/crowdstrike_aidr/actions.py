@@ -16,7 +16,7 @@
 import logging
 import os
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import httpx
 from pydantic import BaseModel
@@ -24,7 +24,7 @@ from pydantic_core import to_json
 from typing_extensions import Literal, TypedDict
 
 from nemoguardrails.actions import action
-from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.config import CrowdStrikeAIDRRailConfig, RailsConfig
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +57,13 @@ class GuardChatCompletionsResponse(BaseModel):
     result: GuardChatCompletionsResult
 
 
+def get_crowdstrike_aidr_config(config: RailsConfig) -> CrowdStrikeAIDRRailConfig:
+    if not hasattr(config.rails.config, "crowdstrike_aidr") or config.rails.config.crowdstrike_aidr is None:
+        return CrowdStrikeAIDRRailConfig()
+
+    return cast(CrowdStrikeAIDRRailConfig, config.rails.config.crowdstrike_aidr)
+
+
 @action(is_system_action=True)
 async def crowdstrike_aidr_guard(
     mode: Literal["input", "output"],
@@ -71,10 +78,12 @@ async def crowdstrike_aidr_guard(
     if not api_token:
         raise ValueError("CS_AIDR_TOKEN environment variable is not set.")
 
+    crowdstrike_aidr_config = get_crowdstrike_aidr_config(config)
+
     user_message = user_message or context.get("user_message")
     bot_message = bot_message or context.get("bot_message")
 
-    if not any([user_message, bot_message]):
+    if not any((user_message, bot_message)):
         raise ValueError("Either user_message or bot_message must be provided.")
 
     messages: list[Message] = []
@@ -86,23 +95,29 @@ async def crowdstrike_aidr_guard(
         messages.append(Message(role="assistant", content=bot_message))
 
     async with httpx.AsyncClient(base_url=base_url_template.format(SERVICE_NAME="aiguard")) as client:
-        data = {"guard_input": {"messages": messages}}
-        # Remove `None` values.
-        data = {k: v for k, v in data.items() if v is not None}
-
         response = await client.post(
             "/v1/guard_chat_completions",
-            content=to_json(data),
+            content=to_json({"guard_input": {"messages": messages}}),
             headers={
                 "Accept": "application/json",
                 "Authorization": f"Bearer {api_token}",
                 "Content-Type": "application/json",
                 "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
             },
+            timeout=crowdstrike_aidr_config.timeout,
         )
         try:
             response.raise_for_status()
             guard_response = GuardChatCompletionsResponse(**response.json())
+        except httpx.HTTPStatusError as e:
+            log.error("HTTP status error from CrowdStrike AIDR API: %s", e)
+            return GuardChatCompletionsResult(
+                guard_output={"messages": messages},
+                blocked=False,
+                transformed=False,
+                bot_message=bot_message,
+                user_message=user_message,
+            )
         except Exception as e:
             log.error("Error calling CrowdStrike AIDR API: %s", e)
             return GuardChatCompletionsResult(

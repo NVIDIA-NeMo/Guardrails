@@ -8,3 +8,8 @@ models:
 instructions:
   - type: general
     content: You are a helpful assistant.
+
+rails:
+  config:
+    crowdstrike_aidr:
+      timeout: 15.0 # Optional request timeout in seconds. Defaults to 30 seconds.

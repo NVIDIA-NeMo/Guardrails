@@ -834,6 +834,15 @@ class ClavataRailConfig(BaseModel):
     )
 
 
+class CrowdStrikeAIDRRailConfig(BaseModel):
+    """Configuration data for the CrowdStrike AIDR API"""
+
+    timeout: float = Field(
+        default=30.0,
+        description="Timeout in seconds for API requests to CrowdStrike AIDR",
+    )
+
+
 class PangeaRailOptions(BaseModel):
     """Configuration data for the Pangea AI Guard API"""
 
@@ -1041,6 +1050,11 @@ class RailsConfigData(BaseModel):
     clavata: Optional[ClavataRailConfig] = Field(
         default_factory=ClavataRailConfig,
         description="Configuration for Clavata.",
+    )
+
+    crowdstrike_aidr: Optional[CrowdStrikeAIDRRailConfig] = Field(
+        default_factory=CrowdStrikeAIDRRailConfig,
+        description="Configuration for CrowdStrike AIDR.",
     )
 
     pangea: Optional[PangeaRailConfig] = Field(
