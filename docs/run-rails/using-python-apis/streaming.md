@@ -179,7 +179,7 @@ The `include_generation_metadata` parameter is deprecated. Use `include_metadata
 
 ## Token Usage Tracking
 
-Token usage statistics are available when streaming responses depending on provider support.
+Token usage statistics are available when streaming responses, depending on provider support. When the provider does not return token usage statistics, the final chunk's `metadata` will contain `response_metadata` and `usage_metadata` set to `None`.
 
 ### Accessing Token Usage Information
 

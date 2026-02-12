@@ -699,6 +699,28 @@ async def test_metadata_accumulation_across_chunks():
 
 
 @pytest.mark.asyncio
+async def test_metadata_defaults_when_provider_returns_no_metadata():
+    """Test that the final chunk includes metadata with None values when include_metadata=True
+    but the provider does not return any metadata."""
+    streaming_handler = StreamingHandler(include_metadata=True)
+    streaming_consumer = StreamingConsumer(streaming_handler)
+
+    try:
+        await streaming_handler.push_chunk("Hello")
+        await streaming_handler.push_chunk(" world")
+        await streaming_handler.push_chunk(None)
+
+        chunks = await streaming_consumer.get_chunks()
+
+        final_chunk = chunks[-1]
+        assert "metadata" in final_chunk
+        assert final_chunk["metadata"]["response_metadata"] is None
+        assert final_chunk["metadata"]["usage_metadata"] is None
+    finally:
+        await streaming_consumer.cancel()
+
+
+@pytest.mark.asyncio
 async def test_anext_with_dict_end_of_stream_sentinel():
     """Test __anext__ with a dict-wrapped END_OF_STREAM sentinel."""
 

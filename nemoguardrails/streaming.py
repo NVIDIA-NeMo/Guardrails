@@ -232,10 +232,14 @@ class StreamingHandler(AsyncIterator):
                 # we only want to filter out empty strings that are created during suffix processing,
                 # not ones directly pushed by the user
                 if chunk is not None:
-                    # process all valid chunks, including empty strings directly from the user
                     if self.include_metadata:
                         chunk_dict = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
-                        if self.current_metadata:
+                        if chunk is END_OF_STREAM:
+                            metadata = self.current_metadata.copy() if self.current_metadata else {}
+                            metadata.setdefault("response_metadata", None)
+                            metadata.setdefault("usage_metadata", None)
+                            chunk_dict["metadata"] = metadata
+                        elif self.current_metadata:
                             chunk_dict["metadata"] = self.current_metadata.copy()
                         await self.queue.put(chunk_dict)
                     else:
