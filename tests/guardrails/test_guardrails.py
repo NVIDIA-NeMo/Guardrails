@@ -26,14 +26,13 @@ import pytest
 from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
-
-NEMOGUARDS_V2_CONFIG_PATH = "examples/configs/nemoguards_v2"
+from tests.guardrails.test_data import NEMOGUARDS_V2_CONFIG
 
 
 @pytest.fixture
 def mock_rails_config():
-    """Create a real RailsConfig from the nemoguards_v2 example config."""
-    return RailsConfig.from_path(NEMOGUARDS_V2_CONFIG_PATH)
+    """Create a real RailsConfig matching the nemoguards_v2 example config."""
+    return RailsConfig.from_content(config=NEMOGUARDS_V2_CONFIG)
 
 
 @pytest.fixture
