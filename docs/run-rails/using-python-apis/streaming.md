@@ -160,7 +160,7 @@ async for chunk in rails.stream_async(messages=messages, include_metadata=True):
     print(chunk)
 ```
 
-With `include_metadata=True`, each chunk is a `dict` with a `"text"` key. The final chunk includes a `"metadata"` key containing `response_metadata` (finish reason, model name) and `usage_metadata` (token counts):
+With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key. The final chunk also includes a `"metadata"` key containing `response_metadata` (finish reason, model name) and `usage_metadata` (token counts):
 
 ```python
 {"text": "Hello"}
