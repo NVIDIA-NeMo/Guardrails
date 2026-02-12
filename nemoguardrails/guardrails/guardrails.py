@@ -27,11 +27,11 @@ from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
-from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.guardrails.iorails import IORails
 
 # Queue configuration constants
 MAX_QUEUE_SIZE = 100
@@ -44,6 +44,14 @@ log = logging.getLogger(__name__)
 IORAILS_RAILS = {"input", "output"}
 IORAILS_INPUT_FLOWS = {"content safety check input"}
 IORAILS_OUTPUT_FLOWS = {"content safety check output"}
+
+# Set with flows supported by the IORailsEngine
+IORAILS_FLOWS = {
+    "input": {
+        "content safety check input",
+    },
+    "output": {"content safety check output"},
+}
 
 
 class Guardrails:
@@ -64,9 +72,12 @@ class Guardrails:
 
         # Whether to use IORailsEngine for inference requests
         self._use_iorails_engine: bool = use_iorails and self._has_only_iorails_flows()
-        self._iorails = IORails(config)
         self._llmrails = LLMRails(config, llm, verbose)
+        self._iorails = IORails(config)
         self.rails_engine = self._iorails if self._use_iorails_engine else self._llmrails
+
+        # Whether to use IORailsEngine for inference requests
+        self._use_iorails_engine: bool = self._has_only_iorails_flows()
 
         # Async work queue for managing concurrent generate_async requests
         self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
@@ -165,10 +176,12 @@ class Guardrails:
         Supported by both LLMRails and IORails
         """
 
-        generate_messages = self._convert_to_messages(prompt, messages)
-        response = await self._generate_async_queue.submit(
-            self.rails_engine.generate_async, messages=generate_messages, **kwargs
-        )
+        messages = self._convert_to_messages(prompt, messages)
+
+        # Submit to work queue for concurrency control
+        # Use IORailsEngine if RailsConfig allows it, otherwise fall back to LLMRails
+        method = self.iorails.generate_async if self._use_iorails_engine else self.llmrails.generate_async
+        response = await self._generate_async_queue.submit(method, messages=messages, **kwargs)
         return response
 
     def stream_async(
@@ -190,18 +203,18 @@ class Guardrails:
         """
 
         if self._use_iorails_engine:
-            raise NotImplementedError("IORails doesn't support explain()")
+            raise NotImplementedError("IORails doesn't support `explain()`")
 
-        return self._llmrails.explain()
+        return self.llmrails.explain()
 
     def update_llm(self, llm: Union[BaseLLM, BaseChatModel]) -> None:
         """Replace the main LLM with a new one.
         Only supported for LLMRails, since IORails doesn't take LLM as argument
         """
         if self._use_iorails_engine:
-            raise NotImplementedError("IORails doesn't support update_llm()")
+            raise NotImplementedError("IORails doesn't support `update_llm()`")
 
-        self._llmrails.update_llm(llm)
+        self.llmrails.update_llm(llm)
 
     async def startup(self) -> None:
         """Lifecycle method to create worker threads and infrastructure"""

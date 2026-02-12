@@ -116,9 +116,7 @@ class ModelEngine:
     def _get_environment_variable(self, variable_name: str) -> str | None:
         """Return the value stored in environment variable `variable_name`."""
         env_value = os.environ.get(variable_name)
-        if env_value:
-            return env_value
-        return None
+        return env_value
 
     def _resolve_api_key(self, engine: str | None) -> Optional[str]:
         """Resolve the API key from model config or environment."""

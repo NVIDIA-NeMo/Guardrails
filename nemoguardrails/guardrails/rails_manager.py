@@ -70,6 +70,7 @@ class RailsManager:
         if not self.input_flows:
             return RailResult(is_safe=True)
 
+        # TODO: Running these sequentially now, need to update to parallel and early-out if any rail fails
         for flow in self.input_flows:
             result = await self._run_input_rail(flow, messages)
             if not result.is_safe:
@@ -90,6 +91,7 @@ class RailsManager:
         if not self.output_flows:
             return RailResult(is_safe=True)
 
+        # TODO: Running these sequentially now, need to update to parallel and early-out if any rail fails
         for flow in self.output_flows:
             result = await self._run_output_rail(flow, messages, response)
             if not result.is_safe:

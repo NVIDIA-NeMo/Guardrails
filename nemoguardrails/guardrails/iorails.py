@@ -37,6 +37,8 @@ class IORails:
     """Workflow engine for accelerated Input/Output rails inference."""
 
     def __init__(self, config: RailsConfig) -> None:
+        self.config = config
+
         # Model Manager has one or more ModelEngine inside. Each ModelEngine calls a single model or API
         self.model_manager = ModelManager(config.models)
 

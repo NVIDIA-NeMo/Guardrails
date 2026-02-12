@@ -58,6 +58,8 @@ def _nemoguards_rails_config():
     """Create a real RailsConfig matching the nemoguards_v2 example config."""
     return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
 
+NEMOGUARDS_V2_CONFIG_PATH = "examples/configs/nemoguards_v2"
+
 
 @pytest.fixture
 def _content_safety_rails_config():

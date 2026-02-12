@@ -9,28 +9,28 @@ packages = [{ include = "nemoguardrails" }]
 
 
 include = [
-  "LICENSE.md",
-  "LICENSE-Apache-2.0.txt",
-  "LICENCES-3rd-party.txt",
-  "chat-ui/**/*",
-  "examples/**/*",
-  "eval/data/**/*",
-  "**/*.yml",
-  "**/*.co",
-  "**/*.txt",
-  "**/*.json",
-  "**/*.lark",
+    "LICENSE.md",
+    "LICENSE-Apache-2.0.txt",
+    "LICENCES-3rd-party.txt",
+    "chat-ui/**/*",
+    "examples/**/*",
+    "eval/data/**/*",
+    "**/*.yml",
+    "**/*.co",
+    "**/*.txt",
+    "**/*.json",
+    "**/*.lark",
 ]
 
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Intended Audience :: Developers",
-  "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 [tool.poetry.urls]
@@ -87,10 +87,10 @@ streamlit = { version = "^1.37.0", optional = true, python = ">=3.10,<3.14" }
 tornado = { version = ">=6.5.0", optional = true, python = ">=3.10,<3.14" }
 pandas = { version = ">=1.4.0,<3", optional = true }
 numpy = [
-  { version = ">=1.21", python = ">=3.10,<3.12" },
-  { version = ">=1.26", python = ">=3.12,<3.13" },
-  { version = ">=2.1.0", python = ">=3.13" },
-  { version = ">=1.21,<2.1.0", python = "<3.10" },
+    { version = ">=1.21", python = ">=3.10,<3.12" },
+    { version = ">=1.26", python = ">=3.12,<3.13" },
+    { version = ">=2.1.0", python = ">=3.13" },
+    { version = ">=1.21,<2.1.0", python = "<3.10" },
 ]
 # sdd
 # we don't need it and we comment it for sake of documentation
@@ -124,19 +124,19 @@ server = ["aiofiles", "openai"]
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
 all = [
-  "presidio-analyzer",
-  "presidio-anonymizer",
-  "tqdm",
-  "numpy",
-  "streamlit",
-  "langchain-openai",
-  "openai",
-  "google-cloud-language",
-  "opentelemetry-api",
-  "aiofiles",
-  "langchain-nvidia-ai-endpoints",
-  "yara-python",
-  "fast-langdetect",
+    "presidio-analyzer",
+    "presidio-anonymizer",
+    "tqdm",
+    "numpy",
+    "streamlit",
+    "langchain-openai",
+    "openai",
+    "google-cloud-language",
+    "opentelemetry-api",
+    "aiofiles",
+    "langchain-nvidia-ai-endpoints",
+    "yara-python",
+    "fast-langdetect",
 ]
 
 [tool.poetry.group.dev]
@@ -164,21 +164,20 @@ ruff = "0.14.6"
 # Directories in which to run Pyright type-checking
 [tool.pyright]
 include = [
-  "nemoguardrails/rails/**",
-  "nemoguardrails/actions/**",
-  "nemoguardrails/llm/**",
-  "nemoguardrails/embeddings/**",
-  "nemoguardrails/cli/**",
-  "nemoguardrails/kb/**",
-  "nemoguardrails/logging/**",
-  "nemoguardrails/tracing/**",
-  "nemoguardrails/server/**",
-  "tests/test_callbacks.py",
-  "nemoguardrails/benchmark/**",
-  "nemoguardrails/guardrails/**"
+    "nemoguardrails/rails/**",
+    "nemoguardrails/actions/**",
+    "nemoguardrails/llm/**",
+    "nemoguardrails/embeddings/**",
+    "nemoguardrails/cli/**",
+    "nemoguardrails/kb/**",
+    "nemoguardrails/logging/**",
+    "nemoguardrails/tracing/**",
+    "nemoguardrails/server/**",
+    "tests/test_callbacks.py",
+    "nemoguardrails/guardrails/**"
 ]
 exclude = [
-  "nemoguardrails/llm/providers/trtllm/**",
+    "nemoguardrails/llm/providers/trtllm/**",
 ]
 
 [tool.poetry.group.docs]
