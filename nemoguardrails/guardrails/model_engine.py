@@ -1,0 +1,207 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Model engine for IORails.
+
+Wraps a single Model config and makes raw HTTP calls to its
+OpenAI-compatible /v1/chat/completions endpoint via aiohttp.
+Retries are handled by aiohttp-retry (ExponentialRetry).
+"""
+
+import logging
+import os
+from typing import Any, Optional, cast
+from urllib.parse import urljoin
+
+import aiohttp
+from aiohttp_retry import ExponentialRetry, RetryClient
+
+from nemoguardrails.guardrails.guardrails import LLMMessages
+from nemoguardrails.rails.llm.config import Model
+
+log = logging.getLogger(__name__)
+
+# Default base URLs by engine type
+_ENGINE_BASE_URLS = {
+    "nim": "https://integrate.api.nvidia.com",
+    "openai": "https://api.openai.com",
+}
+
+_CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
+
+# Defaults
+_DEFAULT_MAX_RETRIES = 3
+_DEFAULT_TIMEOUT_TOTAL = 60  # seconds
+_DEFAULT_TIMEOUT_CONNECT = 10  # seconds
+
+# HTTP status codes worth retrying
+_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+
+
+class ModelEngineError(Exception):
+    """Raised when a model engine call fails."""
+
+    def __init__(self, message: str, model_name: str, status: int | None = None) -> None:
+        self.model_name = model_name
+        self.status = status
+        super().__init__(message)
+
+
+class ModelEngine:
+    """Wraps a single Model config and makes HTTP calls to its endpoint.
+
+    Each ModelEngine owns its own RetryClient with per-model timeout,
+    retry, and connection pool settings.
+    """
+
+    def __init__(self, model_config: Model) -> None:
+        self.model_config = model_config
+        self.model_name: str = model_config.model or ""
+        self.base_url: str = self._resolve_base_url()
+        self.api_key: Optional[str] = self._resolve_api_key(model_config.engine)
+
+        # Configurable from model parameters
+        params = model_config.parameters or {}
+        self._timeout = aiohttp.ClientTimeout(
+            total=float(params.get("timeout", _DEFAULT_TIMEOUT_TOTAL)),
+            connect=float(params.get("timeout_connect", _DEFAULT_TIMEOUT_CONNECT)),
+        )
+        self._retry_options = ExponentialRetry(
+            attempts=int(params.get("max_retries", _DEFAULT_MAX_RETRIES)),
+            statuses=set(_RETRYABLE_STATUS_CODES),
+            exceptions={aiohttp.ClientConnectionError},
+        )
+        self._client: Optional[RetryClient] = None
+
+    async def start(self) -> None:
+        """Create this engine's RetryClient."""
+        if self._client is None:
+            self._client = RetryClient(
+                retry_options=self._retry_options,
+                client_session=aiohttp.ClientSession(timeout=self._timeout),
+            )
+
+    async def stop(self) -> None:
+        """Close this engine's RetryClient."""
+        if self._client:
+            await self._client.close()
+            self._client = None
+
+    def _resolve_base_url(self) -> str:
+        """Resolve the base URL from model parameters or engine type."""
+        params = self.model_config.parameters or {}
+
+        if params.get("base_url"):
+            return params["base_url"]
+
+        engine = self.model_config.engine
+        if engine in _ENGINE_BASE_URLS:
+            return _ENGINE_BASE_URLS[engine]
+
+        raise ValueError(
+            f"No base_url in parameters and cannot infer from engine '{engine}' for model '{self.model_name}'"
+        )
+
+    def _get_environment_variable(self, variable_name: str) -> str:
+        """Return the value stored in environment variable `variable_name`."""
+        env_value = os.environ.get(variable_name)
+        if env_value:
+            return env_value
+
+        raise RuntimeError(f"Environment variable {variable_name} not stored")
+
+    def _resolve_api_key(self, engine: str | None) -> Optional[str]:
+        """Resolve the API key from model config or environment."""
+        if self.model_config.api_key_env_var:
+            env_value = self._get_environment_variable(self.model_config.api_key_env_var)
+            return env_value
+
+        if engine == "nim":
+            env_value = self._get_environment_variable("NVIDIA_API_KEY")
+            return env_value
+
+        if engine == "openai":
+            env_value = self._get_environment_variable("OPENAI_API_KEY")
+            return env_value
+
+        raise RuntimeError(f"Can't get API Key for model {self.model_name}: {self.model_config}")
+
+    async def call(
+        self,
+        messages: LLMMessages,
+        **kwargs: Any,
+    ) -> dict:
+        """Make a POST request to the /v1/chat/completions endpoint.
+
+        Retries on transient failures (429, 5xx, connection errors) are
+        handled automatically by the RetryClient with exponential backoff.
+
+        Args:
+            messages: List of message dicts in OpenAI format.
+            **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
+
+        Returns:
+            The parsed JSON response dict from the API.
+
+        Raises:
+            ModelEngineError: If the request fails after all retries or the client is not started.
+        """
+
+        # Lazy-initialize client if `start()` hasn't yet been called.
+        if self._client is None:
+            await self.start()
+
+        # Cast as RetryClient so type-checking knows it isn't None
+        client = cast(RetryClient, self._client)
+
+        url = urljoin(self.base_url, _CHAT_COMPLETIONS_ENDPOINT)
+
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        body: dict[str, Any] = {
+            "model": self.model_name,
+            "messages": messages,
+            **kwargs,
+        }
+
+        try:
+            async with client.post(url, json=body, headers=headers) as response:
+                if response.status >= 400:
+                    error_body = await _safe_read_body(response)
+                    raise ModelEngineError(
+                        f"HTTP {response.status} from model '{self.model_name}': {error_body}",
+                        model_name=self.model_name,
+                        status=response.status,
+                    )
+                return await response.json()
+
+        except ModelEngineError:
+            raise
+        except Exception as exc:
+            raise ModelEngineError(
+                f"Request to model '{self.model_name}' failed: {exc}",
+                model_name=self.model_name,
+            ) from exc
+
+
+async def _safe_read_body(response: aiohttp.ClientResponse) -> str:
+    """Read response body for error messages, truncating if too large."""
+    try:
+        text = await response.text()
+        return text[:500] if len(text) > 500 else text
+    except Exception:
+        return "<could not read response body>"

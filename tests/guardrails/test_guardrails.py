@@ -27,12 +27,13 @@ from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationResponse
 
+NEMOGUARDS_V2_CONFIG_PATH = "examples/configs/nemoguards_v2"
+
 
 @pytest.fixture
 def mock_rails_config():
-    """Create a mock RailsConfig for testing."""
-    config = MagicMock(spec=RailsConfig)
-    return config
+    """Create a real RailsConfig from the nemoguards_v2 example config."""
+    return RailsConfig.from_path(NEMOGUARDS_V2_CONFIG_PATH)
 
 
 @pytest.fixture
@@ -58,7 +59,6 @@ class TestGuardrailsInit:
 
         # Verify attributes are set correctly
         assert guardrails.config == mock_rails_config
-        assert guardrails.llm is None
         assert guardrails.verbose is False
         assert guardrails.llmrails == mock_llmrails_instance
 
@@ -74,7 +74,6 @@ class TestGuardrailsInit:
 
         # Verify attributes are set correctly
         assert guardrails.config == mock_rails_config
-        assert guardrails.llm == mock_llm
         assert guardrails.verbose is True
         assert guardrails.llmrails == mock_llmrails_instance
 
@@ -534,7 +533,6 @@ class TestIntegration:
 
         # Verify the custom LLM was passed to LLMRails
         mock_llmrails_class.assert_called_once_with(mock_rails_config, mock_llm, False)
-        assert guardrails.llm == mock_llm
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_generate_with_additional_parameters(self, mock_llmrails_class, mock_rails_config):
@@ -598,22 +596,17 @@ class TestUtilityMethods:
         mock_llmrails_instance.explain.assert_called_once_with()
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_update_llm_updates_instance_llm(self, mock_llmrails_class, mock_rails_config, mock_llm):
-        """Test that update_llm() updates the Guardrails llm attribute."""
+    def test_update_llm_delegates_new_llm(self, mock_llmrails_class, mock_rails_config):
+        """Test that update_llm() delegates the new LLM to LLMRails."""
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
         guardrails = Guardrails(config=mock_rails_config)
 
-        # Initially llm is None
-        assert guardrails.llm is None
-
-        # Create a new mock LLM
         new_llm = MagicMock()
         guardrails.update_llm(new_llm)
 
-        # Verify the llm attribute was updated
-        assert guardrails.llm == new_llm
+        mock_llmrails_instance.update_llm.assert_called_once_with(new_llm)
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_update_llm_delegates_to_llmrails(self, mock_llmrails_class, mock_rails_config):
@@ -630,7 +623,7 @@ class TestUtilityMethods:
         mock_llmrails_instance.update_llm.assert_called_once_with(new_llm)
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_update_llm_with_initial_llm(self, mock_llmrails_class, mock_rails_config, mock_llm):
+    def test_update_llm_with_initial_llm(self, mock_llmrails_class, mock_rails_config):
         """Test update_llm() when Guardrails was initialized with an LLM."""
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
@@ -639,21 +632,18 @@ class TestUtilityMethods:
         initial_llm = MagicMock()
         guardrails = Guardrails(config=mock_rails_config, llm=initial_llm)
 
-        assert guardrails.llm == initial_llm
+        # Verify initial LLM was passed to LLMRails
+        mock_llmrails_class.assert_called_once_with(mock_rails_config, initial_llm, False)
 
         # Update to a new LLM
         new_llm = MagicMock()
         guardrails.update_llm(new_llm)
 
-        # Verify the llm attribute was updated
-        assert guardrails.llm == new_llm
-        assert guardrails.llm != initial_llm
-
         # Verify update_llm was called on underlying LLMRails
         mock_llmrails_instance.update_llm.assert_called_once_with(new_llm)
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_update_llm_multiple_times(self, mock_llmrails_class, mock_rails_config):
+    def test_update_llm_called_multiple_times(self, mock_llmrails_class, mock_rails_config):
         """Test that update_llm() can be called multiple times."""
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
@@ -666,13 +656,8 @@ class TestUtilityMethods:
         llm3 = MagicMock()
 
         guardrails.update_llm(llm1)
-        assert guardrails.llm == llm1
-
         guardrails.update_llm(llm2)
-        assert guardrails.llm == llm2
-
         guardrails.update_llm(llm3)
-        assert guardrails.llm == llm3
 
         # Verify update_llm was called three times on underlying LLMRails
         assert mock_llmrails_instance.update_llm.call_count == 3
