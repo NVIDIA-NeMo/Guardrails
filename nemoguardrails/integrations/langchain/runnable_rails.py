@@ -779,7 +779,7 @@ class RunnableRails(Runnable[Input, Output]):
 
         Args:
             input: The original input
-            chunk: The current chunk (string or dict with text/metadata)
+            chunk: The current chunk (string or dict with text and metadata)
 
         Returns:
             The formatted streaming chunk (using AIMessageChunk for LangChain compatibility)
