@@ -57,7 +57,6 @@ def _make_iorails_config(rails: dict, extra_prompts: list | None = None) -> Rail
 def _nemoguards_rails_config():
     """Create a real RailsConfig matching the nemoguards_v2 example config."""
     return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
-from tests.guardrails.test_data import NEMOGUARDS_V2_CONFIG
 
 
 @pytest.fixture

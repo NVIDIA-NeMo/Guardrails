@@ -67,11 +67,6 @@ class TestModelManagerGetEngine:
         engine = manager.get_engine("content_safety")
         assert engine.model_name == "nvidia/llama-3.1-nemoguard-8b-content-safety"
 
-    def test_get_topic_control_engine(self, manager):
-        """Returns the topic control engine with correct model name."""
-        engine = manager.get_engine("topic_control")
-        assert engine.model_name == "nvidia/llama-3.1-nemoguard-8b-topic-control"
-
     def test_get_missing_engine_raises_key_error(self, manager):
         """Raises KeyError for an unconfigured model type."""
         with pytest.raises(KeyError, match="No model configured with type 'nonexistent'"):

@@ -46,12 +46,9 @@ IORAILS_INPUT_FLOWS = {"content safety check input"}
 IORAILS_OUTPUT_FLOWS = {"content safety check output"}
 
 # Set with flows supported by the IORailsEngine
-IORAILS_FLOWS = {
-    "input": {
-        "content safety check input",
-    },
-    "output": {"content safety check output"},
-}
+IORAILS_RAILS = {"input", "output"}
+IORAILS_INPUT_FLOWS = {"content safety check input"}
+IORAILS_OUTPUT_FLOWS = {"content safety check output"}
 
 
 class Guardrails:
@@ -176,12 +173,10 @@ class Guardrails:
         Supported by both LLMRails and IORails
         """
 
-        messages = self._convert_to_messages(prompt, messages)
-
-        # Submit to work queue for concurrency control
-        # Use IORailsEngine if RailsConfig allows it, otherwise fall back to LLMRails
-        method = self.iorails.generate_async if self._use_iorails_engine else self.llmrails.generate_async
-        response = await self._generate_async_queue.submit(method, messages=messages, **kwargs)
+        generate_messages = self._convert_to_messages(prompt, messages)
+        response = await self._generate_async_queue.submit(
+            self.rails_engine.generate_async, messages=generate_messages, **kwargs
+        )
         return response
 
     def stream_async(
@@ -203,7 +198,7 @@ class Guardrails:
         """
 
         if self._use_iorails_engine:
-            raise NotImplementedError("IORails doesn't support `explain()`")
+            raise NotImplementedError("IORails doesn't support explain()")
 
         return self.llmrails.explain()
 
@@ -212,7 +207,7 @@ class Guardrails:
         Only supported for LLMRails, since IORails doesn't take LLM as argument
         """
         if self._use_iorails_engine:
-            raise NotImplementedError("IORails doesn't support `update_llm()`")
+            raise NotImplementedError("IORails doesn't support update_llm()")
 
         self.llmrails.update_llm(llm)
 

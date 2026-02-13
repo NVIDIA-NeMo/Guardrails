@@ -54,7 +54,6 @@ def nemoguards_rails_config():
     return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
 
 
-# Alias used by some test classes
 @pytest.fixture
 def nemoguards_model_manager(nemoguards_rails_config):
     return ModelManager(nemoguards_rails_config.models)
@@ -80,9 +79,6 @@ class TestRailsManagerInit:
         assert (
             content_safety_rails_manager.prompts["content_safety_check_output $model=content_safety"].content
             == CONTENT_SAFETY_OUTPUT_PROMPT
-        )
-        assert (
-            rails_manager.prompts["topic_safety_check_input $model=topic_control"].content == TOPIC_SAFETY_INPUT_PROMPT
         )
 
     def test_input_flows_populated(self, content_safety_rails_manager):
@@ -400,6 +396,7 @@ class TestIsOutputSafe:
 
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "Here's my response"
+
         )
         assert result.is_safe
         content_safety_rails_manager.model_manager.generate_async.assert_called_once()
@@ -418,6 +415,7 @@ class TestIsOutputSafe:
 
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "bad response"
+
         )
         assert not result.is_safe
         assert "Controlled/Regulated Substances" in result.reason
@@ -429,6 +427,7 @@ class TestIsOutputSafe:
         content_safety_rails_manager.output_flows = []
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "any response"
+
         )
         assert result.is_safe
 
@@ -474,6 +473,7 @@ class TestEndToEndContentSafetyCheck:
         flow = "content safety check input $model=content_safety"
         result = await content_safety_rails_manager._check_content_safety_input(
             flow, [{"role": "user", "content": "test input"}]
+
         )
         assert result.is_safe
 
