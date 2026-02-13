@@ -41,10 +41,9 @@ _ENGINE_BASE_URLS = {
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 
-# Defaults
-_DEFAULT_MAX_RETRIES = 3
-_DEFAULT_TIMEOUT_TOTAL = 60  # seconds
-_DEFAULT_TIMEOUT_CONNECT = 10  # seconds
+_DEFAULT_MAX_ATTEMPTS = 3  # Total attempts (original + retries) with exponential backoff between each
+_DEFAULT_TIMEOUT_TOTAL = 30  # Max seconds for an entire request-response cycle (connect + send + read)
+_DEFAULT_TIMEOUT_CONNECT = 5  # Max seconds to establish a TCP connection; subset of the total timeout budget
 
 # HTTP status codes worth retrying
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
@@ -79,7 +78,7 @@ class ModelEngine:
             connect=float(params.get("timeout_connect", _DEFAULT_TIMEOUT_CONNECT)),
         )
         self._retry_options = ExponentialRetry(
-            attempts=int(params.get("max_retries", _DEFAULT_MAX_RETRIES)),
+            attempts=int(params.get("max_attempts", _DEFAULT_MAX_ATTEMPTS)),
             statuses=set(_RETRYABLE_STATUS_CODES),
             exceptions={aiohttp.ClientConnectionError},
         )

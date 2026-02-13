@@ -124,7 +124,8 @@ class RailsManager:
 
         model_type = self._flow_model_type(flow)
         last_user_content = self._last_user_content(messages)
-        prompt_content = self._render_prompt(flow, user_input=last_user_content)
+        prompt_key = self._flow_to_prompt_key(flow)
+        prompt_content = self._render_prompt(prompt_key, user_input=last_user_content)
 
         try:
             response_text = await self.model_manager.generate_async(
@@ -142,7 +143,8 @@ class RailsManager:
         """Check output content safety via the content_safety model."""
         model_type = self._flow_model_type(flow)
         last_user_content = self._last_user_content(messages)
-        prompt_content = self._render_prompt(flow, user_input=last_user_content, bot_response=response)
+        prompt_key = self._flow_to_prompt_key(flow)
+        prompt_content = self._render_prompt(prompt_key, user_input=last_user_content, bot_response=response)
 
         try:
             response_text = await self.model_manager.generate_async(
@@ -173,6 +175,19 @@ class RailsManager:
         content = content.replace("{{ user_input }}", user_input)
         content = content.replace("{{ bot_response }}", bot_response)
         return content
+
+    @staticmethod
+    def _flow_to_prompt_key(flow: str) -> str:
+        """Convert a flow name to the corresponding prompt task key.
+
+        Flow names use spaces, prompt task keys use underscores:
+          'content safety check input $model=content_safety'
+          -> 'content_safety_check_input $model=content_safety'
+        """
+        if "$" in flow:
+            base, param = flow.split("$", 1)
+            return base.strip().replace(" ", "_") + " $" + param
+        return flow.replace(" ", "_")
 
     @staticmethod
     def _flow_name(flow: str) -> str:
