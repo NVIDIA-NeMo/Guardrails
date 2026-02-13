@@ -22,13 +22,13 @@ import pytest
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
-from tests.guardrails.test_data import NEMOGUARDS_V2_CONFIG
+from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
 @pytest.fixture
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def rails_config():
-    return RailsConfig.from_content(config=NEMOGUARDS_V2_CONFIG)
+    return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
 
 
 @pytest.fixture

@@ -22,11 +22,13 @@ a streamlined API for generating LLM responses with programmable guardrails.
 
 import logging
 from enum import Enum
-from typing import AsyncIterator, Optional, Tuple, TypeAlias, Union, overload
+from typing import AsyncIterator, Optional, Tuple, Union, overload
 
 from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
+from nemoguardrails.guardrails.guardrails_types import LLMMessages
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
@@ -50,15 +52,10 @@ class MessageRole(str, Enum):
     TOOL = "tool"
 
 
-LLMMessages: TypeAlias = list[dict[str, str]]
-
 # Set with flows supported by the IORailsEngine
-IORAILS_FLOWS = {
-    "input": {
-        "content safety check input",
-    },
-    "output": {"content safety check output"},
-}
+IORAILS_RAILS = {"input", "output"}
+IORAILS_INPUT_FLOWS = {"content safety check input"}
+IORAILS_OUTPUT_FLOWS = {"content safety check output"}
 
 
 class Guardrails:
@@ -69,23 +66,19 @@ class Guardrails:
         config: RailsConfig,
         llm: Optional[Union[BaseLLM, BaseChatModel]] = None,
         verbose: bool = False,
+        *,
+        use_iorails: bool = True,  # False -> fall back to LLMRails instead
     ):
         """Initialize a Guardrails instance."""
 
         self.config = config
         self.verbose = verbose
 
-        # Always initialize LLMRails (needed for some public methods)
-        self.llmrails = LLMRails(config, llm, verbose)
-
         # Whether to use IORailsEngine for inference requests
-        self._use_iorails_engine: bool = self.has_only_iorails_flows()
-
-        # IORails handles input and output rails only
-        if self._use_iorails_engine:
-            from nemoguardrails.guardrails.iorails import IORails
-
-            self.iorails = IORails(config)
+        self._use_iorails_engine: bool = use_iorails and self._has_only_iorails_flows()
+        self.iorails = IORails(config)
+        self.llmrails = LLMRails(config, llm, verbose)
+        self.rails_engine = self.iorails if self._use_iorails_engine else self.llmrails
 
         # Async work queue for managing concurrent generate_async requests
         self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
@@ -117,24 +110,22 @@ class Guardrails:
 
         raise ValueError("Neither prompt nor messages provided for generation")
 
-    def has_only_iorails_flows(self):
-        for rail_type, flows in IORAILS_FLOWS.items():
-            for flow in flows:
-                flow_type = flow.split("$")[0].strip()
+    def _has_only_iorails_flows(self):
+        """Check if all the flows in the config can be supported by IORails"""
 
-                if rail_type == "input":
-                    if flow_type not in self.config.rails.input.model_fields_set:
-                        return False
+        # If we have any rails outside of `input` and `output` we don't support them
+        rails_set = self.config.rails.model_fields_set
+        if rails_set > IORAILS_RAILS:
+            return False
 
-                elif rail_type == "config":
-                    if flow_type != self.config.rails.config.model_fields_set:
-                        return False
+        for flow in self.config.rails.input.flows:
+            flow_type = flow.split("$")[0].strip()
+            if flow_type not in IORAILS_INPUT_FLOWS:
+                return False
 
-                elif rail_type == "output":
-                    if flow_type not in self.config.rails.output.model_fields_set:
-                        return False
-
-                # If we have an unexpected rail-type then we can't use IORailsEngine
+        for flow in self.config.rails.output.flows:
+            flow_type = flow.split("$")[0].strip()
+            if flow_type not in IORAILS_OUTPUT_FLOWS:
                 return False
 
         return True
@@ -144,8 +135,12 @@ class Guardrails:
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate an LLM response synchronously with guardrails applied."""
 
-        messages = self._convert_to_messages(prompt, messages)
-        return self.llmrails.generate(messages=messages, **kwargs)
+        if self._use_iorails_engine:
+            raise NotImplementedError("IORails doesn't support generate()")
+
+        generate_messages = self._convert_to_messages(prompt, messages)
+        response = self.llmrails.generate(messages=generate_messages, **kwargs)
+        return response
 
     @overload
     async def generate_async(self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs) -> str: ...
@@ -168,23 +163,28 @@ class Guardrails:
     async def generate_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> str | dict | GenerationResponse | tuple[dict, dict]:
-        """Generate an LLM response asynchronously with guardrails applied."""
+        """Generate an LLM response asynchronously with guardrails applied.
+        Supported by both LLMRails and IORails
+        """
 
-        messages = self._convert_to_messages(prompt, messages)
-
-        # Submit to work queue for concurrency control
-        # Use IORailsEngine if RailsConfig allows it, otherwise fall back to LLMRails
-        method = self.iorails.generate_async if self._use_iorails_engine else self.llmrails.generate_async
-        response = await self._generate_async_queue.submit(method, messages=messages, **kwargs)
+        generate_messages = self._convert_to_messages(prompt, messages)
+        response = await self._generate_async_queue.submit(
+            self.rails_engine.generate_async, messages=generate_messages, **kwargs
+        )
         return response
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
-        """Generate an LLM response asynchronously with streaming support."""
+        """Generate an LLM response asynchronously with streaming support.
+        Only supported when using LLMRails
+        """
 
-        messages = self._convert_to_messages(prompt, messages)
-        return self.llmrails.stream_async(messages=messages, **kwargs)
+        if self._use_iorails_engine:
+            raise NotImplementedError("IORails doesn't support stream_async()")
+
+        stream_messages = self._convert_to_messages(prompt, messages)
+        return self.llmrails.stream_async(messages=stream_messages, **kwargs)
 
     def explain(self) -> ExplainInfo:
         """Get the latest ExplainInfo object for debugging.
@@ -192,7 +192,7 @@ class Guardrails:
         """
 
         if self._use_iorails_engine:
-            raise NotImplementedError("IORails doesn't support `explain()`")
+            raise NotImplementedError("IORails doesn't support explain()")
 
         return self.llmrails.explain()
 
@@ -201,7 +201,7 @@ class Guardrails:
         Only supported for LLMRails, since IORails doesn't take LLM as argument
         """
         if self._use_iorails_engine:
-            raise NotImplementedError("IORails doesn't support `update_llm()`")
+            raise NotImplementedError("IORails doesn't support update_llm()")
 
         self.llmrails.update_llm(llm)
 

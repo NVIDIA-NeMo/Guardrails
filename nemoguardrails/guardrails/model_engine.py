@@ -28,7 +28,7 @@ from urllib.parse import urljoin
 import aiohttp
 from aiohttp_retry import ExponentialRetry, RetryClient
 
-from nemoguardrails.guardrails.guardrails import LLMMessages
+from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.rails.llm.config import Model
 
 log = logging.getLogger(__name__)
@@ -113,18 +113,21 @@ class ModelEngine:
             f"No base_url in parameters and cannot infer from engine '{engine}' for model '{self.model_name}'"
         )
 
-    def _get_environment_variable(self, variable_name: str) -> str:
+    def _get_environment_variable(self, variable_name: str) -> str | None:
         """Return the value stored in environment variable `variable_name`."""
         env_value = os.environ.get(variable_name)
         if env_value:
             return env_value
-
-        raise RuntimeError(f"Environment variable {variable_name} not stored")
+        return None
 
     def _resolve_api_key(self, engine: str | None) -> Optional[str]:
         """Resolve the API key from model config or environment."""
         if self.model_config.api_key_env_var:
             env_value = self._get_environment_variable(self.model_config.api_key_env_var)
+
+            # Only raise an exception if the user provided an API Key env var and it isn't set
+            if not env_value:
+                raise RuntimeError(f"Environment variable '{self.model_config.api_key_env_var}' not set")
             return env_value
 
         if engine == "nim":
@@ -135,7 +138,8 @@ class ModelEngine:
             env_value = self._get_environment_variable("OPENAI_API_KEY")
             return env_value
 
-        raise RuntimeError(f"Can't get API Key for model {self.model_name}: {self.model_config}")
+        # If no key is available, assume it's a local model that doesn't need one
+        return None
 
     async def call(
         self,

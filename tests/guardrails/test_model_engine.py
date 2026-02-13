@@ -121,14 +121,14 @@ class TestModelEngineApiKey:
 
     @patch.dict("os.environ", {}, clear=True)
     def test_missing_env_var_raises(self):
-        """Missing NVIDIA_API_KEY raises RuntimeError."""
-        with pytest.raises(RuntimeError, match="Environment variable NVIDIA_API_KEY not stored"):
-            ModelEngine(_make_model(engine="nim"))
+        """Missing NVIDIA_API_KEY with nim engine stores api key as None"""
+        engine = ModelEngine(_make_model(engine="nim"))
+        assert engine.api_key is None
 
     @patch.dict("os.environ", {}, clear=True)
     def test_custom_env_var_missing_raises(self):
         """Missing custom env var raises RuntimeError naming the variable."""
-        with pytest.raises(RuntimeError, match="Environment variable DOES_NOT_EXIST not stored"):
+        with pytest.raises(RuntimeError, match="Environment variable 'DOES_NOT_EXIST' not set"):
             ModelEngine(_make_model(engine="nim", api_key_env_var="DOES_NOT_EXIST"))
 
     @patch.dict("os.environ", {}, clear=True)
@@ -140,8 +140,8 @@ class TestModelEngineApiKey:
     @patch.dict("os.environ", {}, clear=True)
     def test_unknown_engine_with_base_url_raises_runtime_error_for_api_key(self):
         """Unknown engine with base_url passes URL resolution but fails API key resolution."""
-        with pytest.raises(RuntimeError, match="Can't get API Key"):
-            ModelEngine(_make_model(engine="custom", parameters={"base_url": "https://custom.example.com"}))
+        model_engine = ModelEngine(_make_model(engine="custom", parameters={"base_url": "https://custom.example.com"}))
+        assert model_engine.api_key is None
 
 
 class TestModelEngineConfig:

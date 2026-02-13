@@ -21,13 +21,13 @@ import pytest
 
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from tests.guardrails.test_data import NEMOGUARDS_V2_CONFIG
+from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
 @pytest.fixture
 def rails_config():
     """Create a RailsConfig from the nemoguards_v2 test data."""
-    return RailsConfig.from_content(config=NEMOGUARDS_V2_CONFIG)
+    return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
 
 
 @pytest.fixture
@@ -66,11 +66,6 @@ class TestModelManagerGetEngine:
         """Returns the content safety engine with correct model name."""
         engine = manager.get_engine("content_safety")
         assert engine.model_name == "nvidia/llama-3.1-nemoguard-8b-content-safety"
-
-    def test_get_topic_control_engine(self, manager):
-        """Returns the topic control engine with correct model name."""
-        engine = manager.get_engine("topic_control")
-        assert engine.model_name == "nvidia/llama-3.1-nemoguard-8b-topic-control"
 
     def test_get_missing_engine_raises_key_error(self, manager):
         """Raises KeyError for an unconfigured model type."""

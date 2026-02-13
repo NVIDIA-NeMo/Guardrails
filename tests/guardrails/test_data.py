@@ -118,7 +118,47 @@ Guidelines for the user messages:
 - allow user comments that are related to small talk and chit-chat.
 """
 
-NEMOGUARDS_V2_CONFIG = {
+
+# Content-safety input and output configuration with models and prompts
+CONTENT_SAFETY_CONFIG = {
+    "models": [
+        {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
+        {
+            "type": "content_safety",
+            "engine": "nim",
+            "model": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+        },
+    ],
+    "rails": {
+        "input": {
+            "flows": [
+                "content safety check input $model=content_safety",
+            ]
+        },
+        "output": {
+            "flows": [
+                "content safety check output $model=content_safety",
+            ]
+        },
+    },
+    "prompts": [
+        {
+            "task": "content_safety_check_input $model=content_safety",
+            "content": CONTENT_SAFETY_INPUT_PROMPT,
+            "output_parser": "nemoguard_parse_prompt_safety",
+            "max_tokens": 50,
+        },
+        {
+            "task": "content_safety_check_output $model=content_safety",
+            "content": CONTENT_SAFETY_OUTPUT_PROMPT,
+            "output_parser": "nemoguard_parse_response_safety",
+            "max_tokens": 50,
+        },
+    ],
+}
+
+# Nemoguards config with content-safety input and output, topic safety input, and jailbreak detection input
+NEMOGUARDS_CONFIG = {
     "models": [
         {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
         {

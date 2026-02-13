@@ -96,28 +96,23 @@ class RailsManager:
         return RailResult(is_safe=True)
 
     async def _run_input_rail(self, flow: str, messages: list[dict]) -> RailResult:
-        """Dispatch a single input rail check by flow name."""
+        """Run an input rail flow if it's supported. If not raise an exception"""
         # Extract the base flow name (strip any $model=... parameter)
         base_flow = flow.split("$")[0].strip()
 
         if base_flow == "content safety check input":
             return await self._check_content_safety_input(flow, messages)
         else:
-            log.warning("Unknown input rail flow: %s", flow)
-            return RailResult(is_safe=True)
+            raise RuntimeError(f"Input rail flow `{base_flow}` not supported")
 
     async def _run_output_rail(self, flow: str, messages: list[dict], response: str) -> RailResult:
-        """Dispatch a single output rail check by flow name."""
+        """Run an output rail flow if it's supported. If not raise an exception"""
         base_flow = flow.split("$")[0].strip()
 
         if base_flow == "content safety check output":
             return await self._check_content_safety_output(flow, messages, response)
         else:
-            log.warning("Unknown output rail flow: %s", flow)
-            return RailResult(is_safe=True)
-
-    # -- Individual rail implementations --
-    # TODO: Need to add topic-safety input and jailbreak detection input
+            raise RuntimeError(f"Output rail flow `{base_flow}` not supported")
 
     async def _check_content_safety_input(self, flow: str, messages: list[dict]) -> RailResult:
         """Check input content safety via the content_safety model."""
