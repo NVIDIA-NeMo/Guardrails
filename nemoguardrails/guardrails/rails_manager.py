@@ -66,7 +66,6 @@ class RailsManager:
         if not self.input_flows:
             return RailResult(is_safe=True)
 
-        # TODO: Running these sequentially now, need to update to parallel and early-out if any rail fails
         for flow in self.input_flows:
             result = await self._run_input_rail(flow, messages)
             if not result.is_safe:
@@ -87,7 +86,6 @@ class RailsManager:
         if not self.output_flows:
             return RailResult(is_safe=True)
 
-        # TODO: Running these sequentially now, need to update to parallel and early-out if any rail fails
         for flow in self.output_flows:
             result = await self._run_output_rail(flow, messages, response)
             if not result.is_safe:
@@ -204,7 +202,7 @@ class RailsManager:
 
     @staticmethod
     def _last_content_by_role(messages: LLMMessages, role: str) -> str:
-        """Extract the model type from a flow name like 'content safety check input $model=content_safety'."""
+        """Get the last content from the provided role"""
         for message in reversed(messages):
             message_role = message.get("role")
             if message_role and message_role == role:
@@ -212,7 +210,7 @@ class RailsManager:
                 if message_content:
                     return message_content
 
-        raise RuntimeError(f"No user-role content in messages: {messages}")
+        raise RuntimeError(f"No {role}-role content in messages: {messages}")
 
     def _last_user_content(self, messages: LLMMessages) -> str:
         """Return the last entry in messages list with role set to `user`"""

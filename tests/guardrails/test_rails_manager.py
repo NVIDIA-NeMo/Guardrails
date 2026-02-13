@@ -162,7 +162,7 @@ class TestLastContentByRole:
     def test_no_matching_role_raises(self):
         """Raises RuntimeError when no message has the requested role."""
         messages = [{"role": "assistant", "content": "hello"}]
-        with pytest.raises(RuntimeError, match="No user-role content"):
+        with pytest.raises(RuntimeError, match="No user-role content in messages:"):
             RailsManager._last_content_by_role(messages, "user")
 
     def test_empty_messages_raises(self):
