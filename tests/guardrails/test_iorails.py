@@ -48,6 +48,10 @@ class TestIORailsInit:
         """RailsManager is created during init."""
         assert iorails.rails_manager is not None
 
+    def test_stores_config(self, iorails, rails_config):
+        """Config reference is stored on the instance."""
+        assert iorails.config is rails_config
+
     def test_rails_manager_uses_model_manager(self, iorails):
         """RailsManager receives the same ModelManager instance."""
         assert iorails.rails_manager.model_manager is iorails.model_manager

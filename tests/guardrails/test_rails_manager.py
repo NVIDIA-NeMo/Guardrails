@@ -54,6 +54,7 @@ def nemoguards_rails_config():
     return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
 
 
+# Alias used by some test classes
 @pytest.fixture
 def nemoguards_model_manager(nemoguards_rails_config):
     return ModelManager(nemoguards_rails_config.models)
@@ -79,6 +80,9 @@ class TestRailsManagerInit:
         assert (
             content_safety_rails_manager.prompts["content_safety_check_output $model=content_safety"].content
             == CONTENT_SAFETY_OUTPUT_PROMPT
+        )
+        assert (
+            rails_manager.prompts["topic_safety_check_input $model=topic_control"].content == TOPIC_SAFETY_INPUT_PROMPT
         )
 
     def test_input_flows_populated(self, content_safety_rails_manager):
