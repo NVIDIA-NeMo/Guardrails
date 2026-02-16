@@ -155,10 +155,7 @@ class RailsManager:
         user_input: str = "",
         bot_response: str = "",
     ) -> str:
-        """Look up a prompt template by task key and render it.
-
-        Returns the rendered prompt string, or None if no template is found.
-        """
+        """Look up a prompt template by task key and render the prompt."""
         prompt_template = self.prompts.get(prompt_key)
         if not prompt_template or not prompt_template.content:
             raise RuntimeError(f"No prompt template found for key {prompt_key}")
