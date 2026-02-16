@@ -124,7 +124,7 @@ class EmbeddingsIndex:
         This is optional, might not be needed for all implementations."""
         pass
 
-    async def search(self, text: str, max_results: int, threshold: Optional[float] = None) -> List[IndexItem]:
+    async def search(self, text: str, max_results: int, threshold: Optional[float]) -> List[IndexItem]:
         """Searches the index for the closest matches to the provided text."""
         raise NotImplementedError()
 
