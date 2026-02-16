@@ -24,6 +24,9 @@ from toml import load
 # Add local extensions to path
 sys.path.insert(0, str(Path(__file__).parent / "_extensions"))
 
+# Add the project root to path so autodoc can import nemoguardrails
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 project = "NVIDIA NeMo Guardrails Library Developer Guide"
 this_year = date.today().year
 copyright = f"2023-{this_year}, NVIDIA Corporation"
@@ -35,7 +38,12 @@ with open("../pyproject.toml") as f:
 
 extensions = [
     "myst_parser",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "sphinx_reredirects",
     "sphinx_design",
@@ -43,6 +51,34 @@ extensions = [
     "json_output",
     "search_assets",  # Enhanced search assets extension
 ]
+
+# -- Autodoc configuration ---------------------------------------------------
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": False,
+    "show-inheritance": True,
+    "member-order": "bysource",
+}
+autodoc_typehints = "description"
+autodoc_class_signature = "separated"
+
+# Mock imports for optional dependencies that may not be installed
+autodoc_mock_imports = [
+    "presidio_analyzer",
+    "presidio_anonymizer",
+    "spacy",
+    "google.cloud",
+    "yara",
+    "fast_langdetect",
+    "opentelemetry",
+    "streamlit",
+    "tqdm",
+]
+
+# -- Autosummary configuration -----------------------------------------------
+autosummary_generate = True
+autosummary_generate_overwrite = True
+autosummary_imported_members = True
 
 redirects = {
     "introduction": "index.html",

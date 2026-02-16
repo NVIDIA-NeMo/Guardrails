@@ -963,31 +963,6 @@ def test_api_key_environment_variable_logic_without_rails_init():
     assert kwargs["temperature"] == 0.3
 
 
-@pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
-async def test_stream_usage_always_enabled(mock_init_llm_model):
-    """Test that stream_usage=True is always set for LLM models."""
-    config = RailsConfig.from_content(
-        config={
-            "models": [
-                {
-                    "type": "main",
-                    "engine": "openai",
-                    "model": "gpt-4",
-                }
-            ],
-        }
-    )
-
-    LLMRails(config=config)
-
-    mock_init_llm_model.assert_called_once()
-    call_args = mock_init_llm_model.call_args
-    kwargs = call_args.kwargs.get("kwargs", {})
-
-    assert kwargs.get("stream_usage") is True
-
-
 def test_register_methods_return_self():
     """Test that all register_* methods return self for method chaining."""
     config = RailsConfig.from_content(config={"models": []})

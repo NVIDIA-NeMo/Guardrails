@@ -29,6 +29,7 @@ This section covers how to integrate the NeMo Guardrails library with LangChain 
 :maxdepth: 1
 
 LangChain Integration <langchain-integration>
+Agent Middleware <agent-middleware>
 RunnableRails <runnable-rails>
 Chain with Guardrails <chain-with-guardrails/index>
 Runnable as Action <runnable-as-action/index>

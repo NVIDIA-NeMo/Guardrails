@@ -15,6 +15,7 @@
 
 import asyncio
 import logging
+import warnings
 from typing import Any, AsyncIterator, Dict, Optional, Union
 
 from nemoguardrails.utils import new_uuid
@@ -37,8 +38,18 @@ class StreamingHandler(AsyncIterator):
         self,
         enable_print: bool = False,
         enable_buffer: bool = False,
-        include_generation_metadata: Optional[bool] = False,
+        include_metadata: Optional[bool] = False,
+        include_generation_metadata: Optional[bool] = None,
     ):
+        if include_generation_metadata is not None:
+            warnings.warn(
+                "include_generation_metadata is deprecated, use include_metadata instead. "
+                "It will be removed in version 0.22.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            include_metadata = include_generation_metadata
+
         # A unique id for the stream handler
         self.uid = new_uuid()
 
@@ -75,9 +86,8 @@ class StreamingHandler(AsyncIterator):
         # The stop chunks
         self.stop = []
 
-        # Generation metadata handling
-        self.include_generation_metadata = include_generation_metadata
-        self.current_generation_info = {}
+        self.include_metadata = include_metadata
+        self.current_metadata = {}
 
     def set_pattern(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
         """Sets the pattern that is expected.
@@ -140,7 +150,8 @@ class StreamingHandler(AsyncIterator):
                     break
 
                 if isinstance(element, dict):
-                    if element is not None and (element.get("text") is END_OF_STREAM):
+                    if element.get("text") is END_OF_STREAM:
+                        element["text"] = ""
                         yield element
                         break
                 yield element
@@ -158,7 +169,7 @@ class StreamingHandler(AsyncIterator):
             raise StopAsyncIteration
 
         if isinstance(element, dict):
-            if element is not None and (element.get("text") is END_OF_STREAM):
+            if element.get("text") is END_OF_STREAM:
                 raise StopAsyncIteration
             return element
         else:
@@ -167,7 +178,7 @@ class StreamingHandler(AsyncIterator):
     async def _process(
         self,
         chunk: Union[str, object],
-        generation_info: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Process a chunk of text.
 
@@ -175,8 +186,8 @@ class StreamingHandler(AsyncIterator):
         Otherwise, update the full completion, check for stop tokens, and enqueue the chunk.
         """
 
-        if self.include_generation_metadata and generation_info:
-            self.current_generation_info = generation_info
+        if self.include_metadata and metadata:
+            self.current_metadata.update(metadata)
 
         if self.enable_buffer:
             if chunk is not END_OF_STREAM:
@@ -221,22 +232,16 @@ class StreamingHandler(AsyncIterator):
                 # we only want to filter out empty strings that are created during suffix processing,
                 # not ones directly pushed by the user
                 if chunk is not None:
-                    # process all valid chunks, including empty strings directly from the user
-                    if self.include_generation_metadata:
-                        if chunk is not END_OF_STREAM:
-                            await self.queue.put(
-                                {
-                                    "text": chunk,
-                                    "generation_info": self.current_generation_info.copy(),
-                                }
-                            )
-                        else:
-                            await self.queue.put(
-                                {
-                                    "text": END_OF_STREAM,
-                                    "generation_info": self.current_generation_info.copy(),
-                                }
-                            )
+                    if self.include_metadata:
+                        chunk_dict = {"text": chunk if chunk is not END_OF_STREAM else END_OF_STREAM}
+                        if chunk is END_OF_STREAM:
+                            metadata = self.current_metadata.copy() if self.current_metadata else {}
+                            metadata.setdefault("response_metadata", None)
+                            metadata.setdefault("usage_metadata", None)
+                            chunk_dict["metadata"] = metadata
+                        elif self.current_metadata:
+                            chunk_dict["metadata"] = self.current_metadata.copy()
+                        await self.queue.put(chunk_dict)
                     else:
                         await self.queue.put(chunk)
 
@@ -248,13 +253,13 @@ class StreamingHandler(AsyncIterator):
     async def push_chunk(
         self,
         chunk: Union[str, None],
-        generation_info: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Push a new string chunk to the stream.
 
         Args:
             chunk: String chunk to push, None to signal end of stream, or END_OF_STREAM sentinel.
-            generation_info: Optional metadata about the generation.
+            metadata: Optional metadata about the generation.
         """
         if chunk is None:
             chunk = END_OF_STREAM
@@ -271,8 +276,8 @@ class StreamingHandler(AsyncIterator):
             log.info(f"{self.uid[0:3]} - CHUNK after finish: {chunk}")
             return
 
-        if self.include_generation_metadata and generation_info:
-            self.current_generation_info = generation_info
+        if self.include_metadata and metadata:
+            self.current_metadata.update(metadata)
 
         # Process prefix: accumulate until the expected prefix is received, then remove it.
         if self.prefix:
@@ -303,9 +308,7 @@ class StreamingHandler(AsyncIterator):
                         skip_processing = True
                         break
 
-            if skip_processing and chunk is not END_OF_STREAM and chunk != "":
-                # We do nothing in this case. The suffix/stop chunks will be removed when
-                # the generation ends and if there's something left, will be processed then.
+            if skip_processing and chunk is not END_OF_STREAM:
                 return
             else:
                 if chunk is END_OF_STREAM:
@@ -314,14 +317,14 @@ class StreamingHandler(AsyncIterator):
 
                 # only process the current_chunk if it's not empty
                 if self.current_chunk:
-                    await self._process(self.current_chunk, generation_info)
+                    await self._process(self.current_chunk, metadata)
                     self.current_chunk = ""
 
                 # if this is the end of stream, pass it through after processing the current chunk
                 if chunk is END_OF_STREAM:
-                    await self._process(END_OF_STREAM, generation_info)
+                    await self._process(END_OF_STREAM, metadata)
         else:
-            await self._process(chunk, generation_info)
+            await self._process(chunk, metadata)
 
     async def finish(self):
         """Signal end of stream."""

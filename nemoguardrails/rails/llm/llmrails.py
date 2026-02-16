@@ -23,6 +23,7 @@ import os
 import re
 import threading
 import time
+import warnings
 from functools import partial
 from typing import (
     Any,
@@ -377,10 +378,6 @@ class LLMRails:
             api_key = os.environ.get(model_config.api_key_env_var)
             if api_key:
                 kwargs["api_key"] = api_key
-
-        # enable streaming token usage
-        # providers that don't support this parameter will simply ignore it
-        kwargs["stream_usage"] = True
 
         return kwargs
 
@@ -1166,8 +1163,9 @@ class LLMRails:
         messages: Optional[List[dict]] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
-        include_generation_metadata: Literal[False] = False,
+        include_metadata: Literal[False] = False,
         generator: Optional[AsyncIterator[str]] = None,
+        include_generation_metadata: Optional[bool] = None,
     ) -> AsyncIterator[str]: ...
 
     @overload
@@ -1177,8 +1175,9 @@ class LLMRails:
         messages: Optional[List[dict]] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
-        include_generation_metadata: Literal[True] = ...,
+        include_metadata: Literal[True] = ...,
         generator: Optional[AsyncIterator[str]] = None,
+        include_generation_metadata: Optional[bool] = None,
     ) -> AsyncIterator[Union[str, dict]]: ...
 
     def stream_async(
@@ -1187,10 +1186,20 @@ class LLMRails:
         messages: Optional[List[dict]] = None,
         options: Optional[Union[dict, GenerationOptions]] = None,
         state: Optional[Union[dict, State]] = None,
-        include_generation_metadata: Optional[bool] = False,
+        include_metadata: Optional[bool] = False,
         generator: Optional[AsyncIterator[str]] = None,
+        include_generation_metadata: Optional[bool] = None,
     ) -> AsyncIterator[Union[str, dict]]:
         """Simplified interface for getting directly the streamed tokens from the LLM."""
+
+        if include_generation_metadata is not None:
+            warnings.warn(
+                "include_generation_metadata is deprecated, use include_metadata instead. "
+                "It will be removed in version 0.22.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            include_metadata = include_generation_metadata
 
         self._validate_streaming_with_output_rails()
         # if an external generator is provided, use it directly
@@ -1207,7 +1216,7 @@ class LLMRails:
 
         self.explain_info = self._ensure_explain_info()
 
-        streaming_handler = StreamingHandler(include_generation_metadata=include_generation_metadata)
+        streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
         # Create a properly managed task with exception handling
         async def _generation_task():

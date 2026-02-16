@@ -204,6 +204,7 @@ myst-parser = "<=5"
 sphinx-copybutton = "<=0.6"
 sphinx-design = "*"
 sphinx-autobuild = "*"
+sphinx-autodoc-typehints = "*"
 sphinxcontrib-mermaid = "*"
 nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
 watchdog = "^6.0.0"

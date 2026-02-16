@@ -107,7 +107,7 @@ def validate_guardrails_ai_input(
         context: Optional context dictionary
 
     Returns:
-        Dict with validation_result
+        Dict with validation_result and valid (bool derived from validation_passed).
     """
 
     text = text or context.get("user_message", "")
@@ -120,10 +120,11 @@ def validate_guardrails_ai_input(
 
     joined_parameters = {**parameters, **metadata}
 
-    validation_result = validate_guardrails_ai(validator, text, **joined_parameters)
+    result = validate_guardrails_ai(validator, text, **joined_parameters)
+    valid = guardrails_ai_validation_mapping(result)
 
-    # Transform to the expected format for Colang flows
-    return validation_result
+    # Return both validation_result and valid for backward compatibility with Colang flows
+    return {**result, "valid": valid}
 
 
 @action(
@@ -146,7 +147,7 @@ def validate_guardrails_ai_output(
         context: Optional context dictionary
 
     Returns:
-        Dict with validation_result
+        Dict with validation_result and valid (bool derived from validation_passed).
     """
 
     text = text or context.get("bot_message", "")
@@ -160,9 +161,11 @@ def validate_guardrails_ai_output(
     # join parameters and metadata into a single dict
     joined_parameters = {**parameters, **metadata}
 
-    validation_result = validate_guardrails_ai(validator, text, **joined_parameters)
+    result = validate_guardrails_ai(validator, text, **joined_parameters)
+    valid = guardrails_ai_validation_mapping(result)
 
-    return validation_result
+    # Return both validation_result and valid for backward compatibility with Colang flows
+    return {**result, "valid": valid}
 
 
 def validate_guardrails_ai(validator_name: str, text: str, **kwargs) -> Dict[str, Any]:

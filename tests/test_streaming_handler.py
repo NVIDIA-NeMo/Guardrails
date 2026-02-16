@@ -531,7 +531,7 @@ async def test_anext_with_empty_string():
 async def test_anext_with_dict_empty_text():
     """Test __anext__ method with dict containing empty text."""
     streaming_handler = StreamingHandler()
-    test_val = {"text": "", "generation_info": {}}
+    test_val = {"text": "", "metadata": {}}
 
     # put dict with empty text into the queue
     await streaming_handler.queue.put(test_val)
@@ -544,7 +544,7 @@ async def test_anext_with_dict_empty_text():
 async def test_anext_with_dict_none_text():
     """Test __anext__ method with dict containing None text."""
     streaming_handler = StreamingHandler()
-    test_val = {"text": None, "generation_info": {}}
+    test_val = {"text": None, "metadata": {}}
 
     # NOTE: azure openai issue
     # put dict with None text into the queue
@@ -591,22 +591,22 @@ async def test_anext_with_other_runtime_error():
 
 
 @pytest.mark.asyncio
-async def test_include_generation_metadata():
-    """Test push_chunk with generation_info when include_generation_metadata is True."""
-    streaming_handler = StreamingHandler(include_generation_metadata=True)
+async def test_include_metadata():
+    """Test push_chunk with metadata when include_metadata is True."""
+    streaming_handler = StreamingHandler(include_metadata=True)
     streaming_consumer = StreamingConsumer(streaming_handler)
 
     try:
         test_text = "test text"
-        test_generation_info = {"temperature": 0.7, "top_p": 0.95}
+        test_metadata = {"temperature": 0.7, "top_p": 0.95}
 
-        await streaming_handler.push_chunk(test_text, generation_info=test_generation_info)
+        await streaming_handler.push_chunk(test_text, metadata=test_metadata)
         await streaming_handler.push_chunk(END_OF_STREAM)
 
         chunks = await streaming_consumer.get_chunks()
         assert len(chunks) >= 1
         assert chunks[0]["text"] == test_text
-        assert chunks[0]["generation_info"] == test_generation_info
+        assert chunks[0]["metadata"] == test_metadata
     finally:
         await streaming_consumer.cancel()
 
@@ -614,37 +614,37 @@ async def test_include_generation_metadata():
 @pytest.mark.asyncio
 async def test_processing_metadata():
     """Test that metadata is properly passed through the processing chain."""
-    streaming_handler = StreamingHandler(include_generation_metadata=True)
+    streaming_handler = StreamingHandler(include_metadata=True)
     streaming_consumer = StreamingConsumer(streaming_handler)
 
     try:
         streaming_handler.set_pattern(prefix="PREFIX: ", suffix="SUFFIX")
 
         test_text = "PREFIX: This is a test message SUFFIX"
-        test_generation_info = {"temperature": 0.7, "top_p": 0.95}
+        test_metadata = {"temperature": 0.7, "top_p": 0.95}
 
-        await streaming_handler.push_chunk(test_text, generation_info=test_generation_info)
+        await streaming_handler.push_chunk(test_text, metadata=test_metadata)
         await streaming_handler.push_chunk(END_OF_STREAM)
 
         chunks = await streaming_consumer.get_chunks()
         assert len(chunks) >= 1
         # NOTE: The suffix is only removed at the end of generation
         assert "This is a test message" in chunks[0]["text"]
-        assert chunks[0]["generation_info"] == test_generation_info
+        assert chunks[0]["metadata"] == test_metadata
     finally:
         await streaming_consumer.cancel()
 
-    streaming_handler = StreamingHandler(include_generation_metadata=True)
+    streaming_handler = StreamingHandler(include_metadata=True)
     streaming_consumer = StreamingConsumer(streaming_handler)
     try:
         streaming_handler.set_pattern(prefix="PREFIX: ", suffix="SUFFIX")
 
-        await streaming_handler.push_chunk("PRE", generation_info={"part": 1})
-        await streaming_handler.push_chunk("FIX: ", generation_info={"part": 2})
-        await streaming_handler.push_chunk("Test ", generation_info={"part": 3})
-        await streaming_handler.push_chunk("message", generation_info={"part": 4})
-        await streaming_handler.push_chunk(" SUFF", generation_info={"part": 5})
-        await streaming_handler.push_chunk("IX", generation_info={"part": 6})
+        await streaming_handler.push_chunk("PRE", metadata={"part": 1})
+        await streaming_handler.push_chunk("FIX: ", metadata={"part": 2})
+        await streaming_handler.push_chunk("Test ", metadata={"part": 3})
+        await streaming_handler.push_chunk("message", metadata={"part": 4})
+        await streaming_handler.push_chunk(" SUFF", metadata={"part": 5})
+        await streaming_handler.push_chunk("IX", metadata={"part": 6})
         await streaming_handler.push_chunk(END_OF_STREAM)
 
         chunks = await streaming_consumer.get_chunks()
@@ -659,7 +659,63 @@ async def test_processing_metadata():
         ):
             if i < len(chunks) and "text" in chunks[i]:
                 assert chunks[i]["text"] == expected["text"]
-                assert chunks[i]["generation_info"]["part"] == expected["part"]
+                assert chunks[i]["metadata"]["part"] == expected["part"]
+    finally:
+        await streaming_consumer.cancel()
+
+
+@pytest.mark.asyncio
+async def test_metadata_accumulation_across_chunks():
+    """Test that metadata from separate chunks (e.g. response_metadata and usage_metadata) accumulates."""
+    streaming_handler = StreamingHandler(include_metadata=True)
+    streaming_consumer = StreamingConsumer(streaming_handler)
+
+    try:
+        await streaming_handler.push_chunk("Hello")
+        await streaming_handler.push_chunk(
+            "!", metadata={"response_metadata": {"finish_reason": "stop", "model_name": "gpt-4o"}}
+        )
+        await streaming_handler.push_chunk(
+            "", metadata={"usage_metadata": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}
+        )
+        await streaming_handler.push_chunk(None)
+
+        chunks = await streaming_consumer.get_chunks()
+
+        content_chunks = [c for c in chunks if c["text"] != ""]
+        assert len(content_chunks) == 2
+        assert content_chunks[0]["text"] == "Hello"
+        assert "metadata" not in content_chunks[0]
+
+        metadata_chunks = [c for c in chunks if "metadata" in c]
+        assert len(metadata_chunks) >= 1
+        final_metadata = metadata_chunks[-1]["metadata"]
+        assert "response_metadata" in final_metadata
+        assert final_metadata["response_metadata"]["finish_reason"] == "stop"
+        assert "usage_metadata" in final_metadata
+        assert final_metadata["usage_metadata"]["total_tokens"] == 15
+    finally:
+        await streaming_consumer.cancel()
+
+
+@pytest.mark.asyncio
+async def test_metadata_defaults_when_provider_returns_no_metadata():
+    """Test that the final chunk includes metadata with None values when include_metadata=True
+    but the provider does not return any metadata."""
+    streaming_handler = StreamingHandler(include_metadata=True)
+    streaming_consumer = StreamingConsumer(streaming_handler)
+
+    try:
+        await streaming_handler.push_chunk("Hello")
+        await streaming_handler.push_chunk(" world")
+        await streaming_handler.push_chunk(None)
+
+        chunks = await streaming_consumer.get_chunks()
+
+        final_chunk = chunks[-1]
+        assert "metadata" in final_chunk
+        assert final_chunk["metadata"]["response_metadata"] is None
+        assert final_chunk["metadata"]["usage_metadata"] is None
     finally:
         await streaming_consumer.cancel()
 
@@ -668,8 +724,8 @@ async def test_processing_metadata():
 async def test_anext_with_dict_end_of_stream_sentinel():
     """Test __anext__ with a dict-wrapped END_OF_STREAM sentinel."""
 
-    streaming_handler = StreamingHandler(include_generation_metadata=True)
-    await streaming_handler.queue.put({"text": END_OF_STREAM, "generation_info": {}})
+    streaming_handler = StreamingHandler(include_metadata=True)
+    await streaming_handler.queue.put({"text": END_OF_STREAM, "metadata": {}})
     with pytest.raises(StopAsyncIteration):
         await streaming_handler.__anext__()
 

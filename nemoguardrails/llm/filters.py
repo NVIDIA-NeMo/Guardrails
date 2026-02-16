@@ -81,7 +81,7 @@ def co_v2(
         "GenerateFlowFromInstructionsAction",
         "GenerateFlowFromNameAction",
         "generate_intent_steps_message",
-        "generate_next_step",
+        "generate_next_steps",
         "GenerateUserIntentAction",
         "GenerateValueAction",
         "GetLastUserMessageAction",

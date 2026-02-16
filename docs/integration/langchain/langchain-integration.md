@@ -21,10 +21,29 @@ content:
 
 # LangChain Integration
 
-There are two main ways in which you can use the NeMo Guardrails library with LangChain:
+There are three main ways in which you can use the NeMo Guardrails library with LangChain:
 
-1. Add guardrails to a LangChain chain (or `Runnable`).
-2. Use a LangChain chain (or `Runnable`) inside a guardrails configuration.
+1. Add guardrails to a LangChain agent through the middleware hooks (LangChain v1).
+2. Add guardrails to a LangChain chain (or `Runnable`).
+3. Use a LangChain chain (or `Runnable`) inside a guardrails configuration.
+
+## Add Guardrails to an Agent
+
+For tool-calling agents built with `create_agent`, the `GuardrailsMiddleware` hooks into the agent loop to run safety checks before and after every model call:
+
+```python
+from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
+from nemoguardrails.integrations.langchain.middleware import GuardrailsMiddleware
+
+guardrails = GuardrailsMiddleware(config_path="path/to/config")
+model = ChatOpenAI(model="gpt-4o")
+
+agent = create_agent(model, tools=[...], middleware=[guardrails])
+result = agent.invoke({"messages": [{"role": "user", "content": "Hello!"}]})
+```
+
+For more details, check out the [Agent Middleware Guide](agent-middleware.md).
 
 ## Add Guardrails to a Chain
 

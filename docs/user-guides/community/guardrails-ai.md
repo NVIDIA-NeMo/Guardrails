@@ -72,6 +72,13 @@ rails:
       - guardrailsai check output $validator="restricttotopic"
 ```
 
+### Result Format in Colang Flows
+
+The GuardrailsAI actions (`validate_guardrails_ai_input` and `validate_guardrails_ai_output`) return a dict that is stored in `$result` when used in flows. This dict contains:
+
+- **`validation_result`**: The raw GuardrailsAI validation outcome (e.g., `PassResult` or `FailResult`).
+- **`valid`**: A boolean derived from the GuardrailsAI `validation_passed` field. Use this in flow conditions such as `if not $result["valid"]` to decide whether to block.
+
 ## Built-in Validators
 
 The integration includes support for the following validators that are pre-registered in the NeMo Guardrails validator registry. For detailed parameter specifications and usage examples, refer to the official [GuardrailsAI Hub](https://hub.guardrailsai.com/) documentation for each validator:
