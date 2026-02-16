@@ -36,7 +36,7 @@ These actions are fundamental to the guardrails process:
 | Action | Description |
 |--------|-------------|
 | `generate_user_intent` | Generate the canonical form for the user utterance |
-| `generate_next_step` | Generate the next step in the conversation flow |
+| `generate_next_steps` | Generate the next step in the conversation flow |
 | `generate_bot_message` | Generate a bot message based on the desired intent |
 | `retrieve_relevant_chunks` | Retrieve relevant chunks from the knowledge base |
 
@@ -50,7 +50,7 @@ Converts raw user input into a canonical intent form:
 # Output: express greeting
 ```
 
-### generate_next_step
+### generate_next_steps
 
 Determines what the bot should do next:
 
@@ -157,7 +157,11 @@ rails:
 
 ## LangChain Tool Wrappers
 
-The library includes wrappers for popular LangChain tools:
+The library includes wrappers for popular LangChain tools.
+
+```{note}
+These tool wrappers are only available when the `NEMO_GUARDRAILS_DEMO_ACTIONS` environment variable is set.
+```
 
 | Action | Description | Requirements |
 |--------|-------------|--------------|
@@ -169,7 +173,7 @@ The library includes wrappers for popular LangChain tools:
 | `openweather_query` | Weather information | OpenWeatherMap API key |
 | `serp_api_query` | SerpAPI search | SerpApi key |
 | `wikipedia_query` | Wikipedia information | None |
-| `wolfram_alpha_query` | Math and science queries | Wolfram Alpha API key |
+| `wolframalpha_query` | Math and science queries | Wolfram Alpha API key |
 | `zapier_nla_query` | Zapier automation | Zapier NLA API key |
 
 ### Using LangChain Tools
@@ -233,7 +237,8 @@ define flow mask input sensitive data
 |--------|-------------|
 | `llama_guard_check_input` | LlamaGuard input moderation |
 | `llama_guard_check_output` | LlamaGuard output moderation |
-| `content_safety_check` | NVIDIA content safety model |
+| `content_safety_check_input` | NVIDIA content safety model for input (requires `model_name` parameter) |
+| `content_safety_check_output` | NVIDIA content safety model for output (requires `model_name` parameter) |
 
 ### LlamaGuard Example
 
@@ -252,14 +257,15 @@ rails:
 
 | Action | Description |
 |--------|-------------|
-| `check_jailbreak` | Detect jailbreak attempts |
+| `jailbreak_detection_model` | Detect jailbreak attempts using a trained classifier |
+| `jailbreak_detection_heuristics` | Detect jailbreak attempts using heuristic checks |
 
 ```yaml
 # config.yml
 rails:
   input:
     flows:
-      - check jailbreak
+      - jailbreak detection heuristics
 ```
 
 ## Using Built-in Actions in Custom Flows
@@ -268,8 +274,7 @@ You can combine built-in actions with custom logic:
 
 ```colang
 define flow enhanced_input_check
-  # First, check for jailbreak
-  $is_jailbreak = execute check_jailbreak
+  $is_jailbreak = execute jailbreak_detection_heuristics
   if $is_jailbreak
     bot refuse to respond
     stop

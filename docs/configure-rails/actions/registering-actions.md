@@ -192,7 +192,8 @@ def search_web(query: str) -> str:
 @tool
 def calculate(expression: str) -> str:
     """Calculate a math expression."""
-    return str(eval(expression))
+    import ast
+    return str(ast.literal_eval(expression))
 
 # Register multiple tools
 tools = [search_web, calculate]
@@ -226,7 +227,7 @@ For distributed deployments, use an actions server:
 
 ```yaml
 # config.yml
-actions_server_url: http://actions-server:8080
+actions_server_url: http://actions-server:8001
 ```
 
 ### Start the Actions Server
