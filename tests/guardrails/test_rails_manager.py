@@ -240,16 +240,18 @@ class TestParseContentSafetyResult:
 
     def test_unsafe_result_with_categories(self, content_safety_rails_manager):
         """[False, ...categories] maps to unsafe with comma-joined reason."""
-        result = content_safety_rails_manager._parse_content_safety_result([False, "S1: Violence", "S17: Malware"])
-        assert result.is_safe is False
-        assert "S1: Violence" in result.reason
-        assert "S17: Malware" in result.reason
+        result = content_safety_rails_manager._parse_content_safety_result(
+            [False, "Guns and Illegal Weapons.", "Hate/Identity Hate."]
+        )
+        assert not result.is_safe
+        assert "Guns and Illegal Weapons." in result.reason
+        assert "Hate/Identity Hate." in result.reason
 
     def test_unsafe_result_single_category(self, content_safety_rails_manager):
         """Single violated category appears in the reason string."""
-        result = content_safety_rails_manager._parse_content_safety_result([False, "S2: Sexual"])
-        assert result.is_safe is False
-        assert "S2: Sexual" in result.reason
+        result = content_safety_rails_manager._parse_content_safety_result([False, "Malware"])
+        assert not result.is_safe
+        assert "Malware" in result.reason
 
     def test_invalid_result_empty_raises(self, content_safety_rails_manager):
         """Empty list raises RuntimeError."""
@@ -269,54 +271,87 @@ class TestParseContentSafetyResponses:
         """Safe input JSON returns RailResult(is_safe=True)."""
         response = json.dumps({"User Safety": "safe"})
         result = content_safety_rails_manager._parse_content_safety_input_response(response)
-        assert result.is_safe is True
+        assert result.is_safe
 
     def test_input_unsafe_json(self, content_safety_rails_manager):
         """Unsafe input JSON returns is_safe=False with violated categories."""
         response = json.dumps(
             {
                 "User Safety": "unsafe",
-                "Safety Categories": "S1: Violence, S8: Hate/Identity Hate",
+                "Safety Categories": "Guns and Illegal Weapons, Criminal Planning/Confessions",
             }
         )
         result = content_safety_rails_manager._parse_content_safety_input_response(response)
-        assert result.is_safe is False
-        assert "S1: Violence" in result.reason
+        assert not result.is_safe
+        assert "Guns and Illegal Weapons" in result.reason
+        assert "Criminal Planning/Confessions" in result.reason
 
-    def test_output_safe_json(self, content_safety_rails_manager):
-        """Safe output JSON returns RailResult(is_safe=True)."""
-        response = json.dumps({"User Safety": "safe"})
+    def test_input_safe_output_safe_json(self, content_safety_rails_manager):
+        """Input-safe, Safe output JSON returns RailResult(is_safe=True)."""
+        response = json.dumps({"User Safety": "safe", "Response Safety": "safe"})
         result = content_safety_rails_manager._parse_content_safety_output_response(response)
-        assert result.is_safe is True
+        assert result.is_safe
 
-    def test_output_unsafe_json(self, content_safety_rails_manager):
+    def test_input_unsafe_output_safe_json(self, content_safety_rails_manager):
+        """Output-rails only looks at LLM Response safety, not user input safety
+        so this returns safe. It also drops categories if the response is safe
+        """
+        response = json.dumps(
+            {
+                "User Safety": "unsafe",
+                "Response Safety": "safe",
+                "Safety Categories": "Violence, Criminal Planning/Confessions",
+            }
+        )
+        result = content_safety_rails_manager._parse_content_safety_output_response(response)
+        assert result.is_safe
+
+    def test_input_safe_output_unsafe_json(self, content_safety_rails_manager):
+        """Safe input and unsage output returns is_safe=False and categories"""
+        response = json.dumps(
+            {
+                "User Safety": "safe",
+                "Response Safety": "unsafe",
+                "Safety Categories": "Fraud/Deception, Illegal Activity",
+            }
+        )
+        result = content_safety_rails_manager._parse_content_safety_output_response(response)
+        assert not result.is_safe
+        assert "Fraud/Deception" in result.reason
+        assert "Illegal Activity" in result.reason
+
+    def test_input_unsafe_output_unsafe_json(self, content_safety_rails_manager):
         """Unsafe output JSON returns is_safe=False."""
         response = json.dumps(
             {
                 "User Safety": "unsafe",
-                "Safety Categories": "S12: Profanity",
+                "Response Safety": "unsafe",
+                "Safety Categories": "Harassment, Threat",
             }
         )
         result = content_safety_rails_manager._parse_content_safety_output_response(response)
-        assert result.is_safe is False
+        assert not result.is_safe
+        assert "Harassment" in result.reason
+        assert "Threat" in result.reason
 
     def test_input_unparseable_json_returns_unsafe(self, content_safety_rails_manager):
         """Malformed JSON is treated as unsafe by the nemoguard parser."""
         result = content_safety_rails_manager._parse_content_safety_input_response("not json at all")
-        assert result.is_safe is False
+        assert not result.is_safe
 
 
 class TestIsInputSafe:
-    """Test the is_input_safe orchestration of input rail checks."""
+    """Test end-to-end input-rails were called and parsed correctly from the public `is_input_safe` method"""
 
     @pytest.mark.asyncio
-    async def test_all_input_rails_safe(self, content_safety_rails_manager):
+    async def test_content_safety_input_rails_safe(self, content_safety_rails_manager):
         """Returns is_safe=True when all input rails pass."""
         safe_response = json.dumps({"User Safety": "safe"})
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=safe_response)
 
         result = await content_safety_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
-        assert result.is_safe is True
+        assert result.is_safe
+        content_safety_rails_manager.model_manager.generate_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_content_safety_blocks_input(self, content_safety_rails_manager):
@@ -324,21 +359,21 @@ class TestIsInputSafe:
         unsafe_response = json.dumps(
             {
                 "User Safety": "unsafe",
-                "Safety Categories": "S1: Violence",
+                "Safety Categories": "Violence",
             }
         )
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=unsafe_response)
 
         result = await content_safety_rails_manager.is_input_safe([{"role": "user", "content": "violent content"}])
-        assert result.is_safe is False
-        assert "S1: Violence" in result.reason
+        assert not result.is_safe
+        assert "Violence" in result.reason
 
     @pytest.mark.asyncio
     async def test_no_input_flows_returns_safe(self, content_safety_rails_manager):
         """Returns is_safe=True immediately when no input flows are configured."""
         content_safety_rails_manager.input_flows = []
         result = await content_safety_rails_manager.is_input_safe([{"role": "user", "content": "anything"}])
-        assert result.is_safe is True
+        assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, content_safety_rails_manager):
@@ -346,7 +381,7 @@ class TestIsInputSafe:
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
 
         result = await content_safety_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
-        assert result.is_safe is False
+        assert not result.is_safe
         assert "error" in result.reason.lower()
 
 
@@ -356,21 +391,23 @@ class TestIsOutputSafe:
     @pytest.mark.asyncio
     async def test_output_safe(self, content_safety_rails_manager):
         """Returns is_safe=True when output content is safe."""
-        safe_response = json.dumps({"User Safety": "safe"})
+        safe_response = json.dumps({"User Safety": "safe", "Response Safety": "safe"})
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=safe_response)
 
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "Here's my response"
         )
-        assert result.is_safe is True
+        assert result.is_safe
+        content_safety_rails_manager.model_manager.generate_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_output_unsafe(self, content_safety_rails_manager):
         """Returns is_safe=False when output content is unsafe."""
         unsafe_response = json.dumps(
             {
-                "User Safety": "unsafe",
-                "Safety Categories": "S2: Sexual",
+                "User Safety": "safe",
+                "Response Safety": "unsafe",
+                "Safety Categories": "Controlled/Regulated Substances, Illegal Activity",
             }
         )
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=unsafe_response)
@@ -378,7 +415,9 @@ class TestIsOutputSafe:
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "bad response"
         )
-        assert result.is_safe is False
+        assert not result.is_safe
+        assert "Controlled/Regulated Substances" in result.reason
+        content_safety_rails_manager.model_manager.generate_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_no_output_flows_returns_safe(self, content_safety_rails_manager):
@@ -387,7 +426,7 @@ class TestIsOutputSafe:
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "any response"
         )
-        assert result.is_safe is True
+        assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, content_safety_rails_manager):
@@ -395,7 +434,7 @@ class TestIsOutputSafe:
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("fail"))
 
         result = await content_safety_rails_manager.is_output_safe([{"role": "user", "content": "hello"}], "response")
-        assert result.is_safe is False
+        assert not result.is_safe
         assert "error" in result.reason.lower()
 
 
@@ -423,7 +462,7 @@ class TestEndToEndContentSafetyCheck:
     """Test content safety input and output from prompt rendering, model call, and response"""
 
     @pytest.mark.asyncio
-    async def test_content_safety_input_e2e(self, content_safety_rails_manager):
+    async def test_content_safety_input_safe_e2e(self, content_safety_rails_manager):
         """Renders the prompt template with user input and sends to content_safety model."""
         safe_response = json.dumps({"User Safety": "safe"})
         content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=safe_response)
@@ -432,7 +471,7 @@ class TestEndToEndContentSafetyCheck:
         result = await content_safety_rails_manager._check_content_safety_input(
             flow, [{"role": "user", "content": "test input"}]
         )
-        assert result.is_safe is True
+        assert result.is_safe
 
         # Verify the prompt was rendered with user input
         call_args = content_safety_rails_manager.model_manager.generate_async.call_args
@@ -440,16 +479,63 @@ class TestEndToEndContentSafetyCheck:
         assert "test input" in messages_sent[0]["content"]
 
     @pytest.mark.asyncio
-    async def test_content_safety_output_e2e(self, content_safety_rails_manager):
+    async def test_content_safety_input_unsafe_e2e(self, content_safety_rails_manager):
+        """Renders the prompt template with user input and sends to content_safety model."""
+        nemoguard_response = json.dumps(
+            {
+                "User Safety": "unsafe",
+                "Safety Categories": "Violence, Criminal Planning/Confessions",
+            }
+        )
+        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=nemoguard_response)
+
+        flow = "content safety check input $model=content_safety"
+        result = await content_safety_rails_manager._check_content_safety_input(
+            flow, [{"role": "user", "content": "test input"}]
+        )
+        assert not result.is_safe
+
+        # Verify the prompt was rendered with user input
+        call_args = content_safety_rails_manager.model_manager.generate_async.call_args
+        messages_sent = call_args[0][1]
+        assert "test input" in messages_sent[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_content_safety_output_safe_e2e(self, content_safety_rails_manager):
         """Renders the prompt template with both user input and bot response."""
-        safe_response = json.dumps({"User Safety": "safe"})
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=safe_response)
+        nemoguard_response = json.dumps({"User Safety": "safe", "Response Safety": "safe"})
+        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=nemoguard_response)
 
         flow = "content safety check output $model=content_safety"
         result = await content_safety_rails_manager._check_content_safety_output(
             flow, [{"role": "user", "content": "user query"}], "bot answer"
         )
-        assert result.is_safe is True
+        assert result.is_safe
+
+        call_args = content_safety_rails_manager.model_manager.generate_async.call_args
+        messages_sent = call_args[0][1]
+        prompt_content = messages_sent[0]["content"]
+        assert "user query" in prompt_content
+        assert "bot answer" in prompt_content
+
+    @pytest.mark.asyncio
+    async def test_content_safety_output_unsafe_e2e(self, content_safety_rails_manager):
+        """Renders the prompt template with both user input and bot response."""
+        nemoguard_response = json.dumps(
+            {
+                "User Safety": "unsafe",
+                "Response Safety": "unsafe",
+                "Safety Categories": "Violence",
+            }
+        )
+        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=nemoguard_response)
+
+        flow = "content safety check output $model=content_safety"
+        result = await content_safety_rails_manager._check_content_safety_output(
+            flow, [{"role": "user", "content": "user query"}], "bot answer"
+        )
+        assert not result.is_safe
+        assert "Violence" in result.reason
 
         call_args = content_safety_rails_manager.model_manager.generate_async.call_args
         messages_sent = call_args[0][1]

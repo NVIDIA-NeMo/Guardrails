@@ -22,10 +22,9 @@ Input rails run concurrently via asyncio.gather().
 import logging
 from typing import Sequence, cast
 
-from nemoguardrails.guardrails.guardrails import LLMMessages
-from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailResult
 from nemoguardrails.guardrails.model_manager import ModelManager
-from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety
+from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nemoguard_parse_response_safety
 from nemoguardrails.rails.llm.config import RailsConfig, TaskPrompt
 
 log = logging.getLogger(__name__)
@@ -155,7 +154,7 @@ class RailsManager:
         prompt_key: str,
         user_input: str = "",
         bot_response: str = "",
-    ) -> str | None:
+    ) -> str:
         """Look up a prompt template by task key and render it.
 
         Returns the rendered prompt string, or None if no template is found.
@@ -226,7 +225,7 @@ class RailsManager:
     def _parse_content_safety_output_response(self, response: str) -> RailResult:
         """Use the existing `nemoguard_parse_response_safety` method and convert to RailResult."""
 
-        result = nemoguard_parse_prompt_safety(response)
+        result = nemoguard_parse_response_safety(response)
         rail_result = self._parse_content_safety_result(result)
         return rail_result
 
@@ -245,6 +244,6 @@ class RailsManager:
         if len(result) > 1 and not result[0]:
             unsafe_list: list[str] = cast(list[str], result[1:])
             unsafe_categories = ",".join(unsafe_list)
-            return RailResult(is_safe=False, reason=f"Unsafe categories: {unsafe_categories}")
+            return RailResult(is_safe=False, reason=f"Safety categories: {unsafe_categories}")
 
         raise RuntimeError(f"Content safety response invalid: {result}")
