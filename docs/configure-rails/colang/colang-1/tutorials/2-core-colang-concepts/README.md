@@ -9,7 +9,7 @@ This guide builds on the [Hello World guide](../1-hello-world/README.md) and int
 
 ## Prerequisites
 
-This "Hello World" guardrails configuration uses the OpenAI `gpt-3.5-turbo-instruct` model.
+This "Hello World" guardrails configuration uses the OpenAI `gpt-4o-mini` model.
 
 1. Install the `openai` package:
 
@@ -168,7 +168,7 @@ Once an input message is received from the user, a multi-step process begins.
 After an utterance, such as  "Hello!" in the previous example, is received from the user, the guardrails instance uses the LLM to compute the corresponding canonical form.
 
 ```{note}
-NeMo Guardrails uses a task-oriented interaction model with the LLM. Every time the LLM is called, it uses a specific task prompt template, such as `generate_user_intent`, `generate_next_step`, `generate_bot_message`. See the [default template prompts](../../../nemoguardrails/llm/prompts/general.yml) for details.
+NeMo Guardrails uses a task-oriented interaction model with the LLM. Every time the LLM is called, it uses a specific task prompt template, such as `generate_user_intent`, `generate_next_step`, `generate_bot_message`. See the [default template prompts](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/prompts/general.yml) for details.
 ```
 
 In the case of the "Hello!" message, a single LLM call is made using the `generate_user_intent` task prompt template. The prompt looks like the following:
@@ -229,11 +229,11 @@ user "Hello!"
 
 The prompt has four logical sections:
 
-1. A set of general instructions. These can be [configured](../../user-guides/configuration-guide.md#general-instructions) using the `instructions` key in *config.yml*.
+1. A set of general instructions. These can be [configured](../../../../configuration-reference.md#instructions) using the `instructions` key in *config.yml*.
 
-2. A sample conversation, which can also be [configured](../../user-guides/configuration-guide.md#sample-conversation) using the `sample_conversation` key in *config.yml*.
+2. A sample conversation, which can also be [configured](../../../../configuration-reference.md#sample-conversation) using the `sample_conversation` key in *config.yml*.
 
-3. A set of examples for converting user utterances to canonical forms. The top five most relevant examples are chosen by performing a vector search against all the user message examples. For more details see [ABC Bot](../../../examples/bots/abc/README.md).
+3. A set of examples for converting user utterances to canonical forms. The top five most relevant examples are chosen by performing a vector search against all the user message examples. For more details see [ABC Bot](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/examples/bots/abc/README.md).
 
 4. The current conversation preceded by the first two turns from the sample conversation.
 
@@ -336,7 +336,7 @@ Based on these steps, we can see that the `ask general question` canonical form 
 
 ## Wrapping up
 
-This guide provides a detailed overview of two core Colang concepts: *messages* and *flows*. It also looked at how the message and flow definitions are used under the hood and how the LLM is prompted. For more details, see the reference documentation for the [Python API](../../user-guides/python-api.md) and the [Colang Language Syntax](../../user-guides/colang-language-syntax-guide.md).
+This guide provides a detailed overview of two core Colang concepts: *messages* and *flows*. It also looked at how the message and flow definitions are used under the hood and how the LLM is prompted. For more details, see the reference documentation for the [Python API](../../../../../reference/python-api/index.md) and the [Colang Language Syntax](../../colang-language-syntax-guide.md).
 
 ## Next
 

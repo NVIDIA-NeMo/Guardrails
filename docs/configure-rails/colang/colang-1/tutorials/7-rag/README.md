@@ -116,5 +116,5 @@ This guide introduced how a guardrails configuration can be used in the context 
 
 To continue learning about NeMo Guardrails, check out:
 
-1. [Guardrails Library](../../../docs/user-guides/guardrails-library.md).
-2. [Configuration Guide](../../../docs/user-guides/configuration-guide.md).
+1. [Guardrails Catalog](../../../../guardrail-catalog.md).
+2. [Configuration Reference](../../../../configuration-reference.md).

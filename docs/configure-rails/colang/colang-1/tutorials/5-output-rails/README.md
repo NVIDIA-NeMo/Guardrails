@@ -31,7 +31,7 @@ nest_asyncio.apply()
 
 ## Output Moderation
 
-NeMo Guardrails comes with a built-in [output self-checking rail](../../user-guides/guardrails-library.md#output-checking). This rail uses a separate LLM call to make sure that the bot's response should be allowed.
+NeMo Guardrails comes with a built-in [output self-checking rail](../../../../guardrail-catalog.md#self-check-output). This rail uses a separate LLM call to make sure that the bot's response should be allowed.
 
 Activating the `self check output` rail is similar to the `self check input` rail:
 
@@ -191,11 +191,9 @@ You can enable streaming to provide asynchronous responses and reduce the time t
           enabled: True
           chunk_size: 200
           context_size: 50
-
-   streaming: True
    ```
 
-  The `enabled: True` field is required to enable streaming output rails while the `streaming: True` field is needed to enable streaming generation.
+  The `enabled: True` field is required to enable streaming output rails.
 
 1. Call the `stream_async` method and handle the chunked response:
 
@@ -224,7 +222,7 @@ You can enable streaming to provide asynchronous responses and reduce the time t
    ```
 
 For reference information about the related `config.yaml` file fields,
-refer to [](../../user-guides/configuration-guide.md#output-rails).
+refer to the [Configuration Reference](../../../../configuration-reference.md#output-rails).
 
 ## Custom Output Rail
 

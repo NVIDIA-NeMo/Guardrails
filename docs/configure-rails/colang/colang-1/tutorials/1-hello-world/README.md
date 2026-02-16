@@ -9,7 +9,7 @@ This guide shows you how to create a "Hello World" guardrails configuration that
 
 ## Prerequisites
 
-This "Hello World" guardrails configuration uses the OpenAI `gpt-3.5-turbo-instruct` model.
+This "Hello World" guardrails configuration uses the OpenAI `gpt-4o-mini` model.
 
 1. Install the `openai` package:
 
@@ -45,7 +45,7 @@ Every guardrails configuration must be stored in a folder. The standard folder s
 │   ├── ...
 ```
 
-See the [Configuration Guide](../../user-guides/configuration-guide.md) for information about the contents of these files.
+See the [Configuration Reference](../../../../configuration-reference.md) for information about the contents of these files.
 
 1. Create a folder, such as *config*, for your configuration:
 
@@ -59,10 +59,10 @@ mkdir config
 models:
  - type: main
    engine: openai
-   model: gpt-3.5-turbo-instruct
+   model: gpt-4o-mini
 ```
 
-The `models` key in the *config.yml* file configures the LLM model. For a complete list of supported LLM models, see [Supported LLM Models](../../user-guides/configuration-guide.md#supported-llm-models).
+The `models` key in the *config.yml* file configures the LLM model. For a complete list of supported LLM models, see [Supported LLM Models](../../../../../about/supported-llms.md).
 
 ## Step 2: load the guardrails configuration
 
