@@ -38,7 +38,7 @@ The following table summarizes the different rail categories and their trigger p
 | **Input rails** | When user input is received | Validate, filter, or modify user input |
 | **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
 | **Dialog rails** | After canonical form is computed | Control conversation flow |
-| **Execution rails** | Before/after action execution | Control tool and action calls |
+| **Execution rails** | Before/after action execution | Control custom action calls |
 | **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
 
 The following diagram shows the guardrails process described in the table above in detail.
@@ -56,7 +56,7 @@ rails:
   input:
     flows:
       - self check input
-      - check jailbreak
+      - jailbreak detection heuristics
       - mask sensitive data on input
 
   output:
@@ -78,9 +78,9 @@ Input rails process user messages before they reach the LLM:
 rails:
   input:
     flows:
-      - self check input           # LLM-based input validation
-      - check jailbreak            # Jailbreak detection
-      - mask sensitive data on input  # PII masking
+      - self check input                # LLM-based input validation
+      - jailbreak detection heuristics  # Jailbreak detection
+      - mask sensitive data on input    # PII masking
 ```
 
 For a complete list of available input flows, refer to the [](../configuration-reference.md#input-rails).
@@ -185,7 +185,7 @@ rails:
   input:
     flows:
       - self check input
-      - check jailbreak
+      - jailbreak detection heuristics
       - mask sensitive data on input
 
   # Output validation
@@ -216,10 +216,6 @@ rails:
         entities:
           - PERSON
           - EMAIL_ADDRESS
-```
-
-```{include}
-parallel-rails.md
 ```
 
 ```{include} parallel-rails.md

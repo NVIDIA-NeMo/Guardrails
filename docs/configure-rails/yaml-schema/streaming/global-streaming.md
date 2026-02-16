@@ -56,11 +56,9 @@ If output rails are configured but `rails.output.streaming.enabled` is not set t
 
 ---
 
-## Streaming With Handler (Deprecated)
+## Streaming With Handler
 
-> **Warning:** Using `StreamingHandler` directly is deprecated and will be removed in a future release. Use `stream_async()` instead.
-
-For advanced use cases requiring more control over token processing, you can use a `StreamingHandler` with `generate_async()`:
+For advanced use cases requiring more control over token processing, you can use a `StreamingHandler` with `generate_async()`. The preferred approach for most use cases is `stream_async()`, but `StreamingHandler` remains supported:
 
 ```python
 from nemoguardrails import LLMRails, RailsConfig

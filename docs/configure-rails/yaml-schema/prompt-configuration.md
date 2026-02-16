@@ -96,7 +96,7 @@ Override prompts for specific models:
 prompts:
   - task: generate_user_intent
     models:
-      - openai/gpt-3.5-turbo
+      - openai/gpt-4o
       - openai/gpt-4
     max_length: 3000
     output_parser: user_intent
@@ -105,17 +105,34 @@ prompts:
       ...
 ```
 
+## Prompt Attributes Reference
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `task` | `str` | (required) | The task ID this prompt is associated with |
+| `content` | `str` | — | The prompt content string (mutually exclusive with `messages`) |
+| `messages` | `list` | — | List of chat messages (mutually exclusive with `content`) |
+| `models` | `list[str]` | — | Restrict prompt to specific engines/models (format: `engine` or `engine/model`) |
+| `output_parser` | `str` | — | Name of the output parser to use |
+| `max_length` | `int` | `16000` | Maximum prompt length in characters |
+| `mode` | `str` | `"standard"` | Prompting mode this prompt applies to |
+| `stop` | `list[str]` | — | Stop tokens for models that support them |
+| `max_tokens` | `int` | — | Maximum number of tokens for the completion |
+
 ## Template Variables
 
-The following table lists all available variables you can use in the prompt content:
+The following table lists common variables you can use in the prompt content:
 
 | Variable | Description |
 |----------|-------------|
-| `{{ user_input }}` | Current user message |
-| `{{ bot_response }}` | Current bot response (for output rails) |
-| `{{ history }}` | Conversation history |
+| `{{ user_input }}` | Current user message (used in self-check prompts) |
+| `{{ bot_response }}` | Current bot response (used in output rail prompts) |
+| `{{ history }}` | Conversation history (supports filters like `colang`, `user_assistant_sequence`) |
 | `{{ relevant_chunks }}` | Retrieved knowledge base chunks |
-| `{{ context }}` | Additional context variables |
+| `{{ general_instructions }}` | General instructions from the `instructions` config |
+| `{{ sample_conversation }}` | Sample conversation from the config (supports `first_turns` filter) |
+| `{{ examples }}` | Example conversations for few-shot prompting |
+| `{{ potential_user_intents }}` | List of possible user intents |
 
 ## Example Configurations
 

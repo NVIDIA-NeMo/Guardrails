@@ -46,7 +46,7 @@ rails:
 | `enabled` | bool | `False` | Must be `True` to use `stream_async()` with output rails |
 | `chunk_size` | int | `200` | Number of tokens per chunk that output rails process |
 | `context_size` | int | `50` | Tokens carried over between chunks for continuity |
-| `stream_first` | bool | `True` | If `True`, tokens stream immediately before output rails are applied |
+| `stream_first` | bool | `True` | If `True`, tokens are yielded to the client before output rails run on the chunk |
 
 ---
 
@@ -86,25 +86,26 @@ This helps output rails make consistent decisions across chunk boundaries. For e
 
 Controls when tokens are streamed relative to output rail processing:
 
-- `True` (default): Tokens are streamed to the client immediately, then output rails are applied. Provides faster time-to-first-token but rails run after streaming.
-- `False`: Output rails are applied to each chunk before streaming. Safer but adds latency.
+- `True` (default): Each chunk of tokens is yielded to the client **before** output rails run on that chunk. Provides faster time-to-first-token, but if a rail blocks the content, the user has already received the tokens. The stream terminates with a JSON error on violation.
+- `False`: Output rails run on each chunk **before** tokens are yielded. The user never sees blocked content, but time-to-first-token increases by the rail execution time per chunk.
 
 ---
 
 ## Requirements
 
-Output rail streaming requires [global streaming](global-streaming.md) to also be enabled:
+Output rail streaming requires using the `stream_async()` method:
 
 ```yaml
-# Both are required
-streaming: True
-
 rails:
   output:
     flows:
       - self check output
     streaming:
       enabled: True
+```
+
+```{note}
+The top-level `streaming: True` field is deprecated and no longer required. Use `stream_async()` directly instead.
 ```
 
 ---
@@ -114,8 +115,6 @@ rails:
 ### Basic Output Rail Streaming
 
 ```yaml
-streaming: True
-
 rails:
   output:
     flows:
@@ -131,8 +130,6 @@ rails:
 For parallel execution of multiple output rails during streaming:
 
 ```yaml
-streaming: True
-
 rails:
   output:
     parallel: True
@@ -152,8 +149,6 @@ rails:
 For faster time-to-first-token with smaller chunks:
 
 ```yaml
-streaming: True
-
 rails:
   output:
     flows:
@@ -165,13 +160,15 @@ rails:
       stream_first: True
 ```
 
+```{warning}
+With `stream_first: True`, tokens are streamed to the client **before** output rails run. If a rail blocks the content, the user will have already received the tokens up to that point. The stream terminates with a JSON error object when a violation is detected.
+```
+
 ### Safety-First Configuration
 
 For maximum safety with rails applied before streaming:
 
 ```yaml
-streaming: True
-
 rails:
   output:
     flows:
@@ -187,25 +184,48 @@ rails:
 
 ## How It Works
 
-1. **Token Buffering**: Tokens from the LLM are buffered until `chunk_size` is reached
-2. **Context Overlap**: The last `context_size` tokens from the previous chunk are prepended
-3. **Rail Execution**: Output rails are applied to the chunk
-4. **Streaming**: If `stream_first: True`, tokens stream before rail execution completes
+1. **Token Buffering**: Tokens from the LLM are buffered until `chunk_size` tokens have accumulated.
+2. **Streaming or Rail Execution** (depends on `stream_first`):
+   - `stream_first: True` (default): The new tokens are yielded to the client immediately, **then** output rails run on the chunk (including context). If rails block, the stream terminates with a JSON error — but the user already received the tokens.
+   - `stream_first: False`: Output rails run on the chunk first. Only if rails pass are the new tokens yielded to the client.
+3. **Context Overlap**: The last `context_size` tokens from the current chunk are retained and prepended to the next chunk's processing context. This gives rails visibility across chunk boundaries.
+4. **Blocking**: If any rail blocks the content, the stream yields a JSON error object (`{"error": {...}}`) and terminates immediately.
+
+### stream_first: True (default)
 
 ```text
-Chunk 1: [token1, token2, ..., token200]
-         └─────────────────────────────┘
-                    ↓
-              Output Rails
-                    ↓
-              Stream to Client
+Buffer fills to chunk_size
+         ↓
+  Yield new tokens to client (user sees them immediately)
+         ↓
+  Run output rails on [context + new tokens]
+         ↓
+  Pass → continue to next chunk
+  Block → yield JSON error, terminate stream
+```
 
-Chunk 2: [token151, ..., token200, token201, ..., token400]
-         └─── context_size ───┘   └─── new tokens ───────┘
-                    ↓
-              Output Rails
-                    ↓
-              Stream to Client
+### stream_first: False
+
+```text
+Buffer fills to chunk_size
+         ↓
+  Run output rails on [context + new tokens]
+         ↓
+  Pass → yield new tokens to client
+  Block → yield JSON error, terminate stream (user never sees blocked content)
+```
+
+### Buffer Overlap
+
+Only new tokens are streamed to the user. The `context_size` tokens are used solely for rail processing context:
+
+```text
+Chunk 1: rails process [token1 ... token200]
+         user receives  [token1 ... token200]
+
+Chunk 2: rails process [token151 ... token200, token201 ... token400]
+                        └── context_size ──┘  └── new tokens ───────┘
+         user receives  [token201 ... token400]
 ```
 
 ---

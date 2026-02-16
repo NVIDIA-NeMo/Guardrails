@@ -34,7 +34,7 @@ The following is a complete schema for a `config.yml` file:
 models:
   - type: main
     engine: openai
-    model: gpt-3.5-turbo-instruct
+    model: gpt-4o
 
 # Instructions for the LLM (similar to system prompts)
 instructions:
