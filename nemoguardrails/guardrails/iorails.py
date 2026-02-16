@@ -45,7 +45,7 @@ class IORails:
         # Rails Manager is responsible for running rails by making calls to Model Manager
         self.rails_manager = RailsManager(config, self.model_manager)
 
-    async def generate_async(self, messages: LLMMessages) -> LLMMessage:
+    async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Run input rails, generation, and output rails. Return response if safe."""
 
         # Step 1: Check input rails
