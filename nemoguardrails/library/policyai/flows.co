@@ -31,6 +31,3 @@ flow policyai moderation on output
     else
       bot refuse to respond
     abort
-
-flow bot inform policyai violation
-  bot say "I cannot process this request as it violates our content policies."

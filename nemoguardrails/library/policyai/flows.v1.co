@@ -31,6 +31,3 @@ define subflow policyai moderation on output
     else
       bot refuse to respond
     stop
-
-define bot inform policyai violation
-  "I cannot process this request as it violates our content policies."
