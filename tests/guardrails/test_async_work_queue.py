@@ -815,9 +815,6 @@ class TestStartWorkerCreationFailure:
 
         assert not queue._running
 
-        # Clean up workers that were created
-        for task in queue._workers:
-            task.cancel()
         await asyncio.gather(*queue._workers, return_exceptions=True)
 
 

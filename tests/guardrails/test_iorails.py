@@ -143,13 +143,13 @@ class TestIORailsLifecycle:
         iorails.model_manager.start = AsyncMock()
         iorails.model_manager.stop = AsyncMock()
 
-        assert iorails._running is False
+        assert not iorails._running
         await iorails.start()
         assert iorails._running is True
         iorails.model_manager.start.assert_called_once()
 
         await iorails.stop()
-        assert iorails._running is False
+        assert not iorails._running
         iorails.model_manager.stop.assert_called_once()
 
     @pytest.mark.asyncio
@@ -180,7 +180,7 @@ class TestIORailsLifecycle:
         iorails.model_manager.stop = AsyncMock()
 
         await iorails.stop()
-        assert iorails._running is False
+        assert not iorails._running
         iorails.model_manager.stop.assert_not_called()
 
 
@@ -195,7 +195,7 @@ class TestIORailsStartErrors:
         with pytest.raises(RuntimeError, match="engine failed"):
             await iorails.start()
 
-        assert iorails._running is False
+        assert iorails._running
 
     @pytest.mark.asyncio
     async def test_start_propagates_model_engine_error(self, iorails):
@@ -213,8 +213,8 @@ class TestIORailsStartErrors:
         with pytest.raises(RuntimeError, match="Failed to start model engines"):
             await iorails.start()
 
-        assert iorails._running is False
-        assert iorails.model_manager._running is False
+        assert iorails._running
+        assert not iorails.model_manager._running
 
         # The engines that started successfully should have been rolled back
         for engine_type, engine in iorails.model_manager._engines.items():
@@ -251,7 +251,7 @@ class TestIORailsStopErrors:
             await iorails.stop()
 
         # _running should be False due to the finally clause
-        assert iorails._running is False
+        assert not iorails._running
 
 
 class TestIORailsContextManager:
@@ -268,7 +268,7 @@ class TestIORailsContextManager:
             assert iorails._running is True
             iorails.model_manager.start.assert_called_once()
 
-        assert iorails._running is False
+        assert not iorails._running
         iorails.model_manager.stop.assert_called_once()
 
 

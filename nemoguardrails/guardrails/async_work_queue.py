@@ -86,12 +86,16 @@ class AsyncWorkQueue(Generic[T]):
             except Exception as e:
                 log.error("Async Work Queue worker could not be started: %s", e)
 
-        # Check if all workers could be started. If not, raise an Exception with details
+        # Check if all workers could be started. If not, cancel all active workers and then raise Exception
         n_workers = len(self._workers)
         if n_workers < self._max_concurrency:
+            for task in self._workers:
+                task.cancel()
+            await asyncio.gather(*self._workers, return_exceptions=True)
+            self._workers = []
             raise RuntimeError(f"Only {n_workers} started out of requested {self._max_concurrency}")
 
-        # Only set self._running if all workers are active
+        # If all the workers were successfully started, we're ready to accept work items
         self._running = True
 
     async def stop(self, wait_for_completion: bool = True) -> None:

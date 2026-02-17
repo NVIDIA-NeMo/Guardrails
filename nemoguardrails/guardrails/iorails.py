@@ -50,27 +50,21 @@ class IORails:
         if self._running:
             return
 
-        # When starting up, propagate any exceptions from ModelManager. Don't set
-        # self_running unless there's a clean startup with no exceptions, as we
-        # can't accept any requests until then
+        # When starting up, make sure self._running is always set to True even on exceptions.
+        # This allows the stop() method to clean up any state
         try:
             await self.model_manager.start()
-        except Exception as e:
-            raise e
-        self._running = True
+        finally:
+            self._running = True
 
     async def stop(self) -> None:
         """Stop the IORails engine. Call this during service shutdown."""
         if not self._running:
             return
 
-        # If any exceptions are thrown when stopping ModelManager, then raise them
-        # and make sure self_running is set to False so requests made to
-        # ModelManager
+        # If any exceptions are thrown when stopping ModelManager, set the _running to False
         try:
             await self.model_manager.stop()
-        except Exception as e:
-            raise e
         finally:
             self._running = False
 
