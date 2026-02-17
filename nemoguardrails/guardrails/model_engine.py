@@ -23,7 +23,6 @@ Retries are handled by aiohttp-retry (ExponentialRetry).
 import logging
 import os
 from typing import Any, Optional, cast
-from urllib.parse import urljoin
 
 import aiohttp
 from aiohttp_retry import ExponentialRetry, RetryClient
@@ -176,7 +175,7 @@ class ModelEngine:
         # Cast as RetryClient so type-checking knows it isn't None
         client = cast(RetryClient, self._client)
 
-        url = urljoin(self.base_url, _CHAT_COMPLETIONS_ENDPOINT)
+        url = self.base_url.rstrip("/") + _CHAT_COMPLETIONS_ENDPOINT
 
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:

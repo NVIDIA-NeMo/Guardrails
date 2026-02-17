@@ -99,7 +99,7 @@ class RailsManager:
     async def _run_input_rail(self, flow: str, messages: list[dict]) -> RailResult:
         """Run an input rail flow if it's supported. If not raise an exception"""
         # Extract the base flow name (strip any $model=... parameter)
-        base_flow = flow.split("$")[0].strip()
+        base_flow = self._flow_name(flow)
 
         if base_flow == "content safety check input":
             return await self._check_content_safety_input(flow, messages)
@@ -108,7 +108,7 @@ class RailsManager:
 
     async def _run_output_rail(self, flow: str, messages: list[dict], response: str) -> RailResult:
         """Run an output rail flow if it's supported. If not raise an exception"""
-        base_flow = flow.split("$")[0].strip()
+        base_flow = self._flow_name(flow)
 
         if base_flow == "content safety check output":
             return await self._check_content_safety_output(flow, messages, response)
