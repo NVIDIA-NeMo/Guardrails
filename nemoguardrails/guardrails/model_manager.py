@@ -53,17 +53,23 @@ class ModelManager:
         """Start all model engine clients. Call this during service startup."""
         if self._running:
             return
-        for engine in self._engines.values():
-            await engine.start()
-        self._running = True
+
+        try:
+            for engine in self._engines.values():
+                await engine.start()
+        finally:
+            self._running = True
 
     async def stop(self) -> None:
         """Stop all model engine clients. Call this during service shutdown."""
         if not self._running:
             return
-        for engine in self._engines.values():
-            await engine.stop()
-        self._running = False
+
+        try:
+            for engine in self._engines.values():
+                await engine.stop()
+        finally:
+            self._running = False
 
     def get_engine(self, model_type: str) -> ModelEngine:
         """Look up a ModelEngine by its model type.

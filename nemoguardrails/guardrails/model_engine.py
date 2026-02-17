@@ -89,20 +89,26 @@ class ModelEngine:
         """Create this engine's RetryClient. Call this during service startup."""
         if self._running:
             return
-        self._client = RetryClient(
-            retry_options=self._retry_options,
-            client_session=aiohttp.ClientSession(timeout=self._timeout),
-        )
-        self._running = True
+
+        try:
+            self._client = RetryClient(
+                retry_options=self._retry_options,
+                client_session=aiohttp.ClientSession(timeout=self._timeout),
+            )
+        finally:
+            self._running = True
 
     async def stop(self) -> None:
         """Close this engine's RetryClient. Call this during service shutdown."""
         if not self._running:
             return
-        if self._client:
-            await self._client.close()
-            self._client = None
-        self._running = False
+
+        try:
+            if self._client:
+                await self._client.close()
+                self._client = None
+        finally:
+            self._running = False
 
     def _resolve_base_url(self) -> str:
         """Resolve the base URL from model parameters or engine type."""

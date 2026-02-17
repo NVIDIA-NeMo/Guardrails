@@ -223,10 +223,10 @@ class Guardrails:
 
     async def startup(self) -> None:
         """Lifecycle method to create worker threads and infrastructure"""
-        if isinstance(self.rails_engine, IORails):
-            await self.rails_engine.start()
         for queue in self._queues:
             await queue.start()
+        if isinstance(self.rails_engine, IORails):
+            await self.rails_engine.start()
 
     async def shutdown(self) -> None:
         """Lifecycle method to cleanly shutdown worker threads and infrastructure"""

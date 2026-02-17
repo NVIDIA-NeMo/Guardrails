@@ -50,15 +50,21 @@ class IORails:
         """Start the IORails engine. Call this during service startup."""
         if self._running:
             return
-        await self.model_manager.start()
-        self._running = True
+
+        try:
+            await self.model_manager.start()
+        finally:
+            self._running = True
 
     async def stop(self) -> None:
         """Stop the IORails engine. Call this during service shutdown."""
         if not self._running:
             return
-        await self.model_manager.stop()
-        self._running = False
+
+        try:
+            await self.model_manager.stop()
+        finally:
+            self._running = False
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""
