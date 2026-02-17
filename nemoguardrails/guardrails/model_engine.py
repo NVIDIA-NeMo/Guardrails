@@ -101,12 +101,11 @@ class ModelEngine:
         if not self._running:
             return
 
-        try:
-            if self._client:
-                await self._client.close()
-                self._client = None
-        finally:
-            self._running = False
+        if self._client:
+            await self._client.close()
+            self._client = None
+
+        self._running = False
 
     def _resolve_base_url(self) -> str:
         """Resolve the base URL from model parameters or engine type."""

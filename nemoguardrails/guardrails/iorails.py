@@ -58,10 +58,8 @@ class IORails:
         if not self._running:
             return
 
-        try:
-            await self.model_manager.stop()
-        finally:
-            self._running = False
+        await self.model_manager.stop()
+        self._running = False
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""

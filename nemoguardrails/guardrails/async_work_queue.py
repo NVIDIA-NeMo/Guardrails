@@ -77,18 +77,21 @@ class AsyncWorkQueue(Generic[T]):
         self._busy_count = 0
         self._workers = []
 
-        # Unless all worker tasks can be started successfully, raise an Exception
+        # Try to start `self._max_concurrency` workers. If any fail to start, swallow the exception
+        # and log out the details.
         for i in range(self._max_concurrency):
             try:
                 task = asyncio.create_task(self._worker_loop(), name=f"{self._name}_worker_id{i}")
                 self._workers.append(task)
             except Exception as e:
-                log.error("Async Work Queue worker could not be started")
+                log.error("Async Work Queue worker could not be started: %s", e)
 
+        # Check if all workers could be started. If not, raise an Exception with details
         n_workers = len(self._workers)
         if n_workers < self._max_concurrency:
             raise RuntimeError(f"Only {n_workers} started out of requested {self._max_concurrency}")
 
+        # Only set self._running if all workers are active
         self._running = True
 
     async def stop(self, wait_for_completion: bool = True) -> None:

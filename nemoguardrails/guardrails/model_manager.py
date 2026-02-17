@@ -54,8 +54,23 @@ class ModelManager:
         if self._running:
             return
 
-        for engine in self._engines.values():
-            await engine.start()
+        engine_errors = {}
+        for engine_type, engine in self._engines.items():
+            try:
+                await engine.start()
+            except Exception as e:
+                engine_errors[engine_type] = e
+                log.error("Error starting model engine type %s: %s", engine_type, e)
+
+        if len(engine_errors) > 0:
+            engine_error_string = ", ".join(
+                [
+                    f"Engine type {engine_type}: exception {exception}"
+                    for engine_type, exception in engine_errors.items()
+                ]
+            )
+            raise RuntimeError(f"Failed to start model engines: {engine_error_string}")
+
         self._running = True
 
     async def stop(self) -> None:
@@ -63,11 +78,24 @@ class ModelManager:
         if not self._running:
             return
 
-        try:
-            for engine in self._engines.values():
+        engine_errors = {}
+        for engine_type, engine in self._engines.items():
+            try:
                 await engine.stop()
-        finally:
-            self._running = False
+            except Exception as e:
+                engine_errors[engine_type] = e
+                log.error("Error stopping model engine type %s: %s", engine_type, e)
+
+        if len(engine_errors) > 0:
+            engine_error_string = ", ".join(
+                [
+                    f"Engine type {engine_type}: exception {exception}"
+                    for engine_type, exception in engine_errors.items()
+                ]
+            )
+            raise RuntimeError(f"Failed to stop model engines: {engine_error_string}")
+
+        self._running = False
 
     def get_engine(self, model_type: str) -> ModelEngine:
         """Look up a ModelEngine by its model type.
