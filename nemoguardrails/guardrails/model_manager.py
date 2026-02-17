@@ -54,20 +54,25 @@ class ModelManager:
         if self._running:
             return
 
+        started = []
         engine_errors = {}
         for engine_type, engine in self._engines.items():
             try:
                 await engine.start()
+                started.append(engine)
             except Exception as e:
                 engine_errors[engine_type] = e
                 log.error("Error starting model engine type %s: %s", engine_type, e)
 
-        if len(engine_errors) > 0:
+        if engine_errors:
+            # Roll back engines that started successfully to avoid leaked clients
+            for engine in started:
+                try:
+                    await engine.stop()
+                except Exception:
+                    pass
             engine_error_string = ", ".join(
-                [
-                    f"Engine type {engine_type}: exception {exception}"
-                    for engine_type, exception in engine_errors.items()
-                ]
+                f"Engine type {engine_type}: exception {exception}" for engine_type, exception in engine_errors.items()
             )
             raise RuntimeError(f"Failed to start model engines: {engine_error_string}")
 

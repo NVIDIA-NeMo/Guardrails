@@ -50,7 +50,13 @@ class IORails:
         if self._running:
             return
 
-        await self.model_manager.start()
+        # When starting up, propagate any exceptions from ModelManager. Don't set
+        # self_running unless there's a clean startup with no exceptions, as we
+        # can't accept any requests until then
+        try:
+            await self.model_manager.start()
+        except Exception as e:
+            raise e
         self._running = True
 
     async def stop(self) -> None:
@@ -58,8 +64,15 @@ class IORails:
         if not self._running:
             return
 
-        await self.model_manager.stop()
-        self._running = False
+        # If any exceptions are thrown when stopping ModelManager, then raise them
+        # and make sure self_running is set to False so requests made to
+        # ModelManager
+        try:
+            await self.model_manager.stop()
+        except Exception as e:
+            raise e
+        finally:
+            self._running = False
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""

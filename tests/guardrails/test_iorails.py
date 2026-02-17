@@ -184,6 +184,76 @@ class TestIORailsLifecycle:
         iorails.model_manager.stop.assert_not_called()
 
 
+class TestIORailsStartErrors:
+    """Test IORails start() error propagation."""
+
+    @pytest.mark.asyncio
+    async def test_start_propagates_model_manager_error(self, iorails):
+        """start() re-raises when model_manager.start() fails."""
+        iorails.model_manager.start = AsyncMock(side_effect=RuntimeError("engine failed"))
+
+        with pytest.raises(RuntimeError, match="engine failed"):
+            await iorails.start()
+
+        assert iorails._running is False
+
+    @pytest.mark.asyncio
+    async def test_start_propagates_model_engine_error(self, iorails):
+        """A ModelEngine failure propagates through ModelManager up to IORails.start()."""
+        # Inject the failure at the ModelEngine level, leaving ModelManager real
+        engine = iorails.model_manager.get_engine("content_safety")
+        engine.start = AsyncMock(side_effect=RuntimeError("NIM endpoint unreachable"))
+
+        # Mock the other engines so they don't make real HTTP connections
+        for engine_type, engine in iorails.model_manager._engines.items():
+            if engine_type != "content_safety":
+                engine.start = AsyncMock()
+                engine.stop = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="Failed to start model engines"):
+            await iorails.start()
+
+        assert iorails._running is False
+        assert iorails.model_manager._running is False
+
+        # The engines that started successfully should have been rolled back
+        for engine_type, engine in iorails.model_manager._engines.items():
+            if engine_type != "content_safety":
+                engine.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_failure_allows_retry(self, iorails):
+        """After a failed start(), a subsequent start() is not blocked by the idempotency guard."""
+        iorails.model_manager.start = AsyncMock(side_effect=RuntimeError("first fail"))
+
+        with pytest.raises(RuntimeError):
+            await iorails.start()
+
+        # Fix the failure and retry
+        iorails.model_manager.start = AsyncMock()
+        await iorails.start()
+        assert iorails._running is True
+
+
+class TestIORailsStopErrors:
+    """Test IORails stop() error propagation."""
+
+    @pytest.mark.asyncio
+    async def test_stop_propagates_model_manager_error(self, iorails):
+        """stop() re-raises when model_manager.stop() fails, but sets _running=False."""
+        iorails.model_manager.start = AsyncMock()
+        iorails.model_manager.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
+
+        await iorails.start()
+        assert iorails._running is True
+
+        with pytest.raises(RuntimeError, match="stop failed"):
+            await iorails.stop()
+
+        # _running should be False due to the finally clause
+        assert iorails._running is False
+
+
 class TestIORailsContextManager:
     """Test IORails async context manager."""
 
