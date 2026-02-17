@@ -38,12 +38,36 @@ class IORails:
 
     def __init__(self, config: RailsConfig) -> None:
         self.config = config
+        self._running = False
 
         # Model Manager has one or more ModelEngine inside. Each ModelEngine calls a single model or API
         self.model_manager = ModelManager(config.models)
 
         # Rails Manager is responsible for running rails by making calls to Model Manager
         self.rails_manager = RailsManager(config, self.model_manager)
+
+    async def start(self) -> None:
+        """Start the IORails engine. Call this during service startup."""
+        if self._running:
+            return
+        await self.model_manager.start()
+        self._running = True
+
+    async def stop(self) -> None:
+        """Stop the IORails engine. Call this during service shutdown."""
+        if not self._running:
+            return
+        await self.model_manager.stop()
+        self._running = False
+
+    async def __aenter__(self):
+        """Context manager (used for testing rather than long-lived instance)"""
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager (used for testing rather than long-lived instance)"""
+        await self.stop()
 
     async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Run input rails, generation, and output rails. Return response if safe."""

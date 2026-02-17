@@ -73,18 +73,17 @@ class AsyncWorkQueue(Generic[T]):
         """Starts the worker pool. Call this during service startup."""
         if self._running:
             return
-        self._running = True
         self._busy_count = 0
         self._workers = []
         for i in range(self._max_concurrency):
             task = asyncio.create_task(self._worker_loop(), name=f"{self._name}_worker_id{i}")
             self._workers.append(task)
+        self._running = True
 
     async def stop(self, wait_for_completion: bool = True) -> None:
         """Stops the worker pool. Call this during service shutdown."""
         if not self._running:
             return
-        self._running = False
 
         if wait_for_completion:
             await self._queue.join()
@@ -96,6 +95,7 @@ class AsyncWorkQueue(Generic[T]):
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers = []
         self._busy_count = 0
+        self._running = False
 
     async def submit(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """

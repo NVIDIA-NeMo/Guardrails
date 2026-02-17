@@ -84,25 +84,69 @@ class TestModelManagerLifecycle:
 
     @pytest.mark.asyncio
     async def test_start_calls_start_on_all_engines(self, manager):
-        """start() delegates to each engine's start()."""
+        """start() delegates to each engine's start() and sets _running."""
         for engine in manager._engines.values():
             engine.start = AsyncMock()
 
+        assert manager._running is False
         await manager.start()
+        assert manager._running is True
 
         for engine in manager._engines.values():
             engine.start.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stop_calls_stop_on_all_engines(self, manager):
-        """stop() delegates to each engine's stop()."""
+        """stop() delegates to each engine's stop() and clears _running."""
         for engine in manager._engines.values():
+            engine.start = AsyncMock()
             engine.stop = AsyncMock()
 
+        await manager.start()
+        assert manager._running is True
         await manager.stop()
+        assert manager._running is False
 
         for engine in manager._engines.values():
             engine.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_is_idempotent(self, manager):
+        """Calling start() twice only starts engines once."""
+        for engine in manager._engines.values():
+            engine.start = AsyncMock()
+
+        await manager.start()
+        await manager.start()  # second call is a no-op
+
+        for engine in manager._engines.values():
+            engine.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_is_idempotent(self, manager):
+        """Calling stop() twice only stops engines once."""
+        for engine in manager._engines.values():
+            engine.start = AsyncMock()
+            engine.stop = AsyncMock()
+
+        await manager.start()
+        await manager.stop()
+        await manager.stop()  # second call is a no-op
+
+        for engine in manager._engines.values():
+            engine.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_without_start_is_noop(self, manager):
+        """stop() without a prior start() does not raise."""
+        for engine in manager._engines.values():
+            engine.stop = AsyncMock()
+
+        await manager.stop()  # should not raise
+        assert manager._running is False
+
+        for engine in manager._engines.values():
+            engine.stop.assert_not_called()
 
 
 class TestModelManagerGenerateAsync:

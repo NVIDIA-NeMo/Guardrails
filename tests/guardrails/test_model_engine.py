@@ -201,10 +201,13 @@ class TestModelEngineLifecycle:
         """start() creates the client, stop() tears it down to None."""
         engine = ModelEngine(_make_model())
         assert engine._client is None
+        assert engine._running is False
         await engine.start()
         assert engine._client is not None
+        assert engine._running is True
         await engine.stop()
         assert engine._client is None
+        assert engine._running is False
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
     @pytest.mark.asyncio
@@ -223,6 +226,34 @@ class TestModelEngineLifecycle:
         """stop() without a prior start() does not raise."""
         engine = ModelEngine(_make_model())
         await engine.stop()  # should not raise
+        assert engine._running is False
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    @pytest.mark.asyncio
+    async def test_stop_is_idempotent(self):
+        """Calling stop() twice does not raise."""
+        engine = ModelEngine(_make_model())
+        await engine.start()
+        await engine.stop()
+        await engine.stop()  # second stop is a no-op
+        assert engine._running is False
+
+
+class TestModelEngineContextManager:
+    """Test async context manager calls start/stop correctly."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    @pytest.mark.asyncio
+    async def test_context_manager_calls_start_and_stop(self):
+        """async with calls start() on enter and stop() on exit."""
+        engine = ModelEngine(_make_model())
+        assert engine._running is False
+        async with engine as eng:
+            assert eng is engine
+            assert engine._running is True
+            assert engine._client is not None
+        assert engine._running is False
+        assert engine._client is None
 
 
 class TestModelEngineCall:
@@ -247,6 +278,7 @@ class TestModelEngineCall:
         mock_client.closed = False
 
         engine._client = mock_client
+        engine._running = True
 
         messages = [{"role": "user", "content": "Hi"}]
         result = await engine.call(messages)
@@ -276,6 +308,7 @@ class TestModelEngineCall:
         mock_client.post = MagicMock(return_value=mock_response)
         mock_client.closed = False
         engine._client = mock_client
+        engine._running = True
 
         messages = [{"role": "user", "content": "Hello"}]
         await engine.call(messages, temperature=0.7)
@@ -302,6 +335,7 @@ class TestModelEngineCall:
         mock_client.post = MagicMock(return_value=mock_response)
         mock_client.closed = False
         engine._client = mock_client
+        engine._running = True
 
         await engine.call([{"role": "user", "content": "Hi"}])
 
@@ -324,6 +358,7 @@ class TestModelEngineCall:
         mock_client.post = MagicMock(return_value=mock_response)
         mock_client.closed = False
         engine._client = mock_client
+        engine._running = True
 
         with pytest.raises(ModelEngineError) as exc_info:
             await engine.call([{"role": "user", "content": "Hi"}])
@@ -341,6 +376,7 @@ class TestModelEngineCall:
         mock_client.post = MagicMock(side_effect=RuntimeError("connection dropped"))
         mock_client.closed = False
         engine._client = mock_client
+        engine._running = True
 
         with pytest.raises(ModelEngineError, match="connection dropped"):
             await engine.call([{"role": "user", "content": "Hi"}])

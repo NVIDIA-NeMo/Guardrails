@@ -120,8 +120,12 @@ class TestGuardrailsRouting:
             guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
 
     @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
     @patch.object(IORails, "__init__", return_value=None)
-    async def test_use_iorails_true_iorails_config(self, mock_iorails_init, _content_safety_rails_config):
+    async def test_use_iorails_true_iorails_config(
+        self, mock_iorails_init, mock_start, mock_stop, _content_safety_rails_config
+    ):
         """Test if Guardrails is initialized with `use_iorails` == True, and a config that
         can be run by IORails, that calls are routed to IORails where implemented and exceptions
         are raised where not.
@@ -129,6 +133,8 @@ class TestGuardrailsRouting:
         We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
         classes. This lets the isinstance() checks in guardrails.py work correctly, while still
         giving us uninitialized instances whose methods we can replace with mocks.
+        start/stop are also patched because the __init__ patch leaves the instance without
+        _running, so the real methods would raise AttributeError during startup/shutdown.
         """
 
         async with Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True) as guardrails:
@@ -684,6 +690,39 @@ class TestUtilityMethods:
         assert explain_info == mock_explain_info
         assert explain_info.llm_calls == ["call1", "call2"]
         mock_llmrails_instance.explain.assert_called_once()
+
+
+class TestGuardrailsLifecycle:
+    """Test that startup/shutdown delegate to the rails engine."""
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_startup_calls_start_on_iorails(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """startup() delegates to IORails.start().
+        start/stop are patched because the __init__ patch leaves the instance without
+        _running, so the real methods would raise AttributeError.
+        """
+        guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+
+        await guardrails.startup()
+        mock_start.assert_called_once()
+
+        await guardrails.shutdown()
+        mock_stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_startup_skips_start_on_llmrails(self, mock_init, _nemoguards_rails_config):
+        """startup() does not call start() on LLMRails (it has no start method)."""
+        guardrails = Guardrails(config=_nemoguards_rails_config, verbose=False, use_iorails=False)
+        assert isinstance(guardrails.rails_engine, LLMRails)
+
+        # Should not raise even though LLMRails has no start/stop
+        await guardrails.startup()
+        await guardrails.shutdown()
 
 
 class TestHasOnlyIORailsFlows:

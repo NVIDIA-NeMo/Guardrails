@@ -38,6 +38,7 @@ class ModelManager:
 
     def __init__(self, models: list[Model]) -> None:
         self._engines: dict[str, ModelEngine] = {}
+        self._running = False
 
         for model_config in models:
             self._engines[model_config.type] = ModelEngine(model_config)
@@ -49,14 +50,20 @@ class ModelManager:
             )
 
     async def start(self) -> None:
-        """Start all model engine clients."""
+        """Start all model engine clients. Call this during service startup."""
+        if self._running:
+            return
         for engine in self._engines.values():
             await engine.start()
+        self._running = True
 
     async def stop(self) -> None:
-        """Stop all model engine clients."""
+        """Stop all model engine clients. Call this during service shutdown."""
+        if not self._running:
+            return
         for engine in self._engines.values():
             await engine.stop()
+        self._running = False
 
     def get_engine(self, model_type: str) -> ModelEngine:
         """Look up a ModelEngine by its model type.

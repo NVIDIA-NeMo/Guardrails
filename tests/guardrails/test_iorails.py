@@ -134,6 +134,74 @@ class TestGenerateAsync:
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
 
+class TestIORailsLifecycle:
+    """Test IORails start/stop lifecycle management."""
+
+    @pytest.mark.asyncio
+    async def test_start_stop_lifecycle(self, iorails):
+        """start() delegates to model_manager.start(), stop() to model_manager.stop()."""
+        iorails.model_manager.start = AsyncMock()
+        iorails.model_manager.stop = AsyncMock()
+
+        assert iorails._running is False
+        await iorails.start()
+        assert iorails._running is True
+        iorails.model_manager.start.assert_called_once()
+
+        await iorails.stop()
+        assert iorails._running is False
+        iorails.model_manager.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_is_idempotent(self, iorails):
+        """Calling start() twice only starts model_manager once."""
+        iorails.model_manager.start = AsyncMock()
+
+        await iorails.start()
+        await iorails.start()
+
+        iorails.model_manager.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_is_idempotent(self, iorails):
+        """Calling stop() twice only stops model_manager once."""
+        iorails.model_manager.start = AsyncMock()
+        iorails.model_manager.stop = AsyncMock()
+
+        await iorails.start()
+        await iorails.stop()
+        await iorails.stop()
+
+        iorails.model_manager.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stop_without_start_is_noop(self, iorails):
+        """stop() without a prior start() does not raise."""
+        iorails.model_manager.stop = AsyncMock()
+
+        await iorails.stop()
+        assert iorails._running is False
+        iorails.model_manager.stop.assert_not_called()
+
+
+class TestIORailsContextManager:
+    """Test IORails async context manager."""
+
+    @pytest.mark.asyncio
+    async def test_context_manager_calls_start_and_stop(self, iorails):
+        """async with calls start() on enter and stop() on exit."""
+        iorails.model_manager.start = AsyncMock()
+        iorails.model_manager.stop = AsyncMock()
+
+        async with iorails as engine:
+            assert engine is iorails
+            assert iorails._running is True
+            iorails.model_manager.start.assert_called_once()
+
+        assert iorails._running is False
+        iorails.model_manager.stop.assert_called_once()
+
+
 class TestRefusalMessage:
     """Test the REFUSAL_MESSAGE module constant."""
 

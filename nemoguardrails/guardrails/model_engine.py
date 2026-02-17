@@ -83,20 +83,26 @@ class ModelEngine:
             exceptions={aiohttp.ClientConnectionError},
         )
         self._client: Optional[RetryClient] = None
+        self._running = False
 
     async def start(self) -> None:
-        """Create this engine's RetryClient."""
-        if self._client is None:
-            self._client = RetryClient(
-                retry_options=self._retry_options,
-                client_session=aiohttp.ClientSession(timeout=self._timeout),
-            )
+        """Create this engine's RetryClient. Call this during service startup."""
+        if self._running:
+            return
+        self._client = RetryClient(
+            retry_options=self._retry_options,
+            client_session=aiohttp.ClientSession(timeout=self._timeout),
+        )
+        self._running = True
 
     async def stop(self) -> None:
-        """Close this engine's RetryClient."""
+        """Close this engine's RetryClient. Call this during service shutdown."""
+        if not self._running:
+            return
         if self._client:
             await self._client.close()
             self._client = None
+        self._running = False
 
     def _resolve_base_url(self) -> str:
         """Resolve the base URL from model parameters or engine type."""
@@ -161,7 +167,7 @@ class ModelEngine:
         """
 
         # Lazy-initialize client if `start()` hasn't yet been called.
-        if self._client is None:
+        if not self._running:
             await self.start()
 
         # Cast as RetryClient so type-checking knows it isn't None
@@ -197,6 +203,15 @@ class ModelEngine:
                 f"Request to model '{self.model_name}' failed: {exc}",
                 model_name=self.model_name,
             ) from exc
+
+    async def __aenter__(self):
+        """Context manager (used for testing rather than long-lived instance)"""
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager (used for testing rather than long-lived instance)"""
+        await self.stop()
 
 
 async def _safe_read_body(response: aiohttp.ClientResponse) -> str:
