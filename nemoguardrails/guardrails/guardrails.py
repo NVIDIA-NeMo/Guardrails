@@ -16,8 +16,9 @@
 """Top-level Guardrails interface module.
 
 This module provides a simplified, user-friendly interface for interacting with
-NeMo Guardrails. The Guardrails class wraps the LLMRails functionality and provides
-a streamlined API for generating LLM responses with programmable guardrails.
+NeMo Guardrails. The Guardrails class wraps either IORails or LLMRails (chosen
+automatically based on config) and provides a streamlined API for generating
+LLM responses with programmable guardrails.
 """
 
 import logging
@@ -105,11 +106,10 @@ class Guardrails:
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
-        """Convert prompt or simplified messages to LLMRails standard format.
+        """Return messages in standard format, converting a prompt string if needed.
 
-        Converts from Guardrails simplified format to LLMRails standard format:
-        - Simplified: [{"user": "text"}]
-        - Standard: [{"role": "user", "content": "Hello"}]
+        If messages is provided, returns it as-is.
+        If prompt is provided, wraps it as [{"role": "user", "content": prompt}].
         """
 
         # Priority: messages first, then prompt
@@ -222,24 +222,24 @@ class Guardrails:
         llmrails.update_llm(llm)
 
     async def startup(self) -> None:
-        """Lifecycle method to create worker threads and infrastructure"""
+        """Lifecycle method to start async worker tasks and the rails engine"""
         for queue in self._queues:
             await queue.start()
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.start()
 
     async def shutdown(self) -> None:
-        """Lifecycle method to cleanly shutdown worker threads and infrastructure"""
+        """Lifecycle method to stop async worker tasks and the rails engine"""
         for queue in self._queues:
             await queue.stop()
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.stop()
 
     async def __aenter__(self):
-        """Async context manager entry - starts the queues."""
+        """Async context manager entry."""
         await self.startup()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - shuts down the queues."""
+        """Async context manager exit."""
         await self.shutdown()

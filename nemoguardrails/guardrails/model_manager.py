@@ -54,11 +54,9 @@ class ModelManager:
         if self._running:
             return
 
-        try:
-            for engine in self._engines.values():
-                await engine.start()
-        finally:
-            self._running = True
+        for engine in self._engines.values():
+            await engine.start()
+        self._running = True
 
     async def stop(self) -> None:
         """Stop all model engine clients. Call this during service shutdown."""

@@ -16,7 +16,7 @@
 """Rails manager for IORails engine.
 
 Orchestrates input/output safety checks by calling ModelManager.
-Input rails run concurrently via asyncio.gather().
+Rails run sequentially; the first failing rail short-circuits the check.
 """
 
 import logging
@@ -37,7 +37,6 @@ class RailsManager:
 
     Reads the rails configuration to determine which checks are enabled,
     then runs them using ModelManager for all LLM/safety calls.
-    Input rails run concurrently via asyncio.gather().
     """
 
     def __init__(self, config: RailsConfig, model_manager: ModelManager) -> None:
@@ -59,13 +58,13 @@ class RailsManager:
         log.info("RailsManager initialized: input_flows=%s, output_flows=%s", self.input_flows, self.output_flows)
 
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
-        """Run all enabled input rails concurrently.
+        """Run input-rails and return whether all rails pass
 
         Args:
             messages: The conversation messages to check.
 
         Returns:
-            RailResult(is_safe=True) if all rails pass, or RailResult(is_safe=False, reason=...) on first failure.
+            RailResult(is_safe=True) if all rails pass, or RailResult(is_safe=False, reason=...) on failure.
         """
         if not self.input_flows:
             return RailResult(is_safe=True)
@@ -85,7 +84,7 @@ class RailsManager:
             response: The LLM-generated response to check.
 
         Returns:
-            RailResult(is_safe=True) if all rails pass, or RailResult(is_safe=False, reason=...) on first failure.
+            RailResult(is_safe=True) if all rails pass, or RailResult(is_safe=False, reason=...) on failure.
         """
         if not self.output_flows:
             return RailResult(is_safe=True)
@@ -185,7 +184,7 @@ class RailsManager:
 
     @staticmethod
     def _flow_name(flow: str) -> str:
-        """Extract the model name from a flow.
+        """Extract the base flow name, stripping any $model=... parameter.
         For example:
            'content safety check input $model=content_safety' -> 'content safety check input'
            'self check input' -> 'self check input'

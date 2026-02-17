@@ -74,14 +74,22 @@ class AsyncWorkQueue(Generic[T]):
         if self._running:
             return
 
-        try:
-            self._busy_count = 0
-            self._workers = []
-            for i in range(self._max_concurrency):
+        self._busy_count = 0
+        self._workers = []
+
+        # Unless all worker tasks can be started successfully, raise an Exception
+        for i in range(self._max_concurrency):
+            try:
                 task = asyncio.create_task(self._worker_loop(), name=f"{self._name}_worker_id{i}")
                 self._workers.append(task)
-        finally:
-            self._running = True
+            except Exception as e:
+                log.error("Async Work Queue worker could not be started")
+
+        n_workers = len(self._workers)
+        if n_workers < self._max_concurrency:
+            raise RuntimeError(f"Only {n_workers} started out of requested {self._max_concurrency}")
+
+        self._running = True
 
     async def stop(self, wait_for_completion: bool = True) -> None:
         """Stops the worker pool. Call this during service shutdown."""

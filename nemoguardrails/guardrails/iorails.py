@@ -16,9 +16,8 @@
 """Optimized IORails Engine for specific guardrail configurations.
 
 This module provides an optimized inference path for guardrail configurations that
-only use specific supported flows (input/output content safety, topic safety,
-jailbreak detection, etc.). For configurations outside this supported set, the
-standard LLMRails engine should be used instead.
+only use specific supported flows (input/output content safety). For configurations
+outside this supported set, the standard LLMRails engine should be used instead.
 """
 
 import logging
@@ -51,10 +50,8 @@ class IORails:
         if self._running:
             return
 
-        try:
-            await self.model_manager.start()
-        finally:
-            self._running = True
+        await self.model_manager.start()
+        self._running = True
 
     async def stop(self) -> None:
         """Stop the IORails engine. Call this during service shutdown."""

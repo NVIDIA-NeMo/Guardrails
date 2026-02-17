@@ -90,13 +90,11 @@ class ModelEngine:
         if self._running:
             return
 
-        try:
-            self._client = RetryClient(
-                retry_options=self._retry_options,
-                client_session=aiohttp.ClientSession(timeout=self._timeout),
-            )
-        finally:
-            self._running = True
+        self._client = RetryClient(
+            retry_options=self._retry_options,
+            client_session=aiohttp.ClientSession(timeout=self._timeout),
+        )
+        self._running = True
 
     async def stop(self) -> None:
         """Close this engine's RetryClient. Call this during service shutdown."""
@@ -169,7 +167,7 @@ class ModelEngine:
             The parsed JSON response dict from the API.
 
         Raises:
-            ModelEngineError: If the request fails after all retries or the client is not started.
+            ModelEngineError: If the request fails after all retries.
         """
 
         # Lazy-initialize client if `start()` hasn't yet been called.
