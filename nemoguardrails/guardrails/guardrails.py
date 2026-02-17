@@ -21,7 +21,7 @@ a streamlined API for generating LLM responses with programmable guardrails.
 """
 
 import logging
-from typing import AsyncIterator, Optional, Tuple, Union, overload
+from typing import AsyncIterator, Optional, Tuple, Union, cast, overload
 
 from langchain_core.language_models import BaseChatModel, BaseLLM
 
@@ -71,7 +71,7 @@ class Guardrails:
         self._use_iorails_engine: bool = use_iorails and self._has_only_iorails_flows()
         self._llmrails = LLMRails(config, llm, verbose)
         self._iorails = IORails(config)
-        self.rails_engine = self._iorails if self._use_iorails_engine else self._llmrails
+        self._rails_engine = self._iorails if self._use_iorails_engine else self._llmrails
 
         # Whether to use IORailsEngine for inference requests
         self._use_iorails_engine: bool = self._has_only_iorails_flows()
@@ -96,6 +96,12 @@ class Guardrails:
     def llmrails(self) -> LLMRails:
         """Get immutable LLMRails object"""
         return self._llmrails
+
+    @property
+    def rails_engine(self) -> IORails | LLMRails:
+        """Get immutable LLMRails object"""
+        return self._rails_engine
+
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
@@ -141,11 +147,11 @@ class Guardrails:
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate an LLM response synchronously with guardrails applied."""
 
-        if self._use_iorails_engine:
+        if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support generate()")
 
         generate_messages = self._convert_to_messages(prompt, messages)
-        response = self._llmrails.generate(messages=generate_messages, **kwargs)
+        response = self.llmrails.generate(messages=generate_messages, **kwargs)
         return response
 
     @overload
@@ -186,7 +192,7 @@ class Guardrails:
         Only supported when using LLMRails
         """
 
-        if self._use_iorails_engine:
+        if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support stream_async()")
 
         stream_messages = self._convert_to_messages(prompt, messages)
@@ -197,19 +203,23 @@ class Guardrails:
         Only supported for LLMRails
         """
 
-        if self._use_iorails_engine:
+        if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support explain()")
 
-        return self.llmrails.explain()
+        # self.rails_engine must be LLMRails since we raise above if we're using IORails
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.explain()
 
     def update_llm(self, llm: Union[BaseLLM, BaseChatModel]) -> None:
         """Replace the main LLM with a new one.
         Only supported for LLMRails, since IORails doesn't take LLM as argument
         """
-        if self._use_iorails_engine:
+        if isinstance(self.rails_engine, IORails):
             raise NotImplementedError("IORails doesn't support update_llm()")
 
-        self.llmrails.update_llm(llm)
+        # self.rails_engine must be LLMRails since we raise above if we're using IORails
+        llmrails = cast(LLMRails, self.rails_engine)
+        llmrails.update_llm(llm)
 
     async def startup(self) -> None:
         """Lifecycle method to create worker threads and infrastructure"""

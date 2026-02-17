@@ -25,8 +25,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemoguardrails.guardrails.guardrails import Guardrails
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.llmrails import LLMRails
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 # Valid IORails input/output rails for has_only_iorails_flows tests
@@ -76,37 +78,33 @@ class TestGuardrailsRouting:
     """Tests to check the routing of requests to Guardrails between LLMRails and IORails"""
 
     @pytest.mark.asyncio
-    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    @patch("nemoguardrails.guardrails.guardrails.IORails")
-    async def test_use_iorails_false_uses_llmrails_only(
-        self, mock_iorails_class, mock_llmrails_class, _content_safety_rails_config
-    ):
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_use_iorails_false_uses_llmrails_only(self, mock_llmrails_init, _content_safety_rails_config):
         """Test if Guardrails is initialized with `use_iorails` == False and an IORails-compatible config
-        all calls go to LLMRails
+        all calls go to LLMRails.
+
+        We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
+        classes. This lets the isinstance() checks in guardrails.py work correctly, while still
+        giving us uninitialized instances whose methods we can replace with mocks.
         """
 
-        mock_llmrails_instance = MagicMock()
-        mock_llmrails_instance.generate = MagicMock(return_value="generate() response")
-        mock_llmrails_instance.generate_async = AsyncMock(return_value="generate_async() response")
-        explain_info = ExplainInfo()
-        mock_llmrails_instance.explain = MagicMock(return_value=explain_info)
-        stream_async_iterator = MagicMock(spec=AsyncIterator)
-        mock_llmrails_instance.stream_async = MagicMock(return_value=stream_async_iterator)
-
-        mock_llmrails_class.return_value = mock_llmrails_instance
-        mock_new_llm = MagicMock()
-
-        mock_iorails_instance = MagicMock()
-        mock_iorails_class.return_value = mock_iorails_instance
-
-        # Create guardrails with a config that **could** be handled by IORails
         async with Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=False) as guardrails:
-            # Check `use_iorails=False` forces use of LLMRails despite config being IORails-supported
-            assert guardrails._has_only_iorails_flows()  # Content-safety config is supported by IORails ..
-            assert not guardrails._use_iorails_engine  # .. but the `use_iorails=False` overrides this
-            assert guardrails.rails_engine is mock_llmrails_instance
+            # Content-safety config is supported by IORails, but use_iorails=False overrides
+            assert guardrails._has_only_iorails_flows()
+            assert isinstance(guardrails.rails_engine, LLMRails)
 
-            # Now make sure all methods get routed to LLMRails and not IORails
+            # Set up mocks on the real (but uninitialized) LLMRails instance
+            explain_info = ExplainInfo()
+            stream_async_iterator = MagicMock(spec=AsyncIterator)
+            mock_new_llm = MagicMock()
+
+            guardrails.rails_engine.generate = MagicMock(return_value="generate() response")
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="generate_async() response")
+            guardrails.rails_engine.explain = MagicMock(return_value=explain_info)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=stream_async_iterator)
+            guardrails.rails_engine.update_llm = MagicMock()
+
+            # Call all methods
             messages = [{"role": "user", "content": "Hi how are you"}]
             assert guardrails.generate(messages=messages) == "generate() response"
             assert await guardrails.generate_async(messages=messages) == "generate_async() response"
@@ -114,50 +112,34 @@ class TestGuardrailsRouting:
             assert guardrails.explain() is explain_info
             guardrails.update_llm(mock_new_llm)
 
-            # Expect all calls to go to LLMRails
-            mock_llmrails_instance.generate.assert_called_once_with(messages=messages)
-            mock_llmrails_instance.generate_async.assert_called_once_with(messages=messages)
-            mock_llmrails_instance.stream_async.assert_called_once_with(messages=messages)
-            mock_llmrails_instance.explain.assert_called_once_with()
-            mock_llmrails_instance.update_llm.assert_called_once_with(mock_new_llm)
-
-            # No calls expected to IORails
-            mock_iorails_instance.generate.assert_not_called()
-            mock_iorails_instance.generate_async.assert_not_called()
-            mock_iorails_instance.stream_async.assert_not_called()
-            mock_iorails_instance.explain.assert_not_called()
-            mock_iorails_instance.update_llm.assert_not_called()
+            # Verify all calls went to LLMRails
+            guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.stream_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.explain.assert_called_once()
+            guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
 
     @pytest.mark.asyncio
-    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    @patch("nemoguardrails.guardrails.guardrails.IORails")
-    async def test_use_iorails_true_iorails_config(
-        self, mock_iorails_class, mock_llmrails_class, _content_safety_rails_config
-    ):
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_use_iorails_true_iorails_config(self, mock_iorails_init, _content_safety_rails_config):
         """Test if Guardrails is initialized with `use_iorails` == True, and a config that
         can be run by IORails, that calls are routed to IORails where implemented and exceptions
         are raised where not.
+
+        We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
+        classes. This lets the isinstance() checks in guardrails.py work correctly, while still
+        giving us uninitialized instances whose methods we can replace with mocks.
         """
 
-        mock_llmrails_instance = MagicMock()
-        mock_llmrails_instance.generate_async = AsyncMock(return_value="llmrails generate_async response")
-        mock_llmrails_instance.stream_async = MagicMock()
-
-        mock_llmrails_class.return_value = mock_llmrails_instance
-        mock_new_llm = MagicMock()
-
-        mock_iorails_instance = MagicMock()
-        mock_iorails_class.return_value = mock_iorails_instance
-        mock_iorails_instance.generate_async = AsyncMock(return_value="iorails generate_async response")
-
-        # Create guardrails with a config that will be handled by IORails
         async with Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True) as guardrails:
             assert guardrails._has_only_iorails_flows()
-            assert guardrails._use_iorails_engine
-            assert guardrails.rails_engine is mock_iorails_instance
+            assert isinstance(guardrails.rails_engine, IORails)
 
-            # Now make sure all methods get routed to LLMRails and not IORails
+            # Mock the IORails generate_async method
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="iorails generate_async response")
+
             messages = [{"role": "user", "content": "Hi how are you"}]
+            mock_new_llm = MagicMock()
 
             with pytest.raises(NotImplementedError, match="IORails doesn't support generate()"):
                 guardrails.generate(messages=messages)
@@ -174,52 +156,36 @@ class TestGuardrailsRouting:
             with pytest.raises(NotImplementedError, match="IORails doesn't support update_llm()"):
                 guardrails.update_llm(mock_new_llm)
 
-            # No LLMRails methods should have been called
-            mock_llmrails_instance.generate.assert_not_called()
-            mock_llmrails_instance.generate_async.assert_not_called()
-            mock_llmrails_instance.stream_async.assert_not_called()
-            mock_llmrails_instance.explain.assert_not_called()
-            mock_llmrails_instance.update_llm.assert_not_called()
-
-            # Expect all supported calls to go to LLMRails
-            mock_iorails_instance.generate.assert_not_called()
-            mock_iorails_instance.generate_async.assert_called_once_with(messages=messages)
-            mock_iorails_instance.stream_async.assert_not_called()
-            mock_iorails_instance.explain.assert_not_called()
-            mock_iorails_instance.update_llm.assert_not_called()
+            # Only generate_async should have been called on IORails
+            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
 
     @pytest.mark.asyncio
-    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    @patch("nemoguardrails.guardrails.guardrails.IORails")
-    async def test_use_iorails_true_llmrails_config(
-        self, mock_iorails_class, mock_llmrails_class, _nemoguards_rails_config
-    ):
+    @patch.object(LLMRails, "__init__", return_value=None)
+    async def test_use_iorails_true_llmrails_config(self, mock_llmrails_init, _nemoguards_rails_config):
         """Test if Guardrails is initialized with `use_iorails` == True but the RailsConfig
-        requires LLMRails then (i.e. Nemoguards config not content-safety) all calls still go to LLMRails
+        requires LLMRails all calls still go to LLMRails.
+
+        We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
+        classes. This lets the isinstance() checks in guardrails.py work correctly, while still
+        giving us uninitialized instances whose methods we can replace with mocks.
         """
 
-        mock_llmrails_instance = MagicMock()
-        mock_llmrails_instance.generate = MagicMock(return_value="generate() response")
-        mock_llmrails_instance.generate_async = AsyncMock(return_value="generate_async() response")
-        explain_info = ExplainInfo()
-        mock_llmrails_instance.explain = MagicMock(return_value=explain_info)
-        stream_async_iterator = MagicMock(spec=AsyncIterator)
-        mock_llmrails_instance.stream_async = MagicMock(return_value=stream_async_iterator)
-
-        mock_llmrails_class.return_value = mock_llmrails_instance
-        mock_new_llm = MagicMock()
-
-        mock_iorails_instance = MagicMock()
-        mock_iorails_class.return_value = mock_iorails_instance
-
-        # Create guardrails with a config that **could** be handled by IORails
         async with Guardrails(config=_nemoguards_rails_config, verbose=False, use_iorails=False) as guardrails:
-            # Check `use_iorails=False` forces use of LLMRails despite config being IORails-supported
-            assert not guardrails._has_only_iorails_flows()  # Content-safety config is supported by IORails ..
-            assert not guardrails._use_iorails_engine  # .. but the `use_iorails=False` overrides this
-            assert guardrails.rails_engine is mock_llmrails_instance
+            assert not guardrails._has_only_iorails_flows()
+            assert isinstance(guardrails.rails_engine, LLMRails)
 
-            # Now make sure all methods get routed to LLMRails and not IORails
+            # Set up mocks on the real (but uninitialized) LLMRails instance
+            explain_info = ExplainInfo()
+            stream_async_iterator = MagicMock(spec=AsyncIterator)
+            mock_new_llm = MagicMock()
+
+            guardrails.rails_engine.generate = MagicMock(return_value="generate() response")
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="generate_async() response")
+            guardrails.rails_engine.explain = MagicMock(return_value=explain_info)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=stream_async_iterator)
+            guardrails.rails_engine.update_llm = MagicMock()
+
+            # Call all methods
             messages = [{"role": "user", "content": "Hi how are you"}]
             assert guardrails.generate(messages=messages) == "generate() response"
             assert await guardrails.generate_async(messages=messages) == "generate_async() response"
@@ -227,19 +193,12 @@ class TestGuardrailsRouting:
             assert guardrails.explain() is explain_info
             guardrails.update_llm(mock_new_llm)
 
-            # Expect all calls to go to LLMRails
-            mock_llmrails_instance.generate.assert_called_once_with(messages=messages)
-            mock_llmrails_instance.generate_async.assert_called_once_with(messages=messages)
-            mock_llmrails_instance.stream_async.assert_called_once_with(messages=messages)
-            mock_llmrails_instance.explain.assert_called_once_with()
-            mock_llmrails_instance.update_llm.assert_called_once_with(mock_new_llm)
-
-            # No calls expected to IORails
-            mock_iorails_instance.generate.assert_not_called()
-            mock_iorails_instance.generate_async.assert_not_called()
-            mock_iorails_instance.stream_async.assert_not_called()
-            mock_iorails_instance.explain.assert_not_called()
-            mock_iorails_instance.update_llm.assert_not_called()
+            # Verify all calls went to LLMRails
+            guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.stream_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.explain.assert_called_once()
+            guardrails.rails_engine.update_llm.assert_called_once_with(mock_new_llm)
 
 
 class TestGuardrailsInit:
@@ -259,8 +218,7 @@ class TestGuardrailsInit:
         # Verify attributes are set correctly
         assert guardrails.config == _nemoguards_rails_config
         assert guardrails.verbose is False
-        assert guardrails.llmrails == mock_llmrails_instance
-        assert not guardrails._use_iorails_engine
+        assert guardrails.rails_engine == mock_llmrails_instance
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_init_with_llm(self, mock_llmrails_class, _nemoguards_rails_config, mock_llm):
@@ -275,8 +233,7 @@ class TestGuardrailsInit:
         # Verify attributes are set correctly
         assert guardrails.config == _nemoguards_rails_config
         assert guardrails.verbose is True
-        assert guardrails.llmrails == mock_llmrails_instance
-        assert not guardrails._use_iorails_engine
+        assert guardrails.rails_engine == mock_llmrails_instance
 
 
 class TestConvertToMessages:
@@ -299,9 +256,7 @@ class TestConvertToMessages:
         """Test conversion with single message."""
         messages = [{"role": "user", "content": "What is the weather?"}]
         result = Guardrails._convert_to_messages(messages=messages)
-
-        expected = [{"role": "user", "content": "What is the weather?"}]
-        assert result == expected
+        assert result == messages
 
     def test_messages_multiple_messages(self):
         """Test conversion with multiple messages."""
@@ -396,13 +351,7 @@ class TestGenerateAsync:
             ]
             result = await guardrails.generate_async(messages=messages)
 
-            # Verify generate_async was called with converted messages
-            expected_messages = [
-                {"role": "user", "content": "First message"},
-                {"role": "assistant", "content": "First response"},
-                {"role": "user", "content": "Second message"},
-            ]
-            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=expected_messages)
+            mock_llmrails_instance.generate_async.assert_awaited_once_with(messages=messages)
             assert result == "Async conversation response"
 
     @pytest.mark.asyncio
@@ -477,12 +426,7 @@ class TestStreamAsync:
         async for chunk in guardrails.stream_async(messages=messages):
             chunks.append(chunk)
 
-        expected_messages = [
-            {"role": "user", "content": "Message 1"},
-            {"role": "assistant", "content": "Response 1"},
-            {"role": "user", "content": "Message 2"},
-        ]
-        mock_llmrails_instance.stream_async.assert_called_once_with(messages=expected_messages)
+        mock_llmrails_instance.stream_async.assert_called_once_with(messages=messages)
         assert chunks == ["Response ", "to ", "conversation"]
 
     @pytest.mark.asyncio
@@ -650,17 +594,6 @@ class TestIntegration:
 class TestUtilityMethods:
     """Tests for utility methods: explain() and update_llm()."""
 
-    # @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    # @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-    # def test_explain_raises(self, mock_llmrails_class, _nemoguards_rails_config):
-    #     """Test that explain() returns the ExplainInfo from LLMRails."""
-    #     mock_llmrails_instance = MagicMock()
-    #     mock_llmrails_class.return_value = mock_llmrails_instance
-    #
-    #     guardrails = Guardrails(config=_nemoguards_rails_config)
-    #     with pytest.raises(NotImplementedError, match="IORails doesn't support explain()"):
-    #         guardrails.explain()
-
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_explain_delegates_to_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
         """Test that explain() delegates to llmrails.explain()."""
@@ -684,20 +617,6 @@ class TestUtilityMethods:
         new_llm = MagicMock()
         guardrails.update_llm(new_llm)
 
-        mock_llmrails_instance.update_llm.assert_called_once_with(new_llm)
-
-    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_update_llm_delegates_to_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
-        """Test that update_llm() calls llmrails.update_llm()."""
-        mock_llmrails_instance = MagicMock()
-        mock_llmrails_class.return_value = mock_llmrails_instance
-
-        guardrails = Guardrails(config=_nemoguards_rails_config)
-
-        new_llm = MagicMock()
-        guardrails.update_llm(new_llm)
-
-        # Verify update_llm was called on underlying LLMRails with the new LLM
         mock_llmrails_instance.update_llm.assert_called_once_with(new_llm)
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
