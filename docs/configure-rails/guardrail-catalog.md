@@ -455,7 +455,7 @@ To use the content safety check, you should:
     models:
       - type: main
         engine: openai
-        model: gpt-3.5-turbo-instruct
+        model: gpt-4o-mini
 
       - type: content_safety
         engine: nim
@@ -471,7 +471,7 @@ To use the content safety check, you should:
     ```
 
     ```{note}
-    The `type` is a unique idenfier for the model to be referred to in the input and output rails as a parameter.
+    The `type` is a unique identifier for the model to be referred to in the input and output rails as a parameter.
     ```
 
     ```{note}
@@ -870,7 +870,7 @@ There is currently one available model-based detection, using a random forest-ba
 
 The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](../user-guides/jailbreak-detection-heuristics/README.md) separately.
 
-For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `tourch`.
+For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `torch`.
 
 ```bash
 pip install transformers torch
