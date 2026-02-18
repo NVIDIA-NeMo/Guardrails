@@ -20,6 +20,7 @@ only use specific supported flows (input/output content safety). For configurati
 outside this supported set, the standard LLMRails engine should be used instead.
 """
 
+import asyncio
 import logging
 
 from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages
@@ -76,6 +77,15 @@ class IORails:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Context manager (used for testing rather than long-lived instance)"""
         await self.stop()
+
+    def generate(self, messages: LLMMessages, **kwargs) -> LLMMessage:
+        """Synchronous version of generate_async."""
+
+        async def _run_sync_iorails():
+            async with IORails(self.config) as iorails_engine:
+                return await iorails_engine.generate_async(messages, **kwargs)
+
+        return asyncio.run(_run_sync_iorails())
 
     async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Run input rails, generation, and output rails. Return response if safe."""

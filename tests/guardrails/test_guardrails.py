@@ -144,11 +144,14 @@ class TestGuardrailsRouting:
             # Mock the IORails generate_async method
             guardrails.rails_engine.generate_async = AsyncMock(return_value="iorails generate_async response")
 
+            # Mock generate (sync) and generate_async on IORails
+            guardrails.rails_engine.generate = MagicMock(return_value="iorails generate response")
+            guardrails.rails_engine.generate_async = AsyncMock(return_value="iorails generate_async response")
+
             messages = [{"role": "user", "content": "Hi how are you"}]
             mock_new_llm = MagicMock()
 
-            with pytest.raises(NotImplementedError, match="IORails doesn't support generate()"):
-                guardrails.generate(messages=messages)
+            assert guardrails.generate(messages=messages) == "iorails generate response"
 
             response = await guardrails.generate_async(messages=messages)
             assert response == "iorails generate_async response"
@@ -162,7 +165,7 @@ class TestGuardrailsRouting:
             with pytest.raises(NotImplementedError, match="IORails doesn't support update_llm()"):
                 guardrails.update_llm(mock_new_llm)
 
-            # Only generate_async should have been called on IORails
+            guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
             guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
 
     @pytest.mark.asyncio

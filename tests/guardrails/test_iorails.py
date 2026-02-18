@@ -15,6 +15,7 @@
 
 """Unit tests for iorails module."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -292,6 +293,48 @@ class TestIORailsContextManager:
 
         assert not iorails._running
         iorails.model_manager.stop.assert_called_once()
+
+
+class TestGenerate:
+    """Test the synchronous generate() method."""
+
+    def test_generate_delegates_to_generate_async(self, iorails):
+        """generate() creates a temp IORails, starts it, calls generate_async, and stops it."""
+        messages = [{"role": "user", "content": "hi"}]
+        expected = {"role": "assistant", "content": "Hello from LLM"}
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.model_manager.generate_async = AsyncMock(return_value="Hello from LLM")
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        # Patch IORails so the temp instance inside generate() uses our mocked iorails
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails):
+            result = iorails.generate(messages)
+
+        assert result == expected
+
+    def test_generate_passes_kwargs(self, iorails):
+        """generate() forwards kwargs to generate_async."""
+        messages = [{"role": "user", "content": "hi"}]
+        options = GenerationOptions(llm_params={"temperature": 0.5})
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.model_manager.generate_async = AsyncMock(return_value="response")
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails):
+            iorails.generate(messages, options=options)
+
+        iorails.model_manager.generate_async.assert_called_once_with("main", messages, temperature=0.5)
+
+    def test_generate_raises_when_called_from_async_loop(self, iorails):
+        """generate() raises RuntimeError when called inside a running event loop."""
+
+        async def call_generate():
+            iorails.generate([{"role": "user", "content": "hi"}])
+
+        with pytest.raises(RuntimeError):
+            asyncio.get_event_loop().run_until_complete(call_generate())
 
 
 class TestRefusalMessage:
