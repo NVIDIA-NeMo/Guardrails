@@ -26,6 +26,7 @@ from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import GenerationOptions
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +88,13 @@ class IORails:
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # Step 2: Generate response from main LLM
-        response_text = await self.model_manager.generate_async("main", messages, **kwargs)
+        # If we got an `options=GenerationOptions`, then unpack GenerationOptions.llm_params and add
+        # that to the main LLM call
+        llm_kwargs = {}
+        if kwargs.get("options") and isinstance(kwargs["options"], GenerationOptions):
+            llm_kwargs["llm_params"] = kwargs["options"].llm_params
+
+        response_text = await self.model_manager.generate_async("main", messages, **llm_kwargs)
 
         # Step 3: Check output rails
         output_result = await self.rails_manager.is_output_safe(messages, response_text)

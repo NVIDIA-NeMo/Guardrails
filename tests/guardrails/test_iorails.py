@@ -22,6 +22,7 @@ import pytest
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -75,6 +76,26 @@ class TestGenerateAsync:
         assert result == {"role": "assistant", "content": llm_response}
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
         iorails.model_manager.generate_async.assert_called_once_with("main", messages)
+        iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
+
+    @pytest.mark.asyncio
+    async def test_safe_input_and_output_with_generation_options(self, iorails):
+        """Returns LLM response when both input and output rails pass."""
+        messages = [{"role": "user", "content": "hi"}]
+        llm_response = "Hello from LLM"
+
+        llm_params = {"temperature": 0.01, "max_completion_tokens": 1000}
+        options = GenerationOptions(llm_params=llm_params)
+
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.model_manager.generate_async = AsyncMock(return_value=llm_response)
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails.generate_async(messages, options=options)
+
+        assert result == {"role": "assistant", "content": llm_response}
+        iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
+        iorails.model_manager.generate_async.assert_called_once_with("main", messages, llm_params=llm_params)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
     @pytest.mark.asyncio
