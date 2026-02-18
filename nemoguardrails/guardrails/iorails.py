@@ -92,7 +92,8 @@ class IORails:
         # that to the main LLM call
         llm_kwargs = {}
         if kwargs.get("options") and isinstance(kwargs["options"], GenerationOptions):
-            llm_kwargs["llm_params"] = kwargs["options"].llm_params
+            generation_options = kwargs["options"]
+            llm_kwargs = generation_options.llm_params if generation_options.llm_params else {}
 
         response_text = await self.model_manager.generate_async("main", messages, **llm_kwargs)
 

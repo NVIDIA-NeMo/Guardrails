@@ -95,7 +95,7 @@ class TestGenerateAsync:
 
         assert result == {"role": "assistant", "content": llm_response}
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
-        iorails.model_manager.generate_async.assert_called_once_with("main", messages, llm_params=llm_params)
+        iorails.model_manager.generate_async.assert_called_once_with("main", messages, **llm_params)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
     @pytest.mark.asyncio
