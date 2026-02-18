@@ -810,7 +810,7 @@ class TestStartWorkerCreationFailure:
             return original_create_task(*args, **kwargs)
 
         with patch("asyncio.create_task", side_effect=mock_create_task):
-            with pytest.raises(RuntimeError, match="Only 2 started out of requested 3"):
+            with pytest.raises(RuntimeError, match="Simulated task creation failure"):
                 await queue.start()
 
         assert not queue._running
