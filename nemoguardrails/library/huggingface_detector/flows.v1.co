@@ -1,0 +1,48 @@
+define flow huggingface detector check input
+  """
+  Check user input using a specific Huggingface text classification model.
+
+  Args:
+    $hf_model: The Huggingface model repository ID (e.g., "ibm-granite/granite-guardian-hap-38m")
+  """
+  $response = execute huggingface_detector_check(model_repo=$hf_model, text=$user_message, rail_type="input"))
+
+  if not $response["allowed"]
+    if $config.enable_rails_exceptions
+      create event HuggingfaceDetectorException(message="user_message not allowed. Model '{$hf_model}' classified the message as '{$response[\"detected_class\"]}' and is blocked.")
+    else
+      bot refuse to respond
+    stop
+
+define flow huggingface detector check output
+  """
+  Check bot output using a specific Huggingface text classification model.
+
+  Args:
+    $hf_model: The Huggingface model repository ID (e.g., "ibm-granite/granite-guardian-hap-38m")
+  """
+  $response = execute huggingface_detector_check(model_repo=$hf_model, text=$bot_message, rail_type="output")
+
+  if not $response["allowed"]
+    if $config.enable_rails_exceptions
+      create event HuggingfaceDetectorException(message="bot_message not allowed. Model '{$hf_model}' classified the message as '{$response[\"detected_class\"]}' and is blocked.")
+    else
+      bot refuse to respond
+    stop
+
+
+define flow huggingface detector check tool input
+  """
+  Check tool input using a specific Huggingface text classification model.
+
+  Args:
+    $hf_model: The Huggingface model repository ID (e.g., "ibm-granite/granite-guardian-hap-38m")
+  """
+  $response = execute huggingface_detector_check(model_repo=$hf_model, text=$tool_message, rail_type="tool input")
+
+  if not $response["allowed"]
+    if $config.enable_rails_exceptions
+      create event HuggingfaceDetectorException(message="tool_message not allowed. Model '{$hf_model}' classified the message as '{$response[\"detected_class\"]}' and is blocked.")
+    else
+      bot refuse to respond
+    stop

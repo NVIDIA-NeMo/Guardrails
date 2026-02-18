@@ -1,0 +1,28 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo
+
+rails:
+  config:
+    huggingface_detector:
+      models:
+        # Example 1: Harmful content detection on GPU
+        - model_repo: "ibm-granite/granite-guardian-hap-38m"
+          descriptor: "Harmful and abusive language detector"
+          blocked_classes: [0]
+          device: "cuda"  # Load on GPU for faster inference
+
+        # Example 2: Prompt injection detection on CPU
+        - model_repo: "protectai/deberta-v3-base-prompt-injection-v2"
+          descriptor: "Prompt injection detector"
+          blocked_classes: ["INJECTION"]
+          device: "cpu"  # Load on CPU
+  input:
+    flows:
+      # Check user input for prompt injection attempts
+      - huggingface detector check input $hf_model="protectai/deberta-v3-base-prompt-injection-v2"
+  output:
+    flows:
+      # Check bot output for harmful content before sending to user
+      - huggingface detector check output $hf_model="ibm-granite/granite-guardian-hap-38m"

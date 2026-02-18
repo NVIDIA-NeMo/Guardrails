@@ -1,0 +1,52 @@
+flow _huggingface_detector_check $hf_model $text $rail_type
+  """Internal helper to check text using a Huggingface model."""
+
+  # Conditional action call
+  $response = await HuggingfaceDetectorCheckAction(model_repo=$hf_model, text=$text, rail_type=$rail_type)
+
+  # Shared response processing
+  global $allowed
+  $allowed = $response["allowed"]
+  global $detected_class
+  $detected_class = $response["detected_class"]
+  global $detection_score
+  $detection_score = $response["score"]
+  global $all_scores
+  $all_scores = $response["all_scores"]
+
+  # Shared blocking logic with conditional exception
+  if not $allowed
+    if $system.config.enable_rails_exceptions
+      send HuggingfaceDetectorException(message="{$rail_type} not allowed. Model '{$hf_model}' classified the message as '{$detected_class}' and is blocked.")
+    else
+      bot refuse to respond
+    abort
+
+
+flow huggingface detector check input $hf_model
+  """
+  Check user input using a specific Huggingface text classification model.
+
+  Args:
+    $hf_model: The Huggingface model repository ID (e.g., "ibm-granite/granite-guardian-hap-38m")
+  """
+  await _huggingface_detector_check(hf_model=$hf_model, text=$user_message, rail_type="input")
+
+flow huggingface detector check output $hf_model
+  """
+  Check bot output using a specific Huggingface text classification model.
+
+  Args:
+    $hf_model: The Huggingface model repository ID (e.g., "ibm-granite/granite-guardian-hap-38m")
+  """
+  await _huggingface_detector_check(hf_model=$hf_model, text=$bot_message, rail_type="output")
+
+flow huggingface detector check tool input $hf_model
+  """
+  Check tool input using a specific Huggingface text classification model.
+
+  Args:
+    $hf_model: The Huggingface model repository ID (e.g., "ibm-granite/granite-guardian-hap-38m")
+  """
+
+  await _huggingface_detector_check(hf_model=$hf_model, text=$tool_message, rail_type="tool_input")

@@ -202,6 +202,96 @@ class InjectionDetection(BaseModel):
     )
 
 
+class HuggingfaceModelConfig(BaseModel):
+    """Configuration for a single Huggingface detector model."""
+
+    model_repo: str = Field(
+        description="Huggingface model repository ID (e.g., 'ibm-granite/granite-guardian-hap-38m'). "
+        "This should be a text classification model available on Huggingface Hub.",
+    )
+    descriptor: Optional[str] = Field(
+        default=None,
+        description="Optional human-readable description of what this model detects "
+        "(e.g., 'Harmful and abusive language detector', 'Prompt injection detection'). "
+        "Useful for understanding model purpose when the repository name is not descriptive.",
+    )
+    blocked_classes: Union[List[str], List[int]] = Field(
+        default_factory=list,
+        description="List of class labels (strings) or class indices (integers) that should trigger blocking. "
+        "When the model classifies text into any of these classes, the text will be blocked. "
+        "Must be either all strings (e.g., ['harmful', 'violence']) or all integers (e.g., [0, 1]), not mixed.",
+    )
+    device: Optional[str] = Field(
+        default=None,
+        description="Device to load the model onto (e.g., 'cuda', 'cpu', 'cuda:0'). "
+        "If not specified, PyTorch will use the default device selection.",
+    )
+
+    @model_validator(mode="before")
+    def prerequisites_installed(cls, data: Any) -> Any:
+        """Validate that prerequisites are installed for the Huggingface rails."""
+        missing_libraries = []
+        try:
+            import transformers  # noqa: F401
+        except ImportError:
+            missing_libraries.append("transformers")
+
+        try:
+            import torch
+
+            torch.tensor([])  # validate that torch is fully installed
+        except (ImportError, AttributeError):
+            missing_libraries.append("torch")
+
+        if missing_libraries:
+            raise ImportError(
+                f"Prerequisite module(s) for the Huggingface detector are missing. "
+                f"Please install them with: pip install {' '.join(missing_libraries)}"
+            )
+        return data
+
+    @model_validator(mode="after")
+    def validate_models(self) -> "HuggingfaceModelConfig":
+        """Validate that the model can be loaded and is an AutoModelForSequenceClassification."""
+
+        # the prerequisites_installed validator ensures we have transformers installed
+        from transformers import AutoConfig
+
+        try:
+            # First, try to load the model config (lightweight validation)
+            log.info(f"Validating Huggingface model config for: {self.model_repo}")
+            config = AutoConfig.from_pretrained(self.model_repo)
+
+            # Check if this is a sequence classification model
+            architectures = getattr(config, "architectures", [])
+            if not any("ForSequenceClassification" in arch for arch in architectures):
+                raise InvalidRailsConfigurationError(
+                    f"Model '{self.model_repo}' does not appear to be a sequence classification model. "
+                    f"Expected model architecture to be some ***ForSequenceClassification, got: {config.architectures}."
+                )
+            del config
+            return self
+
+        except OSError as e:
+            # This catches network errors, file not found, authentication errors, etc.
+            raise InvalidRailsConfigurationError(
+                f"Failed to load model '{self.model_repo}' from Huggingface Hub: {str(e)}. "
+                f"Please verify the model repository exists and is accessible."
+            ) from e
+        except Exception as e:
+            raise InvalidRailsConfigurationError(f"Error validating model '{self.model_repo}': {str(e)}") from e
+
+
+class HuggingfaceDetectorConfig(BaseModel):
+    """Configuration for Huggingface detector using text classification models."""
+
+    models: List[HuggingfaceModelConfig] = Field(
+        default_factory=list,
+        description="List of Huggingface models to use for content detection. "
+        "If any model blocks the content, it will be rejected.",
+    )
+
+
 class SensitiveDataDetectionOptions(BaseModel):
     entities: List[str] = Field(
         default_factory=list,
@@ -834,15 +924,6 @@ class ClavataRailConfig(BaseModel):
     )
 
 
-class CrowdStrikeAIDRRailConfig(BaseModel):
-    """Configuration data for the CrowdStrike AIDR API"""
-
-    timeout: float = Field(
-        default=30.0,
-        description="Timeout in seconds for API requests to CrowdStrike AIDR",
-    )
-
-
 class PangeaRailOptions(BaseModel):
     """Configuration data for the Pangea AI Guard API"""
 
@@ -1052,11 +1133,6 @@ class RailsConfigData(BaseModel):
         description="Configuration for Clavata.",
     )
 
-    crowdstrike_aidr: Optional[CrowdStrikeAIDRRailConfig] = Field(
-        default_factory=CrowdStrikeAIDRRailConfig,
-        description="Configuration for CrowdStrike AIDR.",
-    )
-
     pangea: Optional[PangeaRailConfig] = Field(
         default_factory=PangeaRailConfig,
         description="Configuration for Pangea.",
@@ -1080,6 +1156,11 @@ class RailsConfigData(BaseModel):
     content_safety: Optional[ContentSafetyConfig] = Field(
         default_factory=ContentSafetyConfig,
         description="Configuration for content safety rails.",
+    )
+
+    huggingface_detector: Optional[HuggingfaceDetectorConfig] = Field(
+        default_factory=HuggingfaceDetectorConfig,
+        description="Configuration for Huggingface text classification detector.",
     )
 
 
