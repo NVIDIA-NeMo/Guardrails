@@ -15,7 +15,7 @@
 
 import os
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from langchain_core.language_models import BaseChatModel
@@ -24,7 +24,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from tests.conftest import REASONING_TRACE_MOCK_PATH
-from tests.utils import FakeLLM, clean_events, event_sequence_conforms
+from tests.utils import FakeLLM, clean_events, event_sequence_conforms, get_bound_llm_magic_mock
 
 
 @pytest.fixture
@@ -1059,7 +1059,7 @@ def test_explain_calls_ensure_explain_info():
     """Make sure if no `explain_info` attribute is present in LLMRails it's populated with
     an empty ExplainInfo object"""
 
-    mock_llm = MagicMock(spec=BaseChatModel)
+    mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"spec": BaseChatModel})
     config = RailsConfig.from_content(config={"models": []})
     rails = LLMRails(config=config, llm=mock_llm)
     rails.generate(messages=[{"role": "user", "content": "Hi!"}])

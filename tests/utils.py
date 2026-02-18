@@ -19,12 +19,14 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
+from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
 from langchain_core.language_models import LLM
+from langchain_core.messages import AIMessage
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.colang import parse_colang_file
@@ -414,3 +416,21 @@ def _init_state(colang_content, yaml_content: Optional[str] = None) -> State:
     json.dump(state.flow_configs, sys.stdout, indent=4, cls=EnhancedJsonEncoder)
 
     return state
+
+
+def get_bound_llm_magic_mock(ainvoke_return_value: Union[AIMessage, dict]) -> MagicMock:
+    mock_llm = MagicMock()
+    mock_llm.return_value = mock_llm
+
+    bound_llm_mock = AsyncMock()
+    if isinstance(ainvoke_return_value, dict):
+        bound_llm_mock.ainvoke.return_value = MagicMock(**ainvoke_return_value)
+    else:
+        bound_llm_mock.ainvoke.return_value = ainvoke_return_value
+
+    mock_llm.bind.return_value = bound_llm_mock
+    if isinstance(ainvoke_return_value, dict):
+        mock_llm.ainvoke = AsyncMock(return_value=MagicMock(**ainvoke_return_value))
+    else:
+        mock_llm.ainvoke = AsyncMock(return_value=ainvoke_return_value)
+    return mock_llm

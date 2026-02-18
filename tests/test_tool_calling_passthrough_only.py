@@ -15,7 +15,7 @@
 
 """Test that tool calling ONLY works in passthrough mode."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -23,13 +23,12 @@ from langchain_core.messages import AIMessage
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.context import tool_calls_var
+from tests.utils import get_bound_llm_magic_mock
 
 
 @pytest.fixture
 def mock_llm_with_tool_calls():
     """Mock LLM that returns tool calls."""
-    llm = AsyncMock()
-
     mock_response = AIMessage(
         content="",
         tool_calls=[
@@ -41,8 +40,7 @@ def mock_llm_with_tool_calls():
             }
         ],
     )
-    llm.ainvoke.return_value = mock_response
-    llm.invoke.return_value = mock_response
+    llm = get_bound_llm_magic_mock(ainvoke_return_value=mock_response)
     return llm
 
 
