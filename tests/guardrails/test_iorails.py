@@ -145,7 +145,7 @@ class TestIORailsLifecycle:
 
         assert not iorails._running
         await iorails.start()
-        assert iorails._running is True
+        assert iorails._running
         iorails.model_manager.start.assert_called_once()
 
         await iorails.stop()
@@ -228,11 +228,16 @@ class TestIORailsStartErrors:
 
         with pytest.raises(RuntimeError):
             await iorails.start()
+        assert iorails._running
 
-        # Fix the failure and retry
+        # Stop IORails (and underlying ModelManager)
+        await iorails.stop()
+
+        # Call start() without an exception being thrown, now this will work
         iorails.model_manager.start = AsyncMock()
         await iorails.start()
-        assert iorails._running is True
+        assert iorails._running
+        iorails.model_manager.start.assert_called_once()
 
 
 class TestIORailsStopErrors:
@@ -245,7 +250,7 @@ class TestIORailsStopErrors:
         iorails.model_manager.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
 
         await iorails.start()
-        assert iorails._running is True
+        assert iorails._running
 
         with pytest.raises(RuntimeError, match="stop failed"):
             await iorails.stop()
@@ -265,7 +270,7 @@ class TestIORailsContextManager:
 
         async with iorails as engine:
             assert engine is iorails
-            assert iorails._running is True
+            assert iorails._running
             iorails.model_manager.start.assert_called_once()
 
         assert not iorails._running

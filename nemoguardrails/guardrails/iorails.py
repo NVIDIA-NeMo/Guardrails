@@ -87,7 +87,7 @@ class IORails:
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # Step 2: Generate response from main LLM
-        response_text = await self.model_manager.generate_async("main", messages)
+        response_text = await self.model_manager.generate_async("main", messages, **kwargs)
 
         # Step 3: Check output rails
         output_result = await self.rails_manager.is_output_safe(messages, response_text)

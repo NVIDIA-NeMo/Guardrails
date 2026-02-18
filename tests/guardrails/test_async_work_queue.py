@@ -815,8 +815,6 @@ class TestStartWorkerCreationFailure:
 
         assert not queue._running
 
-        await asyncio.gather(*queue._workers, return_exceptions=True)
-
 
 class TestWorkerErrorHandling:
     """Tests for enhanced worker error handling with logging and backoff."""

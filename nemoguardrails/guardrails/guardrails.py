@@ -127,7 +127,7 @@ class Guardrails:
 
         # If we have any rails outside of `input` and `output` we don't support them
         rails_set = self.config.rails.model_fields_set
-        if rails_set > IORAILS_RAILS:
+        if rails_set - IORAILS_RAILS:
             return False
 
         for flow in self.config.rails.input.flows:
