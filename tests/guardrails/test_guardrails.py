@@ -141,9 +141,6 @@ class TestGuardrailsRouting:
             assert guardrails._has_only_iorails_flows()
             assert isinstance(guardrails.rails_engine, IORails)
 
-            # Mock the IORails generate_async method
-            guardrails.rails_engine.generate_async = AsyncMock(return_value="iorails generate_async response")
-
             # Mock generate (sync) and generate_async on IORails
             guardrails.rails_engine.generate = MagicMock(return_value="iorails generate response")
             guardrails.rails_engine.generate_async = AsyncMock(return_value="iorails generate_async response")
