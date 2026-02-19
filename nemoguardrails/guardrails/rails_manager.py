@@ -22,6 +22,8 @@ Input rails run concurrently via asyncio.gather().
 import logging
 from typing import Sequence, cast
 
+from jinja2.sandbox import SandboxedEnvironment
+
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailResult
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nemoguard_parse_response_safety
@@ -50,6 +52,9 @@ class RailsManager:
         # Determine which input/output rails are enabled
         self.input_flows: list[str] = list(config.rails.input.flows)
         self.output_flows: list[str] = list(config.rails.output.flows)
+
+        # Create jinja2 rendering environment
+        self._jinja2_env = SandboxedEnvironment(autoescape=False)
 
         log.info("RailsManager initialized: input_flows=%s, output_flows=%s", self.input_flows, self.output_flows)
 
@@ -161,8 +166,8 @@ class RailsManager:
             raise RuntimeError(f"No prompt template found for key {prompt_key}")
 
         content = prompt_template.content
-        content = content.replace("{{ user_input }}", user_input)
-        content = content.replace("{{ bot_response }}", bot_response)
+        template = self._jinja2_env.from_string(content)
+        content = template.render(user_input=user_input, bot_response=bot_response)
         return content
 
     @staticmethod

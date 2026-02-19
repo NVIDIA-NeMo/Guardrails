@@ -30,7 +30,7 @@ from nemoguardrails.rails.llm.config import RailsConfig
 
 log = logging.getLogger(__name__)
 
-REFUSAL_MESSAGE = "I'm sorry, I can't help you with that."
+REFUSAL_MESSAGE = "I'm sorry, I can't respond to that."
 
 
 class IORails:
