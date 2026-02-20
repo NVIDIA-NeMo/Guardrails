@@ -22,6 +22,8 @@ Each ModelEngine owns its own RetryClient with per-model settings.
 import logging
 from typing import Any
 
+from nemoguardrails.guardrails.api_engine import APIEngine
+from nemoguardrails.guardrails.guardrails_types import LLMMessage
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import Model
 
@@ -38,6 +40,7 @@ class ModelManager:
 
     def __init__(self, models: list[Model]) -> None:
         self._engines: dict[str, ModelEngine] = {}
+        self._api_engines: dict[str, APIEngine] = {}
         self._running = False
 
         for model_config in models:
@@ -49,13 +52,28 @@ class ModelManager:
                 self._engines[model_config.type].base_url,
             )
 
+        self._init_api_engines(config)
+
+    def _init_api_engines(self, config: RailsConfig) -> None:
+        """Initialize APIEngine instances from rails configuration."""
+
+        jailbreak_config = config.rails.config.jailbreak_detection
+        if jailbreak_config and jailbreak_config.nim_base_url:
+            self._api_engines["jailbreak_detection"] = APIEngine.from_jailbreak_config(jailbreak_config)
+            log.info(
+                "Registered API engine: name=%s, url=%s",
+                "jailbreak_detection",
+                self._api_engines["jailbreak_detection"].url,
+            )
+
     async def start(self) -> None:
-        """Start all model engine clients. Call this during service startup."""
+        """Start all engine clients. Call this during service startup."""
         if self._running:
             return
 
         started = []
         engine_errors = {}
+
         for engine_type, engine in self._engines.items():
             try:
                 await engine.start()
@@ -63,6 +81,14 @@ class ModelManager:
             except Exception as e:
                 engine_errors[engine_type] = e
                 log.error("Error starting model engine type %s: %s", engine_type, e)
+
+        for api_name, api_engine in self._api_engines.items():
+            try:
+                await api_engine.start()
+                started.append(api_engine)
+            except Exception as e:
+                engine_errors[api_name] = e
+                log.error("Error starting API engine %s: %s", api_name, e)
 
         if engine_errors:
             # Roll back engines that started successfully to avoid leaked clients
@@ -72,14 +98,14 @@ class ModelManager:
                 except Exception:
                     pass
             engine_error_string = ", ".join(
-                f"Engine type {engine_type}: exception {exception}" for engine_type, exception in engine_errors.items()
+                f"Engine {name}: exception {exception}" for name, exception in engine_errors.items()
             )
-            raise RuntimeError(f"Failed to start model engines: {engine_error_string}")
+            raise RuntimeError(f"Failed to start engines: {engine_error_string}")
 
         self._running = True
 
     async def stop(self) -> None:
-        """Stop all model engine clients. Call this during service shutdown."""
+        """Stop all engine clients. Call this during service shutdown."""
         if not self._running:
             return
 
@@ -91,43 +117,46 @@ class ModelManager:
                 except Exception as e:
                     engine_errors[engine_type] = e
                     log.error("Error stopping model engine type %s: %s", engine_type, e)
+
+            for api_name, api_engine in self._api_engines.items():
+                try:
+                    await api_engine.stop()
+                except Exception as e:
+                    engine_errors[api_name] = e
+                    log.error("Error stopping API engine %s: %s", api_name, e)
         finally:
             self._running = False
 
         if engine_errors:
             engine_error_string = ", ".join(
-                [
-                    f"Engine type {engine_type}: exception {exception}"
-                    for engine_type, exception in engine_errors.items()
-                ]
+                f"Engine {name}: exception {exception}" for name, exception in engine_errors.items()
             )
-            raise RuntimeError(f"Failed to stop model engines: {engine_error_string}")
+            raise RuntimeError(f"Failed to stop engines: {engine_error_string}")
 
-    def get_engine(self, model_type: str) -> ModelEngine:
-        """Look up a ModelEngine by its model type.
-
-        Raises:
-            KeyError: If no model with the given type is configured.
-        """
+    def _get_model_engine(self, model_type: str) -> ModelEngine:
+        """Look up a ModelEngine by its model type."""
         if model_type not in self._engines:
             available = list(self._engines.keys())
             raise KeyError(f"No model configured with type '{model_type}'. Available types: {available}")
         return self._engines[model_type]
 
+    def _get_api_engine(self, api_name: str) -> APIEngine:
+        """Look up an APIEngine by its name."""
+        if api_name not in self._api_engines:
+            available = list(self._api_engines.keys())
+            raise KeyError(f"No API engine configured with name '{api_name}'. Available: {available}")
+        return self._api_engines[api_name]
+
     async def generate_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
-        """Generate a response from the model of the given type.
-
-        Args:
-            model_type: The model type key (e.g. "main", "content_safety").
-            messages: List of message dicts in OpenAI format.
-            **kwargs: Additional LLM parameters.
-
-        Returns:
-            The content string from the model's response.
-        """
-        engine = self.get_engine(model_type)
+        """Generate a chat completion response from the named model engine."""
+        engine = self._get_model_engine(model_type)
         response = await engine.call(messages, **kwargs)
         return response["choices"][0]["message"]["content"]
+
+    async def api_call(self, api_name: str, message: LLMMessage, **kwargs: Any) -> dict[str, Any]:
+        api_engine = self._get_api_engine(api_name)
+        response = await api_engine.call(message, **kwargs)
+        return response
 
     async def __aenter__(self):
         await self.start()

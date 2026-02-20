@@ -167,16 +167,24 @@ class TestGuardrailsRouting:
 
     @pytest.mark.asyncio
     @patch.object(LLMRails, "__init__", return_value=None)
-    async def test_use_iorails_true_llmrails_config(self, mock_llmrails_init, _nemoguards_rails_config):
+    async def test_use_iorails_true_llmrails_config(self, mock_llmrails_init):
         """Test if Guardrails is initialized with `use_iorails` == True but the RailsConfig
         requires LLMRails all calls still go to LLMRails.
 
+        We use a config with 'self check input' which is NOT supported by IORails.
         We patch __init__ (rather than the class itself) so that IORails and LLMRails remain real
         classes. This lets the isinstance() checks in guardrails.py work correctly, while still
         giving us uninitialized instances whose methods we can replace with mocks.
         """
+        unsupported_config = _make_iorails_config(
+            rails={
+                "input": {"flows": ["self check input"]},
+                "output": {"flows": ["content safety check output $model=content_safety"]},
+            },
+            extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
+        )
 
-        async with Guardrails(config=_nemoguards_rails_config, verbose=False, use_iorails=False) as guardrails:
+        async with Guardrails(config=unsupported_config, verbose=False, use_iorails=True) as guardrails:
             assert not guardrails._has_only_iorails_flows()
             assert isinstance(guardrails.rails_engine, LLMRails)
 
@@ -216,7 +224,7 @@ class TestGuardrailsInit:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        guardrails = Guardrails(config=_nemoguards_rails_config, verbose=False)
+        guardrails = Guardrails(config=_nemoguards_rails_config, verbose=False, use_iorails=False)
 
         # Verify LLMRails was instantiated with config only
         mock_llmrails_class.assert_called_once_with(_nemoguards_rails_config, None, False)
@@ -231,7 +239,7 @@ class TestGuardrailsInit:
         """Test initialization with a custom LLM."""
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
-        guardrails = Guardrails(config=_nemoguards_rails_config, llm=mock_llm, verbose=True)
+        guardrails = Guardrails(config=_nemoguards_rails_config, llm=mock_llm, verbose=True, use_iorails=False)
 
         # Verify LLMRails was instantiated with both config and llm
         mock_llmrails_class.assert_called_once_with(_nemoguards_rails_config, mock_llm, True)
@@ -333,7 +341,7 @@ class TestGenerateAsync:
         mock_llmrails_class.return_value = mock_llmrails_instance
         mock_llmrails_instance.generate_async = AsyncMock(return_value="Async response")
 
-        async with Guardrails(config=_nemoguards_rails_config) as guardrails:
+        async with Guardrails(config=_nemoguards_rails_config, use_iorails=False) as guardrails:
             result = await guardrails.generate_async(prompt="Hello async!")
 
             # Verify generate_async was called with correct messages
@@ -349,7 +357,7 @@ class TestGenerateAsync:
         mock_llmrails_class.return_value = mock_llmrails_instance
         mock_llmrails_instance.generate_async = AsyncMock(return_value="Async conversation response")
 
-        async with Guardrails(config=_nemoguards_rails_config) as guardrails:
+        async with Guardrails(config=_nemoguards_rails_config, use_iorails=False) as guardrails:
             messages = [
                 {"role": "user", "content": "First message"},
                 {"role": "assistant", "content": "First response"},
@@ -368,7 +376,7 @@ class TestGenerateAsync:
         mock_llmrails_class.return_value = mock_llmrails_instance
         mock_llmrails_instance.generate_async = AsyncMock(return_value="Response")
 
-        async with Guardrails(config=_nemoguards_rails_config) as guardrails:
+        async with Guardrails(config=_nemoguards_rails_config, use_iorails=False) as guardrails:
             result = await guardrails.generate_async(prompt="Test", temperature=0.5, top_p=0.9)
 
             # Verify kwargs were passed through
@@ -397,7 +405,7 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         chunks = []
         async for chunk in guardrails.stream_async(prompt="Stream this"):
             chunks.append(chunk)
@@ -421,7 +429,7 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         messages = [
             {"role": "user", "content": "Message 1"},
             {"role": "assistant", "content": "Response 1"},
@@ -447,7 +455,7 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         chunks = []
         async for chunk in guardrails.stream_async(prompt="Test", temperature=0.8):
             chunks.append(chunk)
@@ -476,7 +484,7 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         chunks = []
         async for chunk in guardrails.stream_async(prompt="Stream dict"):
             chunks.append(chunk)
@@ -497,7 +505,7 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         chunks = []
         async for chunk in guardrails.stream_async(prompt="Empty stream"):
             chunks.append(chunk)
@@ -516,7 +524,7 @@ class TestStreamAsync:
 
         mock_llmrails_instance.stream_async.return_value = mock_stream()
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         chunks = []
         async for chunk in guardrails.stream_async(prompt="Single chunk test"):
             chunks.append(chunk)
@@ -532,7 +540,7 @@ class TestStreamAsync:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         with pytest.raises(ValueError, match="Neither prompt nor messages provided"):
             # Error raised during stream creation, before iteration
             guardrails.stream_async()
@@ -549,7 +557,7 @@ class TestIntegration:
         mock_llmrails_class.return_value = mock_llmrails_instance
         mock_llmrails_instance.generate_async = AsyncMock(side_effect=["Response 1", "Response 2", "Response 3"])
 
-        async with Guardrails(config=_nemoguards_rails_config) as guardrails:
+        async with Guardrails(config=_nemoguards_rails_config, use_iorails=False) as guardrails:
             result1 = await guardrails.generate_async(prompt="First call")
             result2 = await guardrails.generate_async(prompt="Second call")
             result3 = await guardrails.generate_async(prompt="Third call")
@@ -565,7 +573,7 @@ class TestIntegration:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        guardrails = Guardrails(config=_nemoguards_rails_config, llm=mock_llm)
+        guardrails = Guardrails(config=_nemoguards_rails_config, llm=mock_llm, use_iorails=False)
 
         # Verify the custom LLM was passed to LLMRails
         mock_llmrails_class.assert_called_once_with(_nemoguards_rails_config, mock_llm, False)
@@ -577,7 +585,7 @@ class TestIntegration:
         mock_llmrails_class.return_value = mock_llmrails_instance
         mock_llmrails_instance.generate.return_value = "Response"
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
 
         result = guardrails.generate(
             prompt="Test",
@@ -606,7 +614,7 @@ class TestUtilityMethods:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         guardrails.explain()
 
         # Verify the delegation happened
@@ -618,7 +626,7 @@ class TestUtilityMethods:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
 
         new_llm = MagicMock()
         guardrails.update_llm(new_llm)
@@ -633,7 +641,7 @@ class TestUtilityMethods:
 
         # Initialize with an LLM
         initial_llm = MagicMock()
-        guardrails = Guardrails(config=_nemoguards_rails_config, llm=initial_llm)
+        guardrails = Guardrails(config=_nemoguards_rails_config, llm=initial_llm, use_iorails=False)
 
         # Verify initial LLM was passed to LLMRails
         mock_llmrails_class.assert_called_once_with(_nemoguards_rails_config, initial_llm, False)
@@ -651,7 +659,7 @@ class TestUtilityMethods:
         mock_llmrails_instance = MagicMock()
         mock_llmrails_class.return_value = mock_llmrails_instance
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
 
         # Update LLM multiple times
         llm1 = MagicMock()
@@ -679,7 +687,7 @@ class TestUtilityMethods:
         mock_explain_info.llm_calls = ["call1", "call2"]
         mock_llmrails_instance.explain.return_value = mock_explain_info
 
-        guardrails = Guardrails(config=_nemoguards_rails_config)
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
 
         # Generate a response
         guardrails.generate(prompt="Test")
@@ -735,10 +743,10 @@ class TestHasOnlyIORailsFlows:
         assert guardrails._has_only_iorails_flows()
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_nemoguards_unsupported_iorails_flows(self, mock_llmrails_class, _nemoguards_rails_config):
-        """Check if we have config rails we don't use iorails"""
-        guardrails = Guardrails(config=_nemoguards_rails_config)
-        assert not guardrails._has_only_iorails_flows()
+    def test_nemoguards_has_only_iorails_flows(self, mock_llmrails_class, _nemoguards_rails_config):
+        """Nemoguards config (content safety + topic safety + jailbreak) is supported by IORails."""
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        assert guardrails._has_only_iorails_flows()
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_has_only_iorails_flows_unsupported_retrieval_rails(self, mock_llmrails_class):

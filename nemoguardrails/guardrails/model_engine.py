@@ -217,10 +217,10 @@ class ModelEngine:
         await self.stop()
 
 
-async def _safe_read_body(response: aiohttp.ClientResponse) -> str:
+async def _safe_read_body(response: aiohttp.ClientResponse, max_chars: int = 500) -> str:
     """Read response body for error messages, truncating if too large."""
     try:
         text = await response.text()
-        return text[:500] if len(text) > 500 else text
+        return text[:max_chars] if len(text) > max_chars else text
     except Exception:
         return "<could not read response body>"

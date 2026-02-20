@@ -219,7 +219,7 @@ class TestIORailsStartErrors:
     async def test_start_propagates_model_engine_error(self, iorails):
         """A ModelEngine failure propagates through ModelManager up to IORails.start()."""
         # Inject the failure at the ModelEngine level, leaving ModelManager real
-        engine = iorails.model_manager.get_engine("content_safety")
+        engine = iorails.model_manager._get_model_engine("content_safety")
         engine.start = AsyncMock(side_effect=RuntimeError("NIM endpoint unreachable"))
 
         # Mock the other engines so they don't make real HTTP connections
@@ -228,7 +228,7 @@ class TestIORailsStartErrors:
                 engine.start = AsyncMock()
                 engine.stop = AsyncMock()
 
-        with pytest.raises(RuntimeError, match="Failed to start model engines"):
+        with pytest.raises(RuntimeError, match="Failed to start engines"):
             await iorails.start()
 
         assert iorails._running

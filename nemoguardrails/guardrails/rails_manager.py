@@ -63,40 +63,29 @@ class RailsManager:
         log.info("RailsManager initialized: input_flows=%s, output_flows=%s", self.input_flows, self.output_flows)
 
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
-        """Run input-rails and return whether all rails pass
-
-        Args:
-            messages: The conversation messages to check.
-
-        Returns:
-            RailResult(is_safe=True) if all rails pass, or RailResult(is_safe=False, reason=...) on failure.
-        """
+        """Run all enabled input rails sequentially, short-circuiting on the first failure."""
         if not self.input_flows:
             return RailResult(is_safe=True)
 
         for flow in self.input_flows:
             result = await self._run_input_rail(flow, messages)
+            log.debug("Input flow %s result %s", flow, result)
             if not result.is_safe:
+                log.info("Input flow %s blocked messages %s", flow, messages)
                 return result
 
         return RailResult(is_safe=True)
 
     async def is_output_safe(self, messages: list[dict], response: str) -> RailResult:
-        """Run all enabled output rails.
-
-        Args:
-            messages: The original conversation messages (input context).
-            response: The LLM-generated response to check.
-
-        Returns:
-            RailResult(is_safe=True) if all rails pass, or RailResult(is_safe=False, reason=...) on failure.
-        """
+        """Run all enabled output rails sequentially, short-circuiting on the first failure."""
         if not self.output_flows:
             return RailResult(is_safe=True)
 
         for flow in self.output_flows:
             result = await self._run_output_rail(flow, messages, response)
+            log.debug("Output flow %s result %s", flow, result)
             if not result.is_safe:
+                log.info("Output flow %s blocked messages %s", flow, messages)
                 return result
 
         return RailResult(is_safe=True)
@@ -110,6 +99,8 @@ class RailsManager:
             return await self._check_content_safety_input(flow, messages)
         elif base_flow == "topic safety check input":
             return await self._check_topic_safety_input(flow, messages)
+        elif base_flow == "jailbreak detection model":
+            return await self._check_jailbreak_detection(messages)
         else:
             raise RuntimeError(f"Input rail flow `{base_flow}` not supported")
 
@@ -187,6 +178,32 @@ class RailsManager:
         except Exception as e:
             log.error("Topic safety input check failed: %s", e)
             return RailResult(is_safe=False, reason=f"Topic safety input check error: {e}")
+
+    async def _check_jailbreak_detection(self, messages: list[dict]) -> RailResult:
+        """Check for jailbreak attempts by calling the jailbreak detection APIEngine."""
+        last_user_content = self._last_user_content(messages)
+
+        try:
+            response = await self.model_manager.api_call("jailbreak_detection", {"input": last_user_content})
+            return self._parse_jailbreak_response(response)
+
+        except Exception as e:
+            log.error("Jailbreak detection check failed: %s", e)
+            return RailResult(is_safe=False, reason=f"Jailbreak detection check error: {e}")
+
+    @staticmethod
+    def _parse_jailbreak_response(response: dict) -> RailResult:
+        """Convert a {"jailbreak": bool} API response to a RailResult.
+        Response looks like: {"jailbreak": true, "score": 0.6599113682063298}
+        """
+        if "jailbreak" not in response:
+            raise RuntimeError(f"Jailbreak detection response missing 'jailbreak' field: {response}")
+
+        jailbreak_detected = response["jailbreak"]
+        if jailbreak_detected:
+            score = response["score"]
+            return RailResult(is_safe=False, reason=f"Score: {score}")
+        return RailResult(is_safe=True)
 
     def _render_topic_safety_prompt(self, prompt_key: str) -> str:
         """Look up a topic safety prompt and append the output restriction suffix.
