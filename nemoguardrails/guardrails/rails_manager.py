@@ -32,7 +32,7 @@ from nemoguardrails.library.topic_safety.actions import (
     TOPIC_SAFETY_TEMPERATURE,
 )
 from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nemoguard_parse_response_safety
-from nemoguardrails.rails.llm.config import RailsConfig, TaskPrompt
+from nemoguardrails.rails.llm.config import RailsConfig, TaskPrompt, get_flow_model, get_flow_name
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class RailsManager:
     async def _run_input_rail(self, flow: str, messages: list[dict]) -> RailResult:
         """Run an input rail flow if it's supported. If not raise an exception"""
         # Extract the base flow name (strip any $model=... parameter)
-        base_flow = self._flow_name(flow)
+        base_flow = get_flow_name(flow)
 
         if base_flow == "content safety check input":
             return await self._check_content_safety_input(flow, messages)
@@ -106,7 +106,7 @@ class RailsManager:
 
     async def _run_output_rail(self, flow: str, messages: list[dict], response: str) -> RailResult:
         """Run an output rail flow if it's supported. If not raise an exception"""
-        base_flow = self._flow_name(flow)
+        base_flow = get_flow_name(flow)
 
         if base_flow == "content safety check output":
             return await self._check_content_safety_output(flow, messages, response)
@@ -116,7 +116,10 @@ class RailsManager:
     async def _check_content_safety_input(self, flow: str, messages: list[dict]) -> RailResult:
         """Check input content safety via the content_safety model."""
 
-        model_type = self._flow_model_type(flow)
+        model_type = get_flow_model(flow)
+        if not model_type:
+            raise RuntimeError(f"Model not specified for content-safety input rail: {flow}")
+
         last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)
         prompt_content = self._render_prompt(prompt_key, user_input=last_user_content)
@@ -135,7 +138,10 @@ class RailsManager:
 
     async def _check_content_safety_output(self, flow: str, messages: list[dict], response: str) -> RailResult:
         """Check output content safety via the content_safety model."""
-        model_type = self._flow_model_type(flow)
+        model_type = get_flow_model(flow)
+        if not model_type:
+            raise RuntimeError(f"Model not specified for content-safety output rail: {flow}")
+
         last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)
         prompt_content = self._render_prompt(prompt_key, user_input=last_user_content, bot_response=response)
@@ -159,7 +165,11 @@ class RailsManager:
         This matches the library action behavior which includes all prior turns
         so the model has context for follow-up messages.
         """
-        model_type = self._flow_model_type(flow)
+        model_type = get_flow_model(flow)
+        if not model_type:
+            raise RuntimeError(f"Model not specified for topic-safety output rail: {flow}")
+
+        last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)
         system_prompt = self._render_topic_safety_prompt(prompt_key)
 
@@ -257,23 +267,23 @@ class RailsManager:
             return base.strip().replace(" ", "_") + " $" + param
         return flow.replace(" ", "_")
 
-    @staticmethod
-    def _flow_name(flow: str) -> str:
-        """Extract the base flow name, stripping any $model=... parameter.
-        For example:
-           'content safety check input $model=content_safety' -> 'content safety check input'
-           'self check input' -> 'self check input'
-        """
-        if "$model=" in flow:
-            return flow.split("$model=")[0].strip()
-        return flow
-
-    @staticmethod
-    def _flow_model_type(flow: str) -> str:
-        """Extract the model type from a flow name like 'content safety check input $model=content_safety'."""
-        if "$model=" in flow:
-            return flow.split("$model=")[1].strip()
-        raise RuntimeError(f"Flow {flow} doesn't contain a model type")
+    # @staticmethod
+    # def _flow_name(flow: str) -> str:
+    #     """Extract the base flow name, stripping any $model=... parameter.
+    #     For example:
+    #        'content safety check input $model=content_safety' -> 'content safety check input'
+    #        'self check input' -> 'self check input'
+    #     """
+    #     if "$model=" in flow:
+    #         return flow.split("$model=")[0].strip()
+    #     return flow
+    #
+    # @staticmethod
+    # def _flow_model_type(flow: str) -> str:
+    #     """Extract the model type from a flow name like 'content safety check input $model=content_safety'."""
+    #     if "$model=" in flow:
+    #         return flow.split("$model=")[1].strip()
+    #     raise RuntimeError(f"Flow {flow} doesn't contain a model type")
 
     @staticmethod
     def _last_content_by_role(messages: LLMMessages, role: str) -> str:

@@ -1530,7 +1530,7 @@ class RailsConfig(BaseModel):
         input_flows = rails.get("input", {}).get("flows", [])
 
         # If no flows have a model, early-out
-        input_flows_without_model = [_get_flow_model(flow) is None for flow in input_flows]
+        input_flows_without_model = [get_flow_model(flow) is None for flow in input_flows]
         if all(input_flows_without_model):
             return values
 
@@ -1538,7 +1538,7 @@ class RailsConfig(BaseModel):
         model_types = {model.type if isinstance(model, Model) else model["type"] for model in models}
 
         for flow in input_flows:
-            flow_model = _get_flow_model(flow)
+            flow_model = get_flow_model(flow)
             if not flow_model:
                 continue
             if flow_model not in model_types:
@@ -1556,7 +1556,7 @@ class RailsConfig(BaseModel):
         output_flows = rails.get("output", {}).get("flows", [])
 
         # If no flows have a model, early-out
-        output_flows_without_model = [_get_flow_model(flow) is None for flow in output_flows]
+        output_flows_without_model = [get_flow_model(flow) is None for flow in output_flows]
         if all(output_flows_without_model):
             return values
 
@@ -1564,7 +1564,7 @@ class RailsConfig(BaseModel):
         model_types = {model.type if isinstance(model, Model) else model["type"] for model in models}
 
         for flow in output_flows:
-            flow_model = _get_flow_model(flow)
+            flow_model = get_flow_model(flow)
             if not flow_model:
                 continue
             if flow_model not in model_types:
@@ -1920,7 +1920,12 @@ def _generate_rails_flows(flows):
 MODEL_PREFIX = "$model="
 
 
-def _get_flow_model(flow_text) -> Optional[str]:
+def get_flow_name(flow_text) -> Optional[str]:
+    """Helper to return a model name from a flow definition"""
+    return _normalize_flow_id(flow_text)
+
+
+def get_flow_model(flow_text) -> Optional[str]:
     """Helper to return a model name from a flow definition"""
     if MODEL_PREFIX not in flow_text:
         return None
@@ -1930,7 +1935,7 @@ def _get_flow_model(flow_text) -> Optional[str]:
 def _validate_rail_prompts(rails: list[str], prompts: list[Any], validation_rail: str) -> None:
     for rail in rails:
         flow_id = _normalize_flow_id(rail)
-        flow_model = _get_flow_model(rail)
+        flow_model = get_flow_model(rail)
         if flow_id == validation_rail:
             prompt_flow_id = flow_id.replace(" ", "_")
             expected_prompt = f"{prompt_flow_id} $model={flow_model}"
