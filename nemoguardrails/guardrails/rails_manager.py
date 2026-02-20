@@ -210,10 +210,10 @@ class RailsManager:
             raise RuntimeError(f"Jailbreak detection response missing 'jailbreak' field: {response}")
 
         jailbreak_detected = response["jailbreak"]
+        score = response.get("score", "unknown")
         if jailbreak_detected:
-            score = response["score"]
             return RailResult(is_safe=False, reason=f"Score: {score}")
-        return RailResult(is_safe=True)
+        return RailResult(is_safe=True, reason=f"Score: {score}")
 
     def _render_topic_safety_prompt(self, prompt_key: str) -> str:
         """Look up a topic safety prompt and append the output restriction suffix.

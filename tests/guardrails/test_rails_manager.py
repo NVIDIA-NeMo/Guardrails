@@ -782,15 +782,29 @@ class TestTopicSafetyE2E:
 class TestParseJailbreakResponse:
     """Test _parse_jailbreak_response static method."""
 
-    def test_no_jailbreak_returns_safe(self):
+    def test_safe_with_score(self):
         result = RailsManager._parse_jailbreak_response({"jailbreak": False, "score": -0.99})
         assert result.is_safe
-        assert result.reason is None
+        assert result.reason
+        assert "Score: -0.99" in result.reason
 
-    def test_jailbreak_detected_returns_unsafe(self):
+    def test_safe_without_score(self):
+        result = RailsManager._parse_jailbreak_response({"jailbreak": False})
+        assert result.is_safe
+        assert result.reason
+        assert "Score: unknown" in result.reason
+
+    def test_unsafe_with_score(self):
         result = RailsManager._parse_jailbreak_response({"jailbreak": True, "score": 0.85})
         assert not result.is_safe
-        assert "0.85" in result.reason
+        assert result.reason
+        assert "Score: 0.85" in result.reason
+
+    def test_unsafe_without_score(self):
+        result = RailsManager._parse_jailbreak_response({"jailbreak": True})
+        assert not result.is_safe
+        assert result.reason
+        assert "Score: unknown" in result.reason
 
     def test_missing_jailbreak_field_raises(self):
         with pytest.raises(RuntimeError, match="missing 'jailbreak' field"):
