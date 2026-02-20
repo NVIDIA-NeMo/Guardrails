@@ -93,6 +93,7 @@ The NeMo Guardrails library supports PII detection through multiple integrations
 - **Gliner**: Use [NVIDIA GLiNER-PII](../user-guides/community/gliner.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
 - **Presidio-based detection**: Use [Microsoft Presidio](../user-guides/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
 - **Private AI**: Integrate with [Private AI](../user-guides/community/privateai.md) for advanced PII detection and masking.
+- **Polygraf**: Integrate with [Polygraf](../user-guides/community/polygraf.md) for advanced PII detection and masking.
 - **AutoAlign**: Use [AutoAlign PII detection](../user-guides/community/auto-align.md) with customizable entity types.
 - **GuardrailsAI**: Access [GuardrailsAI PII validators](../user-guides/community/guardrails-ai.md) from the Guardrails Hub.
 

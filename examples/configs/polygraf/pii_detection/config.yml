@@ -1,0 +1,27 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+
+rails:
+  config:
+    polygraf:
+      server_endpoint: "http://localhost:8000/v1/pii/text-detect"
+      input:
+        entities:
+          - EMAIL_ADDRESS
+          - NAME
+          - PHONE_NUMBER
+      output:
+        entities:
+          - EMAIL_ADDRESS
+          - NAME
+          - PHONE_NUMBER
+
+  input:
+    flows:
+      - polygraf detect pii on input
+
+  output:
+    flows:
+      - polygraf detect pii on output

@@ -1235,6 +1235,46 @@ rails:
 
 For more details, check out the [GuardrailsAI Integration](../user-guides/community/guardrails-ai.md) page.
 
+### Polygraf PII Detection
+
+The NeMo Guardrails library supports using [Polygraf API](https://polygraf.ai/) for PII detection and masking input, output and retrieval flows.
+
+To activate the PII detection or masking, you need specify `server_endpoint`, and the entities that you want to detect or mask. You'll also need to set the `POLYGRAF_API_KEY` environment variable.
+
+```yaml
+rails:
+  config:
+    polygraf:
+      server_endpoint: "http://localhost:8000/v1/pii/text-detect"
+      input:
+        entities:  # If no entity is specified here, all supported entities will be detected by default.
+          - NAME
+          - EMAIL_ADDRESS
+      output:
+        entities:
+          - NAME
+          - EMAIL_ADDRESS
+```
+
+#### Example usage
+
+**PII detection**
+
+```yaml
+rails:
+  input:
+    flows:
+      - polygraf detect pii on input
+  output:
+    flows:
+      - polygraf detect pii on output
+  retrieval:
+    flows:
+      - polygraf detect pii on retrieval
+```
+
+For more details, check out the [Polygraf Integration](../user-guides/community/polygraf.md) page.
+
 ### Private AI PII Detection
 
 The NeMo Guardrails library supports using [Private AI API](https://docs.private-ai.com/?utm_medium=github&utm_campaign=nemo-guardrails) for PII detection and masking input, output and retrieval flows.
