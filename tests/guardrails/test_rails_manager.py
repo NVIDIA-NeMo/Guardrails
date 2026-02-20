@@ -110,25 +110,6 @@ class TestRailsManagerInit:
 class TestStaticHelpers:
     """Test flow name parsing and prompt key conversion helpers."""
 
-    # def test_flow_name_with_model(self):
-    #     """Strips the $model= parameter from a flow name."""
-    #     assert (
-    #         RailsManager._flow_name("content safety check input $model=content_safety") == "content safety check input"
-    #     )
-    #
-    # def test_flow_name_without_model(self):
-    #     """Returns the flow name unchanged when no $model= is present."""
-    #     assert RailsManager._flow_name("self check input") == "self check input"
-    #
-    # def test_flow_model_type_extracts_model(self):
-    #     """Extracts the model type after $model=."""
-    #     assert RailsManager._flow_model_type("content safety check input $model=content_safety") == "content_safety"
-    #
-    # def test_flow_model_type_no_model_raises(self):
-    #     """Raises RuntimeError when $model= is missing."""
-    #     with pytest.raises(RuntimeError, match="doesn't contain a model type"):
-    #         RailsManager._flow_model_type("self check input")
-    #
     def test_flow_to_prompt_key_with_model(self):
         """Converts spaces to underscores in the flow name portion only."""
         result = RailsManager._flow_to_prompt_key("content safety check input $model=content_safety")

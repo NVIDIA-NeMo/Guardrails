@@ -267,24 +267,6 @@ class RailsManager:
             return base.strip().replace(" ", "_") + " $" + param
         return flow.replace(" ", "_")
 
-    # @staticmethod
-    # def _flow_name(flow: str) -> str:
-    #     """Extract the base flow name, stripping any $model=... parameter.
-    #     For example:
-    #        'content safety check input $model=content_safety' -> 'content safety check input'
-    #        'self check input' -> 'self check input'
-    #     """
-    #     if "$model=" in flow:
-    #         return flow.split("$model=")[0].strip()
-    #     return flow
-    #
-    # @staticmethod
-    # def _flow_model_type(flow: str) -> str:
-    #     """Extract the model type from a flow name like 'content safety check input $model=content_safety'."""
-    #     if "$model=" in flow:
-    #         return flow.split("$model=")[1].strip()
-    #     raise RuntimeError(f"Flow {flow} doesn't contain a model type")
-
     @staticmethod
     def _last_content_by_role(messages: LLMMessages, role: str) -> str:
         """Get the last content from the provided role"""
