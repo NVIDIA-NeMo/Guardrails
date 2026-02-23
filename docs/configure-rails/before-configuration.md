@@ -57,6 +57,7 @@ You need a main LLM hosted and accessible via API. This LLM handles the conversa
 
 ---
 
+(supported-nemoguard-nim-microservices)=
 ## NVIDIA NemoGuard NIM Microservices
 
 Deploy dedicated safety models to offload guardrail checks from the main LLM:
