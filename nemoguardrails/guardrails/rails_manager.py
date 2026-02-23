@@ -130,8 +130,8 @@ class RailsManager:
         direction: RailDirection,
     ) -> RailResult:
         """Run rail coroutines concurrently, cancelling remaining on first unsafe result."""
-        tasks = [asyncio.create_task(coro) for coro in rails.values()]
-        task_to_flow: dict[asyncio.Task, str] = dict(zip(tasks, rails.keys()))
+        task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
+        tasks = list(task_to_flow.keys())
         pending_tasks: set[asyncio.Task] = set(tasks)
 
         try:
