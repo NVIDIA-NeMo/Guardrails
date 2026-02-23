@@ -24,7 +24,7 @@ This page covers the prerequisites and decisions to make before you begin workin
 Use the following checklist to ensure that you have all the necessary components ready before you begin configuring guardrails.
 
 - [ ] (Required) Main LLM endpoint and credentials ready. Refer to [](#hosted-llm-for-the-main-llm) for more details.
-- [ ] (Recommended) NemoGuard NIM endpoints deployed. Refer to [](#nemoguard-nim-microservices) for more details.
+- [ ] (Recommended) NemoGuard NIM endpoints deployed. Refer to [](supported-nemoguard-nim-microservices) for more details.
 - [ ] (Optional) Knowledge base documents prepared. Refer to [](#knowledge-base-documents) for more details.
 - [ ] (Optional) Custom action requirements identified. Refer to [](#advanced-components) for more details.
 
