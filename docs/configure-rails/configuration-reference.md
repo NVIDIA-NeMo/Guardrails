@@ -763,7 +763,6 @@ The top-level `streaming` field is a boolean that is no longer required. Use the
 streaming: false
 ```
 
-The top-level `streaming` field is a boolean that is no longer required. Use the `stream_async()` method directly instead. For output rail streaming configuration, see [Output Streaming Configuration](#output-streaming-configuration).
 
 ### Import Paths
 
