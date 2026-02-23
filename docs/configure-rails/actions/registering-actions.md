@@ -190,13 +190,12 @@ def search_web(query: str) -> str:
     return f"Results for: {query}"
 
 @tool
-def calculate(expression: str) -> str:
-    """Calculate a math expression."""
-    import ast
-    return str(ast.literal_eval(expression))
+def get_current_time(timezone: str) -> str:
+    """Get the current time."""
+    return f"Current time in {timezone}: 12:00 PM"
 
 # Register multiple tools
-tools = [search_web, calculate]
+tools = [search_web, get_current_time]
 for t in tools:
     rails.register_action(t, name=t.name)
 ```
