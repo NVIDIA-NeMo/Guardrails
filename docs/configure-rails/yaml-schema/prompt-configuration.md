@@ -1,6 +1,6 @@
 ---
 title:
-  page: Prompt Configuration for NeMo Guardrails
+  page: Prompt Configuration for the NVIDIA NeMo Guardrails Library
   nav: Prompts
 description: Customize prompts for self-check, fact-checking, and intent generation tasks.
 topics:
@@ -47,7 +47,7 @@ For a complete list of available prompt attributes and tasks, refer to the [](..
 
 ## Content-Based Prompts
 
-Simple prompts using the `content` attribute with Jinja2 templating:
+The following example shows a simple prompt that uses the `content` attribute with Jinja2 templating:
 
 ```yaml
 prompts:
@@ -109,15 +109,15 @@ prompts:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `task` | `str` | (required) | The task ID this prompt is associated with |
-| `content` | `str` | — | The prompt content string (mutually exclusive with `messages`) |
-| `messages` | `list` | — | List of chat messages (mutually exclusive with `content`) |
-| `models` | `list[str]` | — | Restrict prompt to specific engines/models (format: `engine` or `engine/model`) |
-| `output_parser` | `str` | — | Name of the output parser to use |
-| `max_length` | `int` | `16000` | Maximum prompt length in characters |
-| `mode` | `str` | `"standard"` | Prompting mode this prompt applies to |
-| `stop` | `list[str]` | — | Stop tokens for models that support them |
-| `max_tokens` | `int` | — | Maximum number of tokens for the completion |
+| `task` | `str` | (required) | The task ID for the prompt to associate with. |
+| `content` | `str` | — | The prompt content string. Mutually exclusive with `messages`. |
+| `messages` | `list` | — | List of chat messages. Mutually exclusive with `content`. |
+| `models` | `list[str]` | — | Restricts the prompt to specific engines or models (format: `engine` or `engine/model`) |
+| `output_parser` | `str` | — | Name of the output parser to use for the prompt. |
+| `max_length` | `int` | `16000` | Maximum prompt length in characters. |
+| `mode` | `str` | `"standard"` | Prompting mode this prompt applies to. |
+| `stop` | `list[str]` | — | Stop tokens for models that support them. |
+| `max_tokens` | `int` | — | Maximum number of tokens for the completion. |
 
 ## Template Variables
 

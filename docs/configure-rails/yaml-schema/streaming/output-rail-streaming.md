@@ -23,7 +23,7 @@ content:
 
 # Output Rail Streaming
 
-Configure how output rails are applied to streamed tokens under `rails.output.streaming`.
+Configure how output rails process streamed tokens under `rails.output.streaming`.
 
 ## Configuration
 
@@ -46,15 +46,15 @@ rails:
 | `enabled` | bool | `False` | Must be `True` to use `stream_async()` with output rails |
 | `chunk_size` | int | `200` | Number of tokens per chunk that output rails process |
 | `context_size` | int | `50` | Tokens carried over between chunks for continuity |
-| `stream_first` | bool | `True` | If `True`, tokens are yielded to the client before output rails run on the chunk |
+| `stream_first` | bool | `True` | If `True`, the client receives tokens before output rails run on the chunk |
 
 ---
 
-## Parameter Details
+### Tips for Setting Parameters
 
-### enabled
+#### enabled
 
-When output rails are configured and you want to use `stream_async()`, this must be set to `True`.
+When you configure output rails and want to use `stream_async()`, set this to `True`.
 
 If not enabled, you receive an error:
 
@@ -65,16 +65,16 @@ rails.output.streaming.enabled to True in your configuration, or use
 generate_async() instead of stream_async().
 ```
 
-### chunk_size
+#### chunk_size
 
-The number of tokens buffered before output rails are applied.
+The number of tokens buffered before output rails run.
 
 - **Larger values**: Fewer rail executions, but higher latency to first output
 - **Smaller values**: More rail executions, but faster time-to-first-token
 
 **Default:** `200` tokens
 
-### context_size
+#### context_size
 
 The number of tokens from the previous chunk carried over to provide context for the next chunk.
 
@@ -82,12 +82,12 @@ This helps output rails make consistent decisions across chunk boundaries. For e
 
 **Default:** `50` tokens
 
-### stream_first
+#### stream_first
 
 Controls when tokens are streamed relative to output rail processing:
 
-- `True` (default): Each chunk of tokens is yielded to the client **before** output rails run on that chunk. Provides faster time-to-first-token, but if a rail blocks the content, the user has already received the tokens. The stream terminates with a JSON error on violation.
-- `False`: Output rails run on each chunk **before** tokens are yielded. The user never sees blocked content, but time-to-first-token increases by the rail execution time per chunk.
+- `True` (default): The client receives each chunk of tokens before output rails process that chunk. This provides faster time-to-first-token, but if a rail blocks the content, the user has already received the tokens. The stream terminates with a JSON error on violation.
+- `False`: Output rails process each chunk before the client receives tokens. The user never sees blocked content, but time-to-first-token increases by the rail execution time per chunk.
 
 ---
 
@@ -161,7 +161,7 @@ rails:
 ```
 
 ```{warning}
-With `stream_first: True`, tokens are streamed to the client **before** output rails run. If a rail blocks the content, the user will have already received the tokens up to that point. The stream terminates with a JSON error object when a violation is detected.
+With `stream_first: True`, the client receives tokens before output rails run. If a rail blocks the content, the user has already received the tokens up to that point. The stream terminates with a JSON error object when it detects a violation.
 ```
 
 ### Safety-First Configuration
@@ -184,11 +184,11 @@ rails:
 
 ## How It Works
 
-1. **Token Buffering**: Tokens from the LLM are buffered until `chunk_size` tokens have accumulated.
+1. **Token Buffering**: The system buffers tokens from the LLM until `chunk_size` tokens accumulate.
 2. **Streaming or Rail Execution** (depends on `stream_first`):
-   - `stream_first: True` (default): The new tokens are yielded to the client immediately, **then** output rails run on the chunk (including context). If rails block, the stream terminates with a JSON error — but the user already received the tokens.
-   - `stream_first: False`: Output rails run on the chunk first. Only if rails pass are the new tokens yielded to the client.
-3. **Context Overlap**: The last `context_size` tokens from the current chunk are retained and prepended to the next chunk's processing context. This gives rails visibility across chunk boundaries.
+   - `stream_first: True` (default): The client receives the new tokens immediately, then output rails run on the chunk (including context). If the rails block the content, the stream terminates with a JSON error, while the client receives the tokens up to that point.
+   - `stream_first: False`: Output rails run on the chunk first. The client receives the new tokens only if rails pass. If the rails block the content, the client never receives the tokens.
+3. **Context Overlap**: The system retains the last `context_size` tokens from the current chunk and prepends them to the next chunk's processing context. This gives rails visibility across chunk boundaries.
 4. **Blocking**: If any rail blocks the content, the stream yields a JSON error object (`{"error": {...}}`) and terminates immediately.
 
 ### stream_first: True (default)
@@ -217,7 +217,7 @@ Buffer fills to chunk_size
 
 ### Buffer Overlap
 
-Only new tokens are streamed to the user. The `context_size` tokens are used solely for rail processing context:
+The client receives only new tokens. Output rails use the `context_size` tokens solely for processing context:
 
 ```text
 Chunk 1: rails process [token1 ... token200]
