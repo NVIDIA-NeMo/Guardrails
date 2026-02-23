@@ -756,7 +756,7 @@ tracing:
 ### Streaming
 
 ```{deprecated} v0.20.0
-The top-level `streaming` field is deprecated. Use `rails.output.streaming` for output rail streaming configuration, and the `stream_async()` method for streaming responses.
+The top-level `streaming` field is a boolean that is no longer required. Use the `stream_async()` method directly instead. For output rail streaming configuration, see [Output Streaming Configuration](#output-streaming-configuration).
 ```
 
 ```yaml
