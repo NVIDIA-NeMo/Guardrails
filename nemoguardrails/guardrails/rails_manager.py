@@ -132,12 +132,13 @@ class RailsManager:
         """Run rail coroutines concurrently, cancelling remaining on first unsafe result."""
         task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
         tasks = list(task_to_flow.keys())
+        task_order = {task: i for i, task in enumerate(tasks)}
         pending_tasks: set[asyncio.Task] = set(tasks)
 
         try:
             while pending_tasks:
                 done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
-                for task in done:
+                for task in sorted(done, key=task_order.__getitem__):
                     result = task.result()
                     flow = task_to_flow[task]
                     log.debug("%s flow %s result %s", direction.value, flow, result)
