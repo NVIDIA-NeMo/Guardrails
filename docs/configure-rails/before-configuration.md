@@ -62,7 +62,7 @@ You need a main LLM hosted and accessible via API. This LLM handles the conversa
 
 Deploy dedicated safety models to offload guardrail checks from the main LLM:
 
-| NemoGuard Model | Purpose |
+| NVIDIA NemoGuard Model | Purpose |
 |-----------------|---------|
 | Content Safety | Detect harmful or inappropriate content |
 | Jailbreak Detect | Block adversarial prompt attacks |
