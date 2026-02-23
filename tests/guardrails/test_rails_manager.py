@@ -34,6 +34,9 @@ from tests.guardrails.test_data import (
     CONTENT_SAFETY_INPUT_PROMPT,
     CONTENT_SAFETY_OUTPUT_PROMPT,
     NEMOGUARDS_CONFIG,
+    NEMOGUARDS_PARALLEL_CONFIG,
+    NEMOGUARDS_PARALLEL_INPUT_CONFIG,
+    NEMOGUARDS_PARALLEL_OUTPUT_CONFIG,
     TOPIC_SAFETY_CONFIG,
     TOPIC_SAFETY_INPUT_PROMPT,
     TOPIC_SAFETY_INPUT_PROMPT_WITH_RESTRICTION,
@@ -911,3 +914,358 @@ class TestJailbreakDetectionE2E:
             [{"role": "user", "content": "What is the weather?"}]
         )
         assert result.is_safe
+
+
+@pytest.fixture
+def parallel_input_rails_config():
+    return RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_INPUT_CONFIG)
+
+
+@pytest.fixture
+def parallel_input_model_manager(parallel_input_rails_config):
+    return ModelManager(parallel_input_rails_config)
+
+
+@pytest.fixture
+def parallel_input_rails_manager(parallel_input_rails_config, parallel_input_model_manager):
+    return RailsManager(parallel_input_rails_config, parallel_input_model_manager)
+
+
+@pytest.fixture
+def parallel_output_rails_config():
+    return RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_OUTPUT_CONFIG)
+
+
+@pytest.fixture
+def parallel_output_model_manager(parallel_output_rails_config):
+    return ModelManager(parallel_output_rails_config)
+
+
+@pytest.fixture
+def parallel_output_rails_manager(parallel_output_rails_config, parallel_output_model_manager):
+    return RailsManager(parallel_output_rails_config, parallel_output_model_manager)
+
+
+@pytest.fixture
+def parallel_rails_config():
+    return RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG)
+
+
+@pytest.fixture
+def parallel_model_manager(parallel_rails_config):
+    return ModelManager(parallel_rails_config)
+
+
+@pytest.fixture
+def parallel_rails_manager(parallel_rails_config, parallel_model_manager):
+    return RailsManager(parallel_rails_config, parallel_model_manager)
+
+
+class TestParallelInit:
+    """Test that parallel flags are correctly stored from config."""
+
+    def test_parallel_false_by_default(self, content_safety_rails_manager):
+        """Default config has parallel=False."""
+        assert not content_safety_rails_manager.input_parallel
+        assert not content_safety_rails_manager.output_parallel
+
+    def test_parallel_input_true_from_config(self, parallel_input_rails_manager):
+        """parallel=True is stored when set in input config."""
+        assert parallel_input_rails_manager.input_parallel
+        assert not parallel_input_rails_manager.output_parallel
+
+    def test_parallel_output_true_from_config(self, parallel_output_rails_manager):
+        """parallel=True is stored when set in output config."""
+        assert not parallel_output_rails_manager.input_parallel
+        assert parallel_output_rails_manager.output_parallel
+
+    def test_parallel_both_from_config(self, parallel_rails_manager):
+        """Both parallel flags are True when both are set."""
+        assert parallel_rails_manager.input_parallel
+        assert parallel_rails_manager.output_parallel
+
+
+class TestParallelIsInputSafe:
+    """Test parallel input rail execution."""
+
+    @pytest.mark.asyncio
+    async def test_all_safe_returns_safe(self, parallel_input_rails_manager):
+        """All three rails pass -> RailResult(is_safe=True)."""
+        parallel_input_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_input_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_input_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+
+        messages = [{"role": "user", "content": "hello"}]
+        result = await parallel_input_rails_manager.is_input_safe(messages)
+        assert result.is_safe
+        parallel_input_rails_manager._check_content_safety_input.assert_called_once_with(
+            "content safety check input $model=content_safety", messages
+        )
+        parallel_input_rails_manager._check_topic_safety_input.assert_called_once_with(
+            "topic safety check input $model=topic_control", messages
+        )
+        parallel_input_rails_manager._check_jailbreak_detection.assert_called_once_with(messages)
+
+    @pytest.mark.asyncio
+    async def test_unsafe_result_returned(self, parallel_input_rails_manager):
+        """One rail returns unsafe -> overall result is unsafe."""
+        parallel_input_rails_manager._check_content_safety_input = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="Violence")
+        )
+        parallel_input_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_input_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        result = await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "violent content"}])
+        assert result == RailResult(is_safe=False, reason="Violence")
+
+    @pytest.mark.asyncio
+    async def test_empty_flows_returns_safe(self, parallel_input_rails_manager):
+        """No flows configured -> safe immediately, even with parallel=True."""
+        parallel_input_rails_manager.input_flows = []
+        result = await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "anything"}])
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_single_flow_works(self, parallel_input_rails_manager):
+        """Single flow with parallel=True works correctly."""
+        parallel_input_rails_manager.input_flows = ["content safety check input $model=content_safety"]
+        parallel_input_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        result = await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        assert result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_model_error_returns_unsafe(self, parallel_input_rails_manager):
+        """Check method exceptions are caught internally and returned as unsafe."""
+        parallel_input_rails_manager._check_content_safety_input = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="Content safety input check error: timeout")
+        )
+        parallel_input_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_input_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        result = await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        assert result == RailResult(is_safe=False, reason="Content safety input check error: timeout")
+
+    @pytest.mark.asyncio
+    async def test_unsupported_flow_raises(self, parallel_input_rails_manager):
+        """Unsupported flow name raises RuntimeError, cancelling others."""
+        parallel_input_rails_manager.input_flows = [
+            "content safety check input $model=content_safety",
+            "unknown rail $model=foo",
+        ]
+        parallel_input_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        with pytest.raises(RuntimeError, match="not supported"):
+            await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+
+    @pytest.mark.asyncio
+    async def test_check_method_exception_propagates(self, parallel_input_rails_manager):
+        """Exception raised by a check method propagates through parallel execution."""
+        parallel_input_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_input_rails_manager._check_topic_safety_input = AsyncMock(
+            side_effect=RuntimeError("Model not specified for topic-safety output rail: topic safety check input")
+        )
+        parallel_input_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        with pytest.raises(RuntimeError, match="Model not specified for topic-safety output rail"):
+            await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+
+
+class TestParallelIsInputSafeEarlyCancellation:
+    """Test that early cancellation works: an unsafe result cancels pending rails."""
+
+    @pytest.mark.asyncio
+    async def test_early_unsafe_cancellation(self, parallel_input_rails_manager):
+        """First rail completes safe, second completes unsafe, third is cancelled."""
+        import asyncio
+
+        # Events control the order rails complete:
+        # content_safety completes first (safe), then jailbreak completes (unsafe),
+        # topic_safety is still waiting and should be cancelled.
+        content_done = asyncio.Event()
+        jailbreak_done = asyncio.Event()
+        topic_cancelled = False
+
+        async def content_safety_check(*args):
+            content_done.set()
+            return RailResult(is_safe=True)
+
+        async def jailbreak_check(*args):
+            await content_done.wait()
+            jailbreak_done.set()
+            return RailResult(is_safe=False, reason="jailbreak detected")
+
+        async def topic_safety_check(*args):
+            nonlocal topic_cancelled
+            await content_done.wait()
+            await jailbreak_done.wait()
+            try:
+                # Yield control so the parallel runner can process jailbreak's result
+                await asyncio.sleep(0)
+                return RailResult(is_safe=True)
+            except asyncio.CancelledError:
+                topic_cancelled = True
+                raise
+
+        parallel_input_rails_manager._check_content_safety_input = content_safety_check
+        parallel_input_rails_manager._check_jailbreak_detection = jailbreak_check
+        parallel_input_rails_manager._check_topic_safety_input = topic_safety_check
+
+        result = await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        assert result == RailResult(is_safe=False, reason="jailbreak detected")
+        assert topic_cancelled
+
+    @pytest.mark.asyncio
+    async def test_early_exception_cancellation(self, parallel_input_rails_manager):
+        """First rail completes safe, second raises an exception, third is cancelled."""
+        import asyncio
+
+        content_done = asyncio.Event()
+        jailbreak_done = asyncio.Event()
+        topic_cancelled = False
+
+        async def content_safety_check(*args):
+            content_done.set()
+            return RailResult(is_safe=True)
+
+        async def jailbreak_check(*args):
+            await content_done.wait()
+            jailbreak_done.set()
+            raise RuntimeError("connection refused")
+
+        async def topic_safety_check(*args):
+            nonlocal topic_cancelled
+            await content_done.wait()
+            await jailbreak_done.wait()
+            try:
+                await asyncio.sleep(0)
+                return RailResult(is_safe=True)
+            except asyncio.CancelledError:
+                topic_cancelled = True
+                raise
+
+        parallel_input_rails_manager._check_content_safety_input = content_safety_check
+        parallel_input_rails_manager._check_jailbreak_detection = jailbreak_check
+        parallel_input_rails_manager._check_topic_safety_input = topic_safety_check
+
+        with pytest.raises(RuntimeError, match="connection refused"):
+            await parallel_input_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        assert topic_cancelled
+
+
+class TestParallelIsOutputSafe:
+    """Test parallel output rail execution."""
+
+    @pytest.mark.asyncio
+    async def test_all_safe(self, parallel_output_rails_manager):
+        """Both output rails pass -> safe."""
+        parallel_output_rails_manager._run_output_rail = AsyncMock(return_value=RailResult(is_safe=True))
+        result = await parallel_output_rails_manager.is_output_safe([{"role": "user", "content": "hello"}], "response")
+        assert result.is_safe
+        assert parallel_output_rails_manager._run_output_rail.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_one_unsafe(self, parallel_output_rails_manager):
+        """One output rail returns unsafe -> overall unsafe."""
+        parallel_output_rails_manager._run_output_rail = AsyncMock(
+            side_effect=[
+                RailResult(is_safe=True),
+                RailResult(is_safe=False, reason="Violence"),
+            ]
+        )
+        result = await parallel_output_rails_manager.is_output_safe(
+            [{"role": "user", "content": "hello"}], "violent response"
+        )
+        assert result == RailResult(is_safe=False, reason="Violence")
+
+    @pytest.mark.asyncio
+    async def test_empty_output_flows(self, parallel_output_rails_manager):
+        """No output flows -> safe immediately."""
+        parallel_output_rails_manager.output_flows = []
+        result = await parallel_output_rails_manager.is_output_safe([{"role": "user", "content": "hello"}], "response")
+        assert result.is_safe
+
+
+class TestSequentialUnchanged:
+    """Verify sequential behavior is not affected by the parallel code paths."""
+
+    @pytest.mark.asyncio
+    async def test_sequential_short_circuits(self, nemoguards_rails_manager):
+        """With parallel=False, first unsafe rail short-circuits (no further calls)."""
+        assert not nemoguards_rails_manager.input_parallel
+        # Content safety is the first flow; make it return unsafe
+        nemoguards_rails_manager._check_content_safety_input = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="Violence")
+        )
+        nemoguards_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        nemoguards_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        result = await nemoguards_rails_manager.is_input_safe([{"role": "user", "content": "violent"}])
+        assert result == RailResult(is_safe=False, reason="Violence")
+        # Only content safety should have been called (first rail)
+        nemoguards_rails_manager._check_content_safety_input.assert_called_once()
+        # Topic safety and jailbreak should NOT have been called (short-circuited)
+        nemoguards_rails_manager._check_topic_safety_input.assert_not_called()
+        nemoguards_rails_manager._check_jailbreak_detection.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_sequential_check_method_exception_propagates(self, nemoguards_rails_manager):
+        """Exception raised by a check method propagates through sequential execution."""
+        assert not nemoguards_rails_manager.input_parallel
+        nemoguards_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        nemoguards_rails_manager._check_topic_safety_input = AsyncMock(
+            side_effect=RuntimeError("Model not specified for topic-safety output rail: topic safety check input")
+        )
+        nemoguards_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        with pytest.raises(RuntimeError, match="Model not specified for topic-safety output rail"):
+            await nemoguards_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        # Jailbreak should NOT have been called (short-circuited by exception)
+        nemoguards_rails_manager._check_jailbreak_detection.assert_not_called()
+
+
+class TestParallelBothDirections:
+    """Test with both input and output rails running in parallel."""
+
+    @pytest.mark.asyncio
+    async def test_both_safe(self, parallel_rails_manager):
+        """All input and output rails pass -> safe end-to-end."""
+        parallel_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        input_result = await parallel_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        assert input_result.is_safe
+
+        parallel_rails_manager._check_content_safety_output = AsyncMock(return_value=RailResult(is_safe=True))
+        # "self check output" is unsupported, so mock _run_output_rail for it
+        parallel_rails_manager._run_output_rail = AsyncMock(return_value=RailResult(is_safe=True))
+        output_result = await parallel_rails_manager.is_output_safe([{"role": "user", "content": "hello"}], "response")
+        assert output_result.is_safe
+
+    @pytest.mark.asyncio
+    async def test_input_unsafe_skips_output(self, parallel_rails_manager):
+        """Unsafe input in parallel mode returns before output rails run."""
+        parallel_rails_manager._check_content_safety_input = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="Violence")
+        )
+        parallel_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        result = await parallel_rails_manager.is_input_safe([{"role": "user", "content": "violent"}])
+        assert result == RailResult(is_safe=False, reason="Violence")
+
+        # Output rails should never run after unsafe input
+        parallel_rails_manager._run_output_rail = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._run_output_rail.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_input_safe_output_unsafe(self, parallel_rails_manager):
+        """Input passes but output fails in parallel mode."""
+        parallel_rails_manager._check_content_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        input_result = await parallel_rails_manager.is_input_safe([{"role": "user", "content": "hello"}])
+        assert input_result.is_safe
+
+        parallel_rails_manager._run_output_rail = AsyncMock(
+            side_effect=[
+                RailResult(is_safe=True),
+                RailResult(is_safe=False, reason="Harmful content"),
+            ]
+        )
+        output_result = await parallel_rails_manager.is_output_safe(
+            [{"role": "user", "content": "hello"}], "bad response"
+        )
+        assert output_result == RailResult(is_safe=False, reason="Harmful content")

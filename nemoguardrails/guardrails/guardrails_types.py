@@ -15,10 +15,18 @@
 
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import TypeAlias
 
 LLMMessage: TypeAlias = dict[str, str]  # e.g. {"role": "user", "content": "What can you do?"}
 LLMMessages: TypeAlias = list[LLMMessage]
+
+
+class RailDirection(Enum):
+    """Direction of a rail check, used for logging."""
+
+    INPUT = "Input"
+    OUTPUT = "Output"
 
 
 @dataclass(frozen=True, slots=True)

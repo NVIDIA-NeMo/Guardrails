@@ -239,3 +239,43 @@ NEMOGUARDS_CONFIG = {
         },
     ],
 }
+
+## PARALLEL CONFIGS
+
+# Nemoguards config has 3 input rails, this enables parallel execution
+NEMOGUARDS_PARALLEL_INPUT_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "input": {**NEMOGUARDS_CONFIG["rails"]["input"], "parallel": True},
+    },
+}
+
+# Nemoguards config only has one output rail, so add a self-check which can be run in parallel
+NEMOGUARDS_PARALLEL_OUTPUT_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "output": {
+            **NEMOGUARDS_CONFIG["rails"]["output"],
+            "parallel": True,
+            "flows": NEMOGUARDS_CONFIG["rails"]["output"]["flows"] + ["self check output"],
+        },
+    },
+    "prompts": NEMOGUARDS_CONFIG["prompts"]
+    + [
+        {
+            "task": "self_check_output",
+            "content": "Check if the bot response is safe.\n\nBot response: {{ bot_response }}\n\nAnswer (Yes/No):",
+        },
+    ],
+}
+
+# Nemoguards config with both parallel input and output rails enabled
+NEMOGUARDS_PARALLEL_CONFIG = {
+    **NEMOGUARDS_PARALLEL_OUTPUT_CONFIG,
+    "rails": {
+        **NEMOGUARDS_PARALLEL_OUTPUT_CONFIG["rails"],
+        "input": {**NEMOGUARDS_PARALLEL_OUTPUT_CONFIG["rails"]["input"], "parallel": True},
+    },
+}

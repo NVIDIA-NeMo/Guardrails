@@ -16,15 +16,19 @@
 """Rails manager for IORails engine.
 
 Orchestrates input/output safety checks by calling ModelManager.
-Rails run sequentially; the first failing rail short-circuits the check.
+Rails run sequentially by default; the first failing rail short-circuits.
+When parallel mode is enabled, all rails run concurrently and the first
+unsafe result cancels remaining rails immediately.
 """
 
+import asyncio
 import logging
-from typing import Sequence, cast
+from collections.abc import Coroutine, Mapping, Sequence
+from typing import Any, cast
 
 from jinja2.sandbox import SandboxedEnvironment
 
-from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailResult
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailDirection, RailResult
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.library.topic_safety.actions import (
     TOPIC_SAFETY_MAX_TOKENS,
@@ -57,36 +61,107 @@ class RailsManager:
         self.input_flows: list[str] = list(config.rails.input.flows)
         self.output_flows: list[str] = list(config.rails.output.flows)
 
+        # Parallel execution flags (Optional[bool] in config, coerce to bool)
+        self.input_parallel: bool = config.rails.input.parallel or False
+        self.output_parallel: bool = config.rails.output.parallel or False
+
+        log.info(
+            "RailsManager initialized: input_flows=%s, output_flows=%s, input_parallel=%s, output_parallel=%s",
+            self.input_flows,
+            self.output_flows,
+            self.input_parallel,
+            self.output_parallel,
+        )
         # Create jinja2 rendering environment
         self._jinja2_env = SandboxedEnvironment(autoescape=False)
 
         log.info("RailsManager initialized: input_flows=%s, output_flows=%s", self.input_flows, self.output_flows)
 
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
-        """Run all enabled input rails sequentially, short-circuiting on the first failure."""
+        """Run all enabled input rails, short-circuiting on the first failure.
+
+        When parallel mode is enabled, all rails run concurrently and the first
+        unsafe result cancels remaining rails.
+        """
         if not self.input_flows:
             return RailResult(is_safe=True)
 
-        for flow in self.input_flows:
-            result = await self._run_input_rail(flow, messages)
-            log.debug("Input flow %s result %s", flow, result)
-            if not result.is_safe:
-                return result
-
-        return RailResult(is_safe=True)
+        rails = {flow: self._run_input_rail(flow, messages) for flow in self.input_flows}
+        if self.input_parallel:
+            return await self._run_rails_parallel(rails, RailDirection.INPUT)
+        return await self._run_rails_sequential(rails, RailDirection.INPUT)
 
     async def is_output_safe(self, messages: list[dict], response: str) -> RailResult:
-        """Run all enabled output rails sequentially, short-circuiting on the first failure."""
+        """Run all enabled output rails, short-circuiting on the first failure.
+
+        When parallel mode is enabled, all rails run concurrently and the first
+        unsafe result cancels remaining rails.
+        """
         if not self.output_flows:
             return RailResult(is_safe=True)
 
-        for flow in self.output_flows:
-            result = await self._run_output_rail(flow, messages, response)
-            log.debug("Output flow %s result %s", flow, result)
-            if not result.is_safe:
-                return result
+        rails = {flow: self._run_output_rail(flow, messages, response) for flow in self.output_flows}
+        if self.output_parallel:
+            return await self._run_rails_parallel(rails, RailDirection.OUTPUT)
+        return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
 
-        return RailResult(is_safe=True)
+    async def _run_rails_sequential(
+        self,
+        rails: Mapping[str, Coroutine[Any, Any, RailResult]],
+        direction: RailDirection,
+    ) -> RailResult:
+        """Run rail coroutines sequentially, short-circuiting on first unsafe result."""
+        remaining = iter(rails.items())
+        try:
+            for flow, coro in remaining:
+                result = await coro
+                log.debug("%s flow %s result %s", direction.value, flow, result)
+                if not result.is_safe:
+                    log.info("%s flow %s blocked", direction.value, flow)
+                    return result
+            return RailResult(is_safe=True)
+        finally:
+            for _, coro in remaining:
+                coro.close()
+
+    async def _run_rails_parallel(
+        self,
+        rails: Mapping[str, Coroutine[Any, Any, RailResult]],
+        direction: RailDirection,
+    ) -> RailResult:
+        """Run rail coroutines concurrently, cancelling remaining on first unsafe result."""
+        tasks = [asyncio.create_task(coro) for coro in rails.values()]
+        task_to_flow: dict[asyncio.Task, str] = dict(zip(tasks, rails.keys()))
+        pending_tasks: set[asyncio.Task] = set(tasks)
+
+        try:
+            while pending_tasks:
+                done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    result = task.result()
+                    flow = task_to_flow[task]
+                    log.debug("%s flow %s result %s", direction.value, flow, result)
+                    if not result.is_safe:
+                        log.info(
+                            "%s flow %s blocked (cancelling %d remaining)",
+                            direction.value,
+                            flow,
+                            len(pending_tasks),
+                        )
+                        for t in pending_tasks:
+                            t.cancel()
+                        if pending_tasks:
+                            await asyncio.wait(pending_tasks)
+                        return result
+            return RailResult(is_safe=True)
+        except BaseException:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            alive = [t for t in tasks if not t.done()]
+            if alive:
+                await asyncio.wait(alive)
+            raise
 
     async def _run_input_rail(self, flow: str, messages: list[dict]) -> RailResult:
         """Run an input rail flow if it's supported. If not raise an exception"""
