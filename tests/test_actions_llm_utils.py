@@ -798,9 +798,7 @@ class TestUpdateTokenStatsFromChunk:
         chunk = MagicMock()
         chunk.usage_metadata = None
         chunk.response_metadata = None
-        chunk.generation_info = {
-            "usage": {"total_tokens": 25, "prompt_tokens": 15, "completion_tokens": 10}
-        }
+        chunk.generation_info = {"usage": {"total_tokens": 25, "prompt_tokens": 15, "completion_tokens": 10}}
 
         _update_token_stats_from_chunk(chunk)
 

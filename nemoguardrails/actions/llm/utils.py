@@ -264,6 +264,7 @@ async def _stream_llm_call(
         stop = getattr(llm, "stop", [])
     handler.stop = stop
     accumulated_metadata: Dict[str, Any] = {}
+    last_chunk = None
 
     last_chunk = None
 
@@ -341,7 +342,10 @@ def _log_prompt(prompt: Union[str, List[dict]]) -> None:
         formatted_prompt = "\n" + "\n".join(
             [
                 "[cyan]"
-                + type_map.get(msg.get("role", msg.get("type", "")), msg.get("role", msg.get("type", "")).title())
+                + type_map.get(
+                    msg.get("role") or msg.get("type") or "",
+                    (msg.get("role") or msg.get("type") or "").title(),
+                )
                 + "[/]"
                 + "\n"
                 + (msg.get("content", "") if isinstance(msg.get("content", ""), str) else "")

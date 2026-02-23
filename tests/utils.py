@@ -122,7 +122,6 @@ class FakeLLM(LLM):
         if self.exception:
             raise self.exception
 
-        # To mock streaming, we just split in chunk by spaces
         chunks = response.split(" ")
         for i in range(len(chunks)):
             if i < len(chunks) - 1:
@@ -164,6 +163,16 @@ class FakeLLM(LLM):
 
         llm_output = self._get_token_usage_for_response(self.i - 1)
         return LLMResult(generations=generations, llm_output=llm_output)
+
+    async def ainvoke(self, input, config=None, *, stop=None, **kwargs):
+        from langchain_core.messages import AIMessage
+
+        text = await self._acall(str(input), stop)
+        token_usage_data = self._get_token_usage_for_response(self.i - 1)
+        response_metadata = {}
+        if token_usage_data:
+            response_metadata = token_usage_data
+        return AIMessage(content=text, response_metadata=response_metadata)
 
     @property
     def _identifying_params(self) -> Mapping[str, Any]:

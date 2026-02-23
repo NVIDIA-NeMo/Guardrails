@@ -36,18 +36,12 @@ async def test_token_usage_tracking_with_usage_metadata():
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
-    explain_info = ExplainInfo()
-    explain_info_var.set(explain_info)
-
-    handler = LoggingCallbackHandler()
-
-    # simulate the LLM response with usage metadata
     ai_message = AIMessage(
         content="Hello! How can I help you?",
         usage_metadata={"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
     )
 
-    _update_token_stats(response)
+    _update_token_stats(ai_message)
 
     assert llm_call_info.total_tokens == 16
     assert llm_call_info.prompt_tokens == 10
@@ -101,16 +95,9 @@ async def test_no_token_usage_tracking_without_metadata():
 
     _update_token_stats(response)
 
-    # simulate LLM response without usage metadata
-    ai_message = AIMessage(content="Hello! How can I help you?")
-    chat_generation = ChatGeneration(message=ai_message)
-    llm_result = LLMResult(generations=[[chat_generation]])
-
-    await handler.on_llm_end(llm_result, run_id=uuid4())
-
-    assert llm_call_info.total_tokens is None or llm_call_info.total_tokens == 0
-    assert llm_call_info.prompt_tokens is None or llm_call_info.prompt_tokens == 0
-    assert llm_call_info.completion_tokens is None or llm_call_info.completion_tokens == 0
+    assert llm_call_info.total_tokens == 0
+    assert llm_call_info.prompt_tokens == 0
+    assert llm_call_info.completion_tokens == 0
 
 
 @pytest.mark.asyncio
