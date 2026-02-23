@@ -87,7 +87,7 @@ When the `self check input` rail is triggered, the following exception is return
 
 ## Exception Types
 
-The guardrails library includes additional exception types for specific integrations:
+The NeMo Guardrails library includes additional exception types for specific integrations:
 
 - `LlamaGuardInputRailException` / `LlamaGuardOutputRailException`
 - `JailbreakDetectionRailException`
