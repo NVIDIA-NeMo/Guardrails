@@ -216,13 +216,14 @@ async def llm_call(
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
     _setup_llm_call_info(llm, model_name, model_provider)
 
+    llm_params_with_stop: Optional[dict]
     if stop:
-        if llm_params is not None:
-            llm_params["stop"] = stop
-        else:
-            llm_params = {"stop": stop}
+        llm_params_with_stop = llm_params.copy() if llm_params else {}
+        llm_params_with_stop["stop"] = stop
+    else:
+        llm_params_with_stop = llm_params
 
-    filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params)
+    filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params_with_stop)
     generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**filtered_params) if filtered_params else llm
 
     if streaming_handler:

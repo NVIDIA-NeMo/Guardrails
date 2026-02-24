@@ -705,3 +705,10 @@ class TestFilterParamsForOpenAIReasoningModels:
         params = {"temperature": 0.5, "max_tokens": 100}
         _filter_params_for_openai_reasoning_models(llm, params)
         assert params == {"temperature": 0.5, "max_tokens": 100}
+
+    @pytest.mark.asyncio
+    async def test_llm_call_does_not_mutate_llm_params(self):
+        mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"content": "response"})
+        original_params = {"max_tokens": 100}
+        await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=original_params)
+        assert original_params == {"max_tokens": 100}
