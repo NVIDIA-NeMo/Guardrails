@@ -23,7 +23,7 @@ import logging
 from typing import Any
 
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.config import Model
 
 log = logging.getLogger(__name__)
 
@@ -36,10 +36,10 @@ class ModelManager:
     Each engine owns its own HTTP client with per-model retry and timeout settings.
     """
 
-    def __init__(self, config: RailsConfig) -> None:
+    def __init__(self, models: list[Model]) -> None:
         self._engines: dict[str, ModelEngine] = {}
 
-        for model_config in config.models:
+        for model_config in models:
             self._engines[model_config.type] = ModelEngine(model_config)
             log.info(
                 "Registered model engine: type=%s, model=%s, base_url=%s",

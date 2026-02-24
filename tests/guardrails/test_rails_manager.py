@@ -40,7 +40,7 @@ def content_safety_rails_config():
 
 @pytest.fixture
 def content_safety_model_manager(content_safety_rails_config):
-    return ModelManager(content_safety_rails_config)
+    return ModelManager(content_safety_rails_config.models)
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def nemoguards_rails_config():
 
 @pytest.fixture
 def nemoguards_model_manager(nemoguards_rails_config):
-    return ModelManager(nemoguards_rails_config)
+    return ModelManager(nemoguards_rails_config.models)
 
 
 @pytest.fixture
