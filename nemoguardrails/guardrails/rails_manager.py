@@ -28,7 +28,13 @@ from typing import Any, cast
 
 from jinja2.sandbox import SandboxedEnvironment
 
-from nemoguardrails.guardrails.guardrails_types import LLMMessages, RailDirection, RailResult
+from nemoguardrails.guardrails.guardrails_types import (
+    LLMMessages,
+    RailDirection,
+    RailResult,
+    get_request_id,
+    truncate,
+)
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.library.topic_safety.actions import (
     TOPIC_SAFETY_MAX_TOKENS,
@@ -109,13 +115,14 @@ class RailsManager:
         direction: RailDirection,
     ) -> RailResult:
         """Run rail coroutines sequentially, short-circuiting on first unsafe result."""
+        req_id = get_request_id()
         remaining = iter(rails.items())
         try:
             for flow, coro in remaining:
                 result = await coro
-                log.debug("%s flow %s result %s", direction.value, flow, result)
+                log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
                 if not result.is_safe:
-                    log.info("%s flow %s blocked", direction.value, flow)
+                    log.info("[%s] %s flow %s blocked", req_id, direction.value, flow)
                     return result
             return RailResult(is_safe=True)
         finally:
@@ -128,6 +135,7 @@ class RailsManager:
         direction: RailDirection,
     ) -> RailResult:
         """Run rail coroutines concurrently, cancelling remaining on first unsafe result."""
+        req_id = get_request_id()
         task_to_flow: dict[asyncio.Task, str] = {asyncio.create_task(coro): flow for flow, coro in rails.items()}
         tasks = list(task_to_flow.keys())
         task_order = {task: i for i, task in enumerate(tasks)}
@@ -139,10 +147,11 @@ class RailsManager:
                 for task in sorted(done, key=lambda t: task_order[t]):
                     result = task.result()
                     flow = task_to_flow[task]
-                    log.debug("%s flow %s result %s", direction.value, flow, result)
+                    log.debug("[%s] %s flow %s result %s", req_id, direction.value, flow, result)
                     if not result.is_safe:
                         log.info(
-                            "%s flow %s blocked (cancelling %d remaining)",
+                            "[%s] %s flow %s blocked (cancelling %d remaining)",
+                            req_id,
                             direction.value,
                             flow,
                             len(pending_tasks),
@@ -192,20 +201,25 @@ class RailsManager:
         if not model_type:
             raise RuntimeError(f"Model not specified for content-safety input rail: {flow}")
 
+        req_id = get_request_id()
+        log.info("[%s] Checking content safety input via model '%s'", req_id, model_type)
+
         last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)
         prompt_content = self._render_prompt(prompt_key, user_input=last_user_content)
+        log.debug("[%s] Content safety input prompt: %s", req_id, truncate(prompt_content))
 
         try:
             response_text = await self.model_manager.generate_async(
                 model_type, [{"role": "user", "content": prompt_content}]
             )
+            log.debug("[%s] Content safety input response: %s", req_id, truncate(response_text))
 
             result = self._parse_content_safety_input_response(response_text)
             return result
 
         except Exception as e:
-            log.error("Content safety input check failed: %s", e)
+            log.error("[%s] Content safety input check failed: %s", req_id, e)
             return RailResult(is_safe=False, reason=f"Content safety input check error: {e}")
 
     async def _check_content_safety_output(self, flow: str, messages: list[dict], response: str) -> RailResult:
@@ -214,19 +228,25 @@ class RailsManager:
         if not model_type:
             raise RuntimeError(f"Model not specified for content-safety output rail: {flow}")
 
+        req_id = get_request_id()
+        log.info("[%s] Checking content safety output via model '%s'", req_id, model_type)
+
         last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)
         prompt_content = self._render_prompt(prompt_key, user_input=last_user_content, bot_response=response)
+        log.debug("[%s] Content safety output prompt: %s", req_id, truncate(prompt_content))
 
         try:
             response_text = await self.model_manager.generate_async(
                 model_type, [{"role": "user", "content": prompt_content}]
             )
+            log.debug("[%s] Content safety output response: %s", req_id, truncate(response_text))
+
             result = self._parse_content_safety_output_response(response_text)
             return result
 
         except Exception as e:
-            log.error("Content safety output check failed: %s", e)
+            log.error("[%s] Content safety output check failed: %s", req_id, e)
             return RailResult(is_safe=False, reason=f"Content safety output check error: {e}")
 
     async def _check_topic_safety_input(self, flow: str, messages: list[dict]) -> RailResult:
@@ -241,9 +261,13 @@ class RailsManager:
         if not model_type:
             raise RuntimeError(f"Model not specified for topic-safety input rail: {flow}")
 
+        req_id = get_request_id()
+        log.info("[%s] Checking topic safety input via model '%s'", req_id, model_type)
+
         last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)
         system_prompt = self._render_topic_safety_prompt(prompt_key)
+        log.debug("[%s] Topic safety input user content: %s", req_id, truncate(last_user_content))
 
         try:
             response_text = await self.model_manager.generate_async(
@@ -255,22 +279,28 @@ class RailsManager:
                 temperature=TOPIC_SAFETY_TEMPERATURE,
                 max_tokens=TOPIC_SAFETY_MAX_TOKENS,
             )
+            log.debug("[%s] Topic safety input response: %s", req_id, truncate(response_text))
             return self._parse_topic_safety_response(response_text)
 
         except Exception as e:
-            log.error("Topic safety input check failed: %s", e)
+            log.error("[%s] Topic safety input check failed: %s", req_id, e)
             return RailResult(is_safe=False, reason=f"Topic safety input check error: {e}")
 
     async def _check_jailbreak_detection(self, messages: list[dict]) -> RailResult:
         """Check for jailbreak attempts by calling the jailbreak detection APIEngine."""
+        req_id = get_request_id()
+        log.info("[%s] Checking jailbreak detection", req_id)
+
         last_user_content = self._last_user_content(messages)
+        log.debug("[%s] Jailbreak detection input: %s", req_id, truncate(last_user_content))
 
         try:
             response = await self.model_manager.api_call("jailbreak_detection", {"input": last_user_content})
+            log.debug("[%s] Jailbreak detection response: %s", req_id, truncate(response))
             return self._parse_jailbreak_response(response)
 
         except Exception as e:
-            log.error("Jailbreak detection check failed: %s", e)
+            log.error("[%s] Jailbreak detection check failed: %s", req_id, e)
             return RailResult(is_safe=False, reason=f"Jailbreak detection check error: {e}")
 
     @staticmethod

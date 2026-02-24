@@ -22,6 +22,7 @@ Retries are handled by aiohttp-retry (ExponentialRetry).
 
 import logging
 import os
+import time
 from typing import Any, Optional, cast
 
 import aiohttp
@@ -34,7 +35,7 @@ from nemoguardrails.guardrails._http import (
     RETRYABLE_STATUS_CODES,
     safe_read_body,
 )
-from nemoguardrails.guardrails.guardrails_types import LLMMessages
+from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
 from nemoguardrails.rails.llm.config import Model
 
 log = logging.getLogger(__name__)
@@ -190,6 +191,11 @@ class ModelEngine:
             **kwargs,
         }
 
+        req_id = get_request_id()
+        log.info("[%s] HTTP POST %s model='%s'", req_id, url, self.model_name)
+        log.debug("[%s] HTTP request body: %s", req_id, truncate(body))
+
+        t0 = time.monotonic()
         try:
             async with client.post(url, json=body, headers=headers) as response:
                 if response.status >= 400:
@@ -199,7 +205,16 @@ class ModelEngine:
                         model_name=self.model_name,
                         status=response.status,
                     )
-                return await response.json()
+                result = await response.json()
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.debug(
+                    "[%s] HTTP response status=%s time=%.1fms body: %s",
+                    req_id,
+                    response.status,
+                    elapsed_ms,
+                    truncate(result),
+                )
+                return result
 
         except ModelEngineError:
             raise

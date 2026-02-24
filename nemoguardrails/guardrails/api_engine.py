@@ -18,10 +18,13 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 import aiohttp
 from aiohttp_retry import ExponentialRetry, RetryClient
+
+from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
@@ -132,6 +135,11 @@ class APIEngine:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
+        req_id = get_request_id()
+        log.info("[%s] HTTP POST %s", req_id, url)
+        log.debug("[%s] HTTP request body: %s", req_id, truncate(request_body))
+
+        t0 = time.monotonic()
         try:
             async with client.post(url, json=request_body, headers=headers) as response:
                 if response.status >= 400:
@@ -141,7 +149,16 @@ class APIEngine:
                         endpoint=url,
                         status=response.status,
                     )
-                return await response.json()
+                result = await response.json()
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.debug(
+                    "[%s] HTTP response status=%s time=%.1fms body: %s",
+                    req_id,
+                    response.status,
+                    elapsed_ms,
+                    truncate(result),
+                )
+                return result
 
         except aiohttp.ContentTypeError as exc:
             raise APIEngineError(f"Failed to parse response as JSON: {exc}", endpoint=url, status=exc.status) from exc

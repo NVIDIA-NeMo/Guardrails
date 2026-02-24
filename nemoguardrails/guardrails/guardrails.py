@@ -26,6 +26,7 @@ from typing import AsyncIterator, Optional, Tuple, Union, cast, overload
 
 from langchain_core.language_models import BaseChatModel, BaseLLM
 
+from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
@@ -62,6 +63,11 @@ class Guardrails:
 
         self.config = config
         self.verbose = verbose
+
+        if verbose:
+            configure_logging(logging.DEBUG)
+        else:
+            configure_logging(logging.INFO)
 
         # Whether to use IORailsEngine for inference requests
         use_iorails_engine = use_iorails and self._has_only_iorails_flows()

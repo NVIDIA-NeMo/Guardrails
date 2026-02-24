@@ -23,7 +23,14 @@ outside this supported set, the standard LLMRails engine should be used instead.
 import asyncio
 import logging
 
-from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages
+from nemoguardrails.guardrails.guardrails_types import (
+    LLMMessage,
+    LLMMessages,
+    _request_id_var,
+    get_request_id,
+    new_request_id,
+    truncate,
+)
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -90,27 +97,39 @@ class IORails:
 
     async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Run input rails, generation, and output rails. Return response if safe."""
+        token = new_request_id()
+        req_id = get_request_id()
+        try:
+            log.info("[%s] generate_async called", req_id)
+            log.debug("[%s] generate_async messages=%s", req_id, truncate(messages))
 
-        # Step 1: Check input rails
-        input_result = await self.rails_manager.is_input_safe(messages)
-        if not input_result.is_safe:
-            log.info("Input blocked: %s", input_result.reason)
-            return {"role": "assistant", "content": REFUSAL_MESSAGE}
+            # Step 1: Check input rails
+            log.info("[%s] Running input rails", req_id)
+            input_result = await self.rails_manager.is_input_safe(messages)
+            if not input_result.is_safe:
+                log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
-        # Step 2: Generate response from main LLM
-        # If we got an `options=GenerationOptions`, then unpack GenerationOptions.llm_params and add
-        # that to the main LLM call
-        llm_kwargs = {}
-        if kwargs.get("options") and isinstance(kwargs["options"], GenerationOptions):
-            generation_options = kwargs["options"]
-            llm_kwargs = generation_options.llm_params if generation_options.llm_params else {}
+            # Step 2: Generate response from main LLM
+            # If we got an `options=GenerationOptions`, then unpack GenerationOptions.llm_params and add
+            # that to the main LLM call
+            log.info("[%s] Calling main LLM", req_id)
+            llm_kwargs = {}
+            if kwargs.get("options") and isinstance(kwargs["options"], GenerationOptions):
+                generation_options = kwargs["options"]
+                llm_kwargs = generation_options.llm_params if generation_options.llm_params else {}
 
-        response_text = await self.model_manager.generate_async("main", messages, **llm_kwargs)
+            response_text = await self.model_manager.generate_async("main", messages, **llm_kwargs)
+            log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
-        # Step 3: Check output rails
-        output_result = await self.rails_manager.is_output_safe(messages, response_text)
-        if not output_result.is_safe:
-            log.info("Output blocked: %s", output_result.reason)
-            return {"role": "assistant", "content": REFUSAL_MESSAGE}
+            # Step 3: Check output rails
+            log.info("[%s] Running output rails", req_id)
+            output_result = await self.rails_manager.is_output_safe(messages, response_text)
+            if not output_result.is_safe:
+                log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
-        return {"role": "assistant", "content": response_text}
+            log.info("[%s] generate_async completed", req_id)
+            return {"role": "assistant", "content": response_text}
+        finally:
+            _request_id_var.reset(token)

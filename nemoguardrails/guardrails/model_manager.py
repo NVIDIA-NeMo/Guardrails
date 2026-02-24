@@ -20,9 +20,11 @@ Each ModelEngine owns its own RetryClient with per-model settings.
 """
 
 import logging
+import time
 from typing import Any
 
 from nemoguardrails.guardrails.api_engine import APIEngine
+from nemoguardrails.guardrails.guardrails_types import LLMMessage, get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 
@@ -148,13 +150,29 @@ class ModelManager:
 
     async def generate_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
         """Generate a chat completion response from the named model engine."""
+        req_id = get_request_id()
+        log.info("[%s] Requesting model engine '%s'", req_id, model_type)
+        log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
+
         engine = self._get_model_engine(model_type)
+        t0 = time.monotonic()
         response = await engine.call(messages, **kwargs)
-        return response["choices"][0]["message"]["content"]
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        result = response["choices"][0]["message"]["content"]
+
+        log.debug("[%s] Model engine '%s' response (%.1fms): %s", req_id, model_type, elapsed_ms, truncate(result))
+        return result
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        req_id = get_request_id()
+        log.info("[%s] Requesting API engine '%s'", req_id, api_name)
+        log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
         api_engine = self._get_api_engine(api_name)
+        t0 = time.monotonic()
         response = await api_engine.call(message, **kwargs)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+
+        log.debug("[%s] API engine '%s' response (%.1fms): %s", req_id, api_name, elapsed_ms, truncate(response))
         return response
 
     async def __aenter__(self):
