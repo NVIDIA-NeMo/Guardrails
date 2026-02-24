@@ -39,6 +39,7 @@ class IORails:
 
     def __init__(self, config: RailsConfig) -> None:
         self._running = False
+        self.config = config
 
         # Model Manager has one or more ModelEngine inside. Each ModelEngine calls a single model or API
         self.model_manager = ModelManager(config.models)

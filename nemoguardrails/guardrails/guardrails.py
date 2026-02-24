@@ -22,7 +22,6 @@ LLM responses with programmable guardrails.
 """
 
 import logging
-from enum import Enum
 from typing import AsyncIterator, Optional, Tuple, Union, cast, overload
 
 from langchain_core.language_models import BaseChatModel, BaseLLM
@@ -40,17 +39,6 @@ MAX_QUEUE_SIZE = 100
 MAX_CONCURRENCY = 10
 
 log = logging.getLogger(__name__)
-
-
-class MessageRole(str, Enum):
-    """Enumeration of message roles in a conversation."""
-
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-    CONTEXT = "context"
-    EVENT = "event"
-    TOOL = "tool"
 
 
 # Set with flows supported by the IORailsEngine
@@ -77,7 +65,7 @@ class Guardrails:
 
         # Whether to use IORailsEngine for inference requests
         use_iorails_engine = use_iorails and self._has_only_iorails_flows()
-        self.rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
+        self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
 
         # Async work queue for managing concurrent generate_async requests
         self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
@@ -89,6 +77,11 @@ class Guardrails:
 
         # List of all queues for lifecycle management
         self._queues = [self._generate_async_queue]
+
+    @property
+    def rails_engine(self) -> IORails | LLMRails:
+        """Get immutable LLMRails object"""
+        return self._rails_engine
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
