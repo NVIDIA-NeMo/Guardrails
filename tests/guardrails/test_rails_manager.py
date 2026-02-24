@@ -396,7 +396,6 @@ class TestIsOutputSafe:
 
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "Here's my response"
-
         )
         assert result.is_safe
         content_safety_rails_manager.model_manager.generate_async.assert_called_once()
@@ -415,7 +414,6 @@ class TestIsOutputSafe:
 
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "bad response"
-
         )
         assert not result.is_safe
         assert "Controlled/Regulated Substances" in result.reason
@@ -427,7 +425,6 @@ class TestIsOutputSafe:
         content_safety_rails_manager.output_flows = []
         result = await content_safety_rails_manager.is_output_safe(
             [{"role": "user", "content": "hello"}], "any response"
-
         )
         assert result.is_safe
 
@@ -473,7 +470,6 @@ class TestEndToEndContentSafetyCheck:
         flow = "content safety check input $model=content_safety"
         result = await content_safety_rails_manager._check_content_safety_input(
             flow, [{"role": "user", "content": "test input"}]
-
         )
         assert result.is_safe
 

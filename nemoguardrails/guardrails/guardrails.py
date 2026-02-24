@@ -28,11 +28,11 @@ from langchain_core.language_models import BaseChatModel, BaseLLM
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
+from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
-from nemoguardrails.guardrails.iorails import IORails
 
 # Queue configuration constants
 MAX_QUEUE_SIZE = 100
@@ -102,7 +102,6 @@ class Guardrails:
     def rails_engine(self) -> IORails | LLMRails:
         """Get immutable LLMRails object"""
         return self._rails_engine
-
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
