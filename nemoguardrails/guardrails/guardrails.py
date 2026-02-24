@@ -46,11 +46,6 @@ IORAILS_RAILS = {"input", "output"}
 IORAILS_INPUT_FLOWS = {"content safety check input"}
 IORAILS_OUTPUT_FLOWS = {"content safety check output"}
 
-# Set with flows supported by the IORailsEngine
-IORAILS_RAILS = {"input", "output"}
-IORAILS_INPUT_FLOWS = {"content safety check input"}
-IORAILS_OUTPUT_FLOWS = {"content safety check output"}
-
 
 class Guardrails:
     """Top-level interface for NeMo Guardrails functionality."""
@@ -69,13 +64,8 @@ class Guardrails:
         self.verbose = verbose
 
         # Whether to use IORailsEngine for inference requests
-        self._use_iorails_engine: bool = use_iorails and self._has_only_iorails_flows()
-        self._llmrails = LLMRails(config, llm, verbose)
-        self._iorails = IORails(config)
-        self._rails_engine = self._iorails if self._use_iorails_engine else self._llmrails
-
-        # Whether to use IORailsEngine for inference requests
-        self._use_iorails_engine: bool = self._has_only_iorails_flows()
+        use_iorails_engine = use_iorails and self._has_only_iorails_flows()
+        self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
 
         # Async work queue for managing concurrent generate_async requests
         self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
@@ -87,16 +77,6 @@ class Guardrails:
 
         # List of all queues for lifecycle management
         self._queues = [self._generate_async_queue]
-
-    @property
-    def iorails(self) -> IORails:
-        """Get immutable IORails object"""
-        return self._iorails
-
-    @property
-    def llmrails(self) -> LLMRails:
-        """Get immutable LLMRails object"""
-        return self._llmrails
 
     @property
     def rails_engine(self) -> IORails | LLMRails:
@@ -150,7 +130,10 @@ class Guardrails:
             raise NotImplementedError("IORails doesn't support generate()")
 
         generate_messages = self._convert_to_messages(prompt, messages)
-        response = self.llmrails.generate(messages=generate_messages, **kwargs)
+
+        # self.rails_engine must be LLMRails since we raise above if we're using IORails
+        llmrails = cast(LLMRails, self.rails_engine)
+        response = llmrails.generate(messages=generate_messages, **kwargs)
         return response
 
     @overload
@@ -195,7 +178,9 @@ class Guardrails:
             raise NotImplementedError("IORails doesn't support stream_async()")
 
         stream_messages = self._convert_to_messages(prompt, messages)
-        return self._llmrails.stream_async(messages=stream_messages, **kwargs)
+        # self.rails_engine must be LLMRails since we raise above if we're using IORails
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.stream_async(messages=stream_messages, **kwargs)
 
     def explain(self) -> ExplainInfo:
         """Get the latest ExplainInfo object for debugging.
