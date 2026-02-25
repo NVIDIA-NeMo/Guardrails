@@ -68,7 +68,7 @@ prompts:
       Guidelines for the user messages:
       - Do not answer questions related to personal opinions or advice on user's order, future recommendations
       - Do not provide any information on non-company products or services.
-      - Do not answer enquiries unrelated to the companny policies.
+      - Do not answer enquiries unrelated to the company policies.
       - Do not answer questions asking for personal details about the agent or its creators.
       - Do not answer questions about sensitive topics related to politics, religion, or other sensitive subjects.
       - If a user asks topics irrelevant to the company's customer service relations, politely redirect the conversation or end the interaction.
