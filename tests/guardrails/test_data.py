@@ -251,22 +251,32 @@ NEMOGUARDS_PARALLEL_INPUT_CONFIG = {
     },
 }
 
-# Nemoguards config only has one output rail, so add a self-check which can be run in parallel
+# Nemoguards config only has one output rail, so add a second content-safety output with a different model
 NEMOGUARDS_PARALLEL_OUTPUT_CONFIG = {
-    **NEMOGUARDS_CONFIG,
+    "models": NEMOGUARDS_CONFIG["models"]
+    + [
+        {
+            "type": "content_safety2",
+            "engine": "nim",
+            "model": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+        }
+    ],
     "rails": {
         **NEMOGUARDS_CONFIG["rails"],
         "output": {
             **NEMOGUARDS_CONFIG["rails"]["output"],
             "parallel": True,
-            "flows": NEMOGUARDS_CONFIG["rails"]["output"]["flows"] + ["self check output"],
+            "flows": NEMOGUARDS_CONFIG["rails"]["output"]["flows"]
+            + ["content safety check output $model=content_safety2"],
         },
     },
     "prompts": NEMOGUARDS_CONFIG["prompts"]
     + [
         {
-            "task": "self_check_output",
-            "content": "Check if the bot response is safe.\n\nBot response: {{ bot_response }}\n\nAnswer (Yes/No):",
+            "task": "content_safety_check_output $model=content_safety2",
+            "content": CONTENT_SAFETY_OUTPUT_PROMPT,
+            "output_parser": "nemoguard_parse_response_safety",
+            "max_tokens": 50,
         },
     ],
 }

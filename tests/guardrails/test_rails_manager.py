@@ -1243,11 +1243,12 @@ class TestParallelBothDirections:
         )
         parallel_rails_manager._check_topic_safety_input = AsyncMock(return_value=RailResult(is_safe=True))
         parallel_rails_manager._check_jailbreak_detection = AsyncMock(return_value=RailResult(is_safe=True))
+        parallel_rails_manager._run_output_rail = AsyncMock(return_value=RailResult(is_safe=True))
+
         result = await parallel_rails_manager.is_input_safe([{"role": "user", "content": "violent"}])
         assert result == RailResult(is_safe=False, reason="Violence")
 
         # Output rails should never run after unsafe input
-        parallel_rails_manager._run_output_rail = AsyncMock(return_value=RailResult(is_safe=True))
         parallel_rails_manager._run_output_rail.assert_not_called()
 
     @pytest.mark.asyncio

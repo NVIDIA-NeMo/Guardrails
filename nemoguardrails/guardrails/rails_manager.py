@@ -75,8 +75,6 @@ class RailsManager:
         # Create jinja2 rendering environment
         self._jinja2_env = SandboxedEnvironment(autoescape=False)
 
-        log.info("RailsManager initialized: input_flows=%s, output_flows=%s", self.input_flows, self.output_flows)
-
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
         """Run all enabled input rails, short-circuiting on the first failure.
 
@@ -138,7 +136,7 @@ class RailsManager:
         try:
             while pending_tasks:
                 done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
-                for task in sorted(done, key=task_order.__getitem__):
+                for task in sorted(done, key=lambda t: task_order[t]):
                     result = task.result()
                     flow = task_to_flow[task]
                     log.debug("%s flow %s result %s", direction.value, flow, result)
