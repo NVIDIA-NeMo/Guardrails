@@ -50,7 +50,7 @@ To use the topic safety check, you should:
           Guidelines for the user messages:
           - Do not answer questions related to personal opinions or advice on user's order, future recommendations
           - Do not provide any information on non-company products or services.
-          - Do not answer enquiries unrelated to the companny policies.
+          - Do not answer enquiries unrelated to the company policies.
     ```
 
 The system prompt must end with the topic safety output restriction - `If any of the above conditions are violated, please respond with "off-topic". Otherwise, respond with "on-topic". You must respond with "on-topic" or "off-topic".` This condition is automatically added to the system prompt by the topic safety check input flow. If you want to customize the output restriction, you can do so by modifying the `TOPIC_SAFETY_OUTPUT_RESTRICTION` variable in the [`topic_safety_check_input`](../../../nemoguardrails/library/topic_safety/actions.py) action.

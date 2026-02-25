@@ -54,7 +54,7 @@ To use the content safety check, you should:
           - content safety check output $model=content_safety
     ```
 
-    You must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safety check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns set of policy violations. Please refer to the [content safety example](../../../examples/configs/content_safety/README.md) for more details.
+    You must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safety check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns a set of policy violations. Please refer to the [content safety example](../../../examples/configs/content_safety/README.md) for more details.
 
 3. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
 
@@ -254,6 +254,7 @@ For more details, check out the [Llama-Guard Integration](../../user-guides/comm
 # Third-party Content Safety APIs
 
 NeMo Guardrails integrates with a collection of third-party managed services which offer content safety guardrails. These include:
+
 - [ActiveFence](../../user-guides/community/active-fence.md)
 - [AutoAlign](../../user-guides/community/auto-align.md)
 - [Clavata](../../user-guides/community/clavata.md)
