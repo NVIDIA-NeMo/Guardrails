@@ -164,13 +164,13 @@ apt-get install gcc g++ python3-dev
 
 :::{tab-item} Windows
 
-Open a terminal and run:
+Open a terminal (CMD or PowerShell) and run:
 
 ```cmd
-cl
+where cl
 ```
 
-If the command prints a version number, a C++ compiler is already installed and no action is needed.
+If the command prints a file path, a C++ compiler is already installed and no action is needed.
 
 If the command is not found, install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (version 14.0 or greater).
 
