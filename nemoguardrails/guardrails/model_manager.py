@@ -20,7 +20,6 @@ Each ModelEngine owns its own RetryClient with per-model settings.
 """
 
 import logging
-import time
 from typing import Any
 
 from nemoguardrails.guardrails.api_engine import APIEngine
@@ -155,12 +154,10 @@ class ModelManager:
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_model_engine(model_type)
-        t0 = time.monotonic()
         response = await engine.call(messages, **kwargs)
-        elapsed_ms = (time.monotonic() - t0) * 1000
         result = response["choices"][0]["message"]["content"]
 
-        log.debug("[%s] Model engine '%s' response (%.1fms): %s", req_id, model_type, elapsed_ms, truncate(result))
+        log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
@@ -168,11 +165,9 @@ class ModelManager:
         log.info("[%s] Requesting API engine '%s'", req_id, api_name)
         log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
         api_engine = self._get_api_engine(api_name)
-        t0 = time.monotonic()
         response = await api_engine.call(message, **kwargs)
-        elapsed_ms = (time.monotonic() - t0) * 1000
 
-        log.debug("[%s] API engine '%s' response (%.1fms): %s", req_id, api_name, elapsed_ms, truncate(response))
+        log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))
         return response
 
     async def __aenter__(self):

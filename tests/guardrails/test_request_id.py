@@ -26,12 +26,39 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id
+from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id, new_request_id, reset_request_id
 from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 REQUEST_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$")
+
+
+class TestResetRequestId:
+    """Direct unit tests for the reset_request_id() public API."""
+
+    def test_reset_restores_default(self):
+        """reset_request_id restores the ContextVar to its default value."""
+        assert get_request_id() == "no-req-id"
+        token = new_request_id()
+        assert get_request_id() != "no-req-id"
+        reset_request_id(token)
+        assert get_request_id() == "no-req-id"
+
+    def test_reset_restores_previous_value(self):
+        """Nested set/reset restores the outer value, not the default."""
+        outer_token = new_request_id()
+        outer_id = get_request_id()
+
+        inner_token = new_request_id()
+        assert get_request_id() != outer_id
+
+        reset_request_id(inner_token)
+        assert get_request_id() == outer_id
+
+        reset_request_id(outer_token)
+        assert get_request_id() == "no-req-id"
 
 
 @pytest.fixture
@@ -284,3 +311,62 @@ class TestMultipleConcurrentRequests:
         )
 
         assert get_request_id() == "no-req-id"
+
+
+class TestEndToEndPropagation:
+    """Request ID propagates through the full stack: IORails -> RailsManager -> ModelManager -> ModelEngine."""
+
+    @pytest.fixture
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def iorails_content_safety(self):
+        """IORails with content-safety-only config (input + output, no jailbreak API)."""
+        config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
+        return IORails(config)
+
+    @pytest.mark.asyncio
+    async def test_same_id_from_iorails_through_model_engine(self, iorails_content_safety):
+        """The request ID set in IORails.generate_async is visible in both RailsManager and ModelEngine."""
+        engine = iorails_content_safety
+        captured_ids: list[tuple[str, str]] = []
+
+        # --- Wrap RailsManager entry points to capture the ID at that layer ---
+        original_is_input_safe = engine.rails_manager.is_input_safe
+        original_is_output_safe = engine.rails_manager.is_output_safe
+
+        async def capturing_is_input_safe(*args, **kwargs):
+            captured_ids.append(("rails_manager_input", get_request_id()))
+            return await original_is_input_safe(*args, **kwargs)
+
+        async def capturing_is_output_safe(*args, **kwargs):
+            captured_ids.append(("rails_manager_output", get_request_id()))
+            return await original_is_output_safe(*args, **kwargs)
+
+        engine.rails_manager.is_input_safe = capturing_is_input_safe
+        engine.rails_manager.is_output_safe = capturing_is_output_safe
+
+        # --- Patch ModelEngine.call to capture the ID at the HTTP layer ---
+        async def capturing_call(self_engine, messages, **kwargs):
+            captured_ids.append((f"model_engine:{self_engine.model_name}", get_request_id()))
+            safe_response = '{"User Safety": "safe", "Response Safety": "safe"}'
+            return {"choices": [{"message": {"content": safe_response}}]}
+
+        with patch.object(ModelEngine, "call", capturing_call):
+            # Skip the "not started" check since we don't call engine.start()
+            for model_engine in engine.model_manager._engines.values():
+                model_engine._running = True
+
+            await engine.generate_async([{"role": "user", "content": "hello"}])
+
+        # We expect 5 captures:
+        #   1. rails_manager_input
+        #   2. model_engine:content_safety  (input check)
+        #   3. model_engine:main            (LLM generation)
+        #   4. rails_manager_output
+        #   5. model_engine:content_safety  (output check)
+        assert len(captured_ids) == 5, f"Expected 5 captures, got {len(captured_ids)}: {captured_ids}"
+
+        ids = [rid for _, rid in captured_ids]
+        # Every layer — RailsManager and ModelEngine — saw the same request ID
+        assert len(set(ids)) == 1, f"Request IDs differ across layers: {captured_ids}"
+        # And it's a valid hex ID
+        assert REQUEST_ID_PATTERN.match(ids[0]), f"Invalid request ID format: {ids[0]}"

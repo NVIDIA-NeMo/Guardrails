@@ -26,9 +26,9 @@ import logging
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
-    _request_id_var,
     get_request_id,
     new_request_id,
+    reset_request_id,
     truncate,
 )
 from nemoguardrails.guardrails.model_manager import ModelManager
@@ -132,4 +132,4 @@ class IORails:
             log.info("[%s] generate_async completed", req_id)
             return {"role": "assistant", "content": response_text}
         finally:
-            _request_id_var.reset(token)
+            reset_request_id(token)

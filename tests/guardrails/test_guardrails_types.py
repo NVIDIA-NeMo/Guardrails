@@ -15,7 +15,7 @@
 
 """Unit tests for guardrails_types module."""
 
-from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages, RailResult
+from nemoguardrails.guardrails.guardrails_types import LLMMessage, LLMMessages, RailResult, truncate
 
 
 class TestRailResult:
@@ -80,6 +80,31 @@ class TestRailResult:
         result = RailResult(is_safe=False, reason="")
         assert result.reason == ""
         assert result != RailResult(is_safe=False, reason=None)
+
+
+class TestTruncate:
+    """Tests for the truncate helper."""
+
+    def test_short_string_unchanged(self):
+        assert truncate("hello", 10) == "hello"
+
+    def test_exact_length_unchanged(self):
+        assert truncate("hello", 5) == "hello"
+
+    def test_long_string_truncated(self):
+        assert truncate("hello world", 5) == "hello..."
+
+    def test_max_len_zero_truncates_everything(self):
+        assert truncate("hello", 0) == "..."
+
+    def test_none_max_len_uses_default(self):
+        short = "x" * 200
+        assert truncate(short, None) == short
+        long = "x" * 201
+        assert truncate(long, None) == "x" * 200 + "..."
+
+    def test_non_string_input_converted(self):
+        assert truncate(12345, 3) == "123..."
 
 
 class TestTypeAliases:

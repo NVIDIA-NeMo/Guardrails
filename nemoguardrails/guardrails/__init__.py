@@ -40,9 +40,11 @@ def configure_logging(
     if handler is None:
         handler = logging.StreamHandler()
 
-    handler.setLevel(level)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    if not logger.handlers:
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
     logger.propagate = False
 
     return logger

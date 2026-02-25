@@ -56,10 +56,15 @@ def get_request_id() -> str:
     return _request_id_var.get()
 
 
+def reset_request_id(token: Token[str]) -> None:
+    """Restore the request ID ContextVar to its previous value."""
+    _request_id_var.reset(token)
+
+
 def truncate(text: object, max_len: int | None = None) -> str:
     """Return ``str(text)`` truncated to *max_len* characters (default: LOG_CONTENT_TRUNCATE_LENGTH)."""
     s = str(text)
-    limit = max_len if max_len else LOG_CONTENT_TRUNCATE_LENGTH
+    limit = max_len if max_len is not None else LOG_CONTENT_TRUNCATE_LENGTH
     if len(s) <= limit:
         return s
     return s[:limit] + "..."
