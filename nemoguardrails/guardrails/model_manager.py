@@ -24,7 +24,7 @@ import time
 from typing import Any
 
 from nemoguardrails.guardrails.api_engine import APIEngine
-from nemoguardrails.guardrails.guardrails_types import LLMMessage, get_request_id, truncate
+from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 
