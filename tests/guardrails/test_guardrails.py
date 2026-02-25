@@ -732,6 +732,42 @@ class TestGuardrailsLifecycle:
         await guardrails.startup()
         await guardrails.shutdown()
 
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_startup_is_idempotent(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """Calling startup() twice only starts engines once."""
+        guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
+        await guardrails.startup()
+        await guardrails.startup()
+        mock_start.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_shutdown_without_startup_is_noop(
+        self, mock_init, mock_start, mock_stop, _content_safety_rails_config
+    ):
+        """Calling shutdown() without startup() does not call stop."""
+        guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
+        await guardrails.shutdown()
+        mock_stop.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_generate_async_lazy_starts(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """generate_async() calls startup() automatically if not already started."""
+        guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
+        guardrails._rails_engine.generate_async = AsyncMock(return_value={"role": "assistant", "content": "hi"})
+        assert not guardrails._started
+        await guardrails.generate_async(messages=[{"role": "user", "content": "hello"}])
+        assert guardrails._started
+        mock_start.assert_called_once()
+
 
 class TestHasOnlyIORailsFlows:
     """Check all the permutations of configs with `has_only_iorails_flows()`"""

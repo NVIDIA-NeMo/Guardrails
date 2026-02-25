@@ -78,6 +78,9 @@ class Guardrails:
         # List of all queues for lifecycle management
         self._queues = [self._generate_async_queue]
 
+        # Track whether startup() has been called (supports lazy initialization)
+        self._started = False
+
     @property
     def rails_engine(self) -> IORails | LLMRails:
         """Get immutable LLMRails object"""
@@ -121,6 +124,11 @@ class Guardrails:
 
         return True
 
+    async def _ensure_started(self) -> None:
+        """Lazy initialization: call startup() on first use if not already started."""
+        if not self._started:
+            await self.startup()
+
     def generate(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
@@ -155,6 +163,7 @@ class Guardrails:
         """Generate an LLM response asynchronously with guardrails applied.
         Supported by both LLMRails and IORails
         """
+        await self._ensure_started()
 
         generate_messages = self._convert_to_messages(prompt, messages)
         response = await self._generate_async_queue.submit(
@@ -201,18 +210,32 @@ class Guardrails:
         llmrails.update_llm(llm)
 
     async def startup(self) -> None:
-        """Lifecycle method to start async worker tasks and the rails engine"""
+        """Lifecycle method to start async worker tasks and the rails engine.
+
+        Idempotent: safe to call multiple times. Also called automatically
+        on first generate_async() if not called explicitly, so callers are
+        not required to manage the lifecycle.
+        """
+        if self._started:
+            return
         for queue in self._queues:
             await queue.start()
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.start()
+        self._started = True
 
     async def shutdown(self) -> None:
-        """Lifecycle method to stop async worker tasks and the rails engine"""
+        """Lifecycle method to stop async worker tasks and the rails engine.
+
+        Idempotent: safe to call multiple times.
+        """
+        if not self._started:
+            return
         for queue in self._queues:
             await queue.stop()
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.stop()
+        self._started = False
 
     async def __aenter__(self):
         """Async context manager entry."""
