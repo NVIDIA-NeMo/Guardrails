@@ -27,6 +27,13 @@ from typing import Any, Optional, cast
 import aiohttp
 from aiohttp_retry import ExponentialRetry, RetryClient
 
+from nemoguardrails.guardrails._http import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_TIMEOUT_CONNECT,
+    DEFAULT_TIMEOUT_TOTAL,
+    RETRYABLE_STATUS_CODES,
+    safe_read_body,
+)
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.rails.llm.config import Model
 
@@ -39,13 +46,6 @@ _ENGINE_BASE_URLS = {
 }
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
-
-_DEFAULT_MAX_ATTEMPTS = 3  # Total attempts (original + retries) with exponential backoff between each
-_DEFAULT_TIMEOUT_TOTAL = 30  # Max seconds for an entire request-response cycle (connect + send + read)
-_DEFAULT_TIMEOUT_CONNECT = 5  # Max seconds to establish a TCP connection; subset of the total timeout budget
-
-# HTTP status codes worth retrying
-_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 class ModelEngineError(Exception):
@@ -73,12 +73,12 @@ class ModelEngine:
         # Configurable from model parameters
         params = model_config.parameters or {}
         self._timeout = aiohttp.ClientTimeout(
-            total=float(params.get("timeout", _DEFAULT_TIMEOUT_TOTAL)),
-            connect=float(params.get("timeout_connect", _DEFAULT_TIMEOUT_CONNECT)),
+            total=float(params.get("timeout", DEFAULT_TIMEOUT_TOTAL)),
+            connect=float(params.get("timeout_connect", DEFAULT_TIMEOUT_CONNECT)),
         )
         self._retry_options = ExponentialRetry(
-            attempts=int(params.get("max_attempts", _DEFAULT_MAX_ATTEMPTS)),
-            statuses=set(_RETRYABLE_STATUS_CODES),
+            attempts=int(params.get("max_attempts", DEFAULT_MAX_ATTEMPTS)),
+            statuses=set(RETRYABLE_STATUS_CODES),
             exceptions={aiohttp.ClientConnectionError},
         )
         self._client: Optional[RetryClient] = None
@@ -169,9 +169,11 @@ class ModelEngine:
             ModelEngineError: If the request fails after all retries.
         """
 
-        # Lazy-initialize client if `start()` hasn't yet been called.
         if not self._running:
-            await self.start()
+            raise ModelEngineError(
+                f"ModelEngine for '{self.model_name}' has not been started. Call start() first.",
+                model_name=self.model_name,
+            )
 
         # Cast as RetryClient so type-checking knows it isn't None
         client = cast(RetryClient, self._client)
@@ -191,7 +193,7 @@ class ModelEngine:
         try:
             async with client.post(url, json=body, headers=headers) as response:
                 if response.status >= 400:
-                    error_body = await _safe_read_body(response)
+                    error_body = await safe_read_body(response)
                     raise ModelEngineError(
                         f"HTTP {response.status} from model '{self.model_name}': {error_body}",
                         model_name=self.model_name,
@@ -215,12 +217,3 @@ class ModelEngine:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Context manager (used for testing rather than long-lived instance)"""
         await self.stop()
-
-
-async def _safe_read_body(response: aiohttp.ClientResponse, max_chars: int = 500) -> str:
-    """Read response body for error messages, truncating if too large."""
-    try:
-        text = await response.text()
-        return text[:max_chars] if len(text) > max_chars else text
-    except Exception:
-        return "<could not read response body>"

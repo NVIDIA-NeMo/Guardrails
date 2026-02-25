@@ -17,17 +17,18 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from pydantic import SecretStr
 
+from nemoguardrails.guardrails._http import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_TIMEOUT_CONNECT,
+    DEFAULT_TIMEOUT_TOTAL,
+)
 from nemoguardrails.guardrails.api_engine import (
-    _DEFAULT_MAX_ATTEMPTS,
-    _DEFAULT_TIMEOUT_CONNECT,
-    _DEFAULT_TIMEOUT_TOTAL,
-    _RETRYABLE_STATUS_CODES,
     APIEngine,
     APIEngineError,
-    _safe_read_body,
 )
 from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
 
@@ -85,8 +86,8 @@ class TestAPIEngineInit:
     def test_default_timeout_values(self):
         """Timeout defaults match module constants."""
         engine = APIEngine(base_url="https://api.example.com", endpoint="/classify")
-        assert engine._timeout.total == _DEFAULT_TIMEOUT_TOTAL
-        assert engine._timeout.connect == _DEFAULT_TIMEOUT_CONNECT
+        assert engine._timeout.total == DEFAULT_TIMEOUT_TOTAL
+        assert engine._timeout.connect == DEFAULT_TIMEOUT_CONNECT
 
     def test_custom_timeout_values(self):
         """Timeout values can be overridden."""
@@ -107,7 +108,7 @@ class TestAPIEngineInit:
     def test_default_max_attempts(self):
         """Max attempts defaults to module constant."""
         engine = APIEngine(base_url="https://api.example.com", endpoint="/classify")
-        assert engine._retry_options.attempts == _DEFAULT_MAX_ATTEMPTS
+        assert engine._retry_options.attempts == DEFAULT_MAX_ATTEMPTS
 
     def test_client_initially_none(self):
         """RetryClient is not created until start() is called."""
@@ -320,91 +321,36 @@ class TestAPIEngineCall:
             await engine.call({"input": "test"})
 
     @pytest.mark.asyncio
-    async def test_call_lazy_initializes_client(self):
-        """call() auto-starts the client if start() hasn't been called."""
+    async def test_call_content_type_error_raises_api_engine_error(self):
+        """ContentTypeError from response.json() is caught and wrapped in APIEngineError."""
+        engine = APIEngine(base_url="https://api.example.com", endpoint="/v1/classify")
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=False)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(
+            side_effect=aiohttp.ContentTypeError(
+                MagicMock(real_url="https://api.example.com/v1/classify"),
+                (),
+                message="Attempt to decode JSON with unexpected mimetype: text/html",
+            )
+        )
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(APIEngineError, match="Failed to parse response as JSON"):
+            await engine.call({"input": "test"})
+
+    @pytest.mark.asyncio
+    async def test_call_raises_if_not_started(self):
+        """call() raises APIEngineError if start() hasn't been called."""
         engine = APIEngine(base_url="https://api.example.com", endpoint="/v1/classify")
         assert engine._client is None
 
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value={"jailbreak": False, "score": -0.87})
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=False)
-
-        async def fake_start():
-            mock_client = AsyncMock()
-            mock_client.post = MagicMock(return_value=mock_response)
-            mock_client.closed = False
-            engine._client = mock_client
-            engine._running = True
-
-        with patch.object(engine, "start", side_effect=fake_start) as start_mock:
-            result = await engine.call({"input": "test"})
-            start_mock.assert_called_once()
-            assert result == {"jailbreak": False, "score": -0.87}
-
-
-class TestSafeReadBody:
-    """Test _safe_read_body error body extraction and truncation."""
-
-    @pytest.mark.asyncio
-    async def test_reads_short_body(self):
-        """Short body is returned as-is."""
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value="short error message")
-        result = await _safe_read_body(mock_response)
-        assert result == "short error message"
-
-    @pytest.mark.asyncio
-    async def test_truncates_long_body(self):
-        """Body over 500 chars is truncated to 500."""
-        long_text = "x" * 1000
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=long_text)
-        result = await _safe_read_body(mock_response)
-        assert len(result) == 500
-
-    @pytest.mark.asyncio
-    async def test_handles_read_failure(self):
-        """Returns fallback string when response.text() raises."""
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(side_effect=Exception("read failed"))
-        result = await _safe_read_body(mock_response)
-        assert result == "<could not read response body>"
-
-    @pytest.mark.asyncio
-    async def test_exactly_500_chars_not_truncated(self):
-        """Body of exactly 500 chars is not truncated."""
-        text = "a" * 500
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=text)
-        result = await _safe_read_body(mock_response)
-        assert len(result) == 500
-
-    @pytest.mark.asyncio
-    async def test_501_chars_truncated(self):
-        """Body of 501 chars is truncated to 500."""
-        text = "a" * 501
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=text)
-        result = await _safe_read_body(mock_response)
-        assert len(result) == 500
-
-
-class TestModuleConstants:
-    """Test values of module-level constants."""
-
-    def test_retryable_status_codes_is_frozenset(self):
-        """Retryable codes include 429 and 5xx server errors."""
-        assert isinstance(_RETRYABLE_STATUS_CODES, frozenset)
-        assert 429 in _RETRYABLE_STATUS_CODES
-        assert 500 in _RETRYABLE_STATUS_CODES
-
-    def test_default_timeout_total(self):
-        assert _DEFAULT_TIMEOUT_TOTAL == 30
-
-    def test_default_timeout_connect(self):
-        assert _DEFAULT_TIMEOUT_CONNECT == 5
-
-    def test_default_max_attempts(self):
-        assert _DEFAULT_MAX_ATTEMPTS == 3
+        with pytest.raises(APIEngineError, match="has not been started"):
+            await engine.call({"input": "test"})

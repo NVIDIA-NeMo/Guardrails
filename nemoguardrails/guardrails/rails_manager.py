@@ -32,7 +32,7 @@ from nemoguardrails.library.topic_safety.actions import (
     TOPIC_SAFETY_TEMPERATURE,
 )
 from nemoguardrails.llm.output_parsers import nemoguard_parse_prompt_safety, nemoguard_parse_response_safety
-from nemoguardrails.rails.llm.config import RailsConfig, TaskPrompt, get_flow_model, get_flow_name
+from nemoguardrails.rails.llm.config import RailsConfig, TaskPrompt, _get_flow_model, _get_flow_name
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,6 @@ class RailsManager:
             result = await self._run_input_rail(flow, messages)
             log.debug("Input flow %s result %s", flow, result)
             if not result.is_safe:
-                log.info("Input flow %s blocked messages %s", flow, messages)
                 return result
 
         return RailResult(is_safe=True)
@@ -85,7 +84,6 @@ class RailsManager:
             result = await self._run_output_rail(flow, messages, response)
             log.debug("Output flow %s result %s", flow, result)
             if not result.is_safe:
-                log.info("Output flow %s blocked messages %s", flow, messages)
                 return result
 
         return RailResult(is_safe=True)
@@ -93,7 +91,7 @@ class RailsManager:
     async def _run_input_rail(self, flow: str, messages: list[dict]) -> RailResult:
         """Run an input rail flow if it's supported. If not raise an exception"""
         # Extract the base flow name (strip any $model=... parameter)
-        base_flow = get_flow_name(flow)
+        base_flow = _get_flow_name(flow)
 
         if base_flow == "content safety check input":
             return await self._check_content_safety_input(flow, messages)
@@ -106,7 +104,7 @@ class RailsManager:
 
     async def _run_output_rail(self, flow: str, messages: list[dict], response: str) -> RailResult:
         """Run an output rail flow if it's supported. If not raise an exception"""
-        base_flow = get_flow_name(flow)
+        base_flow = _get_flow_name(flow)
 
         if base_flow == "content safety check output":
             return await self._check_content_safety_output(flow, messages, response)
@@ -116,7 +114,7 @@ class RailsManager:
     async def _check_content_safety_input(self, flow: str, messages: list[dict]) -> RailResult:
         """Check input content safety via the content_safety model."""
 
-        model_type = get_flow_model(flow)
+        model_type = _get_flow_model(flow)
         if not model_type:
             raise RuntimeError(f"Model not specified for content-safety input rail: {flow}")
 
@@ -138,7 +136,7 @@ class RailsManager:
 
     async def _check_content_safety_output(self, flow: str, messages: list[dict], response: str) -> RailResult:
         """Check output content safety via the content_safety model."""
-        model_type = get_flow_model(flow)
+        model_type = _get_flow_model(flow)
         if not model_type:
             raise RuntimeError(f"Model not specified for content-safety output rail: {flow}")
 
@@ -165,9 +163,9 @@ class RailsManager:
         This matches the library action behavior which includes all prior turns
         so the model has context for follow-up messages.
         """
-        model_type = get_flow_model(flow)
+        model_type = _get_flow_model(flow)
         if not model_type:
-            raise RuntimeError(f"Model not specified for topic-safety output rail: {flow}")
+            raise RuntimeError(f"Model not specified for topic-safety input rail: {flow}")
 
         last_user_content = self._last_user_content(messages)
         prompt_key = self._flow_to_prompt_key(flow)

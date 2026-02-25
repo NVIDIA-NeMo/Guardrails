@@ -30,7 +30,7 @@ from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
-from nemoguardrails.rails.llm.config import RailsConfig, get_flow_name
+from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
 
@@ -110,12 +110,12 @@ class Guardrails:
             return False
 
         for flow in self.config.rails.input.flows:
-            flow_name = get_flow_name(flow)
+            flow_name = _get_flow_name(flow)
             if flow_name not in IORAILS_INPUT_FLOWS:
                 return False
 
         for flow in self.config.rails.output.flows:
-            flow_name = get_flow_name(flow)
+            flow_name = _get_flow_name(flow)
             if flow_name not in IORAILS_OUTPUT_FLOWS:
                 return False
 

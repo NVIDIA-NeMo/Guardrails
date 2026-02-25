@@ -447,6 +447,33 @@ class TestRailDispatch:
             )
 
 
+class TestMissingModelRaises:
+    """Test that flows without $model= raise RuntimeError."""
+
+    @pytest.mark.asyncio
+    async def test_content_safety_input_without_model_raises(self, content_safety_rails_manager):
+        """Content safety input flow without $model= raises RuntimeError."""
+        flow = "content safety check input"
+        with pytest.raises(RuntimeError, match="Model not specified for content-safety input rail"):
+            await content_safety_rails_manager._check_content_safety_input(flow, [{"role": "user", "content": "hi"}])
+
+    @pytest.mark.asyncio
+    async def test_content_safety_output_without_model_raises(self, content_safety_rails_manager):
+        """Content safety output flow without $model= raises RuntimeError."""
+        flow = "content safety check output"
+        with pytest.raises(RuntimeError, match="Model not specified for content-safety output rail"):
+            await content_safety_rails_manager._check_content_safety_output(
+                flow, [{"role": "user", "content": "hi"}], "response"
+            )
+
+    @pytest.mark.asyncio
+    async def test_topic_safety_input_without_model_raises(self, topic_safety_rails_manager):
+        """Topic safety input flow without $model= raises RuntimeError."""
+        flow = "topic safety check input"
+        with pytest.raises(RuntimeError, match="Model not specified for topic-safety input rail"):
+            await topic_safety_rails_manager._check_topic_safety_input(flow, [{"role": "user", "content": "hi"}])
+
+
 class TestEndToEndContentSafetyCheck:
     """Test content safety input and output from prompt rendering, model call, and response"""
 

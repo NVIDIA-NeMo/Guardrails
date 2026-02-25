@@ -26,12 +26,15 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 if TYPE_CHECKING:
     from nemoguardrails.rails.llm.config import JailbreakDetectionConfig
 
-log = logging.getLogger(__name__)
+from nemoguardrails.guardrails._http import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_TIMEOUT_CONNECT,
+    DEFAULT_TIMEOUT_TOTAL,
+    RETRYABLE_STATUS_CODES,
+    safe_read_body,
+)
 
-_DEFAULT_MAX_ATTEMPTS = 3
-_DEFAULT_TIMEOUT_TOTAL = 30
-_DEFAULT_TIMEOUT_CONNECT = 5
-_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+log = logging.getLogger(__name__)
 
 
 class APIEngineError(Exception):
@@ -52,9 +55,9 @@ class APIEngine:
         base_url: str,
         endpoint: str,
         api_key: Optional[str] = None,
-        timeout_total: float = _DEFAULT_TIMEOUT_TOTAL,
-        timeout_connect: float = _DEFAULT_TIMEOUT_CONNECT,
-        max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
+        timeout_total: float = DEFAULT_TIMEOUT_TOTAL,
+        timeout_connect: float = DEFAULT_TIMEOUT_CONNECT,
+        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     ) -> None:
         self.base_url = base_url
         self.endpoint = endpoint
@@ -66,7 +69,7 @@ class APIEngine:
         )
         self._retry_options = ExponentialRetry(
             attempts=max_attempts,
-            statuses=set(_RETRYABLE_STATUS_CODES),
+            statuses=set(RETRYABLE_STATUS_CODES),
             exceptions={aiohttp.ClientConnectionError},
         )
         self._client: Optional[RetryClient] = None
@@ -117,7 +120,7 @@ class APIEngine:
     async def call(self, body: dict[str, Any], **kwargs) -> dict:
         """POST the JSON body to the configured endpoint and return the parsed response."""
         if not self._running:
-            await self.start()
+            raise APIEngineError("APIEngine has not been started. Call start() first.", endpoint=self.url)
 
         client = cast(RetryClient, self._client)
         url = self.url
@@ -132,13 +135,16 @@ class APIEngine:
         try:
             async with client.post(url, json=request_body, headers=headers) as response:
                 if response.status >= 400:
-                    error_body = await _safe_read_body(response)
+                    error_body = await safe_read_body(response)
                     raise APIEngineError(
                         f"HTTP {response.status} from endpoint '{url}': {error_body}",
                         endpoint=url,
                         status=response.status,
                     )
                 return await response.json()
+
+        except aiohttp.ContentTypeError as exc:
+            raise APIEngineError(f"Failed to parse response as JSON: {exc}", endpoint=url, status=exc.status) from exc
 
         except APIEngineError:
             raise
@@ -156,12 +162,3 @@ class APIEngine:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         await self.stop()
-
-
-async def _safe_read_body(response: aiohttp.ClientResponse, max_chars: int = 500) -> str:
-    """Read response body for error messages, truncating if too large."""
-    try:
-        text = await response.text()
-        return text[:max_chars] if len(text) > max_chars else text
-    except Exception:
-        return "<could not read response body>"

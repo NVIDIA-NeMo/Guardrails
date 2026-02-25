@@ -19,16 +19,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from nemoguardrails.guardrails._http import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_TIMEOUT_CONNECT,
+    DEFAULT_TIMEOUT_TOTAL,
+)
 from nemoguardrails.guardrails.model_engine import (
     _CHAT_COMPLETIONS_ENDPOINT,
-    _DEFAULT_MAX_ATTEMPTS,
-    _DEFAULT_TIMEOUT_CONNECT,
-    _DEFAULT_TIMEOUT_TOTAL,
     _ENGINE_BASE_URLS,
-    _RETRYABLE_STATUS_CODES,
     ModelEngine,
     ModelEngineError,
-    _safe_read_body,
 )
 from nemoguardrails.rails.llm.config import Model
 
@@ -151,8 +151,8 @@ class TestModelEngineConfig:
     def test_default_timeout_values(self):
         """Timeout defaults match module constants when no parameters given."""
         engine = ModelEngine(_make_model())
-        assert engine._timeout.total == _DEFAULT_TIMEOUT_TOTAL
-        assert engine._timeout.connect == _DEFAULT_TIMEOUT_CONNECT
+        assert engine._timeout.total == DEFAULT_TIMEOUT_TOTAL
+        assert engine._timeout.connect == DEFAULT_TIMEOUT_CONNECT
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
     def test_custom_timeout_from_parameters(self):
@@ -171,7 +171,7 @@ class TestModelEngineConfig:
     def test_default_max_attempts(self):
         """Max attempts defaults to module constant when not specified."""
         engine = ModelEngine(_make_model())
-        assert engine._retry_options.attempts == _DEFAULT_MAX_ATTEMPTS
+        assert engine._retry_options.attempts == DEFAULT_MAX_ATTEMPTS
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
     def test_model_name_set(self):
@@ -383,94 +383,17 @@ class TestModelEngineCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_call_lazy_initializes_client(self):
-        """call() auto-starts the client if start() hasn't been called."""
+    async def test_call_raises_if_not_started(self):
+        """call() raises ModelEngineError if start() hasn't been called."""
         engine = ModelEngine(_make_model())
         assert engine._client is None
 
-        # Patch start to set a mock client
-        original_start = engine.start
-
-        async def mock_start():
-            await original_start()
-
-        with patch.object(engine, "start", side_effect=mock_start) as start_mock:
-            # After start, we need to replace the real client with a mock
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
-            mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_response.__aexit__ = AsyncMock(return_value=False)
-
-            # We'll patch start to just set a mock client
-            async def fake_start():
-                mock_client = AsyncMock()
-                mock_client.post = MagicMock(return_value=mock_response)
-                mock_client.closed = False
-                engine._client = mock_client
-
-            start_mock.side_effect = fake_start
-
-            result = await engine.call([{"role": "user", "content": "Hi"}])
-            start_mock.assert_called_once()
-            assert result == {"choices": [{"message": {"content": "ok"}}]}
+        with pytest.raises(ModelEngineError, match="has not been started"):
+            await engine.call([{"role": "user", "content": "Hi"}])
 
 
-class TestSafeReadBody:
-    """Test _safe_read_body error body extraction and truncation."""
-
-    @pytest.mark.asyncio
-    async def test_reads_short_body(self):
-        """Short body is returned as-is."""
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value="short error message")
-        result = await _safe_read_body(mock_response)
-        assert result == "short error message"
-
-    @pytest.mark.asyncio
-    async def test_truncates_long_body(self):
-        """Body over 500 chars is truncated to 500."""
-        long_text = "x" * 1000
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=long_text)
-        result = await _safe_read_body(mock_response)
-        assert len(result) == 500
-
-    @pytest.mark.asyncio
-    async def test_handles_read_failure(self):
-        """Returns fallback string when response.text() raises."""
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(side_effect=Exception("read failed"))
-        result = await _safe_read_body(mock_response)
-        assert result == "<could not read response body>"
-
-    @pytest.mark.asyncio
-    async def test_exactly_500_chars_not_truncated(self):
-        """Body of exactly 500 chars is not truncated."""
-        text = "a" * 500
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=text)
-        result = await _safe_read_body(mock_response)
-        assert len(result) == 500
-
-    @pytest.mark.asyncio
-    async def test_501_chars_truncated(self):
-        """Body of 501 chars is truncated to 500."""
-        text = "a" * 501
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=text)
-        result = await _safe_read_body(mock_response)
-        assert len(result) == 500
-
-
-class TestModuleConstants:
-    """Test values of module-level constants."""
-
-    def test_retryable_status_codes_is_frozenset(self):
-        """Retryable codes include 429 and 5xx server errors."""
-        assert isinstance(_RETRYABLE_STATUS_CODES, frozenset)
-        assert 429 in _RETRYABLE_STATUS_CODES
-        assert 500 in _RETRYABLE_STATUS_CODES
+class TestModelEngineConstants:
+    """Test values of model-engine-specific constants."""
 
     def test_engine_base_urls_contains_nim_and_openai(self):
         """Default URL map covers nim and openai engines."""

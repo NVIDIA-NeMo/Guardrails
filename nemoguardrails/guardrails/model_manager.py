@@ -23,7 +23,6 @@ import logging
 from typing import Any
 
 from nemoguardrails.guardrails.api_engine import APIEngine
-from nemoguardrails.guardrails.guardrails_types import LLMMessage
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 
@@ -52,9 +51,9 @@ class ModelManager:
                 self._engines[model_config.type].base_url,
             )
 
-        self._init_api_engines(config)
+        self._init_jailbreak_detection_engine(config)
 
-    def _init_api_engines(self, config: RailsConfig) -> None:
+    def _init_jailbreak_detection_engine(self, config: RailsConfig) -> None:
         """Initialize APIEngine instances from rails configuration."""
 
         jailbreak_config = config.rails.config.jailbreak_detection
@@ -153,7 +152,7 @@ class ModelManager:
         response = await engine.call(messages, **kwargs)
         return response["choices"][0]["message"]["content"]
 
-    async def api_call(self, api_name: str, message: LLMMessage, **kwargs: Any) -> dict[str, Any]:
+    async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         api_engine = self._get_api_engine(api_name)
         response = await api_engine.call(message, **kwargs)
         return response
