@@ -32,6 +32,12 @@ def configure_logging(
 
     """
     logger = logging.getLogger("nemoguardrails.guardrails")
+
+    # If the logger already has handlers, just update the level
+    if logger.handlers:
+        logger.setLevel(level)
+        return logger
+
     logger.setLevel(level)
 
     if formatter is None:
@@ -40,11 +46,9 @@ def configure_logging(
     if handler is None:
         handler = logging.StreamHandler()
 
-    if not logger.handlers:
-        handler.setLevel(level)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
     logger.propagate = False
 
     return logger
