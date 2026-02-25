@@ -176,10 +176,9 @@ Integrate Guardrails <getting-started/integrate-into-application.md>
 About Configuring Guardrails <configure-rails/index.md>
 Overview <configure-rails/overview.md>
 Prerequisites <configure-rails/before-configuration.md>
-Guardrail Catalog <configure-rails/guardrail-catalog/index.md>
 Configuring YAML File <configure-rails/yaml-schema/index.md>
 YAML Schema Reference <configure-rails/configuration-reference.md>
-Guardrail Catalog <configure-rails/guardrail-catalog.md>
+Guardrail Catalog <configure-rails/guardrail-catalog/index.md>
 Custom Actions <configure-rails/actions/index.md>
 Custom Initialization <configure-rails/custom-initialization/index.md>
 Colang <configure-rails/colang/index.md>
