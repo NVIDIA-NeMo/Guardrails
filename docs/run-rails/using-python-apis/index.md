@@ -59,7 +59,7 @@ Stream LLM responses in real-time with the stream_async method.
 :link: check-messages
 :link-type: doc
 
-Validate messages against input and output rails using check_async and check.
+Validate messages against input and output rails using check_async and check methods.
 +++
 {bdg-secondary}`Reference`
 :::
