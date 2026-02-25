@@ -970,7 +970,7 @@ class LLMRails:
             log.info(f"Conversation history so far: \n{self.explain_info.colang_history}")
 
         total_time = time.time() - t0
-        log.info("--- :: Total processing took %.2f seconds. LLM Stats: %s" % (total_time, llm_stats))
+        log.info("--- :: Total processing took %.2f seconds. Stats: %s" % (total_time, llm_stats))
 
         # If there is a streaming handler, we make sure we close it now
         streaming_handler = streaming_handler_var.get()

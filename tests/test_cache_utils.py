@@ -202,6 +202,7 @@ class TestCacheUtils:
         llm_stats = llm_stats_var.get()
         assert llm_stats is not None
         assert llm_stats.get_stat("total_calls") == 1
+        assert llm_stats.get_stat("cache_hits") == 1
         assert llm_stats.get_stat("total_time") == 0.01
         assert llm_stats.get_stat("total_tokens") == 100
         assert llm_stats.get_stat("total_prompt_tokens") == 50
@@ -227,6 +228,7 @@ class TestCacheUtils:
         llm_stats = llm_stats_var.get()
         assert llm_stats is not None
         assert llm_stats.get_stat("total_calls") == 6
+        assert llm_stats.get_stat("cache_hits") == 1
         assert llm_stats.get_stat("total_time") == 1.5
         assert llm_stats.get_stat("total_tokens") == 300
 
@@ -295,6 +297,7 @@ class TestCacheUtils:
         llm_stats = llm_stats_var.get()
         assert llm_stats is not None
         assert llm_stats.get_stat("total_calls") == 1
+        assert llm_stats.get_stat("cache_hits") == 1
         assert llm_stats.get_stat("total_tokens") == 100
 
         updated_info = llm_call_info_var.get()
