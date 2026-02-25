@@ -34,7 +34,7 @@ def rails_config():
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def manager(rails_config):
     """Create a ModelManager from test config."""
-    return ModelManager(rails_config.models)
+    return ModelManager(rails_config)
 
 
 class TestModelManagerInit:
@@ -49,7 +49,7 @@ class TestModelManagerInit:
     def test_empty_config_creates_no_engines(self):
         """Empty models list results in no engines."""
         config = RailsConfig.from_content(config={"models": []})
-        mgr = ModelManager(config.models)
+        mgr = ModelManager(config)
         assert len(mgr._engines) == 0
 
 

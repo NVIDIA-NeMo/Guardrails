@@ -25,7 +25,7 @@ from typing import Any
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessage
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.rails.llm.config import RailsConfig
 
 log = logging.getLogger(__name__)
 
@@ -38,12 +38,12 @@ class ModelManager:
     Each engine owns its own HTTP client with per-model retry and timeout settings.
     """
 
-    def __init__(self, models: list[Model]) -> None:
+    def __init__(self, config: RailsConfig) -> None:
         self._engines: dict[str, ModelEngine] = {}
         self._api_engines: dict[str, APIEngine] = {}
         self._running = False
 
-        for model_config in models:
+        for model_config in config.models:
             self._engines[model_config.type] = ModelEngine(model_config)
             log.info(
                 "Registered model engine: type=%s, model=%s, base_url=%s",

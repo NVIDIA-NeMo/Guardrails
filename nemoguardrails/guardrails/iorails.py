@@ -42,7 +42,7 @@ class IORails:
         self.config = config
 
         # Model Manager has one or more ModelEngine inside. Each ModelEngine calls a single model or API
-        self.model_manager = ModelManager(config.models)
+        self.model_manager = ModelManager(config)
 
         # Rails Manager is responsible for running rails by making calls to Model Manager
         self.rails_manager = RailsManager(config, self.model_manager)
