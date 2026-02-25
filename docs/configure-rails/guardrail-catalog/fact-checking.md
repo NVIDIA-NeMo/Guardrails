@@ -31,27 +31,27 @@ To use the self-check fact-checking rail, you should:
 
 1. Include the `self check facts` flow name in the output rails section of the `config.yml` file:
 
-```yaml
-rails:
-  output:
-    flows:
-      - self check facts
-```
+    ```yaml
+    rails:
+      output:
+        flows:
+          - self check facts
+    ```
 
-1. Define the `self_check_facts` prompt in the `prompts.yml` file:
+2. Define the `self_check_facts` prompt in the `prompts.yml` file:
 
-```yaml
-prompts:
-  - task: self_check_facts
-    content: |-
-      You are given a task to identify if the hypothesis is grounded and entailed to the evidence.
-      You will only use the contents of the evidence and not rely on external knowledge.
-      Answer with yes/no. "evidence": {{ evidence }} "hypothesis": {{ response }} "entails":
-```
+    ```yaml
+    prompts:
+      - task: self_check_facts
+        content: |-
+          You are given a task to identify if the hypothesis is grounded and entailed to the evidence.
+          You will only use the contents of the evidence and not rely on external knowledge.
+          Answer with yes/no. "evidence": {{ evidence }} "hypothesis": {{ response }} "entails":
+    ```
 
-```{note}
-If a prompt is not defined, an exception will be raised when the configuration is loaded.
-```
+    ```{note}
+    If a prompt is not defined, an exception will be raised when the configuration is loaded.
+    ```
 
 The above is an example prompt that you can use with the *self check facts rail*. The `self_check_facts` prompt has two input variables: `{{ evidence }}`, which includes the relevant chunks, and `{{ response }}`, which includes the bot response that should be fact-checked. The completion must be "yes" if the response is factually correct and "no" otherwise.
 
@@ -103,27 +103,27 @@ To use the hallucination rail, you should:
 
 1. Include the `self check hallucination` flow name in the output rails section of the `config.yml` file:
 
-```yaml
-rails:
-  output:
-    flows:
-      - self check hallucination
-```
+    ```yaml
+    rails:
+      output:
+        flows:
+          - self check hallucination
+    ```
 
-1. Define a `self_check_hallucination` prompt in the `prompts.yml` file:
+2. Define a `self_check_hallucination` prompt in the `prompts.yml` file:
 
-```yaml
-prompts:
-  - task: self_check_hallucination
-    content: |-
-      You are given a task to identify if the hypothesis is in agreement with the context below.
-      You will only use the contents of the context and not rely on external knowledge.
-      Answer with yes/no. "context": {{ paragraph }} "hypothesis": {{ statement }} "agreement":
-```
+    ```yaml
+    prompts:
+      - task: self_check_hallucination
+        content: |-
+          You are given a task to identify if the hypothesis is in agreement with the context below.
+          You will only use the contents of the context and not rely on external knowledge.
+          Answer with yes/no. "context": {{ paragraph }} "hypothesis": {{ statement }} "agreement":
+    ```
 
-```{note}
-If a prompt is not defined, an exception will be raised when the configuration is loaded.
-```
+    ```{note}
+    If a prompt is not defined, an exception will be raised when the configuration is loaded.
+    ```
 
 The above is an example prompt you can use with the *self check hallucination rail*. The `self_check_hallucination` prompt has two input variables: `{{ paragraph }}`, which represents alternative generations for the same user query, and `{{ statement }}`, which represents the current bot response. The completion must be "yes" if the statement is not a hallucination (i.e., agrees with alternative generations) and "no" otherwise.
 
