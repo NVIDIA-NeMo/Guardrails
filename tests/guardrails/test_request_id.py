@@ -35,6 +35,21 @@ from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 REQUEST_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$")
 
 
+class SingleUseBarrier:
+    """Single-use asyncio barrier compatible with Python 3.10+, replacement for asyncio.Barrier"""
+
+    def __init__(self, parties: int):
+        self._parties = parties
+        self._count = 0
+        self._event = asyncio.Event()
+
+    async def wait(self):
+        self._count += 1
+        if self._count >= self._parties:
+            self._event.set()
+        await self._event.wait()
+
+
 class TestResetRequestId:
     """Direct unit tests for the reset_request_id() public API."""
 
@@ -211,7 +226,7 @@ class TestMultipleConcurrentRequests:
     async def test_concurrent_requests_have_unique_ids(self, iorails):
         """Multiple concurrent requests each get a distinct request ID."""
         captured = []
-        barrier = asyncio.Barrier(3)
+        barrier = SingleUseBarrier(3)
 
         async def capture_input(*args, **kwargs):
             rid = get_request_id()
@@ -253,13 +268,14 @@ class TestMultipleConcurrentRequests:
         """Each concurrent request sees a consistent ID across its own layers."""
         # Map from task → list of captured IDs
         task_ids: dict[int, list[str]] = {}
-        barrier = asyncio.Barrier(3)
+        barrier = SingleUseBarrier(3)
 
         async def make_iorails_call(task_num: int):
             captured = []
 
             async def capture_input(*args, **kwargs):
                 captured.append(get_request_id())
+                # Insert a barrier which waits for all three make_iorails_calls to complete
                 await barrier.wait()
                 return RailResult(is_safe=True)
 

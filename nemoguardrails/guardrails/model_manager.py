@@ -150,7 +150,6 @@ class ModelManager:
     async def generate_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
         """Generate a chat completion response from the named model engine."""
         req_id = get_request_id()
-        log.info("[%s] Requesting model engine '%s'", req_id, model_type)
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_model_engine(model_type)

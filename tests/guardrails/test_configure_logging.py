@@ -21,6 +21,7 @@ import pytest
 
 from nemoguardrails.guardrails import configure_logging
 
+
 @pytest.fixture(autouse=True)
 def _clean_logger():
     """Runs before and after each test to revert changes to logging"""
@@ -31,7 +32,6 @@ def _clean_logger():
 
 
 class TestConfigureLogging:
-
     def test_adds_handler_on_first_call(self):
         logger = configure_logging(logging.INFO)
         assert len(logger.handlers) == 1
