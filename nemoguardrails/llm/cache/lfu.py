@@ -315,7 +315,6 @@ class LFUCache(CacheInterface):
 
         # Format the log message
         log_msg = (
-            f"LFU Cache Statistics - "
             f"Size: {stats['current_size']}/{stats['maxsize']} | "
             f"Hits: {stats['hits']} | "
             f"Misses: {stats['misses']} | "
@@ -325,7 +324,7 @@ class LFUCache(CacheInterface):
             f"Updates: {stats['updates']}"
         )
 
-        log.info(log_msg)
+        log.info("Cache Stats :: %s", log_msg)
 
     def log_stats_now(self) -> None:
         """Force immediate logging of cache statistics."""

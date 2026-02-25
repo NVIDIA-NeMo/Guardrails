@@ -396,10 +396,9 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
 
             # Verify log was called
             self.assertEqual(mock_log.call_count, 1)
-            log_message = mock_log.call_args[0][0]
+            self.assertEqual(mock_log.call_args[0][0], "Cache Stats :: %s")
+            log_message = mock_log.call_args[0][1]
 
-            # Check log format
-            self.assertIn("LFU Cache Statistics", log_message)
             self.assertIn("Size: 2/5", log_message)
             self.assertIn("Hits: 1", log_message)
             self.assertIn("Misses: 1", log_message)
@@ -456,7 +455,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             cache.get("another_nonexistent")  # Trigger check
 
             self.assertEqual(mock_log.call_count, 1)
-            log_message = mock_log.call_args[0][0]
+            log_message = mock_log.call_args[0][1]
 
             self.assertIn("Size: 0/5", log_message)
             self.assertIn("Hits: 0", log_message)
@@ -481,7 +480,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
             time.sleep(0.2)
             cache.get("key4")  # Trigger check
 
-            log_message = mock_log.call_args[0][0]
+            log_message = mock_log.call_args[0][1]
             self.assertIn("Size: 3/3", log_message)
             self.assertIn("Evictions: 1", log_message)
             self.assertIn("Puts: 4", log_message)
@@ -504,7 +503,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
             cache.log_stats_now()
 
-            log_message = mock_log.call_args[0][0]
+            log_message = mock_log.call_args[0][1]
             self.assertIn("Hit Rate: 99.00%", log_message)
             self.assertIn("Hits: 99", log_message)
             self.assertIn("Misses: 1", log_message)
@@ -566,7 +565,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
         with patch.object(logging.getLogger("nemoguardrails.llm.cache.lfu"), "info") as mock_log:
             cache.log_stats_now()
 
-            log_message = mock_log.call_args[0][0]
+            log_message = mock_log.call_args[0][1]
             self.assertIn("Updates: 2", log_message)
             self.assertIn("Puts: 1", log_message)
 
@@ -603,7 +602,7 @@ class TestLFUCacheStatsLogging(unittest.TestCase):
                 cache.log_stats_now()
 
                 if hits > 0 or misses > 0:
-                    log_message = mock_log.call_args[0][0]
+                    log_message = mock_log.call_args[0][1]
                     self.assertIn(f"Hit Rate: {expected_rate}", log_message)
 
 
