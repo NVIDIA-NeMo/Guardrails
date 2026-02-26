@@ -48,7 +48,7 @@ The NeMo Guardrails library provides multiple approaches to content safety:
 - **LLM self-checking**: Use the LLM itself to check inputs and outputs for harmful content.
 - **NVIDIA safety models**: Integrate with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3) for robust content moderation.
 - **Community models**: Use [LlamaGuard](../configure-rails/guardrail-catalog/community/llama-guard.md), [Fiddler Guardrails](../configure-rails/guardrail-catalog/community/fiddler.md), and other community content safety solutions.
-- **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/guardrail-catalog.md#activefence), [Cisco AI Defense](../configure-rails/guardrail-catalog/community/ai-defense.md), and other moderation services.
+- **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/guardrail-catalog/community/active-fence.md), [Cisco AI Defense](../configure-rails/guardrail-catalog/community/ai-defense.md), and other moderation services.
 
 For practical examples, try the following tutorials:
 
@@ -98,7 +98,7 @@ The NeMo Guardrails library supports PII detection through multiple integrations
 
 PII detection can be configured to either detect and block content containing PII or to mask PII entities before processing.
 
-For more information, refer to the [Presidio Integration](../configure-rails/guardrail-catalog/community/presidio.md) and [Sensitive Data Detection section](../configure-rails/guardrail-catalog.md#presidio-based-sensitive-data-detection) in the Guardrail Catalog.
+For more information, refer to the [Presidio Integration](../configure-rails/guardrail-catalog/community/presidio.md) and [PII Detection](../configure-rails/guardrail-catalog/pii-detection.md#presidio-based-sensitive-data-detection) in the Guardrail Catalog.
 :::
 
 :::{dropdown} 🤖 Add Agentic Security
@@ -130,7 +130,7 @@ If you have a script or tool that runs a custom guardrail, you can use it in NeM
 
 2. **LangChain tool integration**: Register LangChain tools as custom actions. For more information, refer to the [](../integration/tools-integration.md).
 
-3. **Third-party API integration**: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to the [Third-Party APIs](../configure-rails/guardrail-catalog.md#third-party-apis) section in the Guardrail Catalog.
+3. **Third-party API integration**: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to [Third-Party APIs](../configure-rails/guardrail-catalog/third-party.md) in the Guardrail Catalog.
 :::
 
 :::{dropdown} 🔌 Integrate NeMo Guardrails Library into Your Application

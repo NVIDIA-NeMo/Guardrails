@@ -54,7 +54,7 @@ For a complete record of changes in a release, refer to the
             # Add other languages as needed
   ```
 
-  For more information, refer to [](../configure-rails/guardrail-catalog.md#multilingual-content-safety).
+  For more information, refer to [](../configure-rails/guardrail-catalog/content-safety.md#multilingual-refusal-messages).
 - Added support for [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more. For more information, refer to [](../configure-rails/guardrail-catalog/community/gliner.md).
 
 ### Breaking Changes
@@ -173,12 +173,12 @@ For a complete record of changes in a release, refer to the
 
 ### Key Features
 
-- Added support for [integrating with LangGraph and tool calling](./user-guides/langchain/langgraph-integration.md).
+- Added support for [integrating with LangGraph and tool calling](../integration/langchain/langgraph-integration.md).
   This integration enables building safe and controlled multi-agent workflows.
   LangGraph enables you to create sophisticated agent architectures with state management, conditional routing, and tool calling, while NeMo Guardrails provides the safety layer to ensure responsible AI behavior.
   You can intercept, store, and forward LLM tool invocations with backward compatibility.
 
-- Enhanced support for [integrating with LangChain `RunnableRails`](./user-guides/langchain/runnable-rails.md).
+- Enhanced support for [integrating with LangChain `RunnableRails`](../integration/langchain/runnable-rails.md).
   This release supports the LangChain Runnable interface, such as synchronous and asynchronous operations, streaming, and batch processing while preserving metadata during LangChain operation.
   This enhancement enables NeMo Guardrails to plug into LangChain pipelines seamlessly.
 
@@ -191,7 +191,7 @@ For a complete record of changes in a release, refer to the
 
 - Improved URL handling for connecting to NemoGuard JailbreakDetect NIM.
   Guardrails now tolerates the URL for `rails.config.jailbreak_detection.nim_base_url` ending with or without a trailing slash.
-  Refer to [](./user-guides/advanced/nemoguard-jailbreakdetect-deployment.md) for information about using the NIM.
+  Refer to [](../getting-started/tutorials/nemoguard-jailbreakdetect-deployment.md) for information about using the NIM.
 
 (v0-16-0)=
 
@@ -288,7 +288,7 @@ To find the new way of configuring tracing, refer to [](tracing-configuration).
   You must use `langchain` version `0.2.14` or higher and `langchain-community` version `0.2.5` or higher.
   For information about using model providers, refer to [](./user-guides/configuration-guide.md#the-llm-model).
 - Added support for code injection detection.
-  For more information, refer to [](./user-guides/guardrails-library.md#injection-detection).
+  For more information, refer to [](../configure-rails/guardrail-catalog/agentic-security.md#injection-detection).
 - Enhanced the `nemoguardrails` CLI with a `find-providers` argument to list chat and text completion providers.
   For more information, refer to [](./user-guides/cli.md#providers).
 
