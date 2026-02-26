@@ -26,33 +26,33 @@ To sign up for Clavata or obtain an API key:
 
 3. Configure your `config.yml` according to the following example:
 
-```yaml
-rails:
-  config:
-    clavata:
-      policies:
-        Threats: 00000000-0000-0000-0000-000000000000
-        Toxicity: 00000000-0000-0000-0000-000000000000
-      label_match_logic: ALL  # "ALL" | "ANY"
-      input:
-        # Reference an alias above in `policies`
-        policy: Threats
-      output:
-        policy: Toxicity
-        # Optional: Specify labels to require specific matches
-        labels:
-          - Hate Speech
-          - Self-harm
-      # Optional: Only provide this if you've been told to by Clavata.ai
-      server_endpoint: "https://some-alt-endpoint.com"
-  # Optional: reference the built-in flows
-  input:
-    flows:
-      - clavata check input
-  output:
-    flows:
-      - clavata check output
-```
+   ```yaml
+   rails:
+     config:
+       clavata:
+         policies:
+           Threats: 00000000-0000-0000-0000-000000000000
+           Toxicity: 00000000-0000-0000-0000-000000000000
+         label_match_logic: ALL  # "ALL" | "ANY"
+         input:
+           # Reference an alias above in `policies`
+           policy: Threats
+         output:
+           policy: Toxicity
+           # Optional: Specify labels to require specific matches
+           labels:
+             - Hate Speech
+             - Self-harm
+         # Optional: Only provide this if you've been told to by Clavata.ai
+         server_endpoint: "https://some-alt-endpoint.com"
+     # Optional: reference the built-in flows
+     input:
+       flows:
+         - clavata check input
+     output:
+       flows:
+         - clavata check output
+   ```
 
 ## Configuration Details
 

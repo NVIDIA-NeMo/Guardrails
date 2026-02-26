@@ -1,6 +1,6 @@
-# Regex Detection Integration
+# Regular Expression Detection Integration
 
-The NVIDIA NeMo Guardrails library provides out-of-the-box support for content moderation based on regex pattern matching. This integration enables you to detect and block content that matches specific patterns in user inputs, bot outputs, and retrieved knowledge base chunks.
+The NVIDIA NeMo Guardrails library provides out-of-the-box support for content moderation based on regular expression (regex) pattern matching. This integration enables you to detect and block content that matches specific patterns in user inputs, bot outputs, and retrieved knowledge base chunks.
 
 ## Overview
 
@@ -94,9 +94,9 @@ rails:
 
 ### Retrieval Rails
 
- When a chunk matches any of the configured retrieval patterns, **that chunk is removed** from the retrieval results and is not passed to the model. Only chunks that do not match the patterns are kept and used as context.
+When a chunk matches any of the configured retrieval patterns, **that chunk is removed** from the retrieval results and is not passed to the model. Only chunks that do not match the patterns are kept and used as context.
 
- To detect regex patterns in retrieved knowledge base chunks:
+To detect regex patterns in retrieved knowledge base chunks:
 
 ```yaml
 rails:
@@ -190,11 +190,13 @@ For more information about Python regex rules, please refer to the [official doc
 When a regex rail has a regex pattern match, the following steps happen (depending on rails type):
 
 **Input and output rails**
+
 1. The action returns a `RegexDetectionResult` with `is_match=True` and the matched pattern(s) in `detections`.
 2. The bot responds with: `"I'm sorry, I can't respond to that."` (using the standard `bot refuse to respond` message).
 3. The flow is aborted.
 
 **Retrieval rails**
+
 1. Chunks that match any retrieval pattern are **removed** from the retrieval results. Only non-matching chunks are passed to the model as context.
 
 **NOTE:** The matched pattern(s) are available in `result["detections"]` for logging and debugging. They are also logged at `INFO` level by the action.

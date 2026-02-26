@@ -12,15 +12,15 @@ You'll need to set the following env variables to work with Prompt Security:
 1. Ensure that you have access to Prompt Security API server (SaaS or on-prem).
 2. Update your `config.yml` file to include the Prompt Security settings:
 
-```yaml
-rails:
-  input:
-    flows:
-      - protect prompt
-  output:
-    flows:
-      - protect response
-```
+    ```yaml
+    rails:
+      input:
+        flows:
+          - protect prompt
+      output:
+        flows:
+          - protect response
+    ```
 
 Don't forget to set the `PS_PROTECT_URL` and `PS_APP_ID` environment variables.
 

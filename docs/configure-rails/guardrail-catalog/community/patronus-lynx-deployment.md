@@ -12,7 +12,7 @@ Lynx is fully open source, so you can host it however you like. One simple way i
 huggingface-cli login
 ```
 
-3. Install vLLM and spin up a server hosting Patronus Lynx
+1. Install vLLM and spin up a server hosting Patronus Lynx
 
 ```bash
 pip install vllm
@@ -32,13 +32,13 @@ curl http://localhost:5000/v1/chat/completions \
 }'
 ```
 
-4. Create a model called `patronus_lynx` in your `config.yml` file, setting the host and port to what you set it as above. If the vLLM is running on a different server from `nemoguardrails`, you'll have to replace `localhost` with the vLLM server's address. Check out the [Patronus Lynx Integration](patronus-lynx.md) guide for more information.
+1. Create a model called `patronus_lynx` in your `config.yml` file, setting the host and port to what you set it as above. If the vLLM is running on a different server from `nemoguardrails`, you'll have to replace `localhost` with the vLLM server's address. Check out the [Patronus Lynx Integration](patronus-lynx.md) guide for more information.
 
 ## Ollama
 
 You can also run Patronus Lynx 8B on your personal computer using Ollama!
 
-1. Install Ollama: https://ollama.com/download.
+1. Install Ollama: <https://ollama.com/download>.
 
 2. Get access to a GGUF quantized version of Lynx 8B on Huggingface. Check it out [here](https://huggingface.co/PatronusAI/Lynx-8B-Instruct-Q4_K_M-GGUF).
 
@@ -46,19 +46,19 @@ You can also run Patronus Lynx 8B on your personal computer using Ollama!
 
 4. Create a file called `Modelfile` with the following contents:
 
-```bash
- FROM "./patronus-lynx-8b-instruct-q4_k_m.gguf"
- PARAMETER stop "<|im_start|>"
- PARAMETER stop "<|im_end|>"
- TEMPLATE """
- <|im_start|>system
- {{ .System }}<|im_end|>
- <|im_start|>user
- {{ .Prompt }}<|im_end|>
- <|im_start|>assistant
-```
+    ```bash
+    FROM "./patronus-lynx-8b-instruct-q4_k_m.gguf"
+    PARAMETER stop "<|im_start|>"
+    PARAMETER stop "<|im_end|>"
+    TEMPLATE """
+    <|im_start|>system
+    {{ .System }}<|im_end|>
+    <|im_start|>user
+    {{ .Prompt }}<|im_end|>
+    <|im_start|>assistant
+    ```
 
-Ensure that the `FROM` field correctly points to the `patronus-lynx-8b-instruct-q4_k_m.gguf` file you downloaded in Step 3.
+    Ensure that the `FROM` field correctly points to the `patronus-lynx-8b-instruct-q4_k_m.gguf` file you downloaded in Step 3.
 
 5. Run `ollama create patronus-lynx-8b -f Modelfile`.
 
@@ -66,15 +66,15 @@ Ensure that the `FROM` field correctly points to the `patronus-lynx-8b-instruct-
 
 7. Create a model called `patronus_lynx` in your `config.yml` file, like this:
 
-```yaml
-models:
-  ...
+    ```yaml
+    models:
+      ...
 
-  - type: patronus_lynx
-    engine: ollama
-    model: patronus-lynx-8b
-    parameters:
-      base_url: "http://localhost:11434"
-```
+      - type: patronus_lynx
+        engine: ollama
+        model: patronus-lynx-8b
+        parameters:
+          base_url: "http://localhost:11434"
+    ```
 
 Check out the [Patronus Lynx Integration](patronus-lynx.md) guide for more information.

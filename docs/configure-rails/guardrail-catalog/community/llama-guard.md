@@ -10,46 +10,46 @@ To configure your bot to use Llama Guard for input/output checking, follow the b
 
 1. Add a model of type `llama_guard` to the models section of the `config.yml` file (the example below uses a vLLM setup):
 
-```yaml
-models:
-  ...
+    ```yaml
+    models:
+      ...
 
-  - type: llama_guard
-    engine: vllm_openai
-    parameters:
-      openai_api_base: "http://localhost:5123/v1"
-      model_name: "meta-llama/LlamaGuard-7b"
-```
+      - type: llama_guard
+        engine: vllm_openai
+        parameters:
+          openai_api_base: "http://localhost:5123/v1"
+          model_name: "meta-llama/LlamaGuard-7b"
+    ```
 
-1. Include the `llama guard check input` and `llama guard check output` flow names in the rails section of the `config.yml` file:
+2. Include the `llama guard check input` and `llama guard check output` flow names in the rails section of the `config.yml` file:
 
-```yaml
-rails:
-  input:
-    flows:
-      - llama guard check input
-  output:
-    flows:
-      - llama guard check output
-```
+    ```yaml
+    rails:
+      input:
+        flows:
+          - llama guard check input
+      output:
+        flows:
+          - llama guard check output
+    ```
 
-1. Define the `llama_guard_check_input` and the `llama_guard_check_output` prompts in the `prompts.yml` file:
+3. Define the `llama_guard_check_input` and the `llama_guard_check_output` prompts in the `prompts.yml` file:
 
-```yaml
-prompts:
-  - task: llama_guard_check_input
-    content: |
-      <s>[INST] Task: ...
-      <BEGIN UNSAFE CONTENT CATEGORIES>
-      O1: ...
-      O2: ...
-  - task: llama_guard_check_output
-    content: |
-      <s>[INST] Task: ...
-      <BEGIN UNSAFE CONTENT CATEGORIES>
-      O1: ...
-      O2: ...
-```
+    ```yaml
+    prompts:
+      - task: llama_guard_check_input
+        content: |
+          <s>[INST] Task: ...
+          <BEGIN UNSAFE CONTENT CATEGORIES>
+          O1: ...
+          O2: ...
+      - task: llama_guard_check_output
+        content: |
+          <s>[INST] Task: ...
+          <BEGIN UNSAFE CONTENT CATEGORIES>
+          O1: ...
+          O2: ...
+    ```
 
 The rails execute the [`llama_guard_check_*` actions](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/llama_guard/actions.py), which return `True` if the user input or the bot message should be allowed, and `False` otherwise, along with a list of the unsafe content categories as defined in the Llama Guard prompt.
 
