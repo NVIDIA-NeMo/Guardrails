@@ -36,8 +36,8 @@ def configure_logging(
     # If the logger already has handlers, update logger and all handler levels
     if logger.handlers:
         logger.setLevel(level)
-        for handler in logger.handlers:
-            handler.setLevel(level)
+        for log_handler in logger.handlers:
+            log_handler.setLevel(level)
         return logger
 
     # If there are no handlers, create them and add them to the logger
