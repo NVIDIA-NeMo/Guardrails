@@ -36,6 +36,9 @@ docs-check-cards:
 docs-watch-cards:
 	cd docs && poetry run python scripts/update_cards/update_cards.py watch
 
+docs-check-redirects:
+	cd docs && python3 scripts/validate_redirects.py
+
 pre_commit:
 	pre-commit install
 	pre-commit run --all-files
@@ -55,4 +58,5 @@ help:
 	@echo 'docs-update-cards            - update grid cards in index files from linked pages'
 	@echo 'docs-check-cards             - check if grid cards are up to date (dry run)'
 	@echo 'docs-watch-cards             - watch for file changes and auto-update cards'
+	@echo 'docs-check-redirects         - validate that all redirect targets exist'
 	@echo 'pre_commit                   - run pre-commit hooks'

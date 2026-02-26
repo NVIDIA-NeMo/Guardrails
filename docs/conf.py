@@ -50,6 +50,7 @@ extensions = [
     "sphinxcontrib.mermaid",
     "json_output",
     "search_assets",  # Enhanced search assets extension
+    "validate_redirects",
 ]
 
 # -- Autodoc configuration ---------------------------------------------------
