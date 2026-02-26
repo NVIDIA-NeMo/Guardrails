@@ -22,10 +22,10 @@ which means ``-W`` (warnings-as-errors) will fail the build.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from sphinx.application import Sphinx
+from sphinx.util import logging
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,8 @@ def _validate(app: Sphinx, exception: Exception | None) -> None:
     if not redirects:
         return
 
-    found_lower = {doc.lower() for doc in app.env.found_docs}
+    found = app.env.found_docs
+    found_lower = {doc.lower() for doc in found}
 
     broken: list[tuple[str, str, str]] = []
     for source, target in redirects.items():
@@ -46,6 +47,10 @@ def _validate(app: Sphinx, exception: Exception | None) -> None:
             continue
 
         docname = target.removesuffix(".html")
+        if docname in found:
+            continue
+        if docname.endswith("/index") and docname.removesuffix("/index") in found:
+            continue
         if docname.lower() in found_lower:
             continue
         if docname.lower().endswith("/index") and docname.lower().removesuffix("/index") in found_lower:

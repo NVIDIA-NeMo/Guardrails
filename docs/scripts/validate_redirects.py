@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """Validate that all redirect targets in conf.py resolve to existing source files.
 
 Usage:

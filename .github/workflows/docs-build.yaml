@@ -46,6 +46,8 @@ jobs:
               run: poetry config virtualenvs.in-project true
             - name: Install dependencies
               run: poetry install --with docs
+            - name: Validate redirect targets
+              run: make docs-check-redirects
             - name: Build documentation
               run: make docs
             - name: Delete unnecessary files

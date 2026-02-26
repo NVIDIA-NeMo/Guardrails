@@ -52,6 +52,3 @@ jobs:
 
       - name: Run pre-commit hooks
         run: poetry run make pre_commit
-
-      - name: Validate redirect targets
-        run: python docs/scripts/validate_redirects.py

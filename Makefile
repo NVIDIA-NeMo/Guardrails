@@ -37,7 +37,7 @@ docs-watch-cards:
 	cd docs && poetry run python scripts/update_cards/update_cards.py watch
 
 docs-check-redirects:
-	cd docs && python3 scripts/validate_redirects.py
+	cd docs && poetry run python scripts/validate_redirects.py
 
 pre_commit:
 	pre-commit install
