@@ -173,7 +173,7 @@ redirects = {
     "user-guides/advanced/generation-options": "run-rails/using-python-apis/generation-options.html",
     "user-guides/advanced/jailbreak-detection-deployment": "getting-started/tutorials/nemoguard-jailbreakdetect-deployment.html",
     "user-guides/advanced/kv-cache-reuse": "configure-rails/caching/kv-cache-reuse.html",
-    "user-guides/advanced/llama-guard-deployment": "user-guides/community/llama-guard.html",
+    "user-guides/advanced/llama-guard-deployment": "configure-rails/guardrail-catalog/community/llama-guard.html",
     "user-guides/advanced/model-memory-cache": "configure-rails/caching/model-memory-cache.html",
     "user-guides/advanced/nemoguard-jailbreakdetect-deployment": "getting-started/tutorials/nemoguard-jailbreakdetect-deployment.html",
     "user-guides/advanced/nemoguard-topiccontrol-deployment": "getting-started/tutorials/nemoguard-topiccontrol-deployment.html",
