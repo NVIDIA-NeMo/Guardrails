@@ -103,7 +103,7 @@ flow input rails $input_text
     clavata check for ($input_text, Toxicity, ["Hate Speech","Harassment"])
 ```
 
-> The same is true for `output` flows, of course. See [our example](../../../examples/configs/clavata_v2/rails.co) for more.
+> The same is true for `output` flows, of course. See [our example](../../../../examples/configs/clavata_v2/rails.co) for more.
 
 ### 2. Programmatic Usage
 

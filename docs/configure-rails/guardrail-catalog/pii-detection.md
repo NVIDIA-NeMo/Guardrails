@@ -79,7 +79,7 @@ rails:
       - gliner mask pii on output
 ```
 
-For a detailed example, please refer to the [GLiNER Integration](../../user-guides/community/gliner.md) page.
+For a detailed example, please refer to the [GLiNER Integration](community/gliner.md) page.
 
 ## Presidio-based Sensitive Data Detection
 
@@ -113,7 +113,7 @@ rails:
       - mask sensitive data on retrieval
 ```
 
-For more details, check out the [Presidio Integration](../../user-guides/community/presidio.md) page.
+For more details, check out the [Presidio Integration](community/presidio.md) page.
 
 ## Private AI PII Detection
 
@@ -155,4 +155,4 @@ rails:
       - detect pii on retrieval
 ```
 
-For more details, check out the [Private AI Integration](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/user-guides/community/privateai.md) page.
+For more details, check out the [Private AI Integration](community/privateai.md) page.

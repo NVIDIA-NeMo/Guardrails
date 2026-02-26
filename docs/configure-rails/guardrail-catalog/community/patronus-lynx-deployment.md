@@ -32,7 +32,7 @@ curl http://localhost:5000/v1/chat/completions \
 }'
 ```
 
-4. Create a model called `patronus_lynx` in your `config.yml` file, setting the host and port to what you set it as above. If the vLLM is running on a different server from `nemoguardrails`, you'll have to replace `localhost` with the vLLM server's address. Check out the guide [here](../guardrails-library.md#patronus-lynx-based-rag-hallucination-detection) for more information.
+4. Create a model called `patronus_lynx` in your `config.yml` file, setting the host and port to what you set it as above. If the vLLM is running on a different server from `nemoguardrails`, you'll have to replace `localhost` with the vLLM server's address. Check out the guide [here](../../../user-guides/guardrails-library.md#patronus-lynx-based-rag-hallucination-detection) for more information.
 
 ## Ollama
 
@@ -77,4 +77,4 @@ models:
       base_url: "http://localhost:11434"
 ```
 
-Check out the guide [here](../guardrails-library.md#patronus-lynx-based-rag-hallucination-detection) for more information.
+Check out the guide [here](../../../user-guides/guardrails-library.md#patronus-lynx-based-rag-hallucination-detection) for more information.

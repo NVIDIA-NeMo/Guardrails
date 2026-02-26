@@ -32,7 +32,7 @@ rails:
       - activefence moderation on output
 ```
 
-For more details, check out the [ActiveFence Integration](../../user-guides/community/active-fence.md) page.
+For more details, check out the [ActiveFence Integration](community/active-fence.md) page.
 
 ## AutoAlign
 
@@ -50,7 +50,7 @@ rails:
       - autoalign check output
 ```
 
-For more details, check out the [AutoAlign Integration](../../user-guides/community/auto-align.md) page.
+For more details, check out the [AutoAlign Integration](community/auto-align.md) page.
 
 ## Clavata
 
@@ -69,7 +69,7 @@ rails:
 
 ```
 
-For more details, check out the [Clavata Integration](https://docs.nvidia.com/nemo/guardrails/latest/user-guides/community/clavata.html) page.
+For more details, check out the [Clavata Integration](community/clavata.md) page.
 
 ## Cleanlab
 
@@ -84,7 +84,7 @@ rails:
       - cleanlab trustworthiness
 ```
 
-For more details, check out the [Cleanlab Integration](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/user-guides/community/cleanlab.md) page.
+For more details, check out the [Cleanlab Integration](community/cleanlab.md) page.
 
 ## GCP Text Moderation
 
@@ -99,7 +99,7 @@ rails:
       - gcpnlp moderation
 ```
 
-For more details, check out the [GCP Text Moderation](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/docs/user-guides/community/gcp-text-moderations.md) page.
+For more details, check out the [GCP Text Moderation](community/gcp-text-moderations.md) page.
 
 ## GuardrailsAI Integration
 
@@ -126,7 +126,7 @@ rails:
       - guardrailsai check output $validator="toxic_language"
 ```
 
-For more details, check out the [GuardrailsAI Integration](../../user-guides/community/guardrails-ai.md) page.
+For more details, check out the [GuardrailsAI Integration](community/guardrails-ai.md) page.
 
 ## Fiddler Guardrails for Safety and Hallucination Detection
 
@@ -159,7 +159,7 @@ rails:
 
 ```
 
-For more details, check out the [Fiddler Integration](../../user-guides/community/fiddler.md) page.
+For more details, check out the [Fiddler Integration](community/fiddler.md) page.
 
 ## Prompt Security Protection
 
@@ -179,7 +179,7 @@ rails:
       - protect response
 ```
 
-For more details, check out the [Prompt Security Integration](../../user-guides/community/prompt-security.md) page.
+For more details, check out the [Prompt Security Integration](community/prompt-security.md) page.
 
 ## CrowdStrike AIDR
 
@@ -199,7 +199,7 @@ rails:
       - crowdstrike aidr guard output
 ```
 
-For more details, check out the [CrowdStrike AIDR Integration](../../user-guides/community/crowdstrike-aidr.md) page.
+For more details, check out the [CrowdStrike AIDR Integration](community/crowdstrike-aidr.md) page.
 
 ## Pangea AI Guard
 
@@ -222,7 +222,7 @@ rails:
       - pangea ai guard output
 ```
 
-For more details, check out the [Pangea AI Guard Integration](../../user-guides/community/pangea.md) page.
+For more details, check out the [Pangea AI Guard Integration](community/pangea.md) page.
 
 ## Trend Micro Vision One AI Application Security
 
@@ -241,7 +241,7 @@ rails:
       - trend ai guard output
 ```
 
-For more details, check out the [Trend Micro Vision One AI Application Security](../../user-guides/community/trend-micro.md) page.
+For more details, check out the [Trend Micro Vision One AI Application Security](community/trend-micro.md) page.
 
 ## Cisco AI Defense
 
@@ -262,4 +262,31 @@ rails:
       - ai defense inspect response
 ```
 
-For more details, check out the [Cisco AI Defense Integration](../../user-guides/community/ai-defense.md) page.
+For more details, check out the [Cisco AI Defense Integration](community/ai-defense.md) page.
+
+```{toctree}
+:caption: Community Integrations
+:hidden:
+
+ActiveFence <community/active-fence>
+Cisco AI Defense <community/ai-defense>
+AlignScore <community/alignscore>
+AutoAlign <community/auto-align>
+Clavata <community/clavata>
+Cleanlab <community/cleanlab>
+CrowdStrike AIDR <community/crowdstrike-aidr>
+Fiddler <community/fiddler>
+GCP Text Moderation <community/gcp-text-moderations>
+GLiNER PII <community/gliner>
+GuardrailsAI <community/guardrails-ai>
+Llama Guard <community/llama-guard>
+Pangea AI Guard <community/pangea>
+Patronus Evaluate API <community/patronus-evaluate-api>
+Patronus Lynx Deployment <community/patronus-lynx-deployment>
+Patronus Lynx <community/patronus-lynx>
+Presidio <community/presidio>
+Private AI <community/privateai>
+Prompt Security <community/prompt-security>
+Regex <community/regex>
+Trend Micro <community/trend-micro>
+```

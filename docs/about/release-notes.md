@@ -55,7 +55,7 @@ For a complete record of changes in a release, refer to the
   ```
 
   For more information, refer to [](../configure-rails/guardrail-catalog.md#multilingual-content-safety).
-- Added support for [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more. For more information, refer to [](../user-guides/community/gliner.md).
+- Added support for [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more. For more information, refer to [](../configure-rails/guardrail-catalog/community/gliner.md).
 
 ### Breaking Changes
 
@@ -183,7 +183,7 @@ For a complete record of changes in a release, refer to the
   This enhancement enables NeMo Guardrails to plug into LangChain pipelines seamlessly.
 
 - Trend Micro contributed support for Trend Micro Vision One AI Application Security AI Guard.
-  Refer to [configuration documentation](./user-guides/community/trend-micro.md) for more information.
+  Refer to [configuration documentation](../configure-rails/guardrail-catalog/community/trend-micro.md) for more information.
 
 (v0-17-0-other-changes)=
 

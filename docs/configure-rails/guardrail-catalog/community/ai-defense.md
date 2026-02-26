@@ -6,7 +6,7 @@
 
 The diagram below shows how Cisco AI Defense integrates with the NeMo Guardrails flow to provide comprehensive protection at both input and output stages:
 
-```{image} ../../_static/images/guardrails_flow_ai_defense.png
+```{image} ../../../_static/images/guardrails_flow_ai_defense.png
 :alt: "High-level flow through programmable guardrails including AI Defense integration, showing how Cisco AI Defense provides privacy, safety, and security inspection for both input and output rails"
 :align: center
 ```

@@ -210,7 +210,7 @@ rails:
       - alignscore check facts
 ```
 
-For more details, check out the [AlignScore Integration](../../user-guides/community/alignscore.md) page.
+For more details, check out the [AlignScore Integration](community/alignscore.md) page.
 
 ## Patronus Lynx-based RAG Hallucination Detection
 
@@ -225,4 +225,4 @@ rails:
       - patronus lynx check output hallucination
 ```
 
-For more details, check out the [Patronus Lynx Integration](../../user-guides/community/patronus-lynx.md) page.
+For more details, check out the [Patronus Lynx Integration](community/patronus-lynx.md) page.

@@ -508,7 +508,7 @@ rails:
         guardrails_config: {}
 ```
 
-For more information, refer to [AutoAlign Integration](../user-guides/community/auto-align.md).
+For more information, refer to [AutoAlign Integration](guardrail-catalog/community/auto-align.md).
 
 ##### Patronus
 
@@ -526,7 +526,7 @@ rails:
           params: {}
 ```
 
-For more information, refer to [Patronus Evaluate API Integration](../user-guides/community/patronus-evaluate-api.md).
+For more information, refer to [Patronus Evaluate API Integration](guardrail-catalog/community/patronus-evaluate-api.md).
 
 ##### Clavata
 
@@ -545,7 +545,7 @@ rails:
         labels: []
 ```
 
-For more information, refer to [Clavata Integration](../user-guides/community/clavata.md).
+For more information, refer to [Clavata Integration](guardrail-catalog/community/clavata.md).
 
 ##### Pangea AI Guard
 
@@ -559,7 +559,7 @@ rails:
         recipe: "recipe_key"
 ```
 
-For more information, refer to [Pangea AI Guard Integration](../user-guides/community/pangea.md).
+For more information, refer to [Pangea AI Guard Integration](guardrail-catalog/community/pangea.md).
 
 ##### Trend Micro
 
@@ -571,7 +571,7 @@ rails:
       api_key_env_var: "TREND_MICRO_API_KEY"
 ```
 
-For more information, refer to [Trend Micro Integration](../user-guides/community/trend-micro.md).
+For more information, refer to [Trend Micro Integration](guardrail-catalog/community/trend-micro.md).
 
 ##### Cisco AI Defense
 
@@ -583,7 +583,7 @@ rails:
       fail_open: false
 ```
 
-For more information, refer to [Cisco AI Defense Integration](../user-guides/community/ai-defense.md).
+For more information, refer to [Cisco AI Defense Integration](guardrail-catalog/community/ai-defense.md).
 
 ##### Private AI
 
@@ -600,7 +600,7 @@ rails:
         entities: []
 ```
 
-For more information, refer to [Private AI Integration](../user-guides/community/privateai.md).
+For more information, refer to [Private AI Integration](guardrail-catalog/community/privateai.md).
 
 ##### Fiddler Guardrails
 
@@ -613,7 +613,7 @@ rails:
       faithfulness_threshold: 0.05
 ```
 
-For more information, refer to [Fiddler Guardrails Integration](../user-guides/community/fiddler.md).
+For more information, refer to [Fiddler Guardrails Integration](guardrail-catalog/community/fiddler.md).
 
 ##### Guardrails AI
 
@@ -633,7 +633,7 @@ rails:
             parameters: {}
 ```
 
-For more information, refer to [Guardrails AI Integration](../user-guides/community/guardrails-ai.md).
+For more information, refer to [Guardrails AI Integration](guardrail-catalog/community/guardrails-ai.md).
 
 ---
 

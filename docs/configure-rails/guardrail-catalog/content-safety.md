@@ -249,19 +249,19 @@ rails:
       - llama guard check output
 ```
 
-For more details, check out the [Llama-Guard Integration](../../user-guides/community/llama-guard.md) page.
+For more details, check out the [Llama-Guard Integration](community/llama-guard.md) page.
 
 # Third-party Content Safety APIs
 
 NeMo Guardrails integrates with a collection of third-party managed services which offer content safety guardrails. These include:
 
-- [ActiveFence](../../user-guides/community/active-fence.md)
-- [AutoAlign](../../user-guides/community/auto-align.md)
-- [Clavata](../../user-guides/community/clavata.md)
-- [GCP Text Moderation](../../user-guides/community/gcp-text-moderations.md)
-- [Guardrails AI](../../user-guides/community/guardrails-ai.md)
-- [Fiddler Guardrails](../../user-guides/community/fiddler.md)
-- [Prompt Security](../../user-guides/community/prompt-security.md)
-- [Pangea (Crowdstrike) AI Guard](../../user-guides/community/pangea.md)
+- [ActiveFence](community/active-fence.md)
+- [AutoAlign](community/auto-align.md)
+- [Clavata](community/clavata.md)
+- [GCP Text Moderation](community/gcp-text-moderations.md)
+- [Guardrails AI](community/guardrails-ai.md)
+- [Fiddler Guardrails](community/fiddler.md)
+- [Prompt Security](community/prompt-security.md)
+- [Pangea (Crowdstrike) AI Guard](community/pangea.md)
 
 See the above reference pages or [Third-Party APIs](./third-party.md) for more information.

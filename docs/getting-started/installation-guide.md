@@ -130,7 +130,7 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 | `multilingual` | Language detection for multilingual content |
 | `all` | All optional packages |
 
-Some features such as [AlignScore](../user-guides/community/alignscore.md) have additional requirements. See the feature documentation for details.
+Some features such as [AlignScore](../configure-rails/guardrail-catalog/community/alignscore.md) have additional requirements. See the feature documentation for details.
 
 ## Docker
 

@@ -47,8 +47,8 @@ The NeMo Guardrails library provides multiple approaches to content safety:
 
 - **LLM self-checking**: Use the LLM itself to check inputs and outputs for harmful content.
 - **NVIDIA safety models**: Integrate with [Llama 3.1 NemoGuard 8B Content Safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3) for robust content moderation.
-- **Community models**: Use [LlamaGuard](../user-guides/community/llama-guard.md), [Fiddler Guardrails](../user-guides/community/fiddler.md), and other community content safety solutions.
-- **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/guardrail-catalog.md#activefence), [Cisco AI Defense](../user-guides/community/ai-defense.md), and other moderation services.
+- **Community models**: Use [LlamaGuard](../configure-rails/guardrail-catalog/community/llama-guard.md), [Fiddler Guardrails](../configure-rails/guardrail-catalog/community/fiddler.md), and other community content safety solutions.
+- **Third-party APIs**: Integrate with [ActiveFence](../configure-rails/guardrail-catalog.md#activefence), [Cisco AI Defense](../configure-rails/guardrail-catalog/community/ai-defense.md), and other moderation services.
 
 For practical examples, try the following tutorials:
 
@@ -64,7 +64,7 @@ The NeMo Guardrails library provides multiple layers of jailbreak protection:
 - **Self-check jailbreak detection**: Use the LLM to identify jailbreak attempts.
 - **Heuristic detection**: Use pattern-based detection for common jailbreak techniques.
 - **NVIDIA NemoGuard**: Integrate with [NemoGuard Jailbreak Detection NIM](../getting-started/tutorials/nemoguard-jailbreakdetect-deployment.md) for advanced threat detection.
-- **Third-party integrations**: Use [Prompt Security](../user-guides/community/prompt-security.md), [Pangea AI Guard](../user-guides/community/pangea.md), and other services.
+- **Third-party integrations**: Use [Prompt Security](../configure-rails/guardrail-catalog/community/prompt-security.md), [Pangea AI Guard](../configure-rails/guardrail-catalog/community/pangea.md), and other services.
 
 For practical examples, try the following tutorial:
 
@@ -90,15 +90,15 @@ For practical examples, try the following tutorial:
 Personally Identifiable Information (PII) detection helps protect user privacy by detecting and masking sensitive data in user inputs, LLM outputs, and retrieved content.
 The NeMo Guardrails library supports PII detection through multiple integrations:
 
-- **Gliner**: Use [NVIDIA GLiNER-PII](../user-guides/community/gliner.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
-- **Presidio-based detection**: Use [Microsoft Presidio](../user-guides/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
-- **Private AI**: Integrate with [Private AI](../user-guides/community/privateai.md) for advanced PII detection and masking.
-- **AutoAlign**: Use [AutoAlign PII detection](../user-guides/community/auto-align.md) with customizable entity types.
-- **GuardrailsAI**: Access [GuardrailsAI PII validators](../user-guides/community/guardrails-ai.md) from the Guardrails Hub.
+- **Gliner**: Use [NVIDIA GLiNER-PII](../configure-rails/guardrail-catalog/community/gliner.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
+- **Presidio-based detection**: Use [Microsoft Presidio](../configure-rails/guardrail-catalog/community/presidio.md) for detecting entities such as names, email addresses, phone numbers, social security numbers, and more.
+- **Private AI**: Integrate with [Private AI](../configure-rails/guardrail-catalog/community/privateai.md) for advanced PII detection and masking.
+- **AutoAlign**: Use [AutoAlign PII detection](../configure-rails/guardrail-catalog/community/auto-align.md) with customizable entity types.
+- **GuardrailsAI**: Access [GuardrailsAI PII validators](../configure-rails/guardrail-catalog/community/guardrails-ai.md) from the Guardrails Hub.
 
 PII detection can be configured to either detect and block content containing PII or to mask PII entities before processing.
 
-For more information, refer to the [Presidio Integration](../user-guides/community/presidio.md) and [Sensitive Data Detection section](../configure-rails/guardrail-catalog.md#presidio-based-sensitive-data-detection) in the Guardrail Catalog.
+For more information, refer to the [Presidio Integration](../configure-rails/guardrail-catalog/community/presidio.md) and [Sensitive Data Detection section](../configure-rails/guardrail-catalog.md#presidio-based-sensitive-data-detection) in the Guardrail Catalog.
 :::
 
 :::{dropdown} 🤖 Add Agentic Security
