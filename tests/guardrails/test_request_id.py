@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id, new_request_id, reset_request_id
+from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id, reset_request_id, set_new_request_id
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -56,17 +56,17 @@ class TestResetRequestId:
     def test_reset_restores_default(self):
         """reset_request_id restores the ContextVar to its default value."""
         assert get_request_id() == "no-req-id"
-        token = new_request_id()
+        token = set_new_request_id()
         assert get_request_id() != "no-req-id"
         reset_request_id(token)
         assert get_request_id() == "no-req-id"
 
     def test_reset_restores_previous_value(self):
         """Nested set/reset restores the outer value, not the default."""
-        outer_token = new_request_id()
+        outer_token = set_new_request_id()
         outer_id = get_request_id()
 
-        inner_token = new_request_id()
+        inner_token = set_new_request_id()
         assert get_request_id() != outer_id
 
         reset_request_id(inner_token)
@@ -153,6 +153,16 @@ class TestSingleRequest:
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
 
         await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        assert get_request_id() == "no-req-id"
+
+    @pytest.mark.asyncio
+    async def test_request_id_reset_after_exception(self, iorails):
+        """ContextVar is reset even when generate_async raises an exception."""
+        iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("boom"))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
 
         assert get_request_id() == "no-req-id"
 

@@ -56,3 +56,47 @@ class TestConfigureLogging:
     def test_returns_package_logger(self):
         logger = configure_logging()
         assert logger.name == "nemoguardrails.guardrails"
+
+    def test_custom_formatter_is_applied(self):
+        custom_fmt = logging.Formatter("%(levelname)s - %(message)s")
+        logger = configure_logging(formatter=custom_fmt)
+        assert logger.handlers[0].formatter is custom_fmt
+
+    def test_custom_handler_is_used(self):
+        custom_handler = logging.StreamHandler()
+        logger = configure_logging(handler=custom_handler)
+        assert logger.handlers[0] is custom_handler
+
+    def test_repeat_call_updates_handler_level_and_formatter(self):
+        logger = configure_logging(logging.INFO)
+        assert logger.handlers[0].level == logging.INFO
+
+        custom_fmt = logging.Formatter("%(message)s")
+        configure_logging(logging.DEBUG, formatter=custom_fmt)
+        assert logger.handlers[0].level == logging.DEBUG
+        assert logger.handlers[0].formatter is custom_fmt
+
+    def test_repeat_call_ignores_handler_argument(self):
+        logger = configure_logging(logging.INFO)
+        original_handler = logger.handlers[0]
+
+        custom_handler = logging.StreamHandler()
+        configure_logging(logging.DEBUG, handler=custom_handler)
+        assert len(logger.handlers) == 1
+        assert logger.handlers[0] is original_handler
+
+    def test_repeat_call_with_custom_handler(self):
+        custom_handler = logging.StreamHandler()
+        logger = configure_logging(logging.INFO, handler=custom_handler)
+        assert logger.handlers[0] is custom_handler
+
+        # A second handler won't be attached the logger, but formatter and
+        # levels will update existing handler
+        new_handler = logging.StreamHandler()
+        new_fmt = logging.Formatter("%(message)s")
+        configure_logging(logging.DEBUG, handler=new_handler, formatter=new_fmt)
+
+        assert len(logger.handlers) == 1
+        assert logger.handlers[0] is custom_handler
+        assert logger.handlers[0].level == logging.DEBUG
+        assert logger.handlers[0].formatter is new_fmt

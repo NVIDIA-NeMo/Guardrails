@@ -22,13 +22,14 @@ outside this supported set, the standard LLMRails engine should be used instead.
 
 import asyncio
 import logging
+import time
 
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
     get_request_id,
-    new_request_id,
     reset_request_id,
+    set_new_request_id,
     truncate,
 )
 from nemoguardrails.guardrails.model_manager import ModelManager
@@ -97,8 +98,9 @@ class IORails:
 
     async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Run input rails, generation, and output rails. Return response if safe."""
-        token = new_request_id()
+        token = set_new_request_id()
         req_id = get_request_id()
+        t0 = time.monotonic()
         try:
             log.info("[%s] generate_async called", req_id)
             log.debug("[%s] generate_async messages=%s", req_id, truncate(messages))
@@ -129,7 +131,12 @@ class IORails:
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
                 return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
-            log.info("[%s] generate_async completed", req_id)
             return {"role": "assistant", "content": response_text}
+        except Exception:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
+            raise
         finally:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
             reset_request_id(token)

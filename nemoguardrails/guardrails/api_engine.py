@@ -142,15 +142,18 @@ class APIEngine:
         t0 = time.monotonic()
         try:
             async with client.post(url, json=request_body, headers=headers) as response:
+                elapsed_ms = (time.monotonic() - t0) * 1000
+
                 if response.status >= 400:
                     error_body = await safe_read_body(response)
+                    log.warning("[%s] HTTP %s from endpoint '%s' time=%.1fms", req_id, response.status, url, elapsed_ms)
                     raise APIEngineError(
                         f"HTTP {response.status} from endpoint '{url}': {error_body}",
                         endpoint=url,
                         status=response.status,
                     )
+
                 result = await response.json()
-                elapsed_ms = (time.monotonic() - t0) * 1000
                 log.debug(
                     "[%s] HTTP response status=%s time=%.1fms body: %s",
                     req_id,
@@ -161,11 +164,15 @@ class APIEngine:
                 return result
 
         except aiohttp.ContentTypeError as exc:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            log.warning("[%s] Failed to parse response as JSON time=%.1fms", req_id, elapsed_ms)
             raise APIEngineError(f"Failed to parse response as JSON: {exc}", endpoint=url, status=exc.status) from exc
 
         except APIEngineError:
             raise
         except Exception as exc:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            log.warning("[%s] Request to endpoint '%s' failed time=%.1fms", req_id, url, elapsed_ms)
             raise APIEngineError(
                 f"Request to endpoint '{url}' failed: {exc}",
                 endpoint=url,

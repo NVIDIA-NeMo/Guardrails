@@ -26,26 +26,26 @@ def configure_logging(
 ) -> logging.Logger:
     """Configure logging for the ``nemoguardrails.guardrails`` package.
 
-    Attaches a handler with a formatter to the ``nemoguardrails.guardrails``
-    logger so that all modules under this package (model_engine, api_engine,
-    rails_manager, etc.) inherit the same settings.
+    Attaches a handler if none exist, or updates existing handlers if they do.
+    **If a handler is provided on repeat calls, it is ignored to avoid accumulating handlers.**
+    Sets level and formatter of all handlers so that all modules under this package
+    (model_engine, api_engine, rails_manager, etc.) inherit the same settings.
 
     """
     logger = logging.getLogger("nemoguardrails.guardrails")
-
-    # If the logger already has handlers, update logger and all handler levels
-    if logger.handlers:
-        logger.setLevel(level)
-        for log_handler in logger.handlers:
-            log_handler.setLevel(level)
-        return logger
-
-    # If there are no handlers, create them and add them to the logger
     logger.setLevel(level)
 
     if formatter is None:
         formatter = logging.Formatter(DEFAULT_FORMAT, datefmt=DEFAULT_DATEFMT)
 
+    # If the logger already has handlers, update logger level and handler level and formatters
+    if logger.handlers:
+        for log_handler in logger.handlers:
+            log_handler.setLevel(level)
+            log_handler.setFormatter(formatter)
+        return logger
+
+    # There are no handlers. So create one (if needed) and set level and formatter
     if handler is None:
         handler = logging.StreamHandler()
 
