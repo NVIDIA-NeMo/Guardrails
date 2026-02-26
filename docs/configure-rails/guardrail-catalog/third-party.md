@@ -269,9 +269,9 @@ For more details, check out the [Cisco AI Defense Integration](community/ai-defe
 :hidden:
 
 ActiveFence <community/active-fence>
-Cisco AI Defense <community/ai-defense>
 AlignScore <community/alignscore>
 AutoAlign <community/auto-align>
+Cisco AI Defense <community/ai-defense>
 Clavata <community/clavata>
 Cleanlab <community/cleanlab>
 CrowdStrike AIDR <community/crowdstrike-aidr>
@@ -282,8 +282,8 @@ GuardrailsAI <community/guardrails-ai>
 Llama Guard <community/llama-guard>
 Pangea AI Guard <community/pangea>
 Patronus Evaluate API <community/patronus-evaluate-api>
-Patronus Lynx Deployment <community/patronus-lynx-deployment>
 Patronus Lynx <community/patronus-lynx>
+Patronus Lynx Deployment <community/patronus-lynx-deployment>
 Presidio <community/presidio>
 Private AI <community/privateai>
 Prompt Security <community/prompt-security>
