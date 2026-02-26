@@ -44,8 +44,9 @@ async def my_custom_action():
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
 | `name` | `str` | Custom name for the action | Function name |
-| `is_system_action` | `bool` | Mark as system action (runs in guardrails context) | `False` |
-| `execute_async` | `bool` | Execute asynchronously without blocking | `False` |
+| `is_system_action` | `bool` | Always run locally, bypassing the actions server | `False` |
+| `execute_async` | `bool` | Don't block event processing while the action runs (Colang 2.x only) | `False` |
+| `output_mapping` | `Callable[[Any], bool]` | Function to interpret the action result for blocking decisions | `default_output_mapping` |
 
 ### Custom Action Name
 
@@ -66,7 +67,11 @@ $is_valid = execute validate_user_input(text=$user_message)
 
 ### System Actions
 
-System actions have access to the guardrails context and are typically used for input/output validation:
+When `is_system_action=True`, the action always runs locally, even when an `actions_server_url` is configured. This is important for actions that need access to special parameters like `context`, `llm`, `config`, and `events`, which are only injected for locally-run actions.
+
+```{note}
+When no `actions_server_url` is configured, all actions run locally and receive special parameters regardless of the `is_system_action` setting. The flag only affects behavior when an actions server is in use.
+```
 
 ```python
 @action(is_system_action=True)
@@ -79,14 +84,55 @@ async def check_policy_compliance(context: Optional[dict] = None):
 
 ### Async Execution
 
-For long-running operations, use `execute_async=True` to prevent blocking:
+When `execute_async=True`, the event processing loop does not wait for the action to complete before continuing. The action runs in the background and the result is picked up later via polling. This is useful for long-running operations where you don't need the result immediately.
+
+```{note}
+This flag is only supported in the Colang 2.x runtime. In the Colang 1.0 runtime, it is stored in metadata but has no effect.
+```
 
 ```python
 @action(execute_async=True)
 async def call_external_api(endpoint: str):
-    """Call an external API without blocking."""
+    """Call an external API without blocking event processing."""
     response = await http_client.get(endpoint)
     return response.json()
+```
+
+### Output Mapping
+
+The `output_mapping` parameter controls how the action's return value is interpreted to determine if output should be blocked. It accepts a callable that takes the return value and returns `True` if the output is **not safe** (should be blocked).
+
+When no `output_mapping` is provided, the default behavior is:
+- **Boolean results**: `True` means allowed, `False` means blocked
+- **Numeric results**: Values below `0.5` are blocked
+- **Other types**: Allowed by default
+
+```python
+@action(output_mapping=lambda value: value)
+async def check_hallucination(context: Optional[dict] = None):
+    """Return True if hallucination detected (blocked), False if safe."""
+    return detect_hallucination(context.get("bot_message", ""))
+```
+
+```python
+@action(is_system_action=True, output_mapping=lambda value: not value)
+async def check_output_safety(context: Optional[dict] = None):
+    """Return True if safe (allowed), mapped to not-blocked."""
+    return is_safe(context.get("bot_message", ""))
+```
+
+You can also define a custom mapping function for more complex logic:
+
+```python
+def my_custom_mapping(result):
+    if isinstance(result, dict):
+        return result.get("score", 1.0) < 0.7
+    return False
+
+@action(output_mapping=my_custom_mapping)
+async def score_safety(context: Optional[dict] = None):
+    """Return a dict with a safety score."""
+    return {"score": compute_score(context.get("bot_message", ""))}
 ```
 
 ## Function Parameters

@@ -84,6 +84,56 @@ class TestGuardrailsAIIntegration:
         assert mapped3 is True
 
     @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
+    def test_validate_guardrails_ai_input_returns_valid_key(self, mock_get_guard):
+        """Test that validate_guardrails_ai_input returns both validation_result and valid."""
+        from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai_input
+
+        mock_guard = Mock()
+        mock_validation_result = Mock()
+        mock_validation_result.validation_passed = True
+        mock_guard.validate.return_value = mock_validation_result
+        mock_get_guard.return_value = mock_guard
+
+        mock_config = Mock()
+        mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(parameters={}, metadata={})
+
+        result = validate_guardrails_ai_input(
+            validator="toxic_language",
+            config=mock_config,
+            text="Hello, this is safe",
+        )
+
+        assert "validation_result" in result
+        assert "valid" in result
+        assert result["validation_result"] == mock_validation_result
+        assert result["valid"] is True
+
+    @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
+    def test_validate_guardrails_ai_output_returns_valid_key(self, mock_get_guard):
+        """Test that validate_guardrails_ai_output returns both validation_result and valid."""
+        from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai_output
+
+        mock_guard = Mock()
+        mock_validation_result = Mock()
+        mock_validation_result.validation_passed = False
+        mock_guard.validate.return_value = mock_validation_result
+        mock_get_guard.return_value = mock_guard
+
+        mock_config = Mock()
+        mock_config.rails.config.guardrails_ai.get_validator_config.return_value = Mock(parameters={}, metadata={})
+
+        result = validate_guardrails_ai_output(
+            validator="toxic_language",
+            config=mock_config,
+            text="Blocked content",
+        )
+
+        assert "validation_result" in result
+        assert "valid" in result
+        assert result["validation_result"] == mock_validation_result
+        assert result["valid"] is False
+
+    @patch("nemoguardrails.library.guardrails_ai.actions._get_guard")
     def test_validate_guardrails_ai_success(self, mock_get_guard):
         """Test successful validation with current interface."""
         from nemoguardrails.library.guardrails_ai.actions import validate_guardrails_ai

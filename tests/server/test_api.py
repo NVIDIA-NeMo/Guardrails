@@ -19,6 +19,8 @@ from typing import AsyncIterator, Union
 from unittest.mock import patch
 
 import pytest
+
+pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
 from nemoguardrails.server import api

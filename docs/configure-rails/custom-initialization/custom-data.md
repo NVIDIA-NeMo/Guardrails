@@ -9,7 +9,6 @@ topics:
 tags:
 - custom_data
 - config.yml
-- Environment Variables
 - Python
 content:
   type: how_to
@@ -35,7 +34,6 @@ models:
 
 custom_data:
   api_endpoint: "https://api.example.com"
-  api_key: "${API_KEY}"  # Environment variable
   max_retries: 3
   timeout_seconds: 30
   feature_flags:
@@ -56,12 +54,15 @@ def init(app: LLMRails):
 
     # Get individual values
     api_endpoint = custom_data.get("api_endpoint")
-    api_key = custom_data.get("api_key")
     max_retries = custom_data.get("max_retries", 3)  # with default
 
     # Access nested values
     feature_flags = custom_data.get("feature_flags", {})
     enable_caching = feature_flags.get("enable_caching", False)
+
+    # Load sensitive values from environment variables
+    import os
+    api_key = os.environ.get("API_KEY")
 
     # Use to configure your providers
     client = APIClient(
@@ -90,79 +91,32 @@ async def my_action(config=None):
     return await do_something(timeout=timeout)
 ```
 
-## Environment Variables
+## Sensitive Configuration
 
-Use environment variable substitution for sensitive values:
-
-**config.yml:**
-
-```yaml
-custom_data:
-  database_url: "${DATABASE_URL}"
-  api_key: "${API_KEY}"
-  secret_key: "${SECRET_KEY:-default_value}"  # with default
-```
-
-**Shell:**
-
-```bash
-export DATABASE_URL="postgresql://user:pass@localhost/db"
-export API_KEY="sk-..."
-```
-
-## Example: Multi-Environment Configuration
-
-**config.yml:**
-
-```yaml
-custom_data:
-  environment: "${ENV:-development}"
-
-  # Database configuration
-  database:
-    host: "${DB_HOST:-localhost}"
-    port: "${DB_PORT:-5432}"
-    name: "${DB_NAME:-myapp}"
-
-  # API configuration
-  api:
-    base_url: "${API_BASE_URL:-http://localhost:8000}"
-    timeout: 30
-
-  # Feature toggles
-  features:
-    rate_limiting: "${ENABLE_RATE_LIMIT:-false}"
-    caching: true
-```
+For sensitive values like API keys, use the `api_key_env_var` field on model configurations or load environment variables in your `init()` function:
 
 **config.py:**
 
 ```python
+import os
 from nemoguardrails import LLMRails
 
 def init(app: LLMRails):
     custom_data = app.config.custom_data
 
-    env = custom_data.get("environment")
-    db_config = custom_data.get("database", {})
-    api_config = custom_data.get("api", {})
+    api_key = os.environ.get("API_KEY")
+    db_url = os.environ.get("DATABASE_URL", "postgresql://localhost/myapp")
 
-    # Configure based on environment
-    if env == "production":
-        # Production-specific setup
-        pass
-    else:
-        # Development setup
-        pass
-
-    # Initialize database
-    db = Database(
-        host=db_config.get("host"),
-        port=db_config.get("port"),
-        name=db_config.get("name")
+    client = APIClient(
+        endpoint=custom_data.get("api_endpoint"),
+        api_key=api_key,
     )
 
-    app.register_action_param("db", db)
+    app.register_action_param("api_client", client)
+```
+
+```{note}
+The `custom_data` field in `config.yml` uses standard YAML parsing and does **not** support inline environment variable substitution (e.g., `${VAR}`). Load sensitive values from environment variables in your `init()` function instead.
 ```
 
 ## Best Practices

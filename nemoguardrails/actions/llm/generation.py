@@ -599,7 +599,7 @@ class LLMGenerationActions:
         return final_results[0:max_results]
 
     @action(is_system_action=True)
-    async def generate_next_step(self, events: List[dict], llm: Optional[BaseLLM] = None):
+    async def generate_next_steps(self, events: List[dict], llm: Optional[BaseLLM] = None):
         """Generate the next step in the current conversation flow.
 
         Currently, only generates a next step after a user intent.

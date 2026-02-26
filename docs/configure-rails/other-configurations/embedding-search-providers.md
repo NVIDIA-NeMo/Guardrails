@@ -14,7 +14,7 @@ content:
 
 # Embedding Search Providers
 
-NeMo Guardrails utilizes embedding search, also known as vector databases, for implementing the [guardrails process](../../architecture/README.md#the-guardrails-process) and for the [knowledge base](../configuration-guide.md#knowledge-base-documents) functionality.
+NeMo Guardrails utilizes embedding search, also known as vector databases, for implementing the [guardrails process](../../reference/colang-architecture-guide.md#the-guardrails-process) and for the [knowledge base](knowledge-base.md) functionality.
 
 To enhance the efficiency of the embedding search process, NeMo Guardrails can employ a caching mechanism for embeddings. This mechanism stores computed embeddings, thereby reducing the need for repeated computations and accelerating the search process. By default, the caching mechanism is disabled.
 
@@ -62,7 +62,7 @@ core:
     name: default
     parameters:
       embedding_engine: openai
-      embedding_model: text-embedding-ada-002
+      embedding_model: text-embedding-3-small
     cache:
       enabled: False
       key_generator: sha256
@@ -74,7 +74,7 @@ knowledge_base:
     name: default
     parameters:
       embedding_engine: openai
-      embedding_model: text-embedding-ada-002
+      embedding_model: text-embedding-3-small
     cache:
       enabled: False
       key_generator: sha256
@@ -124,7 +124,7 @@ class EmbeddingsIndex:
         This is optional, might not be needed for all implementations."""
         pass
 
-    async def search(self, text: str, max_results: int) -> List[IndexItem]:
+    async def search(self, text: str, max_results: int, threshold: Optional[float]) -> List[IndexItem]:
         """Searches the index for the closest matches to the provided text."""
         raise NotImplementedError()
 

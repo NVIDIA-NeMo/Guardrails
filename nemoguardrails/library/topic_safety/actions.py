@@ -35,6 +35,14 @@ from nemoguardrails.logging.explain import LLMCallInfo
 
 log = logging.getLogger(__name__)
 
+TOPIC_SAFETY_OUTPUT_RESTRICTION = (
+    'If any of the above conditions are violated, please respond with "off-topic". '
+    'Otherwise, respond with "on-topic". '
+    'You must respond with "on-topic" or "off-topic".'
+)
+TOPIC_SAFETY_TEMPERATURE = 0.01
+TOPIC_SAFETY_MAX_TOKENS = 10
+
 
 @action()
 async def topic_safety_check_input(
@@ -46,7 +54,7 @@ async def topic_safety_check_input(
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
-    _MAX_TOKENS = 10
+    _MAX_TOKENS = TOPIC_SAFETY_MAX_TOKENS
     user_input: str = ""
 
     if context is not None:
@@ -89,12 +97,6 @@ async def topic_safety_check_input(
         task=task,
     )
 
-    TOPIC_SAFETY_OUTPUT_RESTRICTION = (
-        'If any of the above conditions are violated, please respond with "off-topic". '
-        'Otherwise, respond with "on-topic". '
-        'You must respond with "on-topic" or "off-topic".'
-    )
-
     system_prompt = system_prompt.strip()
     if not system_prompt.endswith(TOPIC_SAFETY_OUTPUT_RESTRICTION):
         system_prompt = f"{system_prompt}\n\n{TOPIC_SAFETY_OUTPUT_RESTRICTION}"
@@ -120,7 +122,7 @@ async def topic_safety_check_input(
             log.debug(f"Topic safety cache hit for model '{model_name}'")
             return cached_result
 
-    result = await llm_call(llm, messages, stop=stop, llm_params={"temperature": 0.01})
+    result = await llm_call(llm, messages, stop=stop, llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE})
 
     if result.lower().strip() == "off-topic":
         on_topic = False

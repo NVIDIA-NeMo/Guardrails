@@ -151,13 +151,35 @@ async for chunk in app.stream_async(
 
 This feature enables seamless integration of the NeMo Guardrails library with any streaming LLM or token source while maintaining all the safety features of output rails.
 
+## Streaming Metadata
+
+When using `stream_async()`, you can receive per-chunk metadata (e.g., token usage, finish reason) by setting `include_metadata=True`:
+
+```python
+async for chunk in rails.stream_async(messages=messages, include_metadata=True):
+    print(chunk)
+```
+
+With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` key. The final chunk also includes a `"metadata"` key containing `response_metadata` (finish reason, model name) and `usage_metadata` (token counts):
+
+```python
+{"text": "Hello"}
+{"text": "!"}
+{"text": "", "metadata": {
+    "response_metadata": {"finish_reason": "stop", "model_name": "gpt-4o"},
+    "usage_metadata": {"input_tokens": 75, "output_tokens": 9, "total_tokens": 84}
+}}
+```
+
+Without `include_metadata`, chunks are plain strings (default behavior).
+
+```{deprecated}
+The `include_generation_metadata` parameter is deprecated. Use `include_metadata` instead. It will be removed in version 0.22.0.
+```
+
 ## Token Usage Tracking
 
-When streaming is enabled, the NeMo Guardrails library automatically enables token usage tracking by setting the `stream_usage` parameter to `True` for the underlying LLM model. This feature:
-
-- Provides token usage statistics even when streaming responses.
-- Is primarily supported by OpenAI, AzureOpenAI, and other providers. The NVIDIA NIM provider supports it by default.
-- Allows to safely pass token usage statistics to LLM providers. If the LLM provider you use don't support it, the parameter is ignored.
+Token usage statistics are available when streaming responses, depending on provider support. When the provider does not return token usage statistics, the final chunk's `metadata` will contain `response_metadata` and `usage_metadata` set to `None`.
 
 ### Accessing Token Usage Information
 

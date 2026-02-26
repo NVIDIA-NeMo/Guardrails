@@ -21,7 +21,8 @@ A guardrails configuration includes the following components. You can start with
 | Component                    | Required/Optional | Description                                                                                                                                                                      | Location        |
 |------------------------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------|
 | **Core Configuration**       | Required          | A `config.yml` file that contains the core configuration options such as which LLM(s) to use, general instructions (similar to system prompts), sample conversation, which rails are active, and specific rails configuration options. | `config.yml`           |
-| **Colang Flows**             | Optional          | A collection of Colang files (`.co` files) implementing the rails.                                                                                                               | `rails` folder         |
+| **Colang Flows**             | Optional          | A collection of Colang files (`.co` files) implementing the rails. Files are loaded recursively from anywhere in the config directory.                                            | Config root, `rails/` folder, or any subfolder |
+| **Custom Prompts**           | Optional          | YAML file with custom prompts for guardrails tasks. Prompts can also be defined directly in `config.yml`.                                                                         | `prompts.yml`          |
 | **Custom Actions**           | Optional          | Python functions decorated with `@action()` that can be called from Colang flows during request processing (for example, external API calls, validation logic).                                 | `actions.py` or `actions/` folder |
 | **Custom Initialization**    | Optional          | Python code that runs once at startup to register custom LLM providers, embedding providers, or shared resources (for example, database connections).                                            | `config.py`            |
 | **Knowledge Base Documents** | Optional          | Documents (`.md` files) that can be used in a RAG (Retrieval-Augmented Generation) scenario (i.e. Retrieval rail) using the built-in Knowledge Base support.                                           | `kb` folder            |
@@ -67,8 +68,9 @@ The following are example configuration folder structures.
     ```text
     config/
     ├── config.yml          # Core configuration
+    ├── prompts.yml         # Custom prompts (optional, can also be in config.yml)
     ├── config.py           # Custom initialization (LLM providers, etc.)
-    ├── rails/              # Colang flow files
+    ├── rails/              # Colang flow files (can also be at config root)
     │   ├── input.co
     │   ├── output.co
     │   └── ...

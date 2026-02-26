@@ -85,6 +85,11 @@ from pydantic import BaseModel, Field, root_validator
 from nemoguardrails.logging.explain import LLMCallInfo
 
 
+class RailType(str, Enum):
+    INPUT = "input"
+    OUTPUT = "output"
+
+
 class RailStatus(str, Enum):
     PASSED = "passed"
     MODIFIED = "modified"

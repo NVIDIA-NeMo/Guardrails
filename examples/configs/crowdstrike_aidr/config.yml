@@ -1,0 +1,20 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+instructions:
+  - type: general
+    content: You are a helpful assistant.
+
+rails:
+  config:
+    crowdstrike_aidr:
+      timeout: 15.0 # Optional request timeout in seconds. Defaults to 30 seconds.
+
+  input:
+    flows:
+      - crowdstrike aidr guard input
+  output:
+    flows:
+      - crowdstrike aidr guard output

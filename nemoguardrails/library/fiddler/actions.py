@@ -67,6 +67,7 @@ async def call_fiddler_guardrail(
                             "fdl_harassing",
                             "fdl_hateful",
                             "fdl_sexist",
+                            "fdl_roleplaying",
                         ]
                     )
                 else:
@@ -94,7 +95,7 @@ async def call_fiddler_safety_user(config: RailsConfig, context: Optional[dict] 
         log.error("Fiddler Jailbreak Guardrails could not be run. User message must be provided.")
         return False
 
-    data = {"prompt": [user_message]}
+    data = {"input": user_message}
     return await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
@@ -120,7 +121,7 @@ async def call_fiddler_safety_bot(config: RailsConfig, context: Optional[dict] =
         log.error("Fiddler Safety Guardrails could not be run. Bot message must be provided.")
         return False
 
-    data = {"prompt": [bot_message]}
+    data = {"input": bot_message}
     return await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-safety",
         data=data,
@@ -142,12 +143,12 @@ async def call_fiddler_faithfulness(config: RailsConfig, context: Optional[dict]
         return False
 
     bot_message = context.get("bot_message", "")
-    knowledge = context.get("relevant_chunks", [])
+    knowledge = context.get("relevant_chunks", "")
     if not bot_message:
         log.error("Fiddler Faithfulness Guardrails could not be run. Chatbot message must be provided.")
         return False
 
-    data = {"response": [bot_message], "context": [knowledge]}
+    data = {"context": knowledge, "response": bot_message}
     return await call_fiddler_guardrail(
         endpoint=base_url + "/v3/guardrails/ftl-response-faithfulness",
         data=data,

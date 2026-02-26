@@ -40,7 +40,7 @@ This provides access to:
 
 - **Locally-deployed NIMs**: Run models on your own infrastructure with optimized inference.
 - **NVIDIA API Catalog**: Access hosted models on [build.nvidia.com](https://build.nvidia.com/models).
-- **Specialized NIMs**: Nemotron Content Safety, Topic Control, and Jailbreak Detect.
+- **Specialized NIMs**: NemoGuard Content Safety, Topic Control, and Jailbreak Detect.
 
 ### Local NIM Deployment
 
@@ -157,7 +157,7 @@ models:
 
 ### Complete Example
 
-The following example shows how to configure the main application LLM, embeddings model, and a dedicated Nemotron model for input and output checking:
+The following example shows how to configure the main application LLM, embeddings model, and a dedicated NemoGuard model for input and output checking:
 
 ```yaml
 models:

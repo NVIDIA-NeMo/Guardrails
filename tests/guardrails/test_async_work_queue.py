@@ -790,6 +790,32 @@ class TestQueueStatusMethods:
         assert queue.num_busy_workers() == 0
 
 
+class TestStartWorkerCreationFailure:
+    """Tests for worker creation failure during start()."""
+
+    @pytest.mark.asyncio
+    async def test_start_raises_when_workers_fail_to_create(self):
+        """start() raises RuntimeError when asyncio.create_task fails for a worker."""
+        from unittest.mock import patch
+
+        queue = AsyncWorkQueue[int](name="test_queue", max_queue_size=10, max_concurrency=3)
+
+        original_create_task = asyncio.create_task
+        call_count = [0]
+
+        def mock_create_task(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 2:
+                raise RuntimeError("Simulated task creation failure")
+            return original_create_task(*args, **kwargs)
+
+        with patch("asyncio.create_task", side_effect=mock_create_task):
+            with pytest.raises(RuntimeError, match="Simulated task creation failure"):
+                await queue.start()
+
+        assert not queue._running
+
+
 class TestWorkerErrorHandling:
     """Tests for enhanced worker error handling with logging and backoff."""
 

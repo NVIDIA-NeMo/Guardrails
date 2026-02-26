@@ -455,7 +455,7 @@ To use the content safety check, you should:
     models:
       - type: main
         engine: openai
-        model: gpt-3.5-turbo-instruct
+        model: gpt-4o-mini
 
       - type: content_safety
         engine: nim
@@ -471,7 +471,7 @@ To use the content safety check, you should:
     ```
 
     ```{note}
-    The `type` is a unique idenfier for the model to be referred to in the input and output rails as a parameter.
+    The `type` is a unique identifier for the model to be referred to in the input and output rails as a parameter.
     ```
 
     ```{note}
@@ -870,7 +870,7 @@ There is currently one available model-based detection, using a random forest-ba
 
 The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](../user-guides/jailbreak-detection-heuristics/README.md) separately.
 
-For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `tourch`.
+For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `torch`.
 
 ```bash
 pip install transformers torch
@@ -1330,7 +1330,30 @@ rails:
 
 For more details, check out the [Prompt Security Integration](../user-guides/community/prompt-security.md) page.
 
+### CrowdStrike AIDR
+
+The NeMo Guardrails library supports using CrowdStrike AIDR for protecting data and interactions with LLMs within
+AI-powered applications.
+
+#### Example usage
+
+```yaml
+rails:
+  input:
+    flows:
+      - crowdstrike aidr guard input
+
+  output:
+    flows:
+      - crowdstrike aidr guard output
+```
+
+For more details, check out the [CrowdStrike AIDR Integration](../user-guides/community/crowdstrike-aidr.md) page.
+
 ### Pangea AI Guard
+
+> **Warning:** The Pangea AI Guard integration is deprecated and will be removed in a future release.
+> Users should migrate to the CrowdStrike AIDR integration.
 
 The NeMo Guardrails library supports using [Pangea AI Guard](https://pangea.cloud/services/ai-guard/) for protecting data and
 interactions with LLMs within AI-powered applications.

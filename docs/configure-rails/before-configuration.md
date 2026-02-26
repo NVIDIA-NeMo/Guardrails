@@ -24,7 +24,7 @@ This page covers the prerequisites and decisions to make before you begin workin
 Use the following checklist to ensure that you have all the necessary components ready before you begin configuring guardrails.
 
 - [ ] (Required) Main LLM endpoint and credentials ready. Refer to [](#hosted-llm-for-the-main-llm) for more details.
-- [ ] (Recommended) NemoGuard NIM endpoints deployed. Refer to [](#nemotron-nim-microservices) for more details.
+- [ ] (Recommended) NemoGuard NIM endpoints deployed. Refer to [](supported-nemoguard-nim-microservices) for more details.
 - [ ] (Optional) Knowledge base documents prepared. Refer to [](#knowledge-base-documents) for more details.
 - [ ] (Optional) Custom action requirements identified. Refer to [](#advanced-components) for more details.
 
@@ -43,6 +43,11 @@ You need a main LLM hosted and accessible via API. This LLM handles the conversa
 | NVIDIA NIM | Deploy NIM and note the API endpoint |
 | OpenAI | Obtain API key |
 | Azure OpenAI | Configure Azure endpoint and API key |
+| Anthropic | Obtain API key |
+| Cohere | Obtain API key |
+| Google Vertex AI | Configure project and credentials |
+| HuggingFace | Obtain API token or deploy endpoint |
+| vLLM | Deploy vLLM server and note the API endpoint |
 | Other providers | Refer to [Supported LLMs](../about/supported-llms.md) |
 
 **Checklist of what you need:**
@@ -52,11 +57,12 @@ You need a main LLM hosted and accessible via API. This LLM handles the conversa
 
 ---
 
-## Nemotron NIM Microservices
+(supported-nemoguard-nim-microservices)=
+## NVIDIA NemoGuard NIM Microservices
 
 Deploy dedicated safety models to offload guardrail checks from the main LLM:
 
-| Nemotron Model | Purpose |
+| NVIDIA NemoGuard Model | Purpose |
 |-----------------|---------|
 | Content Safety | Detect harmful or inappropriate content |
 | Jailbreak Detect | Block adversarial prompt attacks |
@@ -64,7 +70,7 @@ Deploy dedicated safety models to offload guardrail checks from the main LLM:
 
 **Checklist of what you need:**
 
-- [ ] Nemotron NIM endpoint URLs, either locally or on NVIDIA API Catalog
+- [ ] NemoGuard NIM endpoint URLs, either locally or on NVIDIA API Catalog
 - [ ] KV cache enabled for better performance (recommended)
 
 :::{tip}
@@ -90,7 +96,7 @@ For advanced use cases such as implementing your own custom scripts or guardrail
 |-----------|---------|--------|
 | **Custom Actions** | External API calls, validation logic | Python functions in `actions.py` |
 | **Custom Initialization** | Register custom LLM/embedding providers | Python code in `config.py` |
-| **Custom Prompts** | Override default guardrails prompts | YAML in `config.yml` |
+| **Custom Prompts** | Override default guardrails prompts | YAML in `config.yml` or `prompts.yml` |
 
 ---
 

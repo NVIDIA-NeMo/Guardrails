@@ -153,7 +153,7 @@ models:
 |--------|----------|-------------|
 | `_call` | Yes | Synchronous text completion |
 | `_llm_type` | Yes | Returns the LLM type identifier |
-| `_acall` | Recommended | Asynchronous text completion |
+| `_acall` | Yes | Asynchronous text completion |
 | `_stream` | Optional | Streaming text completion |
 | `_astream` | Optional | Async streaming text completion |
 

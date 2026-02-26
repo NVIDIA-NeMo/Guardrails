@@ -45,7 +45,7 @@ jobs:
             - name: Configure poetry
               run: poetry config virtualenvs.in-project true
             - name: Install dependencies
-              run: poetry install --only docs
+              run: poetry install --with docs
             - name: Build documentation
               run: make docs
             - name: Delete unnecessary files

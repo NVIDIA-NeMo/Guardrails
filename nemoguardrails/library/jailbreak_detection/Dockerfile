@@ -1,5 +1,5 @@
-# Use python:3.10 as the base image
-FROM python:3.10-slim
+# Use python:3.11 as the base image
+FROM python:3.11-slim
 
 # Install git and wget
 RUN apt-get update && apt-get install -y git gcc g++ python3-dev wget && apt-get clean
@@ -16,7 +16,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Upgrade pip and install the minimal set of requirements for jailbreak detection Server
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 
@@ -30,5 +30,5 @@ RUN python -c "from transformers import GPT2LMHeadModel, GPT2TokenizerFast; GPT2
 EXPOSE 1337
 
 # Start the server as the default command
-ENTRYPOINT ["/usr/local/bin/python", "/app/server.py"]
+ENTRYPOINT ["python", "/app/server.py"]
 CMD ["--port=1337"]

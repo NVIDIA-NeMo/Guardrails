@@ -47,6 +47,7 @@ nemoguardrails = "nemoguardrails.__main__:app"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 aiohttp = ">=3.10.11"
+aiohttp-retry = ">=2.9.0"
 annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
 fastembed = [{ version = ">=0.2.2", python = ">=3.10,<3.14" }]
@@ -71,7 +72,7 @@ starlette = ">=0.49.1"
 typer = ">=0.8"
 uvicorn = ">=0.23"
 watchdog = ">=3.0.0,"
-openai = ">=1.0.0,<3.0.0"
+openai = { version = ">=1.0.0,<3.0.0", optional = true }
 
 # tracing
 opentelemetry-api = { version = ">=1.27.0,<2.0.0", optional = true }
@@ -156,6 +157,7 @@ yara-python = "^4.5.1"
 opentelemetry-api = "^1.34.1"
 opentelemetry-sdk = "^1.34.1"
 fast-langdetect = ">=1.0.0"
+openai = ">=1.0.0,<3.0.0"
 pyright = "^1.1.405"
 ruff = "0.14.6"
 
@@ -190,6 +192,7 @@ myst-parser = "<=5"
 sphinx-copybutton = "<=0.6"
 sphinx-design = "*"
 sphinx-autobuild = "*"
+sphinx-autodoc-typehints = "*"
 sphinxcontrib-mermaid = "*"
 nvidia-sphinx-theme = { version = ">=0.0.8", python = ">=3.10" }
 watchdog = "^6.0.0"

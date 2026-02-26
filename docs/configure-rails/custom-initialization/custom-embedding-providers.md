@@ -39,11 +39,12 @@ class CustomEmbedding(EmbeddingModel):
 
     engine_name = "custom_embedding"
 
-    def __init__(self, embedding_model: str):
+    def __init__(self, embedding_model: str, **kwargs):
         """Initialize the embedding model.
 
         Args:
             embedding_model: The model name from config.yml
+            **kwargs: Additional parameters from config.yml
         """
         self.model_name = embedding_model
         # Initialize your model here
@@ -111,7 +112,7 @@ class SentenceTransformerEmbedding(EmbeddingModel):
 
     engine_name = "sentence_transformers"
 
-    def __init__(self, embedding_model: str):
+    def __init__(self, embedding_model: str, **kwargs):
         self.model = SentenceTransformer(embedding_model)
 
     def encode(self, documents: List[str]) -> List[List[float]]:
@@ -156,9 +157,9 @@ class OpenAICompatibleEmbedding(EmbeddingModel):
 
     engine_name = "openai_compatible"
 
-    def __init__(self, embedding_model: str):
+    def __init__(self, embedding_model: str, **kwargs):
         self.model = embedding_model
-        self.api_url = "http://localhost:8080/v1/embeddings"
+        self.api_url = kwargs.get("api_url", "http://localhost:8080/v1/embeddings")
 
     def encode(self, documents: List[str]) -> List[List[float]]:
         response = httpx.post(
@@ -182,7 +183,7 @@ class OpenAICompatibleEmbedding(EmbeddingModel):
 
 | Method | Description |
 |--------|-------------|
-| `__init__(embedding_model: str)` | Initialize with model name from config |
+| `__init__(embedding_model: str, **kwargs)` | Initialize with model name and additional parameters from config |
 | `encode(documents: List[str])` | Synchronous encoding |
 | `encode_async(documents: List[str])` | Asynchronous encoding |
 

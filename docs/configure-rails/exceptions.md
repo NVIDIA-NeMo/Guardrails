@@ -87,47 +87,16 @@ When the `self check input` rail is triggered, the following exception is return
 
 ## Exception Types
 
-NeMo Guardrails supports several predefined exception types:
+The NeMo Guardrails library includes additional exception types for specific integrations:
 
-### InputRailException
+- `LlamaGuardInputRailException` / `LlamaGuardOutputRailException`
+- `JailbreakDetectionRailException`
+- `ContentSafetyCheckInputException` / `ContentSafetyCheckOutputException`
+- `FactCheckRailException`
+- `SelfCheckHallucinationRailException`
+- `InjectionDetectionRailException`
 
-Raised when input rails block or reject user input.
-
-```colang
-define flow custom input check
-  if $user_message contains "forbidden_word"
-    create event InputRailException(message="Input contains forbidden content.")
-```
-
-### OutputRailException
-
-Raised when output rails block or reject bot responses.
-
-```colang
-define flow custom output check
-  if $bot_message contains "sensitive_info"
-    create event OutputRailException(message="Output contains sensitive information.")
-```
-
-### DialogRailException
-
-Raised when dialog rails encounter issues during conversation flow.
-
-```colang
-define flow topic restriction
-  if $user_intent == "ask_about_restricted_topic"
-    create event DialogRailException(message="This topic is not allowed in the current context.")
-```
-
-### RetrievalRailException
-
-Raised when retrieval rails encounter issues with document retrieval.
-
-```colang
-define flow retrieval validation
-  if len($relevant_chunks) == 0
-    create event RetrievalRailException(message="No relevant information found for the query.")
-```
+Each library rail raises its own exception type when `enable_rails_exceptions` is enabled.
 
 ---
 
@@ -218,16 +187,3 @@ except Exception as e:
 5. **Exception Categories**: Use appropriate exception types to categorize different kinds of errors.
 
 6. **Configuration Control**: Use the `enable_rails_exceptions` setting to control whether rails return exceptions or predefined messages.
-
----
-
-## Integration with Tracing
-
-Exceptions are automatically captured by the tracing system when enabled. This allows you to:
-
-- Monitor exception frequency and types
-- Track which rails are triggering exceptions
-- Analyze patterns in user inputs that cause exceptions
-- Debug and improve rail configurations
-
-For more information on tracing, see the [Tracing Configuration](tracing-configuration.md) guide.

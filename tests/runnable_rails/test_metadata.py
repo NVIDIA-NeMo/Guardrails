@@ -385,11 +385,11 @@ class TestMetadataPreservation:
             chunks = [
                 {
                     "text": "Hello ",
-                    "generation_info": {"model": "test-model", "finish_reason": "stop"},
+                    "metadata": {"model": "test-model", "finish_reason": "stop"},
                 },
                 {
                     "text": "world!",
-                    "generation_info": {"model": "test-model", "finish_reason": "stop"},
+                    "metadata": {"model": "test-model", "finish_reason": "stop"},
                 },
             ]
             for chunk in chunks:
@@ -417,8 +417,8 @@ class TestMetadataPreservation:
 
         async def mock_stream(*args, **kwargs):
             chunks = [
-                {"text": "Async ", "generation_info": {"model": "test-model"}},
-                {"text": "stream!", "generation_info": {"model": "test-model"}},
+                {"text": "Async ", "metadata": {"model": "test-model"}},
+                {"text": "stream!", "metadata": {"model": "test-model"}},
             ]
             for chunk in chunks:
                 yield chunk

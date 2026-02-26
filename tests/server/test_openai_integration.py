@@ -15,6 +15,8 @@
 import os
 
 import pytest
+
+pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 from openai import OpenAI
 from openai.types.chat.chat_completion import ChatCompletion, Choice

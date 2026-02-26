@@ -15,7 +15,7 @@
 
 import os
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from langchain_core.language_models import BaseChatModel
@@ -24,7 +24,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from tests.conftest import REASONING_TRACE_MOCK_PATH
-from tests.utils import FakeLLM, clean_events, event_sequence_conforms
+from tests.utils import FakeLLM, clean_events, event_sequence_conforms, get_bound_llm_magic_mock
 
 
 @pytest.fixture
@@ -963,31 +963,6 @@ def test_api_key_environment_variable_logic_without_rails_init():
     assert kwargs["temperature"] == 0.3
 
 
-@pytest.mark.asyncio
-@patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
-async def test_stream_usage_always_enabled(mock_init_llm_model):
-    """Test that stream_usage=True is always set for LLM models."""
-    config = RailsConfig.from_content(
-        config={
-            "models": [
-                {
-                    "type": "main",
-                    "engine": "openai",
-                    "model": "gpt-4",
-                }
-            ],
-        }
-    )
-
-    LLMRails(config=config)
-
-    mock_init_llm_model.assert_called_once()
-    call_args = mock_init_llm_model.call_args
-    kwargs = call_args.kwargs.get("kwargs", {})
-
-    assert kwargs.get("stream_usage") is True
-
-
 def test_register_methods_return_self():
     """Test that all register_* methods return self for method chaining."""
     config = RailsConfig.from_content(config={"models": []})
@@ -1084,7 +1059,7 @@ def test_explain_calls_ensure_explain_info():
     """Make sure if no `explain_info` attribute is present in LLMRails it's populated with
     an empty ExplainInfo object"""
 
-    mock_llm = MagicMock(spec=BaseChatModel)
+    mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"spec": BaseChatModel})
     config = RailsConfig.from_content(config={"models": []})
     rails = LLMRails(config=config, llm=mock_llm)
     rails.generate(messages=[{"role": "user", "content": "Hi!"}])

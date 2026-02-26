@@ -57,6 +57,9 @@ local_cache
 docs/user_guides/llm/vertexai/config
 docs/**/config
 
+# Ignore auto-generated API reference stubs
+docs/reference/python-api/generated/
+
 # Ignoring this for now
 /scripts
 

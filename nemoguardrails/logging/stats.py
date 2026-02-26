@@ -30,6 +30,7 @@ class LLMStats:
             "total_tokens": 0,
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
+            "cache_hits": 0,
             "latencies": [],
         }
 
@@ -53,8 +54,14 @@ class LLMStats:
         self._stats = self._get_empty_stats()
 
     def __str__(self):
+        cache_hits = self._stats["cache_hits"]
+        total_calls = self._stats["total_calls"]
+        if cache_hits > 0:
+            calls_str = f"{total_calls} total calls ({cache_hits} from cache)"
+        else:
+            calls_str = f"{total_calls} total calls"
         return (
-            f"{self._stats['total_calls']} total calls, "
+            f"{calls_str}, "
             f"{round(self._stats['total_time'], 2)} total time, "
             f"{self._stats['total_tokens']} total tokens, "
             f"{self._stats['total_prompt_tokens']} total prompt tokens, "

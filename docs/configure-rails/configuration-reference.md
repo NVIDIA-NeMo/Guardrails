@@ -250,7 +250,7 @@ rails:
 | Flow | Description |
 |------|-------------|
 | `self check input` | LLM-based policy compliance check |
-| `check jailbreak` | Jailbreak detection heuristics |
+| `jailbreak detection heuristics` | Jailbreak detection heuristics |
 | `jailbreak detection model` | NIM-based jailbreak detection |
 | `mask sensitive data on input` | Mask PII in user input |
 | `detect sensitive data on input` | Detect and block PII |
@@ -301,6 +301,7 @@ rails:
 | `mask sensitive data on output` | Mask PII in output |
 | `llama guard check output` | LlamaGuard content moderation |
 | `content safety check output` | NVIDIA content safety model |
+| `injection detection` | Injection detection (SQL, XSS, code, template) |
 
 ### Retrieval Rails
 
@@ -710,8 +711,14 @@ instructions:
 
 ```yaml
 sample_conversation: |
-  user: Hello
-  assistant: Hi! How can I help you?
+  user "Hello there!"
+    express greeting
+  bot express greeting
+    "Hello! How can I assist you today?"
+  user "What can you do for me?"
+    ask about capabilities
+  bot respond about capabilities
+    "As an AI assistant, I can help you with a wide range of tasks."
 ```
 
 ### Knowledge Base
@@ -748,14 +755,14 @@ tracing:
 
 ### Streaming
 
-```yaml
-streaming:
-  enabled: false
-  stream_on_start: false
-  stream_on_end: true
-  first_chunk_suffix: ""
-  last_chunk_suffix: ""
+```{deprecated} v0.20.0
+The top-level `streaming` field is a boolean that is no longer required. Use the `stream_async()` method directly instead. For output rail streaming configuration, see [Output Streaming Configuration](#output-streaming-configuration).
 ```
+
+```yaml
+streaming: false
+```
+
 
 ### Import Paths
 

@@ -1,12 +1,12 @@
 # The minimal set of requirements for the jailbreak detection server to run.
 pydantic>=1.10.9
 fastapi>=0.103.1
-starlette>=0.27.0
+starlette>=0.50.0
 typer>=0.7.0
 uvicorn>=0.23.2
-transformers>=4.56.0
-torch>=2.8.0
-nemoguardrails>=0.7.0
+transformers>=4.57.6
+torch>=2.9.1
+nemoguardrails>=0.14.0
 numpy==1.23.5
 scikit-learn==1.2.2
 einops>=0.7.0

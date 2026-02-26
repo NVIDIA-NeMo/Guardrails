@@ -36,6 +36,12 @@ When you include these parameters in your action's function signature, they are 
 | `events` | `List[dict]` | History of events in the conversation |
 | `llm` | `BaseLLM` | Access to the LLM instance |
 | `config` | `RailsConfig` | The full configuration instance |
+| `llm_task_manager` | `LLMTaskManager` | Access to the LLM task manager for prompt rendering |
+| `state` | `State` | The runtime state object (Colang 2.x only) |
+
+```{important}
+Special parameters are only injected for actions that run locally. When an `actions_server_url` is configured, non-system actions are sent to the remote server and do **not** receive these parameters. To ensure an action always receives special parameters, mark it with `is_system_action=True`. When no actions server is configured, all actions run locally and receive these parameters regardless of `is_system_action`.
+```
 
 ## The `context` Parameter
 
@@ -57,14 +63,14 @@ async def my_action(context: Optional[dict] = None):
 
 ### Common Context Variables
 
-| Variable | Description |
-|----------|-------------|
-| `last_user_message` | The most recent user message |
-| `bot_message` | The current bot message (in output rails) |
-| `last_bot_message` | The previous bot message |
-| `relevant_chunks` | Retrieved knowledge base chunks |
-| `user_intent` | The canonical user intent |
-| `bot_intent` | The canonical bot intent |
+| Variable | Description | Availability |
+|----------|-------------|--------------|
+| `last_user_message` | The most recent user message | Always available after user input |
+| `bot_message` | The current bot message (in output rails) | Available in output rails |
+| `last_bot_message` | The previous bot message | Available after first bot response |
+| `relevant_chunks` | Retrieved knowledge base chunks | Only after `retrieve_relevant_chunks` runs |
+| `user_intent` | The canonical user intent | Only after `generate_user_intent` runs |
+| `bot_intent` | The canonical bot intent | Only after `generate_next_steps` runs |
 
 ### Accessing Custom Context
 
@@ -132,7 +138,7 @@ The `llm` parameter provides direct access to the LLM instance:
 
 ```python
 from typing import Optional
-from langchain.llms.base import BaseLLM
+from langchain_core.language_models import BaseLLM
 from nemoguardrails.actions import action
 
 @action()
@@ -176,6 +182,21 @@ async def summarize_and_validate(
     }
 ```
 
+### Action-Specific LLM
+
+You can register a dedicated LLM for a specific action using the `{action_name}_llm` naming convention. When registered, it overrides the default `llm` parameter for that action:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("config")
+rails = LLMRails(config)
+
+rails.register_action_param("my_custom_action_llm", specialized_llm)
+```
+
+When `my_custom_action` runs and requests the `llm` parameter, it receives `specialized_llm` instead of the default LLM.
+
 ## The `config` Parameter
 
 The `config` parameter provides access to the full configuration:
@@ -216,6 +237,21 @@ async def get_active_rails(config: Optional[RailsConfig] = None):
         "input_rails": rails_config.input.flows if rails_config.input else [],
         "output_rails": rails_config.output.flows if rails_config.output else []
     }
+```
+
+## The `llm_task_manager` Parameter
+
+The `llm_task_manager` parameter provides access to prompt rendering and LLM task management:
+
+```python
+from typing import Optional
+from nemoguardrails.actions import action
+from nemoguardrails.llm.taskmanager import LLMTaskManager
+
+@action()
+async def custom_task(llm_task_manager: Optional[LLMTaskManager] = None):
+    """Use the LLM task manager for prompt rendering."""
+    pass
 ```
 
 ## Combining Multiple Parameters
@@ -260,9 +296,10 @@ Always use proper type annotations for special parameters:
 
 ```python
 from typing import Optional, List
-from langchain.llms.base import BaseLLM
+from langchain_core.language_models import BaseLLM
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 
 @action()
 async def properly_typed_action(
@@ -273,7 +310,8 @@ async def properly_typed_action(
     context: Optional[dict] = None,
     events: Optional[List[dict]] = None,
     llm: Optional[BaseLLM] = None,
-    config: Optional[RailsConfig] = None
+    config: Optional[RailsConfig] = None,
+    llm_task_manager: Optional[LLMTaskManager] = None,
 ):
     """Action with proper type annotations."""
     pass

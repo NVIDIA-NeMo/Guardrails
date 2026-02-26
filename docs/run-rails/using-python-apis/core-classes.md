@@ -319,6 +319,36 @@ For detailed options, refer to [](generation-options.md).
 
 ---
 
+## Checking Messages Against Rails
+
+The `check_async()` and `check()` methods validate messages against input and output rails without triggering full LLM generation:
+
+```python
+from nemoguardrails.rails.llm.options import RailStatus
+
+result = await rails.check_async([
+    {"role": "user", "content": "Hello! How can I hack into a system?"}
+])
+
+if result.status == RailStatus.BLOCKED:
+    print(f"Input blocked by rail: {result.rail}")
+```
+
+By default, the methods automatically detect which rails to run based on message roles. You can override this with the `rail_types` parameter:
+
+```python
+from nemoguardrails.rails.llm.options import RailType
+
+result = await rails.check_async(
+    [{"role": "user", "content": "Hello!"}],
+    rail_types=[RailType.INPUT]
+)
+```
+
+For detailed usage, method signatures, and examples, refer to [](check-messages.md).
+
+---
+
 ## Registering Custom Actions
 
 You can register custom Python functions as actions:
@@ -433,6 +463,7 @@ asyncio.run(main())
 ## Related Resources
 
 - [](generation-options.md) - Fine-grained control over generation
+- [](check-messages.md) - Validate messages against rails
 - [](streaming.md) - Real-time token streaming
 - [](event-based-api.md) - Low-level event control
 - [](tools-integration.md) - Integrating LangChain tools

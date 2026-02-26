@@ -55,6 +55,15 @@ Stream LLM responses in real-time with the stream_async method.
 {bdg-secondary}`Tutorial`
 :::
 
+:::{grid-item-card} Check Messages
+:link: check-messages
+:link-type: doc
+
+Validate messages against input and output rails using check_async and check.
++++
+{bdg-secondary}`Reference`
+:::
+
 :::{grid-item-card} Event-Based API
 :link: event-based-api
 :link-type: doc
@@ -72,5 +81,6 @@ Overview <overview>
 Core Classes <core-classes>
 Generation Options <generation-options>
 Streaming <streaming>
+Check Messages <check-messages>
 Event-Based API <event-based-api>
 ```

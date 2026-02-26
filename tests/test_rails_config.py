@@ -28,6 +28,7 @@ from nemoguardrails.rails.llm.config import (
     MultilingualConfig,
     RailsConfig,
     _get_flow_model,
+    _get_flow_name,
     _validate_rail_prompts,
 )
 
@@ -320,6 +321,19 @@ def test_model_api_key_value_multiple_strings_one_empty():
 
 
 class TestConfigHelpers:
+    def test_get_flow_name_flow_only(self):
+        """Check we return flow name correctly with just flow name, no $model"""
+        test_flow_name = "self check input"
+        flow_name = _get_flow_name(test_flow_name)
+        assert flow_name
+        assert flow_name.strip() == test_flow_name  # No trailing or leading whitespace
+
+    def test_get_flow_name_flow_and_model(self):
+        """Check we return flow name correctly with just flow name, no $model"""
+        flow_name = _get_flow_name("content safety check input $model=content_safety")
+        assert flow_name
+        assert flow_name == "content safety check input"
+
     def test_get_flow_model_flow_only(self):
         """Check we return None if the flow doesn't have a model definition"""
         assert _get_flow_model("self check output") is None

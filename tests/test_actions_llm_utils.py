@@ -33,6 +33,7 @@ from nemoguardrails.actions.llm.utils import (
 )
 from nemoguardrails.context import reasoning_trace_var, tool_calls_var
 from nemoguardrails.exceptions import LLMCallException
+from tests.utils import get_bound_llm_magic_mock
 
 
 @pytest.fixture(autouse=True)
@@ -547,18 +548,23 @@ def test_store_tool_calls_with_real_aimessage_multiple_tool_calls():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("llm_params", [None, {}])
-async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
-    """Stop tokens must be passed to ainvoke even when llm_params is None or empty."""
-    from unittest.mock import AsyncMock, MagicMock
-
+@pytest.mark.parametrize("stop", [None, ["User:"]])
+async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params, stop):
+    """Stop tokens must be passed to bind or ainvoke even when llm_params is None or empty."""
     from nemoguardrails.actions.llm.utils import llm_call
 
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"content": "response"})
 
-    await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=llm_params)
+    await llm_call(mock_llm, "prompt", stop=stop, llm_params=llm_params)
 
-    assert mock_llm.ainvoke.call_args[1]["stop"] == ["User:"]
+    if mock_llm.bind.called:
+        # Option A: Check if .bind() was called with the stop tokens
+        args, kwargs = mock_llm.bind.call_args
+        assert kwargs.get("stop", None) == stop
+    else:
+        # Option B: Check if it fell back to passing stop to .ainvoke
+        args, kwargs = mock_llm.ainvoke.call_args
+        assert kwargs.get("stop", None) == stop
 
 
 @pytest.mark.asyncio
@@ -677,6 +683,11 @@ class TestFilterParamsForOpenAIReasoningModels:
             ("gpt-5-nano", {"temperature": 0.001}, {}),
             ("o1-preview", {"max_tokens": 100}, {"max_tokens": 100}),
             ("o1-preview", {}, {}),
+            ("gpt-5", {"stop": "stop"}, {}),
+            ("gpt-5-mini", {"temperature": 0.5, "max_tokens": 100, "stop": "stop"}, {"max_tokens": 100}),
+            ("o4-mini", {"stop": "stop"}, {}),
+            ("o3", {"stop": "stop"}, {}),
+            ("o3-pro", {"temperature": 0.5, "stop": "stop"}, {}),
         ],
     )
     def test_filter_params(self, model, params, expected):
@@ -694,3 +705,10 @@ class TestFilterParamsForOpenAIReasoningModels:
         params = {"temperature": 0.5, "max_tokens": 100}
         _filter_params_for_openai_reasoning_models(llm, params)
         assert params == {"temperature": 0.5, "max_tokens": 100}
+
+    @pytest.mark.asyncio
+    async def test_llm_call_does_not_mutate_llm_params(self):
+        mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"content": "response"})
+        original_params = {"max_tokens": 100}
+        await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=original_params)
+        assert original_params == {"max_tokens": 100}

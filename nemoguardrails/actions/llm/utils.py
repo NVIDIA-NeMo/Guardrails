@@ -15,7 +15,7 @@
 
 import logging
 import re
-from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Sequence, Union
 
 from langchain_core.callbacks.base import AsyncCallbackHandler, BaseCallbackManager
 from langchain_core.language_models import BaseLanguageModel
@@ -144,27 +144,41 @@ def _infer_model_name(llm: BaseLanguageModel):
 def _filter_params_for_openai_reasoning_models(llm: BaseLanguageModel, llm_params: Optional[dict]) -> Optional[dict]:
     """Filter out unsupported parameters for OpenAI reasoning models.
 
-    OpenAI reasoning models (o1, o3, gpt-5 excluding gpt-5-chat) only support
-    temperature=1. When using .bind() with other temperature values, the API
-    returns an error. This function removes the temperature parameter for these
-    models to allow the API default to apply.
+    OpenAI reasoning models (o1, o3, gpt-5 excluding gpt-5-chat) do only allow
+    specific parameters (e.g. temperature, which is always fixed at 1, or stop).
+    When using .bind() with different values for these parameters, the API
+    returns an error. This function removes the unsupported parameters for specific
+    OpenAI reasoning models to ensure correct functionality for the API calls.
 
-    See: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
+    See also: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
+
+    Stop not supported as a parameter in the following models (as of Jan 26):
+    gpt5+ (only gpt-5-chat-latest works), o3, o3-pro (but o3-mini works), o4-mini
     """
-    if not llm_params or "temperature" not in llm_params:
+    if not llm_params or ("temperature" not in llm_params and "stop" not in llm_params):
         return llm_params
 
     model_name = _infer_model_name(llm).lower()
 
-    is_openai_reasoning_model = (
+    # Models that do not support temperature as a param, or changing its default value
+    is_temperature_not_supported = (
         model_name.startswith("o1")
         or model_name.startswith("o3")
         or (model_name.startswith("gpt-5") and "chat" not in model_name)
     )
+    # Models that do not support stop as a param
+    is_stop_not_supported = (
+        (model_name.startswith("o3") and "o3-mini" not in model_name)
+        or model_name.startswith("o4-mini")
+        or (model_name.startswith("gpt-5") and "gpt-5-chat" not in model_name)
+    )
 
-    if is_openai_reasoning_model:
+    if is_temperature_not_supported or is_stop_not_supported:
         filtered = llm_params.copy()
-        filtered.pop("temperature", None)
+        if is_temperature_not_supported:
+            filtered.pop("temperature", None)
+        if is_stop_not_supported:
+            filtered.pop("stop", None)
         return filtered
 
     return llm_params
@@ -202,18 +216,25 @@ async def llm_call(
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
     _setup_llm_call_info(llm, model_name, model_provider)
 
-    filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params)
+    llm_params_with_stop: Optional[dict]
+    if stop:
+        llm_params_with_stop = llm_params.copy() if llm_params else {}
+        llm_params_with_stop["stop"] = stop
+    else:
+        llm_params_with_stop = llm_params
+
+    filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params_with_stop)
     generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**filtered_params) if filtered_params else llm
 
     if streaming_handler:
-        return await _stream_llm_call(generation_llm, prompt, streaming_handler, stop)
+        return await _stream_llm_call(generation_llm, prompt, streaming_handler)
     else:
         all_callbacks = _prepare_callbacks(custom_callback_handlers)
 
         if isinstance(prompt, str):
-            response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks, stop)
+            response = await _invoke_with_string_prompt(generation_llm, prompt, all_callbacks)
         else:
-            response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks, stop)
+            response = await _invoke_with_message_list(generation_llm, prompt, all_callbacks)
 
         _store_reasoning_traces(response)
         _store_tool_calls(response)
@@ -225,7 +246,6 @@ async def _stream_llm_call(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: Union[str, List[dict]],
     handler: "StreamingHandler",
-    stop: Optional[List[str]],
 ) -> str:
     """Stream LLM response using astream().
 
@@ -237,26 +257,45 @@ async def _stream_llm_call(
     else:
         messages = prompt
 
-    handler.stop = stop or []
+    stop = []
+    if hasattr(llm, "kwargs"):
+        current_params = getattr(llm, "kwargs", {})
+        stop = current_params.get("stop", [])
+    if not stop:
+        stop = getattr(llm, "stop", [])
+    handler.stop = stop
+    accumulated_metadata: Dict[str, Any] = {}
 
     try:
-        async for chunk in llm.astream(messages, stop=stop, config=RunnableConfig(callbacks=logging_callbacks)):
+        async for chunk in llm.astream(messages, config=RunnableConfig(callbacks=logging_callbacks)):
             if hasattr(chunk, "content"):
                 content = chunk.content
             else:
                 content = str(chunk)
 
-            generation_info = None
-            if hasattr(chunk, "response_metadata"):
-                generation_info = chunk.response_metadata
+            chunk_metadata = _extract_chunk_metadata(chunk)
+            if chunk_metadata:
+                accumulated_metadata.update(chunk_metadata)
 
-            await handler.push_chunk(content, generation_info)
+            await handler.push_chunk(content, chunk_metadata)
+
+        if accumulated_metadata:
+            llm_response_metadata_var.set(accumulated_metadata)
 
         await handler.finish()
         return handler.completion
 
     except Exception as e:
         _raise_llm_call_exception(e, llm)
+
+
+def _extract_chunk_metadata(chunk) -> Optional[Dict[str, Any]]:
+    metadata: Dict[str, Any] = {}
+    if hasattr(chunk, "response_metadata") and chunk.response_metadata:
+        metadata["response_metadata"] = chunk.response_metadata
+    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+        metadata["usage_metadata"] = chunk.usage_metadata
+    return metadata if metadata else None
 
 
 def _setup_llm_call_info(llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]) -> None:
@@ -338,11 +377,10 @@ async def _invoke_with_string_prompt(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: str,
     callbacks: BaseCallbackManager,
-    stop: Optional[List[str]],
 ):
     """Invoke LLM with string prompt."""
     try:
-        return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks), stop=stop)
+        return await llm.ainvoke(prompt, config=RunnableConfig(callbacks=callbacks))
     except Exception as e:
         _raise_llm_call_exception(e, llm)
 
@@ -351,13 +389,12 @@ async def _invoke_with_message_list(
     llm: Union[BaseLanguageModel, Runnable],
     prompt: List[dict],
     callbacks: BaseCallbackManager,
-    stop: Optional[List[str]],
 ):
     """Invoke LLM with message list after converting to LangChain format."""
     messages = _convert_messages_to_langchain_format(prompt)
 
     try:
-        return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks), stop=stop)
+        return await llm.ainvoke(messages, config=RunnableConfig(callbacks=callbacks))
     except Exception as e:
         _raise_llm_call_exception(e, llm)
 

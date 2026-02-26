@@ -17,6 +17,7 @@
 
 import logging
 import os
+import re
 import warnings
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
@@ -26,6 +27,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     SecretStr,
     model_validator,
     root_validator,
@@ -250,6 +252,56 @@ class SensitiveDataDetection(BaseModel):
     retrieval: SensitiveDataDetectionOptions = Field(
         default_factory=SensitiveDataDetectionOptions,
         description="Configuration of the entities to be detected on retrieved relevant chunks.",
+    )
+
+
+class RegexDetectionOptions(BaseModel):
+    """Configuration options for regex pattern detection on a specific source."""
+
+    patterns: List[str] = Field(
+        default_factory=list,
+        description="List of regex patterns to match against the text.",
+    )
+    case_insensitive: bool = Field(
+        default=False,
+        description="Whether to perform case-insensitive matching.",
+    )
+
+    _compiled_patterns: List["re.Pattern[str]"] = PrivateAttr(default_factory=list)
+
+    @model_validator(mode="after")
+    def compile_patterns(self) -> "RegexDetectionOptions":
+        """Pre-compile regex patterns at config load time."""
+        flags = re.IGNORECASE if self.case_insensitive else 0
+        compiled = []
+        for i, pattern in enumerate(self.patterns):
+            try:
+                compiled.append(re.compile(pattern, flags))
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern at index {i} ({pattern!r}): {e}") from e
+        object.__setattr__(self, "_compiled_patterns", compiled)
+        return self
+
+    @property
+    def compiled_patterns(self) -> List["re.Pattern[str]"]:
+        """Return the pre-compiled regex patterns."""
+        return self._compiled_patterns
+
+
+class RegexDetection(BaseModel):
+    """Configuration for regex pattern detection."""
+
+    input: RegexDetectionOptions = Field(
+        default_factory=RegexDetectionOptions,
+        description="Configuration for regex patterns to detect on user input.",
+    )
+    output: RegexDetectionOptions = Field(
+        default_factory=RegexDetectionOptions,
+        description="Configuration for regex patterns to detect on bot output.",
+    )
+    retrieval: RegexDetectionOptions = Field(
+        default_factory=RegexDetectionOptions,
+        description="Configuration for regex patterns to detect on retrieved relevant chunks.",
     )
 
 
@@ -844,6 +896,15 @@ class ClavataRailConfig(BaseModel):
     )
 
 
+class CrowdStrikeAIDRRailConfig(BaseModel):
+    """Configuration data for the CrowdStrike AIDR API"""
+
+    timeout: float = Field(
+        default=30.0,
+        description="Timeout in seconds for API requests to CrowdStrike AIDR",
+    )
+
+
 class PangeaRailOptions(BaseModel):
     """Configuration data for the Pangea AI Guard API"""
 
@@ -1023,6 +1084,11 @@ class RailsConfigData(BaseModel):
         description="Configuration for detecting sensitive data.",
     )
 
+    regex_detection: Optional[RegexDetection] = Field(
+        default_factory=RegexDetection,
+        description="Configuration for regex pattern detection.",
+    )
+
     jailbreak_detection: Optional[JailbreakDetectionConfig] = Field(
         default_factory=JailbreakDetectionConfig,
         description="Configuration for jailbreak detection.",
@@ -1051,6 +1117,11 @@ class RailsConfigData(BaseModel):
     clavata: Optional[ClavataRailConfig] = Field(
         default_factory=ClavataRailConfig,
         description="Configuration for Clavata.",
+    )
+
+    crowdstrike_aidr: Optional[CrowdStrikeAIDRRailConfig] = Field(
+        default_factory=CrowdStrikeAIDRRailConfig,
+        description="Configuration for CrowdStrike AIDR.",
     )
 
     pangea: Optional[PangeaRailConfig] = Field(
@@ -1914,6 +1985,11 @@ def _generate_rails_flows(flows):
 
 
 MODEL_PREFIX = "$model="
+
+
+def _get_flow_name(flow_text) -> Optional[str]:
+    """Helper to return a model name from a flow definition"""
+    return _normalize_flow_id(flow_text)
 
 
 def _get_flow_model(flow_text) -> Optional[str]:

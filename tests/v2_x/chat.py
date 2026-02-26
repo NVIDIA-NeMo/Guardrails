@@ -236,10 +236,6 @@ class ChatInterface:
                 self._add_to_output_summary(f"Event: {event['type']}")
 
         # TODO: deserialize the output state
-        # state = State.from_dict(output_state)
-        # Simulate serialization for testing
-        # data = pickle.dumps(output_state)
-        # output_state = pickle.loads(data)
         self.chat_state.state = self.chat_state.output_state
 
     async def _process_input_events(self):

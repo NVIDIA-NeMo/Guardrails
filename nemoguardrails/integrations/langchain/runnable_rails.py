@@ -762,10 +762,9 @@ class RunnableRails(Runnable[Input, Output]):
         try:
             from nemoguardrails.streaming import END_OF_STREAM
 
-            async for chunk in self.rails.stream_async(messages=input_messages, include_generation_metadata=True):
-                # Skip END_OF_STREAM markers
+            async for chunk in self.rails.stream_async(messages=input_messages, include_metadata=True):
                 chunk_text = chunk["text"] if isinstance(chunk, dict) and "text" in chunk else chunk
-                if chunk_text is END_OF_STREAM:
+                if chunk_text is END_OF_STREAM or chunk_text == "":
                     continue
 
                 # Format the chunk based on the input type for streaming
@@ -780,7 +779,7 @@ class RunnableRails(Runnable[Input, Output]):
 
         Args:
             input: The original input
-            chunk: The current chunk (string or dict with text/generation_info)
+            chunk: The current chunk (string or dict with text and metadata)
 
         Returns:
             The formatted streaming chunk (using AIMessageChunk for LangChain compatibility)
@@ -790,10 +789,10 @@ class RunnableRails(Runnable[Input, Output]):
 
         if isinstance(chunk, dict) and "text" in chunk:
             text_content = chunk["text"]
-            generation_info = chunk.get("generation_info", {})
+            chunk_metadata = chunk.get("metadata", {})
 
-            if generation_info:
-                metadata = generation_info.copy()
+            if chunk_metadata:
+                metadata = chunk_metadata.copy()
         if isinstance(input, ChatPromptValue):
             return create_ai_message_chunk(content=text_content, **metadata)
         elif isinstance(input, StringPromptValue):

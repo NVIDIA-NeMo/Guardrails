@@ -73,29 +73,42 @@ class AsyncWorkQueue(Generic[T]):
         """Starts the worker pool. Call this during service startup."""
         if self._running:
             return
-        self._running = True
+
         self._busy_count = 0
         self._workers = []
-        for i in range(self._max_concurrency):
-            task = asyncio.create_task(self._worker_loop(), name=f"{self._name}_worker_id{i}")
-            self._workers.append(task)
+        # Try to start all workers, cancelling any on failure
+        try:
+            for i in range(self._max_concurrency):
+                task = asyncio.create_task(self._worker_loop(), name=f"{self._name}_worker_id{i}")
+                self._workers.append(task)
+        except Exception:
+            # Cancel any tasks that did start
+            for task in self._workers:
+                task.cancel()
+            await asyncio.gather(*self._workers, return_exceptions=True)
+            self._workers = []
+            raise
+
+        self._running = True
 
     async def stop(self, wait_for_completion: bool = True) -> None:
         """Stops the worker pool. Call this during service shutdown."""
         if not self._running:
             return
-        self._running = False
 
-        if wait_for_completion:
-            await self._queue.join()
+        try:
+            if wait_for_completion:
+                await self._queue.join()
 
-        for task in self._workers:
-            task.cancel()
+            for task in self._workers:
+                task.cancel()
 
-        # Swallow cancellations to prevent noise during shutdown
-        await asyncio.gather(*self._workers, return_exceptions=True)
-        self._workers = []
-        self._busy_count = 0
+            # Swallow cancellations to prevent noise during shutdown
+            await asyncio.gather(*self._workers, return_exceptions=True)
+            self._workers = []
+            self._busy_count = 0
+        finally:
+            self._running = False
 
     async def submit(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """

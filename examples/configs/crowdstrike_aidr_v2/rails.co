@@ -1,0 +1,8 @@
+import guardrails
+import nemoguardrails.library.crowdstrike_aidr
+
+flow input rails $input_text
+    crowdstrike aidr guard input
+
+flow output rails $output_text
+    crowdstrike aidr guard output

@@ -15,6 +15,9 @@
 
 import json
 
+import pytest
+
+pytest.importorskip("openai", reason="openai is required for server tests")
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 

@@ -108,7 +108,7 @@ async def pangea_ai_guard(
                 "Accept": "application/json",
                 "Authorization": f"Bearer {pangea_api_token}",
                 "Content-Type": "application/json",
-                "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA/NeMo-Guardrails)",
+                "User-Agent": "NeMo Guardrails (https://github.com/NVIDIA-NeMo/Guardrails)",
             },
         )
         try:

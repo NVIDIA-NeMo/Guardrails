@@ -434,10 +434,6 @@ async def _run_chat_v2_x(rails_app: LLMRails):
                 console.print(f"Event: {event['type']}")
 
         # TODO: deserialize the output state
-        # state = State.from_dict(output_state)
-        # Simulate serialization for testing
-        # data = pickle.dumps(output_state)
-        # output_state = pickle.loads(data)
         chat_state.state = chat_state.output_state
 
     async def _check_local_async_actions():
