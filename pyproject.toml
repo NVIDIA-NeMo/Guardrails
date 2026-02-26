@@ -47,6 +47,7 @@ nemoguardrails = "nemoguardrails.__main__:app"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 aiohttp = ">=3.10.11"
+aiohttp-retry = ">=2.9.0"
 annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
 fastembed = [{ version = ">=0.2.2", python = ">=3.10,<3.14" }]
