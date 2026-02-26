@@ -7,7 +7,7 @@ define subflow gliner detect pii on input
   $has_pii = execute gliner_detect_pii(source="input", text=$user_message)
 
   if $has_pii
-    bot inform answer unknown
+    bot refuse to respond
     stop
 
 
@@ -18,7 +18,7 @@ define subflow gliner detect pii on output
   $has_pii = execute gliner_detect_pii(source="output", text=$bot_message)
 
   if $has_pii
-    bot inform answer unknown
+    bot refuse to respond
     stop
 
 
@@ -29,7 +29,7 @@ define subflow gliner detect pii on retrieval
   $has_pii = execute gliner_detect_pii(source="retrieval", text=$relevant_chunks)
 
   if $has_pii
-    bot inform answer unknown
+    bot refuse to respond
     stop
 
 

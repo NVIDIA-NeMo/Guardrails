@@ -166,8 +166,6 @@ def test_gliner_pii_detection_no_active_pii_detection():
               user express greeting
               bot express greeting
 
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -213,9 +211,6 @@ def test_gliner_pii_detection_input():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -239,7 +234,7 @@ def test_gliner_pii_detection_input():
     )
 
     chat >> "Hi! I am Mr. John! And my email is test@gmail.com"
-    chat << "I can't answer that."
+    chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -267,9 +262,6 @@ def test_gliner_pii_detection_output():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -293,7 +285,7 @@ def test_gliner_pii_detection_output():
     )
 
     chat >> "Hi!"
-    chat << "I can't answer that."
+    chat << "I'm sorry, I can't respond to that."
 
 
 @pytest.mark.unit
@@ -321,9 +313,6 @@ def test_gliner_pii_detection_retrieval_with_no_pii():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -374,9 +363,6 @@ def test_gliner_pii_masking_on_output():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
         """,
     )
 
@@ -431,9 +417,6 @@ def test_gliner_pii_masking_on_input():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
 
             define flow check user message
               execute check_user_message(user_message=$user_message)
@@ -494,9 +477,6 @@ def test_gliner_pii_masking_on_retrieval():
             define flow
               user express greeting
               bot express greeting
-
-            define bot inform answer unknown
-              "I can't answer that."
 
             define flow check relevant chunks
               execute check_relevant_chunks(relevant_chunks=$relevant_chunks)

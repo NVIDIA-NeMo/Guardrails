@@ -7,7 +7,7 @@ flow gliner detect pii on input
   $has_pii = await GlinerDetectPiiAction(source="input", text=$user_message)
 
   if $has_pii
-    bot inform answer unknown
+    bot refuse to respond
     abort
 
 
@@ -18,7 +18,7 @@ flow gliner detect pii on output
   $has_pii = await GlinerDetectPiiAction(source="output", text=$bot_message)
 
   if $has_pii
-    bot inform answer unknown
+    bot refuse to respond
     abort
 
 
@@ -29,7 +29,7 @@ flow gliner detect pii on retrieval
   $has_pii = await GlinerDetectPiiAction(source="retrieval", text=$relevant_chunks)
 
   if $has_pii
-    bot inform answer unknown
+    bot refuse to respond
     abort
 
 
