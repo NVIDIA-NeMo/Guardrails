@@ -161,7 +161,6 @@ class ModelManager:
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         req_id = get_request_id()
-        log.info("[%s] Requesting API engine '%s'", req_id, api_name)
         log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
         api_engine = self._get_api_engine(api_name)
         response = await api_engine.call(message, **kwargs)
