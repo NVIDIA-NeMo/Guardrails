@@ -31,7 +31,7 @@ At the same time, we provide preliminary results on the performance of the rails
 ### Aim and Usage
 
 Dialog rails evaluation focuses on NeMo Guardrails's core mechanism to guide conversations using canonical forms and dialogue flows.
-More details about this core functionality are explained [here](./../../docs/architecture/README.md).
+More details about this core functionality are explained [here](../reference/colang-architecture-guide.md).
 
 Thus, when using dialog rails evaluation, we are assessing the performance for:
 
@@ -72,7 +72,7 @@ More details about running the dialog rails evaluation experiments and the evalu
 Preliminary evaluation results follow next. In all experiments, we have chosen to have a balanced test set with at most 3 samples per intent.
 For both datasets, we have assessed the performance for various LLMs and also for the number of samples (`k = all, 3, 1`) per intent that are indexed in the vector database.
 
-Take into account that the performance of an LLM is heavily dependent on the prompt, especially due to the more complex [prompt used by Guardrails](./../../docs/architecture/README.md#example-prompt).
+Take into account that the performance of an LLM is heavily dependent on the prompt, especially due to the more complex [prompt used by Guardrails](../reference/colang-architecture-guide.md#example-prompt).
 Therefore, currently, we only release the results for OpenAI models, but more results will follow in the next releases. All results are preliminary, as better prompting can improve them.
 
 Important lessons to be learned from the evaluation results:
@@ -141,7 +141,7 @@ Results on _banking_ dataset, metric used is accuracy.
 
 ### Fact-checking Rails
 
-In the [Guardrails library](./../../docs/user-guides/guardrails-library.md), we provide two approaches out of the box for the fact-checking rail: the Self-Check fact-checking and AlignScore. For more details, read the [library guide](./../../docs/user-guides/guardrails-library.md).
+In the [Guardrails library](../configure-rails/guardrail-catalog/fact-checking.md), we provide two approaches out of the box for the fact-checking rail: the Self-Check fact-checking and AlignScore. For more details, read the [fact-checking guide](../configure-rails/guardrail-catalog/fact-checking.md).
 
 #### Self-Check
 
@@ -155,7 +155,7 @@ This approach is based on the AlignScore model [Zha et al. 2023](https://aclanth
 2. None of the information in the predicted answer contradicts the evidence passage.
 The response is a value between 0.0 and 1.0. In our testing, the best average accuracies were observed with a threshold of 0.7.
 
-Please see the [user guide documentation](./../../docs/user-guides/guardrails-library.md#alignscore) for detailed steps on how to configure your deployment to use AlignScore.
+Please see the [AlignScore Integration](../configure-rails/guardrail-catalog/community/alignscore.md) for detailed steps on how to configure your deployment to use AlignScore.
 
 #### Evaluation
 
@@ -185,7 +185,7 @@ Here is a list of arguments that you can use to configure the fact-checking rail
 - `output-dir`: The directory to save the output to. The default is `eval_outputs/factchecking`.
 - `write-outputs`: Whether to write the outputs to a file or not. The default is `True`.
 
-More details on how to set up the data in the right format and run the evaluation on your own dataset can be found [here](../../nemoguardrails/evaluate/data/factchecking/README.md).
+More details on how to set up the data in the right format and run the evaluation on your own dataset can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/factchecking/README.md).
 
 #### Evaluation Results
 
@@ -193,7 +193,7 @@ Evaluation Date - Nov 23, 2023 (Mar 7 2024 for `gemini-1.0-pro`).
 
 We evaluate the performance of the fact-checking rail on the [MSMARCO](https://huggingface.co/datasets/ms_marco) dataset using the Self-Check and the AlignScore approaches. To build the dataset, we randomly sample 100 (question, correct answer, evidence) triples, and then, for each triple, build a non-factual or incorrect answer to yield 100 (question, incorrect answer, evidence) triples.
 
-We breakdown the performance into positive entailment accuracy and negative entailment accuracy. Positive entailment accuracy is the accuracy of the model in correctly identifying answers that are grounded in the evidence passage. Negative entailment accuracy is the accuracy of the model in correctly identifying answers that are **not** supported in the evidence. Details on how to create synthetic negative examples can be found [here](../../nemoguardrails/evaluate/data/factchecking/README.md)
+We breakdown the performance into positive entailment accuracy and negative entailment accuracy. Positive entailment accuracy is the accuracy of the model in correctly identifying answers that are grounded in the evidence passage. Negative entailment accuracy is the accuracy of the model in correctly identifying answers that are **not** supported in the evidence. Details on how to create synthetic negative examples can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/factchecking/README.md).
 
 | Model                  | Positive Entailment Accuracy | Negative Entailment Accuracy | Overall Accuracy | Average Time Per Checked Fact (ms) |
 |------------------------|------------------------------|------------------------------|------------------|------------------------------------|
@@ -218,7 +218,7 @@ The moderation involves two components: input and output moderation.
 
 This rail will prompt the LLM using a custom prompt for input (jailbreak) and output moderation.
 Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.
-For more details, consult the [Guardrails library]([Guardrails library](./../../docs/user-guides/guardrails-library.md)) guide.
+For more details, consult the [LLM Self-Check](../configure-rails/guardrail-catalog/self-check.md) guide.
 
 #### Evaluation
 
@@ -246,7 +246,7 @@ To evaluate the output moderation rail only, use the following command:
 
 ```nemoguardrails evaluate moderation --check-input False --config=path/to/guardrails/config```
 
-More details on how to set up the data in the right format and run the evaluation on your own dataset can be found [here](../../nemoguardrails/evaluate/data/moderation/README.md).
+More details on how to set up the data in the right format and run the evaluation on your own dataset can be found [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/moderation/README.md).
 
 #### Evaluation Results
 
@@ -263,7 +263,7 @@ We want the models to block as many harmful prompts as possible and allow as man
 
 #### Moderation Rails Performance
 
-These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [Guardrails library](./../../docs/user-guides/guardrails-library.md).
+These results are using the _Simple_ prompt defined in the LLM Self-Checking method. For more details, see the [LLM Self-Check](../configure-rails/guardrail-catalog/self-check.md) guide.
 
 | Model                  | % of harmful prompts blocked | % harmful prompts triggering model errors | % of helpful prompts allowed |
 |------------------------|------------------------------|-------------------------------------------|------------------------------|
@@ -312,7 +312,7 @@ For general questions that the model uses parametric knowledge to answer, we can
 #### Self-Check
 
 This rail will use the LLM for self-checking with a custom prompt if the answers are inconsistent. The custom prompt can be similar to an NLI task.
-For more details, consult the [Guardrails library]([Guardrails library](./../../docs/user-guides/guardrails-library.md)) guide.
+For more details, consult the [LLM Self-Check](../configure-rails/guardrail-catalog/self-check.md) guide.
 
 #### Evaluation
 
