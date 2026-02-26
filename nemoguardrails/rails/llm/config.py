@@ -138,25 +138,37 @@ class Model(BaseModel):
             return None
 
         parameters = data.get("parameters")
-        if not parameters:
+        if parameters is None:
             return data
 
-        model_field = data.get("model")
-        model_from_params = parameters.get("model_name") or parameters.get("model")
+        raw_model_field = data.get("model")
+        raw_model_from_params = parameters.get("model_name") or parameters.get("model")
+
+        model_field = (
+            raw_model_field.strip() if isinstance(raw_model_field, str) else None
+        )
+        model_from_params = (
+            raw_model_from_params.strip()
+            if isinstance(raw_model_from_params, str)
+            else None
+        )
 
         if model_field and model_from_params:
-            if model_field.strip() != model_from_params.strip():
+            if model_field != model_from_params:
                 raise InvalidModelConfigurationError(
                     "Conflicting model names: `model` and `parameters.model/model_name` must match if both are provided."
                 )
 
         final_model = model_field or model_from_params
-        if final_model:
-            data["model"] = final_model
+        if not final_model:
+            return data
 
-            for key in ("model_name", "model"):
-                if key in parameters and parameters[key] == final_model:
-                    parameters.pop(key)
+        data["model"] = final_model
+
+        for key in ("model_name", "model"):
+            value = parameters.get(key)
+            if isinstance(value, str) and value.strip() == final_model:
+                parameters.pop(key)
 
         return data
 
