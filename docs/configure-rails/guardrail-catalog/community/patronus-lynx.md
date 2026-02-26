@@ -1,6 +1,6 @@
 # Patronus Lynx Integration
 
-NeMo Guardrails supports hallucination detection in RAG systems using [Patronus AI](www.patronus.ai)'s Lynx model. The model is hosted on Hugging Face and comes in both a 70B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-70B-Instruct)) and 8B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-8B-Instruct)) variant.
+NeMo Guardrails supports hallucination detection in RAG systems using [Patronus AI](https://www.patronus.ai)'s Lynx model. The model is hosted on Hugging Face and comes in both a 70B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-70B-Instruct)) and 8B parameters (see [here](https://huggingface.co/PatronusAI/Patronus-Lynx-8B-Instruct)) variant.
 
 There are three components of hallucination that Lynx checks for:
 

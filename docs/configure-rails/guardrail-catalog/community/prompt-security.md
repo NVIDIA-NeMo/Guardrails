@@ -10,7 +10,7 @@ You'll need to set the following env variables to work with Prompt Security:
 ## Setup
 
 1. Ensure that you have access to Prompt Security API server (SaaS or on-prem).
-2. Update your `config.yml` file to include the Private AI settings:
+2. Update your `config.yml` file to include the Prompt Security settings:
 
 ```yaml
 rails:

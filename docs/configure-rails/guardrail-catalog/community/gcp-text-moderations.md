@@ -1,6 +1,6 @@
 # GCP Text Moderation Integration
 
-NeMo Guardrails supports using the [GCP Text Modeation API](https://cloud.google.com/natural-language/docs/moderating-text) as an input rail out-of-the-box. There are many ways you can authentication on GCP, refer to this [link](https://cloud.google.com/docs/authentication/application-default-credentials) for more details .
+NeMo Guardrails supports using the [GCP Text Moderation API](https://cloud.google.com/natural-language/docs/moderating-text) as an input rail out-of-the-box. There are many ways you can authentication on GCP, refer to this [link](https://cloud.google.com/docs/authentication/application-default-credentials) for more details .
 
 ```yaml
 rails:
