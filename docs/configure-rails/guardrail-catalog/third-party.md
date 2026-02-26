@@ -283,7 +283,6 @@ Llama Guard <community/llama-guard>
 Pangea AI Guard <community/pangea>
 Patronus Evaluate API <community/patronus-evaluate-api>
 Patronus Lynx <community/patronus-lynx>
-Patronus Lynx Deployment <community/patronus-lynx-deployment>
 Presidio <community/presidio>
 Private AI <community/privateai>
 Prompt Security <community/prompt-security>
