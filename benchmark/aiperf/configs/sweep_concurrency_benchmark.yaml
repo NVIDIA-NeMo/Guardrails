@@ -1,7 +1,7 @@
-# Concurrency sweep. One-minute tests at log-spaced concurrencies
+# Benchmarking AIPerf configuration to test locally-running Guardrails
 
 # Name for this batch of benchmarks (will be part of output directory name)
-batch_name: sweep_concurrency
+batch_name: sweep_concurrency_benchmark
 
 # Base directory where all benchmark results will be stored.
 # Actual name is <output_base_dir>/<batch_name>/<sweep value> for sweeps
@@ -13,10 +13,9 @@ base_config:
   # Model details
   model: meta/llama-3.3-70b-instruct
   tokenizer: meta-llama/Llama-3.3-70B-Instruct
-  url: "https://integrate.api.nvidia.com"
+  url: "http://localhost:9000"
   endpoint: "/v1/chat/completions"
   endpoint_type: chat
-  api_key_env_var: NVIDIA_API_KEY
 
   # Load generation settings.
   warmup_request_count: 10
@@ -35,4 +34,4 @@ base_config:
 # The script will run all combinations (Cartesian product)
 sweeps:
   # Sweep over the following concurrency values
-  concurrency: [1, 2, 4]
+  concurrency: [1, 2, 4, 8, 16, 32, 64, 128, 256]
