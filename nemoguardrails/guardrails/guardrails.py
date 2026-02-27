@@ -36,8 +36,8 @@ from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
 
 # Queue configuration constants
-MAX_QUEUE_SIZE = 100
-MAX_CONCURRENCY = 10
+MAX_QUEUE_SIZE = 256
+MAX_CONCURRENCY = 256
 
 log = logging.getLogger(__name__)
 
