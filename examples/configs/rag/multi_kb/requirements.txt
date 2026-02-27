@@ -1,6 +1,0 @@
-accelerate
-pandas
-# faiss-gpu
-# faiss-cpu-1.7.4
-einops
-gpt4pandas

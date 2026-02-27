@@ -1,3 +1,0 @@
-# Some title
-
-No content.

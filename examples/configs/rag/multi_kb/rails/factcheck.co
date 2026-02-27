@@ -1,8 +1,0 @@
-define user ask about knowledge base
-  "What is the population in Norway?"
-  "Which countries belong to Scandinavia?"
-  "What is the capital of Denmark?"
-
-define flow answer report question
-  user ask about knowledge base
-  bot provide answer to knowledge base
