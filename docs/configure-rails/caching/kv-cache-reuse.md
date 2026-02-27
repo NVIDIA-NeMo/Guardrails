@@ -17,7 +17,7 @@ content:
 # KV Cache Reuse for NemoGuard NIM
 
 When you configure NeMo Guardrails to call NemoGuard NIMs in response to a client request, every NIM call interjecting the input and response adds to the inference latency.
-The application LLM can only begin generating a response after all input checks, which may [run in parallel](parallel-rails), are complete. Additionally, response latency is introduced if you run the guardrail checks on the application LLM's response; the larger the response, the longer it takes to check the response.
+The application LLM can only begin generating a response after all input checks, which may [run in parallel](../yaml-schema/guardrails-configuration/parallel-rails.md), are complete. Additionally, response latency is introduced if you run the guardrail checks on the application LLM's response; the larger the response, the longer it takes to check the response.
 
 [KV Cache Reuse](https://docs.nvidia.com/nim/large-language-models/latest/kv-cache-reuse.html) (also known as prefix-caching) is a feature of the NVIDIA NIM for LLMs that provides a performance improvement by reusing the decoder layers for the prompt.
 

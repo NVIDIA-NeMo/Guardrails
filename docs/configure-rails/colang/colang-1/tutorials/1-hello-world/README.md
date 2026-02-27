@@ -209,7 +209,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 The Chat UI interface is now available at `http://localhost:8000`:
 
-![hello-world-server-ui.png](../../_static/images/hello-world-server-ui.png)
+![NeMo Guardrails Chat UI showing the Hello World configuration](../../../../../_static/images/hello-world-server-ui.png)
 
 ## Next
 

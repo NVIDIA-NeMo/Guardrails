@@ -20,6 +20,7 @@ content:
   - DevOps Engineer
 ---
 
+(tracing-configuration)=
 # Tracing Configuration
 
 This section describes how to configure tracing and monitoring in the `config.yml` file.
@@ -195,5 +196,5 @@ View traces in your configured observability platform:
 
 ## Related Topics
 
-- [Tracing Guide](../../user-guides/tracing/index) - Detailed tracing setup and examples
-- [Detailed Logging](../../user-guides/detailed-logging/README) - Additional logging options
+- [Tracing Guide](../../observability/tracing/index) - Detailed tracing setup and examples
+- [Detailed Logging](../../observability/logging/README) - Additional logging options

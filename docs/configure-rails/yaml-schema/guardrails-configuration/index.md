@@ -83,7 +83,7 @@ rails:
       - mask sensitive data on input    # PII masking
 ```
 
-For a complete list of available input flows, refer to the [](../configuration-reference.md#input-rails).
+For a complete list of available input flows, refer to the [](../../configuration-reference.md#input-rails).
 
 ## Output Rails
 
@@ -99,7 +99,7 @@ rails:
       - mask sensitive data on output  # PII masking
 ```
 
-For a complete list of available output flows, refer to the [](../configuration-reference.md#output-rails).
+For a complete list of available output flows, refer to the [](../../configuration-reference.md#output-rails).
 
 ## Retrieval Rails
 
@@ -112,7 +112,7 @@ rails:
       - check retrieval sensitive data
 ```
 
-For a complete list of available retrieval flows, refer to the [](../configuration-reference.md#retrieval-rails).
+For a complete list of available retrieval flows, refer to the [](../../configuration-reference.md#retrieval-rails).
 
 ## Dialog Rails
 
@@ -129,7 +129,7 @@ rails:
       embeddings_only: false
 ```
 
-For a complete list of available dialog flows, refer to the [](../configuration-reference.md#dialog-rails).
+For a complete list of available dialog flows, refer to the [](../../configuration-reference.md#dialog-rails).
 
 ## Execution Rails
 

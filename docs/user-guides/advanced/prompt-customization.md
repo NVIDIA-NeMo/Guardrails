@@ -4,7 +4,7 @@
 
 ## Task-oriented Prompting
 
-The interaction with the LLM is designed in a task-oriented way, i.e., each time the LLM is called, it must perform a specific task. The most important tasks, which are part of the [guardrails process](../../architecture/README.md#the-guardrails-process), are:
+The interaction with the LLM is designed in a task-oriented way, i.e., each time the LLM is called, it must perform a specific task. The most important tasks, which are part of the [guardrails process](../../reference/colang-architecture-guide.md), are:
 
 1. `generate_user_intent`: generate the canonical user message from the raw utterance (e.g., "Hello there" -> `express greeting`);
 2. `generate_next_steps`: decide what the bot should say or what action should be executed (e.g., `bot express greeting`, `bot respond to question`);
@@ -166,10 +166,10 @@ There are three types of variables available to be included in the prompt:
 
 The following is the list of system variables:
 
-- `general_instructions`: the content corresponds to the [general instructions](../configuration-guide.md#general-instructions) specified in the configuration;
-- `sample_conversation`: the content corresponds to the [sample conversation](../configuration-guide.md#sample-conversation) specified in the configuration;
+- `general_instructions`: the content corresponds to the [general instructions](../../configure-rails/configuration-reference.md#general-instructions) specified in the configuration;
+- `sample_conversation`: the content corresponds to the [sample conversation](../../configure-rails/configuration-reference.md#sample-conversation) specified in the configuration;
 - `examples`: depending on the task, this variable will contain the few-shot examples that the LLM should take into account;
-- `history`: contains the history of events (see the [complete example](../../architecture/README.md#complete-example))
+- `history`: contains the history of events (see the [architecture guide](../../reference/colang-architecture-guide.md))
 - `relevant_chunks`: (only available for the `generate_bot_message` task) if a knowledge base is used, this variable will contain the most relevant chunks of text based on the user query.
 
 ##### Prompt Variables
@@ -178,7 +178,7 @@ Prompt variables can be registered using the `LLMRails.register_prompt_context(n
 
 ##### Context Variables
 
-Flows included in a guardrails configuration can define (and update) various [context variables](../colang-language-syntax-guide.md#variables). These can also be included in a prompt if needed.
+Flows included in a guardrails configuration can define (and update) various [context variables](../../configure-rails/colang/colang-1/colang-language-syntax-guide.md#variables). These can also be included in a prompt if needed.
 
 #### Filters
 
@@ -206,7 +206,9 @@ Optionally, the output from the LLM can be parsed using an *output parser*. The 
 
 Currently, the NeMo Guardrails toolkit includes prompts for `openai/gpt-3.5-turbo-instruct`, `openai/gpt-3.5-turbo`, `openai/gpt-4`, `databricks/dolly-v2-3b`, `cohere/command`, `cohere/command-light`, `cohere/command-light-nightly`.
 
-**DISCLAIMER**: Evaluating and improving the provided prompts is a work in progress. We do not recommend deploying this alpha version using these prompts in a production setting.
+```{note}
+The predefined prompts are continuously evaluated and improved. Test and customize prompts for your specific use case before deploying to production.
+```
 
 ## Custom Tasks and Prompts
 

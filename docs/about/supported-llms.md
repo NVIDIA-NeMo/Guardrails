@@ -43,7 +43,7 @@ The NeMo Guardrails library supports the following self-hosted LLM providers:
 
 ### Providers from LangChain
 
-The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to [Chat model integrations](https://docs.langchain.com/oss/python/integrations/chat) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](../cli/index.md#find-providers-command) CLI command to discover available providers.
+The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to [Chat model integrations](https://docs.langchain.com/oss/python/integrations/chat) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](../reference/cli/index.md#find-providers-command) CLI command to discover available providers.
 
 ## Embedding Providers
 

@@ -122,8 +122,8 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 |-------|-------------|
 | `nvidia` | NVIDIA-hosted model integration through [build.nvidia.com](https://build.nvidia.com/) |
 | `openai` | OpenAI-hosted model integration |
-| `sdd` | [Sensitive data detection](../configure-rails/guardrail-catalog.md#presidio-based-sensitive-data-detection) using Presidio |
-| `eval` | [Evaluation tools](../evaluation/index.rst) for testing guardrails |
+| `sdd` | [Sensitive data detection](../configure-rails/guardrail-catalog/pii-detection.md#presidio-based-sensitive-data-detection) using Presidio |
+| `eval` | [Evaluation tools](../evaluation/evaluate-guardrails.md) for testing guardrails |
 | `tracing` | OpenTelemetry tracing support |
 | `gcp` | Google Cloud Platform language services |
 | `jailbreak` | YARA-based jailbreak detection heuristics |

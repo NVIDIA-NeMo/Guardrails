@@ -278,7 +278,7 @@ To find the new way of configuring tracing, refer to [](tracing-configuration).
   - Added support for the NVIDIA Nemotron family of advanced reasoning models, such as Llama 3.1 Nemotron Ultra 253B V1.
   - Added the `rails.output.apply_to_reasoning_traces` field.
     When this field is `True`, output rails are applied to the reasoning traces and the model output.
-    For more information, refer to [](./user-guides/configuration-guide.md#using-llms-with-reasoning-traces).
+    For more information, refer to [](../configure-rails/configuration-reference.md#using-llms-with-reasoning-traces).
   - The `reasoning_config.remove_thinking_traces` field is deprecated and replaced by the `reasoning_config.remove_reasoning_traces` field that has the same purpose and subfields.
   - Previously, if `remove_thinking_traces` was set to `True`, the reasoning traces were omitted from the final response presented to the end user.
     In this release, `remove_reasoning_traces` controls whether reasoning traces are removed from internal tasks and has no effect on the final response presented to the user.
@@ -286,11 +286,11 @@ To find the new way of configuring tracing, refer to [](tracing-configuration).
 - Simplified and broadened support for chat model providers from LangChain and
   LangChain Community chat model providers.
   You must use `langchain` version `0.2.14` or higher and `langchain-community` version `0.2.5` or higher.
-  For information about using model providers, refer to [](./user-guides/configuration-guide.md#the-llm-model).
+  For information about using model providers, refer to [](../configure-rails/configuration-reference.md#the-llm-model).
 - Added support for code injection detection.
   For more information, refer to [](../configure-rails/guardrail-catalog/agentic-security.md#injection-detection).
 - Enhanced the `nemoguardrails` CLI with a `find-providers` argument to list chat and text completion providers.
-  For more information, refer to [](./user-guides/cli.md#providers).
+  For more information, refer to [](../reference/cli/index.md#providers).
 
 (v0-14-0-breaking-changes)=
 

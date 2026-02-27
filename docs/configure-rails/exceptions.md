@@ -42,7 +42,7 @@ define flow input rail example
 
 ## Guardrails Library Exception
 
-By default, all the guardrails included in the [](guardrail-catalog.md) return a predefined message
+By default, all the guardrails included in the [](guardrail-catalog/index.md) return a predefined message
 when a rail is triggered. You can change this behavior by setting the `enable_rails_exceptions` key to `True` in your
 `config.yml` file:
 

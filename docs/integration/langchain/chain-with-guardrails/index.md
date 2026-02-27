@@ -88,7 +88,7 @@ As we can see, the LLM complied with the request and returned the system prompt.
 
 ## Adding Guardrails
 
-To protect against such attempts, we can use a guardrails configuration. In the configuration below, we use the [self-check input rails](../../guardrails-library.md#self-check-input).
+To protect against such attempts, we can use a guardrails configuration. In the configuration below, we use the [self-check input rails](../../../configure-rails/guardrail-catalog/self-check.md#self-check-input).
 
 ```yaml
 models:

@@ -157,7 +157,7 @@ If the bot does not know the answer to a question, it truthfully says it does no
 
 > **NOTE**: this jailbreak attempt does not work 100% of the time. If you're running this and getting a different result, try a few times, and you should get a response similar to the previous.
 
-Allowing the LLM to comply with this type of request is something we don't want. To prevent jailbreak attempts like this, you can add an input rail that can process the user input before it is sent to the LLM. NeMo Guardrails comes with a built-in [self check input](../../../../guardrail-catalog.md#self-check-input) rail that uses a separate LLM query to detect a jailbreak attempt. To use it, you have to:
+Allowing the LLM to comply with this type of request is something we don't want. To prevent jailbreak attempts like this, you can add an input rail that can process the user input before it is sent to the LLM. NeMo Guardrails comes with a built-in [self check input](../../../../guardrail-catalog/self-check.md#self-check-input) rail that uses a separate LLM query to detect a jailbreak attempt. To use it, you have to:
 
 1. Activate the `self check input` rail in *config.yml*.
 2. Add a `self_check_input` prompt in *prompts.yml*.
@@ -288,7 +288,7 @@ print(info.llm_calls[0].completion)
 
 The following figure depicts in more details how the self-check input rail works:
 
-```{image} ../../_static/puml/input_rails_fig_1.png
+```{image} ../../../../../_static/puml/input_rails_fig_1.png
 :alt: "Sequence diagram showing how the self-check input rail works in NeMo Guardrails: 1) Application code sends a user message to the Programmable Guardrails system, 2) The message is passed to the Input Rails component, 3) Input Rails calls the self_check_input action, 4) The action uses an LLM to evaluate the message, 5) If the LLM returns 'Yes' indicating inappropriate content, the input is blocked and the bot responds with 'I am not able to respond to this.'"
 :width: 815px
 :align: center
@@ -334,7 +334,7 @@ print(info.llm_calls[0].completion)
 
 Because the input rail was not triggered, the flow continued as usual.
 
-```{image} ../../_static/puml/input_rails_fig_2.png
+```{image} ../../../../../_static/puml/input_rails_fig_2.png
 :alt: "Sequence diagram showing how the self-check input rail works in NeMo Guardrails when processing a valid user message: 1) Application code sends a user message to the Programmable Guardrails system, 2) The message is passed to the Input Rails component, 3) Input Rails calls the self_check_input action, 4) The action uses an LLM to evaluate the message, 5) If the LLM returns 'No' (indicating appropriate content), the input is allowed to continue, 6) The system then proceeds to generate a bot response using the general task prompt"
 :width: 740px
 :align: center
@@ -369,7 +369,7 @@ Feel free to experiment with various inputs that should or should not trigger th
 
 ## More on Input Rails
 
-Input rails also have the ability to alter the message from the user. By changing the value for the `$user_message` variable, the subsequent input rails and dialog rails work with the updated value. This can be useful, for example, to mask sensitive information. For an example of this behavior, checkout the [Sensitive Data Detection rails](../../../../guardrail-catalog.md#presidio-based-sensitive-data-detection).
+Input rails also have the ability to alter the message from the user. By changing the value for the `$user_message` variable, the subsequent input rails and dialog rails work with the updated value. This can be useful, for example, to mask sensitive information. For an example of this behavior, checkout the [Sensitive Data Detection rails](../../../../guardrail-catalog/pii-detection.md#presidio-based-sensitive-data-detection).
 
 ## Next
 

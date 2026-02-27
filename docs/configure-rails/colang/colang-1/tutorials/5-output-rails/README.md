@@ -31,7 +31,7 @@ nest_asyncio.apply()
 
 ## Output Moderation
 
-NeMo Guardrails comes with a built-in [output self-checking rail](../../../../guardrail-catalog.md#self-check-output). This rail uses a separate LLM call to make sure that the bot's response should be allowed.
+NeMo Guardrails comes with a built-in [output self-checking rail](../../../../guardrail-catalog/self-check.md#self-check-output). This rail uses a separate LLM call to make sure that the bot's response should be allowed.
 
 Activating the `self check output` rail is similar to the `self check input` rail:
 
@@ -166,7 +166,8 @@ As we can see, the LLM did generate the message containing the word "idiot", how
 
 The following figure depicts the process:
 
-```{image} ../../_static/puml/output_rails_fig_1.png
+```{image} ../../../../../_static/puml/output_rails_fig_1.png
+:alt: "Sequence diagram showing how the self-check output rail works in NeMo Guardrails when processing a response that contains blocked content"
 ```
 
 ## Streaming Output

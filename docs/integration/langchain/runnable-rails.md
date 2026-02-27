@@ -199,7 +199,7 @@ This ensures seamless integration with LangChain components that depend on messa
 
 ### Passthrough Mode
 
-The role of a guardrail configuration is to validate user input, check LLM output, and guide the LLM model on how to respond. See the [Configuration Guide](../configuration-guide.md#guardrails-definitions) for more details on the different types of rails.
+The role of a guardrail configuration is to validate user input, check LLM output, and guide the LLM model on how to respond. See the [Configuration Guide](../../configure-rails/configuration-reference.md#guardrails-definitions) for more details on the different types of rails.
 
 To achieve this, the guardrail configuration might make additional calls to the LLM or other models/APIs (for example, for fact-checking and content moderation).
 

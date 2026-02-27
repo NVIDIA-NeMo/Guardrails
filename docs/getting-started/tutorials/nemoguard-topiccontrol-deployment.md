@@ -280,7 +280,7 @@ To run the Llama 3.1 NemoGuard 8B TopicControl in a Docker container, follow the
 
 ## Next Steps
 
-- [Topic Safety overview](../../configure-rails/guardrail-catalog.md#topic-safety)
+- [Topic Safety overview](../../configure-rails/guardrail-catalog/topic-control.md)
 - [Topic safety example configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/topic_safety)
 - [Topic Control research paper (EMNLP 2024)](https://arxiv.org/abs/2404.03820)
 - [NeMo Guardrails Library Configuration Guide](../../configure-rails/overview.md)

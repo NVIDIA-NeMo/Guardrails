@@ -212,6 +212,10 @@ exclude_patterns = [
     "README.md",
     "_build/**",
     "_extensions/**",
+    "LIVE_DOCS.md",
+    "research.md",
+    "scripts/**",
+    "docs-structure-context.md",
 ]
 
 myst_linkify_fuzzy_links = False
