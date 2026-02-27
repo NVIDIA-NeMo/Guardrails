@@ -648,9 +648,9 @@ class JailbreakDetectionConfig(BaseModel):
         default=None,
         description="The endpoint for the jailbreak detection heuristics/model container.",
     )
-    length_per_perplexity_threshold: float = Field(default=89.79, description="The length/perplexity threshold.")
+    length_per_perplexity_threshold: float = Field(default=89.79, gt=0, description="The length/perplexity threshold.")
     prefix_suffix_perplexity_threshold: float = Field(
-        default=1845.65, description="The prefix/suffix perplexity threshold."
+        default=1845.65, gt=0, description="The prefix/suffix perplexity threshold."
     )
     nim_base_url: Optional[str] = Field(
         default=None,
@@ -690,6 +690,15 @@ class JailbreakDetectionConfig(BaseModel):
         if self.nim_url and not self.nim_base_url:
             port = self.nim_port or 8000
             self.nim_base_url = f"http://{self.nim_url}:{port}/v1"
+        return self
+
+    @model_validator(mode="after")
+    def validate_urls(self) -> "JailbreakDetectionConfig":
+        """Validate URL formats for endpoints."""
+        if self.nim_base_url and not self.nim_base_url.startswith(("http://", "https://")):
+            raise ValueError(f"nim_base_url must start with 'http://' or 'https://', got '{self.nim_base_url}'")
+        if self.server_endpoint and not self.server_endpoint.startswith(("http://", "https://")):
+            raise ValueError(f"server_endpoint must start with 'http://' or 'https://', got '{self.server_endpoint}'")
         return self
 
     def get_api_key(self) -> Optional[str]:
@@ -1642,6 +1651,59 @@ class RailsConfig(BaseModel):
         return values
 
     @root_validator(pre=True, allow_reuse=True)
+    def check_jailbreak_detection_config(cls, values):
+        """Validate jailbreak detection configuration against enabled flows."""
+        rails = values.get("rails", {})
+        config_data = rails.get("config", {})
+        input_flows = rails.get("input", {}).get("flows", [])
+
+        jailbreak_config = config_data.get("jailbreak_detection", {})
+        has_model_flow = JAILBREAK_FLOW_MODEL in input_flows
+        has_heuristics_flow = JAILBREAK_FLOW_HEURISTICS in input_flows
+        has_any_jailbreak_flow = has_model_flow or has_heuristics_flow
+
+        # Case A: Config present but no flow references it
+        if jailbreak_config and not has_any_jailbreak_flow:
+            log.warning(
+                "Jailbreak detection configuration is present under "
+                "rails.config.jailbreak_detection but no jailbreak detection flow "
+                "is enabled. To use jailbreak detection, add 'jailbreak detection model' "
+                "or 'jailbreak detection heuristics' to rails.input.flows."
+            )
+
+        # Case B: "jailbreak detection model" flow is enabled
+        if has_model_flow:
+            nim_base_url = jailbreak_config.get("nim_base_url")
+            server_endpoint = jailbreak_config.get("server_endpoint")
+            nim_server_endpoint = jailbreak_config.get("nim_server_endpoint", "classify")
+
+            if nim_base_url:
+                if not nim_server_endpoint:
+                    raise InvalidRailsConfigurationError(
+                        "nim_base_url is set for jailbreak detection model but "
+                        "nim_server_endpoint is empty. Both must be configured "
+                        "when using NIM-based jailbreak detection."
+                    )
+            elif not server_endpoint:
+                log.warning(
+                    "No endpoint configured for jailbreak detection model. "
+                    "Will fall back to local in-process detection, which is "
+                    "not recommended for production."
+                )
+
+        # Case C: "jailbreak detection heuristics" flow is enabled
+        if has_heuristics_flow:
+            server_endpoint = jailbreak_config.get("server_endpoint")
+            if not server_endpoint:
+                log.warning(
+                    "No server_endpoint configured for jailbreak detection heuristics. "
+                    "Will fall back to local in-process detection, which is "
+                    "not recommended for production."
+                )
+
+        return values
+
+    @root_validator(pre=True, allow_reuse=True)
     def fill_in_default_values_for_v2_x(cls, values):
         instructions = values.get("instructions", {})
         sample_conversation = values.get("sample_conversation")
@@ -1904,6 +1966,9 @@ def _generate_rails_flows(flows):
 
 
 MODEL_PREFIX = "$model="
+
+JAILBREAK_FLOW_MODEL = "jailbreak detection model"
+JAILBREAK_FLOW_HEURISTICS = "jailbreak detection heuristics"
 
 
 def _get_flow_model(flow_text) -> Optional[str]:
