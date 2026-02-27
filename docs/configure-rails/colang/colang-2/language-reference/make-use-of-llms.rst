@@ -58,7 +58,7 @@ Natural Language Description (NLD)
 
 One of the main LLM generation mechanisms in Colang is the so-called Natural Language Description (NLD) in combination with the "generation" operator ``...``.
 
-.. code-block:: colang
+.. code-block:: text
 
     # Assign result of NLD to a variable
     $world_population = ..."What is the number of people in the world? Give me a number."
@@ -79,7 +79,7 @@ Every NLD will be interpreted and replaced during runtime by the configured LLM 
 
 Alternatively, you can also describe the purpose and function of a flow using a docstring like NLD at the beginning of a flow. Using a standalone generation operator ``...`` in the flow will use the flows NLD to infer the right flow expansion automatically:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         """You are an assistant that should talk to the user about cars.
@@ -97,7 +97,7 @@ See the example in :ref:`colang_2_getting_started_llm_flows` for more details on
 
 .. In the future NLDs can also be used in the following ways:
 
-.. .. code-block:: colang
+.. .. code-block:: text
 
 ..     # Use NLDs as flow parameters
 ..     bot say i"Welcome the user with a short sentence."
@@ -114,7 +114,7 @@ See the example in :ref:`colang_2_getting_started_llm_flows` for more details on
 
 .. In order to work with the configured LLM we need to activate the standard library flow ``polling llm request response`` from the llm module (`Github link <../../../nemoguardrails/colang/v2_x/library/llm.co>`__). This will activate a system timer to actively poll the LLM request response such that the interaction can progress without another system event:
 
-.. .. code-block:: colang
+.. .. code-block:: text
 ..     :caption: llm/nld_example/main.co
 
 ..     import llm
@@ -138,7 +138,7 @@ User Intent Matching
 
 In section :ref:`Defining Flows<action-like-and-intent-like-flows>`, we have already seen how we can define user intent flows. The limitation was that they did not generalize to variations of the given user intent examples. With the help of an LLM, we can overcome this issue and use its reasoning power by importing the `llm` standard library module and activating the flows ``automating intent detection`` and ``generating user intent for unhandled user utterance`` (`Github link <../../../nemoguardrails/colang/v2_x/library/llm.co>`__) to match unexpected user utterances to currently active user intent flows.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: llm/user_intent_match_example/main.co
 
     import core
@@ -191,7 +191,7 @@ You can see that if we have an exact match for "Hi", for example, the LLM will n
 
 You might ask yourself how the LLM can know which flows are considered user intent flows. This can either be done based on the flow names by activating the flow ``automating intent detection`` to automatically detect flows starting with 'user', or using an explicit flow decorator to mark them independently of their names:
 
-.. code-block:: colang
+.. code-block:: text
 
     @meta(user_intent=True)
     flow any fancy flow name
@@ -206,7 +206,7 @@ Bot Action Generation
 
 Similarly to how we want to be able to handle variations in the user input, we have seen bot intent flows that define a variation of predefined bot actions. While this can be good enough for responses to expected user inputs, we would also like to handle unexpected user utterances and not always reply with "Thanks for sharing!". For this case, another flow from the Standard Library named ``llm continue interaction`` will help us:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: llm/bot_intent_generation_example/main.co
 
     import core
@@ -245,7 +245,7 @@ Basic Interaction Loop
 
 We can now combine everything to create a basic interaction loop:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: llm/interaction_loop/main.co
 
     import core

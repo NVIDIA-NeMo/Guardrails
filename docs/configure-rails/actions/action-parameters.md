@@ -76,7 +76,7 @@ async def my_action(context: Optional[dict] = None):
 
 Custom context variables set in flows are also accessible:
 
-```colang
+```text
 # In a Colang flow
 $user_preference = "dark_mode"
 execute check_preference

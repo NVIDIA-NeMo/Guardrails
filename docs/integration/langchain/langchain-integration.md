@@ -83,7 +83,7 @@ rails.register_action(SampleChainOrRunnable(), "sample_action")
 
 Once registered, the chain (or `Runnable`) can be invoked from within a flow:
 
-```colang
+```text
 define flow
   ...
   $result = execute sample_action

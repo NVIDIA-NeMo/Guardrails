@@ -57,7 +57,7 @@ The above is an example prompt that you can use with the *self check facts rail*
 
 The self-check fact-checking rail executes the [`self_check_facts` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns a score between `0.0` (response is not accurate) and `1.0` (response is accurate). The reason a number is returned, instead of a boolean, is to keep a consistent API with other methods that return a score, e.g., the AlignScore method below.
 
-```colang
+```text
 define subflow self check facts
   if $check_facts == True
     $check_facts = False
@@ -72,7 +72,7 @@ To trigger the self-check fact-checking rail for a bot message, you must set the
 
 The example below will trigger the fact-checking output rail every time the bot responds to a question about the report.
 
-```colang
+```text
 define flow
   user ask about report
   $check_facts = True
@@ -83,7 +83,7 @@ define flow
 
 Fact-checking also works in a custom RAG implementation based on a custom action:
 
-```colang
+```text
 define flow answer report question
   user ...
   $answer = execute rag()
@@ -136,7 +136,7 @@ You can use the self-check hallucination detection in two modes:
 
 Similar to self-check fact-checking, to trigger the self-check hallucination rail in blocking mode, you have to set the `$check_hallucination` context variable to `True` to verify that a bot message is not prone to hallucination:
 
-```colang
+```text
 define flow
   user ask about people
   $check_hallucination = True
@@ -145,7 +145,7 @@ define flow
 
 The above example will trigger the hallucination rail for every people-related question (matching the canonical form `user ask about people`), which is usually more prone to contain incorrect statements. If the bot message contains hallucinations, the default `bot inform answer unknown` message is used. To override it, include the following in one of your Colang files:
 
-```colang
+```text
 define bot inform answer unknown
   "I don't know the answer to that."
 ```
@@ -154,7 +154,7 @@ define bot inform answer unknown
 
 Similar to above, if you want to allow sending the response back to the user, but with a warning, you have to set the `$hallucination_warning` context variable to `True`.
 
-```colang
+```text
 define flow
   user ask about people
   $hallucination_warning = True
@@ -163,7 +163,7 @@ define flow
 
 To override the default message, include the following in one of your Colang files:
 
-```colang
+```text
 define bot inform answer prone to hallucination
   "The previous answer is prone to hallucination and may not be accurate."
 ```
@@ -172,7 +172,7 @@ define bot inform answer prone to hallucination
 
 Hallucination-checking also works in a custom RAG implementation based on a custom action:
 
-```colang
+```text
 define flow answer report question
   user ...
   $answer = execute rag()

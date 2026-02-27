@@ -12,7 +12,7 @@ Trend Micro Vision One [AI Application Security's](https://docs.trendmicro.com/e
 1. Create a new [Vision One API Key](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-platform-api-keys) with permissions to Call Detection API
 2. See the [AI Guard Integration Guide](https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-platform-api-keys) for details around creating your policy
 
-[Colang v1](../../../../examples/configs/trend_micro/):
+[Colang v1](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/trend_micro/):
 
 ```yaml
 # config.yml
@@ -35,7 +35,7 @@ rails:
     flows:
       - trend ai guard output
 ```
-[Colang v2](../../../../examples/configs/trend_micro_v2/):
+[Colang v2](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/trend_micro_v2/):
 ```yaml
 # config.yml
 colang_version: "2.x"

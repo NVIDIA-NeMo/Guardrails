@@ -59,7 +59,7 @@ The above is an example prompt you can use with the *self check input rail*. See
 
 The self-check input rail executes the [`self_check_input` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/input_check/actions.py), which returns `True` if the input should be allowed, and `False` otherwise:
 
-```colang
+```text
 define flow self check input
   $allowed = execute self_check_input
 
@@ -70,7 +70,7 @@ define flow self check input
 
 When the input should not be allowed, the `bot refuse to respond` message is returned. You can override the default response by including the following in one of the Colang files:
 
-```colang
+```text
 define bot refuse to respond
   "I'm sorry, I can't respond to that."
 ```
@@ -167,7 +167,7 @@ The above is an example prompt you can use with the *self check output rail*. Se
 
 The self-check output rail executes the [`self_check_output` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns `True` if the output should be allowed, and `False` otherwise:
 
-```colang
+```text
 define flow self check output
   $allowed = execute self_check_output
 
@@ -178,7 +178,7 @@ define flow self check output
 
 The `bot refuse to respond` message is returned when the output should not be allowed. You can override the default response by including the following in one of the Colang files:
 
-```colang
+```text
 define bot refuse to respond
   "I'm sorry, I can't respond to that."
 ```

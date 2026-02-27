@@ -24,7 +24,7 @@ Log and Print Statements
 
 To help debugging your Colang flows, you can use the print statement ``print <expression>`` to print something to the standard output.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: development_debugging/print_statement/main.co
 
     flow main
@@ -41,7 +41,7 @@ Alternatively, use the log statement ``log <expression>`` to append to the loggi
 
 Furthermore, the Colang function ``flows_info`` can be used to return more information about a flow instance:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: development_debugging/flows_info/main.co
 
     flow main
@@ -159,7 +159,7 @@ The NeMo Guardrail CLI provides a couple of additional debugging commands that a
     │   │       └── > _user_said `re.compile('(?i)multimodality', re.IGNORECASE)` (d86... ,started)
 
 
-.. code-block:: colang
+.. code-block:: text
     :caption: All CLI debugging commands
 
     flows [--all] [--order_by_name] # Shows all (active) flows in a table in order of their interaction loop priority and name

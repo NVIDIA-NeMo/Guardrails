@@ -274,6 +274,8 @@ These results are using the _Simple_ prompt defined in the LLM Self-Checking met
 
 <sup>*</sup> Note that as of Mar 13, 2024 `gemini-1.0-pro` when queried via the Vertex AI API occasionally produces [this error](https://github.com/GoogleCloudPlatform/generative-ai/issues/344). Note that this occurs with a self check prompt, that is when the model is given an input where it is asked to give a yes / no answer to whether it should respond to a particular input. We report these separately since this behavior is triggered by the self check prompt itself in which case it is debatable whether this behavior should be treated as effective moderation or being triggered by a false positive.
 
+(llamaguard-based-moderation-rails-performance)=
+
 ##### LlamaGuard-based Moderation Rails Performance
 
 Evaluation date: January 8, 2024.

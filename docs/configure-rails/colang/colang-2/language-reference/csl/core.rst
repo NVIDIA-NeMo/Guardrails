@@ -161,7 +161,7 @@ Bot Action Flows
     purpose of the bot utterance.
 
 
-    .. code-block:: colang
+    .. code-block:: text
 
         # Trigger the bot to inform about something
         flow bot inform $text
@@ -268,7 +268,7 @@ Bot Event Flows
     You may react to specific semantic wrappers for ``bot say`` that are defined in the ``core.co`` library
 
 
-    .. code-block:: colang
+    .. code-block:: text
 
         # Wait for the bot to finish informing about something
         flow bot informed something -> $text

@@ -62,7 +62,7 @@ For now, the Evaluate API Integration only looks at whether the evaluators retur
 
 Here's the `patronus api check output` flow, showing how the action is executed:
 
-```colang
+```text
 define bot inform answer unknown
   "I don't know the answer to that."
 

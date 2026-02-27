@@ -52,7 +52,7 @@ In the following examples, input and output are distinguished by the presence or
 
 At its core, Colang defines interaction patterns as sequences of events grouped into so-called flows. Like in many programming languages, the main flow (``flow main``) defines the entry point to a Colang script and will be started/activated first:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: introduction/hello_world/main.co
 
     flow main
@@ -70,7 +70,7 @@ Once you enter the correct event ``InputEvent`` you will see the generated event
 
 Let's redo the previous example based on UMIM events that represent user and bot utterances:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: introduction/hello_world_umim/main.co
 
     flow main
@@ -92,7 +92,7 @@ First Interaction Pattern
 
 Let's now build a longer interaction pattern:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: introduction/interaction_sequence/main.co
 
     flow main

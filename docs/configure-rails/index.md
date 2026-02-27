@@ -73,7 +73,7 @@ Reference for all config.yml options including models, rails, prompts, and advan
 :::
 
 :::{grid-item-card} Guardrail Catalog
-:link: guardrail-catalog
+:link: guardrail-catalog/index
 :link-type: doc
 
 Reference for pre-built guardrails including content safety, jailbreak detection, and PII handling.

@@ -25,7 +25,7 @@ The following example instructs the LLM to respond formally when the user greets
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -47,7 +47,7 @@ The docstring in the `bot respond formally` flow provides the instruction. The `
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define flow
   user express greeting
   # Respond in a very formal way and introduce yourself.
@@ -70,7 +70,7 @@ The following example instructs the LLM to respond informally with a joke:
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -90,7 +90,7 @@ flow bot respond informally with joke
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define flow
   user express greeting
   # Respond in a very informal way and also include a joke
@@ -113,7 +113,7 @@ You can also include dynamic context in your instructions:
 ```{tab-item} Colang 2.0
 In Colang 2.0, you can use Jinja2 syntax to include variables in flow docstrings:
 
-~~~colang
+~~~text
 import core
 import llm
 
@@ -131,7 +131,7 @@ flow bot greet user $name
 ```{tab-item} Colang 1.0
 In Colang 1.0, context variables are accessed differently through the context object:
 
-~~~colang
+~~~text
 define flow
   $user_name = "Alice"
   user express greeting

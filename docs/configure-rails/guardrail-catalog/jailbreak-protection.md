@@ -98,7 +98,7 @@ There is currently one available model-based detection, using a random forest-ba
 
 ### Setup
 
-The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](../../user-guides/jailbreak-detection-heuristics/README.md) separately.
+The recommended way for using the jailbreak detection heuristics and models is to [deploy the jailbreak detection server](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/docs/user-guides/jailbreak-detection-heuristics/README.md) separately.
 
 For quick testing, you can use the jailbreak detection heuristics rail locally by first installing `transformers` and `torch`.
 

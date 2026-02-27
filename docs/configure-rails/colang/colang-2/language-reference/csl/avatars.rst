@@ -4,7 +4,7 @@ Interactive Avatar Modality Flows (`avatars.co <../../../nemoguardrails/colang/v
 
 **User Event Flows**
 
-.. code-block:: colang
+.. code-block:: text
 
     # Wait for a UI selection
     flow user selected choice $choice_id -> $choice
@@ -27,7 +27,7 @@ Interactive Avatar Modality Flows (`avatars.co <../../../nemoguardrails/colang/v
 
 **Bot Action Flows**
 
-.. code-block:: colang
+.. code-block:: text
 
     # Trigger a specific bot gesture
     flow bot gesture $gesture
@@ -52,7 +52,7 @@ Interactive Avatar Modality Flows (`avatars.co <../../../nemoguardrails/colang/v
 
 **Bot Event Flows**
 
-.. code-block:: colang
+.. code-block:: text
 
     # Wait for the bot to start with the given gesture
     flow bot started gesture $gesture
@@ -73,7 +73,7 @@ Interactive Avatar Modality Flows (`avatars.co <../../../nemoguardrails/colang/v
 
 These are flows that track bot and user states in global variables.
 
-.. code-block:: colang
+.. code-block:: text
 
     # Track most recent visual choice selection state in global variable $choice_selection_state
     flow tracking visual choice selection state
@@ -82,7 +82,7 @@ These are flows that track bot and user states in global variables.
 
 These are some useful helper and utility flows:
 
-.. code-block:: colang
+.. code-block:: text
 
     # Stops all the current bot actions
     flow finish all bot actions
@@ -95,7 +95,7 @@ These are some useful helper and utility flows:
 
 **Posture Management Flows**
 
-.. code-block:: colang
+.. code-block:: text
 
     # Activates all the posture management
     flow managing bot postures

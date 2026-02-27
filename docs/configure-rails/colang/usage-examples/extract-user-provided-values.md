@@ -13,7 +13,7 @@ This guide teaches you how to extract user-provided values (for example, a name,
 ```{tab-item} Colang 2.0
 In Colang 2.0, you use **Natural Language Descriptions (NLD)** with the generation operator (`...`) to extract values. The NLD is placed inline after the `...` operator:
 
-~~~colang
+~~~text
 $variable_name = ..."Instructions on how to extract the value."
 ~~~
 
@@ -23,7 +23,7 @@ The NLD together with the variable name is interpreted by the LLM directly. Be s
 ```{tab-item} Colang 1.0
 In Colang 1.0, you place a **comment** above the variable assignment with the `...` operator:
 
-~~~colang
+~~~text
 # Comment with instructions on how to extract the value.
 # Can span multiple lines.
 $variable_name = ...
@@ -43,7 +43,7 @@ You can extract single values from user input:
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -60,7 +60,7 @@ flow user provided name
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define user provide name
   "My name is John"
   "I am Alice"
@@ -81,7 +81,7 @@ You can instruct the LLM to extract a list of values:
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -102,7 +102,7 @@ flow user requested add items to cart
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define flow add to cart
   user request add items to cart
 
@@ -121,7 +121,7 @@ You can extract values for multiple variables from the same user input:
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -142,7 +142,7 @@ flow user requested book flight
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define user request book flight
   "I want to book a flight."
   "I want to fly from Bucharest to San Francisco."
@@ -175,7 +175,7 @@ bot: "The square root for 1024 is 32"
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -195,7 +195,7 @@ flow user asked math question
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define flow
   user ask math question
 
@@ -214,7 +214,7 @@ define flow
 ```{tab-item} Colang 2.0
 **Be specific in your NLDs:**
 
-~~~colang
+~~~text
 # Good - specific format and fallback
 $user_name = ..."Return the user name as a single string between quotes. If no user name is available, return 'friend'."
 
@@ -227,7 +227,7 @@ $value = ..."Get the value."
 
 **Use variables in NLDs for context:**
 
-~~~colang
+~~~text
 $order_info = ..."Extract the order details."
 $summary = ..."Provide a brief summary of the current order. Order Information: '{$order_info}'"
 ~~~
@@ -236,7 +236,7 @@ $summary = ..."Provide a brief summary of the current order. Order Information: 
 ```{tab-item} Colang 1.0
 **Be specific in your comments:**
 
-~~~colang
+~~~text
 # Good - specific format and fallback
 # Extract the user's name. If not specified, return "friend".
 $name = ...

@@ -54,7 +54,7 @@ This chapter is a comprehensive introduction to Colang, explaining all important
 ..             for a in b:
 ..                 break
 
-.. .. code-block:: colang
+.. .. code-block:: text
 ..     :caption: Colang lexer test code
 
 ..     @override

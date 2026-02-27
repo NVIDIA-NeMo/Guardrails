@@ -53,7 +53,7 @@ To configure your bot to use Llama Guard for input/output checking, follow the b
 
 The rails execute the [`llama_guard_check_*` actions](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/llama_guard/actions.py), which return `True` if the user input or the bot message should be allowed, and `False` otherwise, along with a list of the unsafe content categories as defined in the Llama Guard prompt.
 
-```colang
+```text
 define flow llama guard check input
   $llama_guard_response = execute llama_guard_check_input
   $allowed = $llama_guard_response["allowed"]

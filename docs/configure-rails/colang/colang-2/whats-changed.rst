@@ -30,12 +30,12 @@ Defining User and Bot Intents
 
 The special ``define user ...`` and ``define bot ...`` syntax is no longer supported. When defining example utterances, in Colang 2.0 you have to use a more explicit syntax:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow user expressed greeting
       user said "hi" or user said "hello"
 
-.. code-block:: colang
+.. code-block:: text
 
     flow user expressed greeting
       user said "hi"
@@ -47,7 +47,7 @@ Why? For example, now you can mix other types of events and modalities, e.g., ``
 
 Similarly, for bot intents:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow bot express greeting
       bot say "Hello world!"
@@ -137,7 +137,7 @@ LLM invocation
 
 In Colang 1.0, as soon as you defined a user intent, the dialog rails would be automatically activated and the LLM would be used. In Colang 2.0, to use the LLM, you have to activate the mechanism explicitly:
 
-.. code-block:: colang
+.. code-block:: text
 
   flow main
     activate llm continuation

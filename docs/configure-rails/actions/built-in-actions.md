@@ -44,7 +44,7 @@ These actions are fundamental to the guardrails process:
 
 Converts raw user input into a canonical intent form:
 
-```colang
+```text
 # Automatically called during guardrails process
 # Input: "Hello there!"
 # Output: express greeting
@@ -54,7 +54,7 @@ Converts raw user input into a canonical intent form:
 
 Determines what the bot should do next:
 
-```colang
+```text
 # Automatically called to decide next action
 # Output: bot express greeting, execute some_action, etc.
 ```
@@ -63,7 +63,7 @@ Determines what the bot should do next:
 
 Generates the actual bot response text:
 
-```colang
+```text
 # Converts intent to natural language
 # Input: bot express greeting
 # Output: "Hello! How can I help you today?"
@@ -73,7 +73,7 @@ Generates the actual bot response text:
 
 Retrieves context from the knowledge base:
 
-```colang
+```text
 # Retrieves relevant documents for RAG
 # Result stored in $relevant_chunks context variable
 ```
@@ -101,7 +101,7 @@ rails:
       - self check input
 ```
 
-```colang
+```text
 # rails/input.co
 define flow self check input
   $allowed = execute self_check_input
@@ -122,7 +122,7 @@ rails:
       - self check output
 ```
 
-```colang
+```text
 # rails/output.co
 define flow self check output
   $allowed = execute self_check_output
@@ -178,7 +178,7 @@ These tool wrappers are only available when the `NEMO_GUARDRAILS_DEMO_ACTIONS` e
 
 ### Using LangChain Tools
 
-```colang
+```text
 define flow answer with search
   user ask about current events
   $results = execute google_search(query=$user_query)
@@ -187,7 +187,7 @@ define flow answer with search
 
 ### Wikipedia Example
 
-```colang
+```text
 define flow answer with wikipedia
   user ask about historical facts
   $info = execute wikipedia_query(query=$user_query)
@@ -215,7 +215,7 @@ rails:
           - PHONE_NUMBER
 ```
 
-```colang
+```text
 define flow check input sensitive data
   $has_pii = execute detect_sensitive_data
   if $has_pii
@@ -225,7 +225,7 @@ define flow check input sensitive data
 
 ### mask_sensitive_data
 
-```colang
+```text
 define flow mask input sensitive data
   $masked_input = execute mask_sensitive_data
   # Continue with masked input
@@ -272,7 +272,7 @@ rails:
 
 You can combine built-in actions with custom logic:
 
-```colang
+```text
 define flow enhanced_input_check
   $is_jailbreak = execute jailbreak_detection_heuristics
   if $is_jailbreak

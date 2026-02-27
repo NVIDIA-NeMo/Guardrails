@@ -13,12 +13,10 @@ AutoAlign comes with a library of built-in guardrails that you can easily use:
 7. [Tonal Detection](#tonal-detection)
 8. [Toxicity detection](#toxicity-extraction)
 9. [PII](#pii)
-10. [Factcheck](#factcheck-or-groundness-check)
-
+10. [Factcheck](#fact-check)
 
 Note: Factcheck is implemented a bit differently, compared to other guardrails.
 Please have a look at its description within this document to understand its usage.
-
 
 ## AutoAlign API KEY
 
@@ -26,7 +24,6 @@ In order to use AutoAlign's guardrails you need to set `AUTOALIGN_API_KEY` as an
 with the API key as its value.
 
 Please contact [hello@autoalign.ai](mailto:hello@autoalign.ai) for your own API key. Please mention NeMo and AutoAlign in the subject line in order to receive quick responses from the AutoAlign team.
-
 
 ## Usage
 
@@ -267,6 +264,7 @@ rails:
         flows:
             - autoalign check output
 ```
+
 We also have to add the AutoAlign's guardrail endpoint in parameters.
 
 "multi_language" is an optional parameter to enable guardrails for non-English information
@@ -283,10 +281,9 @@ given below.
 
 The config for the guardrails has to be defined separately for both input and output side, as shown in the above example.
 
-
 The colang file has been implemented in the following format in the library:
 
-```colang
+```text
 define flow autoalign check input
   $input_result = execute autoalign_input_api(show_autoalign_message=True)
 
@@ -322,7 +319,6 @@ The actions `autoalign_input_api` and `autoalign_output_api` takes in two argume
 we will show any output from autoalign or not. The response from AutoAlign would be presented as a subtext, when
 `show_autoalign_message` is kept `True`. Details regarding the second argument can be found in `toxicity_detection`
 section.
-
 
 The result obtained from `execute autoalign_input_api` or `execute autoalign_output_api` is a dictionary,
 where the keys are the guardrail names (there are some additional keys which we will describe later) and
@@ -405,7 +401,6 @@ For confidential info detection, the matching score has to be following format:
 }
 ```
 
-
 ### Racial bias detection
 
 The goal of the racial bias detection rail is to determine if the text has any kind of racially biased content. This rail can be applied at both input and output.
@@ -459,7 +454,7 @@ For text toxicity detection, the matching score has to be following format:
 
 Can extract toxic phrases by changing the colang file a bit:
 
-```colang
+```text
 define subflow autoalign check input
   $input_result = execute autoalign_input_api(show_autoalign_message=True, show_toxic_phrases=True)
   if $input_result["guardrails_triggered"]
@@ -489,7 +484,6 @@ define subflow autoalign groundedness output
 define bot refuse to respond
   "I'm sorry, I can't respond to that."
 ```
-
 
 ### PII
 
@@ -608,9 +602,9 @@ Note that the verify_response is set to False by default as it requires addition
 computation, and we encourage users to determine which LLM responses should go through
 AutoAlign groundness check whenever possible.
 
-
 Following is the format of the colang file, which is present in the library:
-```colang
+
+```text
 define subflow autoalign groundedness output
   if $check_facts == True
     $check_facts = False
@@ -626,7 +620,7 @@ or not. The response from AutoAlign would be presented as a subtext, when
 
 To use this flow you need to have colang file of the following format:
 
-```colang
+```text
 define user ask about pluto
   "What is pluto?"
   "How many moons does pluto have?"
@@ -645,12 +639,9 @@ for use case by following the above example, this ensures that
 the fact-check takes place only for particular topics and not
 for ideal chit-chat.
 
-
-
 The output of the groundness check endpoint provides you with a factcheck score against which we can add a threshold which determines whether the given output is factually correct or not.
 
 The supporting documents or the evidence has to be placed within a `kb` folder within `config` folder.
-
 
 ### Fact Check
 

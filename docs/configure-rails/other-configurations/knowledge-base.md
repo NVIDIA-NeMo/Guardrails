@@ -190,7 +190,7 @@ You can reference the retrieved chunks in your Colang flows:
 
 ````{tab-set}
 ```{tab-item} Colang 2.0
-~~~colang
+~~~text
 import core
 import llm
 
@@ -207,7 +207,7 @@ flow user asked question
 ```
 
 ```{tab-item} Colang 1.0
-~~~colang
+~~~text
 define flow answer question
   user ask question
   # Use the retrieved knowledge base chunks to answer

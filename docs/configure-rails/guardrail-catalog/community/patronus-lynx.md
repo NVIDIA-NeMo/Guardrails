@@ -127,7 +127,7 @@ Under the hood, the `patronus lynx check output hallucination` rail runs the `pa
 
 Here's the `patronus lynx check output hallucination` flow, showing how the action is executed:
 
-```colang
+```text
 define bot inform answer unknown
   "I don't know the answer to that."
 

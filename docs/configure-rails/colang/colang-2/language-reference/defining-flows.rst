@@ -28,7 +28,7 @@ So far you have seen only one flow, the main flow. But in Colang we can define m
 
     Examples:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         flow bot say $text $intensity=1.0
             """Bot says given text."""
@@ -49,7 +49,7 @@ So far you have seen only one flow, the main flow. But in Colang we can define m
 
 Like an action, a flow can be started and waited for to finish using the keywords ``start``, ``await`` and ``match``:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/call_a_flow/main.co
 
     flow main
@@ -70,7 +70,7 @@ Like an action, a flow can be started and waited for to finish using the keyword
 
 Note that starting a flow will immediately process and trigger all initial statements of the flow, up to the first statement that waits for an event:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/start_flow/main.co
 
     flow main
@@ -94,7 +94,7 @@ Flow events
 
 Similar to actions, flows themselves can generate different events that relate to a flow's status or lifetime. These flow events have priority over other events (see :ref:`Internal Events<internal-events-defining-flows>`):
 
-.. code-block:: colang
+.. code-block:: text
 
     FlowStarted(flow_id: str, flow_instance_uid: str, source_flow_instance_uid: str) # When a flow has started
     FlowFinished(flow_id: str, flow_instance_uid: str, source_flow_instance_uid: str) # When the interaction pattern of a flow has successfully finished
@@ -102,7 +102,7 @@ Similar to actions, flows themselves can generate different events that relate t
 
 The events can also be accessed like an object method of the flow:
 
-.. code-block:: colang
+.. code-block:: text
 
     Started(flow_id: str, flow_instance_uid: str, source_flow_instance_uid: str) # When a flow has started
     Finished(flow_id: str, flow_instance_uid: str, source_flow_instance_uid: str) # When the interaction pattern of a flow has successfully finished
@@ -111,7 +111,7 @@ The events can also be accessed like an object method of the flow:
 
 These events can be matched via a flow reference or the flow name itself:
 
-.. code-block:: colang
+.. code-block:: text
 
     # Match to flow event with flow reference
     match $flow_ref.Finished()
@@ -123,7 +123,7 @@ The main difference is, that matching to a flow event with a reference will be s
 
 Here is an example of a flow with parameters:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/flow_parameters/main.co
 
     flow main
@@ -141,7 +141,7 @@ Flow and Action Lifetime
 
 Starting a flow within another flow will implicitly create a hierarchy of flows where the '`main`' flow is the root flow of all of them. Like actions, the lifetime of a flow is limited by the lifetime of its parent flow. In other words, a flow will be stopped as soon as the flow that started it has finished or was stopped itself:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         match UserReadyEvent()
@@ -160,7 +160,7 @@ Starting a flow within another flow will implicitly create a hierarchy of flows 
 
 We see that the '`main`' flow starts and waits for the flow '`bot express greeting`', which starts the two flows '`bot say`' and '`bot gesture`'. But the flow '`bot express greeting`' will only wait for '`bot say`' to finish and automatically stop '`bot gesture`' if it is still active. Now with our simple chat CLI this is a bit difficult to simulate, since both the `UtteranceBotAction` and `GestureBotAction` have no duration and will finish immediately. In an interactive system, where the bot actually speaks and uses, for example, animations for the gesture action, this would take some time to finish. We can also simulate this effect by using the `TimerBotAction` that will just introduce a specified delay:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/flow_hierarchy/main.co
 
     flow main
@@ -211,7 +211,7 @@ Concurrent Pattern Matching
 
 Flows are more than just functions as known from other programming languages. Flows are interaction patterns that can match and progress concurrently:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/concurrent_flows_basics/main.co
 
     flow main
@@ -247,7 +247,7 @@ The two flows '`pattern a`' and '`pattern b`' get immediately started from '`mai
 
 We can make the same example using wrapper flows to abstract the actions and it will work exactly the same. Remember, that we don't have to write the ``await`` keyword since it is the default:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/concurrent_flows_basics_wrapper/main.co
 
     flow main
@@ -275,7 +275,7 @@ We can make the same example using wrapper flows to abstract the actions and it 
 
 This example will work identically when flow `'a'` uses a less specific match statement:
 
-.. code-block:: colang
+.. code-block:: text
 
     # ...
 
@@ -290,7 +290,7 @@ This example will work identically when flow `'a'` uses a less specific match st
 
 Now, let's see what happens if two matching flows disagree on an action by differing in the two last statements:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/action_conflict_resolution/main.co
 
     flow main
@@ -344,7 +344,7 @@ When resolving an event generation conflict we only take into account the curren
 
 .. When resolving an event generation conflict all previous matches are taken into account to figure out which pattern matches better:
 
-.. .. code-block:: colang
+.. .. code-block:: text
 ..     :caption: flows/action_conflict_resolution/main.co
 
 ..     flow main
@@ -411,7 +411,7 @@ D) The pattern fails due to an internal event that was generated by another flow
 
 In the context of flow hierarchies, case (B) plays a particularly important role. Let's see an example to understand this better:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/flows_failing/main.co
 
     flow main
@@ -466,7 +466,7 @@ Flow Grouping
 
 Like for actions, we can use ``start`` and ``await`` on a flow group that is built using the grouping operators ``and`` and ``or``. Let's take a closer look at how this works based on the following four cases using the two placeholder flows `'a'` and `'b'`:
 
-.. code-block:: colang
+.. code-block:: text
 
     # A) Starts both flows sequentially without waiting for them to finish
     start a and b
@@ -492,7 +492,7 @@ Like for actions, we can use ``start`` and ``await`` on a flow group that is bui
 
 Cases A and C don't need much more explanation and should be pretty intuitive to understand. Cases B and D use the concept of concurrency that we have already seen in the pattern matching section before. If two flows get started concurrently, they will progress together and potentially result in conflicting actions. The resolution of such conflicts is handled exactly the same. Let's see this with two concrete flow examples:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         # A) Starts both bot actions sequentially without waiting for them to finish
@@ -513,7 +513,7 @@ Cases A and C don't need much more explanation and should be pretty intuitive to
     flow bot gesture $gesture
         await GestureBotAction(gesture=$gesture)
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         # A) Starts both flows sequentially that will both wait for their user action event match
@@ -549,7 +549,7 @@ So far we have looked at event, action and flow grouping in separated contexts. 
 - ``start``: Accepts groups of actions and flows but not events
 - ``await``: Accepts groups of actions and flows but not events
 
-.. code-block:: colang
+.. code-block:: text
 
     # Wait for either a flow or action to finish
     match (bot say "Hi").Finished() or UtteranceUserAction.Finished(final_transcript="Hello")
@@ -589,7 +589,7 @@ Action-like and Intent-like Flows
 
 We have already seen some examples of user and bot action-like flows:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow bot say $text
         await UtteranceBotAction(script=$text)
@@ -605,7 +605,7 @@ We have already seen some examples of user and bot action-like flows:
 
 With the help of these flows we can construct another abstraction, flows that represent bot or user intent:
 
-.. code-block:: colang
+.. code-block:: text
 
     # A bot intent flow
     flow bot greet
@@ -634,7 +634,7 @@ Internal Events
 
 Besides all the events read and written to the event channel of the system, there is a special set of internal events that have priority over the system events and will not show up on the event channel:
 
-.. code-block:: colang
+.. code-block:: text
 
     # Starts a new flow instance with the name flow_id and an unique instance identifier flow_instance_uid
     StartFlow(flow_id: str, flow_instance_uid: str, **more_variables)
@@ -662,7 +662,7 @@ Note that the parameter ``flow_id`` contains the name of the flow and the parame
 
 Under the hood, all interaction patterns are based on these internal events. Have a look at the underlying mechanics of e.g. the ``await`` keyword:
 
-.. code-block:: colang
+.. code-block:: text
 
     # Start of a flow ...
     await pattern a
@@ -679,7 +679,7 @@ Under the hood, all interaction patterns are based on these internal events. Hav
 
 Internal events can be matched to and generated similar to system events, but will be processed with priority to any next system event. This allows us to create more advance flows like e.g. a pattern that triggers when an undefined flow is called:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: flows/undefined_flow/main.co
 
     flow main

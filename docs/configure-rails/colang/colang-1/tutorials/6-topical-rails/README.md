@@ -15,13 +15,13 @@ This guide will teach you what *topical rails* are and how to integrate them int
 pip install openai
 ```
 
-2. Set the `OPENAI_API_KEY` environment variable:
+1. Set the `OPENAI_API_KEY` environment variable:
 
 ```bash
 export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
 ```
 
-3. If you're running this inside a notebook, patch the AsyncIO loop.
+1. If you're running this inside a notebook, patch the AsyncIO loop.
 
 ```python
 import nest_asyncio
@@ -41,7 +41,6 @@ Topical rails can be implemented using multiple mechanisms in a guardrails confi
 4. **Dialog rails**: you can design explicit dialog rails for the topics you want to allow/avoid.
 
 This guide focuses on the **dialog rails**. Note that the *general instructions* already provide some topical rails, as demonstrated by the following Python code.
-
 
 ```python
 from nemoguardrails import RailsConfig, LLMRails
@@ -82,7 +81,7 @@ The [Core Colang Concepts](../2-core-colang-concepts/README.md) section of this 
 
 1. Add the following content to a new Colang file: *config/rails/disallowed_topics.co*:
 
-```colang
+```text
 define user ask about cooking
   "How can I cook pasta?"
   "How much do I have to boil pasta?"
@@ -110,7 +109,7 @@ These are topics that the bot should not talk about. For simplicity, there is on
 
 > **NOTE**: the performance of dialog rails is depends strongly on the number and quality of the provided examples.
 
-2. Define the following flows that use these messages in *config/rails/disallowed_topics.co*.
+1. Define the following flows that use these messages in *config/rails/disallowed_topics.co*.
 
 ```python
 define flow
@@ -187,6 +186,7 @@ bot refuse to respond about cooking
 ```
 
 Let's break it down:
+
    1. First, the `self_check_input` rail was triggered, which did not block the request.
    2. Next, the `generate_user_intent` prompt was used to determine what the user's intent was. As explained in [Step 2](../2-core-colang-concepts/README.md) of this series, this is an essential part of how dialog rails work.
    3. Next, as we can see from the Colang history above, the next step was `bot refuse to respond about cooking`, which came from the defined flows.

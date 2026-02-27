@@ -10,7 +10,7 @@ Flows to handle user attention.
 
      Example:
 
-     .. code-block:: colang
+     .. code-block:: text
 
           import core
           import attention
@@ -27,7 +27,7 @@ Flows to handle user attention.
 
      Example:
 
-     .. code-block:: colang
+     .. code-block:: text
 
           import core
           import attention
@@ -46,7 +46,7 @@ Flows to handle user attention.
 
      Example:
 
-     .. code-block:: colang
+     .. code-block:: text
 
           import core
           import attention
@@ -63,7 +63,7 @@ Flows to handle user attention.
 
      Example:
 
-     .. code-block:: colang
+     .. code-block:: text
 
           import core
           import attention

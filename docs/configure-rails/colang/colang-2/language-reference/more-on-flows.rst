@@ -32,7 +32,7 @@ We have already seen how the ``start`` and ``await`` keywords trigger a flow. No
 
     Examples:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         # Activate a single flow
         activate handling user presents
@@ -45,7 +45,7 @@ We have already seen how the ``start`` and ``await`` keywords trigger a flow. No
         activate handling user presents and handling question repetition 5.0
 
 
-.. code-block:: colang
+.. code-block:: text
     :caption: more_on_flows/activate_flow/main.co
 
     import core
@@ -95,7 +95,7 @@ Activating a flow enables you to keep matching the interaction event sequence ag
 
 Alternatively, you can use the ``@active`` decorator notation to activate a flow at the start as a child of the main flow:
 
-.. code-block:: colang
+.. code-block:: text
 
     import core
 
@@ -117,7 +117,7 @@ If you use the ``@active`` decorator for flows that were defined in a separate C
 
 There is one exception though from this rule! If a flow does not contain any statement that waits for an event and immediately finishes, it will run only once when activated and it will stay activated, since otherwise you would get an infinite loop.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: more_on_flows/non-repeating-flows/main.co
 
     import core
@@ -153,7 +153,7 @@ Start a new Flow Instance
 
 In some cases, it is not enough to restart a flow only once it has finished, since this can miss certain pattern repetitions:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: more_on_flows/restart_flow_instance/main.co
 
     import core
@@ -192,7 +192,7 @@ In the following interaction, we see that the second "Hi" of the user does not t
 
 If we want to start an new instance before the end of the current instance, we can achieve that by adding a label called ``start_new_flow_instance`` at the corresponding position in the interaction sequence:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: more_on_flows/start_new_flow_instance/main.co
 
     # ...
@@ -250,7 +250,7 @@ An activated flow will usually stay alive since it always restarts when it finis
 
     Examples:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         # Deactivate a single flow
         deactivate handling user presents
@@ -261,7 +261,7 @@ An activated flow will usually stay alive since it always restarts when it finis
 
 Under the hood the `deactivate` keyword will abort the flow and disable the restart. It is a shortcut for this statement:
 
-.. code-block:: colang
+.. code-block:: text
 
     send StopFlow(flow_id="flow name", deactivate=True)
 
@@ -274,7 +274,7 @@ Override Flows
 
 A flow can be overridden by another flow with the same name by using the override decorator:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow bot greet
         bot say "Hi"
@@ -285,7 +285,7 @@ A flow can be overridden by another flow with the same name by using the overrid
 
 In this example, the second '`bot greet`' flow will override the first one. This is particularly useful when working with imported Colang modules from a library to override. For example, you can extend the '`bot say`' flow from the core module of the standard library to include an additional log statement:
 
-.. code-block:: colang
+.. code-block:: text
 
     import core
 
@@ -314,7 +314,7 @@ So far, any concurrently progressing flows that resulted in different event gene
 .. important::
     Interaction loop syntax definition:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         @loop([id=]"<loop_name>"[,[priority=]<integer_number>])
         flow <name of flow> ...
@@ -323,7 +323,7 @@ So far, any concurrently progressing flows that resulted in different event gene
 
 By default, any flow without an explicit interaction loop inherits the interaction loop of its parent flow and has priority level 0. Let's see now an example of a second interaction loop to design flows that augment the main interaction rather than compete with it:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: more_on_flows/interaction_loops/main.co
 
     import core
@@ -388,7 +388,7 @@ In section :ref:`Defining Flows<defining-flows-concurrent-pattern-matching>`, we
 
 For every successful match statement, a matching score is computed that is greater than :math:`0.0` (no match) and smaller or equal to :math:`1.0` (perfect match). A perfect match is when all parameters of the expected event match with all the parameters from the actual event. If the actual event has more parameters than the expected event, the matching score will be decreased by multiplying it by a factor of :math:`0.9` for every missing parameter. So let's say we have a matching event containing five parameters, but we only specified two of them, the score would be :math:`0.9^{5-2} = 0.729`. Since a system event can trigger a chain of internal events, we need to take into account all the generated matching scores in that sequence. Let's use the following example to better illustrate that:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         activate pattern a and pattern b
@@ -412,21 +412,21 @@ For every successful match statement, a matching score is computed that is great
 
 After starting the main flow, the two flows `'pattern a'` and `'pattern b'` will be active and waiting for the user to say something. Let's look at the two event generation chains triggered by the event ``UtteranceUserActionFinished(final_transcript="Hi")``:
 
-.. code-block:: colang
+.. code-block:: text
 
     1) UtteranceUserActionFinished(final_transcript="Hi") -> send FlowFinished(flow_id="user said", text="Hi") -> send StartFlow(flow_id="bot say", text="Hello") -> send StartUtteranceBotAction(text="Hello")
     2) UtteranceUserActionFinished(final_transcript="Hi") -> send FlowFinished(flow_id="user said something") -> send StartFlow(flow_id="bot say", text="Sure") -> send StartUtteranceBotAction(text="Sure")
 
 Because the resulting action events at the end of these chains are different, there will be a conflict that needs to be resolved. Let's look at the corresponding match statements in these chains:
 
-.. code-block:: colang
+.. code-block:: text
 
     1) match UtteranceUserActionFinished(final_transcript="Hi") -> match FlowFinished(flow_id="user said", text="Hi") -> match StartFlow(flow_id="bot say", text="Hello")
     2) match UtteranceUserActionFinished() -> match FlowFinished(flow_id="user said something") -> match StartFlow(flow_id="bot say", text="Sure")
 
 Comparing these match statements to the events will result in the following matching scores:
 
-.. code-block:: colang
+.. code-block:: text
 
     1) 1.0 -> 1.0 -> 1.0
     2) 0.9 -> 1.0 -> 1.0
@@ -441,7 +441,7 @@ In order to find the best event matching sequence, we will compare each matching
 
 In some cases, you might want to influence the matching score of some matches to change the conflict resolution outcome. You can do this by specifying a flow priority with the statement ``priority <float_value>`` where the value is between :math:`0.0` and :math:`1.0`. Each match in the flow will then be multiplied by the current flow priority. Since this approach currently can only reduce the matching score, you cannot use it to increase the priority of a match. A work around that can sometimes be employed is to improve the matching score of a non-perfect match by adding missing parameters using a regular expression that matches any value like that ``regex(".*")``:
 
-.. code-block:: colang
+.. code-block:: text
 
     # ...
 

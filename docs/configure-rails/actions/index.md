@@ -156,7 +156,7 @@ async def check_blocked_terms(context: Optional[dict] = None):
 
 Create `config/rails/output.co`:
 
-```colang
+```text
 define bot refuse to respond
   "I apologize, but I cannot provide that information."
 

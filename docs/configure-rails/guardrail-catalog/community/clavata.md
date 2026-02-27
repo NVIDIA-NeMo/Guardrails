@@ -89,7 +89,7 @@ If you're using Colang 2.0, there's no need to specify configuration for input a
 
 Here's an example of how to configure an input rail to check against a specific Clavata policy:
 
-```colang
+```text
 import guardrails
 import nemoguardrails.library.clavata
 
@@ -109,7 +109,7 @@ flow input rails $input_text
 
 If you are using colang 2.x, you can make use of the Clavata action in your own flows:
 
-```colang
+```text
 # Check content
 $is_match = await ClavataCheckAction(text=$some_text, policy=$some_policy_alias)
 ```

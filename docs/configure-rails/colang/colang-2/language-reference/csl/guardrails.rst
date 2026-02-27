@@ -4,7 +4,7 @@ Guardrail Flows (`guardrails.co <../../../nemoguardrails/colang/v2_x/library/gua
 
 Flows to guardrail user inputs and LLM responses.
 
-.. code-block:: colang
+.. code-block:: text
 
     # Check user utterances before they get further processed
     flow run input rails $input_text

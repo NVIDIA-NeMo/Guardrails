@@ -29,7 +29,7 @@ Like Python, Colang supports these fundamental data types: `string`, `int`, `flo
 
 Variables in Colang behave exactly like in Python. As a consequence, mutable data types like a list will not be copied for a new variable assignment but only referenced by the new variable.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: variables/assignment/main.co
 
     flow main
@@ -40,7 +40,7 @@ Variables in Colang behave exactly like in Python. As a consequence, mutable dat
 
 Note that Colang references are also mutable and therefore point to the same underlying object:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: variables/references/main.co
 
     flow main
@@ -59,7 +59,7 @@ Currently, the creation of references of other variables is not supported. Refer
 
 Here are some variable assignment examples:
 
-.. code-block:: colang
+.. code-block:: text
 
     $string_value = "Hi"
     $integer_value = 42
@@ -75,7 +75,7 @@ Expression Evaluation
 
 Colang supports evaluation of common Python expressions for simple and compound data types (see `Simple Eval <https://github.com/danthedeckie/simpleeval>`_):
 
-.. code-block:: colang
+.. code-block:: text
 
     # Arithmetic expressions
     21 + 21
@@ -125,7 +125,7 @@ Colang supports evaluation of common Python expressions for simple and compound 
 
 Here is how expression can be used within Colang:
 
-.. code-block:: colang
+.. code-block:: text
 
     # Expression in an assignment
     $dict = {"value": 2 + 3}
@@ -146,7 +146,7 @@ Flow Variable Access
 
 By default, variables defined in a flow have a local scope and are not accessible from outside the flow. One way to enable access to them is by declaring them as flow attributes using the notation shown in :ref:`defining-flows` in the flow definition:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: variables/flow_attributes/main.co
 
     flow main
@@ -162,7 +162,7 @@ With this, we can access, for example, the user transcript and use it to repeat 
 
 Another way to share information between flows using variables is to make them global by using the keyword ``global``.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: variables/global_variables/main.co
 
     flow main
@@ -184,7 +184,7 @@ Expressions in Strings
 
 As in Python's formatted string literals, we can use braces to evaluate an expression inside a string ``"{$variable}"``:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: variables/string_expression_evaluation/main.co
 
     flow main
@@ -200,7 +200,7 @@ Flow Member Variables
 
 To access a flow instance's member variables, you can use a reference or the reserved variable ``$self`` from within the flow itself:
 
-.. code-block:: colang
+.. code-block:: text
 
     $ref.uid: str # The unique id of the flow instance
     $ref.flow_id: str # The name of the flow
@@ -225,7 +225,7 @@ Action Member Variables
 
 To access the member variables of an action, you can use an action reference:
 
-.. code-block:: colang
+.. code-block:: text
 
     $ref.uid: str # The unique id of the action instance
     $ref.name: str # The name of the action
@@ -240,7 +240,7 @@ Event Member Variables
 
 To access the member variables of an event, you can use an event reference:
 
-.. code-block:: colang
+.. code-block:: text
 
     $ref.name: str # The name of the event
     $ref.arguments: dict # A dictionary with all the event arguments
@@ -254,7 +254,7 @@ System and Bot Configuration Values
 
 To access system or bot specific configuration variables, you can use ``$system``:
 
-.. code-block:: colang
+.. code-block:: text
 
     $system.config # Current bot configuration object (YAML)
     $system.state # The bots current runtime state object
@@ -267,7 +267,7 @@ As an example, if you defined a new boolean value `streaming` in the yaml bot co
 
 you can access and print it like this:
 
-.. code-block:: colang
+.. code-block:: text
 
     print $system.config.streaming
 

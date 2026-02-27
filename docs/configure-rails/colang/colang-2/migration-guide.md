@@ -35,14 +35,14 @@ The tool walks through the directory specified by the `path` argument and applie
 
 The syntax for the generation operation has changed slightly between Colang 1.0 and 2.0. The following Colang 1.0 snippet:
 
-```colang
+```text
 # some instruction in natural language
 $var_name = ...
 ```
 
 is translated to:
 
-```colang
+```text
 $name = ... "some instruction in natural language"
 ```
 
@@ -52,19 +52,21 @@ In Colang 1.0, it was possible to use generic matching using `user ...` and `bot
 These have different equivalents in Colang 2.0. The `...` can no longer be used for matching, only for generation.
 
 The following changes are applied during conversion:
+
 - `user ...` is translated to `user said something`
 - `bot ...` is translated to `bot said something`
 
 ### Rails Configuration
 
 Colang 1.0 configuration can define certain guardrails in the `rails` field.
+
 - If guardrails are defined in `config.yml`, a `_rails.co` file is generated with the rails defined in it.
 
 ### Example Flow conversion
 
 As an example, the following flow:
 
-```colang
+```text
 define flow
   user express greeting
   bot express greeting
@@ -72,7 +74,7 @@ define flow
 
 is converted to:
 
-```colang
+```text
 @active
 flow express_greeting
   user express greeting

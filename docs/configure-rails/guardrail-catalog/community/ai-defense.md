@@ -58,7 +58,7 @@ rails:
 
 Example `rails.co` file:
 
-```colang
+```text
 import guardrails
 import nemoguardrails.library.ai_defense
 

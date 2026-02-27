@@ -17,13 +17,13 @@ This "Hello World" guardrails configuration uses the OpenAI `gpt-4o-mini` model.
 pip install openai
 ```
 
-2. Set the `OPENAI_API_KEY` environment variable:
+1. Set the `OPENAI_API_KEY` environment variable:
 
 ```bash
 export OPENAI_API_KEY=$OPENAI_API_KEY  # Replace with your own key
 ```
 
-3. If you're running this inside a notebook, patch the AsyncIO loop.
+1. If you're running this inside a notebook, patch the AsyncIO loop.
 
 ```python
 import nest_asyncio
@@ -76,7 +76,7 @@ If you are wondering whether *user message canonical forms* are the same as clas
 
 In Colang, *flows* represent patterns of interaction between the user and the bot. In their simplest form, they are sequences of user and bot messages. In the "Hello World" example, the `greeting` flow is defined as:
 
-```colang
+```text
 define flow greeting
   user express greeting
   bot express greeting
@@ -247,7 +247,7 @@ print(info.llm_calls[0].completion)
   express greeting
 ```
 
-As we can see, the LLM correctly predicted the `express greeting` canonical form. It even went further to predict what the bot should do, which is `bot express greeting`, and the utterance that should be used. However, for the `generate_user_intent` task, only the first predicted line is used. If you want the LLM to predict everything in a single call, you can enable the [single LLM call option](#) in *config.yml* by setting the `rails.dialog.single_call` key to **True**.
+As we can see, the LLM correctly predicted the `express greeting` canonical form. It even went further to predict what the bot should do, which is `bot express greeting`, and the utterance that should be used. However, for the `generate_user_intent` task, only the first predicted line is used. If you want the LLM to predict everything in a single call, you can enable the [single LLM call option](../../../../configuration-reference.md#dialog-rails) in *config.yml* by setting the `rails.dialog.single_call` key to **True**.
 
 ### Step 2: Determine the next step
 

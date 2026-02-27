@@ -182,7 +182,7 @@ likely will not need to directly use these flows. These flows exist to support m
 
 Flows with more advanced LLM-based continuations
 
-.. code-block:: colang
+.. code-block:: text
 
     # Generate a flow that continues the current interaction
     flow llm generate interaction continuation flow -> $flow_name
@@ -192,7 +192,7 @@ Flows with more advanced LLM-based continuations
 
 Flows to log interaction history to create required context for LLM prompts.
 
-.. code-block:: colang
+.. code-block:: text
 
     # Activate all automated user and bot intent flows logging based on flow naming
     flow automating intent detection
@@ -213,7 +213,7 @@ Flows to log interaction history to create required context for LLM prompts.
 
 These are flows that track bot and user states in global variables.
 
-.. code-block:: colang
+.. code-block:: text
 
     # Track most recent unhandled user intent state in global variable $user_intent_state
     flow tracking unhandled user intent state

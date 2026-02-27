@@ -20,7 +20,7 @@ The example below shows how you can control the greeting behavior of an interact
   The :ref:`the-standard-library` includes an `avatars` module with flows for multimodal events and actions to implement interactive avatars use cases.
 
 
-.. code-block:: colang
+.. code-block:: text
   :caption: examples/v2_x/tutorial/multi_modal/main.co
   :linenos:
   :emphasize-lines: 2, 10, 18

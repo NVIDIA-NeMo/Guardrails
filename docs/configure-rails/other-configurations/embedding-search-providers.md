@@ -141,4 +141,4 @@ def init(app: LLMRails):
     app.register_embedding_search_provider("simple", SimpleEmbeddingSearchProvider)
 ```
 
-For a complete example, check out [this test configuration](../../../tests/test_configs/with_custom_embedding_search_provider).
+For a complete example, check out [this test configuration](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/tests/test_configs/with_custom_embedding_search_provider).

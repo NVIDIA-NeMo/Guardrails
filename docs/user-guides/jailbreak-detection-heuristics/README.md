@@ -20,19 +20,19 @@ Make sure to check that the prerequisites for the ABC bot are satisfied.
 pip install openai
 ```
 
-2. Set the `OPENAI_API_KEY` environment variable:
+1. Set the `OPENAI_API_KEY` environment variable:
 
 ```sh
 export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
 ```
 
-3. Install the following packages to test the jailbreak detection heuristics locally:
+1. Install the following packages to test the jailbreak detection heuristics locally:
 
 ```sh
 pip install transformers torch
 ```
 
-4. If you're running this inside a notebook, patch the `AsyncIO` loop.
+1. If you're running this inside a notebook, patch the `AsyncIO` loop.
 
 ```python
 import nest_asyncio
@@ -72,7 +72,7 @@ More information about these heuristics can be found in the [Jailbreak Protectio
 
 To activate the jailbreak detection heuristics, we first need to include the `jailbreak detection heuristics` flow as an input rail in our guardrails configuration. We can do this by adding the following to the `config.yml` of the ABC bot:
 
-```colang
+```text
 rails:
   input:
     flows:
@@ -81,7 +81,7 @@ rails:
 
 To the same file we need to configure the jailbreak detection heuristics. We can do this by adding the following to `config.yml`
 
-```colang
+```text
 rails:
   config:
     jailbreak_detection:
@@ -172,7 +172,7 @@ We see that the prompt was not filtered out by the jailbreak detection heuristic
 
 The recommended way for using the jailbreak detection heuristics is to [deploy the jailbreak detection heuristics server](../../getting-started/tutorials/nemoguard-jailbreakdetect-deployment.md) separately. This would spin up a server that by default listens on port 1337. You can then configure the guardrails configuration to use the jailbreak detection heuristics server by adding the following to the `config.yml` of the ABC bot:
 
-```colang
+```text
 rails:
   config:
     jailbreak_detection:

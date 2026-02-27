@@ -61,7 +61,7 @@ async def check_input(text: str):
 
 Call from Colang:
 
-```colang
+```text
 $is_valid = execute validate_user_input(text=$user_message)
 ```
 
@@ -161,7 +161,7 @@ async def greet_user(name: str, formal: bool = False):
 
 Call from Colang:
 
-```colang
+```text
 $greeting = execute greet_user(name="Alice", formal=True)
 ```
 

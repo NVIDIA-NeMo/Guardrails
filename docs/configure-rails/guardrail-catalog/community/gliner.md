@@ -6,7 +6,7 @@ This integration enables the NeMo Guardrails library to use a GLiNER-compatible 
 ## Server Setup
 
 Deploy a GLiNER-compatible server.
-Refer to the example implementation at [GLiNER Server Deployment](../../../../examples/deployment/gliner_server/README.md).
+Refer to the example implementation at [GLiNER Server Deployment](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md).
 
 ```bash
 cd examples/deployment/gliner_server
@@ -189,7 +189,7 @@ Once configured, the GLiNER integration can automatically:
 
 ## Example Deployment
 
-The [`examples/deployment/gliner_server/`](../../../../examples/deployment/gliner_server/) directory provides an example GLiNER server implementation.
+The [`examples/deployment/gliner_server/`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/) directory provides an example GLiNER server implementation.
 This implementation:
 
 - Uses the [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) model for comprehensive PII detection.
@@ -201,7 +201,7 @@ This implementation:
 - Unit tests for PII utility functions (no server required).
 - Integration test script for end-to-end validation.
 
-Refer to the [deployment README](../../../../examples/deployment/gliner_server/README.md) for detailed instructions.
+Refer to the [deployment README](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md) for detailed instructions.
 
 ## Testing
 

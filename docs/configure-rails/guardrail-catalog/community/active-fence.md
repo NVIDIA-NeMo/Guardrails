@@ -17,7 +17,7 @@ The `activefence moderation on input` flow uses the maximum risk score with an 0
 
 To customize the scores, you have to overwrite the [default flows](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/activefence/flows.co) in your config. For example, to change the threshold for `activefence moderation on input` you can add the following flow to your config:
 
-```colang
+```text
 define subflow activefence moderation on input
   """Guardrail based on the maximum risk score."""
   $result = execute call activefence api
@@ -29,7 +29,7 @@ define subflow activefence moderation on input
 
 ActiveFence’s ActiveScore API gives flexibility in controlling the behavior of various supported violations individually. To leverage that, you can use the violations dictionary (`violations_dict`), one of the outputs from the API, to set different thresholds for different violations. Below is an example of one such input moderation flow:
 
-```colang
+```text
 define flow activefence input moderation detailed
   $result = execute call activefence api
 

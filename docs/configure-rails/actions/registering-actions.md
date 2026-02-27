@@ -172,7 +172,7 @@ rails.register_action(get_weather, name="get_weather")
 
 ### Using Registered Tools in Colang
 
-```colang
+```text
 define flow weather_flow
   user ask about weather
   $weather = execute get_weather(city=$city_name)

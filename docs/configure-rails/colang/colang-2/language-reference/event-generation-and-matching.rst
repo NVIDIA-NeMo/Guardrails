@@ -31,7 +31,7 @@ With Colang you can define a set of event production rules (interaction patterns
 
     Examples:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         # Bot utterance action start event
         StartUtteranceBotAction(script="Hello", intensity=1.0)
@@ -68,7 +68,7 @@ The statements are processed in order, one by one. We will get to know the diffe
 
     Example:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         send StartUtteranceBotAction(script="Hello") as $utterance_event_ref
 
@@ -83,7 +83,7 @@ This generates a :ref:`UMIM <UMIM intro>` event on the event channel to be recei
 
     Example:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         match UtteranceUserActionFinished(final_transcript="Hi") as $user_utterance_event_ref
 
@@ -91,7 +91,7 @@ A new event processed by the Colang runtime will be compared against all active 
 
 Let's show this now with an example:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/event_matching/main.co
 
     flow main
@@ -125,7 +125,7 @@ From this, we can see that as long as all the provided parameters in the stateme
 
 We can assign a generated event to a reference to access its attributes at a later point:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/send_event_reference/main.co
 
     flow main
@@ -144,7 +144,7 @@ Note, that we did not start the flow with an event matching statement, but rathe
 
 Similarly, any event matching statement can capture the observed event with the help of a reference:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/match_event_reference/main.co
 
     flow main
@@ -165,7 +165,7 @@ Event Grouping
 
 Another powerful feature of Colang is the option to group events with the keywords ``and`` and ``or``:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/event_grouping/main.co
 
     flow main
@@ -196,7 +196,7 @@ Another powerful feature of Colang is the option to group events with the keywor
 
 Events combined with an ``and`` will only match once both events have been observed. Events that are grouped with the keyword ``or`` will match as soon as one of the events is observed. With this grouping, one can build much more complex event matching conditions, using brackets to enforce operator precedence (by default ``or`` has higher precedence than ``and``):
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/event_grouping_advanced/main.co
 
     flow main
@@ -237,7 +237,7 @@ We can also use the grouping operators ``and`` and ``or`` to generate events:
 
 The ``and`` operator is equivalent to creating a sequence of send statements where both events are generated.
 
-.. code-block:: colang
+.. code-block:: text
 
     # This statement ...
     send StartUtteranceBotAction(script="Hi") and StartGestureBotAction(gesture="Wave")
@@ -248,7 +248,7 @@ The ``and`` operator is equivalent to creating a sequence of send statements whe
 
 The ``or`` operator works like a random selector that will only pick one of the events to be sent out:
 
-.. code-block:: colang
+.. code-block:: text
 
     # This statement ...
     send StartGestureBotAction(gesture="Ping") or StartGestureBotAction(gesture="Pong")
@@ -262,7 +262,7 @@ See section :ref:`Defining Flows - Flow Grouping<defining-flows-flow-grouping>` 
 
 Here is an example to showcase the grouping operators:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/event_groups/main.co
 
     flow main
@@ -301,7 +301,7 @@ Colang supports many of the fundamental Python value types: `bool`, `str`, `floa
 
 Here is a simple example of an event match based on an integer parameter:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/integer_parameter_match/main.co
 
     flow main
@@ -329,7 +329,7 @@ An event ``Event(list_param=<actual list>)`` with a list parameter ``list_param`
 In the following example, the main flow contains a single match statement that expects a match for an event ``Event``.
 
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/list_parameters/main.co
 
     flow main
@@ -359,7 +359,7 @@ An event ``Event(set_param=<actual set>)`` with a set parameter ``set_param`` ma
 
 In the following example, the main flow contains a single match statement that expects a match for an event ``Event``.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/set_parameters/main.co
 
     flow main
@@ -387,7 +387,7 @@ An event ``Event(dict_param=<actual dictionary>)`` with a dictionary parameter `
 
 In the following example, the main flow contains a single match statement that expects a match for an event ``Event``.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/dictionary_parameters/main.co
 
     flow main
@@ -414,7 +414,7 @@ Regular Expressions
 
 Colang also supports Python regular expressions for event parameter matching using the Colang function ``regex()``. If used as a parameter value in a match statement it will check if the received event parameter contains at least one match with the defined pattern, like in Python's `re.search(pattern, parameter_value)`:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: events/regular_expression_parameters/main.co
 
     flow main

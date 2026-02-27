@@ -225,7 +225,7 @@ response = rails.generate(messages=[
 
 You can access context variables in Colang flows using `$variable_name` syntax:
 
-```colang
+```text
 define bot explain permissions
     "Hello {$user_name}! As an {$user_role}, you have full system access."
 ```

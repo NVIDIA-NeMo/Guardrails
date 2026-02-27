@@ -49,7 +49,7 @@ The core syntax elements are: blocks, statements, expressions, keywords and vari
 
 User message definition blocks define the canonical form message that should be associated with various user utterances e.g.:
 
-```colang
+```text
 define user express greeting
   "hello"
   "hi"
@@ -63,7 +63,7 @@ define user request help
 
 Bot message definition blocks define the utterances that should be associated with various bot message canonical forms:
 
-```colang
+```text
 define bot express greeting
   "Hello there!"
   "Hi!"
@@ -78,14 +78,14 @@ If more than one utterance is specified per bot message, the meaning is that one
 
 The utterance definition can also include reference to variables (see the [Variables](#variables) section below).
 
-```colang
+```text
 define bot express greeting
   "Hello there, $name!"
 ```
 
 Alternatively, you can also use the Jinja syntax:
 
-```colang
+```text
 define bot express greeting
   "Hello there, {{ name }}!"
 ```
@@ -98,7 +98,7 @@ For more advanced use cases you can also use other Jinja features like `{% if ..
 
 Flows represent how you want the conversation to unfold. It includes sequences of user messages, bot messages and potentially other events.
 
-```colang
+```text
 define flow hello
   user express greeting
   bot express greeting
@@ -109,7 +109,7 @@ Additionally, flows can contain additional logic which can be modeled using `if`
 
 For example, to alter the greeting message based on whether the user is talking to the bot for the first time or not, we can do the following (we can model this using `if`):
 
-```colang
+```text
 define flow hello
   user express greeting
   if $first_time_user
@@ -123,7 +123,7 @@ The `$first_time_user` context variable would have to be set by the host applica
 
 As another example, after asking the user how they feel (`bot ask welfare`) we can have different paths depending on the user response (we can model this using `when`):
 
-```colang
+```text
 define flow hello
   user express greeting
   bot express greeting
@@ -141,7 +141,7 @@ The `if/else` statement can be used to evaluate expressions involving context va
 
 Subflows are a particular type of flows. While flows are meant to be applied automatically to the current conversation (when there is a match), subflows are meant to be called explicitly by other flows/subflows. A subflow can be invoked using the `do` keyword and the name of the subflow:
 
-```colang
+```text
 
 define subflow check user authentication
   if not $user_auth
@@ -164,7 +164,7 @@ References to context variables always start with a `$` sign e.g. `$name`. All v
 
 Each conversation is associated with a global context which contains a set of variables and their respective values (key-value pairs). The value for a context variable can be set either directly, or as the return value from an action execution.
 
-```colang
+```text
 define flow
   ...
   $name = "John"
@@ -188,7 +188,7 @@ Types of supported expressions:
 
 Actions are custom functions available to be invoked from flows. Action execution can be invoked in a flow using the following syntax:
 
-```colang
+```text
 define flow ...
   ...
   $result = execute some_action(some_param_1=some_value_1, ...)

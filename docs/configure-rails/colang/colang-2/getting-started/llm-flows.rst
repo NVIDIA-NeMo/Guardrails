@@ -11,7 +11,7 @@ Using Colang, you can describe complex patterns of interaction. However, as a de
 The :ref:`colang_2_getting_started_dialog_rails` and the :ref:`colang_2_getting_started_input_rails` examples show how to use the LLM to generate continuations dynamically. The example below is similar to the dialog rails example, but it instructs the LLM to generate the bot response directly. Note, the quality of the response depends on the configured LLM model and can vary.
 
 
-.. code-block:: colang
+.. code-block:: text
   :linenos:
   :caption: examples/v2_x/tutorial/llm_flows/main.co
 

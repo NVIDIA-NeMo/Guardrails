@@ -19,7 +19,7 @@ An exception is an event whose name ends with `Exception`, e.g., `InputRailExcep
 When an exception is raised, the final output is a message with the role set to `exception` and the content
 set to additional information about the exception. For example:
 
-```colang
+```text
 define flow input rail example
   # ...
   create event InputRailException(message="Input not allowed.")
@@ -53,7 +53,7 @@ enable_rails_exceptions: True
 When this setting is enabled, the rails are triggered, they will return an exception message.
 To understand better what is happening under the hood, here's how the `self check input` rail is implemented:
 
-```colang
+```text
 define flow self check input
   $allowed = execute self_check_input
   if not $allowed
@@ -104,7 +104,7 @@ Each library rail raises its own exception type when `enable_rails_exceptions` i
 
 You can create custom exception types by following the naming convention of ending with `Exception`:
 
-```colang
+```text
 define flow custom validation
   if not $custom_condition
     create event CustomValidationException(message="Custom validation failed.")

@@ -11,7 +11,7 @@ Usage
 
 In various LLM-based applications, there is a need for the LLM to keep interacting with the user in a continuous interaction loop. The example below shows how a simple interaction loop can be implemented using the ``while`` construct and how the bot can be proactive when the user is silent.
 
-.. code-block:: colang
+.. code-block:: text
   :linenos:
   :caption: examples/v2_x/tutorial/interaction_loop/main.co
   :emphasize-lines: 3-4, 8, 11, 14

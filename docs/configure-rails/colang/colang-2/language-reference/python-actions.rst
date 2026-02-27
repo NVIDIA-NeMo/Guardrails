@@ -22,7 +22,7 @@ Here is an example of such a Python action definition:
 
 And here is how you can call it from a Colang flow:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         $result = await CustomTestAction(value=5)
@@ -41,7 +41,7 @@ Be aware that Python actions are blocking by default. That means if the action i
 
 And here is how you can call it from a Colang flow:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         # Option 1 start the action and let your flow continue until you really need the result from the action

@@ -8,7 +8,7 @@ The trustworthiness score is further explained and comprehensively benchmarked i
 
 The `cleanlab trustworthiness` guardrail flow uses a default trustworthiness score threshold of 0.6 to determine if your LLM output should be allowed or not. When the trustworthiness score falls below the threshold, the corresponding LLM response is flagged as _unstrustworthy_. You can easily change the cutoff value for the trustworthiness score by adjusting the threshold in the [config](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/cleanlab/flows.co). For example, to change the threshold to 0.7, add the following flow to your config:
 
-```colang
+```text
 define subflow cleanlab trustworthiness
   """Guardrail based on trustworthiness score."""
   $result = execute call cleanlab api
@@ -29,6 +29,6 @@ Install the Python client to use Cleanlab's trustworthiness score:
 pip install --upgrade cleanlab-tlm
 ```
 
-You can get an API key for free by [creating a Cleanlab account](https://tlm.cleanlab.ai/) or experiment with the trustworthiness scores in the [playground](https://chat.cleanlab.ai/chat). Feel free to [email Cleanlab](mailto:suport@cleanlab.ai) with any questions.
+You can get an API key for free by [creating a Cleanlab account](https://tlm.cleanlab.ai/) or experiment with the trustworthiness scores in the [playground](https://chat.cleanlab.ai/chat). Feel free to [email Cleanlab](mailto:support@cleanlab.ai) with any questions.
 
 Lastly, set the `CLEANLAB_API_KEY` environment variable with the API key.

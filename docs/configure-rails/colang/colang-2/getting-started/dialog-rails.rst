@@ -21,7 +21,7 @@ Definition
 
 The example below extends the :ref:`Hello World example<colang_2_getting_started_hello_world>` by creating the ``user expressed greeting`` and ``bot express greeting`` messages.
 
-.. code-block:: colang
+.. code-block:: text
   :caption: examples/v2_x/tutorial/hello_world_2/main.co
   :linenos:
 
@@ -49,7 +49,7 @@ While the example above has more structure, it is still rigid in the sense that 
 
 To enable the use of the LLM to drive the interaction for inputs that are not matched exactly by flows, you have to *activate* the ``llm continuation`` flow, which is part of the ``llm`` module in the :ref:`the-standard-library`.
 
-.. code-block:: colang
+.. code-block:: text
   :caption: examples/v2_x/tutorial/hello_world_3/main.co
   :linenos:
 

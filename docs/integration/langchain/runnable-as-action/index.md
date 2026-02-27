@@ -74,7 +74,7 @@ True
 
 Now, let's create a guardrails configuration that uses the `CheckKeywords` runnable as part of an input rail flow. To achieve this, you need to register an instance of `CheckKeywords` as an action. In the snippets below, we register it as the `check_keywords` action. We can then use this action inside the `check proprietary keywords` flow, which is used as an input rail.
 
-```colang
+```text
 define flow check proprietary keywords
   $keywords = "proprietary"
   $has_keywords = execute check_keywords(text=$user_message, keywords=$keywords)

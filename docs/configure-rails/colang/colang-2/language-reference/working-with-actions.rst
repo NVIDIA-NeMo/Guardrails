@@ -24,7 +24,7 @@ You have seen in section :ref:`event-generation-and-matching` how to work with e
 
     Examples:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         # Bot utterance action
         UtteranceBotAction(script="Hello", intensity=1.0)
@@ -36,7 +36,7 @@ You have seen in section :ref:`event-generation-and-matching` how to work with e
 
 Different from events, actions have a lifetime that depends on the underlying events. All actions contain the following main events, where we use X as a placeholder for the action name:
 
-.. code-block:: colang
+.. code-block:: text
 
     StartXAction(**action_arguments) # Start of an action with given action specific arguments
     StopXAction(action_uid: str) # Stop of an action with the related uid
@@ -45,7 +45,7 @@ Different from events, actions have a lifetime that depends on the underlying ev
 
 In Colang an action is like an object in Python and the events can be accessed like an object method of the action.
 
-.. code-block:: colang
+.. code-block:: text
 
     XAction(**action_arguments).Start()
     XAction.Stop(action_uid: str)
@@ -71,7 +71,7 @@ In the :ref:`UMIM <UMIM intro>` reference documentation, you will find many pred
 
 Output events:
 
-.. code-block:: colang
+.. code-block:: text
 
     UtteranceBotAction(script: str).Start()
     UtteranceBotAction.Stop(action_uid: str)
@@ -79,7 +79,7 @@ Output events:
 
 Input events:
 
-.. code-block:: colang
+.. code-block:: text
 
     UtteranceBotAction.Started(action_uid: str, action_started_at: str, ...)
     UtteranceBotActionScript.Updated(action_uid: str, interim_transcript: str, ...)
@@ -91,7 +91,7 @@ Input events:
 
 While there are no binding rules on how we work with these events using the ``send`` or ``match`` keywords, in most cases we will generate output events and match to input events. For example, if we want the bot to finish saying something before making a gesture we could create the following interaction pattern:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/action_events/main.co
 
     flow main
@@ -125,11 +125,11 @@ Colang supports several features based on the action concept that make designing
 
     Example:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         start UtteranceBotAction(script="Hello") as $bot_action_ref
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/start_keyword/main.co
 
     flow main
@@ -148,7 +148,7 @@ The keyword ``start`` creates an action object and then generates an action spec
 
 Next, we look at UtteranceUserAction, which mirrors UtteranceBotAction on the user side and serves as the user’s primary channel for expression (e.g., speech, text, or other modalities). A user action is usually not started by Colang but by the user (system). These are the most important action events and parameters:
 
-.. code-block:: colang
+.. code-block:: text
 
     UtteranceUserActionStarted(action_uid: str)
     UtteranceUserActionTranscriptUpdated(action_uid: str, interim_transcript: str)
@@ -157,7 +157,7 @@ Next, we look at UtteranceUserAction, which mirrors UtteranceBotAction on the us
 
 With this, let's now build a little dialog pattern:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/dialog_pattern/main.co
 
     flow main
@@ -189,7 +189,7 @@ As you might have already noticed, this is very similar to the example we saw in
 
 Let's introduce the ``await`` statement to further simplify the previous example:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/await_keyword/main.co
 
     flow main
@@ -210,13 +210,13 @@ Let's introduce the ``await`` statement to further simplify the previous example
 
     Example:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         await UtteranceBotAction(script="Hello") as $bot_action_ref
 
 We can optionally make use of action grouping using the ``and`` keyword to simplify it like this:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/action_grouping/main.co
 
     flow main
@@ -230,7 +230,7 @@ Action grouping is identical to event grouping using the keywords ``start`` and 
 .. important::
     Note that this:
 
-    .. code-block:: colang
+    .. code-block:: text
 
         await Action1() or Action2()
 
@@ -238,7 +238,7 @@ Action grouping is identical to event grouping using the keywords ``start`` and 
 
 To simplify it even more, we can actually omit all the ``await`` keywords completely, since it is the default statement keyword.
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/omit_wait_keyword/main.co
 
     flow main
@@ -252,7 +252,7 @@ To simplify it even more, we can actually omit all the ``await`` keywords comple
 
 If we would like to start two actions and only wait until either one of them has finished, we can achieve this like this:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/wait_for_first_action_only/main.co
 
     flow main
@@ -267,7 +267,7 @@ More about Actions
 
 If needed, we can also stop an action using its reference like this:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: actions/stop_action/main.co
 
     flow main
@@ -279,7 +279,7 @@ Unfortunately, with the simple chat CLI we will not see any effect of the `Stop`
 
 Another detail to point out is the difference between matching to an action event accessed via an action reference versus matching directly by an action:
 
-.. code-block:: colang
+.. code-block:: text
 
     # Case 1) Wait for Finished event of the specific action
     start UtteranceBotAction(script="hi") as $action_ref

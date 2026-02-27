@@ -15,13 +15,13 @@ This topic demonstrates how to add input rails to a guardrails configuration. As
 pip install openai
 ```
 
-2. Set the `OPENAI_API_KEY` environment variable:
+1. Set the `OPENAI_API_KEY` environment variable:
 
 ```bash
 export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
 ```
 
-3. If you're running this inside a notebook, patch the AsyncIO loop.
+1. If you're running this inside a notebook, patch the AsyncIO loop.
 
 ```python
 import nest_asyncio
@@ -180,7 +180,7 @@ rails:
 
 All the rails in NeMo Guardrails are implemented as flows. For example, you can find the `self_check_input` flow [here](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/library/self_check/input_check/flows.co).
 
-```colang
+```text
 define flow self check input
   $allowed = execute self_check_input
 

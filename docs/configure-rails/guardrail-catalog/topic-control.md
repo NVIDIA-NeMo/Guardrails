@@ -77,4 +77,4 @@ prompts:
 
 ## Implementation Details
 
-The 'topic safety check input' flow uses the [`topic_safety_check_input`](../../../nemoguardrails/library/topic_safety/actions.py) action. The model returns a boolean value indicating whether the user input is on-topic or not. Please refer to the [topic safety example](../../../examples/configs/topic_safety/README.md) for more details.
+The 'topic safety check input' flow uses the [`topic_safety_check_input`](../../../nemoguardrails/library/topic_safety/actions.py) action. The model returns a boolean value indicating whether the user input is on-topic or not. Please refer to the [topic safety example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/topic_safety/README.md) for more details.

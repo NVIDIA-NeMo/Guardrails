@@ -22,7 +22,7 @@ To activate input rails in Colang 2.0, you must:
 
 In the example below, the ``input rails`` flow calls another flow named ``check user message`` which prompts the LLM to check the input.
 
-.. code-block:: colang
+.. code-block:: text
   :linenos:
   :caption: examples/v2_x/tutorial/guardrails_1/main.co
   :emphasize-lines: 2-3, 19-24, 26-28

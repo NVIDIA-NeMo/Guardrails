@@ -30,7 +30,7 @@ Conditional Branching (``if/elif/else``)
 
 The conditional branching is a well known concept and works identical to Python:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: control_flow_tools/conditional_branching/main.co
 
     flow main
@@ -75,7 +75,7 @@ Event branching is a new Colang-based concept that enables a branching based on 
 
 With the concurrent pattern matching mechanism, we have already seen one way to design a branching interaction pattern based on the user's input:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: control_flow_tools/concurrent_patterns/main.co
 
     flow main
@@ -92,7 +92,7 @@ With the concurrent pattern matching mechanism, we have already seen one way to 
 
 Depending on the user's answer we will get a different bot reaction. Although this concurrent flow mechanism is very powerful, it is sometimes better to have everything in a single flow with the help of the ``when`` construct:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: control_flow_tools/event_branching/main.co
 
     flow main
@@ -114,7 +114,7 @@ From the definition we see that ``when/or when`` statements support mixed groups
 
 We can also use this construct to easily create a branching for a flow that either finishes or fails:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: control_flow_tools/catch_failing_flow/main.co
 
     flow main
@@ -151,7 +151,7 @@ Due to the event generation conflict resolution, `'pattern b'` will fail for the
 
 It is considered "bad design" when used with action-like flows that start with an action:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow bot greet then comment
         when bot say "Hi there!"
@@ -167,7 +167,7 @@ It is considered "bad design" when used with action-like flows that start with a
 
 This example will not work correctly because only one of the two actions will be started due to the action conflict between ``UtteranceBotAction`` and ``GestureBotAction``. Note that such cases can be easily detected when following a proper flow :ref:`naming convention<flow-naming-conventions>` since ``when bot say "Hi there!"`` is grammatically incorrect. The example above would need to be implemented like this:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow bot greet then comment
         start bot say "Hi there!" as $action_1_ref
@@ -194,7 +194,7 @@ Loop (``while``)
 
 In this example, the bot will count from one to ten:
 
-.. code-block:: colang
+.. code-block:: text
     :caption: control_flow_tools/loop/main.co
 
     flow main
@@ -208,7 +208,7 @@ In this example, the bot will count from one to ten:
 
 In order to abort the loop early or to skip the rest of the current loop iteration, the keywords ``break`` and ``continue`` can be used, respectively:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow bot count to $number
         $current_number = 0 # Initialized it with 0
@@ -228,7 +228,7 @@ Finish or abort a flow (``return/abort``)
 
 Flows can be finished or failed at any point from within the flow using the keywords ``return`` and ``abort``, respectively:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         user greeted then expressed feeling unwell
@@ -243,7 +243,7 @@ Flows can be finished or failed at any point from within the flow using the keyw
 
 Additionally, ``return`` takes an optional value such that you can use a flow like a common function:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         $result = await multiply 3 4
@@ -263,7 +263,7 @@ No-op operation (``pass``)
 
 Sometimes, it is useful to have a no-operation keyword ``pass``, for example as a placeholder to make the syntax valid:
 
-.. code-block:: colang
+.. code-block:: text
 
     flow main
         user greeted then expressed feeling unwell

@@ -38,7 +38,7 @@ The first stage is to generate the canonical form for the user utterance. This c
 
 This stage is itself implemented through a colang flow:
 
-```colang
+```text
 define flow generate user intent
   """Turn the raw user utterance into a canonical form."""
 
@@ -63,7 +63,7 @@ When the LLM is used to decide the next step, a vector search is performed for t
 
 This stage is implemented through a flow as well:
 
-```colang
+```text
 define flow generate next step
   """Generate the next step when there isn't any.
 
@@ -99,7 +99,7 @@ Similar to the previous stages, the `generate_bot_message` action performs a vec
 
 The flow implementing this logic is the following:
 
-```colang
+```text
 define extension flow generate bot message
   """Generate the bot utterance for a bot message.
 
@@ -186,7 +186,7 @@ The event-driven design allows us to hook into the process and add additional gu
 
 For example, we can add an additional fact-checking guardrail (through the `check_facts` action) after a question about the report.
 
-```colang
+```text
 define flow answer report question
   user ask about report
   bot provide report answer

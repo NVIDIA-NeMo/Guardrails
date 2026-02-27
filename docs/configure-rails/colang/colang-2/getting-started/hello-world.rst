@@ -13,7 +13,7 @@ A Colang script is a ``.co`` file and is composed of one or more flow definition
 
 The entry point for a Colang script is the ``main`` flow. In the example below, the ``main`` flow is waiting for the user to say "hi" and instructs the bot to respond with "Hello World!".
 
-.. code-block:: colang
+.. code-block:: text
   :caption: examples/v2_x/tutorial/hello_world_1/main.co
   :linenos:
 
