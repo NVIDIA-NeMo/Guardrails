@@ -23,3 +23,8 @@ The NeMo Guardrails library acts as an intermediary between application code and
 ```
 
 Each application can configure its own set of guardrails, depending on the use-case. Guardrails requests can trigger calls to third-party APIs, LLMs fine-tuned to implement Guardrail functionality, or to the Application LLM. Guardrails hides this complexity from clients, orchestrating the workflows behind-the-scenes so applications can focus on their business logic.
+
+## Related Resources
+
+- [Guardrail Types](rail-types.md)
+- [Get Started](../getting-started/installation-guide.md)

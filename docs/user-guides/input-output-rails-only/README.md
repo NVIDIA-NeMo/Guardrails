@@ -1,8 +1,8 @@
 # Generation Options - Using only Input and Output Rails
 
-This guide demonstrates how [generation options](../advanced/generation-options.md) can be used to activate only a specific set of rails - input and output rails in this case, and to disable the other rails defined in a guardrails configuration.
+This guide demonstrates how [generation options](../../run-rails/using-python-apis/generation-options.md) can be used to activate only a specific set of rails - input and output rails in this case, and to disable the other rails defined in a guardrails configuration.
 
-We will use the guardrails configuration for the ABC Bot defined for the [topical rails example](../../getting-started/6-topical-rails/README.md) part of the [Getting Started Guide](../../getting-started/README.md).
+We will use the guardrails configuration for the ABC Bot defined for the [topical rails example](../../configure-rails/colang/colang-1/tutorials/6-topical-rails/README.md) part of the [Getting Started Guide](../../getting-started/installation-guide.md).
 
 ## Prerequisites
 
@@ -274,4 +274,4 @@ The response will be the exact bot message provided, if allowed, an altered vers
 
 ## Limitations
 
-Please check put the [limitations of generation options](../advanced/generation-options.md#limitations) for deactivating some rails.
+Please check out the [limitations of generation options](../../run-rails/using-python-apis/generation-options.md#limitations) for deactivating some rails.
