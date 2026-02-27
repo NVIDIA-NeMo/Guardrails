@@ -238,7 +238,6 @@ NeMo Microservice <deployment/using-microservice>
 :hidden:
 
 LangChain Frameworks <integration/langchain/index.md>
-AlignScore <user-guides/advanced/align-score-deployment>
 Tools Integration <integration/tools-integration.md>
 ```
 
