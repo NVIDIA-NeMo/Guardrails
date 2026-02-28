@@ -466,5 +466,5 @@ asyncio.run(main())
 - [](check-messages.md) - Validate messages against rails
 - [](streaming.md) - Real-time token streaming
 - [](event-based-api.md) - Low-level event control
-- [](tools-integration.md) - Integrating LangChain tools
+- [](../../integration/tools-integration.md) - Integrating LangChain tools
 - [](../../configure-rails/index.md) - Complete configuration reference

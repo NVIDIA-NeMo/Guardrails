@@ -217,6 +217,7 @@ exclude_patterns = [
     "scripts/**",
     "docs-structure-context.md",
     "user-guides/**",
+    "**/.cursor/**",
 ]
 
 myst_linkify_fuzzy_links = False

@@ -173,7 +173,7 @@ With `include_metadata=True`, each chunk is a `dict` with a mandatory `"text"` k
 
 Without `include_metadata`, chunks are plain strings (default behavior).
 
-```{deprecated}
+```{warning}
 The `include_generation_metadata` parameter is deprecated. Use `include_metadata` instead. It will be removed in version 0.22.0.
 ```
 

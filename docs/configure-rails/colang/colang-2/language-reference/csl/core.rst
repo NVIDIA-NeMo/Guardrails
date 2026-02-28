@@ -13,14 +13,14 @@ User Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_said
         :end-before: # COLANG_END: test_user_said
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_said
         :end-before: # USAGE_END: test_user_said
@@ -33,14 +33,14 @@ User Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_said_something
         :end-before: # COLANG_END: test_user_said_something
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_said_something
         :end-before: # USAGE_END: test_user_said_something
@@ -54,14 +54,14 @@ User Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_saying
         :end-before: # COLANG_END: test_user_saying
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_saying
         :end-before: # USAGE_END: test_user_saying
@@ -74,14 +74,14 @@ User Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_saying_something
         :end-before: # COLANG_END: test_user_saying_something
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_saying_something
         :end-before: # USAGE_END: test_user_saying_something
@@ -93,14 +93,14 @@ User Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_started_saying_something
         :end-before: # COLANG_END: test_user_started_saying_something
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_started_saying_something
         :end-before: # USAGE_END: test_user_started_saying_something
@@ -114,14 +114,14 @@ User Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_said_something_unexpected
         :end-before: # COLANG_END: test_user_said_something_unexpected
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_said_something_unexpected
         :end-before: # USAGE_END: test_user_said_something_unexpected
@@ -139,14 +139,14 @@ Bot Action Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_say
         :end-before: # COLANG_END: test_bot_say
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_say
         :end-before: # USAGE_END: test_bot_say
@@ -192,14 +192,14 @@ Bot Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_started_saying_example
         :end-before: # COLANG_END: test_bot_started_saying_example
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_started_saying_example
         :end-before: # USAGE_END: test_bot_started_saying_example
@@ -211,14 +211,14 @@ Bot Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_started_saying_something
         :end-before: # COLANG_END: test_bot_started_saying_something
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_started_saying_something
         :end-before: # USAGE_END: test_bot_started_saying_something
@@ -230,14 +230,14 @@ Bot Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_said
         :end-before: # COLANG_END: test_bot_said
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_said
         :end-before: # USAGE_END: test_bot_said
@@ -250,14 +250,14 @@ Bot Event Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_started_saying_something
         :end-before: # COLANG_END: test_bot_started_saying_something
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_started_saying_something
         :end-before: # USAGE_END: test_bot_started_saying_something
@@ -299,14 +299,14 @@ Utilities
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_wait_indefinitely
         :end-before: # COLANG_END: test_wait_indefinitely
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_wait_indefinitely
         :end-before: # USAGE_END: test_wait_indefinitely
@@ -324,14 +324,14 @@ Utilities
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_it_finished
         :end-before: # COLANG_END: test_it_finished
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_it_finished
         :end-before: # USAGE_END: test_it_finished
@@ -350,14 +350,14 @@ These are flows that track bot and user states in global variables.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_tracking_bot_talking_state
         :end-before: # COLANG_END: test_tracking_bot_talking_state
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_tracking_bot_talking_state
         :end-before: # USAGE_END: test_tracking_bot_talking_state
@@ -369,14 +369,14 @@ These are flows that track bot and user states in global variables.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_tracking_user_talking_state
         :end-before: # COLANG_END: test_tracking_user_talking_state
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_tracking_user_talking_state
         :end-before: # USAGE_END: test_tracking_user_talking_state
@@ -393,14 +393,14 @@ Development Helper Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_notification_of_colang_errors
         :end-before: # COLANG_END: test_notification_of_colang_errors
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_notification_of_colang_errors
         :end-before: # USAGE_END: test_notification_of_colang_errors
@@ -412,14 +412,14 @@ Development Helper Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_notification_of_undefined_flow_start
         :end-before: # COLANG_END: test_notification_of_undefined_flow_start
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_notification_of_undefined_flow_start
         :end-before: # USAGE_END: test_notification_of_undefined_flow_start
@@ -431,14 +431,14 @@ Development Helper Flows
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_notification_of_unexpected_user_utterance
         :end-before: # COLANG_END: test_notification_of_unexpected_user_utterance
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_notification_of_unexpected_user_utterance
         :end-before: # USAGE_END: test_notification_of_unexpected_user_utterance

@@ -10,14 +10,14 @@ Flows related to timing and reacting to periods of silence.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_wait_time
         :end-before: # COLANG_END: test_wait_time
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_wait_time
         :end-before: # USAGE_END: test_wait_time
@@ -30,14 +30,14 @@ Flows related to timing and reacting to periods of silence.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_repeating_timer
         :end-before: # COLANG_END: test_repeating_timer
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_repeating_timer
         :end-before: # USAGE_END: test_repeating_timer
@@ -49,14 +49,14 @@ Flows related to timing and reacting to periods of silence.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_was_silent
         :end-before: # COLANG_END: test_user_was_silent
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_was_silent
         :end-before: # USAGE_END: test_user_was_silent
@@ -68,14 +68,14 @@ Flows related to timing and reacting to periods of silence.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_user_didnt_respond
         :end-before: # COLANG_END: test_user_didnt_respond
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_user_didnt_respond
         :end-before: # USAGE_END: test_user_didnt_respond
@@ -87,14 +87,14 @@ Flows related to timing and reacting to periods of silence.
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_was_silent
         :end-before: # COLANG_END: test_bot_was_silent
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_was_silent
         :end-before: # USAGE_END: test_bot_was_silent

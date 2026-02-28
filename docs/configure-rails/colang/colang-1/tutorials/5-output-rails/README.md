@@ -178,7 +178,7 @@ You can enable streaming to provide asynchronous responses and reduce the time t
 1. Modify the `rails` field in the `config.yml` file and add the `streaming` field to enable streaming:
 
    ```{code-block} yaml
-   :emphasize-lines: 9-11,13
+   :emphasize-lines: 9-12
 
    rails:
      input:

@@ -67,7 +67,7 @@ For the initial evaluation experiments for dialog rails, we have used two datase
 
 The datasets were transformed into a NeMo Guardrails app by defining canonical forms for each intent, specific dialogue flows, and even bot messages (for the _chit-chat_ dataset alone).
 The two datasets have a large number of user intents, thus dialog rails. One of them is very generic and has higher-grained intents (_chit-chat_), while the _banking_ dataset is domain-specific and more fine-grained.
-More details about running the dialog rails evaluation experiments and the evaluation datasets are available [here](../../nemoguardrails/evaluate/data/topical/README.md).
+More details about running the dialog rails evaluation experiments and the evaluation datasets are available [here](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/evaluate/data/topical/README.md).
 
 Preliminary evaluation results follow next. In all experiments, we have chosen to have a balanced test set with at most 3 samples per intent.
 For both datasets, we have assessed the performance for various LLMs and also for the number of samples (`k = all, 3, 1`) per intent that are indexed in the vector database.

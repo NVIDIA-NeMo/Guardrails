@@ -102,7 +102,7 @@ response = rails.generate(
 
 ### Response Structure
 
-```json
+```text
 {
   "response": [...],
   "log": {

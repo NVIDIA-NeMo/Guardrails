@@ -12,14 +12,14 @@ LLM Enabled Bot Actions
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_bot_say_something_like
         :end-before: # COLANG_END: test_bot_say_something_like
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_bot_say_something_like
         :end-before: # USAGE_END: test_bot_say_something_like
@@ -36,14 +36,14 @@ LLM Utilities
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_polling_llm_request_response
         :end-before: # COLANG_END: test_polling_llm_request_response
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_polling_llm_request_response
         :end-before: # USAGE_END: test_polling_llm_request_response
@@ -63,14 +63,14 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_llm_continuation
         :end-before: # COLANG_END: test_llm_continuation
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_llm_continuation
         :end-before: # USAGE_END: test_llm_continuation
@@ -82,14 +82,14 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_generating_user_intent_for_unhandled_user_utterance
         :end-before: # COLANG_END: test_generating_user_intent_for_unhandled_user_utterance
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_generating_user_intent_for_unhandled_user_utterance
         :end-before: # USAGE_END: test_generating_user_intent_for_unhandled_user_utterance
@@ -101,14 +101,14 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_unhandled_user_intent
         :end-before: # COLANG_END: test_unhandled_user_intent
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_unhandled_user_intent
         :end-before: # USAGE_END: test_unhandled_user_intent
@@ -120,14 +120,14 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_continuation_on_unhandled_user_intent
         :end-before: # COLANG_END: test_continuation_on_unhandled_user_intent
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_continuation_on_unhandled_user_intent
         :end-before: # USAGE_END: test_continuation_on_unhandled_user_intent
@@ -139,14 +139,14 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_continuation_on_undefined_flow
         :end-before: # COLANG_END: test_continuation_on_undefined_flow
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_continuation_on_undefined_flow
         :end-before: # USAGE_END: test_continuation_on_undefined_flow
@@ -158,14 +158,14 @@ Flow that will continue the current interaction for unhandled user actions/inten
 
     Example:
 
-    .. literalinclude:: ../../examples/test_csl.py
-        :language: colang
+    .. literalinclude:: ../../examples/csl.py
+        :language: text
         :start-after: # COLANG_START: test_llm_continue_interaction
         :end-before: # COLANG_END: test_llm_continue_interaction
         :dedent:
 
 
-    .. literalinclude:: ../../examples/test_csl.py
+    .. literalinclude:: ../../examples/csl.py
         :language: text
         :start-after: # USAGE_START: test_llm_continue_interaction
         :end-before: # USAGE_END: test_llm_continue_interaction

@@ -145,7 +145,7 @@ res = rails.generate(messages=messages, options={
 })
 ```
 
-```json
+```text
 {
   "response": [...],
   "log": {
@@ -197,7 +197,7 @@ rails.generate(messages=messages, options={
 
 You can find the returned data in the `output_data` key of the response:
 
-```json
+```text
 {
   "response": [...],
   "output_data": {

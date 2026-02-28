@@ -226,7 +226,7 @@ Example:
 
 You can also use custom events:
 
-```json
+```text
 {
   "type": "some_other_type",
   ...

@@ -203,4 +203,4 @@ The directory must contain `.yml` files with prompt definitions.
 
 ## Related Topics
 
-- [Prompt Customization](../../user-guides/advanced/prompt-customization) - Advanced prompt customization
+- [](../yaml-schema/prompt-configuration.md) - Advanced prompt customization

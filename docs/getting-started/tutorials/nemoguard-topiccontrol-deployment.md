@@ -105,7 +105,7 @@ By following this tutorial, you learn how to configure a set of allowed topics a
        $ nemoguardrails chat --config config
      ```
 
-     ```terminaloutput
+     ```text
        Starting the chat (Press Ctrl + C twice to quit) ...
 
        > _

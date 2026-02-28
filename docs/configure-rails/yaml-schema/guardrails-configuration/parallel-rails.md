@@ -3,7 +3,6 @@ title: Parallel Execution of Rails
 description: Configure input and output rails to run in parallel for improved latency and throughput.
 ---
 
-(parallel-rails)=
 # Parallel Execution of Input and Output Rails
 
 You can configure input and output rails to run in parallel. This can improve latency and throughput.
@@ -11,6 +10,7 @@ You can configure input and output rails to run in parallel. This can improve la
 ## When to Use Parallel Rails Execution
 
 Use parallel execution:
+
 - For I/O-bound rails such as external API calls to LLMs or third-party integrations.
 - If you have two or more independent input or output rails without shared state dependencies.
 - In production environments where response latency affects user experience and business metrics.
@@ -18,6 +18,7 @@ Use parallel execution:
 ## When Not to Use Parallel Rails Execution
 
 Avoid parallel execution:
+
 - For CPU-bound rails; it might not improve performance and can introduce overhead.
 - During development and testing for debugging and simpler workflows.
 

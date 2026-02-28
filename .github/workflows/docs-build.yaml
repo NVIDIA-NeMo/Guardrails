@@ -49,7 +49,7 @@ jobs:
             - name: Validate redirect targets
               run: make docs-check-redirects
             - name: Build documentation
-              run: make docs
+              run: make docs-strict
             - name: Delete unnecessary files
               run: |
                   sudo find _build -name .doctrees -prune -exec rm -rf {} \;

@@ -72,7 +72,7 @@ The statements are processed in order, one by one. We will get to know the diffe
 
         send StartUtteranceBotAction(script="Hello") as $utterance_event_ref
 
-This generates a :ref:`UMIM <UMIM intro>` event on the event channel to be received again by other system components. We also introduce the event matching statement:
+This generates a UMIM event on the event channel to be received again by other system components. We also introduce the event matching statement:
 
 .. important::
     Event matching statement definition:

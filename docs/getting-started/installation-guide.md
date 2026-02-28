@@ -166,7 +166,7 @@ apt-get install gcc g++ python3-dev
 
 Open a terminal (CMD or PowerShell) and run:
 
-```cmd
+```bat
 where cl
 ```
 

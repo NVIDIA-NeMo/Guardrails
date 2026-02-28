@@ -1,4 +1,4 @@
-.PHONY: all test tests test_watch test_coverage test_profile docs docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
+.PHONY: all test tests test_watch test_coverage test_profile docs docs-strict docs-serve docs-update-cards docs-check-cards docs-watch-cards pre_commit help
 
 # Default target executed when no specific target is provided to make.
 all: help
@@ -23,6 +23,9 @@ test_profile:
 
 docs:
 	poetry run sphinx-build -b html docs _build/docs
+
+docs-strict:
+	poetry run sphinx-build -b html -W --keep-going docs _build/docs
 
 docs-serve:
 	cd docs && poetry run sphinx-autobuild . _build/html --port 8000 --open-browser
@@ -54,6 +57,7 @@ help:
 	@echo 'test_watch                   - run unit tests in watch mode'
 	@echo 'test_coverage                - run unit tests with coverage'
 	@echo 'docs                         - build docs, if you installed the docs dependencies'
+	@echo 'docs-strict                  - build docs with warnings as errors (used in CI)'
 	@echo 'docs-serve                   - serve docs locally with auto-rebuild on changes'
 	@echo 'docs-update-cards            - update grid cards in index files from linked pages'
 	@echo 'docs-check-cards             - check if grid cards are up to date (dry run)'

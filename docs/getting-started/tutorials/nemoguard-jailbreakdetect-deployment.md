@@ -259,5 +259,4 @@ To run the NVIDIA NemoGuard JailbreakDetect NIM in a Docker container, follow th
 ## Next Steps
 
 - [NVIDIA NemoGuard JailbreakDetect NIM documentation](https://docs.nvidia.com/nim/nemoguard-jailbreakdetect/latest/index.html)
-- [Jailbreak Detection Heuristics](../../user-guides/jailbreak-detection-heuristics/README.md) for detection without a NIM
 - [Configuration Reference](../../configure-rails/configuration-reference.md) for all configuration options

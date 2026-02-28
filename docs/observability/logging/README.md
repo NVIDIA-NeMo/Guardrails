@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Output Variables
 
 Begin by importing `nemoguardrails` and setting the path to your config

@@ -2,7 +2,7 @@
 
 NeMo Guardrails provides out-of-the-box support for content moderation using Meta's [Llama Guard](https://ai.meta.com/research/publications/llama-guard-llm-based-input-output-safeguard-for-human-ai-conversations/) model.
 
-In our testing, we observe significantly improved input and output content moderation performance compared to the [self-check method](../self-check.md). Please see the [performance evaluation](../../../evaluation/evaluate-guardrails.md#llamaguard-based-moderation-rails-performance) for benchmark numbers.
+In our testing, we observe significantly improved input and output content moderation performance compared to the [self-check method](../self-check.md). Please see the [performance evaluation](llamaguard-based-moderation-rails-performance) for benchmark numbers.
 
 ## Usage
 

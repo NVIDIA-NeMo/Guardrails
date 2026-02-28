@@ -67,7 +67,7 @@ Here are two common life cycles of an action that depend on the events:
     XAction.Stop() -> Action state: `Stopping`
     XAction.Finished() -> Action state: `Finished`
 
-In the :ref:`UMIM <UMIM intro>` reference documentation, you will find many predefined actions that should cover the most common use cases. Let's have a look at one of the most prominent actions called `UtteranceBotAction`. This action represents the main channel to communicate with the user, e.g. through speech or text (depending on the specific system). This action relates to events that can be grouped into output and input events from the perspective of a bot:
+In the UMIM reference documentation, you will find many predefined actions that should cover the most common use cases. Let's have a look at one of the most prominent actions called `UtteranceBotAction`. This action represents the main channel to communicate with the user, e.g. through speech or text (depending on the specific system). This action relates to events that can be grouped into output and input events from the perspective of a bot:
 
 Output events:
 
