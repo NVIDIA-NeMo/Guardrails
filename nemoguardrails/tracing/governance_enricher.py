@@ -441,7 +441,7 @@ def _span_is_recording(span: Span) -> bool:
 
 
 def _now_ns() -> int:
-    """Return the current time in nanoseconds (monotonic wall clock)."""
+    """Return the current wall-clock time in nanoseconds."""
     return time.time_ns()
 
 
