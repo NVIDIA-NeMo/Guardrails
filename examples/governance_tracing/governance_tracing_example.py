@@ -132,12 +132,8 @@ async def run_interaction(scenario: dict) -> None:
     ) as root_span:
         # --- Run guardrails (NeMo Guardrails creates its own child spans) ---
         try:
-            response = await rails.generate_async(
-                messages=[{"role": "user", "content": scenario["message"]}]
-            )
-            bot_reply = (
-                response if isinstance(response, str) else response.get("content", "")
-            )
+            response = await rails.generate_async(messages=[{"role": "user", "content": scenario["message"]}])
+            bot_reply = response if isinstance(response, str) else response.get("content", "")
             print(f"Bot reply: {bot_reply[:120]}")
         except Exception as exc:
             bot_reply = ""

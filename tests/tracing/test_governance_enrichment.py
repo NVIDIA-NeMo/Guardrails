@@ -24,7 +24,7 @@ Tests cover:
 """
 
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 from nemoguardrails.tracing.governance_conventions import (
     ComplianceAttributes,
@@ -127,9 +127,7 @@ class TestHelpers(unittest.TestCase):
         self.assertFalse(_span_is_recording(None))  # type: ignore[arg-type]
 
     def test_max_severity_both_none_like(self):
-        self.assertEqual(
-            _max_severity(None, SecuritySeverity.LOW), SecuritySeverity.LOW
-        )
+        self.assertEqual(_max_severity(None, SecuritySeverity.LOW), SecuritySeverity.LOW)
 
     def test_max_severity_a_wins(self):
         self.assertEqual(
@@ -154,15 +152,11 @@ class TestComputeRiskScore(unittest.TestCase):
     """Unit tests for the risk score computation."""
 
     def test_zero_violations_zero_rails(self):
-        score = _compute_risk_score(
-            violation_count=0, highest_severity=None, rails_evaluated=0
-        )
+        score = _compute_risk_score(violation_count=0, highest_severity=None, rails_evaluated=0)
         self.assertEqual(score, 0.0)
 
     def test_zero_violations_with_rails(self):
-        score = _compute_risk_score(
-            violation_count=0, highest_severity=None, rails_evaluated=5
-        )
+        score = _compute_risk_score(violation_count=0, highest_severity=None, rails_evaluated=5)
         self.assertEqual(score, 0.0)
 
     def test_all_rails_failed_low_severity(self):
@@ -233,66 +227,42 @@ class TestRecordGovernanceDecision(unittest.TestCase):
             confidence=0.95,
         )
 
-        span.set_attribute.assert_any_call(
-            GovernanceAttributes.DECISION, GovernanceDecisions.DENY
-        )
-        span.set_attribute.assert_any_call(
-            GovernanceAttributes.RULE_ID, "no_competitor_mention"
-        )
-        span.set_attribute.assert_any_call(
-            GovernanceAttributes.REASON, "Competitor detected"
-        )
-        span.set_attribute.assert_any_call(
-            GovernanceAttributes.CATEGORY, "brand_protection"
-        )
+        span.set_attribute.assert_any_call(GovernanceAttributes.DECISION, GovernanceDecisions.DENY)
+        span.set_attribute.assert_any_call(GovernanceAttributes.RULE_ID, "no_competitor_mention")
+        span.set_attribute.assert_any_call(GovernanceAttributes.REASON, "Competitor detected")
+        span.set_attribute.assert_any_call(GovernanceAttributes.CATEGORY, "brand_protection")
         span.set_attribute.assert_any_call(GovernanceAttributes.POSITION, "input")
         span.set_attribute.assert_any_call(GovernanceAttributes.CONFIDENCE, 0.95)
 
         span.add_event.assert_called_once()
         event_call = span.add_event.call_args
-        self.assertEqual(
-            event_call.kwargs["name"], GovernanceEventNames.GOVERNANCE_DECISION
-        )
-        self.assertEqual(
-            event_call.kwargs["attributes"]["decision"], GovernanceDecisions.DENY
-        )
-        self.assertEqual(
-            event_call.kwargs["attributes"]["rule_id"], "no_competitor_mention"
-        )
+        self.assertEqual(event_call.kwargs["name"], GovernanceEventNames.GOVERNANCE_DECISION)
+        self.assertEqual(event_call.kwargs["attributes"]["decision"], GovernanceDecisions.DENY)
+        self.assertEqual(event_call.kwargs["attributes"]["rule_id"], "no_competitor_mention")
 
     def test_allow_does_not_increment_violation_count(self):
         span = _mock_span()
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.ALLOW
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.ALLOW)
         self.assertEqual(self.enricher._violation_count, 0)
 
     def test_deny_increments_violation_count(self):
         span = _mock_span()
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.DENY
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.DENY)
         self.assertEqual(self.enricher._violation_count, 1)
 
     def test_modify_increments_violation_count(self):
         span = _mock_span()
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.MODIFY
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.MODIFY)
         self.assertEqual(self.enricher._violation_count, 1)
 
     def test_escalate_increments_violation_count(self):
         span = _mock_span()
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.ESCALATE
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.ESCALATE)
         self.assertEqual(self.enricher._violation_count, 1)
 
     def test_optional_fields_omitted_when_none(self):
         span = _mock_span()
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.ALLOW
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.ALLOW)
 
         set_keys = [c.args[0] for c in span.set_attribute.call_args_list]
         self.assertNotIn(GovernanceAttributes.RULE_ID, set_keys)
@@ -303,23 +273,15 @@ class TestRecordGovernanceDecision(unittest.TestCase):
 
     def test_non_recording_span_is_skipped(self):
         span = _mock_span(is_recording=False)
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.DENY
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.DENY)
         span.set_attribute.assert_not_called()
         span.add_event.assert_not_called()
 
     def test_multiple_decisions_accumulate_violations(self):
         span = _mock_span()
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.DENY
-        )
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.DENY
-        )
-        self.enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.ALLOW
-        )
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.DENY)
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.DENY)
+        self.enricher.record_governance_decision(span=span, decision=GovernanceDecisions.ALLOW)
         self.assertEqual(self.enricher._violation_count, 2)
 
 
@@ -340,18 +302,10 @@ class TestRecordSecurityThreat(unittest.TestCase):
         )
 
         span.set_attribute.assert_any_call(SecurityAttributes.THREAT_DETECTED, True)
-        span.set_attribute.assert_any_call(
-            SecurityAttributes.THREAT_TYPE, SecurityThreatTypes.JAILBREAK
-        )
-        span.set_attribute.assert_any_call(
-            SecurityAttributes.SEVERITY, SecuritySeverity.HIGH
-        )
-        span.set_attribute.assert_any_call(
-            SecurityAttributes.DETECTION_METHOD, "llm_classifier"
-        )
-        span.set_attribute.assert_any_call(
-            SecurityAttributes.DETECTION_CONFIDENCE, 0.88
-        )
+        span.set_attribute.assert_any_call(SecurityAttributes.THREAT_TYPE, SecurityThreatTypes.JAILBREAK)
+        span.set_attribute.assert_any_call(SecurityAttributes.SEVERITY, SecuritySeverity.HIGH)
+        span.set_attribute.assert_any_call(SecurityAttributes.DETECTION_METHOD, "llm_classifier")
+        span.set_attribute.assert_any_call(SecurityAttributes.DETECTION_CONFIDENCE, 0.88)
 
         span.add_event.assert_called_once()
         event_attrs = span.add_event.call_args.kwargs["attributes"]
@@ -371,20 +325,14 @@ class TestRecordSecurityThreat(unittest.TestCase):
 
     def test_tracks_highest_severity(self):
         span = _mock_span()
-        self.enricher.record_security_threat(
-            span=span, threat_type="pii", severity=SecuritySeverity.LOW
-        )
+        self.enricher.record_security_threat(span=span, threat_type="pii", severity=SecuritySeverity.LOW)
         self.assertEqual(self.enricher._highest_severity, SecuritySeverity.LOW)
 
-        self.enricher.record_security_threat(
-            span=span, threat_type="jailbreak", severity=SecuritySeverity.CRITICAL
-        )
+        self.enricher.record_security_threat(span=span, threat_type="jailbreak", severity=SecuritySeverity.CRITICAL)
         self.assertEqual(self.enricher._highest_severity, SecuritySeverity.CRITICAL)
 
         # A lower severity should NOT replace the highest
-        self.enricher.record_security_threat(
-            span=span, threat_type="pii", severity=SecuritySeverity.MEDIUM
-        )
+        self.enricher.record_security_threat(span=span, threat_type="pii", severity=SecuritySeverity.MEDIUM)
         self.assertEqual(self.enricher._highest_severity, SecuritySeverity.CRITICAL)
 
     def test_optional_fields_omitted_when_none(self):
@@ -426,34 +374,22 @@ class TestRecordEscalation(unittest.TestCase):
         )
 
         span.set_attribute.assert_any_call(EscalationAttributes.TRIGGERED, True)
-        span.set_attribute.assert_any_call(
-            EscalationAttributes.REASON, "High-severity jailbreak attempt"
-        )
-        span.set_attribute.assert_any_call(
-            EscalationAttributes.PRIORITY, EscalationPriority.URGENT
-        )
+        span.set_attribute.assert_any_call(EscalationAttributes.REASON, "High-severity jailbreak attempt")
+        span.set_attribute.assert_any_call(EscalationAttributes.PRIORITY, EscalationPriority.URGENT)
         span.set_attribute.assert_any_call(EscalationAttributes.QUEUE, "security-ops")
 
         span.add_event.assert_called_once()
         event_call = span.add_event.call_args
-        self.assertEqual(
-            event_call.kwargs["name"], GovernanceEventNames.ESCALATION_TRIGGERED
-        )
-        self.assertEqual(
-            event_call.kwargs["attributes"]["reason"], "High-severity jailbreak attempt"
-        )
-        self.assertEqual(
-            event_call.kwargs["attributes"]["priority"], EscalationPriority.URGENT
-        )
+        self.assertEqual(event_call.kwargs["name"], GovernanceEventNames.ESCALATION_TRIGGERED)
+        self.assertEqual(event_call.kwargs["attributes"]["reason"], "High-severity jailbreak attempt")
+        self.assertEqual(event_call.kwargs["attributes"]["priority"], EscalationPriority.URGENT)
         self.assertEqual(event_call.kwargs["attributes"]["queue"], "security-ops")
 
     def test_default_priority_is_medium(self):
         span = _mock_span()
         self.enricher.record_escalation(span=span, reason="Uncertain intent")
 
-        span.set_attribute.assert_any_call(
-            EscalationAttributes.PRIORITY, EscalationPriority.MEDIUM
-        )
+        span.set_attribute.assert_any_call(EscalationAttributes.PRIORITY, EscalationPriority.MEDIUM)
 
     def test_queue_omitted_when_not_provided(self):
         span = _mock_span()
@@ -500,9 +436,7 @@ class TestRecordPiiDetection(unittest.TestCase):
             entity_types=["PHONE_NUMBER", "CREDIT_CARD", "SSN"],
         )
         attrs = span.add_event.call_args.kwargs["attributes"]
-        self.assertEqual(
-            attrs[PIIAttributes.ENTITY_TYPES], "PHONE_NUMBER,CREDIT_CARD,SSN"
-        )
+        self.assertEqual(attrs[PIIAttributes.ENTITY_TYPES], "PHONE_NUMBER,CREDIT_CARD,SSN")
 
     def test_increments_violation_count(self):
         span = _mock_span()
@@ -555,9 +489,7 @@ class TestFinaliseComplianceSummary(unittest.TestCase):
         span.set_attribute.assert_any_call(ComplianceAttributes.RAILS_EVALUATED, 6)
         span.set_attribute.assert_any_call(ComplianceAttributes.RAILS_PASSED, 5)
         span.set_attribute.assert_any_call(ComplianceAttributes.RAILS_FAILED, 1)
-        span.set_attribute.assert_any_call(
-            ComplianceAttributes.FAILED_RAIL_NAMES, "check_jailbreak"
-        )
+        span.set_attribute.assert_any_call(ComplianceAttributes.FAILED_RAIL_NAMES, "check_jailbreak")
 
     def test_risk_score_set_on_span(self):
         span = _mock_span()
@@ -568,9 +500,7 @@ class TestFinaliseComplianceSummary(unittest.TestCase):
             threat_type=SecurityThreatTypes.JAILBREAK,
             severity=SecuritySeverity.HIGH,
         )
-        self.enricher.finalise_compliance_summary(
-            span=span, rails_evaluated=5, rails_passed=4, rails_failed=1
-        )
+        self.enricher.finalise_compliance_summary(span=span, rails_evaluated=5, rails_passed=4, rails_failed=1)
 
         set_calls = {c.args[0]: c.args[1] for c in span.set_attribute.call_args_list}
         self.assertIn(RiskAttributes.RISK_SCORE, set_calls)
@@ -581,15 +511,11 @@ class TestFinaliseComplianceSummary(unittest.TestCase):
         self.assertGreaterEqual(risk_score, 0.0)
         self.assertLessEqual(risk_score, 1.0)
         self.assertEqual(set_calls[RiskAttributes.VIOLATION_COUNT], 1)
-        self.assertEqual(
-            set_calls[RiskAttributes.VIOLATION_SEVERITY], SecuritySeverity.HIGH
-        )
+        self.assertEqual(set_calls[RiskAttributes.VIOLATION_SEVERITY], SecuritySeverity.HIGH)
 
     def test_no_violation_severity_when_no_threats(self):
         span = _mock_span()
-        self.enricher.finalise_compliance_summary(
-            span=span, rails_evaluated=5, rails_passed=5, rails_failed=0
-        )
+        self.enricher.finalise_compliance_summary(span=span, rails_evaluated=5, rails_passed=5, rails_failed=0)
         set_keys = [c.args[0] for c in span.set_attribute.call_args_list]
         self.assertNotIn(RiskAttributes.VIOLATION_SEVERITY, set_keys)
 
@@ -602,9 +528,7 @@ class TestFinaliseComplianceSummary(unittest.TestCase):
             rails_failed=2,
             failed_rail_names=["check_jailbreak", "check_pii"],
         )
-        span.set_attribute.assert_any_call(
-            ComplianceAttributes.FAILED_RAIL_NAMES, "check_jailbreak,check_pii"
-        )
+        span.set_attribute.assert_any_call(ComplianceAttributes.FAILED_RAIL_NAMES, "check_jailbreak,check_pii")
 
     def test_failed_rail_names_omitted_when_empty(self):
         span = _mock_span()
@@ -631,9 +555,7 @@ class TestFinaliseComplianceSummary(unittest.TestCase):
 
     def test_non_recording_span_is_skipped(self):
         span = _mock_span(is_recording=False)
-        self.enricher.finalise_compliance_summary(
-            span=span, rails_evaluated=5, rails_passed=5, rails_failed=0
-        )
+        self.enricher.finalise_compliance_summary(span=span, rails_evaluated=5, rails_passed=5, rails_failed=0)
         span.set_attribute.assert_not_called()
 
 
@@ -688,23 +610,17 @@ class TestEnricherEndToEnd(unittest.TestCase):
         self.assertEqual(enricher._highest_severity, SecuritySeverity.CRITICAL)
 
         # Root span must have compliance and risk attributes set
-        root_set_calls = {
-            c.args[0]: c.args[1] for c in root_span.set_attribute.call_args_list
-        }
+        root_set_calls = {c.args[0]: c.args[1] for c in root_span.set_attribute.call_args_list}
         self.assertEqual(root_set_calls[ComplianceAttributes.DOMAIN], "insurance")
         self.assertTrue(root_set_calls[ComplianceAttributes.AUDIT_COMPLETE])
         self.assertEqual(root_set_calls[ComplianceAttributes.RAILS_EVALUATED], 3)
         self.assertEqual(root_set_calls[RiskAttributes.VIOLATION_COUNT], 2)
-        self.assertEqual(
-            root_set_calls[RiskAttributes.VIOLATION_SEVERITY], SecuritySeverity.CRITICAL
-        )
+        self.assertEqual(root_set_calls[RiskAttributes.VIOLATION_SEVERITY], SecuritySeverity.CRITICAL)
         self.assertGreater(root_set_calls[RiskAttributes.RISK_SCORE], 0.5)
 
         # Root span must have escalation attributes
         self.assertEqual(root_set_calls[EscalationAttributes.TRIGGERED], True)
-        self.assertEqual(
-            root_set_calls[EscalationAttributes.PRIORITY], EscalationPriority.URGENT
-        )
+        self.assertEqual(root_set_calls[EscalationAttributes.PRIORITY], EscalationPriority.URGENT)
 
     def test_pii_detection_then_compliance_summary(self):
         """Simulate PII detection followed by compliance summary on clean rails."""
@@ -728,9 +644,7 @@ class TestEnricherEndToEnd(unittest.TestCase):
             rails_failed=0,
         )
 
-        root_set_calls = {
-            c.args[0]: c.args[1] for c in root_span.set_attribute.call_args_list
-        }
+        root_set_calls = {c.args[0]: c.args[1] for c in root_span.set_attribute.call_args_list}
         self.assertEqual(root_set_calls[ComplianceAttributes.RAILS_FAILED], 0)
         self.assertEqual(root_set_calls[RiskAttributes.VIOLATION_COUNT], 1)
         # No severity tracked for PII alone (no security threat recorded)
@@ -739,9 +653,7 @@ class TestEnricherEndToEnd(unittest.TestCase):
     def test_enricher_domain_passed_through(self):
         enricher = GovernanceTraceEnricher(domain="custom-domain")
         span = _mock_span()
-        enricher.finalise_compliance_summary(
-            span=span, rails_evaluated=1, rails_passed=1, rails_failed=0
-        )
+        enricher.finalise_compliance_summary(span=span, rails_evaluated=1, rails_passed=1, rails_failed=0)
         span.set_attribute.assert_any_call(ComplianceAttributes.DOMAIN, "custom-domain")
 
     def test_timestamps_are_integers(self):
@@ -749,20 +661,14 @@ class TestEnricherEndToEnd(unittest.TestCase):
         enricher = GovernanceTraceEnricher(domain="finance")
         span = _mock_span()
 
-        enricher.record_governance_decision(
-            span=span, decision=GovernanceDecisions.DENY
-        )
-        enricher.record_security_threat(
-            span=span, threat_type="jailbreak", severity=SecuritySeverity.HIGH
-        )
+        enricher.record_governance_decision(span=span, decision=GovernanceDecisions.DENY)
+        enricher.record_security_threat(span=span, threat_type="jailbreak", severity=SecuritySeverity.HIGH)
         enricher.record_escalation(span=span, reason="Test")
         enricher.record_pii_detection(span=span, entity_types=["PERSON"])
 
         for event_call in span.add_event.call_args_list:
             ts = event_call.kwargs.get("timestamp")
-            self.assertIsNotNone(
-                ts, "timestamp keyword arg missing from add_event call"
-            )
+            self.assertIsNotNone(ts, "timestamp keyword arg missing from add_event call")
             self.assertIsInstance(ts, int, f"Expected int timestamp, got {type(ts)}")
             self.assertGreater(ts, 0)
 

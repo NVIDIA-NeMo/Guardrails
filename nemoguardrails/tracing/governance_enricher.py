@@ -68,10 +68,7 @@ import logging
 import time
 from typing import List, Optional, Sequence
 
-logger = logging.getLogger(__name__)
-
 try:
-    from opentelemetry import trace  # type: ignore
     from opentelemetry.trace import Span  # type: ignore
 except ImportError:
     raise ImportError(
@@ -92,8 +89,9 @@ from nemoguardrails.tracing.governance_conventions import (
     RiskAttributes,
     SecurityAttributes,
     SecuritySeverity,
-    SecurityThreatTypes,
 )
+
+logger = logging.getLogger(__name__)
 
 # Map severity strings to a numeric weight for comparison
 _SEVERITY_ORDER = {
@@ -257,9 +255,7 @@ class GovernanceTraceEnricher:
         if detection_method is not None:
             span.set_attribute(SecurityAttributes.DETECTION_METHOD, detection_method)
         if detection_confidence is not None:
-            span.set_attribute(
-                SecurityAttributes.DETECTION_CONFIDENCE, detection_confidence
-            )
+            span.set_attribute(SecurityAttributes.DETECTION_CONFIDENCE, detection_confidence)
 
         # Detailed event for the trace waterfall
         event_attrs: dict = {
@@ -419,9 +415,7 @@ class GovernanceTraceEnricher:
         span.set_attribute(ComplianceAttributes.RAILS_FAILED, rails_failed)
 
         if failed_rail_names:
-            span.set_attribute(
-                ComplianceAttributes.FAILED_RAIL_NAMES, ",".join(failed_rail_names)
-            )
+            span.set_attribute(ComplianceAttributes.FAILED_RAIL_NAMES, ",".join(failed_rail_names))
 
         # Risk attributes derived from accumulated state
         risk_score = _compute_risk_score(
@@ -433,9 +427,7 @@ class GovernanceTraceEnricher:
         span.set_attribute(RiskAttributes.VIOLATION_COUNT, self._violation_count)
 
         if self._highest_severity is not None:
-            span.set_attribute(
-                RiskAttributes.VIOLATION_SEVERITY, self._highest_severity
-            )
+            span.set_attribute(RiskAttributes.VIOLATION_SEVERITY, self._highest_severity)
 
 
 # ---------------------------------------------------------------------------
