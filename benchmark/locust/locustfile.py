@@ -35,8 +35,7 @@ class GuardrailsUser(HttpUser):
     NeMo Guardrails server.
 
     Each user will continuously send requests with no wait time between them
-    (continuous hammering). The load is distributed such that 99% of requests
-    go to chat completions.
+    (continuous load).
     """
 
     # No wait time between requests (continuous hammering)

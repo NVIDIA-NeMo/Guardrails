@@ -18,8 +18,6 @@
 Tests for Locust load test configuration models.
 """
 
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
@@ -124,28 +122,6 @@ class TestLocustConfig:
 
 class TestLocustConfigHelpers:
     """Test helper methods on LocustConfig model."""
-
-    @pytest.fixture
-    def config(self) -> LocustConfig:
-        """Helper to get a valid base config."""
-        return LocustConfig(
-            config_id="test-config",
-            model="test-model",
-        )
-
-    def test_locust_config_get_output_base_path(self, config):
-        """Test get_output_base_path method."""
-        config.output_base_dir = "custom_results"
-
-        path = config.get_output_base_path()
-        assert isinstance(path, Path)
-        assert str(path) == "custom_results"
-
-    def test_locust_config_get_output_base_path_default(self, config):
-        """Test get_output_base_path method with default output_base_dir."""
-        path = config.get_output_base_path()
-        assert isinstance(path, Path)
-        assert str(path) == "locust_results"
 
     def test_locust_config_with_dict(self):
         """Test creating LocustConfig with dict base_config."""

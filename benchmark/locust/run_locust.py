@@ -198,6 +198,9 @@ def _load_config_from_yaml(config_file: Path) -> LocustConfig:
         with open(config_file, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
+        if config_data is None:
+            config_data = {}
+
         config = LocustConfig(**config_data)
         return config
 
@@ -209,9 +212,6 @@ def _load_config_from_yaml(config_file: Path) -> LocustConfig:
         sys.exit(1)
     except ValidationError as e:
         log.error("Configuration validation error:\n%s", e)
-        sys.exit(1)
-    except Exception as e:
-        log.error("Unexpected error loading configuration: %s", e)
         sys.exit(1)
 
 
@@ -241,9 +241,7 @@ def run(
     if verbose:
         log.setLevel(logging.DEBUG)
 
-    # Load config from file if provided
-    if config_file:
-        locust_config = _load_config_from_yaml(config_file)
+    locust_config = _load_config_from_yaml(config_file)
 
     # Create and run the test
     runner = LocustRunner(locust_config)

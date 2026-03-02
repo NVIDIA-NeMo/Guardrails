@@ -18,8 +18,6 @@
 Pydantic models for Locust load test configuration validation.
 """
 
-from pathlib import Path
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -76,7 +74,3 @@ class LocustConfig(BaseModel):
             raise ValueError("Host must start with http:// or https://")
         # Remove trailing slash if present
         return v.rstrip("/")
-
-    def get_output_base_path(self) -> Path:
-        """Get the base output directory as a Path object."""
-        return Path(self.output_base_dir)

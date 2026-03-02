@@ -24,7 +24,6 @@ from json.decoder import JSONDecodeError
 from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import Mock, patch
-from urllib.parse import urljoin
 
 import httpx
 import pytest
@@ -117,8 +116,8 @@ class TestLocustRunner:
         return LocustRunner(valid_config)
 
     def _service_health_endpoint(self, runner: LocustRunner):
-        """The endpoint used ot check if the service is healthy"""
-        return urljoin(runner.config.host, "health")
+        """The endpoint used to check if the service is healthy"""
+        return f"{runner.config.host}/health"
 
     def test_runner_init(self, valid_config):
         """Test LocustRunner initialization."""
@@ -414,17 +413,15 @@ class TestLoadConfigFromYaml:
         assert exc_info.value.code == 1
 
     def test_load_config_unexpected_error(self, tmp_path):
-        """Test loading config with unexpected error."""
+        """Test that unexpected errors propagate instead of being silently swallowed."""
         config_file = tmp_path / "config.yml"
         config_file.write_text("valid_yaml: true")
 
         with patch("yaml.safe_load") as mock_load:
             mock_load.side_effect = Exception("Unexpected error")
 
-            with pytest.raises(SystemExit) as exc_info:
+            with pytest.raises(Exception, match="Unexpected error"):
                 _load_config_from_yaml(config_file)
-
-            assert exc_info.value.code == 1
 
 
 class TestCLI:
