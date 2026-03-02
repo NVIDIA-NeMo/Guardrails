@@ -141,7 +141,13 @@ class LocustRunner:
             log.error(str(e))
             return 1
 
-        # Build command
+        # For dry-run, print command without creating directories or metadata
+        if dry_run:
+            command = self._build_locust_command()
+            log.info("Dry run mode. Command: %s", " ".join(command))
+            return 0
+
+        # Build command with output directory
         output_path = self._create_output_path(self.config.output_base_dir)
         command = self._build_locust_command(output_path)
 
@@ -168,17 +174,11 @@ class LocustRunner:
             log.info("Web UI will be available at: http://localhost:8089")
 
         try:
-            # For dry-run, just print out the command
-            if dry_run:
-                log.info("Dry run mode. Command: %s", " ".join(command))
-                return 0
-
             result = subprocess.run(command, env=env, check=False)
 
             if result.returncode == 0:
                 log.info("Load test completed successfully")
-                if output_path:
-                    log.info("Results saved to: %s", output_path)
+                log.info("Results saved to: %s", output_path)
             else:
                 log.error("Load test failed with exit code %s", result.returncode)
 
