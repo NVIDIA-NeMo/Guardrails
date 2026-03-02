@@ -99,7 +99,7 @@ class TestLocustRunner:
     """Test LocustRunner class."""
 
     @pytest.fixture
-    def valid_config(self):
+    def valid_config(self, tmp_path):
         """Get a valid LocustConfig for testing."""
         return LocustConfig(
             host="http://localhost:8000",
@@ -108,6 +108,7 @@ class TestLocustRunner:
             users=10,
             spawn_rate=2,
             run_time=30,
+            output_base_dir=str(tmp_path / "locust_results"),
         )
 
     @pytest.fixture
