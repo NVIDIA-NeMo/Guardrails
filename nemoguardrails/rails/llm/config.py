@@ -51,6 +51,9 @@ with open(os.path.join(os.path.dirname(__file__), "default_config.yml")) as _fc:
 with open(os.path.join(os.path.dirname(__file__), "default_config_v2.yml")) as _fc:
     _default_config_v2 = yaml.safe_load(_fc)
 
+# Jailbreak-related strings
+JAILBREAK_FLOW_MODEL = "jailbreak detection model"
+JAILBREAK_FLOW_HEURISTICS = "jailbreak detection heuristics"
 
 # Extract the COLANGPATH directories.
 colang_path_dirs = [
@@ -1967,9 +1970,6 @@ def _generate_rails_flows(flows):
 
 
 MODEL_PREFIX = "$model="
-
-JAILBREAK_FLOW_MODEL = "jailbreak detection model"
-JAILBREAK_FLOW_HEURISTICS = "jailbreak detection heuristics"
 
 
 def _get_flow_model(flow_text) -> Optional[str]:
