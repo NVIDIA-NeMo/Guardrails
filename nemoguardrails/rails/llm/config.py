@@ -1653,11 +1653,11 @@ class RailsConfig(BaseModel):
     @root_validator(pre=True, allow_reuse=True)
     def check_jailbreak_detection_config(cls, values):
         """Validate jailbreak detection configuration against enabled flows."""
-        rails = values.get("rails", {})
-        config_data = rails.get("config", {})
-        input_flows = rails.get("input", {}).get("flows", [])
+        rails = values.get("rails") or {}
+        config_data = rails.get("config") or {}
+        input_flows = (rails.get("input") or {}).get("flows") or []
 
-        jailbreak_config = config_data.get("jailbreak_detection", {})
+        jailbreak_config = config_data.get("jailbreak_detection") or {}
         has_model_flow = JAILBREAK_FLOW_MODEL in input_flows
         has_heuristics_flow = JAILBREAK_FLOW_HEURISTICS in input_flows
         has_any_jailbreak_flow = has_model_flow or has_heuristics_flow

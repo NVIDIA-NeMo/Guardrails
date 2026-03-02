@@ -296,6 +296,47 @@ class TestJailbreakDetectionCrossValidation:
         assert "jailbreak" not in caplog.text.lower()
         assert config.rails.config.jailbreak_detection.nim_base_url == "http://localhost:8000/v1"
 
+    def test_model_flow_with_server_endpoint_passes(self, caplog):
+        """Model flow with server_endpoint (no NIM) should pass without warning."""
+        with caplog.at_level(logging.WARNING):
+            _make_rails_config(
+                rails={
+                    "input": {"flows": ["jailbreak detection model"]},
+                    "config": {
+                        "jailbreak_detection": {
+                            "server_endpoint": "http://localhost:1337/model",
+                        }
+                    },
+                },
+            )
+        assert "jailbreak" not in caplog.text.lower()
+
+    def test_heuristics_flow_with_server_endpoint_passes(self, caplog):
+        """Heuristics flow with server_endpoint should pass without warning."""
+        with caplog.at_level(logging.WARNING):
+            _make_rails_config(
+                rails={
+                    "input": {"flows": ["jailbreak detection heuristics"]},
+                    "config": {
+                        "jailbreak_detection": {
+                            "server_endpoint": "http://localhost:1337/heuristics",
+                        }
+                    },
+                },
+            )
+        assert "jailbreak" not in caplog.text.lower()
+
+    def test_explicit_null_jailbreak_detection_config(self, caplog):
+        """Explicit None for jailbreak_detection should not raise AttributeError."""
+        with caplog.at_level(logging.WARNING):
+            _make_rails_config(
+                rails={
+                    "input": {"flows": ["jailbreak detection model"]},
+                    "config": {"jailbreak_detection": None},
+                },
+            )
+        assert "No endpoint configured for jailbreak detection model" in caplog.text
+
     def test_no_jailbreak_config_no_flow_no_warnings(self, caplog):
         """Default config with no jailbreak config or flows should produce no warnings."""
         with caplog.at_level(logging.WARNING):
