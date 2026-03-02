@@ -296,6 +296,24 @@ class TestJailbreakDetectionCrossValidation:
         assert "jailbreak" not in caplog.text.lower()
         assert config.rails.config.jailbreak_detection.nim_base_url == "http://localhost:8000/v1"
 
+    def test_model_flow_with_deprecated_nim_url_no_spurious_warning(self, caplog):
+        """Deprecated nim_url/nim_port should not trigger 'no endpoint' warning."""
+        with caplog.at_level(logging.WARNING):
+            config = _make_rails_config(
+                rails={
+                    "input": {"flows": ["jailbreak detection model"]},
+                    "config": {
+                        "jailbreak_detection": {
+                            "nim_url": "localhost",
+                            "nim_port": 8000,
+                        }
+                    },
+                },
+            )
+        assert "No endpoint configured" not in caplog.text
+        # Verify migration happened
+        assert config.rails.config.jailbreak_detection.nim_base_url == "http://localhost:8000/v1"
+
     def test_model_flow_with_server_endpoint_passes(self, caplog):
         """Model flow with server_endpoint (no NIM) should pass without warning."""
         with caplog.at_level(logging.WARNING):
@@ -320,6 +338,77 @@ class TestJailbreakDetectionCrossValidation:
                     "config": {
                         "jailbreak_detection": {
                             "server_endpoint": "http://localhost:1337/heuristics",
+                        }
+                    },
+                },
+            )
+        assert "jailbreak" not in caplog.text.lower()
+
+    def test_model_flow_deprecated_nim_url_empty_server_endpoint_raises(self):
+        """Deprecated nim_url with empty nim_server_endpoint should raise."""
+        with pytest.raises(Exception, match="nim_server_endpoint is empty"):
+            _make_rails_config(
+                rails={
+                    "input": {"flows": ["jailbreak detection model"]},
+                    "config": {
+                        "jailbreak_detection": {
+                            "nim_url": "localhost",
+                            "nim_server_endpoint": "",
+                        }
+                    },
+                },
+            )
+
+    def test_model_flow_nim_port_only_warns(self, caplog):
+        """nim_port alone (no nim_url or nim_base_url) should warn about local fallback."""
+        with caplog.at_level(logging.WARNING):
+            _make_rails_config(
+                rails={
+                    "input": {"flows": ["jailbreak detection model"]},
+                    "config": {
+                        "jailbreak_detection": {
+                            "nim_port": 9000,
+                        }
+                    },
+                },
+            )
+        assert "No endpoint configured for jailbreak detection model" in caplog.text
+
+    def test_both_flows_nim_only_warns_heuristics(self, caplog):
+        """Both flows with only NIM configured should warn for heuristics only."""
+        with caplog.at_level(logging.WARNING):
+            _make_rails_config(
+                rails={
+                    "input": {
+                        "flows": [
+                            "jailbreak detection model",
+                            "jailbreak detection heuristics",
+                        ]
+                    },
+                    "config": {
+                        "jailbreak_detection": {
+                            "nim_base_url": "http://localhost:8000/v1",
+                        }
+                    },
+                },
+            )
+        assert "No endpoint configured for jailbreak detection model" not in caplog.text
+        assert "No server_endpoint configured for jailbreak detection heuristics" in caplog.text
+
+    def test_both_flows_server_endpoint_only_passes(self, caplog):
+        """Both flows with server_endpoint should pass without warnings."""
+        with caplog.at_level(logging.WARNING):
+            _make_rails_config(
+                rails={
+                    "input": {
+                        "flows": [
+                            "jailbreak detection model",
+                            "jailbreak detection heuristics",
+                        ]
+                    },
+                    "config": {
+                        "jailbreak_detection": {
+                            "server_endpoint": "http://localhost:1337/model",
                         }
                     },
                 },

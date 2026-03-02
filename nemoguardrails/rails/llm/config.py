@@ -1674,10 +1674,11 @@ class RailsConfig(BaseModel):
         # Case B: "jailbreak detection model" flow is enabled
         if has_model_flow:
             nim_base_url = jailbreak_config.get("nim_base_url")
+            nim_url = jailbreak_config.get("nim_url")  # deprecated, migrated later
             server_endpoint = jailbreak_config.get("server_endpoint")
             nim_server_endpoint = jailbreak_config.get("nim_server_endpoint", "classify")
 
-            if nim_base_url:
+            if nim_base_url or nim_url:
                 if not nim_server_endpoint:
                     raise InvalidRailsConfigurationError(
                         "nim_base_url is set for jailbreak detection model but "
