@@ -21,7 +21,7 @@ This file defines the load test behavior. It can be run directly with:
     locust -f locustfile.py --host http://localhost:8000
 
 Or via the Typer CLI wrapper:
-    python -m benchmark.locust run --config-file config.yaml
+    python -m benchmark.locust config.yaml
 """
 
 import os
@@ -63,6 +63,7 @@ class GuardrailsUser(HttpUser):
         with self.client.post(
             "/v1/chat/completions",
             json=payload,
+            timeout=60,
             catch_response=True,
             name="/v1/chat/completions",
         ) as response:
