@@ -89,6 +89,7 @@ The following providers are supported.
 
 ```bash
 export MAIN_MODEL_ENGINE="openai"
+export MAIN_MODEL_BASE_URL="https://api.openai.com/v1"
 export OPENAI_API_KEY="your-openai-api-key"
 ```
 
