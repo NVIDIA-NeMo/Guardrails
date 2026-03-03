@@ -45,7 +45,7 @@ with guardrails-specific fields nested under a `guardrails` object.
   "temperature": 0.7,
   "max_tokens": 256,
   "guardrails": {
-    "config_id": "my-config",
+    "config_id": "my-config"
   }
 }
 ```
@@ -69,7 +69,7 @@ with guardrails-specific fields nested under a `guardrails` object.
 * - `messages`
   - array of objects
   - No
-  - The list of messages in the current conversation. Each message has `role` and `content` fields.
+  - The list of messages in the current conversation. Each message has `role` and `content` fields. Although the OpenAI API requires this field, the Guardrails server treats it as optional to support stateful continuation via `guardrails.state`. When omitted, defaults to an empty list.
 
 * - `stream`
   - boolean
@@ -555,10 +555,14 @@ curl http://localhost:8000/v1/models
   - Description
 
 * - 502
-  - The upstream provider is unreachable, `MAIN_MODEL_ENGINE` is unsupported, or `MAIN_MODEL_BASE_URL` is not set.
+  - The upstream provider is unreachable or returned an error.
 
 * - 4xx
   - Proxied from the upstream provider (e.g., 401 for an invalid API key).
+```
+
+```{note}
+If the engine is not in the built-in provider table and `MAIN_MODEL_BASE_URL` is not set, the endpoint returns an empty model list instead of an error.
 ```
 
 ### Example with OpenAI Python SDK
