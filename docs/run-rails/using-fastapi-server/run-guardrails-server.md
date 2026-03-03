@@ -161,13 +161,18 @@ Set the appropriate API key for your provider:
 
 ```bash
 # For NVIDIA-hosted models
+export MAIN_MODEL_ENGINE="nim"
+export MAIN_MODEL_BASE_URL="https://integrate.api.nvidia.com"
 export NVIDIA_API_KEY="your-nvidia-api-key"
 
 # For OpenAI models
+export MAIN_MODEL_ENGINE="openai"
+export MAIN_MODEL_BASE_URL="https://api.openai.com/v1"
 export OPENAI_API_KEY="your-openai-api-key"
 
 # For Anthropic models
 export MAIN_MODEL_ENGINE="anthropic"
+export MAIN_MODEL_BASE_URL="https://api.anthropic.com"
 export ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # For Azure OpenAI (also accepts "azure_openai" as engine name)
