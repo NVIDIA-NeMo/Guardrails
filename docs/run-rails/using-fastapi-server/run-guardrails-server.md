@@ -166,6 +166,21 @@ export NVIDIA_API_KEY="your-nvidia-api-key"
 # For OpenAI models
 export OPENAI_API_KEY="your-openai-api-key"
 
+# For Anthropic models
+export MAIN_MODEL_ENGINE="anthropic"
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+
+# For Azure OpenAI (also accepts "azure_openai" as engine name)
+export MAIN_MODEL_ENGINE="azure"
+export AZURE_OPENAI_API_KEY="your-azure-api-key"
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+export AZURE_OPENAI_API_VERSION="2024-06-01"  # optional, defaults to 2024-06-01
+
+# For Cohere models
+export MAIN_MODEL_ENGINE="cohere"
+export COHERE_API_KEY="your-cohere-api-key"
+# export COHERE_BASE_URL="https://custom-endpoint.example.com"  # optional
+
 # For self-hosted models (e.g., vLLM, NIM, TRT-LLM)
 export MAIN_MODEL_ENGINE="vllm"
 export MAIN_MODEL_BASE_URL="http://localhost:8080/v1"

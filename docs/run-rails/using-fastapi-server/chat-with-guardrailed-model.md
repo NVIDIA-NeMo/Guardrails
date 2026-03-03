@@ -59,10 +59,21 @@ The response follows the standard OpenAI `ChatCompletion` format, with an additi
     }
   ],
   "guardrails": {
-    "config_id": "content_safety"
+    "config_id": "content_safety",
+    "state": null,
+    "llm_output": null,
+    "output_data": null,
+    "log": null
   }
 }
 ```
+
+The `guardrails` response object may include additional fields depending on your request options:
+
+- **`state`** — State object for continuing the conversation. Return this in subsequent requests to resume.
+- **`llm_output`** — Additional LLM output data (when `options.llm_output` is `true`).
+- **`output_data`** — Values for requested context variables (when `options.output_vars` is set).
+- **`log`** — Logging information (when `options.log` is configured).
 
 ## Using the OpenAI Python SDK
 
@@ -114,7 +125,8 @@ print(response.json())
 
 ## Combine Multiple Configurations
 
-You can combine multiple guardrails configurations in a single request using `config_ids` inside the `guardrails` object:
+You can combine multiple guardrails configurations in a single request using `config_ids` inside the `guardrails` object.
+Use either `config_id` or `config_ids`, but not both — they are mutually exclusive.
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
@@ -271,7 +283,7 @@ Use `thread_id` inside the `guardrails` object to maintain conversation history 
 This is useful when you can only send the latest message rather than the full history.
 
 ```{tip}
-The `thread_id` must be at least 16 characters long for security reasons.
+The `thread_id` must be between 16 and 255 characters long.
 ```
 
 ```python
@@ -369,7 +381,36 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 })
 ```
 
-You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, and `top_p` at the top level:
+### Continue with State
+
+To continue a conversation using the `state` object returned in a previous response, pass it back in the `guardrails.state` field.
+The state object must contain an `events` or `state` key. Use an empty dict `{}` to start a new conversation.
+
+```python
+# First request
+response = requests.post(f"{base_url}/v1/chat/completions", json={
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "guardrails": {
+        "config_id": "content_safety"
+    }
+})
+state = response.json().get("guardrails", {}).get("state")
+
+# Continue with state
+response = requests.post(f"{base_url}/v1/chat/completions", json={
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "Tell me more"}],
+    "guardrails": {
+        "config_id": "content_safety",
+        "state": state
+    }
+})
+```
+
+### Standard OpenAI Parameters
+
+You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, `top_p`, `stop`, `presence_penalty`, and `frequency_penalty` at the top level:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={

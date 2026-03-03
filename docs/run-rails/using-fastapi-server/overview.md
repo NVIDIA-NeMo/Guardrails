@@ -17,7 +17,7 @@ content:
 The NeMo Guardrails API server:
 
 - Loads guardrails configurations at startup.
-- Exposes an [OpenAI-compatible REST API](https://platform.openai.com/docs/api-reference/chat/create) for chat completions.
+- Exposes an [OpenAI-compatible REST API](https://platform.openai.com/docs/api-reference/chat/create) for chat completions and model listing.
 - Works with the [OpenAI Python SDK](https://github.com/openai/openai-python) — use `OpenAI(base_url="http://localhost:8000/v1")`.
 - Includes a built-in Chat UI for testing.
 - Supports multiple configurations and combining them per-request.

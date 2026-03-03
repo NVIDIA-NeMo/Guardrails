@@ -20,6 +20,7 @@ For more information about server options, see [](../../run-rails/using-fastapi-
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/v1/chat/completions` | Generate a guarded chat completion |
+| `GET` | `/v1/models` | List available models from the configured provider |
 | `GET` | `/v1/rails/configs` | List available guardrails configurations |
 | `GET` | `/v1/challenges` | Get red teaming challenges |
 | `GET` | `/` | Chat UI (if enabled) or health status |
@@ -148,7 +149,7 @@ Guardrails-specific fields are nested under the `guardrails` object in the reque
 * - `guardrails.state`
   - object
   - No
-  - A state object to continue a previous interaction.
+  - A state object to continue a previous interaction. Must contain an `events` or `state` key, or be an empty dict `{}` to start a new conversation.
 ```
 
 ### Generation Options
@@ -478,6 +479,101 @@ print(response.choices[0].message.content)
 
 ---
 
+## GET /v1/models
+
+List the available LLM models from the configured upstream provider.
+This endpoint proxies the request to the provider specified by `MAIN_MODEL_ENGINE` and returns the results in the standard OpenAI models list format.
+
+For a guide on configuring providers, see [](../../run-rails/using-fastapi-server/list-models.md).
+
+### Request
+
+No request body or query parameters. The `Authorization` header, if present, is forwarded to the upstream provider.
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+### Response Body
+
+```json
+{
+  "data": [
+    {
+      "id": "meta/llama-3.1-8b-instruct",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "system"
+    },
+    {
+      "id": "meta/llama-3.1-70b-instruct",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "system"
+    }
+  ]
+}
+```
+
+#### Response Fields
+
+```{list-table}
+:header-rows: 1
+:widths: 20 15 65
+
+* - Field
+  - Type
+  - Description
+
+* - `data`
+  - array
+  - List of model objects.
+
+* - `data[].id`
+  - string
+  - The model identifier (e.g., `"gpt-4o"`, `"meta/llama-3.1-8b-instruct"`).
+
+* - `data[].object`
+  - string
+  - Always `"model"`.
+
+* - `data[].created`
+  - integer
+  - Unix timestamp of the model's creation.
+
+* - `data[].owned_by`
+  - string
+  - The organization that owns the model.
+```
+
+#### Error Responses
+
+```{list-table}
+:header-rows: 1
+:widths: 15 85
+
+* - Status
+  - Description
+
+* - 502
+  - The upstream provider is unreachable, `MAIN_MODEL_ENGINE` is unsupported, or `MAIN_MODEL_BASE_URL` is not set.
+
+* - 4xx
+  - Proxied from the upstream provider (e.g., 401 for an invalid API key).
+```
+
+### Example with OpenAI Python SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="not-used")
+for model in client.models.list().data:
+    print(model.id)
+```
+
+---
+
 ## GET /v1/rails/configs
 
 List all available guardrails configurations.
@@ -601,6 +697,16 @@ When `thread_id` is less than 16 characters:
 }
 ```
 
+### Invalid State Format
+
+When the `guardrails.state` object does not contain an `events` or `state` key, the server returns an HTTP 422 error:
+
+```json
+{
+  "detail": "Invalid state format: state must contain 'events' or 'state' key. Use an empty dict {} to start a new conversation."
+}
+```
+
 ### Internal Server Error
 
 ```json
@@ -650,7 +756,7 @@ The server supports the following environment variables:
   - Default guardrails configuration ID when none is specified in the request.
 
 * - `MAIN_MODEL_ENGINE`
-  - The LLM engine to use when the `model` field is specified in the request (e.g., `"openai"`, `"nim"`, `"vllm"`, `"anthropic"`). Default: `"openai"`.
+  - The LLM engine to use when the `model` field is specified in the request (e.g., `"openai"`, `"nim"`, `"vllm"`, `"anthropic"`, `"azure"` or `"azure_openai"`, `"cohere"`). Default: `"openai"`.
 
 * - `MAIN_MODEL_BASE_URL`
   - Base URL for the LLM provider when the `model` field is specified in the request. Useful for self-hosted models (e.g., `"http://localhost:8080/v1"`).
@@ -660,6 +766,24 @@ The server supports the following environment variables:
 
 * - `NVIDIA_API_KEY`
   - API key for NVIDIA-hosted models on build.nvidia.com.
+
+* - `ANTHROPIC_API_KEY`
+  - API key for Anthropic models. Used when `MAIN_MODEL_ENGINE` is `"anthropic"`.
+
+* - `AZURE_OPENAI_API_KEY`
+  - API key for Azure OpenAI. Used when `MAIN_MODEL_ENGINE` is `"azure"` or `"azure_openai"`.
+
+* - `AZURE_OPENAI_ENDPOINT`
+  - Azure OpenAI resource endpoint URL (e.g., `"https://your-resource.openai.azure.com"`). Required when `MAIN_MODEL_ENGINE` is `"azure"`.
+
+* - `AZURE_OPENAI_API_VERSION`
+  - Azure OpenAI API version. Default: `"2024-06-01"`.
+
+* - `COHERE_API_KEY`
+  - API key for Cohere models. Used when `MAIN_MODEL_ENGINE` is `"cohere"`.
+
+* - `COHERE_BASE_URL`
+  - Override the Cohere API base URL. Default: `"https://api.cohere.com"`.
 
 * - `NEMO_GUARDRAILS_SERVER_ENABLE_CORS`
   - Set to `"true"` to enable CORS. Default: `"false"`.

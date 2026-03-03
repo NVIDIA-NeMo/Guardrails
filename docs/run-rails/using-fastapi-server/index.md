@@ -56,6 +56,15 @@ Retrieve available guardrails configurations from the server.
 {bdg-secondary}`Reference`
 :::
 
+:::{grid-item-card} List Models
+:link: list-models
+:link-type: doc
+
+Query the available LLM models from the configured provider.
++++
+{bdg-secondary}`Reference`
+:::
+
 :::{grid-item-card} Actions Server
 :link: actions-server
 :link-type: doc
@@ -74,5 +83,6 @@ Overview <overview>
 Run the Server <run-guardrails-server>
 Chat Completions <chat-with-guardrailed-model>
 List Configurations <list-guardrail-configs>
+List Models <list-models>
 Actions Server <actions-server>
 ```
