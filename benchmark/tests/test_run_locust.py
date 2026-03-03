@@ -363,6 +363,15 @@ class TestLocustRunner:
 
             assert exit_code == 1
 
+    def test_run_dry_run(self, runner):
+        """Test dry-run mode prints command without executing subprocess or checking service."""
+        with patch.object(runner, "_check_service") as mock_check, patch("subprocess.run") as mock_run:
+            exit_code = runner.run(dry_run=True)
+
+            assert exit_code == 0
+            mock_check.assert_not_called()
+            mock_run.assert_not_called()
+
 
 class TestLoadConfigFromYaml:
     """Test _load_config_from_yaml function."""

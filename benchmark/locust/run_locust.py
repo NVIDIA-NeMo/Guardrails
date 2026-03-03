@@ -134,18 +134,19 @@ class LocustRunner:
 
     def run(self, dry_run: bool) -> int:
         """Run the Locust load test."""
-        # Check service availability
-        try:
-            self._check_service()
-        except RuntimeError as e:
-            log.error(str(e))
-            return 1
 
         # For dry-run, print command without creating directories or metadata
         if dry_run:
             command = self._build_locust_command()
             log.info("Dry run mode. Command: %s", " ".join(command))
             return 0
+
+        # Check service availability
+        try:
+            self._check_service()
+        except RuntimeError as e:
+            log.error(str(e))
+            return 1
 
         # Build command with output directory
         output_path = self._create_output_path(self.config.output_base_dir)
