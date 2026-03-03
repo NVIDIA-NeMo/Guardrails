@@ -85,7 +85,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:8000/v1",
-    api_key="not-used"  # Required by the SDK but not used by the guardrails server
+    api_key="not-used"  # Required by OpenAI SDK but not used by the guardrails server
 )
 
 response = client.chat.completions.create(
@@ -377,33 +377,6 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
                 "activated_rails": True
             }
         }
-    }
-})
-```
-
-### Continue with State
-
-To continue a conversation using the `state` object returned in a previous response, pass it back in the `guardrails.state` field.
-The state object must contain an `events` or `state` key. Use an empty dict `{}` to start a new conversation.
-
-```python
-# First request
-response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "guardrails": {
-        "config_id": "content_safety"
-    }
-})
-state = response.json().get("guardrails", {}).get("state")
-
-# Continue with state
-response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "model": "meta/llama-3.1-8b-instruct",
-    "messages": [{"role": "user", "content": "Tell me more"}],
-    "guardrails": {
-        "config_id": "content_safety",
-        "state": state
     }
 })
 ```

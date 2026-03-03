@@ -46,7 +46,6 @@ with guardrails-specific fields nested under a `guardrails` object.
   "max_tokens": 256,
   "guardrails": {
     "config_id": "my-config",
-    "options": {}
   }
 }
 ```
@@ -274,7 +273,7 @@ The response follows the standard OpenAI `ChatCompletion` format with an additio
 {
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
-  "created": 1700000000,
+  "created": 1709424000,
   "model": "meta/llama-3.1-8b-instruct",
   "choices": [
     {

@@ -81,20 +81,6 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-Or use the OpenAI Python SDK:
-
-```python
-from openai import OpenAI
-
-client = OpenAI(base_url="http://localhost:8000/v1", api_key="not-used")
-response = client.chat.completions.create(
-    model="meta/llama-3.1-8b-instruct",
-    messages=[{"role": "user", "content": "Hello!"}],
-    extra_body={"guardrails": {"config_id": "content_safety"}}
-)
-print(response.choices[0].message.content)
-```
-
 ### View the Chat UI
 
 Open `http://localhost:8000` in your browser to access the built-in Chat UI for testing.
