@@ -108,6 +108,7 @@ class TestLocustRunner:
             users=10,
             spawn_rate=2,
             run_time=30,
+            headless=True,
             output_base_dir=str(tmp_path / "locust_results"),
         )
 
@@ -214,9 +215,8 @@ class TestLocustRunner:
             mock_response.is_error = False
             mock_response.status_code = 200
             mock_response.text = "{'key': 'value'}"
-            mock_response.json.side_effect = JSONDecodeError(
-                "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)", "{'key': 'value'}", 1
-            )
+            json_error = JSONDecodeError("Expecting property name enclosed in double quotes", "{'key': 'value'}", 1)
+            mock_response.json.side_effect = json_error
             mock_get.return_value = mock_response
 
             with pytest.raises(RuntimeError) as exc_info:
@@ -225,7 +225,7 @@ class TestLocustRunner:
             mock_get.assert_called_once_with(self._service_health_endpoint(runner), timeout=5)
             assert (
                 exc_info.value.args[0]
-                == "Error: response {'key': 'value'} couldn't be parsed as JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1): line 1 column 2 (char 1)"
+                == f"Error: response {mock_response.text} couldn't be parsed as JSON: {json_error}"
             )
 
     def test_build_locust_command_basic(self, runner):
@@ -245,8 +245,20 @@ class TestLocustRunner:
         cmd = runner._build_locust_command(output_dir)
 
         assert "--headless" in cmd
+        assert "--only-summary" in cmd
         assert "--html" in cmd
         assert "--csv" in cmd
+
+    def test_build_locust_command_non_headless(self, runner):
+        """Test building Locust command in web UI mode (non-headless)."""
+        runner.config.headless = False
+
+        cmd = runner._build_locust_command()
+
+        assert "--headless" not in cmd
+        assert "--only-summary" not in cmd
+        assert "--html" not in cmd
+        assert "--csv" not in cmd
 
     def test_save_run_metadata(self, runner, tmp_path):
         """Test saving run metadata to file."""
@@ -479,3 +491,21 @@ class TestCLI:
             assert config.model == "test-model"
             # Verify run was called with dry_run parameter
             mock_runner.run.assert_called_once_with(False)
+
+    def test_run_command_with_dry_run(self, cli_runner, create_config_file):
+        """Test run command with --dry-run CLI option."""
+        config_file = create_config_file()
+
+        with patch("benchmark.locust.run_locust.LocustRunner") as mock_runner_class:
+            mock_runner = Mock()
+            mock_runner.run.return_value = 0
+            mock_runner_class.return_value = mock_runner
+
+            result = cli_runner.invoke(
+                app,
+                [str(config_file), "--dry-run"],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0, f"Output: {result.stdout}"
+            mock_runner.run.assert_called_once_with(True)

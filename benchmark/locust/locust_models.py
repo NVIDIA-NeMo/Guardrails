@@ -18,11 +18,13 @@
 Pydantic models for Locust load test configuration validation.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LocustConfig(BaseModel):
     """Configuration for a Locust load-test run"""
+
+    model_config = ConfigDict(extra="forbid")
 
     # Server details
     host: str = Field(

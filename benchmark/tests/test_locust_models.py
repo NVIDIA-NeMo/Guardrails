@@ -68,6 +68,18 @@ class TestLocustConfig:
         assert config.run_time == 120
         assert config.message == "Custom message"
         assert config.headless is True
+        assert config.output_base_dir == "/tmp/locust"
+
+    def test_config_extra_fields_forbidden(self):
+        """Test that extra/unknown fields raise validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            LocustConfig(
+                config_id="test-config",
+                model="test-model",
+                spawn_rats=5,  # typo of spawn_rate
+            )
+        error_msg = str(exc_info.value)
+        assert "spawn_rats" in error_msg
 
     def test_config_missing_required_fields(self):
         """Test that missing required fields raise validation error."""
