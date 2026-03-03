@@ -179,6 +179,7 @@ redirects = {
     "user-guides/advanced/nemoguard-topiccontrol-deployment": "getting-started/tutorials/nemoguard-topiccontrol-deployment.html",
     "user-guides/advanced/nemotron-safety-guard-deployment": "getting-started/tutorials/nemotron-safety-guard-deployment.html",
     "user-guides/advanced/nested-async-loop": "troubleshooting.html",
+    "user-guides/advanced/prompt-customization": "configure-rails/yaml-schema/prompt-configuration.html",
     "user-guides/advanced/streaming": "run-rails/using-python-apis/streaming.html",
     "user-guides/advanced/tools-integration": "integration/tools-integration.html",
     "user-guides/advanced/using-docker": "deployment/using-docker.html",
