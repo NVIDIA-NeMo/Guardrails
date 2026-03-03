@@ -21,4 +21,3 @@ Advanced
    vertexai-setup
    nemotron-safety-guard-deployment
    nemoguard-topiccontrol-deployment
-   Blueprint Integration <safeguarding-ai-virtual-assistant-blueprint>
