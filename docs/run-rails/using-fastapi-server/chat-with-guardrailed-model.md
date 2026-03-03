@@ -72,8 +72,8 @@ The `guardrails` response object may include additional fields depending on your
 
 - **`state`** — State object for continuing the conversation. Return this in subsequent requests to resume.
 - **`llm_output`** — Additional LLM output data (when `options.llm_output` is `true`).
-- **`output_data`** — Values for requested context variables (when `options.output_vars` is set).
-- **`log`** — Logging information (when `options.log` is configured).
+- **`output_data`** — Values for requested context variables (when `guardrails.options.output_vars` is set).
+- **`log`** — Logging information (when `guardrails.options.log` is configured).
 
 ## Using the OpenAI Python SDK
 
