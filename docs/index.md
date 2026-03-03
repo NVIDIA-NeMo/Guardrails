@@ -57,7 +57,7 @@ Connect to NVIDIA NIM, OpenAI, Azure, Anthropic, HuggingFace, and LangChain prov
 
 ## Get Started
 
-Follow these steps to start using the NeMo Guardrails library.
+Use the following guides to get started with the NeMo Guardrails library and browse the catalog of pre-built guardrails.
 
 ::::{grid} 1 1 2 2
 :gutter: 3
@@ -78,6 +78,15 @@ Install NeMo Guardrails with pip, configure your environment, and verify the ins
 Follow hands-on tutorials to deploy Nemotron Content Safety, Nemotron Topic Control, and Nemotron Jailbreak Detect
 +++
 {bdg-secondary}`Tutorial`
+:::
+
+:::{grid-item-card} Guardrail Catalog
+:link: configure-rails/guardrail-catalog/index
+:link-type: doc
+
+Reference for pre-built guardrails including content safety, jailbreak detection, topic control, PII handling, agentic security, and third party APIs.
++++
+{bdg-secondary}`Reference`
 :::
 ::::
 
