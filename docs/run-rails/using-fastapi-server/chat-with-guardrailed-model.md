@@ -71,7 +71,7 @@ The response follows the standard OpenAI `ChatCompletion` format, with an additi
 The `guardrails` response object may include additional fields depending on your request options:
 
 - **`state`** — State object for continuing the conversation. Return this in subsequent requests to resume.
-- **`llm_output`** — Additional LLM output data (when `options.llm_output` is `true`).
+- **`llm_output`** — Additional LLM output data (when `guardrails.options.llm_output` is `true`).
 - **`output_data`** — Values for requested context variables (when `guardrails.options.output_vars` is set).
 - **`log`** — Logging information (when `guardrails.options.log` is configured).
 
