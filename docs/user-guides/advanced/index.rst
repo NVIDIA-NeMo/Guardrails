@@ -15,7 +15,6 @@ Advanced
    jailbreak-detection-deployment
    llama-guard-deployment
    nested-async-loop
-   prompt-customization
    streaming
    using-docker
    vertexai-setup
