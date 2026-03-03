@@ -174,7 +174,7 @@ class TestLocustRunner:
             mock_response.is_error = True
             mock_response.status_code = 404
             mock_response.text = '{"detail":"Not Found"}'
-            mock_response.json.return_value = json.dumps(mock_response.text)
+            mock_response.json.return_value = json.loads(mock_response.text)
             mock_get.return_value = mock_response
 
             with pytest.raises(RuntimeError) as exc_info:

@@ -138,7 +138,12 @@ class LocustRunner:
         # For dry-run, print command without creating directories or metadata
         if dry_run:
             command = self._build_locust_command()
-            log.info("Dry run mode. Command: %s", " ".join(command))
+            env_vars = (
+                f"LOCUST_CONFIG_ID={self.config.config_id} "
+                f"LOCUST_MODEL={self.config.model} "
+                f"LOCUST_MESSAGE='{self.config.message}'"
+            )
+            log.info("Dry run mode. Command: %s %s", env_vars, " ".join(command))
             return 0
 
         # Check service availability
