@@ -24,6 +24,19 @@ content:
 
 This section describes how to customize prompts in the `config.yml` or `prompts.yml` file.
 
+## Task-Oriented Prompting
+
+The interaction with the LLM is task-oriented: each LLM call performs a specific task. The core tasks in the [guardrails process](../../reference/colang-architecture-guide.md) are:
+
+| Task | Description |
+|------|-------------|
+| `generate_user_intent` | Generate the canonical user message from raw utterance (e.g., "Hello there" → `express greeting`) |
+| `generate_next_steps` | Decide what the bot should say or what action to execute (e.g., `bot express greeting`) |
+| `generate_bot_message` | Decide the exact bot message to return |
+| `general` | Generate the next bot message based on history; used when no dialog rails are defined |
+
+For the complete list of tasks, see [Task type](https://github.com/NVIDIA/NeMo-Guardrails/blob/develop/nemoguardrails/llm/types.py).
+
 ## The `prompts` Key
 
 The `prompts` key allows you to customize the prompts used for various LLM tasks.
@@ -105,6 +118,41 @@ prompts:
       ...
 ```
 
+## Prompting Modes
+
+Use the `mode` attribute to define multiple prompt versions for the same task and model. This enables prompt engineering experiments such as compact prompts for lower latency.
+
+**Configuration:**
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo
+
+prompting_mode: "compact"  # Default is "standard"
+```
+
+**Prompt definition:**
+
+```yaml
+prompts:
+  - task: generate_user_intent
+    models:
+      - openai/gpt-3.5-turbo
+    content: |
+      Default prompt with full context including {{ history }}
+
+  - task: generate_user_intent
+    models:
+      - openai/gpt-3.5-turbo
+    mode: compact
+    content: |
+      Smaller prompt with reduced few-shot examples
+```
+
+The `mode` in the prompt definition must match the `prompting_mode` in the top-level configuration. If no matching mode is found, the `standard` prompt is used.
+
 ## Prompt Attributes Reference
 
 | Attribute | Type | Default | Description |
@@ -121,18 +169,78 @@ prompts:
 
 ## Template Variables
 
-The following table lists common variables you can use in the prompt content:
+Prompt templates use [Jinja2](https://jinja.palletsprojects.com/) for variable substitution. Three types of variables are available:
+
+### System Variables
 
 | Variable | Description |
 |----------|-------------|
 | `{{ user_input }}` | Current user message (used in self-check prompts) |
 | `{{ bot_response }}` | Current bot response (used in output rail prompts) |
 | `{{ history }}` | Conversation history (supports filters like `colang`, `user_assistant_sequence`) |
-| `{{ relevant_chunks }}` | Retrieved knowledge base chunks |
+| `{{ relevant_chunks }}` | Retrieved knowledge base chunks (only for `generate_bot_message` task) |
 | `{{ general_instructions }}` | General instructions from the `instructions` config |
 | `{{ sample_conversation }}` | Sample conversation from the config (supports `first_turns` filter) |
 | `{{ examples }}` | Example conversations for few-shot prompting |
 | `{{ potential_user_intents }}` | List of possible user intents |
+
+### Prompt Variables
+
+Register custom variables using the `LLMRails.register_prompt_context()` method:
+
+```python
+from nemoguardrails import LLMRails
+
+rails = LLMRails(config)
+rails.register_prompt_context("company_name", "Acme Corp")
+rails.register_prompt_context("current_date", lambda: datetime.now().isoformat())
+```
+
+If a function is provided, the value is computed for each rendering.
+
+### Context Variables
+
+Flows in your guardrails configuration can define [context variables](../colang/colang-1/colang-language-syntax-guide.md#variables). These variables are also available in prompt templates.
+
+## Filters
+
+Filters modify variable content using the pipe symbol (`|`). The library provides these predefined filters:
+
+| Filter | Description |
+|--------|-------------|
+| `colang` | Transforms an array of events into Colang representation |
+| `remove_text_messages` | Removes text messages from Colang history, leaving only intents and actions |
+| `first_turns(n)` | Limits a Colang history to the first `n` turns |
+| `user_assistant_sequence` | Transforms events into "User: .../Assistant: ..." format |
+| `to_messages` | Transforms Colang history into user/bot messages for chat models |
+| `verbose_v1` | Transforms Colang history into a more verbose, explicit form |
+
+**Example:**
+
+```yaml
+content: |
+  {{ sample_conversation | first_turns(2) }}
+  {{ history | colang }}
+```
+
+## Output Parsers
+
+Use the `output_parser` attribute to parse LLM output. Available parsers:
+
+| Parser | Description |
+|--------|-------------|
+| `user_intent` | Removes "User intent:" prefix if present |
+| `bot_intent` | Removes "Bot intent:" prefix if present |
+| `bot_message` | Removes "Bot message:" prefix if present |
+| `verbose_v1` | Parses output from the `verbose_v1` filter |
+
+```yaml
+prompts:
+  - task: generate_user_intent
+    output_parser: user_intent
+    content: |
+      ...
+```
 
 ## Example Configurations
 
@@ -191,6 +299,47 @@ prompts:
       Answer:
 ```
 
+## Custom Tasks and Prompts
+
+Define custom tasks beyond the built-in tasks by adding them to your prompts configuration:
+
+```yaml
+prompts:
+  - task: summarize_text
+    content: |
+      Text: {{ user_input }}
+      Summarize the above text.
+```
+
+Render custom task prompts in an action using `LLMTaskManager`:
+
+```python
+prompt = llm_task_manager.render_task_prompt(
+    task="summarize_text",
+    context={
+        "user_input": user_input,
+    },
+)
+
+result = await llm_call(llm, prompt, llm_params={"temperature": 0.0})
+```
+
+## Predefined Prompts
+
+The library includes predefined prompts for these models:
+
+- `openai/gpt-3.5-turbo-instruct`
+- `openai/gpt-3.5-turbo`
+- `openai/gpt-4`
+- `databricks/dolly-v2-3b`
+- `cohere/command`
+- `cohere/command-light`
+- `cohere/command-light-nightly`
+
+```{note}
+Predefined prompts are continuously evaluated and improved. Test and customize prompts for your specific use case before deploying to production.
+```
+
 ## Environment Variable
 
 You can also load prompts from an external directory by setting:
@@ -200,7 +349,3 @@ export PROMPTS_DIR=/path/to/prompts
 ```
 
 The directory must contain `.yml` files with prompt definitions.
-
-## Related Topics
-
-- [](../yaml-schema/prompt-configuration.md) - Advanced prompt customization
