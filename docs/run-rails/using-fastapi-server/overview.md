@@ -17,7 +17,8 @@ content:
 The NeMo Guardrails API server:
 
 - Loads guardrails configurations at startup.
-- Exposes a REST API compatible with OpenAI's chat completions format.
+- Exposes an [OpenAI-compatible REST API](https://platform.openai.com/docs/api-reference/chat/create) for chat completions.
+- Works with the [OpenAI Python SDK](https://github.com/openai/openai-python) — use `OpenAI(base_url="http://localhost:8000/v1")`.
 - Includes a built-in Chat UI for testing.
 - Supports multiple configurations and combining them per-request.
 
@@ -72,9 +73,26 @@ Send a chat completion request to the server:
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "content_safety",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "guardrails": {
+      "config_id": "content_safety"
+    }
   }'
+```
+
+Or use the OpenAI Python SDK:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="not-used")
+response = client.chat.completions.create(
+    model="meta/llama-3.1-8b-instruct",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_body={"guardrails": {"config_id": "content_safety"}}
+)
+print(response.choices[0].message.content)
 ```
 
 ### View the Chat UI

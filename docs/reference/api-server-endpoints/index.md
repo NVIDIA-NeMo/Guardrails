@@ -1,6 +1,7 @@
 # NeMo Guardrails Library API Server Endpoints Reference
 
 This reference documents the REST API endpoints provided by the NeMo Guardrails library API server.
+The server exposes an OpenAI-compatible Chat Completions API with additional guardrails-specific extensions.
 
 ## Starting the Server
 
@@ -28,21 +29,28 @@ For more information about server options, see [](../../run-rails/using-fastapi-
 ## POST /v1/chat/completions
 
 Generate a chat completion with guardrails applied.
+The request and response formats are compatible with the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create),
+with guardrails-specific fields nested under a `guardrails` object.
 
 ### Request Body
 
 ```json
 {
-  "config_id": "my-config",
+  "model": "meta/llama-3.1-8b-instruct",
   "messages": [
     {"role": "user", "content": "Hello, how are you?"}
   ],
   "stream": false,
-  "options": {}
+  "temperature": 0.7,
+  "max_tokens": 256,
+  "guardrails": {
+    "config_id": "my-config",
+    "options": {}
+  }
 }
 ```
 
-#### Request Fields
+#### OpenAI Fields
 
 ```{list-table}
 :header-rows: 1
@@ -53,42 +61,91 @@ Generate a chat completion with guardrails applied.
   - Required
   - Description
 
-* - `config_id`
+* - `model`
   - string
-  - No
-  - The ID of the configuration to use. If not set, uses the server's default configuration.
-
-* - `config_ids`
-  - array of strings
-  - No
-  - List of configuration IDs to combine. Mutually exclusive with `config_id`.
+  - **Yes**
+  - The LLM model to use for chat completion (e.g., `"meta/llama-3.1-8b-instruct"`, `"gpt-4o"`).
 
 * - `messages`
   - array of objects
   - No
   - The list of messages in the current conversation. Each message has `role` and `content` fields.
 
-* - `thread_id`
-  - string
-  - No
-  - ID of an existing thread for conversation persistence. Must be 16-255 characters.
-
-* - `context`
-  - object
-  - No
-  - Additional context data to add to the conversation.
-
 * - `stream`
   - boolean
   - No
   - If `true`, returns partial message deltas as server-sent events. Default: `false`.
 
-* - `options`
+* - `max_tokens`
+  - integer
+  - No
+  - The maximum number of tokens to generate.
+
+* - `temperature`
+  - float
+  - No
+  - Sampling temperature (0-2). Higher values make output more random.
+
+* - `top_p`
+  - float
+  - No
+  - Top-p (nucleus) sampling parameter.
+
+* - `stop`
+  - string or array
+  - No
+  - Stop sequence(s) where the model stops generating.
+
+* - `presence_penalty`
+  - float
+  - No
+  - Presence penalty parameter (-2.0 to 2.0).
+
+* - `frequency_penalty`
+  - float
+  - No
+  - Frequency penalty parameter (-2.0 to 2.0).
+```
+
+#### Guardrails Fields
+
+Guardrails-specific fields are nested under the `guardrails` object in the request body.
+
+```{list-table}
+:header-rows: 1
+:widths: 20 15 10 55
+
+* - Field
+  - Type
+  - Required
+  - Description
+
+* - `guardrails.config_id`
+  - string
+  - No
+  - The ID of the guardrails configuration to use. If not set, uses the server's default configuration. Mutually exclusive with `config_ids`.
+
+* - `guardrails.config_ids`
+  - array of strings
+  - No
+  - List of configuration IDs to combine. Mutually exclusive with `config_id`.
+
+* - `guardrails.thread_id`
+  - string
+  - No
+  - ID of an existing thread for conversation persistence. Must be 16-255 characters.
+
+* - `guardrails.context`
+  - object
+  - No
+  - Additional context data to add to the conversation.
+
+* - `guardrails.options`
   - object
   - No
   - Additional options for controlling the generation. See [Generation Options](#generation-options).
 
-* - `state`
+* - `guardrails.state`
   - object
   - No
   - A state object to continue a previous interaction.
@@ -96,25 +153,28 @@ Generate a chat completion with guardrails applied.
 
 ### Generation Options
 
-The `options` field controls which rails are applied and what information is returned.
+The `guardrails.options` field controls which rails are applied and what information is returned.
 
 ```json
 {
-  "options": {
-    "rails": {
-      "input": true,
-      "output": true,
-      "dialog": true,
-      "retrieval": true
-    },
-    "llm_params": {
-      "temperature": 0.7
-    },
-    "llm_output": false,
-    "output_vars": ["relevant_chunks"],
-    "log": {
-      "activated_rails": true,
-      "llm_calls": false
+  "guardrails": {
+    "config_id": "my-config",
+    "options": {
+      "rails": {
+        "input": true,
+        "output": true,
+        "dialog": true,
+        "retrieval": true
+      },
+      "llm_params": {
+        "temperature": 0.7
+      },
+      "llm_output": false,
+      "output_vars": ["relevant_chunks"],
+      "log": {
+        "activated_rails": true,
+        "llm_calls": false
+      }
     }
   }
 }
@@ -207,15 +267,31 @@ The `options` field controls which rails are applied and what information is ret
 
 ### Response Body
 
+The response follows the standard OpenAI `ChatCompletion` format with an additional `guardrails` object.
+
 ```json
 {
-  "messages": [
-    {"role": "assistant", "content": "I'm doing well, thank you!"}
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "meta/llama-3.1-8b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I'm doing well, thank you!"
+      },
+      "finish_reason": "stop"
+    }
   ],
-  "llm_output": null,
-  "output_data": null,
-  "log": null,
-  "state": null
+  "guardrails": {
+    "config_id": "content_safety",
+    "llm_output": null,
+    "output_data": null,
+    "log": null,
+    "state": null
+  }
 }
 ```
 
@@ -229,25 +305,60 @@ The `options` field controls which rails are applied and what information is ret
   - Type
   - Description
 
-* - `messages`
-  - array of objects
-  - The new messages in the conversation (typically the assistant's response).
+* - `id`
+  - string
+  - A unique identifier for the chat completion (e.g., `"chatcmpl-abc123"`).
 
-* - `llm_output`
-  - object
-  - Additional output from the LLM. Only included if `options.llm_output` is `true`.
+* - `object`
+  - string
+  - Always `"chat.completion"`.
 
-* - `output_data`
-  - object
-  - Values for requested output variables. Only included if `options.output_vars` is set.
+* - `created`
+  - integer
+  - Unix timestamp of when the completion was created.
 
-* - `log`
-  - object
-  - Logging information based on `options.log` settings.
+* - `model`
+  - string
+  - The model used for the completion.
 
-* - `state`
+* - `choices`
+  - array
+  - Array of completion choices. Each choice contains `index`, `message` (with `role` and `content`), and `finish_reason`.
+
+* - `guardrails`
   - object
-  - State object for continuing the interaction in future requests.
+  - Guardrails-specific output data. See below.
+```
+
+#### Guardrails Response Fields
+
+```{list-table}
+:header-rows: 1
+:widths: 20 15 65
+
+* - Field
+  - Type
+  - Description
+
+* - `guardrails.config_id`
+  - string
+  - The guardrails configuration ID associated with this response.
+
+* - `guardrails.state`
+  - object
+  - State object for continuing the conversation in future requests.
+
+* - `guardrails.llm_output`
+  - object
+  - Additional LLM output data. Only included if `guardrails.options.llm_output` was `true`.
+
+* - `guardrails.output_data`
+  - object
+  - Values for requested output variables. Only included if `guardrails.options.output_vars` was set.
+
+* - `guardrails.log`
+  - object
+  - Logging information based on `guardrails.options.log` settings.
 ```
 
 ### Examples
@@ -258,10 +369,13 @@ The `options` field controls which rails are applied and what information is ret
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
       {"role": "user", "content": "What is the capital of France?"}
-    ]
+    ],
+    "guardrails": {
+      "config_id": "content_safety"
+    }
   }'
 ```
 
@@ -271,12 +385,25 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
       {"role": "user", "content": "Tell me a story"}
     ],
-    "stream": true
+    "stream": true,
+    "guardrails": {
+      "config_id": "content_safety"
+    }
   }'
+```
+
+Streaming responses use Server-Sent Events (SSE). Each chunk is a `chat.completion.chunk` object:
+
+```text
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Once"},"index":0,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":" upon"},"index":0,"finish_reason":null}]}
+
+data: [DONE]
 ```
 
 #### Request with Specific Rails
@@ -285,15 +412,18 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
       {"role": "user", "content": "Hello"}
     ],
-    "options": {
-      "rails": {
-        "input": ["check jailbreak"],
-        "output": false,
-        "dialog": false
+    "guardrails": {
+      "config_id": "content_safety",
+      "options": {
+        "rails": {
+          "input": ["check jailbreak"],
+          "output": false,
+          "dialog": false
+        }
       }
     }
   }'
@@ -305,17 +435,45 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
       {"role": "user", "content": "Hello"}
     ],
-    "options": {
-      "log": {
-        "activated_rails": true,
-        "llm_calls": true
+    "guardrails": {
+      "config_id": "content_safety",
+      "options": {
+        "log": {
+          "activated_rails": true,
+          "llm_calls": true
+        }
       }
     }
   }'
+```
+
+#### Request with OpenAI Python SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-used"
+)
+
+response = client.chat.completions.create(
+    model="meta/llama-3.1-8b-instruct",
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ],
+    extra_body={
+        "guardrails": {
+            "config_id": "content_safety"
+        }
+    }
+)
+
+print(response.choices[0].message.content)
 ```
 
 ---
@@ -382,18 +540,38 @@ Root endpoint that serves the Chat UI or returns a health status.
 
 ## Error Responses
 
+Errors from the chat completions endpoint are returned as `ChatCompletion` objects with the error message in the assistant's content, or as HTTP exceptions.
+
 ### Configuration Error
 
-When no configuration is provided and no default is set:
+When the guardrails configuration cannot be loaded:
 
 ```json
 {
-  "messages": [
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "meta/llama-3.1-8b-instruct",
+  "choices": [
     {
-      "role": "assistant",
-      "content": "Could not load the [config_id] guardrails configuration. An internal error has occurred."
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Could not load the ['my-config'] guardrails configuration. An internal error has occurred."
+      },
+      "finish_reason": "stop"
     }
   ]
+}
+```
+
+### Missing Configuration
+
+When no `config_id` is provided and no default is set, the server returns an HTTP 422 error:
+
+```json
+{
+  "detail": "No guardrails config_id provided and server has no default configuration"
 }
 ```
 
@@ -403,12 +581,23 @@ When `thread_id` is less than 16 characters:
 
 ```json
 {
-  "messages": [
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "meta/llama-3.1-8b-instruct",
+  "choices": [
     {
-      "role": "assistant",
-      "content": "The `thread_id` must have a minimum length of 16 characters."
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The `thread_id` must have a minimum length of 16 characters."
+      },
+      "finish_reason": "stop"
     }
-  ]
+  ],
+  "guardrails": {
+    "config_id": "my-config"
+  }
 }
 ```
 
@@ -416,13 +605,32 @@ When `thread_id` is less than 16 characters:
 
 ```json
 {
-  "messages": [
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "meta/llama-3.1-8b-instruct",
+  "choices": [
     {
-      "role": "assistant",
-      "content": "Internal server error."
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Internal server error"
+      },
+      "finish_reason": "stop"
     }
-  ]
+  ],
+  "guardrails": {
+    "config_id": "my-config"
+  }
 }
+```
+
+### Streaming Errors
+
+During streaming, errors are sent as SSE events with an `error` object:
+
+```text
+data: {"error": {"message": "...", "type": "...", "param": "...", "code": "..."}}
 ```
 
 ---
@@ -439,7 +647,19 @@ The server supports the following environment variables:
   - Description
 
 * - `DEFAULT_CONFIG_ID`
-  - Default configuration ID when none is specified in the request.
+  - Default guardrails configuration ID when none is specified in the request.
+
+* - `MAIN_MODEL_ENGINE`
+  - The LLM engine to use when the `model` field is specified in the request (e.g., `"openai"`, `"nim"`, `"vllm"`, `"anthropic"`). Default: `"openai"`.
+
+* - `MAIN_MODEL_BASE_URL`
+  - Base URL for the LLM provider when the `model` field is specified in the request. Useful for self-hosted models (e.g., `"http://localhost:8080/v1"`).
+
+* - `OPENAI_API_KEY`
+  - API key for OpenAI models.
+
+* - `NVIDIA_API_KEY`
+  - API key for NVIDIA-hosted models on build.nvidia.com.
 
 * - `NEMO_GUARDRAILS_SERVER_ENABLE_CORS`
   - Set to `"true"` to enable CORS. Default: `"false"`.

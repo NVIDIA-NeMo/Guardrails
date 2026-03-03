@@ -3,7 +3,7 @@ title:
   page: "Chat with Guardrailed Model"
   nav: "Chat Completions"
 description: "Send chat requests, use streaming, and manage conversation threads."
-keywords: ["chat completions", "guardrails API", "streaming responses", "conversation threads", "config_id"]
+keywords: ["chat completions", "guardrails API", "streaming responses", "conversation threads", "config_id", "OpenAI compatible"]
 topics: ["generative_ai", "developer_tools"]
 tags: ["llms", "ai_inference", "ai_platforms"]
 content:
@@ -15,40 +15,84 @@ content:
 # Chat with Guardrailed Model
 
 Use the `/v1/chat/completions` endpoint to send messages and receive guarded responses from the server.
-
-:::{note}
-While the endpoint is in the same format as the OpenAI's chat completions API endpoint, it is currently not compatible with the OpenAI API.
-:::
+The endpoint is compatible with the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat/create),
+with additional guardrails-specific fields nested under a `guardrails` object.
 
 ## Basic Request
 
-Send a POST request to the chat completions endpoint:
+Send a POST request to the chat completions endpoint.
+The `model` field is required and specifies which LLM to use.
+Guardrails-specific fields such as `config_id` are nested under the `guardrails` object.
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
       {"role": "user", "content": "Hello! What can you do for me?"}
-    ]
+    ],
+    "guardrails": {
+      "config_id": "content_safety"
+    }
   }'
 ```
 
 ### Response
 
+The response follows the standard OpenAI `ChatCompletion` format, with an additional `guardrails` object containing guardrails-specific output data.
+
 ```json
 {
-  "messages": [
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "meta/llama-3.1-8b-instruct",
+  "choices": [
     {
-      "role": "assistant",
-      "content": "I can help you with your questions. What would you like to know?"
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I can help you with your questions. What would you like to know?"
+      },
+      "finish_reason": "stop"
     }
-  ]
+  ],
+  "guardrails": {
+    "config_id": "content_safety"
+  }
 }
 ```
 
-## Using Python
+## Using the OpenAI Python SDK
+
+Since the server is OpenAI-compatible, you can use the [OpenAI Python SDK](https://github.com/openai/openai-python) to interact with it.
+Pass guardrails-specific fields using the `extra_body` parameter.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-used"  # Required by the SDK but not used by the guardrails server
+)
+
+response = client.chat.completions.create(
+    model="meta/llama-3.1-8b-instruct",
+    messages=[
+        {"role": "user", "content": "Hello! What can you do for me?"}
+    ],
+    extra_body={
+        "guardrails": {
+            "config_id": "content_safety"
+        }
+    }
+)
+
+print(response.choices[0].message.content)
+```
+
+## Using Python Requests
 
 ```python
 import requests
@@ -56,10 +100,13 @@ import requests
 base_url = "http://localhost:8000"
 
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
         {"role": "user", "content": "Hello! What can you do for me?"}
-    ]
+    ],
+    "guardrails": {
+        "config_id": "content_safety"
+    }
 })
 
 print(response.json())
@@ -67,14 +114,17 @@ print(response.json())
 
 ## Combine Multiple Configurations
 
-You can combine multiple guardrails configurations in a single request using `config_ids`:
+You can combine multiple guardrails configurations in a single request using `config_ids` inside the `guardrails` object:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_ids": ["main", "input_checking", "output_checking"],
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
         {"role": "user", "content": "Hello!"}
-    ]
+    ],
+    "guardrails": {
+        "config_ids": ["main", "input_checking", "output_checking"]
+    }
 })
 ```
 
@@ -97,10 +147,13 @@ Create reusable *atomic configurations* that you can combine as needed:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "main",
-    "messages": [{"role": "user", "content": "You are stupid."}]
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "You are stupid."}],
+    "guardrails": {
+        "config_id": "main"
+    }
 })
-print(response.json())
+print(response.json()["choices"][0]["message"]["content"])
 # LLM responds to the message
 ```
 
@@ -108,21 +161,25 @@ print(response.json())
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_ids": ["main", "input_checking"],
-    "messages": [{"role": "user", "content": "You are stupid."}]
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "You are stupid."}],
+    "guardrails": {
+        "config_ids": ["main", "input_checking"]
+    }
 })
-print(response.json())
-# {"messages": [{"role": "assistant", "content": "I'm sorry, I can't respond to that."}]}
+print(response.json()["choices"][0]["message"]["content"])
+# "I'm sorry, I can't respond to that."
 ```
 
 The input rail blocks the inappropriate message before it reaches the LLM.
 
 ## Use the Default Configuration
 
-If the server was started with `--default-config-id`, you can omit the configuration:
+If the server was started with `--default-config-id`, you can omit the `guardrails` object:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [
         {"role": "user", "content": "Hello!"}
     ]
@@ -131,7 +188,61 @@ response = requests.post(f"{base_url}/v1/chat/completions", json={
 
 ## Streaming Responses
 
-Enable streaming to receive partial responses as they are generated:
+Enable streaming to receive partial responses as server-sent events (SSE).
+Each chunk follows the OpenAI streaming format.
+
+### Using curl
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "Tell me a story"}],
+    "stream": true,
+    "guardrails": {
+      "config_id": "content_safety"
+    }
+  }'
+```
+
+The server sends chunks in SSE format:
+
+```text
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":"Once"},"index":0,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1700000000,"model":"meta/llama-3.1-8b-instruct","choices":[{"delta":{"content":" upon"},"index":0,"finish_reason":null}]}
+
+data: [DONE]
+```
+
+### Using the OpenAI Python SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-used"
+)
+
+stream = client.chat.completions.create(
+    model="meta/llama-3.1-8b-instruct",
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    stream=True,
+    extra_body={
+        "guardrails": {
+            "config_id": "content_safety"
+        }
+    }
+)
+
+for chunk in stream:
+    if chunk.choices[0].delta.content is not None:
+        print(chunk.choices[0].delta.content, end="")
+```
+
+### Using Python Requests
 
 ```python
 import requests
@@ -139,9 +250,12 @@ import requests
 response = requests.post(
     f"{base_url}/v1/chat/completions",
     json={
-        "config_id": "content_safety",
+        "model": "meta/llama-3.1-8b-instruct",
         "messages": [{"role": "user", "content": "Tell me a story"}],
-        "stream": True
+        "stream": True,
+        "guardrails": {
+            "config_id": "content_safety"
+        }
     },
     stream=True
 )
@@ -153,7 +267,7 @@ for line in response.iter_lines():
 
 ## Conversation Threads
 
-Use `thread_id` to maintain conversation history on the server.
+Use `thread_id` inside the `guardrails` object to maintain conversation history on the server.
 This is useful when you can only send the latest message rather than the full history.
 
 ```{tip}
@@ -163,16 +277,22 @@ The `thread_id` must be at least 16 characters long for security reasons.
 ```python
 # First message
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "content_safety",
-    "thread_id": "user-session-12345678",
-    "messages": [{"role": "user", "content": "My name is Alice."}]
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "My name is Alice."}],
+    "guardrails": {
+        "config_id": "content_safety",
+        "thread_id": "user-session-12345678"
+    }
 })
 
 # Follow-up message (server remembers the conversation)
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "content_safety",
-    "thread_id": "user-session-12345678",
-    "messages": [{"role": "user", "content": "What is my name?"}]
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "What is my name?"}],
+    "guardrails": {
+        "config_id": "content_safety",
+        "thread_id": "user-session-12345678"
+    }
 })
 # The assistant remembers "Alice"
 ```
@@ -209,36 +329,56 @@ To use `RedisStore`, install `aioredis >= 2.0.1`.
 
 ## Add Context
 
-Include additional context data in your request:
+Include additional context data in your request using the `context` field inside the `guardrails` object:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [{"role": "user", "content": "What is my account balance?"}],
-    "context": {
-        "user_id": "12345",
-        "account_type": "premium"
+    "guardrails": {
+        "config_id": "content_safety",
+        "context": {
+            "user_id": "12345",
+            "account_type": "premium"
+        }
     }
 })
 ```
 
 ## Control Generation Options
 
-Use the `options` field to control which rails are applied and what information is returned:
+Use the `options` field inside the `guardrails` object to control which rails are applied and what information is returned:
 
 ```python
 response = requests.post(f"{base_url}/v1/chat/completions", json={
-    "config_id": "content_safety",
+    "model": "meta/llama-3.1-8b-instruct",
     "messages": [{"role": "user", "content": "Hello"}],
-    "options": {
-        "rails": {
-            "input": True,
-            "output": True,
-            "dialog": False
-        },
-        "log": {
-            "activated_rails": True
+    "guardrails": {
+        "config_id": "content_safety",
+        "options": {
+            "rails": {
+                "input": True,
+                "output": True,
+                "dialog": False
+            },
+            "log": {
+                "activated_rails": True
+            }
         }
+    }
+})
+```
+
+You can also pass standard OpenAI parameters such as `temperature`, `max_tokens`, and `top_p` at the top level:
+
+```python
+response = requests.post(f"{base_url}/v1/chat/completions", json={
+    "model": "meta/llama-3.1-8b-instruct",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "temperature": 0.7,
+    "max_tokens": 256,
+    "guardrails": {
+        "config_id": "content_safety"
     }
 })
 ```

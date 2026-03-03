@@ -72,8 +72,11 @@ if configs:
     config_id = configs[0]["id"]
 
     response = requests.post(f"{base_url}/v1/chat/completions", json={
-        "config_id": config_id,
-        "messages": [{"role": "user", "content": "Hello!"}]
+        "model": "meta/llama-3.1-8b-instruct",
+        "messages": [{"role": "user", "content": "Hello!"}],
+        "guardrails": {
+            "config_id": config_id
+        }
     })
     print(response.json())
 ```
