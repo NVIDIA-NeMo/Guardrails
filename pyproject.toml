@@ -51,6 +51,11 @@ aiohttp-retry = ">=2.9.0"
 annoy = ">=1.17.3"
 fastapi = ">=0.103.0,"
 fastembed = [{ version = ">=0.2.2", python = ">=3.10,<3.14" }]
+# onnxruntime 1.24+ dropped Python 3.10 wheels; cap it for that version
+onnxruntime = [
+    { version = ">=1.17.0,<1.24", python = ">=3.10,<3.11" },
+    { version = ">=1.17.0", python = ">=3.11" },
+]
 httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
 langchain = ">=0.2.14,<2.0.0"
