@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [Unreleased]
+
+### 🚀 Features
+
+- *(library)* Add Zscaler AI Guard integration for input/output moderation via `zscaler-sdk-python` SDK
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features

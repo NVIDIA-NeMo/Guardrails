@@ -1,0 +1,23 @@
+# INPUT RAILS
+
+flow zscaler aiguard moderation on input
+  $result = await CallZscalerAiguardApiAction(text=$user_message, direction="IN")
+
+  if $result.action == "BLOCK"
+    if $system.config.enable_rails_exceptions
+      send ZscalerAiguardInputRailException(message="Zscaler AI Guard blocked the user prompt. Severity: {$result.severity}. Policy: {$result.policy_name}.")
+    else
+      bot inform answer unknown
+    abort
+
+# OUTPUT RAILS
+
+flow zscaler aiguard moderation on output
+  $result = await CallZscalerAiguardApiAction(text=$bot_message, direction="OUT")
+
+  if $result.action == "BLOCK"
+    if $system.config.enable_rails_exceptions
+      send ZscalerAiguardOutputRailException(message="Zscaler AI Guard blocked the LLM response. Severity: {$result.severity}. Policy: {$result.policy_name}.")
+    else
+      bot inform answer unknown
+    abort
