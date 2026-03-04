@@ -29,6 +29,7 @@ from nemoguardrails.actions.llm.utils import (
     _infer_provider_from_module,
     _store_reasoning_traces,
     _store_tool_calls,
+    _stream_llm_call,
     llm_call,
 )
 from nemoguardrails.context import reasoning_trace_var, tool_calls_var
@@ -712,3 +713,48 @@ class TestFilterParamsForOpenAIReasoningModels:
         original_params = {"max_tokens": 100}
         await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=original_params)
         assert original_params == {"max_tokens": 100}
+
+
+async def _empty_astream(*args, **kwargs):
+    return
+    yield
+
+
+class _FakeLLM:
+    def __init__(self, stop=None, kwargs=None):
+        self.stop = stop
+        if kwargs is not None:
+            self.kwargs = kwargs
+        self.astream = _empty_astream
+
+
+class TestStreamLlmCallStopCoercion:
+    @pytest.mark.asyncio
+    async def test_llm_stop_attr_none_coerced_to_list(self):
+        from nemoguardrails.streaming import StreamingHandler
+
+        llm = _FakeLLM(stop=None)
+        handler = StreamingHandler()
+        await _stream_llm_call(llm, "prompt", handler)
+
+        assert handler.stop == []
+
+    @pytest.mark.asyncio
+    async def test_llm_kwargs_stop_none_coerced_to_list(self):
+        from nemoguardrails.streaming import StreamingHandler
+
+        llm = _FakeLLM(kwargs={"stop": None})
+        handler = StreamingHandler()
+        await _stream_llm_call(llm, "prompt", handler)
+
+        assert handler.stop == []
+
+    @pytest.mark.asyncio
+    async def test_llm_with_valid_stop_preserved(self):
+        from nemoguardrails.streaming import StreamingHandler
+
+        llm = _FakeLLM(stop=["User:"])
+        handler = StreamingHandler()
+        await _stream_llm_call(llm, "prompt", handler)
+
+        assert handler.stop == ["User:"]

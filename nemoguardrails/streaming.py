@@ -16,7 +16,7 @@
 import asyncio
 import logging
 import warnings
-from typing import Any, AsyncIterator, Dict, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from nemoguardrails.utils import new_uuid
 
@@ -83,11 +83,18 @@ class StreamingHandler(AsyncIterator):
         # If set, the chunk will be piped to the specified handler rather than added to the queue or printed
         self.pipe_to = None
 
-        # The stop chunks
-        self.stop = []
+        self._stop = []
 
         self.include_metadata = include_metadata
         self.current_metadata = {}
+
+    @property
+    def stop(self) -> List[str]:
+        return self._stop
+
+    @stop.setter
+    def stop(self, value: Optional[List[str]]) -> None:
+        self._stop = value or []
 
     def set_pattern(self, prefix: Optional[str] = None, suffix: Optional[str] = None):
         """Sets the pattern that is expected.
