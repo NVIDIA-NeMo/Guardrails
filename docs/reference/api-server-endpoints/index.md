@@ -151,6 +151,69 @@ Guardrails-specific fields are nested under the `guardrails` object in the reque
   - A state object to continue a previous interaction. Must contain an `events` or `state` key, or be an empty dict `{}` to start a new conversation.
 ```
 
+### Authentication Headers
+
+The server supports per-request API key injection via custom HTTP headers. This allows different requests to use different API keys for the configured LLM models, without modifying the server configuration or environment variables.
+
+#### Header Format
+
+For each model in your guardrails configuration, you can provide a custom API key using a header in the format:
+
+```
+X-{model-name}-Authorization: your-api-key-here
+```
+
+The header name is **case-insensitive** and the model name should match the `model` field in your configuration (spaces and special characters should be preserved as-is, though the header matching is case-insensitive).
+
+#### Examples
+
+**Single Model Configuration**
+
+If your configuration uses `gpt-3.5-turbo` as the main model:
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-Gpt-3.5-Turbo-Authorization: sk-custom-key-123" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "guardrails": {"config_id": "my-config"}
+  }'
+```
+
+**Multi-Model Configuration**
+
+If your configuration uses multiple models (e.g., `gpt-3.5-turbo` for main generation and `gpt-4` for self-check), you can provide separate keys for each:
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-Gpt-3.5-Turbo-Authorization: sk-main-key-789" \
+  -H "X-Gpt-4-Authorization: sk-selfcheck-key-012" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "guardrails": {"config_id": "my-config"}
+  }'
+```
+
+#### Behavior
+
+- Headers are matched to models by comparing the model name (case-insensitive)
+- If a header is provided for a model, it **overrides** the API key configured in the guardrails configuration or environment variables for that specific request only
+- If no header is provided for a model, the default API key from the configuration is used
+- API keys are automatically reset to their original values after each request completes, preventing leakage between requests
+- This works for both streaming and non-streaming requests
+
+#### Use Cases
+
+This feature is particularly useful for:
+- **Multi-tenant applications**: Different users can use their own API keys without server reconfiguration
+- **Cost tracking**: Route different requests to different API accounts for billing purposes
+- **A/B testing**: Test different API keys or accounts within the same deployment
+- **Development**: Test with personal API keys without modifying shared configurations
+
 ### Generation Options
 
 The `guardrails.options` field controls which rails are applied and what information is returned.

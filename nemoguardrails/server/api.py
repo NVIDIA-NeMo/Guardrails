@@ -302,6 +302,59 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
     return config.model_copy(update={"models": models})
 
 
+def _set_api_keys(llm_rails: LLMRails, headers: dict):
+    """Create temporary versions of all LLMRails models that use header API keys, if needed
+
+    Args:
+        llm_rails (LLMRails): LLMRails object used in request
+        headers (dict): API headers received in request
+    """
+    original_model_config = [config.model_copy(deep=True) for config in llm_rails.config.models]
+    headers_lower = {k.lower(): v for k, v in headers.items()}
+    any_matched = False
+
+    for i, model in enumerate(original_model_config):
+        if model.model is None:
+            continue
+        target_header = f"x-{model.model.lower()}-authorization"
+        if headers_lower.get(target_header):
+            any_matched = True
+            llm_rails.config.models[i].parameters["api_key"] = headers_lower[target_header]
+            llm_rails.config.models[i].api_key_env_var = None
+            model_name = f"{model.type}_llm"
+            if hasattr(llm_rails, model_name) and model.type != "main":
+                delattr(llm_rails, model_name)  # clear the initialized LLMs to force a reinit
+
+    if any_matched:
+        llm_rails.llm = None  # clear the initialized LLMs to force a reinit
+        setattr(llm_rails, "original_config", original_model_config)  # store backup of original config
+        llm_rails._init_llms()
+
+
+def _reset_api_keys(llm_rails: LLMRails):
+    """Reset API keys to their original values after request completes.
+
+    Args:
+        llm_rails (LLMRails): LLMRails object used in request
+    """
+
+    if hasattr(llm_rails, "original_config"):
+        # restore backup config
+        llm_rails.config.models = getattr(llm_rails, "original_config")
+        llm_rails.llm = None
+
+        # Delete all task-specific LLMs so they get reinitialized with original API keys
+        for model_config in getattr(llm_rails, "original_config", []):
+            if model_config.type != "main":
+                model_name = f"{model_config.type}_llm"
+                if hasattr(llm_rails, model_name):
+                    delattr(llm_rails, model_name)
+
+        # Remove the config backup so we don't unneccesarily call a reset
+        delattr(llm_rails, "original_config")
+        llm_rails._init_llms()
+
+
 def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
     """Returns the rails instance for the given config id and model.
 
@@ -381,7 +434,7 @@ class ChunkError(BaseModel):
 
 
 async def _format_streaming_response(
-    stream_iterator: AsyncIterator[Union[str, dict]], model_name: str
+    stream_iterator: AsyncIterator[Union[str, dict]], model_name: str, llm_rails: Optional[LLMRails] = None
 ) -> AsyncIterator[str]:
     """
     Format streaming chunks from LLMRails.stream_async() as SSE events.
@@ -389,6 +442,7 @@ async def _format_streaming_response(
     Args:
         stream_iterator: AsyncIterator from stream_async() that yields str or dict chunks
         model_name: The model name to include in the chunks
+        llm_rails: Optional LLMRails instance to reset API keys after streaming completes
 
     Yields:
         SSE-formatted strings (data: {...}\n\n)
@@ -409,6 +463,10 @@ async def _format_streaming_response(
                 yield format_streaming_chunk_as_sse(processed_chunk, model, chunk_id)
 
     finally:
+        # Reset API keys to original values after streaming completes
+        if llm_rails is not None:
+            _reset_api_keys(llm_rails)
+
         # Always send [DONE] event when stream ends
         yield "data: [DONE]\n\n"
 
@@ -488,6 +546,8 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
         )
 
     try:
+        _set_api_keys(llm_rails, dict(request.headers))
+
         messages = body.messages or []
         if body.guardrails.context:
             messages.insert(0, {"role": "context", "content": body.guardrails.context})
@@ -551,7 +611,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             )
 
             return StreamingResponse(
-                _format_streaming_response(stream_iterator, model_name=body.model),
+                _format_streaming_response(stream_iterator, model_name=body.model, llm_rails=llm_rails),
                 media_type="text/event-stream",
             )
         else:
@@ -595,7 +655,6 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
                         )
                     ],
                 )
-
     except HTTPException:
         raise
     except Exception as ex:
@@ -605,6 +664,10 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             error_message="Internal server error",
             config_id=config_ids[0] if config_ids else None,
         )
+    finally:
+        # Reset API keys to original values after generation completes - stream cleanup handled separately
+        if not body.stream:
+            _reset_api_keys(llm_rails)
 
 
 # By default, there are no challenges

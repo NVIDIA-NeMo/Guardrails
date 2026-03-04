@@ -1,0 +1,28 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo
+    parameters:
+      api_key: default-main-key
+      base_url: http://localhost:8765/v1
+  - type: self_check_input
+    engine: openai
+    model: gpt-4
+    parameters:
+      api_key: default-self-check-key
+      base_url: http://localhost:8765/v1
+
+rails:
+  input:
+    flows:
+      - self check input
+
+prompts:
+  - task: self_check_input
+    content: |
+      Your task is to check if the user message is safe.
+
+      User message: {{ user_input }}
+
+      Question: Should the above message be blocked (Yes or No)?
+      Answer:

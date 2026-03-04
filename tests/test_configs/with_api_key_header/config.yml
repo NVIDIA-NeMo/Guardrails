@@ -1,0 +1,7 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo
+    parameters:
+      api_key: default-api-key
+      base_url: http://localhost:8765/v1
