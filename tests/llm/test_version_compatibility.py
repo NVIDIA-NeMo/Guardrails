@@ -343,6 +343,64 @@ def test_discover_langchain_community_chat_providers():
     )
 
 
+def test_discover_partner_chat_providers_no_providers_attr(monkeypatch):
+    """Test fallback when neither _BUILTIN_PROVIDERS nor _SUPPORTED_PROVIDERS exists."""
+    import langchain.chat_models.base as _base
+
+    monkeypatch.delattr(_base, "_BUILTIN_PROVIDERS", raising=False)
+    monkeypatch.delattr(_base, "_SUPPORTED_PROVIDERS", raising=False)
+
+    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+
+    result = _discover_langchain_partner_chat_providers()
+    assert result == _CUSTOM_CHAT_PROVIDERS
+
+
+def test_discover_partner_chat_providers_set_type(monkeypatch):
+    """Test branch when _SUPPORTED_PROVIDERS is a set (older langchain versions)."""
+    import langchain.chat_models.base as _base
+
+    providers_set = {"openai", "anthropic"}
+    monkeypatch.delattr(_base, "_BUILTIN_PROVIDERS", raising=False)
+    monkeypatch.setattr(_base, "_SUPPORTED_PROVIDERS", providers_set, raising=False)
+
+    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+
+    result = _discover_langchain_partner_chat_providers()
+    assert result == providers_set | _CUSTOM_CHAT_PROVIDERS
+
+
+def test_discover_partner_chat_providers_supported_dict(monkeypatch):
+    """Test branch when _SUPPORTED_PROVIDERS is a dict (langchain ~1.2.1)."""
+    import langchain.chat_models.base as _base
+
+    providers_dict = {
+        "openai": ("langchain_openai", "ChatOpenAI"),
+        "anthropic": ("langchain_anthropic", "ChatAnthropic"),
+    }
+    monkeypatch.delattr(_base, "_BUILTIN_PROVIDERS", raising=False)
+    monkeypatch.setattr(_base, "_SUPPORTED_PROVIDERS", providers_dict, raising=False)
+
+    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+
+    result = _discover_langchain_partner_chat_providers()
+    assert result == set(providers_dict.keys()) | _CUSTOM_CHAT_PROVIDERS
+
+
+def test_discover_partner_chat_providers_builtin_set(monkeypatch):
+    """Test branch when _BUILTIN_PROVIDERS is a set (hypothetical)."""
+    import langchain.chat_models.base as _base
+
+    providers_set = {"openai", "anthropic"}
+    monkeypatch.setattr(_base, "_BUILTIN_PROVIDERS", providers_set)
+    monkeypatch.delattr(_base, "_SUPPORTED_PROVIDERS", raising=False)
+
+    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+
+    result = _discover_langchain_partner_chat_providers()
+    assert result == providers_set | _CUSTOM_CHAT_PROVIDERS
+
+
 def test_dicsover_partner_chat_providers():
     """Test that the function correctly discovers LangChain partner chat providers."""
 
