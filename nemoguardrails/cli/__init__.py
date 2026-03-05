@@ -251,6 +251,7 @@ def action_server(
     """Start a NeMo Guardrails actions server."""
 
     try:
+        import fastapi  # noqa: F401
         import uvicorn
     except ImportError:
         typer.secho(
