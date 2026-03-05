@@ -1,5 +1,5 @@
 {
-  "triggerOnUpdates": false,
+  "triggerOnUpdates": true,
   "shouldUpdateDescription": false,
   "fixWithAI": true,
   "summarySection": {
