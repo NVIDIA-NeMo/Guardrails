@@ -265,7 +265,7 @@ save = ["vl-convert-python (>=1.8.0)"]
 name = "annotated-doc"
 version = "0.0.4"
 description = "Document parameters, class attributes, return types, and variables inline, with Annotated."
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320"},
@@ -7396,7 +7396,7 @@ files = [
 cffi = ["cffi (>=1.17,<2.0)", "cffi (>=2.0.0b)"]
 
 [extras]
-all = ["aiofiles", "fast-langdetect", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "openai", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
+all = ["aiofiles", "fast-langdetect", "fastapi", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "openai", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "starlette", "streamlit", "tqdm", "uvicorn", "watchdog", "yara-python"]
 eval = ["numpy", "numpy", "numpy", "numpy", "streamlit", "tornado", "tqdm"]
 gcp = ["google-cloud-language"]
 jailbreak = ["yara-python"]
@@ -7404,7 +7404,7 @@ multilingual = ["fast-langdetect"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 openai = ["langchain-openai"]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
-server = ["aiofiles", "openai"]
+server = ["aiofiles", "fastapi", "openai", "starlette", "uvicorn", "watchdog"]
 tracing = ["aiofiles", "opentelemetry-api"]
 
 [metadata]
