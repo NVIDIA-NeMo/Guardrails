@@ -265,7 +265,7 @@ save = ["vl-convert-python (>=1.8.0)"]
 name = "annotated-doc"
 version = "0.0.4"
 description = "Document parameters, class attributes, return types, and variables inline, with Annotated."
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320"},

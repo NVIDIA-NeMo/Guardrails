@@ -167,6 +167,11 @@ opentelemetry-api = "^1.34.1"
 opentelemetry-sdk = "^1.34.1"
 fast-langdetect = ">=1.0.0"
 openai = ">=1.0.0,<3.0.0"
+# server (optional at runtime, required for tests/server/)
+fastapi = ">=0.103.0"
+uvicorn = ">=0.23"
+starlette = ">=0.49.1"
+watchdog = ">=3.0.0"
 pyright = "^1.1.405"
 ruff = "0.14.6"
 
