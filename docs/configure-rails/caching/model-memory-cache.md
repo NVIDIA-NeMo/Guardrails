@@ -208,12 +208,12 @@ The nodes build their own partial view of traffic, reducing cache hit-rates comp
 This effect is called *cache fragmentation* and becomes more pronounced as the number of nodes increases.
 
 Cache fragmentation may be addressed in one of two ways.
-1. A stateful load-balancer may be used to inspect the incoming request and route it to the same backend node on every request.
+1. A stateful load balancer may be used to inspect the incoming request and route it to the same backend node on every request.
 2. A cluster-wide in-memory store may be used to store and read cache entries from all compute-nodes in the cluster. This also helps if any nodes are restarted, since they can pull the cache state on startup.
 
 #### Improving Cache Hit Rates with Consistent Hashing
 
-Stateful load balancing strategies route repeated similar requests to the same backend node rather than spreading them evenly.
+Stateful load balancing strategies route repeated identical requests to the same backend node rather than spreading them evenly.
 This increases cache hit-rates, and does not require any modifications to Guardrails code.
 In consistent hashing, a property of the request such as the request body or a header value is hashed and used to select a backend node.
 Requests with identical properties are always routed to the same node, improving cache hit-rates.
@@ -223,7 +223,7 @@ This causes some requests to be remapped to different nodes, in which case hit r
 - [Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web](https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf)
 - [Web Caching with Consistent Hashing](https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf)
 - [A Fast, Minimal Memory, Consistent Hash Algorithm](https://arxiv.org/pdf/1406.2294)
-- [Maglev: A Fast and Reliable Software Network Load Balancer](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf)
+- [Maglev: A Fast and Reliable Software Network Load Balancer](https://static.googleusercontent.com/media/research.google.com/en/pubs/archive/44824.pdf)
 
 #### Improving Cache Hit Rates with Cluster Storage
 
