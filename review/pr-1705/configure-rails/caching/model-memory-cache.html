@@ -837,7 +837,7 @@ The LFU algorithm ensures that the most frequently accessed cache entries remain
 If a Guardrails instance is restarted, the contents of the cache will be lost.
 This causes high miss-rates due to compulsory or cold-start cache misses.</p>
 <p>Guardrails may be operated as a horizontally-scalable service to meet availability and performance Service Level Objectives (SLOs).
-A typical deployment has multiple Guardrails nodes running in-parallel behind an API gateway and Load Balancer.
+A typical deployment has multiple Guardrails nodes running in parallel behind an API gateway and Load Balancer.
 The API Gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
 The load-balancer distributes load evenly over nodes in the cluster.
 The load-balancer ensures that over time, highly-requested prompts will be stored over all nodes in the cluster.</p>
