@@ -858,8 +858,8 @@ This effect is called <em>cache fragmentation</em> and becomes more pronounced a
 This increases cache hit-rates, and does not require any modifications to Guardrails code.
 In consistent hashing, a property of the request such as the request body or a header value is hashed and used to select a backend node.
 Requests with identical properties are always routed to the same node, improving cache hit-rates.
-However, as nodes are added or removed to the consistent hashing ring due to scaling, deployments, or failures, some requests may be remapped to different nodes.
-This temporarily reduces hit rates until the incoming traffic repopulates the cache entries.</p>
+However, over time nodes will be added or removed due to scaling, deployments, or node failures.
+This causes some requests to be remapped to different nodes, in which case hit rates will drop until the incoming traffic repopulates cache entries.</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf" rel="noreferer noopener" target="_blank">Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web</a></p></li>
 <li><p><a class="reference external" href="https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf" rel="noreferer noopener" target="_blank">Web Caching with Consistent Hashing</a></p></li>
