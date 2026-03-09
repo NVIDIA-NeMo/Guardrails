@@ -224,7 +224,7 @@ This causes some requests to remap to different nodes, and hit rates drop until 
 - [Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web](https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf)
 - [Web Caching with Consistent Hashing](https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf)
 - [A Fast, Minimal Memory, Consistent Hash Algorithm](https://arxiv.org/pdf/1406.2294)
-- [Maglev: A Fast and Reliable Software Network Load Balancer](https://static.googleusercontent.com/media/research.google.com/en/pubs/archive/44824.pdf)
+- [Maglev: A Fast and Reliable Software Network Load Balancer](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf)
 
 #### Improving Cache Hit Rates with Cluster Storage
 
