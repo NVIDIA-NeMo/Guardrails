@@ -849,12 +849,12 @@ The nodes build their own partial view of traffic, reducing cache hit-rates comp
 This effect is called <em>cache fragmentation</em> and becomes more pronounced as the number of nodes increases.</p>
 <p>Cache fragmentation may be addressed in one of two ways.</p>
 <ol class="arabic simple">
-<li><p>A stateful load-balancer may be used to inspect the incoming request and route it to the same backend node on every request.</p></li>
+<li><p>A stateful load balancer may be used to inspect the incoming request and route it to the same backend node on every request.</p></li>
 <li><p>A cluster-wide in-memory store may be used to store and read cache entries from all compute-nodes in the cluster. This also helps if any nodes are restarted, since they can pull the cache state on startup.</p></li>
 </ol>
 <section id="improving-cache-hit-rates-with-consistent-hashing">
 <h4>Improving Cache Hit Rates with Consistent Hashing<a class="headerlink" href="#improving-cache-hit-rates-with-consistent-hashing" title="Link to this heading">#</a></h4>
-<p>Stateful load balancing strategies route repeated similar requests to the same backend node rather than spreading them evenly.
+<p>Stateful load balancing strategies route repeated identical requests to the same backend node rather than spreading them evenly.
 This increases cache hit-rates, and does not require any modifications to Guardrails code.
 In consistent hashing, a property of the request such as the request body or a header value is hashed and used to select a backend node.
 Requests with identical properties are always routed to the same node, improving cache hit-rates.
@@ -864,7 +864,7 @@ This causes some requests to be remapped to different nodes, in which case hit r
 <li><p><a class="reference external" href="https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf" rel="noreferer noopener" target="_blank">Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web</a></p></li>
 <li><p><a class="reference external" href="https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf" rel="noreferer noopener" target="_blank">Web Caching with Consistent Hashing</a></p></li>
 <li><p><a class="reference external" href="https://arxiv.org/pdf/1406.2294" rel="noreferer noopener" target="_blank">A Fast, Minimal Memory, Consistent Hash Algorithm</a></p></li>
-<li><p><a class="reference external" href="https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf" rel="noreferer noopener" target="_blank">Maglev: A Fast and Reliable Software Network Load Balancer</a></p></li>
+<li><p><a class="reference external" href="https://static.googleusercontent.com/media/research.google.com/en/pubs/archive/44824.pdf" rel="noreferer noopener" target="_blank">Maglev: A Fast and Reliable Software Network Load Balancer</a></p></li>
 </ul>
 </section>
 <section id="improving-cache-hit-rates-with-cluster-storage">
