@@ -838,7 +838,7 @@ If a Guardrails library instance is restarted, the contents of the cache are los
 This causes high miss rates due to compulsory or cold-start cache misses.
 This section describes techniques that are out of scope for the library but can improve caching performance in a horizontally scaled backend.</p>
 <p>You can operate the library as a horizontally scalable service to meet availability and performance Service Level Objectives (SLOs).
-A typical deployment has multiple library nodes running in parallel behind an API gateway and load balancer.
+A typical deployment has multiple Guardrails instances running in parallel behind an API gateway and load balancer.
 The API gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
 The load balancer distributes load evenly over nodes in the cluster.
 As a result, highly requested prompts can spread across nodes over time rather than concentrate on a single node.</p>
