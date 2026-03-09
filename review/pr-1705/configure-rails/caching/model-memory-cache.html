@@ -834,12 +834,13 @@ The LFU algorithm ensures that the most frequently accessed cache entries remain
 <section id="horizontal-scaling-and-caching">
 <h2>Horizontal Scaling and Caching<a class="headerlink" href="#horizontal-scaling-and-caching" title="Link to this heading">#</a></h2>
 <p>The cache is implemented in-memory by the Guardrails toolkit.
-If a Guardrails instance is restarted, the contents of the cache will be lost.
-This causes high miss-rates due to compulsory or cold-start cache misses.</p>
+If a Guardrails instance is restarted, the contents of the cache are lost.
+This causes high miss-rates due to compulsory or cold-start cache misses.
+This section describes techniques which are out-of-scope for the Guardrails toolkit, that can improve caching performance in a horizontally-scaled backend.</p>
 <p>Guardrails may be operated as a horizontally-scalable service to meet availability and performance Service Level Objectives (SLOs).
 A typical deployment has multiple Guardrails nodes running in parallel behind an API gateway and Load Balancer.
 The API Gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
-The load-balancer distributes load evenly over nodes in the cluster.
+The load-balancer distributes traffic over cluster nodes.
 The load-balancer ensures that over time, highly-requested prompts will be stored over all nodes in the cluster.</p>
 <section id="cache-fragmentation">
 <h3>Cache Fragmentation<a class="headerlink" href="#cache-fragmentation" title="Link to this heading">#</a></h3>
@@ -851,33 +852,27 @@ This effect is called <em>cache fragmentation</em> and becomes more pronounced a
 <li><p>A stateful load-balancer may be used to inspect the incoming request and route it to the same backend node on every request.</p></li>
 <li><p>A cluster-wide in-memory store may be used to store and read cache entries from all compute-nodes in the cluster. This also helps if any nodes are restarted, since they can pull the cache state on startup.</p></li>
 </ol>
-<section id="improving-cache-hit-rates-with-stateful-load-balancing">
-<h4>Improving Cache Hit Rates with Stateful Load Balancing<a class="headerlink" href="#improving-cache-hit-rates-with-stateful-load-balancing" title="Link to this heading">#</a></h4>
+<section id="improving-cache-hit-rates-with-consistent-hashing">
+<h4>Improving Cache Hit Rates with Consistent Hashing<a class="headerlink" href="#improving-cache-hit-rates-with-consistent-hashing" title="Link to this heading">#</a></h4>
 <p>Stateful load balancing strategies route repeated similar requests to the same backend node rather than spreading them evenly.
-This increases cache hit-rates.
-Two commonly used approaches are:</p>
+This increases cache hit-rates, and does not require any modifications to Guardrails to code.
+In consistent hashing, a property of the request such as the request body or a header value is hashed and used to select a backend node.
+Requests with identical properties are always routed to the same node, improving cache hit-rates.
+However, as nodes are added or removed to the consistent hashing ring due to scaling, deployments, or failures, some requests may be remapped to different nodes.
+This temporarily reduces hit rates until the incoming traffic repopulates the cache entries.</p>
 <ul class="simple">
-<li><p><strong>Sticky sessions (session affinity)</strong>: The load balancer routes all requests from the same client or session to the same node.
-This is effective when individual users tend to send similar prompts within a session.
-The trade-off is that high-traffic users may overwhelm an individual node and lead to performance and availability issues.
-In this case, consistent hashing may help.</p></li>
-<li><p><strong>Consistent hashing</strong>: The load balancer hashes a property of the request (such as the request body or a header value) and uses the hash to select a backend node. Requests with identical properties are always routed to the same node. This approach can distribute traffic more evenly than sticky sessions while still improving cache hit rates. However, when nodes are added or removed, some requests are remapped to different nodes, which temporarily reduces hit rates until caches are repopulated.</p></li>
-</ul>
-<p>Both strategies involve trade-offs between cache efficiency and even load distribution.
-The right approach depends on your traffic patterns, scaling requirements, and infrastructure capabilities.
-Consult your API gateway or load balancer documentation for configuration details.</p>
-<p>For general background on these strategies, refer to:</p>
-<ul class="simple">
-<li><p><a class="reference external" href="https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#enabling-session-persistence" rel="noreferer noopener" target="_blank">NGINX: Using Sticky Sessions</a></p></li>
-<li><p><a class="reference external" href="https://docs.haproxy.org/3.0/configuration.html#4-balance" rel="noreferer noopener" target="_blank">HAProxy: Load Balancing Algorithms</a></p></li>
-<li><p><a class="reference external" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/sticky-sessions.html" rel="noreferer noopener" target="_blank">AWS Elastic Load Balancing: Sticky Sessions</a></p></li>
+<li><p><a class="reference external" href="https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf" rel="noreferer noopener" target="_blank">Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web</a></p></li>
+<li><p><a class="reference external" href="https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf" rel="noreferer noopener" target="_blank">Web Caching with Consistent Hashing</a></p></li>
+<li><p><a class="reference external" href="https://arxiv.org/pdf/1406.2294" rel="noreferer noopener" target="_blank">A Fast, Minimal Memory, Consistent Hash Algorithm</a></p></li>
+<li><p><a class="reference external" href="https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf" rel="noreferer noopener" target="_blank">Maglev: A Fast and Reliable Software Network Load Balancer</a></p></li>
 </ul>
 </section>
 <section id="improving-cache-hit-rates-with-cluster-storage">
 <h4>Improving Cache Hit Rates with Cluster Storage<a class="headerlink" href="#improving-cache-hit-rates-with-cluster-storage" title="Link to this heading">#</a></h4>
-<p>An alternative to stateful load balancing is to use a cluster-wide in-memory store such as <a class="reference external" href="https://redis.io/" rel="noreferer noopener" target="_blank">Redis</a> or <a class="reference external" href="https://memcached.org/" rel="noreferer noopener" target="_blank">Memcached</a>.
+<p>An alternative to stateful load balancing is to use a cluster-wide in-memory store such as <a class="reference external" href="https://redis.io/" rel="noreferer noopener" target="_blank">Redis</a>.
+Supporting a cluster-wide in-memory store requires modifications to Guardrails to read and write to the cluster storage.
 Instead of each node maintaining its own isolated cache, all nodes read from and write to a shared store.
-This eliminates cache fragmentation entirely as a prompt cached by any node is available to all nodes regardless of how the load balancer routes requests.
+This eliminates cache fragmentation, as a prompt cached by any node is available to all nodes regardless of how the load balancer routes requests.
 A cluster-wide store also improves resilience.
 When a node is restarted, it does not start with an empty cache.
 Instead, it can load previously cached entries from the shared store and benefits from cache hits immediately.</p>
@@ -954,7 +949,7 @@ Consult the documentation for your chosen in-memory store for guidance on cluste
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#telemetry-and-logging">Telemetry and Logging</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#horizontal-scaling-and-caching">Horizontal Scaling and Caching</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cache-fragmentation">Cache Fragmentation</a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#improving-cache-hit-rates-with-stateful-load-balancing">Improving Cache Hit Rates with Stateful Load Balancing</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#improving-cache-hit-rates-with-consistent-hashing">Improving Cache Hit Rates with Consistent Hashing</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#improving-cache-hit-rates-with-cluster-storage">Improving Cache Hit Rates with Cluster Storage</a></li>
 </ul>
 </li>
