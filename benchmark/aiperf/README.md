@@ -27,14 +27,15 @@ To use the provided configurations, you need to create accounts at <https://buil
 1. **Create a virtual environment in which to install AIPerf**
 
    ```bash
-   $ mkdir ~/env
-   $ python -m venv ~/env/aiperf
+   mkdir ~/env
+   python -m venv ~/env/aiperf
+   source ~/env/aiperf/bin/activate
    ```
 
 2. **Install dependencies in the virtual environment**
 
    ```bash
-   $ pip install aiperf huggingface_hub typer httpx
+   pip install aiperf huggingface_hub typer httpx
    ```
 
 3. **Login to Hugging Face:**
@@ -50,7 +51,7 @@ To use the provided configurations, you need to create accounts at <https://buil
    After creating a Personal API key, set the `NVIDIA_API_KEY` variable as below.
 
    ```bash
-   $ export NVIDIA_API_KEY="your-api-key-here"
+   export NVIDIA_API_KEY="your-api-key-here"
    ```
 
 ## Running Benchmarks
@@ -65,7 +66,7 @@ There are two example configs included which can be extended for your use-cases.
 To run a benchmark, use the following command:
 
 ```bash
-$ python -m benchmark.aiperf --config-file <path-to-config.yaml>
+python -m benchmark.aiperf --config-file <path-to-config.yaml>
 ```
 
 ### Running a Single Benchmark
@@ -73,12 +74,12 @@ $ python -m benchmark.aiperf --config-file <path-to-config.yaml>
 To run a single benchmark with fixed parameters, use the `single_concurrency.yaml` configuration:
 
 ```bash
-$ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/single_concurrency.yaml
+python -m benchmark.aiperf --config-file benchmark/aiperf/configs/single_concurrency.yaml
 ```
 
 **Example output:**
 
-```text
+```terminaloutput
 2025-12-01 10:35:17 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/single_concurrency.yaml
 2025-12-01 10:35:17 INFO: Results root directory: aiperf_results/single_concurrency/20251201_103517
 2025-12-01 10:35:17 INFO: Sweeping parameters: None
@@ -97,12 +98,12 @@ $ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/single_concu
 To run multiple benchmarks with different concurrency levels, use the `sweep_concurrency.yaml` configuration as below:
 
 ```bash
-$ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency.yaml
+python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency.yaml
 ```
 
 **Example output:**
 
-```text
+```terminaloutput
 2025-11-14 14:02:54 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/sweep_concurrency.yaml
 2025-11-14 14:02:54 INFO: Results root directory: aiperf_results/sweep_concurrency/20251114_140254
 2025-11-14 14:02:54 INFO: Sweeping parameters: {'concurrency': [1, 2, 4]}
@@ -134,7 +135,7 @@ The `--dry-run` option allows you to preview all benchmark commands without exec
 - Debugging configuration issues
 
 ```bash
-$ python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency.yaml --dry-run
+python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency.yaml --dry-run
 ```
 
 When in dry-run mode, the script will:
@@ -150,7 +151,7 @@ When in dry-run mode, the script will:
 The `--verbose` option outputs more detailed debugging information to understand each step of the benchmarking process.
 
 ```bash
-$ python -m benchmark.aiperf --config-file <config.yaml> --verbose
+python -m benchmark.aiperf --config-file <config.yaml> --verbose
 ```
 
 Verbose mode provides:
@@ -360,6 +361,6 @@ Each run directory contains multiple files with benchmark results and metadata. 
 
 ## Resources
 
-- [AIPerf GitHub Repository](https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf)
+- [AIPerf GitHub Repository](https://github.com/ai-dynamo/aiperf)
 - [AIPerf Documentation](https://docs.nvidia.com/nim/benchmarking/llm/latest/step-by-step.html)
 - [NVIDIA API Catalog](https://build.nvidia.com/)
