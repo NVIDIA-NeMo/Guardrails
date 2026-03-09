@@ -838,13 +838,13 @@ If a Guardrails instance is restarted, the contents of the cache are lost.
 This causes high miss-rates due to compulsory or cold-start cache misses.
 This section describes techniques which are out-of-scope for the Guardrails toolkit, that can improve caching performance in a horizontally-scaled backend.</p>
 <p>Guardrails may be operated as a horizontally-scalable service to meet availability and performance Service Level Objectives (SLOs).
-A typical deployment has multiple Guardrails nodes running in parallel behind an API gateway and Load Balancer.
-The API Gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
-The load-balancer distributes traffic over cluster nodes.
-The load-balancer ensures that over time, highly-requested prompts will be stored over all nodes in the cluster.</p>
+A typical deployment has multiple Guardrails nodes running in parallel behind an API gateway and load balancer.
+The API gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
+The load balancer distributes load evenly over nodes in the cluster.
+As a result, highly-requested prompts may be spread across nodes over time rather than concentrated on a single node.</p>
 <section id="cache-fragmentation">
 <h3>Cache Fragmentation<a class="headerlink" href="#cache-fragmentation" title="Link to this heading">#</a></h3>
-<p>With a default round-robin load balancing strategy, incoming traffic is routed to each node in-turn.
+<p>With a default round-robin load balancing strategy, incoming traffic is routed to each node in turn.
 The nodes build their own partial view of traffic, reducing cache hit-rates compared to a single-node deployment.
 This effect is called <em>cache fragmentation</em> and becomes more pronounced as the number of nodes increases.</p>
 <p>Cache fragmentation may be addressed in one of two ways.</p>
