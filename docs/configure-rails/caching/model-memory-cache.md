@@ -217,8 +217,8 @@ Stateful load balancing strategies route repeated similar requests to the same b
 This increases cache hit-rates, and does not require any modifications to Guardrails code.
 In consistent hashing, a property of the request such as the request body or a header value is hashed and used to select a backend node.
 Requests with identical properties are always routed to the same node, improving cache hit-rates.
-However, as nodes are added or removed to the consistent hashing ring due to scaling, deployments, or failures, some requests may be remapped to different nodes.
-This temporarily reduces hit rates until the incoming traffic repopulates the cache entries.
+However, over time nodes will be added or removed due to scaling, deployments, or node failures.
+This causes some requests to be remapped to different nodes, in which case hit rates will drop until the incoming traffic repopulates cache entries.
 
 - [Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web](https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf)
 - [Web Caching with Consistent Hashing](https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf)
