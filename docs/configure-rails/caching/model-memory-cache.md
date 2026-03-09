@@ -190,11 +190,64 @@ The following list describes the metrics included in the cache statistics:
 
 ## Horizontal Scaling and Caching
 
-This cache is implemented in-memory on each Guardrails node. When operating as a horizontally-scaled backend service, multiple Guardrails nodes run behind an API Gateway and load balancer to distribute traffic and meet availability and performance targets.
+The cache is implemented in-memory by the Guardrails toolkit.
+If a Guardrails instance is restarted, the contents of the cache will be lost.
+This causes high miss-rates due to compulsory or cold-start cache misses.
 
-The current cache implementation maintains a separate cache on each node without sharing cache entries between nodes. For a cache hit to occur, the following conditions must be met:
+Guardrails may be operated as a horizontally-scalable service to meet availability and performance Service Level Objectives (SLOs).
+A typical deployment has multiple Guardrails nodes running in-parallel behind an API gateway and Load Balancer.
+The API Gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
+The load-balancer distributes load evenly over nodes in the cluster.
+The load-balancer ensures that over time, highly-requested prompts will be stored over all nodes in the cluster.
 
-1. The request must have been previously sent and stored in a cache.
-2. The load balancer must direct the subsequent request to the same node.
+### Cache Fragmentation
 
-In practice, the load balancer spreads traffic across all Guardrails nodes, distributing frequently-requested user prompts across multiple nodes. This reduces cache hit rates in horizontally-scaled deployments compared to single-node deployments.
+With a default round-robin load balancing strategy, incoming traffic is routed to each node in-turn.
+The nodes build their own partial view of traffic, reducing cache hit-rates compared to a single-node deployment.
+This effect is called *cache fragmentation* and becomes more pronounced as the number of nodes increases.
+
+Cache fragmentation may be addressed in one of two ways.
+1. A stateful load-balancer may be used to inspect the incoming request and route it to the same backend node on every request.
+2. A cluster-wide in-memory store may be used to store and read cache entries from all compute-nodes in the cluster. This also helps if any nodes are restarted, since they can pull the cache state on startup.
+
+#### Improving Cache Hit Rates with Stateful Load Balancing
+
+Stateful load balancing strategies route repeated similar requests to the same backend node rather than spreading them evenly.
+This increases cache hit-rates.
+Two commonly used approaches are:
+
+- **Sticky sessions (session affinity)**: The load balancer routes all requests from the same client or session to the same node.
+This is effective when individual users tend to send similar prompts within a session.
+The trade-off is that high-traffic users may overwhelm an individual node and lead to performance and availability issues.
+In this case, consistent hashing may help.
+- **Consistent hashing**: The load balancer hashes a property of the request (such as the request body or a header value) and uses the hash to select a backend node. Requests with identical properties are always routed to the same node. This approach can distribute traffic more evenly than sticky sessions while still improving cache hit rates. However, when nodes are added or removed, some requests are remapped to different nodes, which temporarily reduces hit rates until caches are repopulated.
+
+Both strategies involve trade-offs between cache efficiency and even load distribution.
+The right approach depends on your traffic patterns, scaling requirements, and infrastructure capabilities.
+Consult your API gateway or load balancer documentation for configuration details.
+
+For general background on these strategies, refer to:
+
+- [NGINX: Using Sticky Sessions](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#enabling-session-persistence)
+- [HAProxy: Load Balancing Algorithms](https://docs.haproxy.org/3.0/configuration.html#4-balance)
+- [AWS Elastic Load Balancing: Sticky Sessions](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/sticky-sessions.html)
+
+#### Improving Cache Hit Rates with Cluster Storage
+
+An alternative to stateful load balancing is to use a cluster-wide in-memory store such as [Redis](https://redis.io/) or [Memcached](https://memcached.org/).
+Instead of each node maintaining its own isolated cache, all nodes read from and write to a shared store.
+This eliminates cache fragmentation entirely as a prompt cached by any node is available to all nodes regardless of how the load balancer routes requests.
+A cluster-wide store also improves resilience.
+When a node is restarted, it does not start with an empty cache.
+Instead, it can load previously cached entries from the shared store and benefits from cache hits immediately.
+
+The trade-off is added infrastructure complexity and a network hop for each cache lookup.
+The shared store itself must be highly available and sized to handle the throughput of all nodes.
+Consult the documentation for your chosen in-memory store for guidance on clustering, replication, and sizing.
+
+For general background on cluster-wide caching, refer to:
+
+- [Redis: Clustering](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)
+- [Memcached: Configuration](https://github.com/memcached/memcached/wiki/ConfiguringServer)
+- [AWS ElastiCache: Choosing a Cache](https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/SelectEngine.html)
+- [Google Cloud Memorystore](https://docs.cloud.google.com/memorystore/docs/redis/memorystore-for-redis-overview)
