@@ -191,13 +191,14 @@ The following list describes the metrics included in the cache statistics:
 ## Horizontal Scaling and Caching
 
 The cache is implemented in-memory by the Guardrails toolkit.
-If a Guardrails instance is restarted, the contents of the cache will be lost.
+If a Guardrails instance is restarted, the contents of the cache are lost.
 This causes high miss-rates due to compulsory or cold-start cache misses.
+This section describes techniques which are out-of-scope for the Guardrails toolkit, that can improve caching performance in a horizontally-scaled backend.
 
 Guardrails may be operated as a horizontally-scalable service to meet availability and performance Service Level Objectives (SLOs).
 A typical deployment has multiple Guardrails nodes running in parallel behind an API gateway and Load Balancer.
 The API Gateway implements authentication and authorization, rate limiting and throttling, and any required protocol translation.
-The load-balancer distributes load evenly over nodes in the cluster.
+The load-balancer distributes traffic over cluster nodes.
 The load-balancer ensures that over time, highly-requested prompts will be stored over all nodes in the cluster.
 
 ### Cache Fragmentation
@@ -210,33 +211,26 @@ Cache fragmentation may be addressed in one of two ways.
 1. A stateful load-balancer may be used to inspect the incoming request and route it to the same backend node on every request.
 2. A cluster-wide in-memory store may be used to store and read cache entries from all compute-nodes in the cluster. This also helps if any nodes are restarted, since they can pull the cache state on startup.
 
-#### Improving Cache Hit Rates with Stateful Load Balancing
+#### Improving Cache Hit Rates with Consistent Hashing
 
 Stateful load balancing strategies route repeated similar requests to the same backend node rather than spreading them evenly.
-This increases cache hit-rates.
-Two commonly used approaches are:
+This increases cache hit-rates, and does not require any modifications to Guardrails to code.
+In consistent hashing, a property of the request such as the request body or a header value is hashed and used to select a backend node.
+Requests with identical properties are always routed to the same node, improving cache hit-rates.
+However, as nodes are added or removed to the consistent hashing ring due to scaling, deployments, or failures, some requests may be remapped to different nodes.
+This temporarily reduces hit rates until the incoming traffic repopulates the cache entries.
 
-- **Sticky sessions (session affinity)**: The load balancer routes all requests from the same client or session to the same node.
-This is effective when individual users tend to send similar prompts within a session.
-The trade-off is that high-traffic users may overwhelm an individual node and lead to performance and availability issues.
-In this case, consistent hashing may help.
-- **Consistent hashing**: The load balancer hashes a property of the request (such as the request body or a header value) and uses the hash to select a backend node. Requests with identical properties are always routed to the same node. This approach can distribute traffic more evenly than sticky sessions while still improving cache hit rates. However, when nodes are added or removed, some requests are remapped to different nodes, which temporarily reduces hit rates until caches are repopulated.
-
-Both strategies involve trade-offs between cache efficiency and even load distribution.
-The right approach depends on your traffic patterns, scaling requirements, and infrastructure capabilities.
-Consult your API gateway or load balancer documentation for configuration details.
-
-For general background on these strategies, refer to:
-
-- [NGINX: Using Sticky Sessions](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#enabling-session-persistence)
-- [HAProxy: Load Balancing Algorithms](https://docs.haproxy.org/3.0/configuration.html#4-balance)
-- [AWS Elastic Load Balancing: Sticky Sessions](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/sticky-sessions.html)
+- [Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web](https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf)
+- [Web Caching with Consistent Hashing](https://cs.brown.edu/courses/csci2950-u/f09/papers/chash99www.pdf)
+- [A Fast, Minimal Memory, Consistent Hash Algorithm](https://arxiv.org/pdf/1406.2294)
+- [Maglev: A Fast and Reliable Software Network Load Balancer](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf)
 
 #### Improving Cache Hit Rates with Cluster Storage
 
-An alternative to stateful load balancing is to use a cluster-wide in-memory store such as [Redis](https://redis.io/) or [Memcached](https://memcached.org/).
+An alternative to stateful load balancing is to use a cluster-wide in-memory store such as [Redis](https://redis.io/).
+Supporting a cluster-wide in-memory store requires modifications to Guardrails to read and write to the cluster storage.
 Instead of each node maintaining its own isolated cache, all nodes read from and write to a shared store.
-This eliminates cache fragmentation entirely as a prompt cached by any node is available to all nodes regardless of how the load balancer routes requests.
+This eliminates cache fragmentation, as a prompt cached by any node is available to all nodes regardless of how the load balancer routes requests.
 A cluster-wide store also improves resilience.
 When a node is restarted, it does not start with an empty cache.
 Instead, it can load previously cached entries from the shared store and benefits from cache hits immediately.
