@@ -88,3 +88,4 @@ Open `http://localhost:8000` in your browser to access the built-in Chat UI for 
 ## Related Topics
 
 - [](../../reference/api-server-endpoints/index.md)
+- [Introduction to LLM Benchmarking](https://docs.nvidia.com/nim/benchmarking/llm/latest/overview.html)
