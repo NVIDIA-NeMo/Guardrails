@@ -110,7 +110,7 @@ _event_validators = [
     ),
     Validator(
         "***UtteranceBotActionScriptUpdated events need to provide 'interim_script' of type 'str'",
-        lambda e: e["type"] != "UtteranceBotActionScriptUpdated " or _has_property(e, Property("interim_script", str)),
+        lambda e: e["type"] != "UtteranceBotActionScriptUpdated" or _has_property(e, Property("interim_script", str)),
     ),
     Validator(
         "***UtteranceBotActionFinished events need to provide 'final_script' of type 'str'",
