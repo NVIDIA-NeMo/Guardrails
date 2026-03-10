@@ -40,12 +40,16 @@ from nemoguardrails.actions import action
 log = logging.getLogger(__name__)
 
 _sdk_client = None
+_sdk_client_cloud = None
 
 
 def _get_sdk_client():
     """Lazily initialise the Zscaler AI Guard SDK client."""
-    global _sdk_client
-    if _sdk_client is None:
+    global _sdk_client, _sdk_client_cloud
+
+    cloud = os.environ.get("AIGUARD_CLOUD", "us1")
+
+    if _sdk_client is None or _sdk_client_cloud != cloud:
         try:
             from zscaler.zaiguard.legacy import LegacyZGuardClientHelper
         except ImportError:
@@ -54,8 +58,13 @@ def _get_sdk_client():
                 "Install it with: pip install zscaler-sdk-python"
             )
 
-        cloud = os.environ.get("AIGUARD_CLOUD", "us1")
+        if not os.environ.get("AIGUARD_API_KEY"):
+            raise EnvironmentError(
+                "AIGUARD_API_KEY environment variable is required for the Zscaler AI Guard integration."
+            )
+
         _sdk_client = LegacyZGuardClientHelper(cloud=cloud)
+        _sdk_client_cloud = cloud
     return _sdk_client
 
 
@@ -147,9 +156,9 @@ async def call_zscaler_aiguard_api(
             try:
                 effective_policy_id = int(env_policy_id)
             except ValueError:
-                log.warning(
-                    "AIGUARD_POLICY_ID=%r is not a valid integer, ignoring",
-                    env_policy_id,
+                raise ValueError(
+                    f"AIGUARD_POLICY_ID={env_policy_id!r} is not a valid integer. "
+                    "Fix the environment variable or remove it to use automatic policy resolution."
                 )
 
     log.debug("AI Guard scanning %s content (%d chars)", direction, len(text))
@@ -185,9 +194,18 @@ async def call_zscaler_aiguard_api(
             if det_action == "BLOCK":
                 blocking_detectors.append(name)
 
-        if action_val != "ALLOW":
+        if action_val == "BLOCK":
             message = _build_block_message(direction, severity, policy_name, blocking_detectors, transaction_id)
             log.info("AI Guard BLOCKED: %s", message)
+        elif action_val != "ALLOW":
+            message = ""
+            log.info(
+                "AI Guard %s [txn=%s, policy=%s, severity=%s]",
+                action_val,
+                transaction_id,
+                policy_name,
+                severity,
+            )
         else:
             message = ""
             log.debug(
@@ -206,6 +224,8 @@ async def call_zscaler_aiguard_api(
             "message": message,
         }
 
+    except (ImportError, EnvironmentError, ValueError):
+        raise
     except Exception as e:
         log.error("AI Guard scan failed: %s — %s", type(e).__name__, e)
         message = _build_block_message(direction, "UNKNOWN", "unknown", [])
@@ -213,6 +233,7 @@ async def call_zscaler_aiguard_api(
             "action": "BLOCK",
             "severity": "UNKNOWN",
             "detectors": {},
+            "blocking_detectors": [],
             "error": str(e),
             "message": message,
         }

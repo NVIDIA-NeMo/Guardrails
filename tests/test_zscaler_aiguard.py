@@ -104,8 +104,10 @@ def _reset_sdk_client():
     import nemoguardrails.library.zscaler_aiguard.actions as mod
 
     mod._sdk_client = None
+    mod._sdk_client_cloud = None
     yield
     mod._sdk_client = None
+    mod._sdk_client_cloud = None
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +136,7 @@ async def test_zscaler_aiguard_input_allowed():
 
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_input_blocked():
-    """Input containing sensitive data should be blocked with AI Guard exception."""
+    """Input containing sensitive data should be blocked (default path, no exception)."""
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
 
     chat = TestChat(
@@ -150,10 +152,7 @@ async def test_zscaler_aiguard_input_blocked():
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "My AWS key is AKIAIOSFODNN7EXAMPLE"
-    result = await chat.app.generate_async(messages=chat.history)
-    assert result["role"] == "exception"
-    assert result["content"]["type"] == "ZscalerAiguardInputRailException"
-    assert "blocked" in (result["content"].get("message") or "").lower()
+    await chat.bot_async("I don't know the answer to that.")
 
 
 @pytest.mark.asyncio
@@ -177,7 +176,7 @@ async def test_zscaler_aiguard_output_allowed():
 
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_output_blocked():
-    """LLM output containing PII should be blocked with AI Guard exception."""
+    """LLM output containing PII should be blocked (default path, no exception)."""
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
 
     chat = TestChat(
@@ -196,15 +195,12 @@ async def test_zscaler_aiguard_output_blocked():
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "Tell me about John"
-    result = await chat.app.generate_async(messages=chat.history)
-    assert result["role"] == "exception"
-    assert result["content"]["type"] == "ZscalerAiguardOutputRailException"
-    assert "blocked" in (result["content"].get("message") or "").lower()
+    await chat.bot_async("I don't know the answer to that.")
 
 
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_api_error_blocks():
-    """API failures should trigger fail-closed behavior with AI Guard exception."""
+    """API failures should trigger fail-closed behavior (default path, no exception)."""
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
 
     chat = TestChat(
@@ -217,6 +213,7 @@ async def test_zscaler_aiguard_api_error_blocks():
             "action": "BLOCK",
             "severity": "UNKNOWN",
             "detectors": {},
+            "blocking_detectors": [],
             "error": "Connection timeout",
             "message": "Zscaler AI Guard blocked the user prompt. Severity: UNKNOWN. Policy: unknown.",
         }
@@ -224,10 +221,7 @@ async def test_zscaler_aiguard_api_error_blocks():
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "Hello"
-    result = await chat.app.generate_async(messages=chat.history)
-    assert result["role"] == "exception"
-    assert result["content"]["type"] == "ZscalerAiguardInputRailException"
-    assert "blocked" in (result["content"].get("message") or "").lower()
+    await chat.bot_async("I don't know the answer to that.")
 
 
 @pytest.mark.asyncio
@@ -612,24 +606,11 @@ async def test_zscaler_aiguard_action_policy_id_param_overrides_env():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_action_invalid_policy_id_env():
-    """Invalid AIGUARD_POLICY_ID env var should be ignored (falls back to auto-resolve)."""
-    with (
-        patch("nemoguardrails.library.zscaler_aiguard.actions._scan_sync") as mock_scan,
-        patch.dict(os.environ, {"AIGUARD_POLICY_ID": "not-a-number"}),
-    ):
-        mock_scan.return_value = {
-            "action": "ALLOW",
-            "severity": "NONE",
-            "policyName": "AutoPolicy",
-            "transactionId": "txn-fallback-001",
-            "detectorResponses": {},
-        }
-
+    """Invalid AIGUARD_POLICY_ID env var should raise ValueError (fail-closed)."""
+    with patch.dict(os.environ, {"AIGUARD_POLICY_ID": "not-a-number"}):
         from nemoguardrails.library.zscaler_aiguard.actions import (
             call_zscaler_aiguard_api,
         )
 
-        result = await call_zscaler_aiguard_api(text="Test content", direction="IN")
-
-        assert result["action"] == "ALLOW"
-        mock_scan.assert_called_once_with("Test content", "IN", None)
+        with pytest.raises(ValueError, match="AIGUARD_POLICY_ID"):
+            await call_zscaler_aiguard_api(text="Test content", direction="IN")
