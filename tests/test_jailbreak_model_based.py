@@ -253,7 +253,7 @@ def test_initialize_model_with_valid_path(monkeypatch):
 
     assert result == mock_classifier
 
-    expected_path = str(Path(test_path).joinpath("snowflake.pkl"))
+    expected_path = str(Path(test_path).joinpath("snowflake.onnx"))
     mock_jailbreak_classifier_class.assert_called_once_with(expected_path)
 
 

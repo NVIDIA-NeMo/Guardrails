@@ -43,7 +43,7 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
         JailbreakClassifier,
     )
 
-    jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.pkl")))
+    jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.onnx")))
 
     return jailbreak_classifier
 

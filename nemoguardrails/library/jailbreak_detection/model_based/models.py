@@ -15,16 +15,18 @@
 
 from typing import Tuple
 
-import numpy as np
-
 
 class SnowflakeEmbed:
     def __init__(self):
         import torch
         from transformers import AutoModel, AutoTokenizer
 
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained("Snowflake/snowflake-arctic-embed-m-long")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "Snowflake/snowflake-arctic-embed-m-long",
+            trust_remote_code=True,
+            safe_serialization=True
+        )
         self.model = AutoModel.from_pretrained(
             "Snowflake/snowflake-arctic-embed-m-long",
             trust_remote_code=True,
@@ -43,16 +45,18 @@ class SnowflakeEmbed:
 
 class JailbreakClassifier:
     def __init__(self, random_forest_path: str):
-        import pickle
+        from onnxruntime import InferenceSession
 
         self.embed = SnowflakeEmbed()
-        with open(random_forest_path, "rb") as fd:
-            self.classifier = pickle.load(fd)
+        # See https://onnx.ai/sklearn-onnx/auto_examples/plot_convert_decision_function.html
+        self.classifier = InferenceSession(random_forest_path, providers=["CPUExecutionProvider"])
 
     def __call__(self, text: str) -> Tuple[bool, float]:
         e = self.embed(text)
-        probs = self.classifier.predict_proba([e])
-        classification = np.argmax(probs)
-        prob = np.max(probs)
+        res = self.classifier.run(None, {"X": [e]})
+        # InferenceSession returns a result where the first item is equivalent to argmax over probabilities
+        classification = res[0].item()
+        # The second is a list of dicts of probabilities -- the list should have only one element.
+        prob = res[1][:2][0][classification]
         score = -prob if classification == 0 else prob
         return bool(classification), float(score)
