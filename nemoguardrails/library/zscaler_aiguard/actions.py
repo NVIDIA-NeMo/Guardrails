@@ -17,14 +17,21 @@
 Zscaler AI Guard integration for NeMo Guardrails.
 
 Scans prompts and LLM responses using the Zscaler AI Guard DAS API
-(resolve-and-execute-policy) via the zscaler-sdk-python SDK.
+via the zscaler-sdk-python SDK.
+
+By default, uses resolve-and-execute-policy (automatic policy selection).
+Set AIGUARD_POLICY_ID to use execute-policy with a specific policy.
 
 Required environment variables:
     AIGUARD_API_KEY  - Zscaler AI Guard API key (Bearer token)
     AIGUARD_CLOUD    - Cloud region, e.g. us1, us2, eu1 (default: us1)
+
+Optional environment variables:
+    AIGUARD_POLICY_ID - Specific policy ID to use (default: auto-resolved)
 """
 
 import asyncio
+import json
 import logging
 import os
 from typing import Any, Optional
@@ -60,33 +67,78 @@ def _get_attr(obj, name, default=None):
     return getattr(obj, name, default)
 
 
-def _scan_sync(content: str, direction: str):
+def _to_raw_response_dict(result) -> dict:
+    """Convert SDK result to full API-style JSON-serializable dict."""
+
+    def _clean(v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return {k: _clean(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [_clean(x) for x in v]
+        if hasattr(v, "request_format"):
+            return _clean(v.request_format())
+        return v
+
+    if result is None:
+        return {}
+    if hasattr(result, "request_format"):
+        raw = result.request_format()
+    elif isinstance(result, dict):
+        raw = dict(result)
+    else:
+        raw = {}
+    return _clean(raw) or {}
+
+
+def _scan_sync(content: str, direction: str, policy_id: Optional[int] = None):
     """Call the AI Guard API synchronously (wrapped with asyncio.to_thread)."""
     client = _get_sdk_client()
-    result, _response, error = client.policy_detection.resolve_and_execute_policy(
-        content=content,
-        direction=direction,
-    )
+
+    if policy_id is not None:
+        result, _response, error = client.policy_detection.execute_policy(
+            content=content,
+            direction=direction,
+            policy_id=policy_id,
+        )
+    else:
+        result, _response, error = (
+            client.policy_detection.resolve_and_execute_policy(
+                content=content,
+                direction=direction,
+            )
+        )
+
     if error:
         raise RuntimeError(f"AI Guard API error: {error}")
     return result
 
 
-def call_zscaler_aiguard_api_mapping(result: dict) -> bool:
-    """
-    Output mapping for call_zscaler_aiguard_api.
+def _build_block_message(
+    direction: str,
+    severity: str,
+    policy_name: str,
+    blocking_detectors: list,
+    transaction_id: Optional[str] = None,
+) -> str:
+    """Build a human-readable block message with full context."""
+    target = "user prompt" if direction == "IN" else "LLM response"
+    parts = [f"Zscaler AI Guard blocked the {target}."]
+    parts.append(f"Severity: {severity}.")
+    parts.append(f"Policy: {policy_name}.")
+    if blocking_detectors:
+        parts.append(f"Detectors: {', '.join(blocking_detectors)}.")
+    if transaction_id:
+        parts.append(f"Transaction: {transaction_id}.")
+    return " ".join(parts)
 
-    Returns True (block) when the AI Guard policy action is anything
-    other than ALLOW, implementing fail-closed semantics.
-    """
-    action_val = str(result.get("action", "BLOCK")).upper()
-    return action_val != "ALLOW"
 
-
-@action(is_system_action=True, output_mapping=call_zscaler_aiguard_api_mapping)
+@action(is_system_action=True)
 async def call_zscaler_aiguard_api(
     text: Optional[str] = None,
     direction: str = "IN",
+    policy_id: Optional[int] = None,
     **kwargs,
 ) -> dict[str, Any]:
     """
@@ -95,6 +147,9 @@ async def call_zscaler_aiguard_api(
     Args:
         text: Content to scan (user prompt or bot response).
         direction: "IN" for user prompts, "OUT" for bot responses.
+        policy_id: Optional policy ID. If provided, calls execute_policy
+            instead of resolve_and_execute_policy. Can also be set via
+            AIGUARD_POLICY_ID environment variable.
 
     Returns:
         Dict containing:
@@ -103,18 +158,43 @@ async def call_zscaler_aiguard_api(
             policy_name  - Name of the policy that was evaluated
             transaction_id - Unique transaction ID for debugging
             detectors    - Dict of detector names to their verdicts
+            message      - Pre-built human-readable message for exceptions
     """
     if not text:
-        return {"action": "ALLOW", "severity": "NONE", "detectors": {}}
+        return {
+            "action": "ALLOW",
+            "severity": "NONE",
+            "detectors": {},
+            "message": "",
+        }
+
+    effective_policy_id = policy_id
+    if effective_policy_id is None:
+        env_policy_id = os.environ.get("AIGUARD_POLICY_ID")
+        if env_policy_id:
+            try:
+                effective_policy_id = int(env_policy_id)
+            except ValueError:
+                log.warning(
+                    "AIGUARD_POLICY_ID=%r is not a valid integer, ignoring",
+                    env_policy_id,
+                )
 
     log.debug("AI Guard scanning %s content (%d chars)", direction, len(text))
 
     try:
-        result = await asyncio.to_thread(_scan_sync, text, direction)
+        result = await asyncio.to_thread(
+            _scan_sync, text, direction, effective_policy_id
+        )
 
         if result is None:
             log.warning("AI Guard returned None — blocking by default")
-            return {"action": "BLOCK", "severity": "UNKNOWN", "detectors": {}}
+            return {
+                "action": "BLOCK",
+                "severity": "UNKNOWN",
+                "detectors": {},
+                "message": _build_block_message(direction, "UNKNOWN", "unknown", []),
+            }
 
         action_val = str(_get_attr(result, "action", "BLOCK")).upper()
         severity = _get_attr(result, "severity", "unknown")
@@ -145,15 +225,19 @@ async def call_zscaler_aiguard_api(
             if det_action == "BLOCK":
                 blocking_detectors.append(name)
 
+        raw_dict = _to_raw_response_dict(result)
         if action_val != "ALLOW":
-            log.info(
-                "AI Guard BLOCKED [txn=%s, policy=%s, severity=%s, detectors=%s]",
-                transaction_id,
-                policy_name,
-                severity,
-                blocking_detectors,
+            summary = _build_block_message(
+                direction, severity, policy_name, blocking_detectors, transaction_id
             )
+            try:
+                raw_json = json.dumps(raw_dict, indent=2) if raw_dict else ""
+            except (TypeError, ValueError):
+                raw_json = str(raw_dict)
+            message = f"{summary}\n\nFull API response:\n{raw_json}" if raw_json else summary
+            log.info("AI Guard BLOCKED: %s", summary)
         else:
+            message = ""
             log.debug(
                 "AI Guard ALLOWED [txn=%s, policy=%s]",
                 transaction_id,
@@ -167,13 +251,17 @@ async def call_zscaler_aiguard_api(
             "transaction_id": transaction_id,
             "detectors": detectors,
             "blocking_detectors": blocking_detectors,
+            "message": message,
+            "raw_response": raw_dict if action_val != "ALLOW" else {},
         }
 
     except Exception as e:
         log.error("AI Guard scan failed: %s — %s", type(e).__name__, e)
+        message = _build_block_message(direction, "UNKNOWN", "unknown", [])
         return {
             "action": "BLOCK",
             "severity": "UNKNOWN",
             "detectors": {},
             "error": str(e),
+            "message": message,
         }

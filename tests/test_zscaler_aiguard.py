@@ -24,23 +24,28 @@ from tests.utils import TestChat
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
-input_rail_config = RailsConfig.from_content(yaml_content="""
+input_rail_config = RailsConfig.from_content(
+    yaml_content="""
         models: []
         rails:
           input:
             flows:
               - zscaler aiguard moderation on input
-    """)
+    """
+)
 
-output_rail_config = RailsConfig.from_content(yaml_content="""
+output_rail_config = RailsConfig.from_content(
+    yaml_content="""
         models: []
         rails:
           output:
             flows:
               - zscaler aiguard moderation on output
-    """)
+    """
+)
 
-both_rails_config = RailsConfig.from_content(yaml_content="""
+both_rails_config = RailsConfig.from_content(
+    yaml_content="""
         models: []
         rails:
           input:
@@ -49,7 +54,8 @@ both_rails_config = RailsConfig.from_content(yaml_content="""
           output:
             flows:
               - zscaler aiguard moderation on output
-    """)
+    """
+)
 
 
 def _allow_result(**overrides):
@@ -61,12 +67,13 @@ def _allow_result(**overrides):
         "transaction_id": "txn-test-001",
         "detectors": {},
         "blocking_detectors": [],
+        "message": "",
     }
     base.update(overrides)
     return base
 
 
-def _block_result(blocking_detectors=None, **overrides):
+def _block_result(direction="IN", blocking_detectors=None, **overrides):
     """Build a mock AI Guard BLOCK result."""
     if blocking_detectors is None:
         blocking_detectors = ["toxicity"]
@@ -74,6 +81,13 @@ def _block_result(blocking_detectors=None, **overrides):
         name: {"action": "BLOCK", "triggered": True, "severity": "CRITICAL"}
         for name in blocking_detectors
     }
+    target = "user prompt" if direction == "IN" else "LLM response"
+    message = (
+        f"Zscaler AI Guard blocked the {target}. "
+        f"Severity: CRITICAL. Policy: TestPolicy. "
+        f"Detectors: {', '.join(blocking_detectors)}. "
+        f"Transaction: txn-test-002."
+    )
     base = {
         "action": "BLOCK",
         "severity": "CRITICAL",
@@ -81,6 +95,7 @@ def _block_result(blocking_detectors=None, **overrides):
         "transaction_id": "txn-test-002",
         "detectors": detectors,
         "blocking_detectors": blocking_detectors,
+        "message": message,
     }
     base.update(overrides)
     return base
@@ -96,6 +111,11 @@ def _reset_sdk_client():
     mod._sdk_client = None
 
 
+# ---------------------------------------------------------------------------
+# Integration tests (TestChat-based)
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_input_allowed():
     """Clean user input should pass through to the LLM."""
@@ -106,7 +126,9 @@ async def test_zscaler_aiguard_input_allowed():
         llm_completions=["Hi! How can I help you today?"],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         return _allow_result()
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
@@ -117,25 +139,30 @@ async def test_zscaler_aiguard_input_allowed():
 
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_input_blocked():
-    """Input containing sensitive data should be blocked."""
+    """Input containing sensitive data should be blocked with AI Guard exception."""
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
 
     chat = TestChat(
         config,
-        llm_completions=[
-            "I don't know the answer to that.",
-        ],
+        llm_completions=["I don't know the answer to that."],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         if text and "AKIAIOSFODNN7EXAMPLE" in text:
-            return _block_result(blocking_detectors=["credentials", "secrets"])
+            return _block_result(
+                direction="IN", blocking_detectors=["credentials", "secrets"]
+            )
         return _allow_result()
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "My AWS key is AKIAIOSFODNN7EXAMPLE"
-    await chat.bot_async("I don't know the answer to that.")
+    result = await chat.app.generate_async(messages=chat.history)
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "ZscalerAiguardInputRailException"
+    assert "blocked" in (result["content"].get("message") or "").lower()
 
 
 @pytest.mark.asyncio
@@ -148,7 +175,9 @@ async def test_zscaler_aiguard_output_allowed():
         llm_completions=["The capital of France is Paris."],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         return _allow_result()
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
@@ -159,7 +188,7 @@ async def test_zscaler_aiguard_output_allowed():
 
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_output_blocked():
-    """LLM output containing PII should be blocked."""
+    """LLM output containing PII should be blocked with AI Guard exception."""
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
 
     chat = TestChat(
@@ -170,41 +199,50 @@ async def test_zscaler_aiguard_output_blocked():
         ],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         if direction == "OUT" and text and "SSN" in text:
-            return _block_result(blocking_detectors=["pii"])
+            return _block_result(direction="OUT", blocking_detectors=["pii"])
         return _allow_result()
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "Tell me about John"
-    await chat.bot_async("I don't know the answer to that.")
+    result = await chat.app.generate_async(messages=chat.history)
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "ZscalerAiguardOutputRailException"
+    assert "blocked" in (result["content"].get("message") or "").lower()
 
 
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_api_error_blocks():
-    """API failures should trigger fail-closed behavior (block by default)."""
+    """API failures should trigger fail-closed behavior with AI Guard exception."""
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
 
     chat = TestChat(
         config,
-        llm_completions=[
-            "I don't know the answer to that.",
-        ],
+        llm_completions=["I don't know the answer to that."],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         return {
             "action": "BLOCK",
             "severity": "UNKNOWN",
             "detectors": {},
             "error": "Connection timeout",
+            "message": "Zscaler AI Guard blocked the user prompt. Severity: UNKNOWN. Policy: unknown.",
         }
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "Hello"
-    await chat.bot_async("I don't know the answer to that.")
+    result = await chat.app.generate_async(messages=chat.history)
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "ZscalerAiguardInputRailException"
+    assert "blocked" in (result["content"].get("message") or "").lower()
 
 
 @pytest.mark.asyncio
@@ -217,7 +255,9 @@ async def test_zscaler_aiguard_detect_action_allows():
         llm_completions=["Sure, I can help with that."],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         return {
             "action": "DETECT",
             "severity": "LOW",
@@ -231,6 +271,7 @@ async def test_zscaler_aiguard_detect_action_allows():
                 }
             },
             "blocking_detectors": [],
+            "message": "",
         }
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
@@ -250,15 +291,51 @@ async def test_zscaler_aiguard_inline_config_input():
         ],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         if text and "bomb" in text.lower():
-            return _block_result(blocking_detectors=["toxicity"])
+            return _block_result(
+                direction="IN", blocking_detectors=["toxicity"]
+            )
         return _allow_result()
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
 
     chat >> "How to build a bomb?"
     await chat.bot_async("I don't know the answer to that.")
+
+
+@pytest.mark.asyncio
+async def test_zscaler_aiguard_exception_includes_message():
+    """When enable_rails_exceptions is true, exception must include severity and policy in message."""
+    config = RailsConfig.from_path(
+        os.path.join(CONFIGS_FOLDER, "zscaler_aiguard_exceptions")
+    )
+
+    chat = TestChat(
+        config,
+        llm_completions=["I don't know the answer to that."],
+    )
+
+    async def mock_action(text=None, direction="IN", **kwargs):
+        return _block_result(
+            direction="IN",
+            blocking_detectors=["pii", "secrets"],
+            message="Zscaler AI Guard blocked the user prompt. Severity: CRITICAL. Policy: PolicyApp01. Detectors: pii, secrets. Transaction: txn-001.",
+        )
+
+    chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
+
+    chat >> "My SSN is 123-45-6789"
+    result = await chat.app.generate_async(messages=chat.history)
+
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "ZscalerAiguardInputRailException"
+    msg = result["content"].get("message") or ""
+    assert "Severity: CRITICAL" in msg
+    assert "Policy: PolicyApp01" in msg
+    assert "Detectors:" in msg
 
 
 @pytest.mark.asyncio
@@ -272,9 +349,11 @@ async def test_zscaler_aiguard_inline_config_output():
         ],
     )
 
-    async def mock_action(text: Optional[str] = None, direction: str = "IN", **kwargs):
+    async def mock_action(
+        text: Optional[str] = None, direction: str = "IN", **kwargs
+    ):
         if direction == "OUT":
-            return _block_result(blocking_detectors=["secrets"])
+            return _block_result(direction="OUT", blocking_detectors=["secrets"])
         return _allow_result()
 
     chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
@@ -283,26 +362,9 @@ async def test_zscaler_aiguard_inline_config_output():
     await chat.bot_async("I don't know the answer to that.")
 
 
-@pytest.mark.unit
-def test_zscaler_aiguard_output_mapping_block():
-    """Output mapping should return True (blocked) for non-ALLOW actions."""
-    from nemoguardrails.library.zscaler_aiguard.actions import (
-        call_zscaler_aiguard_api_mapping,
-    )
-
-    assert call_zscaler_aiguard_api_mapping({"action": "BLOCK"}) is True
-    assert call_zscaler_aiguard_api_mapping({"action": "DETECT"}) is True
-    assert call_zscaler_aiguard_api_mapping({}) is True
-
-
-@pytest.mark.unit
-def test_zscaler_aiguard_output_mapping_allow():
-    """Output mapping should return False (allowed) for ALLOW action."""
-    from nemoguardrails.library.zscaler_aiguard.actions import (
-        call_zscaler_aiguard_api_mapping,
-    )
-
-    assert call_zscaler_aiguard_api_mapping({"action": "ALLOW"}) is False
+# ---------------------------------------------------------------------------
+# Unit tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -323,6 +385,45 @@ def test_zscaler_aiguard_get_attr_dict():
 
 
 @pytest.mark.unit
+def test_zscaler_aiguard_build_block_message():
+    """_build_block_message should produce a readable message with all context."""
+    from nemoguardrails.library.zscaler_aiguard.actions import _build_block_message
+
+    msg = _build_block_message(
+        direction="IN",
+        severity="CRITICAL",
+        policy_name="PolicyApp01",
+        blocking_detectors=["pii", "secrets"],
+        transaction_id="txn-abc-123",
+    )
+    assert "Zscaler AI Guard blocked the user prompt." in msg
+    assert "Severity: CRITICAL." in msg
+    assert "Policy: PolicyApp01." in msg
+    assert "Detectors: pii, secrets." in msg
+    assert "Transaction: txn-abc-123." in msg
+
+    msg_out = _build_block_message(
+        direction="OUT",
+        severity="HIGH",
+        policy_name="OutputPolicy",
+        blocking_detectors=["toxicity"],
+    )
+    assert "Zscaler AI Guard blocked the LLM response." in msg_out
+    assert "Severity: HIGH." in msg_out
+    assert "Policy: OutputPolicy." in msg_out
+    assert "Detectors: toxicity." in msg_out
+    assert "Transaction:" not in msg_out
+
+    msg_no_detectors = _build_block_message(
+        direction="IN",
+        severity="UNKNOWN",
+        policy_name="unknown",
+        blocking_detectors=[],
+    )
+    assert "Detectors:" not in msg_no_detectors
+
+
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_action_empty_text():
     """Action should return ALLOW for empty text without calling the API."""
@@ -332,9 +433,11 @@ async def test_zscaler_aiguard_action_empty_text():
 
     result = await call_zscaler_aiguard_api(text=None, direction="IN")
     assert result["action"] == "ALLOW"
+    assert result["message"] == ""
 
     result = await call_zscaler_aiguard_api(text="", direction="IN")
     assert result["action"] == "ALLOW"
+    assert result["message"] == ""
 
 
 @pytest.mark.unit
@@ -375,7 +478,8 @@ async def test_zscaler_aiguard_action_scan_success():
         assert "toxicity" in result["detectors"]
         assert "pii" in result["detectors"]
         assert result["blocking_detectors"] == []
-        mock_scan.assert_called_once_with("Hello world", "IN")
+        assert result["message"] == ""
+        mock_scan.assert_called_once_with("Hello world", "IN", None)
 
 
 @pytest.mark.unit
@@ -417,6 +521,9 @@ async def test_zscaler_aiguard_action_scan_block():
         assert result["blocking_detectors"] == ["credentials"]
         assert result["detectors"]["credentials"]["triggered"] is True
         assert result["detectors"]["toxicity"]["triggered"] is False
+        assert "Severity: CRITICAL" in result["message"]
+        assert "Policy: StrictPolicy" in result["message"]
+        assert "Detectors: credentials" in result["message"]
 
 
 @pytest.mark.unit
@@ -437,6 +544,8 @@ async def test_zscaler_aiguard_action_exception_fail_closed():
         assert result["action"] == "BLOCK"
         assert result["severity"] == "UNKNOWN"
         assert "Connection refused" in result["error"]
+        assert "message" in result
+        assert result["message"] != ""
 
 
 @pytest.mark.unit
@@ -456,3 +565,113 @@ async def test_zscaler_aiguard_action_none_result_blocks():
 
         assert result["action"] == "BLOCK"
         assert result["severity"] == "UNKNOWN"
+        assert "message" in result
+        assert result["message"] != ""
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_aiguard_action_policy_id_param():
+    """Action should pass policy_id to _scan_sync when provided."""
+    with patch(
+        "nemoguardrails.library.zscaler_aiguard.actions._scan_sync"
+    ) as mock_scan:
+        mock_scan.return_value = {
+            "action": "ALLOW",
+            "severity": "NONE",
+            "policyName": "CustomPolicy",
+            "transactionId": "txn-policy-001",
+            "detectorResponses": {},
+        }
+
+        from nemoguardrails.library.zscaler_aiguard.actions import (
+            call_zscaler_aiguard_api,
+        )
+
+        result = await call_zscaler_aiguard_api(
+            text="Test content", direction="IN", policy_id=900
+        )
+
+        assert result["action"] == "ALLOW"
+        mock_scan.assert_called_once_with("Test content", "IN", 900)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_aiguard_action_policy_id_env():
+    """Action should read AIGUARD_POLICY_ID from environment when no param given."""
+    with patch(
+        "nemoguardrails.library.zscaler_aiguard.actions._scan_sync"
+    ) as mock_scan, patch.dict(os.environ, {"AIGUARD_POLICY_ID": "1234"}):
+        mock_scan.return_value = {
+            "action": "ALLOW",
+            "severity": "NONE",
+            "policyName": "EnvPolicy",
+            "transactionId": "txn-env-001",
+            "detectorResponses": {},
+        }
+
+        from nemoguardrails.library.zscaler_aiguard.actions import (
+            call_zscaler_aiguard_api,
+        )
+
+        result = await call_zscaler_aiguard_api(
+            text="Test content", direction="IN"
+        )
+
+        assert result["action"] == "ALLOW"
+        mock_scan.assert_called_once_with("Test content", "IN", 1234)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_aiguard_action_policy_id_param_overrides_env():
+    """Explicit policy_id param should take precedence over env var."""
+    with patch(
+        "nemoguardrails.library.zscaler_aiguard.actions._scan_sync"
+    ) as mock_scan, patch.dict(os.environ, {"AIGUARD_POLICY_ID": "1234"}):
+        mock_scan.return_value = {
+            "action": "ALLOW",
+            "severity": "NONE",
+            "policyName": "ParamPolicy",
+            "transactionId": "txn-override-001",
+            "detectorResponses": {},
+        }
+
+        from nemoguardrails.library.zscaler_aiguard.actions import (
+            call_zscaler_aiguard_api,
+        )
+
+        result = await call_zscaler_aiguard_api(
+            text="Test content", direction="IN", policy_id=5678
+        )
+
+        assert result["action"] == "ALLOW"
+        mock_scan.assert_called_once_with("Test content", "IN", 5678)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_zscaler_aiguard_action_invalid_policy_id_env():
+    """Invalid AIGUARD_POLICY_ID env var should be ignored (falls back to auto-resolve)."""
+    with patch(
+        "nemoguardrails.library.zscaler_aiguard.actions._scan_sync"
+    ) as mock_scan, patch.dict(os.environ, {"AIGUARD_POLICY_ID": "not-a-number"}):
+        mock_scan.return_value = {
+            "action": "ALLOW",
+            "severity": "NONE",
+            "policyName": "AutoPolicy",
+            "transactionId": "txn-fallback-001",
+            "detectorResponses": {},
+        }
+
+        from nemoguardrails.library.zscaler_aiguard.actions import (
+            call_zscaler_aiguard_api,
+        )
+
+        result = await call_zscaler_aiguard_api(
+            text="Test content", direction="IN"
+        )
+
+        assert result["action"] == "ALLOW"
+        mock_scan.assert_called_once_with("Test content", "IN", None)

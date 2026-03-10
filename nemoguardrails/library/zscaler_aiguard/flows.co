@@ -5,7 +5,8 @@ flow zscaler aiguard moderation on input
 
   if $result.action == "BLOCK"
     if $system.config.enable_rails_exceptions
-      send ZscalerAiguardInputRailException(message="Zscaler AI Guard blocked the user prompt. Severity: {$result.severity}. Policy: {$result.policy_name}.")
+      $msg = $result["message"]
+      send ZscalerAiguardInputRailException(message=$msg)
     else
       bot inform answer unknown
     abort
@@ -17,7 +18,8 @@ flow zscaler aiguard moderation on output
 
   if $result.action == "BLOCK"
     if $system.config.enable_rails_exceptions
-      send ZscalerAiguardOutputRailException(message="Zscaler AI Guard blocked the LLM response. Severity: {$result.severity}. Policy: {$result.policy_name}.")
+      $msg = $result["message"]
+      send ZscalerAiguardOutputRailException(message=$msg)
     else
       bot inform answer unknown
     abort

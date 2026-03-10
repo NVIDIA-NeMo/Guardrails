@@ -5,7 +5,8 @@ define subflow zscaler aiguard moderation on input
 
   if $result.action == "BLOCK"
     if $config.enable_rails_exceptions
-      create event ZscalerAiguardInputRailException(message="Zscaler AI Guard blocked the user prompt.")
+      $msg = $result["message"]
+      create event ZscalerAiguardInputRailException(message=$msg)
     else
       bot inform answer unknown
     stop
@@ -17,7 +18,8 @@ define subflow zscaler aiguard moderation on output
 
   if $result.action == "BLOCK"
     if $config.enable_rails_exceptions
-      create event ZscalerAiguardOutputRailException(message="Zscaler AI Guard blocked the LLM response.")
+      $msg = $result["message"]
+      create event ZscalerAiguardOutputRailException(message=$msg)
     else
       bot inform answer unknown
     stop

@@ -1,6 +1,6 @@
 # Zscaler AI Guard Integration
 
-The Zscaler AI Guard guardrail uses the [Zscaler AI Guard](https://help.zscaler.com/ai-guard) DAS API (`resolve-and-execute-policy`) to scan prompts and LLM responses for security threats, including:
+The Zscaler AI Guard guardrail uses the [Zscaler AI Guard](https://help.zscaler.com/ai-guard) DAS API to scan prompts and LLM responses for security threats, including:
 
 - **Credentials and secrets** - API keys, tokens, passwords, and cloud credentials
 - **PII (Personally Identifiable Information)** - Names, emails, phone numbers, SSNs, and other personal data
@@ -16,12 +16,19 @@ The following environment variables are required:
 - `AIGUARD_API_KEY`: Zscaler AI Guard API key (Bearer token). Obtain from AI Guard Console → Private AI Apps → Applications → API Keys.
 - `AIGUARD_CLOUD`: Cloud region. Options: `us1` (default), `us2`, `eu1`, `eu2`.
 
+Optionally, to use a specific policy instead of automatic resolution:
+
+- `AIGUARD_POLICY_ID`: Integer policy ID. When set, the integration calls `execute-policy` with the given ID instead of `resolve-and-execute-policy`.
+
 ## Setup
 
 ### Colang v1
 
 ```yaml
 # config.yml
+
+# Optional: show detailed block messages (severity, policy name, detectors)
+enable_rails_exceptions: true
 
 rails:
   input:
@@ -58,8 +65,10 @@ flow output rails $output_text
 
 1. **Input scanning**: Before user prompts reach the LLM, the `zscaler aiguard moderation on input` flow sends the prompt to the AI Guard API with `direction="IN"`.
 2. **Output scanning**: After the LLM generates a response, the `zscaler aiguard moderation on output` flow sends the response to the AI Guard API with `direction="OUT"`.
-3. **Verdict handling**: If the API returns an `action` of `BLOCK`, the flow aborts and the bot refuses to respond. If the API returns `ALLOW` or `DETECT`, the content passes through normally.
-4. **Fail-closed**: If the API call fails (network error, timeout, etc.), the action returns `action: BLOCK` by default to prevent potentially unsafe content from passing through.
+3. **Policy selection**: By default, the integration calls `resolve-and-execute-policy` which automatically selects the appropriate policy. If `AIGUARD_POLICY_ID` is set, it instead calls `execute-policy` with the specified policy ID.
+4. **Verdict handling**: If the API returns an `action` of `BLOCK`, the flow aborts and the bot refuses to respond. If the API returns `ALLOW` or `DETECT`, the content passes through normally.
+5. **Rails exceptions**: When `enable_rails_exceptions: true` is set at the top level of the config, blocked requests emit a `ZscalerAiguardInputRailException` or `ZscalerAiguardOutputRailException` with a detailed message containing the severity, policy name, blocking detectors, and transaction ID.
+6. **Fail-closed**: If the API call fails (network error, timeout, etc.), the action returns `action: BLOCK` by default to prevent potentially unsafe content from passing through.
 
 ## Detectors
 
