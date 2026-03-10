@@ -40,7 +40,7 @@ Currently, only the Markdown format is supported.
 
 Documents in the knowledge base `kb` folder are automatically processed and indexed for retrieval. The system:
 
-1. Splits documents into topic chunks based on markdown headers.
+1. Splits documents into topic chunks based on markdown headers. Large chunks are further split at blank lines to stay within a maximum chunk size.
 2. Uses the configured embedding model to create vector representations of each chunk.
 3. Stores the embeddings for efficient similarity search.
 
@@ -126,18 +126,28 @@ Place markdown files in the `kb` folder as described above. This is the simplest
 Implement a custom action to retrieve chunks from external sources:
 
 ```python
-from nemoguardrails.actions import action
+from typing import Optional
 
-@action()
-async def retrieve_relevant_chunks(context: dict, llm: BaseLLM):
-    """Custom retrieval from external knowledge base."""
-    user_message = context.get("last_user_message")
+from nemoguardrails.actions import action
+from nemoguardrails.actions.actions import ActionResult
+from nemoguardrails.kb.kb import KnowledgeBase
+
+@action(is_system_action=True)
+async def retrieve_relevant_chunks(
+    context: Optional[dict] = None,
+    kb: Optional[KnowledgeBase] = None,
+):
+    user_message = context.get("last_user_message") if context else None
 
     # Implement custom retrieval logic
     # For example, query an external vector database
     chunks = await query_external_kb(user_message)
+    relevant_chunks = "\n".join(chunks)
 
-    return chunks
+    return ActionResult(
+        return_value=relevant_chunks,
+        context_updates={"relevant_chunks": relevant_chunks},
+    )
 ```
 
 ### 3. Using Custom EmbeddingSearchProvider
@@ -145,7 +155,8 @@ async def retrieve_relevant_chunks(context: dict, llm: BaseLLM):
 For advanced use cases, implement a custom embedding search provider:
 
 ```python
-from nemoguardrails.embeddings.index import EmbeddingsIndex
+from typing import List, Optional
+from nemoguardrails.embeddings.index import EmbeddingsIndex, IndexItem
 
 class CustomEmbeddingSearchProvider(EmbeddingsIndex):
     """Custom embedding search provider."""
@@ -154,8 +165,7 @@ class CustomEmbeddingSearchProvider(EmbeddingsIndex):
         # Custom indexing logic
         pass
 
-    async def search(self, text: str, max_results: int) -> List[IndexItem]:
-        # Custom search logic
+    async def search(self, text: str, max_results: int, threshold: Optional[float] = None) -> List[IndexItem]:
         pass
 ```
 

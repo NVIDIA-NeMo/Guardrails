@@ -20,7 +20,7 @@ The NVIDIA NeMo Guardrails library supports an in-memory cache that avoids makin
 
 In-memory caches are supported for all NemoGuard models: [Content-Safety](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety), [Topic-Control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [Jailbreak Detection](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect). You can configure each model independently.
 
-The cache uses exact matching (after removing whitespace) on LLM prompts with a Least-Frequently-Used (LFU) algorithm for cache evictions.
+The cache uses exact matching (after normalizing whitespace) on LLM prompts with a Least-Frequently-Used (LFU) algorithm for cache evictions. Whitespace normalization collapses consecutive whitespace characters into a single space and trims leading/trailing whitespace.
 
 For observability, cache hits and misses are visible in OpenTelemetry (OTEL) telemetry and stored in logs at a configurable interval.
 
@@ -166,14 +166,7 @@ The most important metric is the *Hit Rate*, which represents the proportion of 
 These statistics accumulate while the library is running.
 
 ```text
-"LFU Cache Statistics - "
-"Size: 23/10000 | "
-"Hits: 20 | "
-"Misses: 3 | "
-"Hit Rate: 87% | "
-"Evictions: 0 | "
-"Puts: 21 | "
-"Updates: 4"
+Cache Stats :: Size: 23/10000 | Hits: 20 | Misses: 3 | Hit Rate: 87.00% | Evictions: 0 | Puts: 21 | Updates: 4
 ```
 
 The following list describes the metrics included in the cache statistics:

@@ -24,6 +24,12 @@ content:
 
 If `config.py` contains an `init` function, it is called during `LLMRails` initialization. Use it to set up shared resources and register action parameters.
 
+```{important}
+The `init` function **must be synchronous** (`def init`, not `async def init`). The framework calls it without `await`, so an async function would silently do nothing.
+```
+
+Any top-level code in `config.py` runs at import time, before `init()` is called. This can be used for provider registration that does not require the `LLMRails` instance.
+
 ## Basic Usage
 
 ```python
@@ -39,17 +45,19 @@ def init(app: LLMRails):
 
 ## Registering Action Parameters
 
-Action parameters registered in `config.py` are automatically injected into actions that declare them:
+Action parameters registered in `config.py` are automatically injected into actions that declare them. The runtime matches parameters by name,.i.e., the parameter name in the action must match the name used during registration.
 
 **config.py:**
 
 ```python
+import os
+
 from nemoguardrails import LLMRails
 
 def init(app: LLMRails):
     # Initialize shared resources
     db = DatabaseConnection(host="localhost", port=5432)
-    api_client = ExternalAPIClient(api_key="...")
+    api_client = ExternalAPIClient(api_key=os.environ.get("API_KEY"))
 
     # Register as action parameters
     app.register_action_param("db", db)
@@ -72,6 +80,20 @@ async def call_external_service(query: str, api_client=None):
     return await api_client.search(query)
 ```
 
+## Built-in Action Parameters
+
+In addition to parameters you register, the runtime automatically injects these built-in parameters into any action that declares them:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config` | `RailsConfig` | The full rails configuration object |
+| `context` | `dict` | The current conversation context |
+| `events` | `list` | The event history |
+| `llm` | LLM instance | The main LLM (auto-registered during initialization) |
+| `llm_task_manager` | `LLMTaskManager` | Manages LLM task execution |
+
+See [Custom Data](custom-data.md) for details on accessing `config.custom_data` inside actions.
+
 ## Accessing the Configuration
 
 The `app` parameter provides access to the full configuration:
@@ -91,37 +113,32 @@ def init(app: LLMRails):
 ## Example: Database Connection
 
 ```python
-import asyncpg
+import os
+import psycopg2
 from nemoguardrails import LLMRails
 
-async def create_db_pool():
-    return await asyncpg.create_pool(
-        host="localhost",
-        database="mydb",
-        user="user",
-        password="password"
+def init(app: LLMRails):
+    # Create connection pool
+    conn = psycopg2.connect(
+        host=os.environ.get("DB_HOST", "localhost"),
+        database=os.environ.get("DB_NAME", "mydb"),
+        user=os.environ.get("DB_USER", "user"),
+        password=os.environ.get("DB_PASSWORD"),
     )
 
-def init(app: LLMRails):
-    import asyncio
-
-    # Create connection pool
-    loop = asyncio.get_event_loop()
-    db_pool = loop.run_until_complete(create_db_pool())
-
-    # Register for use in actions
-    app.register_action_param("db_pool", db_pool)
+    app.register_action_param("db_conn", conn)
 ```
 
 ## Example: API Client Initialization
 
 ```python
+import os
 import httpx
 from nemoguardrails import LLMRails
 
 def init(app: LLMRails):
     # Get API key from custom_data in config.yml
-    api_key = app.config.custom_data.get("api_key")
+    api_key = os.environ.get("API_KEY") or app.config.custom_data.get("api_key")
 
     # Create HTTP client with authentication
     client = httpx.AsyncClient(
