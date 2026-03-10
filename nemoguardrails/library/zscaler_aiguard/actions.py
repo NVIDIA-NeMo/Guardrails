@@ -31,7 +31,6 @@ Optional environment variables:
 """
 
 import asyncio
-import json
 import logging
 import os
 from typing import Any, Optional
@@ -65,31 +64,6 @@ def _get_attr(obj, name, default=None):
     if isinstance(obj, dict):
         return obj.get(name, default)
     return getattr(obj, name, default)
-
-
-def _to_raw_response_dict(result) -> dict:
-    """Convert SDK result to full API-style JSON-serializable dict."""
-
-    def _clean(v):
-        if v is None:
-            return None
-        if isinstance(v, dict):
-            return {k: _clean(x) for k, x in v.items()}
-        if isinstance(v, list):
-            return [_clean(x) for x in v]
-        if hasattr(v, "request_format"):
-            return _clean(v.request_format())
-        return v
-
-    if result is None:
-        return {}
-    if hasattr(result, "request_format"):
-        raw = result.request_format()
-    elif isinstance(result, dict):
-        raw = dict(result)
-    else:
-        raw = {}
-    return _clean(raw) or {}
 
 
 def _scan_sync(content: str, direction: str, policy_id: Optional[int] = None):
@@ -225,17 +199,11 @@ async def call_zscaler_aiguard_api(
             if det_action == "BLOCK":
                 blocking_detectors.append(name)
 
-        raw_dict = _to_raw_response_dict(result)
         if action_val != "ALLOW":
-            summary = _build_block_message(
+            message = _build_block_message(
                 direction, severity, policy_name, blocking_detectors, transaction_id
             )
-            try:
-                raw_json = json.dumps(raw_dict, indent=2) if raw_dict else ""
-            except (TypeError, ValueError):
-                raw_json = str(raw_dict)
-            message = f"{summary}\n\nFull API response:\n{raw_json}" if raw_json else summary
-            log.info("AI Guard BLOCKED: %s", summary)
+            log.info("AI Guard BLOCKED: %s", message)
         else:
             message = ""
             log.debug(
@@ -252,7 +220,6 @@ async def call_zscaler_aiguard_api(
             "detectors": detectors,
             "blocking_detectors": blocking_detectors,
             "message": message,
-            "raw_response": raw_dict if action_val != "ALLOW" else {},
         }
 
     except Exception as e:
