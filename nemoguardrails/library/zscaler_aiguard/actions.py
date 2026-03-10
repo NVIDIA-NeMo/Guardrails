@@ -77,11 +77,9 @@ def _scan_sync(content: str, direction: str, policy_id: Optional[int] = None):
             policy_id=policy_id,
         )
     else:
-        result, _response, error = (
-            client.policy_detection.resolve_and_execute_policy(
-                content=content,
-                direction=direction,
-            )
+        result, _response, error = client.policy_detection.resolve_and_execute_policy(
+            content=content,
+            direction=direction,
         )
 
     if error:
@@ -157,9 +155,7 @@ async def call_zscaler_aiguard_api(
     log.debug("AI Guard scanning %s content (%d chars)", direction, len(text))
 
     try:
-        result = await asyncio.to_thread(
-            _scan_sync, text, direction, effective_policy_id
-        )
+        result = await asyncio.to_thread(_scan_sync, text, direction, effective_policy_id)
 
         if result is None:
             log.warning("AI Guard returned None — blocking by default")
@@ -172,23 +168,13 @@ async def call_zscaler_aiguard_api(
 
         action_val = str(_get_attr(result, "action", "BLOCK")).upper()
         severity = _get_attr(result, "severity", "unknown")
-        policy_name = _get_attr(result, "policy_name") or _get_attr(
-            result, "policyName", "unknown"
-        )
-        transaction_id = _get_attr(result, "transaction_id") or _get_attr(
-            result, "transactionId"
-        )
+        policy_name = _get_attr(result, "policy_name") or _get_attr(result, "policyName", "unknown")
+        transaction_id = _get_attr(result, "transaction_id") or _get_attr(result, "transactionId")
 
-        detector_responses = (
-            _get_attr(result, "detector_responses")
-            or _get_attr(result, "detectorResponses")
-            or {}
-        )
+        detector_responses = _get_attr(result, "detector_responses") or _get_attr(result, "detectorResponses") or {}
         detectors = {}
         blocking_detectors = []
-        for name, det in (
-            detector_responses.items() if isinstance(detector_responses, dict) else []
-        ):
+        for name, det in detector_responses.items() if isinstance(detector_responses, dict) else []:
             det_action = str(_get_attr(det, "action", "unknown")).upper()
             det_triggered = _get_attr(det, "triggered", False)
             detectors[name] = {
@@ -200,9 +186,7 @@ async def call_zscaler_aiguard_api(
                 blocking_detectors.append(name)
 
         if action_val != "ALLOW":
-            message = _build_block_message(
-                direction, severity, policy_name, blocking_detectors, transaction_id
-            )
+            message = _build_block_message(direction, severity, policy_name, blocking_detectors, transaction_id)
             log.info("AI Guard BLOCKED: %s", message)
         else:
             message = ""
