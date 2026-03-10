@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit/
+# Validator https://docs.coderabbit.ai/configuration/yaml-validator#yaml-validator
+# In PR, comment "@coderabbitai configuration" to get the full config including defaults
+# Set the language for reviews by using the corresponding ISO language code.
+# Default: "en-US"
+language: "en-US"
+# Settings related to reviews.
+# Default: {}
+reviews:
+  # Set the profile for reviews. Assertive profile yields more feedback, that may be considered nitpicky.
+  # Options: chill, assertive
+  # Default: "chill"
+  profile: chill
+  # Add this keyword in the PR/MR title to auto-generate the title.
+  # Default: "@coderabbitai"
+  auto_title_placeholder: "@coderabbitai title"
+  # Auto Title Instructions - Custom instructions for auto-generating the PR/MR title.
+  # Default: ""
+  auto_title_instructions: 'Format: "<category>: <title>". Category must be one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, cp. The category must be followed by a colon. Title should be concise (<= 80 chars). Example: "feat: Add logit_bias support".' # current: ''
+  # Set the commit status to 'pending' when the review is in progress and 'success' when it is complete.
+  # Default: true
+  commit_status: false
+  # Generate walkthrough in a markdown collapsible section.
+  # Default: false
+  collapse_walkthrough: true
+  # Generate an assessment of how well the changes address the linked issues in the walkthrough.
+  # Default: true
+  assess_linked_issues: true
+  # Include possibly related issues in the walkthrough.
+  # Default: true
+  related_issues: true
+  # Related PRs - Include possibly related pull requests in the walkthrough.
+  # Default: true
+  related_prs: true
+  # Suggest labels based on the changes in the pull request in the walkthrough.
+  # Default: true
+  suggested_labels: true
+  # Suggest reviewers based on the changes in the pull request in the walkthrough.
+  # Default: true
+  suggested_reviewers: true
+  # Generate a poem in the walkthrough comment.
+  # Default: true
+  poem: false # current: true
+  # Post review details on each review. Additionally, post a review status when a review is skipped in certain cases.
+  # Default: true
+  review_status: false # current: true
+  # Configuration for pre merge checks
+  # Default: {}
+  pre_merge_checks:
+    # Custom Pre-merge Checks - Add unique checks to enforce your team's standards before merging a pull request. Each check must have a unique name (up to 50 characters) and clear instructions (up to 10000 characters). Use these to automatically verify coding, security, documentation, or business rules and maintain code quality.
+    # Default: []
+    custom_checks:
+      - name: "Test Results for Major Changes"
+        mode: "warning" # or "error" to block merges
+        instructions: |
+          If this PR contains major changes (such as new features, breaking changes, or significant refactoring), verify that the PR description includes test results or testing information.
+          If a change could affect numerics or convergence, the PR description should include information demonstrating that there is no regression.
+          If a change could affect performance, the PR description should include before-and-after performance numbers, as well as the configuration and context in which they apply.
+          Pass if test results are documented or if the changes are minor.
+  auto_review:
+    # Configuration for auto review
+    # Default: {}
+    # Automatic Incremental Review - Automatic incremental code review on each push
+    # Default: true
+    auto_incremental_review: false # current: true
+    # Review draft PRs/MRs.
+    # Default: false
+    drafts: false
+    # Base branches (other than the default branch) to review. Accepts regex patterns. Use '.*' to match all branches.

@@ -27,14 +27,15 @@ To use the provided configurations, you need to create accounts at <https://buil
 1. **Create a virtual environment in which to install AIPerf**
 
    ```bash
-   $ mkdir ~/env
-   $ python -m venv ~/env/aiperf
+   mkdir ~/env
+   python -m venv ~/env/aiperf
+   source ~/env/aiperf/bin/activate
    ```
 
 2. **Install dependencies in the virtual environment**
 
    ```bash
-   $ pip install aiperf huggingface_hub typer
+   pip install aiperf huggingface_hub typer httpx
    ```
 
 3. **Login to Hugging Face:**
@@ -50,22 +51,22 @@ To use the provided configurations, you need to create accounts at <https://buil
    After creating a Personal API key, set the `NVIDIA_API_KEY` variable as below.
 
    ```bash
-   $ export NVIDIA_API_KEY="your-api-key-here"
+   export NVIDIA_API_KEY="your-api-key-here"
    ```
 
 ## Running Benchmarks
 
 Each benchmark is configured using the `AIPerfConfig` Pydantic model in [aiperf_models.py](aiperf_models.py).
 The configs are stored in YAML files, and converted to an `AIPerfConfig` object.
-There are two example configs included which can be extended for your use-cases. These both use Nvidia-hosted models, :
+There are two example configs included which can be extended for your use-cases. These both use Nvidia-hosted models:
 
-- [`single_concurrency.yaml`](aiperf_configs/single_concurrency.yaml): Example single-run benchmark with a single concurrency value.
-- [`sweep_concurrency.yaml`](aiperf_configs/sweep_concurrency.yaml): Example multiple-run benchmark to sweep concurency values and run a new benchmark for each.
+- [`single_concurrency.yaml`](configs/single_concurrency.yaml): Example single-run benchmark with a single concurrency value.
+- [`sweep_concurrency.yaml`](configs/sweep_concurrency.yaml): Example multiple-run benchmark to sweep concurrency values and run a new benchmark for each.
 
 To run a benchmark, use the following command:
 
 ```bash
-$ python -m benchmark.aiperf --config-file <path-to-config.yaml>
+python -m benchmark.aiperf --config-file <path-to-config.yaml>
 ```
 
 ### Running a Single Benchmark
@@ -73,16 +74,16 @@ $ python -m benchmark.aiperf --config-file <path-to-config.yaml>
 To run a single benchmark with fixed parameters, use the `single_concurrency.yaml` configuration:
 
 ```bash
-$ python -m benchmark.aiperf --config-file aiperf/configs/single_concurrency.yaml
+python -m benchmark.aiperf --config-file benchmark/aiperf/configs/single_concurrency.yaml
 ```
 
 **Example output:**
 
-```text
-2025-12-01 10:35:17 INFO: Running AIPerf with configuration: aiperf/configs/single_concurrency.yaml
+```terminaloutput
+2025-12-01 10:35:17 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/single_concurrency.yaml
 2025-12-01 10:35:17 INFO: Results root directory: aiperf_results/single_concurrency/20251201_103517
 2025-12-01 10:35:17 INFO: Sweeping parameters: None
-2025-12-01 10:35:17 INFO: Running AIPerf with configuration: aiperf/configs/single_concurrency.yaml
+2025-12-01 10:35:17 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/single_concurrency.yaml
 2025-12-01 10:35:17 INFO: Output directory: aiperf_results/single_concurrency/20251201_103517
 2025-12-01 10:35:17 INFO: Single Run
 2025-12-01 10:36:54 INFO: Run completed successfully
@@ -97,13 +98,13 @@ $ python -m benchmark.aiperf --config-file aiperf/configs/single_concurrency.yam
 To run multiple benchmarks with different concurrency levels, use the `sweep_concurrency.yaml` configuration as below:
 
 ```bash
-$ python -m benchmark.aiperf --config-file aiperf/configs/sweep_concurrency.yaml
+python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency.yaml
 ```
 
 **Example output:**
 
-```text
-2025-11-14 14:02:54 INFO: Running AIPerf with configuration: nemoguardrails/benchmark/aiperf/aiperf_configs/sweep_concurrency.yaml
+```terminaloutput
+2025-11-14 14:02:54 INFO: Running AIPerf with configuration: benchmark/aiperf/configs/sweep_concurrency.yaml
 2025-11-14 14:02:54 INFO: Results root directory: aiperf_results/sweep_concurrency/20251114_140254
 2025-11-14 14:02:54 INFO: Sweeping parameters: {'concurrency': [1, 2, 4]}
 2025-11-14 14:02:54 INFO: Running 3 benchmarks
@@ -134,7 +135,7 @@ The `--dry-run` option allows you to preview all benchmark commands without exec
 - Debugging configuration issues
 
 ```bash
-$ python -m benchmark.aiperf --config-file aiperf/configs/sweep_concurrency.yaml --dry-run
+python -m benchmark.aiperf --config-file benchmark/aiperf/configs/sweep_concurrency.yaml --dry-run
 ```
 
 When in dry-run mode, the script will:
@@ -150,7 +151,7 @@ When in dry-run mode, the script will:
 The `--verbose` option outputs more detailed debugging information to understand each step of the benchmarking process.
 
 ```bash
-$ python -m benchmark.aiperf --config-file <config.yaml> --verbose
+python -m benchmark.aiperf --config-file <config.yaml> --verbose
 ```
 
 Verbose mode provides:
@@ -165,14 +166,14 @@ Verbose mode provides:
 
 ## Configuration Files
 
-Configuration files are YAML files located in [aiperf_configs](aiperf_configs). The configuration is validated using Pydantic models to catch errors early.
+Configuration files are YAML files located in [configs](configs). The configuration is validated using Pydantic models to catch errors early.
 
 ### Top-Level Configuration Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `batch_name` | string | Yes | Name for this batch of benchmarks. Used in output directory naming (e.g., `aiperf_results/batch_name/timestamp/`) |
-| `output_base_dir` | string | Yes | Base directory where all benchmark results will be stored |
+| `batch_name` | string | No | Name for this batch of benchmarks. Used in output directory naming (e.g., `aiperf_results/batch_name/timestamp/`). Default: `benchmark` |
+| `output_base_dir` | string | No | Base directory where all benchmark results will be stored. Default: `aiperf_results` |
 | `base_config` | object | Yes | Base configuration parameters applied to all benchmark runs (see below) |
 | `sweeps` | object | No | Optional parameter sweeps for running multiple benchmarks with different values |
 
@@ -355,11 +356,11 @@ Each run directory contains multiple files with benchmark results and metadata. 
 - **`inputs.json`**: Synthetic prompt data generated for the benchmark.
 - **`profile_export_aiperf.json`**: Main metrics file in JSON format containing aggregated statistics.
 - **`profile_export_aiperf.csv`**: Same metrics as the JSON file, but in CSV format for easy import into spreadsheet tools or data analysis libraries.
-- **`profile_export.jsonl`**: JSON Lines format file containing per-request metrics. Each line is a complete JSON object for one request with:
-- **`logs/aiperf.log`**: Detailed log file from AIPerf execution containing:
+- **`profile_export.jsonl`**: JSON Lines format file containing per-request metrics. Each line is a complete JSON object for one request.
+- **`logs/aiperf.log`**: Detailed log file from AIPerf execution.
 
 ## Resources
 
-- [AIPerf GitHub Repository](https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf)
-- [AIPerf Documentation](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/client/src/c%2B%2B/perf_analyzer/genai-perf/README.html)
+- [AIPerf GitHub Repository](https://github.com/ai-dynamo/aiperf)
+- [AIPerf Documentation](https://docs.nvidia.com/nim/benchmarking/llm/latest/step-by-step.html)
 - [NVIDIA API Catalog](https://build.nvidia.com/)
