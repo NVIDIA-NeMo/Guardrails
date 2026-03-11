@@ -25,7 +25,6 @@ class SnowflakeEmbed:
         self.tokenizer = AutoTokenizer.from_pretrained(
             "Snowflake/snowflake-arctic-embed-m-long",
             trust_remote_code=True,
-            safe_serialization=True
         )
         self.model = AutoModel.from_pretrained(
             "Snowflake/snowflake-arctic-embed-m-long",
