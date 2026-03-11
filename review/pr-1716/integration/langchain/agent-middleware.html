@@ -967,23 +967,18 @@
 <section id="known-limitations">
 <h2>Known Limitations<a class="headerlink" href="#known-limitations" title="Link to this heading">#</a></h2>
 <p>Be aware of the following constraints when using <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> with tool-calling agents.</p>
-<section id="output-rails-and-tool-calling-responses">
-<h3>Output Rails and Tool-Calling Responses<a class="headerlink" href="#output-rails-and-tool-calling-responses" title="Link to this heading">#</a></h3>
-<p>LLM-based output rails (such as <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code>) evaluate the <code class="docutils literal notranslate"><span class="pre">content</span></code> field of the model’s response. Intermediate tool-calling responses often have <strong>empty content</strong> (the actual instructions are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field). Depending on the LLM used for the self-check, an empty content field may be flagged as a violation.</p>
-<p>To work around this, disable output rails and rely on input rails for tool-calling agents:</p>
+<section id="security-considerations-for-tool-calling-agents">
+<h3>Security Considerations for Tool-Calling Agents<a class="headerlink" href="#security-considerations-for-tool-calling-agents" title="Link to this heading">#</a></h3>
+<p>Rails evaluate the <code class="docutils literal notranslate"><span class="pre">content</span></code> field of messages only. This has two implications for tool-calling agents:</p>
+<p><strong>Tool call arguments are not inspected.</strong> When the LLM generates a tool call, the arguments (e.g., <code class="docutils literal notranslate"><span class="pre">send_email(body=&quot;SSN:</span> <span class="pre">123-45-6789&quot;)</span></code>) are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field, not <code class="docutils literal notranslate"><span class="pre">content</span></code>. Input and output rails do not see or validate these arguments.</p>
+<p><strong>Tool results bypass input rails.</strong> When a tool returns its result as a <code class="docutils literal notranslate"><span class="pre">ToolMessage</span></code>, that message is not subject to input rail validation. Malicious or unexpected tool outputs can influence subsequent model responses without being checked.</p>
+<p>To mitigate these risks, enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model’s response is still checked. However, note that intermediate tool-calling responses often have <strong>empty content</strong> (the instructions are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field), and some LLM-based output rails (such as <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code>) may flag empty content as a false positive. If you encounter this, you can disable output rails as a workaround — but be aware this also removes the safety net for tool result content:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">guardrails</span> <span class="o">=</span> <span class="n">GuardrailsMiddleware</span><span class="p">(</span>
     <span class="n">config_path</span><span class="o">=</span><span class="s2">&quot;./config&quot;</span><span class="p">,</span>
     <span class="n">enable_output_rails</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
-</section>
-<section id="security-considerations-for-tool-calling-agents">
-<h3>Security Considerations for Tool-Calling Agents<a class="headerlink" href="#security-considerations-for-tool-calling-agents" title="Link to this heading">#</a></h3>
-<p>Rails evaluate the <code class="docutils literal notranslate"><span class="pre">content</span></code> field of messages only. This has two implications for tool-calling agents:</p>
-<p><strong>Tool call arguments are not inspected.</strong> When the LLM generates a tool call, the arguments (e.g., <code class="docutils literal notranslate"><span class="pre">send_email(body=&quot;SSN:</span> <span class="pre">123-45-6789&quot;)</span></code>) are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field, not <code class="docutils literal notranslate"><span class="pre">content</span></code>. Input and output rails do not see or validate these arguments.</p>
-<p><strong>Tool results bypass input rails.</strong> When a tool returns its result as a <code class="docutils literal notranslate"><span class="pre">ToolMessage</span></code>, that message is not subject to input rail validation. Malicious or unexpected tool outputs can influence subsequent model responses without being checked.</p>
-<p>To mitigate these risks, enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model’s response is still checked.</p>
 <p>For more details, see <a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/latest/integration/tools-integration.html#security-considerations" rel="noreferer noopener" target="_blank">Security Considerations</a> in the tools integration guide.</p>
 </section>
 <section id="modified-status-is-ignored">
@@ -1150,7 +1145,6 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-limitations">Known Limitations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#output-rails-and-tool-calling-responses">Output Rails and Tool-Calling Responses</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#security-considerations-for-tool-calling-agents">Security Considerations for Tool-Calling Agents</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modified-status-is-ignored">MODIFIED Status Is Ignored</a></li>
 </ul>
