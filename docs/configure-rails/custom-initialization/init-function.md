@@ -45,7 +45,7 @@ def init(app: LLMRails):
 
 ## Registering Action Parameters
 
-Action parameters registered in `config.py` are automatically injected into actions that declare them. The runtime matches parameters by name,.i.e., the parameter name in the action must match the name used during registration.
+Action parameters registered in `config.py` are automatically injected into actions that declare them. The runtime matches parameters by name, i.e., the parameter name in the action must match the name used during registration.
 
 **config.py:**
 
