@@ -309,11 +309,15 @@ result2 = agent.invoke(
 
 Be aware of the following constraints when using `GuardrailsMiddleware` with tool-calling agents.
 
-### Output Rails and Tool-Calling Responses
+### Security Considerations for Tool-Calling Agents
 
-LLM-based output rails (such as `self_check_output`) evaluate the `content` field of the model's response. Intermediate tool-calling responses often have **empty content** (the actual instructions are in the `tool_calls` field). Depending on the LLM used for the self-check, an empty content field may be flagged as a violation.
+Rails evaluate the `content` field of messages only. This has two implications for tool-calling agents:
 
-To work around this, disable output rails and rely on input rails for tool-calling agents:
+**Tool call arguments are not inspected.** When the LLM generates a tool call, the arguments (e.g., `send_email(body="SSN: 123-45-6789")`) are in the `tool_calls` field, not `content`. Input and output rails do not see or validate these arguments.
+
+**Tool results bypass input rails.** When a tool returns its result as a `ToolMessage`, that message is not subject to input rail validation. Malicious or unexpected tool outputs can influence subsequent model responses without being checked.
+
+To mitigate these risks, enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model's response is still checked. However, note that intermediate tool-calling responses often have **empty content** (the instructions are in the `tool_calls` field), and some LLM-based output rails (such as `self_check_output`) may flag empty content as a false positive. If you encounter this, you can disable output rails as a workaround — but be aware this also removes the safety net for tool result content:
 
 ```python
 guardrails = GuardrailsMiddleware(
@@ -322,9 +326,7 @@ guardrails = GuardrailsMiddleware(
 )
 ```
 
-### Tool Call Arguments Are Not Inspected
-
-Rails evaluate the `content` field of messages, not the `tool_calls` arguments. Content-based rails do not inspect PII or harmful content passed through tool call arguments (e.g., `send_email(body="SSN: 123-45-6789")`).
+For more details, see [Security Considerations](https://docs.nvidia.com/nemo/guardrails/latest/integration/tools-integration.html#security-considerations) in the tools integration guide.
 
 ### MODIFIED Status Is Ignored
 
