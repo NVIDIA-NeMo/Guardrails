@@ -45,7 +45,9 @@ def test_model_based_classifier_imports(monkeypatch):
     # Mock dependencies
     fake_rf = mock.MagicMock()
     fake_embed = mock.MagicMock(return_value=[0.0])
-    fake_onnx = types.SimpleNamespace(load=mock.MagicMock(return_value=fake_rf))
+    fake_onnx = types.SimpleNamespace(
+        InferenceSession=mock.MagicMock(return_value=fake_rf)
+    )
     fake_snowflake = mock.MagicMock(return_value=fake_embed)
 
     monkeypatch.setitem(
