@@ -679,6 +679,11 @@
   <section class="tex2jax_ignore mathjax_ignore" id="the-init-function">
 <h1>The Init Function<a class="headerlink" href="#the-init-function" title="Link to this heading">#</a></h1>
 <p>If <code class="docutils literal notranslate"><span class="pre">config.py</span></code> contains an <code class="docutils literal notranslate"><span class="pre">init</span></code> function, it is called during <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> initialization. Use it to set up shared resources and register action parameters.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">init</span></code> function <strong>must be synchronous</strong> (<code class="docutils literal notranslate"><span class="pre">def</span> <span class="pre">init</span></code>, not <code class="docutils literal notranslate"><span class="pre">async</span> <span class="pre">def</span> <span class="pre">init</span></code>). The framework calls it without <code class="docutils literal notranslate"><span class="pre">await</span></code>, so an async function would silently do nothing.</p>
+</div>
+<p>Any top-level code in <code class="docutils literal notranslate"><span class="pre">config.py</span></code> runs at import time, before <code class="docutils literal notranslate"><span class="pre">init()</span></code> is called. This can be used for provider registration that does not require the <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> instance.</p>
 <section id="basic-usage">
 <h2>Basic Usage<a class="headerlink" href="#basic-usage" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
@@ -694,14 +699,16 @@
 </section>
 <section id="registering-action-parameters">
 <h2>Registering Action Parameters<a class="headerlink" href="#registering-action-parameters" title="Link to this heading">#</a></h2>
-<p>Action parameters registered in <code class="docutils literal notranslate"><span class="pre">config.py</span></code> are automatically injected into actions that declare them:</p>
+<p>Action parameters registered in <code class="docutils literal notranslate"><span class="pre">config.py</span></code> are automatically injected into actions that declare them. The runtime matches parameters by name, i.e., the parameter name in the action must match the name used during registration.</p>
 <p><strong>config.py:</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">LLMRails</span><span class="p">):</span>
     <span class="c1"># Initialize shared resources</span>
     <span class="n">db</span> <span class="o">=</span> <span class="n">DatabaseConnection</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">5432</span><span class="p">)</span>
-    <span class="n">api_client</span> <span class="o">=</span> <span class="n">ExternalAPIClient</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+    <span class="n">api_client</span> <span class="o">=</span> <span class="n">ExternalAPIClient</span><span class="p">(</span><span class="n">api_key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;API_KEY&quot;</span><span class="p">))</span>
 
     <span class="c1"># Register as action parameters</span>
     <span class="n">app</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;db&quot;</span><span class="p">,</span> <span class="n">db</span><span class="p">)</span>
@@ -723,6 +730,42 @@
 </pre></div>
 </div>
 </section>
+<section id="built-in-action-parameters">
+<h2>Built-in Action Parameters<a class="headerlink" href="#built-in-action-parameters" title="Link to this heading">#</a></h2>
+<p>In addition to parameters you register, the runtime automatically injects these built-in parameters into any action that declares them:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">config</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RailsConfig</span></code></p></td>
+<td><p>The full rails configuration object</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">context</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dict</span></code></p></td>
+<td><p>The current conversation context</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">events</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">list</span></code></p></td>
+<td><p>The event history</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">llm</span></code></p></td>
+<td><p>LLM instance</p></td>
+<td><p>The main LLM (auto-registered during initialization)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">llm_task_manager</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LLMTaskManager</span></code></p></td>
+<td><p>Manages LLM task execution</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>See <a class="reference internal" href="custom-data.html"><span class="std std-doc">Custom Data</span></a> for details on accessing <code class="docutils literal notranslate"><span class="pre">config.custom_data</span></code> inside actions.</p>
+</section>
 <section id="accessing-the-configuration">
 <h2>Accessing the Configuration<a class="headerlink" href="#accessing-the-configuration" title="Link to this heading">#</a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">app</span></code> parameter provides access to the full configuration:</p>
@@ -740,37 +783,32 @@
 </section>
 <section id="example-database-connection">
 <h2>Example: Database Connection<a class="headerlink" href="#example-database-connection" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">asyncpg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">psycopg2</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_db_pool</span><span class="p">():</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">asyncpg</span><span class="o">.</span><span class="n">create_pool</span><span class="p">(</span>
-        <span class="n">host</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
-        <span class="n">database</span><span class="o">=</span><span class="s2">&quot;mydb&quot;</span><span class="p">,</span>
-        <span class="n">user</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
-        <span class="n">password</span><span class="o">=</span><span class="s2">&quot;password&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">LLMRails</span><span class="p">):</span>
+    <span class="c1"># Create connection pool</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">psycopg2</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+        <span class="n">host</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;DB_HOST&quot;</span><span class="p">,</span> <span class="s2">&quot;localhost&quot;</span><span class="p">),</span>
+        <span class="n">database</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;DB_NAME&quot;</span><span class="p">,</span> <span class="s2">&quot;mydb&quot;</span><span class="p">),</span>
+        <span class="n">user</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;DB_USER&quot;</span><span class="p">,</span> <span class="s2">&quot;user&quot;</span><span class="p">),</span>
+        <span class="n">password</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;DB_PASSWORD&quot;</span><span class="p">),</span>
     <span class="p">)</span>
 
-<span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">LLMRails</span><span class="p">):</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-
-    <span class="c1"># Create connection pool</span>
-    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
-    <span class="n">db_pool</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">create_db_pool</span><span class="p">())</span>
-
-    <span class="c1"># Register for use in actions</span>
-    <span class="n">app</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;db_pool&quot;</span><span class="p">,</span> <span class="n">db_pool</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;db_conn&quot;</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
 <section id="example-api-client-initialization">
 <h2>Example: API Client Initialization<a class="headerlink" href="#example-api-client-initialization" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">LLMRails</span><span class="p">):</span>
     <span class="c1"># Get API key from custom_data in config.yml</span>
-    <span class="n">api_key</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">custom_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;api_key&quot;</span><span class="p">)</span>
+    <span class="n">api_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;API_KEY&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">custom_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;api_key&quot;</span><span class="p">)</span>
 
     <span class="c1"># Create HTTP client with authentication</span>
     <span class="n">client</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span>
@@ -835,6 +873,7 @@
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-usage">Basic Usage</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#registering-action-parameters">Registering Action Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#built-in-action-parameters">Built-in Action Parameters</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accessing-the-configuration">Accessing the Configuration</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-database-connection">Example: Database Connection</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-api-client-initialization">Example: API Client Initialization</a></li>
