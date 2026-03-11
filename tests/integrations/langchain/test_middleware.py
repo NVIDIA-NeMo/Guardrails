@@ -1543,3 +1543,29 @@ class TestModifiedStatus:
         assert modified.id == "ai-456"
         assert modified.name == "assistant"
         assert modified.additional_kwargs == {"model": "gpt-4"}
+
+    @pytest.mark.asyncio
+    async def test_output_modified_preserves_tool_calls(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="sanitized")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        tool_call = ToolCall(name="search", args={"q": "test"}, id="tc-1")
+        original_ai = AIMessage(
+            content="PII response",
+            id="ai-789",
+            tool_calls=[tool_call],
+        )
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                original_ai,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        modified = result["messages"][1]
+        assert modified.content == "sanitized"
+        assert modified.id == "ai-789"
+        assert len(modified.tool_calls) == 1
+        assert modified.tool_calls[0]["name"] == "search"
+        assert modified.tool_calls[0]["id"] == "tc-1"
