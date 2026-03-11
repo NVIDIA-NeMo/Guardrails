@@ -16,7 +16,7 @@ content:
 
 The NVIDIA NeMo Guardrails library provides two caching strategies to reduce inference latency.
 The in-memory model cache stores LLM responses and returns them for repeated prompts without calling the LLM again.
-KV cache reuse is a NIM-level optimization that avoids recomputing decoder layers for the shared system prompt on each NemoGuard NIM call.
+KV cache reuse is a NIM-level optimization that avoids computation of the system prompt on each NemoGuard NIM call.
 You can enable either or both strategies independently.
 
 ::::{grid} 1 2 2 2
