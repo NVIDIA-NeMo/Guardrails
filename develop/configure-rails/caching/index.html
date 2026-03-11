@@ -615,8 +615,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -671,6 +669,10 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="caching-instructions-and-prompts">
 <h1>Caching Instructions and Prompts<a class="headerlink" href="#caching-instructions-and-prompts" title="Link to this heading">#</a></h1>
+<p>The NVIDIA NeMo Guardrails library provides two caching strategies to reduce inference latency.
+The in-memory model cache stores LLM responses and returns them for repeated prompts without calling the LLM again.
+KV cache reuse is a NIM-level optimization that avoids computation of the system prompt on each NemoGuard NIM call.
+You can enable either or both strategies independently.</p>
 <div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
 <div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
 <div class="sd-col sd-d-flex-row docutils">
