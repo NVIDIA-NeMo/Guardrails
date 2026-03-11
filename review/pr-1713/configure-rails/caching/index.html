@@ -671,7 +671,7 @@
 <h1>Caching Instructions and Prompts<a class="headerlink" href="#caching-instructions-and-prompts" title="Link to this heading">#</a></h1>
 <p>The NVIDIA NeMo Guardrails library provides two caching strategies to reduce inference latency.
 The in-memory model cache stores LLM responses and returns them for repeated prompts without calling the LLM again.
-KV cache reuse is a NIM-level optimization that avoids recomputing decoder layers for the shared system prompt on each NemoGuard NIM call.
+KV cache reuse is a NIM-level optimization that avoids computation of the system prompt on each NemoGuard NIM call.
 You can enable either or both strategies independently.</p>
 <div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
 <div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-3 sd-g-xs-3 sd-g-sm-3 sd-g-md-3 sd-g-lg-3 docutils">
