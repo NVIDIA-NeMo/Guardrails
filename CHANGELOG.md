@@ -11,15 +11,39 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [0.21.0] - 2026-03-11
 
+### 🚀 Features
+
+- *(server)* Make Guardrails server OpenAI-compatible ([#1340](https://github.com/NVIDIA-NeMo/Guardrails/issues/1340), [#1637](https://github.com/NVIDIA-NeMo/Guardrails/issues/1637))
+- *(iorails)* Introduce IORails optimized Input/Output rail engine. Supports non-streaming parallel nemoguard input/output rails (content-safety, topic-safety, jailbreak detection) ([#1638](https://github.com/NVIDIA-NeMo/Guardrails/issues/1638), [#1649](https://github.com/NVIDIA-NeMo/Guardrails/issues/1649), [#1654](https://github.com/NVIDIA-NeMo/Guardrails/issues/1654), [#1656](https://github.com/NVIDIA-NeMo/Guardrails/issues/1656), [#1658](https://github.com/NVIDIA-NeMo/Guardrails/issues/1658), [#1660](https://github.com/NVIDIA-NeMo/Guardrails/issues/1660), [#1661](https://github.com/NVIDIA-NeMo/Guardrails/issues/1661), [#1674](https://github.com/NVIDIA-NeMo/Guardrails/issues/1674))
+- *(integration)* Add GuardrailsMiddleware for LangChain agent integration ([#1606](https://github.com/NVIDIA-NeMo/Guardrails/issues/1606))
+- *(llmrails)* Add check_async method for input/output rails validation ([#1605](https://github.com/NVIDIA-NeMo/Guardrails/issues/1605))
+- *(library)* Add PolicyAI integration for content moderation ([#1576](https://github.com/NVIDIA-NeMo/Guardrails/issues/1576)), CrowdStrike AIDR community integration ([#1601](https://github.com/NVIDIA-NeMo/Guardrails/issues/1601)), and regex detection rails ([#1614](https://github.com/NVIDIA-NeMo/Guardrails/issues/1614))
+- *(library)* Update Fiddler Guardrails API ([#1619](https://github.com/NVIDIA-NeMo/Guardrails/issues/1619)), Trend Micro Vision One AI Guard endpoint ([#1546](https://github.com/NVIDIA-NeMo/Guardrails/issues/1546)), and Pangea User-Agent repo URL ([#1610](https://github.com/NVIDIA-NeMo/Guardrails/issues/1610))
+- *(jailbreak)* Validate Jailbreak Detection config at create-time ([#1675](https://github.com/NVIDIA-NeMo/Guardrails/issues/1675))
+- *(benchmark)* Add Locust stress-test ([#1629](https://github.com/NVIDIA-NeMo/Guardrails/issues/1629))
+- *(actions)* Lazy initialization of embedding indexes ([#1572](https://github.com/NVIDIA-NeMo/Guardrails/issues/1572))
+
 ### 🐛 Bug Fixes
 
-- *(streaming)* Handle dict chunks in RollingBuffer.format_chunks ([#1687](https://github.com/NVIDIA-NeMo/Guardrails/issues/1687)) 
-- *(middleware)* Handle MODIFIED status in GuardrailsMiddleware instead of silently dropping it ([#1714](https://github.com/NVIDIA-NeMo/Guardrails/issues/1714)) 
+- *(streaming)* Handle dict chunks in RollingBuffer.format_chunks ([#1687](https://github.com/NVIDIA-NeMo/Guardrails/issues/1687))
+- *(streaming)* Handle None stop tokens in streaming handler ([#1685](https://github.com/NVIDIA-NeMo/Guardrails/issues/1685))
+- *(middleware)* Handle MODIFIED status in GuardrailsMiddleware instead of silently dropping it ([#1714](https://github.com/NVIDIA-NeMo/Guardrails/issues/1714))
+- *(llm)* Filter stop parameter for OpenAI reasoning models ([#1653](https://github.com/NVIDIA-NeMo/Guardrails/issues/1653))
+- *(actions)* Rename generate_next_step to generate_next_steps for task-specific LLM support ([#1603](https://github.com/NVIDIA-NeMo/Guardrails/issues/1603))
+- *(library)* Use bot refuse to respond in GLiNER PII detection flows ([#1671](https://github.com/NVIDIA-NeMo/Guardrails/issues/1671))
+- *(library)* Add `valid` alias to action results in GuardrailsAI integration ([#1611](https://github.com/NVIDIA-NeMo/Guardrails/issues/1611))
+
+### 🚜 Refactor
+
+- *(streaming)* [**breaking**] Remove stream_usage and fix streaming metadata capture ([#1624](https://github.com/NVIDIA-NeMo/Guardrails/issues/1624))
+- *(streaming)* Remove LangChain callback dependencies from StreamingHandler ([#1547](https://github.com/NVIDIA-NeMo/Guardrails/issues/1547))
+- *(streaming)* Remove ChatNVIDIA streaming patch ([#1607](https://github.com/NVIDIA-NeMo/Guardrails/issues/1607))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update to v0.21.0-rc12 
-- Update to v0.21.0-rc13 
+- *(cache)* Show cache hits in Stats log ([#1666](https://github.com/NVIDIA-NeMo/Guardrails/issues/1666)) and make cache stats log visible in verbose mode ([#1667](https://github.com/NVIDIA-NeMo/Guardrails/issues/1667))
+- *(jailbreak)* Update dependencies for jailbreak detection docker container ([#1596](https://github.com/NVIDIA-NeMo/Guardrails/issues/1596))
+- Remove multi_kb example ([#1673](https://github.com/NVIDIA-NeMo/Guardrails/issues/1673))
 
 
 ## [0.20.0] - 2026-01-22
