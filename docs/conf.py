@@ -91,8 +91,8 @@ redirects = {
     # Top-level pages
     "architecture": "about/how-it-works.html",
     "architecture/readme": "reference/colang-architecture-guide.html",
-    "faqs": "resources/faqs.html",
-    "glossary": "resources/glossary.html",
+    "faqs": "index.html",
+    "glossary": "index.html",
     "release-notes": "about/release-notes.html",
     "security/guidelines": "resources/security/guidelines.html",
     # Getting started

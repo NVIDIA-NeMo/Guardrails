@@ -22,7 +22,7 @@ content:
 
 # Configuring Custom Initialization
 
-The `config.py` file contains initialization code that runs **once at startup**, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
+The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
 
 ## When to Use config.py vs actions.py
 
@@ -53,7 +53,7 @@ Define the init() function to initialize resources and register action parameter
 :link: custom-llm-providers
 :link-type: doc
 
-Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.
+Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with the NVIDIA NeMo Guardrails library.
 +++
 {bdg-secondary}`How To`
 :::
@@ -62,7 +62,7 @@ Register custom text completion (BaseLLM) and chat models (BaseChatModel) for us
 :link: custom-embedding-providers
 :link-type: doc
 
-Register custom embedding providers for vector similarity search in NeMo Guardrails.
+Register custom embedding providers for vector similarity search in the NVIDIA NeMo Guardrails library.
 +++
 {bdg-secondary}`How To`
 :::
