@@ -131,7 +131,14 @@ class GuardrailsMiddleware(AgentMiddleware):
                 return {"messages": messages + [blocked_msg], "jump_to": "end"}
 
             if result.status == RailStatus.MODIFIED:
-                modified_msg = create_human_message(result.content)
+                log.info("Input modified by rail '%s': content replaced", result.rail or "unknown rail")
+                modified_msg = create_human_message(
+                    result.content,
+                    id=last_user_message.id,
+                    name=last_user_message.name,
+                    additional_kwargs=last_user_message.additional_kwargs or None,
+                    response_metadata=last_user_message.response_metadata or None,
+                )
                 return {"messages": self._replace_last_human_message(messages, modified_msg)}
 
             return None
@@ -189,7 +196,14 @@ class GuardrailsMiddleware(AgentMiddleware):
                 return {"messages": self._replace_last_ai_message(messages, blocked_msg)}
 
             if result.status == RailStatus.MODIFIED:
-                modified_msg = create_ai_message(result.content)
+                log.info("Output modified by rail '%s': content replaced", result.rail or "unknown rail")
+                modified_msg = create_ai_message(
+                    result.content,
+                    id=last_ai_message.id,
+                    name=last_ai_message.name,
+                    additional_kwargs=last_ai_message.additional_kwargs or None,
+                    response_metadata=last_ai_message.response_metadata or None,
+                )
                 return {"messages": self._replace_last_ai_message(messages, modified_msg)}
 
             return None

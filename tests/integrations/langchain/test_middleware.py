@@ -1485,3 +1485,61 @@ class TestModifiedStatus:
         assert result is not None
         assert len(result["messages"]) == 2
         assert result["messages"][1].content == "sanitized output"
+
+    @pytest.mark.asyncio
+    async def test_input_modified_with_empty_content(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {"messages": [HumanMessage(content="sensitive data")]}
+        result = await middleware.abefore_model(state, None)
+
+        assert result is not None
+        assert len(result["messages"]) == 1
+        assert isinstance(result["messages"][0], HumanMessage)
+        assert result["messages"][0].content == ""
+
+    @pytest.mark.asyncio
+    async def test_input_modified_preserves_message_metadata(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="redacted")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        original = HumanMessage(
+            content="my SSN is 123-45-6789",
+            id="msg-123",
+            name="user1",
+            additional_kwargs={"source": "web"},
+        )
+        state = {"messages": [original]}
+        result = await middleware.abefore_model(state, None)
+
+        modified = result["messages"][0]
+        assert modified.content == "redacted"
+        assert modified.id == "msg-123"
+        assert modified.name == "user1"
+        assert modified.additional_kwargs == {"source": "web"}
+
+    @pytest.mark.asyncio
+    async def test_output_modified_preserves_message_metadata(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="safe output")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        original_ai = AIMessage(
+            content="PII in response",
+            id="ai-456",
+            name="assistant",
+            additional_kwargs={"model": "gpt-4"},
+        )
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                original_ai,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        modified = result["messages"][1]
+        assert modified.content == "safe output"
+        assert modified.id == "ai-456"
+        assert modified.name == "assistant"
+        assert modified.additional_kwargs == {"model": "gpt-4"}
