@@ -36,7 +36,9 @@ class SnowflakeEmbed:
         self.model.eval()
 
     def __call__(self, text: str):
-        tokens = self.tokenizer([text], padding=True, truncation=True, return_tensors="pt", max_length=2048)
+        tokens = self.tokenizer(
+            [text], padding=True, truncation=True, return_tensors="pt", max_length=2048
+        )
         tokens = tokens.to(self.device)
         embeddings = self.model(**tokens)[0][:, 0]
         return embeddings.detach().cpu().squeeze(0).numpy()
@@ -48,14 +50,17 @@ class JailbreakClassifier:
 
         self.embed = SnowflakeEmbed()
         # See https://onnx.ai/sklearn-onnx/auto_examples/plot_convert_decision_function.html
-        self.classifier = InferenceSession(random_forest_path, providers=["CPUExecutionProvider"])
+        self.classifier = InferenceSession(
+            random_forest_path, providers=["CPUExecutionProvider"]
+        )
 
     def __call__(self, text: str) -> Tuple[bool, float]:
         e = self.embed(text)
         res = self.classifier.run(None, {"X": [e]})
         # InferenceSession returns a result where the first item is equivalent to argmax over probabilities
         classification = res[0].item()
-        # The second is a list of dicts of probabilities -- the list should have only one element.
+        # The second is a list of dicts of probabilities -- the slice res[1][:2] should have only one element.
+        # We access the dict entry for the class.
         prob = res[1][:2][0][classification]
         score = -prob if classification == 0 else prob
         return bool(classification), float(score)
