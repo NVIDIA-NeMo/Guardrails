@@ -111,6 +111,10 @@ class GuardrailsMiddleware(AgentMiddleware):
         if not messages:
             return None
 
+        last_user_message = self._get_last_user_message(messages)
+        if not last_user_message:
+            return None
+
         rails_messages = self._convert_to_rails_messages(messages)
 
         try:
@@ -124,6 +128,11 @@ class GuardrailsMiddleware(AgentMiddleware):
                 )
                 blocked_msg = create_ai_message(self.blocked_input_message)
                 return {"messages": messages + [blocked_msg], "jump_to": "end"}
+
+            if result.status == RailStatus.MODIFIED:
+                log.info("Input modified by rail '%s': content replaced", result.rail or "unknown rail")
+                modified_msg = last_user_message.model_copy(update={"content": result.content})
+                return {"messages": self._replace_last_human_message(messages, modified_msg)}
 
             return None
 
@@ -140,6 +149,12 @@ class GuardrailsMiddleware(AgentMiddleware):
 
             blocked_msg = create_ai_message(self.blocked_input_message)
             return {"messages": messages + [blocked_msg], "jump_to": "end"}
+
+    def _replace_last_human_message(self, messages: list, replacement: HumanMessage) -> list:
+        for i in range(len(messages) - 1, -1, -1):
+            if is_human_message(messages[i]):
+                return messages[:i] + [replacement] + messages[i + 1 :]
+        return messages + [replacement]
 
     def _replace_last_ai_message(self, messages: list, replacement: AIMessage) -> list:
         for i in range(len(messages) - 1, -1, -1):
@@ -172,6 +187,11 @@ class GuardrailsMiddleware(AgentMiddleware):
                 )
                 blocked_msg = create_ai_message(self.blocked_output_message)
                 return {"messages": self._replace_last_ai_message(messages, blocked_msg)}
+
+            if result.status == RailStatus.MODIFIED:
+                log.info("Output modified by rail '%s': content replaced", result.rail or "unknown rail")
+                modified_msg = last_ai_message.model_copy(update={"content": result.content})
+                return {"messages": self._replace_last_ai_message(messages, modified_msg)}
 
             return None
 

@@ -1342,3 +1342,230 @@ class TestReplaceLastAIMessage:
         assert result["messages"][1].content == middleware.blocked_output_message
         assert isinstance(result["messages"][1], AIMessage)
         assert result["messages"][2] is trailing_msg
+
+
+class TestModifiedStatus:
+    @pytest.mark.asyncio
+    async def test_input_modified_replaces_last_human_message(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="sanitized input")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {"messages": [HumanMessage(content="original input with PII")]}
+        result = await middleware.abefore_model(state, None)
+
+        assert result is not None
+        assert "jump_to" not in result
+        assert len(result["messages"]) == 1
+        assert isinstance(result["messages"][0], HumanMessage)
+        assert result["messages"][0].content == "sanitized input"
+
+    @pytest.mark.asyncio
+    async def test_input_modified_preserves_surrounding_messages(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="redacted")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        system_msg = SystemMessage(content="Be helpful")
+        state = {
+            "messages": [
+                system_msg,
+                HumanMessage(content="my SSN is 123-45-6789"),
+            ]
+        }
+        result = await middleware.abefore_model(state, None)
+
+        assert len(result["messages"]) == 2
+        assert result["messages"][0] is system_msg
+        assert isinstance(result["messages"][1], HumanMessage)
+        assert result["messages"][1].content == "redacted"
+
+    @pytest.mark.asyncio
+    async def test_input_modified_with_multi_turn_history(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="cleaned message")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        first_human = HumanMessage(content="Hello")
+        first_ai = AIMessage(content="Hi there")
+        state = {
+            "messages": [
+                first_human,
+                first_ai,
+                HumanMessage(content="my email is foo@bar.com"),
+            ]
+        }
+        result = await middleware.abefore_model(state, None)
+
+        assert len(result["messages"]) == 3
+        assert result["messages"][0] is first_human
+        assert result["messages"][1] is first_ai
+        assert result["messages"][2].content == "cleaned message"
+
+    @pytest.mark.asyncio
+    async def test_output_modified_replaces_last_ai_message(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="sanitized output")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="original response with PII"),
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert result is not None
+        assert len(result["messages"]) == 2
+        assert isinstance(result["messages"][0], HumanMessage)
+        assert result["messages"][0].content == "Hello"
+        assert isinstance(result["messages"][1], AIMessage)
+        assert result["messages"][1].content == "sanitized output"
+
+    @pytest.mark.asyncio
+    async def test_output_modified_preserves_trailing_messages(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="redacted output")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        trailing = SystemMessage(content="trailing")
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="bad output"),
+                trailing,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert len(result["messages"]) == 3
+        assert isinstance(result["messages"][1], AIMessage)
+        assert result["messages"][1].content == "redacted output"
+        assert result["messages"][2] is trailing
+
+    @pytest.mark.asyncio
+    async def test_output_modified_replaces_only_last_ai_message(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="fixed")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="First response"),
+                HumanMessage(content="Follow up"),
+                AIMessage(content="Second response with PII"),
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        assert len(result["messages"]) == 4
+        assert result["messages"][1].content == "First response"
+        assert result["messages"][3].content == "fixed"
+
+    def test_sync_before_model_handles_modified(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="sanitized")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {"messages": [HumanMessage(content="PII content")]}
+        result = middleware.before_model(state, None)
+
+        assert result is not None
+        assert len(result["messages"]) == 1
+        assert isinstance(result["messages"][0], HumanMessage)
+        assert result["messages"][0].content == "sanitized"
+
+    def test_sync_after_model_handles_modified(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="sanitized output")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                AIMessage(content="PII output"),
+            ]
+        }
+        result = middleware.after_model(state, None)
+
+        assert result is not None
+        assert len(result["messages"]) == 2
+        assert result["messages"][1].content == "sanitized output"
+
+    @pytest.mark.asyncio
+    async def test_input_modified_with_empty_content(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        state = {"messages": [HumanMessage(content="sensitive data")]}
+        result = await middleware.abefore_model(state, None)
+
+        assert result is not None
+        assert len(result["messages"]) == 1
+        assert isinstance(result["messages"][0], HumanMessage)
+        assert result["messages"][0].content == ""
+
+    @pytest.mark.asyncio
+    async def test_input_modified_preserves_message_metadata(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="redacted")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        original = HumanMessage(
+            content="my SSN is 123-45-6789",
+            id="msg-123",
+            name="user1",
+            additional_kwargs={"source": "web"},
+        )
+        state = {"messages": [original]}
+        result = await middleware.abefore_model(state, None)
+
+        modified = result["messages"][0]
+        assert modified.content == "redacted"
+        assert modified.id == "msg-123"
+        assert modified.name == "user1"
+        assert modified.additional_kwargs == {"source": "web"}
+
+    @pytest.mark.asyncio
+    async def test_output_modified_preserves_message_metadata(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="safe output")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        original_ai = AIMessage(
+            content="PII in response",
+            id="ai-456",
+            name="assistant",
+            additional_kwargs={"model": "gpt-4"},
+        )
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                original_ai,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        modified = result["messages"][1]
+        assert modified.content == "safe output"
+        assert modified.id == "ai-456"
+        assert modified.name == "assistant"
+        assert modified.additional_kwargs == {"model": "gpt-4"}
+
+    @pytest.mark.asyncio
+    async def test_output_modified_preserves_tool_calls(self, mock_rails_factory):
+        mock_rails = mock_rails_factory(status=RailStatus.MODIFIED, content="sanitized")
+        middleware = create_middleware_with_rails(mock_rails)
+
+        tool_call = ToolCall(name="search", args={"q": "test"}, id="tc-1")
+        original_ai = AIMessage(
+            content="PII response",
+            id="ai-789",
+            tool_calls=[tool_call],
+        )
+        state = {
+            "messages": [
+                HumanMessage(content="Hello"),
+                original_ai,
+            ]
+        }
+        result = await middleware.aafter_model(state, None)
+
+        modified = result["messages"][1]
+        assert modified.content == "sanitized"
+        assert modified.id == "ai-789"
+        assert len(modified.tool_calls) == 1
+        assert modified.tool_calls[0]["name"] == "search"
+        assert modified.tool_calls[0]["id"] == "tc-1"

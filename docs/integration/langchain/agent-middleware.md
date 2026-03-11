@@ -326,9 +326,9 @@ guardrails = GuardrailsMiddleware(
 
 Rails evaluate the `content` field of messages, not the `tool_calls` arguments. Content-based rails do not inspect PII or harmful content passed through tool call arguments (e.g., `send_email(body="SSN: 123-45-6789")`).
 
-### MODIFIED Status Is Ignored
+### MODIFIED Status Replaces Message Content
 
-When a rail modifies content (returns `RailStatus.MODIFIED`), the middleware treats it as a pass-through and the agent uses the original, unmodified content. This is by design — applying modifications to the agent's internal state could cause inconsistencies.
+When a rail modifies content (returns `RailStatus.MODIFIED`), the middleware replaces the relevant message with the modified content. For input rails, the last user message is replaced. For output rails, the last AI message is replaced. This enables use cases like PII redaction and content sanitization.
 
 ---
 
