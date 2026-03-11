@@ -26,7 +26,9 @@ def test_lazy_import_does_not_require_heavy_deps():
     """
     Importing the checks module should not require torch, transformers, or sklearn unless model-based classifier is used.
     """
-    with mock.patch.dict(sys.modules, {"torch": None, "transformers": None, "sklearn": None}):
+    with mock.patch.dict(
+        sys.modules, {"torch": None, "transformers": None, "sklearn": None}
+    ):
         import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
         # Just importing and calling unrelated functions should not raise ImportError
@@ -38,12 +40,12 @@ def test_lazy_import_does_not_require_heavy_deps():
 
 def test_model_based_classifier_imports(monkeypatch):
     """
-    Instantiating JailbreakClassifier should require sklearn and pickle, and use SnowflakeEmbed which requires torch/transformers.
+    Instantiating JailbreakClassifier should require sklearn and onnxruntime, and use SnowflakeEmbed which requires torch/transformers.
     """
     # Mock dependencies
     fake_rf = mock.MagicMock()
     fake_embed = mock.MagicMock(return_value=[0.0])
-    fake_pickle = types.SimpleNamespace(load=mock.MagicMock(return_value=fake_rf))
+    fake_onnx = types.SimpleNamespace(load=mock.MagicMock(return_value=fake_rf))
     fake_snowflake = mock.MagicMock(return_value=fake_embed)
 
     monkeypatch.setitem(
@@ -51,7 +53,7 @@ def test_model_based_classifier_imports(monkeypatch):
         "sklearn.ensemble",
         types.SimpleNamespace(RandomForestClassifier=mock.MagicMock()),
     )
-    monkeypatch.setitem(sys.modules, "pickle", fake_pickle)
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake_onnx)
     monkeypatch.setitem(sys.modules, "torch", mock.MagicMock())
     monkeypatch.setitem(sys.modules, "transformers", mock.MagicMock())
 
@@ -64,7 +66,7 @@ def test_model_based_classifier_imports(monkeypatch):
     mock_open = mock.mock_open()
     with mock.patch("builtins.open", mock_open):
         # Should not raise
-        classifier = models.JailbreakClassifier("fake_model_path.pkl")
+        classifier = models.JailbreakClassifier("fake_model_path.onnx")
         assert classifier is not None
         # Should be callable
         result = classifier("test")
@@ -86,7 +88,7 @@ def test_model_based_classifier_missing_deps(monkeypatch):
     mock_open = mock.mock_open()
     with mock.patch("builtins.open", mock_open):
         with pytest.raises(ImportError):
-            models.JailbreakClassifier("fake_model_path.pkl")
+            models.JailbreakClassifier("fake_model_path.onnx")
 
 
 # Test 4: Return None when EMBEDDING_CLASSIFIER_PATH is not set
@@ -145,7 +147,9 @@ def test_snowflake_embed_torch_imports(monkeypatch):
     # the code does self.model(**tokens)[0][:, 0]
     # so we need to mock this properly
     mock_tensor_output = mock.MagicMock()
-    mock_tensor_output.detach.return_value.cpu.return_value.squeeze.return_value.numpy.return_value = fake_embedding
+    mock_tensor_output.detach.return_value.cpu.return_value.squeeze.return_value.numpy.return_value = (
+        fake_embedding
+    )
 
     mock_first_index = mock.MagicMock()
     mock_first_index.__getitem__.return_value = mock_tensor_output  # for [:, 0]
