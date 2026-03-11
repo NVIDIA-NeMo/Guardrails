@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.21.0] - 2026-03-11
+
+### 🐛 Bug Fixes
+
+- *(streaming)* Handle dict chunks in RollingBuffer.format_chunks ([#1687](https://github.com/NVIDIA-NeMo/Guardrails/issues/1687)) 
+- *(middleware)* Handle MODIFIED status in GuardrailsMiddleware instead of silently dropping it ([#1714](https://github.com/NVIDIA-NeMo/Guardrails/issues/1714)) 
+
+### ⚙️ Miscellaneous Tasks
+
+- Update to v0.21.0-rc12 
+- Update to v0.21.0-rc13 
+
+
 ## [0.20.0] - 2026-01-22
 
 ### 🚀 Features
