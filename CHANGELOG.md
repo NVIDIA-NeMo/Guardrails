@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [0.21.0] - 2026-03-12
+
+### 🚀 Features
+
+- *(iorails)* Logging and unique request ID ([#1661](https://github.com/NVIDIA-NeMo/Guardrails/issues/1661)) 
+- *(server)* Add OpenAI compatible v1/models endpoint ([#1637](https://github.com/NVIDIA-NeMo/Guardrails/issues/1637)) 
+- *(benchmark)* Add Locust stress-test ([#1629](https://github.com/NVIDIA-NeMo/Guardrails/issues/1629)) 
+- *(jailbreak)* Validate Jailbreak Detection config at create-time ([#1675](https://github.com/NVIDIA-NeMo/Guardrails/issues/1675)) 
+- *(library)* Add PolicyAI Integration for Content Moderation ([#1576](https://github.com/NVIDIA-NeMo/Guardrails/issues/1576)) 
+
+### 🐛 Bug Fixes
+
+- *(library)* Use bot refuse to respond in gliner PII detection flows ([#1671](https://github.com/NVIDIA-NeMo/Guardrails/issues/1671)) 
+- *(streaming)* Handle None stop tokens in streaming handler ([#1685](https://github.com/NVIDIA-NeMo/Guardrails/issues/1685)) 
+- *(streaming)* Handle dict chunks in RollingBuffer.format_chunks ([#1687](https://github.com/NVIDIA-NeMo/Guardrails/issues/1687)) 
+- *(middleware)* Handle MODIFIED status in GuardrailsMiddleware instead of silently dropping it ([#1714](https://github.com/NVIDIA-NeMo/Guardrails/issues/1714)) 
+
+### 📚 Documentation
+
+- Add c++ compiler check commands in the installation troubleshooting section ([#1662](https://github.com/NVIDIA-NeMo/Guardrails/issues/1662)) 
+- Add a script for validating doc redirects ([#1670](https://github.com/NVIDIA-NeMo/Guardrails/issues/1670)) 
+- Restructure/break the monolithic  Guardrails Catalog page into multiple pages ([#1669](https://github.com/NVIDIA-NeMo/Guardrails/issues/1669)) 
+- Update service docs with OpenAI details ([#1681](https://github.com/NVIDIA-NeMo/Guardrails/issues/1681)) 
+- Add a link to the guardrails catalog page in the landing page ([#1683](https://github.com/NVIDIA-NeMo/Guardrails/issues/1683)) 
+- Fix links and burn down build warnings for clean build ([#1678](https://github.com/NVIDIA-NeMo/Guardrails/issues/1678)) 
+- Add a redirect ([#1684](https://github.com/NVIDIA-NeMo/Guardrails/issues/1684)) 
+- Update AIPerf README ([#1704](https://github.com/NVIDIA-NeMo/Guardrails/issues/1704)) 
+- Add AIPerf link ([#1706](https://github.com/NVIDIA-NeMo/Guardrails/issues/1706)) 
+- Add caching horizontal scaling guidance ([#1705](https://github.com/NVIDIA-NeMo/Guardrails/issues/1705)) 
+- Fix inaccuracies in init-function, knowledge base, and cache docs ([#1709](https://github.com/NVIDIA-NeMo/Guardrails/issues/1709)) 
+- *(middleware)* Expand tool-calling security considerations ([#1716](https://github.com/NVIDIA-NeMo/Guardrails/issues/1716)) 
+- Last bits of the revamp project ([#1713](https://github.com/NVIDIA-NeMo/Guardrails/issues/1713)) 
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove multi_kb example ([#1673](https://github.com/NVIDIA-NeMo/Guardrails/issues/1673)) 
+- *(iorails)* Increase work queue concurrency and depth ([#1674](https://github.com/NVIDIA-NeMo/Guardrails/issues/1674)) 
+- *(docs)* Remove AI Virtual Assistant Blueprint notebook ([#1682](https://github.com/NVIDIA-NeMo/Guardrails/issues/1682)) 
+- Update dependencies ahead of v0.21 release ([#1617](https://github.com/NVIDIA-NeMo/Guardrails/issues/1617)) 
+
+
 ## [0.20.0] - 2026-01-22
 
 ### 🚀 Features
