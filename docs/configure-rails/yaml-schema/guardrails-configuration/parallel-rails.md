@@ -13,6 +13,10 @@ The IORails engine is an optimized execution engine that runs NemoGuard input an
 parallel with dedicated model management. The IORails engine is an opt-in feature. By default, the
 NeMo Guardrails library uses the LLMRails engine.
 
+:::{note}
+IORails is an early-release feature and currently does not support streaming, reasoning models, and telemetry as in LLMRails.
+:::
+
 ### Supported Flows
 
 The IORails engine supports the following flows:
