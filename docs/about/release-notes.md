@@ -33,9 +33,10 @@ For a complete record of changes in a release, refer to the
 
 ### Key Features
 
-- Added the `IORails` class, a new optimized execution engine that runs NemoGuard input and output rails
-  (content-safety, topic-safety, and jailbreak detection) in parallel. The engine is selected
-  automatically when all configured flows are compatible.
+- Added the `IORails` class, a new optimized execution engine that runs NemoGuard input and output rails, such as
+  content-safety, topic-safety, and jailbreak detection, in parallel. The engine is opt-in:
+  set `NEMO_GUARDRAILS_IORAILS_ENGINE=1` to enable it. When enabled, the configuration is
+  validated for compatibility and falls back to LLMRails if unsupported flows are detected.
   For more information, refer to [](../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.md#iorails-engine).
 
 - Added the `check_async()` and `check()` methods on `LLMRails` to enable validating messages against input and output rails without triggering full LLM generation.

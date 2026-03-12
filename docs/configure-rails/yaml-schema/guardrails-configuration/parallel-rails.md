@@ -10,8 +10,8 @@ You can configure input and output rails to run in parallel. This can improve la
 ## IORails Engine
 
 The IORails engine is an optimized execution engine that runs NemoGuard input and output rails in
-parallel with dedicated model management. When all configured flows are compatible, the NeMo
-Guardrails library automatically selects the IORails engine instead of the default LLMRails engine.
+parallel with dedicated model management. The IORails engine is an opt-in feature. By default, the
+NeMo Guardrails library uses the LLMRails engine.
 
 ### Supported Flows
 
@@ -21,33 +21,26 @@ The IORails engine supports the following flows:
 - `topic safety check input`
 - `jailbreak detection model`
 
-If your configuration uses only these flows, the IORails engine is selected automatically.
+When IORails is enabled and the configuration uses only these flows, the engine runs them in parallel.
 Configurations that include custom flows, dialog rails, or other unsupported flows
-fall back to the LLMRails engine.
+raise an error at initialization.
 
-### Opting Out
+### Enabling IORails
 
-To disable the IORails engine and use LLMRails, set `use_iorails=False`:
+To enable the IORails engine, set the `NEMO_GUARDRAILS_IORAILS_ENGINE` environment variable to `1`:
 
-<!--
-What should also consider: Filing a follow-up to add Guardrails to __all__ in nemoguardrails/__init__.py so users can write the stable import:
+```bash
+NEMO_GUARDRAILS_IORAILS_ENGINE=1 nemoguardrails chat --config examples/configs/content_safety
+```
 
-from nemoguardrails import RailsConfig, Guardrails
-That's a one-line code change in __init__.py (line 52: add "Guardrails" to __all__ and an unconditional import), but it changes the public API surface and needs engineering sign-off.
--->
+When using the Python API, import the `Guardrails` class directly and pass `use_iorails=True`:
 
 ```python
 from nemoguardrails import RailsConfig
 from nemoguardrails.guardrails.guardrails import Guardrails
 
 config = RailsConfig.from_path("./config")
-guardrails = Guardrails(config, use_iorails=False)
-```
-
-When using the CLI, to opt out of IORails engine, set `NEMO_GUARDRAILS_IORAILS_ENGINE=0`:
-
-```bash
-NEMO_GUARDRAILS_IORAILS_ENGINE=0 nemoguardrails chat --config examples/configs/content_safety
+guardrails = Guardrails(config, use_iorails=True)
 ```
 
 ## YAML-Based Parallel Execution
@@ -109,5 +102,4 @@ rails:
       chunk_size: 200
       context_size: 50
       stream_first: True
-streaming: True
 ```
