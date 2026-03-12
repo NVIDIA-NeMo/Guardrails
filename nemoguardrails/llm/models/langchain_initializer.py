@@ -20,11 +20,11 @@ import warnings
 from importlib.metadata import version
 from typing import Any, Callable, Dict, Literal, Optional, Union
 
-from langchain.chat_models import init_chat_model
-
-# from langchain_core._api.beta_decorator import LangChainBetaWarning
-# from langchain_core._api.deprecation import LangChainDeprecationWarning
 from langchain_core.language_models import BaseChatModel, BaseLLM
+
+from nemoguardrails._langchain_compat import import_init_chat_model
+
+init_chat_model = import_init_chat_model()
 
 from nemoguardrails.llm.providers.providers import (
     _get_chat_completion_provider,

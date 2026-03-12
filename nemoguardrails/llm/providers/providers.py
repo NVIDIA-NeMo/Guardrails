@@ -86,7 +86,11 @@ _CUSTOM_CHAT_PROVIDERS = {"nim"}
 
 
 def _discover_langchain_partner_chat_providers() -> Set[str]:
-    import langchain.chat_models.base as _base
+    from nemoguardrails._langchain_compat import import_chat_models_base
+
+    _base = import_chat_models_base()
+    if _base is None:
+        return _CUSTOM_CHAT_PROVIDERS
 
     # The internal variable listing supported providers was renamed across langchain versions:
     # _SUPPORTED_PROVIDERS (<=1.2.1, set) -> _SUPPORTED_PROVIDERS (1.2.1, dict) -> _BUILTIN_PROVIDERS (>=1.2.10, dict)

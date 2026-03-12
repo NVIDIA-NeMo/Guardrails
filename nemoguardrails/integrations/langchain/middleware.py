@@ -18,7 +18,17 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from langchain.agents.middleware.types import AgentMiddleware, AgentState, hook_config
+try:
+    from langchain.agents.middleware.types import AgentMiddleware, AgentState, hook_config
+except (ImportError, TypeError):
+    # langchain 1.x (langchain-classic) or Python 3.14 fallback
+    try:
+        from langchain_classic.agents.middleware.types import AgentMiddleware, AgentState, hook_config  # type: ignore[no-redef]
+    except ImportError:
+        raise ImportError(
+            "Could not import AgentMiddleware from langchain. "
+            "On Python >= 3.14, langchain >= 1.0.0 is required."
+        )
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 if TYPE_CHECKING:

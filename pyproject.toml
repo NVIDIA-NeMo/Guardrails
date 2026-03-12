@@ -31,6 +31,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 [tool.poetry.urls]
@@ -45,7 +46,7 @@ repository = "https://github.com/NVIDIA-NeMo/Guardrails"
 nemoguardrails = "nemoguardrails.__main__:app"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
+python = ">=3.10,<3.15"
 aiohttp = ">=3.10.11"
 aiohttp-retry = ">=2.9.0"
 annoy = ">=1.17.3"
@@ -58,6 +59,9 @@ onnxruntime = [
 ]
 httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
+# NOTE: On Python >= 3.14 (PEP 649), langchain >= 1.0.0 is required.
+# langchain 0.3.x has a dict() method shadowing issue that causes
+# TypeError during annotation evaluation.  See GH-1720.
 langchain = ">=0.2.14,<2.0.0"
 langchain-core = ">=0.2.14,<2.0.0"
 langchain-community = ">=0.2.5,<2.0.0"
