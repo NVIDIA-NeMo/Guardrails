@@ -48,6 +48,18 @@ rails:
 If the `server_endpoint` parameter is not set, the checks will run in-process. This is useful for TESTING PURPOSES ONLY and **IS NOT RECOMMENDED FOR PRODUCTION DEPLOYMENTS**.
 ```
 
+### Configuration Validation
+
+The jailbreak detection configuration is validated at create-time. Invalid values raise errors
+immediately instead of failing silently at runtime. The following validation rules apply:
+
+| Parameter | Rule |
+|-----------|------|
+| `length_per_perplexity_threshold` | Must be greater than 0 |
+| `prefix_suffix_perplexity_threshold` | Must be greater than 0 |
+| `nim_base_url` | Must start with `http://` or `https://` |
+| `server_endpoint` | Must start with `http://` or `https://` |
+
 ### Heuristics
 
 #### Length per Perplexity
