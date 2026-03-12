@@ -901,10 +901,6 @@ fall back to the LLMRails engine.</p>
 <section id="opting-out">
 <h3>Opting Out<a class="headerlink" href="#opting-out" title="Link to this heading">#</a></h3>
 <p>To disable the IORails engine and use LLMRails, set <code class="docutils literal notranslate"><span class="pre">use_iorails=False</span></code>:</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> class is not yet part of the public API.</p>
-</div>
 <!--
 What should also consider: Filing a follow-up to add Guardrails to __all__ in nemoguardrails/__init__.py so users can write the stable import:
 
@@ -918,9 +914,8 @@ That's a one-line code change in __init__.py (line 52: add "Guardrails" to __all
 <span class="n">guardrails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>When using the CLI, the IORails engine is controlled by the <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE</span></code>
-environment variable:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMO_GUARDRAILS_IORAILS_ENGINE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>examples/configs/content_safety
+<p>When using the CLI, to opt out of IORails engine, set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=0</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMO_GUARDRAILS_IORAILS_ENGINE</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>examples/configs/content_safety
 </pre></div>
 </div>
 </section>

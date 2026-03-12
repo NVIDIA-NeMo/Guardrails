@@ -696,7 +696,7 @@ For more information, refer to <a class="reference internal" href="../run-rails/
 <li><p>The guardrails server now exposes a fully OpenAI-compatible
 REST API. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint accepts standard <code class="docutils literal notranslate"><span class="pre">ChatCompletion</span></code> requests with a
 <code class="docutils literal notranslate"><span class="pre">guardrails</span></code> field for config selection. A new <code class="docutils literal notranslate"><span class="pre">/v1/models</span></code> endpoint lists available models from the
-configured provider. The <code class="docutils literal notranslate"><span class="pre">openai</span></code> package is now an optional <code class="docutils literal notranslate"><span class="pre">server</span></code> extra.
+configured provider. The <code class="docutils literal notranslate"><span class="pre">openai</span></code> package is now a required component of the optional <code class="docutils literal notranslate"><span class="pre">server</span></code> extra (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1623" rel="noreferer noopener" target="_blank">#1623</a>).
 For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
 <li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
 LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
@@ -768,8 +768,6 @@ input boundary (<a class="reference external" href="https://github.com/NVIDIA-Ne
 <li><p>Fixed <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> silently dropping content when rails return <code class="docutils literal notranslate"><span class="pre">MODIFIED</span></code> status.
 Input rails now replace the last user message and output rails replace the last AI
 message with the sanitized content (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1714" rel="noreferer noopener" target="_blank">#1714</a>).</p></li>
-<li><p>Made the <code class="docutils literal notranslate"><span class="pre">openai</span></code> package an optional server-only dependency. A helpful error message is shown
-when the server extra is not installed (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1623" rel="noreferer noopener" target="_blank">#1623</a>).</p></li>
 <li><p>Cache hit statistics are now visible in the Stats log line. Cache stats are also
 visible in verbose mode (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1666" rel="noreferer noopener" target="_blank">#1666</a>, <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1667" rel="noreferer noopener" target="_blank">#1667</a>).</p></li>
 </ul>
