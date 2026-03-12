@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -44,6 +45,15 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }}"
           git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Dispatch publish workflow
+        if: steps.check-tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run publish-pypi-approval.yml \
+            --ref develop \
+            -f version=${{ steps.version.outputs.version }}
 
       - name: Tag already exists
         if: steps.check-tag.outputs.exists == 'true'
