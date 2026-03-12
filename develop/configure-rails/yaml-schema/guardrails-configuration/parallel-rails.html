@@ -672,17 +672,59 @@
   <section class="tex2jax_ignore mathjax_ignore" id="parallel-execution-of-input-and-output-rails">
 <h1>Parallel Execution of Input and Output Rails<a class="headerlink" href="#parallel-execution-of-input-and-output-rails" title="Link to this heading">#</a></h1>
 <p>You can configure input and output rails to run in parallel. This can improve latency and throughput.</p>
-<section id="when-to-use-parallel-rails-execution">
-<h2>When to Use Parallel Rails Execution<a class="headerlink" href="#when-to-use-parallel-rails-execution" title="Link to this heading">#</a></h2>
-<p>Use parallel execution:</p>
+<section id="iorails-engine">
+<h2>IORails Engine<a class="headerlink" href="#iorails-engine" title="Link to this heading">#</a></h2>
+<p>The IORails engine is an optimized execution engine that runs NemoGuard input and output rails in
+parallel with dedicated model management. The IORails engine is an opt-in feature. By default, the
+NeMo Guardrails library uses the LLMRails engine.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>IORails is an early-release feature and currently does not support streaming, reasoning models, and telemetry as in LLMRails.</p>
+</div>
+<section id="supported-flows">
+<h3>Supported Flows<a class="headerlink" href="#supported-flows" title="Link to this heading">#</a></h3>
+<p>The IORails engine supports the following flows:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code> / <code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">output</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topic</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span> <span class="pre">detection</span> <span class="pre">model</span></code></p></li>
+</ul>
+<p>When IORails is enabled and the configuration uses only these flows, the engine runs them in parallel.
+Configurations that include custom flows, dialog rails, or other unsupported flows
+raise an error at initialization.</p>
+</section>
+<section id="enabling-iorails">
+<h3>Enabling IORails<a class="headerlink" href="#enabling-iorails" title="Link to this heading">#</a></h3>
+<p>To enable the IORails engine, set the <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE</span></code> environment variable to <code class="docutils literal notranslate"><span class="pre">1</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMO_GUARDRAILS_IORAILS_ENGINE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>examples/configs/content_safety
+</pre></div>
+</div>
+<p>When using the Python API, import the <code class="docutils literal notranslate"><span class="pre">Guardrails</span></code> class directly and pass <code class="docutils literal notranslate"><span class="pre">use_iorails=True</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">Guardrails</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_path</span><span class="p">(</span><span class="s2">&quot;./config&quot;</span><span class="p">)</span>
+<span class="n">guardrails</span> <span class="o">=</span> <span class="n">Guardrails</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">use_iorails</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="yaml-based-parallel-execution">
+<h2>YAML-Based Parallel Execution<a class="headerlink" href="#yaml-based-parallel-execution" title="Link to this heading">#</a></h2>
+<p>You can also configure existing LLMRails flows to run in parallel using the <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">True</span></code>
+option in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. This approach works with any flow type and does not require
+the IORails engine.</p>
+<section id="when-to-use">
+<h3>When to Use<a class="headerlink" href="#when-to-use" title="Link to this heading">#</a></h3>
+<p>Use YAML-based parallel execution:</p>
 <ul class="simple">
 <li><p>For I/O-bound rails such as external API calls to LLMs or third-party integrations.</p></li>
 <li><p>If you have two or more independent input or output rails without shared state dependencies.</p></li>
 <li><p>In production environments where response latency affects user experience and business metrics.</p></li>
 </ul>
 </section>
-<section id="when-not-to-use-parallel-rails-execution">
-<h2>When Not to Use Parallel Rails Execution<a class="headerlink" href="#when-not-to-use-parallel-rails-execution" title="Link to this heading">#</a></h2>
+<section id="when-not-to-use">
+<h3>When Not to Use<a class="headerlink" href="#when-not-to-use" title="Link to this heading">#</a></h3>
 <p>Avoid parallel execution:</p>
 <ul class="simple">
 <li><p>For CPU-bound rails; it might not improve performance and can introduce overhead.</p></li>
@@ -690,8 +732,8 @@
 </ul>
 </section>
 <section id="configuration-example">
-<h2>Configuration Example<a class="headerlink" href="#configuration-example" title="Link to this heading">#</a></h2>
-<p>To enable parallel execution, set <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">True</span></code> in the <code class="docutils literal notranslate"><span class="pre">rails.input</span></code> and <code class="docutils literal notranslate"><span class="pre">rails.output</span></code> sections in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. The following configuration example is tested by NVIDIA and shows how to enable parallel execution for input and output rails.</p>
+<h3>Configuration Example<a class="headerlink" href="#configuration-example" title="Link to this heading">#</a></h3>
+<p>To enable parallel execution, set <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">True</span></code> in the <code class="docutils literal notranslate"><span class="pre">rails.input</span></code> and <code class="docutils literal notranslate"><span class="pre">rails.output</span></code> sections in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Input rail mutations can lead to erroneous results during parallel execution because of race conditions arising from the execution order and timing of parallel operations. This can result in output divergence compared to sequential execution. For such cases, use sequential mode.</p>
@@ -724,9 +766,9 @@
 <span class="w">      </span><span class="nt">chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
 <span class="w">      </span><span class="nt">context_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
 <span class="w">      </span><span class="nt">stream_first</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="nt">streaming</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
 </pre></div>
 </div>
+</section>
 </section>
 </section>
 
@@ -761,9 +803,17 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-parallel-rails-execution">When to Use Parallel Rails Execution</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-not-to-use-parallel-rails-execution">When Not to Use Parallel Rails Execution</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-example">Configuration Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#iorails-engine">IORails Engine</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-flows">Supported Flows</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#enabling-iorails">Enabling IORails</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#yaml-based-parallel-execution">YAML-Based Parallel Execution</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use">When to Use</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-not-to-use">When Not to Use</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-example">Configuration Example</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

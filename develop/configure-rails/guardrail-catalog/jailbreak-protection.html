@@ -705,6 +705,33 @@
 <p class="admonition-title">Note</p>
 <p>If the <code class="docutils literal notranslate"><span class="pre">server_endpoint</span></code> parameter is not set, the checks will run in-process. This is useful for TESTING PURPOSES ONLY and <strong>IS NOT RECOMMENDED FOR PRODUCTION DEPLOYMENTS</strong>.</p>
 </div>
+<section id="configuration-validation">
+<h3>Configuration Validation<a class="headerlink" href="#configuration-validation" title="Link to this heading">#</a></h3>
+<p>The jailbreak detection configuration is validated at create-time. Invalid values raise errors
+immediately instead of failing silently at runtime. The following validation rules apply:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Rule</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">length_per_perplexity_threshold</span></code></p></td>
+<td><p>Must be greater than 0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prefix_suffix_perplexity_threshold</span></code></p></td>
+<td><p>Must be greater than 0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nim_base_url</span></code></p></td>
+<td><p>Must start with <code class="docutils literal notranslate"><span class="pre">http://</span></code> or <code class="docutils literal notranslate"><span class="pre">https://</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">server_endpoint</span></code></p></td>
+<td><p>Must start with <code class="docutils literal notranslate"><span class="pre">http://</span></code> or <code class="docutils literal notranslate"><span class="pre">https://</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
 <section id="heuristics">
 <h3>Heuristics<a class="headerlink" href="#heuristics" title="Link to this heading">#</a></h3>
 <section id="length-per-perplexity">
@@ -862,6 +889,7 @@ Times reported below in are <strong>averages</strong> and are reported in millis
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jailbreak-detection">Jailbreak Detection</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-validation">Configuration Validation</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#heuristics">Heuristics</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#length-per-perplexity">Length per Perplexity</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#prefix-and-suffix-perplexity">Prefix and Suffix Perplexity</a></li>
