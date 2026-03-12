@@ -45,7 +45,7 @@ For a complete record of changes in a release, refer to the
 - The guardrails server now exposes a fully OpenAI-compatible
   REST API. The `/v1/chat/completions` endpoint accepts standard `ChatCompletion` requests with a
   `guardrails` field for config selection. A new `/v1/models` endpoint lists available models from the
-  configured provider. The `openai` package is now an optional `server` extra.
+  configured provider. The `openai` package is now a required component of the optional `server` extra ([#1623](https://github.com/NVIDIA-NeMo/Guardrails/pull/1623)).
   For more information, refer to [](../run-rails/using-fastapi-server/overview.md).
 
 - Added the `GuardrailsMiddleware` class, a new middleware that integrates with
@@ -125,8 +125,6 @@ For a complete record of changes in a release, refer to the
 - Fixed `GuardrailsMiddleware` silently dropping content when rails return `MODIFIED` status.
   Input rails now replace the last user message and output rails replace the last AI
   message with the sanitized content ([#1714](https://github.com/NVIDIA-NeMo/Guardrails/pull/1714)).
-- Made the `openai` package an optional server-only dependency. A helpful error message is shown
-  when the server extra is not installed ([#1623](https://github.com/NVIDIA-NeMo/Guardrails/pull/1623)).
 - Cache hit statistics are now visible in the Stats log line. Cache stats are also
   visible in verbose mode ([#1666](https://github.com/NVIDIA-NeMo/Guardrails/pull/1666), [#1667](https://github.com/NVIDIA-NeMo/Guardrails/pull/1667)).
 

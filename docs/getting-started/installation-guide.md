@@ -122,7 +122,7 @@ You can install the NeMo Guardrails library with optional extra packages to add 
 |-------|-------------|
 | `nvidia` | NVIDIA-hosted model integration through [build.nvidia.com](https://build.nvidia.com/) |
 | `openai` | OpenAI-hosted model integration |
-| `server` | [Guardrails API server](../run-rails/using-fastapi-server/overview.md) dependencies (FastAPI, OpenAI schemas). Required to run `nemoguardrails server`. |
+| `server` | [Guardrails API server](../run-rails/using-fastapi-server/overview.md) dependencies (aiofiles for async file handling, openai for API schemas). FastAPI is a core dependency. Required to run `nemoguardrails server`. |
 | `sdd` | [Sensitive data detection](../configure-rails/guardrail-catalog/pii-detection.md#presidio-based-sensitive-data-detection) using Presidio |
 | `eval` | [Evaluation tools](../evaluation/evaluate-guardrails.md) for testing guardrails |
 | `tracing` | OpenTelemetry tracing support |

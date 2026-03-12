@@ -29,10 +29,6 @@ fall back to the LLMRails engine.
 
 To disable the IORails engine and use LLMRails, set `use_iorails=False`:
 
-```{warning}
-The `Guardrails` class is not yet part of the public API.
-```
-
 <!--
 What should also consider: Filing a follow-up to add Guardrails to __all__ in nemoguardrails/__init__.py so users can write the stable import:
 
@@ -48,11 +44,10 @@ config = RailsConfig.from_path("./config")
 guardrails = Guardrails(config, use_iorails=False)
 ```
 
-When using the CLI, the IORails engine is controlled by the `NEMO_GUARDRAILS_IORAILS_ENGINE`
-environment variable:
+When using the CLI, to opt out of IORails engine, set `NEMO_GUARDRAILS_IORAILS_ENGINE=0`:
 
 ```bash
-NEMO_GUARDRAILS_IORAILS_ENGINE=1 nemoguardrails chat --config examples/configs/content_safety
+NEMO_GUARDRAILS_IORAILS_ENGINE=0 nemoguardrails chat --config examples/configs/content_safety
 ```
 
 ## YAML-Based Parallel Execution
