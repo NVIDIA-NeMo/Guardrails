@@ -29,6 +29,17 @@ fall back to the LLMRails engine.
 
 To disable the IORails engine and use LLMRails, set `use_iorails=False`:
 
+```{warning}
+The `Guardrails` class is not yet part of the public API.
+```
+
+<!--
+What should also consider: Filing a follow-up to add Guardrails to __all__ in nemoguardrails/__init__.py so users can write the stable import:
+
+from nemoguardrails import RailsConfig, Guardrails
+That's a one-line code change in __init__.py (line 52: add "Guardrails" to __all__ and an unconditional import), but it changes the public API surface and needs engineering sign-off.
+-->
+
 ```python
 from nemoguardrails import RailsConfig
 from nemoguardrails.guardrails.guardrails import Guardrails
