@@ -13,7 +13,7 @@
 [![Downloads](https://static.pepy.tech/badge/nemoguardrails)](https://pepy.tech/project/nemoguardrails)
 [![Downloads](https://static.pepy.tech/badge/nemoguardrails/month)](https://pepy.tech/project/nemoguardrails)
 
-> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA-NeMo/Guardrails/tree/main) branch tracks the latest released beta version: [0.21.0](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.20.0). For the latest development version, checkout the [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch.
+> **LATEST RELEASE / DEVELOPMENT VERSION**: The [main](https://github.com/NVIDIA-NeMo/Guardrails/tree/main) branch tracks the latest released beta version: [0.21.0](https://github.com/NVIDIA-NeMo/Guardrails/tree/v0.21.0). For the latest development version, checkout the [develop](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop) branch.
 
 ✨✨✨
 
