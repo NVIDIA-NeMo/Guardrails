@@ -1,14 +1,131 @@
 name: Publish to PyPI (with Approval)
 
 on:
-  workflow_run:
-    workflows: ["Build and Test Distribution"]
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (format: X.Y.Z, no "v" prefix)'
+        required: true
+        type: string
 
 jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    env:
+      POETRY_VERSION: "1.8.2"
+      PYTHON_VERSION: "3.11"
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Validate version in pyproject.toml
+        run: |
+          VERSION_IN_FILE=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$VERSION_IN_FILE" != "${{ inputs.version }}" ]; then
+            echo "Version mismatch: pyproject.toml=$VERSION_IN_FILE, expected=${{ inputs.version }}"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Bootstrap poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
+
+      - name: Update PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Set up cache
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Ensure cache is healthy
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: timeout 10s poetry run pip --version || rm -rf .venv
+
+      - name: Make build script executable
+        run: chmod +x ./.github/scripts/build.sh
+
+      - name: Build distributions
+        run: ./.github/scripts/build.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-build
+          path: dist/*
+
+  test-wheel:
+    needs: build-wheel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: publish-build
+
+      - name: List files
+        run: ls -l
+
+      - name: Install wheel
+        run: |
+          pip install --upgrade pip
+          pip install poetry==1.8.2
+          WHEEL=$(ls nemoguardrails-*.whl)
+          pip install "${WHEEL}[server]"
+
+      - name: Start server in the background
+        run: |
+          nemoguardrails server &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for server to be up
+        run: |
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl --output /dev/null --silent --head --fail http://localhost:8000; then
+              echo "Server is up!"
+              break
+            else
+              echo "Waiting..."
+              sleep 1
+            fi
+          done
+
+      - name: Check server status
+        run: |
+          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/v1/rails/configs)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Server responded with code $RESPONSE_CODE."
+            exit 1
+          fi
+
+      - name: Stop server
+        if: ${{ success() }}
+        run: kill $SERVER_PID
+
   publish-pypi:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: test-wheel
     runs-on: ubuntu-latest
     environment:
       name: pypi-production
@@ -16,59 +133,27 @@ jobs:
     permissions:
       contents: write
       id-token: write
-
+      attestations: write
     steps:
-      - name: Detect version tag from workflow event
-        id: version
-        run: |
-          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-
-          echo "Workflow triggered by: $HEAD_BRANCH"
-
-          if [[ "$HEAD_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            TAG_NAME="$HEAD_BRANCH"
-            VERSION="${TAG_NAME#v}"
-
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
-            echo "artifact_name=${TAG_NAME}-build" >> $GITHUB_OUTPUT
-
-            echo "✅ Detected version tag: $TAG_NAME"
-            echo "   Version: $VERSION"
-            echo "   Artifact: ${TAG_NAME}-build"
-          else
-            echo "❌ Not triggered by a version tag: $HEAD_BRANCH"
-            echo "This workflow should only run for version tags (vX.Y.Z)"
-            exit 1
-          fi
-
-      - name: Checkout repository
+      - name: Checkout tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.version.outputs.tag }}
+          ref: v${{ inputs.version }}
           fetch-depth: 0
 
-      - name: Validate version matches tag
-        run: |
-          VERSION_IN_FILE=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          TAG_VERSION="${{ steps.version.outputs.version }}"
-          if [ "$VERSION_IN_FILE" != "$TAG_VERSION" ]; then
-            echo "❌ Version mismatch: pyproject.toml=$VERSION_IN_FILE, tag=$TAG_VERSION"
-            exit 1
-          fi
-          echo "✅ Version validated: $VERSION_IN_FILE matches tag $TAG_VERSION"
-
-      - name: Download artifact
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{ steps.version.outputs.artifact_name }}
+          name: publish-build
           path: dist
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
 
       - name: List files
         run: ls -la dist/
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -77,16 +162,13 @@ jobs:
           packages-dir: dist/
           attestations: true
 
-      - name: Create GitHub Release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag }}"
+          TAG_NAME="v${{ inputs.version }}"
 
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          CHANGELOG_SECTION=$(awk -v version="${{ steps.version.outputs.version }}" '
+          CHANGELOG_SECTION=$(awk -v version="${{ inputs.version }}" '
             /^## \[/ {
               if (found) exit
               if ($0 ~ "\\[" version "\\]") {
@@ -101,16 +183,16 @@ jobs:
           echo "$CHANGELOG_SECTION" > release_notes.md
 
           if gh release view "$TAG_NAME" --repo ${{ github.repository }} >/dev/null 2>&1; then
-            echo "ℹ️ Release $TAG_NAME already exists, skipping creation"
+            echo "Release $TAG_NAME already exists, skipping creation"
           else
             if gh release create "$TAG_NAME" \
               --draft \
               --title "$TAG_NAME" \
               --notes-file release_notes.md \
               --repo ${{ github.repository }}; then
-              echo "✅ Release $TAG_NAME created successfully"
+              echo "Release $TAG_NAME created successfully"
             else
-              echo "❌ Failed to create release $TAG_NAME" >&2
+              echo "Failed to create release $TAG_NAME" >&2
               rm -f release_notes.md
               exit 1
             fi
