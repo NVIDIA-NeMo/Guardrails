@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 from typing import Dict, FrozenSet, Optional
 
@@ -291,7 +292,10 @@ async def detect_language(
         if multilingual_config:
             custom_messages = multilingual_config.refusal_messages
 
-    lang = _detect_language(user_message) or "en"
+    # Offload language detection to a worker thread to avoid blocking
+    # the event loop.  On free-threaded 3.14t this runs in parallel.
+    loop = asyncio.get_running_loop()
+    lang = await loop.run_in_executor(None, _detect_language, user_message) or "en"
 
     if lang not in SUPPORTED_LANGUAGES:
         lang = "en"
