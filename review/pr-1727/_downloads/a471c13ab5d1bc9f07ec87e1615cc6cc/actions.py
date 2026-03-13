@@ -32,6 +32,7 @@ from nemoguardrails.llm.cache.utils import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.rails.llm.dag_scheduler import get_cpu_executor
 
 log = logging.getLogger(__name__)
 
@@ -295,7 +296,7 @@ async def detect_language(
     # Offload language detection to a worker thread to avoid blocking
     # the event loop.  On free-threaded 3.14t this runs in parallel.
     loop = asyncio.get_running_loop()
-    lang = await loop.run_in_executor(None, _detect_language, user_message) or "en"
+    lang = await loop.run_in_executor(get_cpu_executor(), _detect_language, user_message) or "en"
 
     if lang not in SUPPORTED_LANGUAGES:
         lang = "en"
