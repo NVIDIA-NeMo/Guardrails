@@ -1,0 +1,1750 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Performance Optimization Plan — NeMo Guardrails &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/enhanced-search.css?v=2e2db37d" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+
+
+    <script src="_static/documentation_options.js?v=a8d1d600"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=6dbb43f8"></script>
+    <script src="_static/search-assets.bundle.js?v=00e3e057"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'performance-optimization-plan';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+
+    <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/performance-optimization-plan.html" />
+    <link rel="icon" href="_static/favicon.png"/>
+
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Performance Improvements &amp; Benchmark Evidence" href="performance-improvements.html" />
+    <link rel="prev" title="Python 3.14 Migration Guide" href="python-3.14-migration.html" />
+
+
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+<script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js"></script>
+
+  </head>
+
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA NeMo Guardrails Library Developer Guide - Home"/>
+    <img src="_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NVIDIA NeMo Guardrails Library Developer Guide - Home"/>
+  
+  
+    <p class="title logo__title">NVIDIA NeMo Guardrails Library Developer Guide</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Guardrails" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/nemoguardrails/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-python fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">PyPI</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA NeMo Guardrails Library Developer Guide - Home"/>
+    <img src="_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NVIDIA NeMo Guardrails Library Developer Guide - Home"/>
+  
+  
+    <p class="title logo__title">NVIDIA NeMo Guardrails Library Developer Guide</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Guardrails" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/nemoguardrails/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-python fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">PyPI</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">About NeMo Guardrails Library</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="about/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/how-it-works.html">How It Works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/rail-types.html">Guardrail Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/supported-llms.html">Supported LLMs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/release-notes.html">Release Notes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="getting-started/installation-guide.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="getting-started/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting-started/tutorials/nemotron-safety-guard-deployment.html">Check Harmful Content</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started/tutorials/nemotron-content-safety-reasoning-deployment.html">Content Safety Reasoning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started/tutorials/nemoguard-topiccontrol-deployment.html">Restrict Topics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started/tutorials/nemoguard-jailbreakdetect-deployment.html">Detect Jailbreak Attempts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started/tutorials/multimodal.html">Add Multimodal Content Safety</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="getting-started/integrate-into-application.html">Integrate Guardrails</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Configure Guardrails</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="configure-rails/index.html">About Configuring Guardrails</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configure-rails/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configure-rails/before-configuration.html">Prerequisites</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/yaml-schema/index.html">Configuring YAML File</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/model-configuration.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/tracing-configuration.html">Tracing</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="configure-rails/yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/yaml-schema/streaming/global-streaming.html">Streaming LLM Responses</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/yaml-schema/streaming/output-rail-streaming.html">Output Rail Streaming</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="configure-rails/configuration-reference.html">YAML Schema Reference</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/guardrail-catalog/index.html">Guardrail Catalog</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/content-safety.html">Content Safety</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/jailbreak-protection.html">Jailbreak Protection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/topic-control.html">Topic Control</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/pii-detection.html">PII Detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/agentic-security.html">Agentic Security</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/fact-checking.html">Hallucinations &amp; Fact-Checking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/guardrail-catalog/self-check.html">LLM Self-Check</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="configure-rails/guardrail-catalog/third-party.html">Third-Party APIs</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/active-fence.html">ActiveFence</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/alignscore.html">AlignScore</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/auto-align.html">AutoAlign</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/ai-defense.html">Cisco AI Defense</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/clavata.html">Clavata</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/cleanlab.html">Cleanlab</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/crowdstrike-aidr.html">CrowdStrike AIDR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/fiddler.html">Fiddler</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/gcp-text-moderations.html">GCP Text Moderation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/gliner.html">GLiNER PII</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/guardrails-ai.html">GuardrailsAI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/llama-guard.html">Llama Guard</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/pangea.html">Pangea AI Guard</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/patronus-evaluate-api.html">Patronus Evaluate API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/patronus-lynx.html">Patronus Lynx</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/policyai.html">PolicyAI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/presidio.html">Presidio</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/privateai.html">Private AI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/prompt-security.html">Prompt Security</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/regex.html">Regex</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/guardrail-catalog/community/trend-micro.html">Trend Micro</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/actions/index.html">Custom Actions</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/actions/creating-actions.html">Creating Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/actions/built-in-actions.html">Built-in Actions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/actions/action-parameters.html">Action Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/actions/registering-actions.html">Registering Actions</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/custom-initialization/index.html">Custom Initialization</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/custom-initialization/init-function.html">Init Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/custom-initialization/custom-llm-providers.html">LLM Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/custom-initialization/custom-embedding-providers.html">Embedding Providers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/custom-initialization/custom-data.html">Custom Data</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/colang/index.html">Colang</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="configure-rails/colang/colang-2/index.html">Colang 2.0 Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/colang/colang-2/whats-changed.html">What’s Changed</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/index.html">Getting Started</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/hello-world.html">Hello World</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/dialog-rails.html">Dialog Rails</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/multimodal-rails.html">Multimodal Rails</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/input-rails.html">Input Rails</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/interaction-loop.html">Interaction Loop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/llm-flows.html">LLM Flows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/getting-started/recommended-next-steps.html">Recommended Next Steps</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/index.html">Language Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/introduction.html">Introduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/event-generation-and-matching.html">Event Generation &amp; Matching</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/working-with-actions.html">Working with Actions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/defining-flows.html">Defining Flows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/working-with-variables-and-expressions.html">Working with Variables &amp; Expressions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/flow-control.html">Flow control</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/the-standard-library.html">Colang Standard Library (CSL)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/make-use-of-llms.html">Make use of Large Language Models (LLM)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/more-on-flows.html">More on Flows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/python-actions.html">Python Actions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-2/language-reference/development-and-debugging.html">Development and Debugging</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/colang/colang-2/migration-guide.html">Migrating from Colang 1 to Colang 2</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="configure-rails/colang/colang-1/index.html">Colang 1.0 Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/colang/colang-1/colang-language-syntax-guide.html">Colang 1.0 Language Syntax</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/index.html">Colang 1.0 Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/1-hello-world/README.html">Hello World</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/2-core-colang-concepts/README.html">Core Colang Concepts</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/3-demo-use-case/README.html">Demo Use Case</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/4-input-rails/README.html">Input Rails</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/5-output-rails/README.html">Output Rails</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/6-topical-rails/README.html">Topical Rails</a></li>
+<li class="toctree-l4"><a class="reference internal" href="configure-rails/colang/colang-1/tutorials/7-rag/README.html">Retrieval-Augmented Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/colang/colang-1/bot-thinking-guardrails.html">Guardrailing Bot Reasoning Content</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="configure-rails/colang/usage-examples/index.html">Colang Usage Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/colang/usage-examples/bot-message-instructions.html">Bot Message Instructions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="configure-rails/colang/usage-examples/extract-user-provided-values.html">Extract User-provided Values</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/other-configurations/index.html">Other Configurations</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/other-configurations/knowledge-base.html">Knowledge Base</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/other-configurations/embedding-search-providers.html">Embedding Search Providers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/caching/index.html">Caching</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/caching/model-memory-cache.html">Memory Model Cache</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configure-rails/caching/kv-cache-reuse.html">KV Cache Reuse</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="configure-rails/exceptions.html">Exceptions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Run Guardrailed Inference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="run-rails/index.html">About Running Guardrailed Inference</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="run-rails/using-python-apis/index.html">Python API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-python-apis/overview.html">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-python-apis/core-classes.html">Core Classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-python-apis/generation-options.html">Generation Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-python-apis/streaming.html">Streaming</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-python-apis/check-messages.html">Check Messages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-python-apis/event-based-api.html">Event-Based API</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="run-rails/using-fastapi-server/index.html">Guardrails API Server</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-fastapi-server/overview.html">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-fastapi-server/run-guardrails-server.html">Run the Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-fastapi-server/chat-with-guardrailed-model.html">Chat Completions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-fastapi-server/list-guardrail-configs.html">List Configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-fastapi-server/list-models.html">List Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run-rails/using-fastapi-server/actions-server.html">Actions Server</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Evaluation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="evaluation/evaluate-guardrails.html">Evaluate Guardrails</a></li>
+<li class="toctree-l1"><a class="reference internal" href="evaluation/llm-vulnerability-scanning.html">Vulnerability Scanning</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="observability/logging/index.html">Logging</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="observability/tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="observability/tracing/quick-start.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="observability/tracing/adapter-configurations.html">Adapters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="observability/tracing/troubleshooting.html">Troubleshooting</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">More Deployment Options</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="deployment/index.html">Deployment Options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment/using-docker.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment/using-microservice.html">NeMo Microservice</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Integration with Third-Party Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="integration/langchain/index.html">LangChain Frameworks</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="integration/langchain/langchain-integration.html">LangChain Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="integration/langchain/agent-middleware.html">Agent Middleware</a></li>
+<li class="toctree-l2"><a class="reference internal" href="integration/langchain/runnable-rails.html">RunnableRails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="integration/langchain/chain-with-guardrails/index.html">Chain with Guardrails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="integration/langchain/runnable-as-action/index.html">Runnable as Action</a></li>
+<li class="toctree-l2"><a class="reference internal" href="integration/langchain/langgraph-integration.html">LangGraph</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="integration/tools-integration.html">Tools Integration</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="reference/colang-architecture-guide.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference/guardrails-sequence-diagrams.html">Sequence Diagrams</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference/use-case-diagrams.html">Use Case Diagrams</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="reference/python-api/index.html">Python API</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html">nemoguardrails.rails.llm.llmrails.LLMRails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.config.RailsConfig.html">nemoguardrails.rails.llm.config.RailsConfig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.GenerationOptions.html">nemoguardrails.rails.llm.options.GenerationOptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.GenerationResponse.html">nemoguardrails.rails.llm.options.GenerationResponse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.GenerationRailsOptions.html">nemoguardrails.rails.llm.options.GenerationRailsOptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.GenerationLogOptions.html">nemoguardrails.rails.llm.options.GenerationLogOptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.GenerationLog.html">nemoguardrails.rails.llm.options.GenerationLog</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.GenerationStats.html">nemoguardrails.rails.llm.options.GenerationStats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.ActivatedRail.html">nemoguardrails.rails.llm.options.ActivatedRail</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.ExecutedAction.html">nemoguardrails.rails.llm.options.ExecutedAction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.actions.action.html">nemoguardrails.actions.action</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.RailType.html">nemoguardrails.rails.llm.options.RailType</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.RailStatus.html">nemoguardrails.rails.llm.options.RailStatus</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/python-api/generated/nemoguardrails.rails.llm.options.RailsResult.html">nemoguardrails.rails.llm.options.RailsResult</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="reference/cli/index.html">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="resources/security/guidelines.html">Security</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture &amp; Migration</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="adr/001-dag-rail-scheduler.html">ADR: DAG Rail Scheduler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parallel-rail-execution.html">Parallel Rail Execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python-3.14-migration.html">Python 3.14 Migration</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Performance Optimization Plan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance-improvements.html">Performance Improvements &amp; Benchmarks</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Performance Optimization Plan — NeMo Guardrails</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="performance-optimization-plan-nemo-guardrails">
+<h1>Performance Optimization Plan — NeMo Guardrails<a class="headerlink" href="#performance-optimization-plan-nemo-guardrails" title="Link to this heading">#</a></h1>
+<p><em>Maintainer-grade engineering plan for orchestration overhead, rail execution latency, streaming performance, concurrency, and tail latency.</em></p>
+<hr class="docutils" />
+<section id="executive-summary">
+<h2>1. Executive Summary<a class="headerlink" href="#executive-summary" title="Link to this heading">#</a></h2>
+<section id="performance-philosophy">
+<h3>Performance philosophy<a class="headerlink" href="#performance-philosophy" title="Link to this heading">#</a></h3>
+<p>A guardrails framework sits on the <strong>critical path between the user and the LLM</strong>. Every millisecond of orchestration overhead is latency the user feels before the first token arrives. The performance goal is simple: <strong>the framework should be invisible</strong>. Rail evaluation should add negligible cost compared to the LLM call itself.</p>
+</section>
+<section id="bottleneck-taxonomy">
+<h3>Bottleneck taxonomy<a class="headerlink" href="#bottleneck-taxonomy" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Category</p></th>
+<th class="head"><p>Where it lives</p></th>
+<th class="head"><p>Typical magnitude</p></th>
+<th class="head"><p>Optimization lever</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>I/O-bound</strong></p></td>
+<td><p>LLM API calls, embedding lookups, network round-trips</p></td>
+<td><p>100–2000 ms</p></td>
+<td><p>Concurrency (asyncio, parallel rails)</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>CPU-bound</strong></p></td>
+<td><p>Regex matching, YARA scanning, perplexity computation, local model inference</p></td>
+<td><p>5–200 ms</p></td>
+<td><p>Thread-pool dispatch, free-threaded Python</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Orchestration overhead</strong></p></td>
+<td><p>Config resolution, flow parsing, dependency graph walks, event loop bookkeeping</p></td>
+<td><p>0.5–5 ms</p></td>
+<td><p>Caching, DAG scheduling, hot-path optimization</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Wrapper overhead</strong></p></td>
+<td><p>RunnableRails adapter, message format conversions, context copies</p></td>
+<td><p>0.1–2 ms</p></td>
+<td><p>Eliminate copies, lazy conversion</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Tracing overhead</strong></p></td>
+<td><p>Span creation, attribute serialization, callback dispatch</p></td>
+<td><p>0.1–3 ms</p></td>
+<td><p>Pay-for-play (zero cost when disabled)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="architecture-first-runtime-second">
+<h3>Architecture first, runtime second<a class="headerlink" href="#architecture-first-runtime-second" title="Link to this heading">#</a></h3>
+<p>Switching to free-threaded Python does not help if the hot path creates 47 dict copies per request. Maintainers should:</p>
+<ol class="arabic simple">
+<li><p><strong>Measure</strong> — build a benchmark harness that isolates each overhead category</p></li>
+<li><p><strong>Eliminate waste</strong> — remove unnecessary copies, redundant config resolution, eager span creation</p></li>
+<li><p><strong>Parallelize</strong> — run independent rails concurrently (already partially done with the DAG scheduler)</p></li>
+<li><p><strong>Then exploit runtime features</strong> — free-threaded Python benefits only CPU-bound rails, and only if the framework doesn’t serialize them with locks</p></li>
+</ol>
+</section>
+</section>
+<hr class="docutils" />
+<section id="success-criteria">
+<h2>2. Success Criteria<a class="headerlink" href="#success-criteria" title="Link to this heading">#</a></h2>
+<section id="slo-style-targets">
+<h3>SLO-style targets<a class="headerlink" href="#slo-style-targets" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Metric</p></th>
+<th class="head"><p>Target</p></th>
+<th class="head"><p>Gate</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>p95 orchestration latency (1-rail, no tracing)</p></td>
+<td><p>≤ 12 ms</p></td>
+<td><p>PR blocks if regresses &gt; 5%</p></td>
+</tr>
+<tr class="row-odd"><td><p>p95 orchestration latency (3-rail parallel, no tracing)</p></td>
+<td><p>≤ 25 ms</p></td>
+<td><p>PR blocks if regresses &gt; 10%</p></td>
+</tr>
+<tr class="row-even"><td><p>First-token latency regression (streaming)</p></td>
+<td><p>≤ 20 ms added</p></td>
+<td><p>PR blocks</p></td>
+</tr>
+<tr class="row-odd"><td><p>Tracing-disabled overhead vs. no-tracing baseline</p></td>
+<td><p>≤ 2%</p></td>
+<td><p>PR blocks</p></td>
+</tr>
+<tr class="row-even"><td><p>Tracing-enabled overhead vs. no-tracing baseline</p></td>
+<td><p>≤ 15%</p></td>
+<td><p>Nightly warning</p></td>
+</tr>
+<tr class="row-odd"><td><p>Wrapper (RunnableRails) overhead vs. direct engine</p></td>
+<td><p>≤ 5%</p></td>
+<td><p>PR blocks</p></td>
+</tr>
+<tr class="row-even"><td><p>Parallel execution speedup vs. serial (3 independent rails)</p></td>
+<td><p>≥ 2.0×</p></td>
+<td><p>Nightly gate</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cold-start / import time</p></td>
+<td><p>≤ 250 ms</p></td>
+<td><p>Nightly warning at 300 ms</p></td>
+</tr>
+<tr class="row-even"><td><p>RSS drift over 10k requests</p></td>
+<td><p>≤ 50 MB</p></td>
+<td><p>Nightly gate</p></td>
+</tr>
+<tr class="row-odd"><td><p>Free-threaded 3.14t CPU-bound speedup vs. 3.14 (4 rails)</p></td>
+<td><p>≥ 2.5×</p></td>
+<td><p>Nightly, evidence-only</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="how-to-read-these">
+<h3>How to read these<a class="headerlink" href="#how-to-read-these" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>PR blocks</strong>: the CI check fails and the PR cannot merge.</p></li>
+<li><p><strong>Nightly gate</strong>: the nightly run fails and creates an issue; does not block individual PRs.</p></li>
+<li><p><strong>Nightly warning</strong>: logged to dashboard, no automatic action.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="milestone-by-milestone-roadmap">
+<h2>3. Milestone-by-Milestone Roadmap<a class="headerlink" href="#milestone-by-milestone-roadmap" title="Link to this heading">#</a></h2>
+<section id="milestone-1-build-the-performance-harness">
+<h3>Milestone 1 — Build the Performance Harness<a class="headerlink" href="#milestone-1-build-the-performance-harness" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Repeatable, isolated benchmarks that separate orchestration cost from provider latency.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">benchmarks/</span></code> directory with scenario definitions, fake providers, and runners</p></li>
+<li><p>Baseline JSON files in <code class="docutils literal notranslate"><span class="pre">perf_baselines/</span></code> per platform/Python version</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">benchmarks/compare.py</span></code> regression checker</p></li>
+<li><p>CI integration (smoke suite on PRs, full suite nightly)</p></li>
+</ul>
+<p><strong>Why it matters</strong>: You cannot optimize what you cannot measure. Without a harness, every “optimization” is a guess.</p>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p>1-rail serial (no trace, with trace)</p></li>
+<li><p>3-rail serial and parallel (no trace, with trace)</p></li>
+<li><p>Wrapper vs. direct</p></li>
+<li><p>Import / cold-start time</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">1rail_serial_notrace:   p95 ≤ 12 ms, mean ≤ 11 ms</span>
+<span class="go">3rail_parallel_notrace: p95 ≤ 25 ms, mean ≤ 22 ms</span>
+<span class="go">import_nemoguardrails:  mean ≤ 200 ms</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-2-lock-down-the-zero-overhead-path">
+<h3>Milestone 2 — Lock Down the Zero-Overhead Path<a class="headerlink" href="#milestone-2-lock-down-the-zero-overhead-path" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: When tracing/debugging is disabled, the framework pays zero cost for it.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p>Replace eager span creation with lazy guard (<code class="docutils literal notranslate"><span class="pre">if</span> <span class="pre">tracer.enabled:</span></code>)</p></li>
+<li><p>Remove metadata dict copies when tracing is off</p></li>
+<li><p>Remove callback list iteration when no callbacks registered</p></li>
+<li><p>Benchmark proof: tracing-off adds ≤ 2% vs. hypothetical no-tracing build</p></li>
+</ul>
+<p><strong>Why it matters</strong>: Most production deployments run with tracing off. Every <code class="docutils literal notranslate"><span class="pre">dict()</span></code> copy and <code class="docutils literal notranslate"><span class="pre">span.set_attribute()</span></code> call in the hot path is wasted.</p>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">adapter_cost</span></code> suite: same scenario with tracing on vs. off</p></li>
+<li><p>Profile with <code class="docutils literal notranslate"><span class="pre">py-spy</span></code> to identify remaining overhead</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">tracing_off_overhead: ≤ 2% vs. no-tracing baseline</span>
+<span class="go">tracing_on_overhead:  ≤ 15% vs. no-tracing baseline</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-3-compile-and-cache-deterministic-artifacts">
+<h3>Milestone 3 — Compile and Cache Deterministic Artifacts<a class="headerlink" href="#milestone-3-compile-and-cache-deterministic-artifacts" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Never re-compute what hasn’t changed.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&#64;lru_cache</span></code> or <code class="docutils literal notranslate"><span class="pre">__slots__</span></code>-based caching for:</p>
+<ul>
+<li><p>Compiled regex patterns (jailbreak, injection, content filters)</p></li>
+<li><p>Parsed Colang flow graphs</p></li>
+<li><p>Dependency graphs (rail → rail edges)</p></li>
+<li><p>Prompt templates (Jinja2 compiled)</p></li>
+<li><p>Provider routing maps</p></li>
+<li><p>Validator instances (Guardrails AI)</p></li>
+</ul>
+</li>
+<li><p>Cache invalidation tied to config hash</p></li>
+<li><p>Benchmark proof: second request is ≥ 30% faster than first for config-heavy scenarios</p></li>
+</ul>
+<p><strong>Why it matters</strong>: Config resolution and regex compilation happen on every request in some code paths. Caching makes the second request nearly free.</p>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p>Cold vs. warm request latency (same config)</p></li>
+<li><p>Config-change invalidation correctness test</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">warm_request_overhead vs cold: ≤ 70% of cold-start latency</span>
+<span class="go">regex_compilation_cache_hit:   0 ms (cached)</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-4-turn-linear-orchestration-into-a-dag-scheduler">
+<h3>Milestone 4 — Turn Linear Orchestration into a DAG Scheduler<a class="headerlink" href="#milestone-4-turn-linear-orchestration-into-a-dag-scheduler" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Independent rails run concurrently; dependent rails respect ordering.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">RailDependencyGraph</span></code> with cycle detection (Kahn’s algorithm) — <strong>DONE</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TopologicalScheduler</span></code> with <code class="docutils literal notranslate"><span class="pre">asyncio.gather()</span></code> per group — <strong>DONE</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">InputRails.parallel</span></code> / <code class="docutils literal notranslate"><span class="pre">OutputRails.parallel</span></code> config flags — <strong>DONE</strong></p></li>
+<li><p>Hard-fail short-circuit: if any rail blocks, cancel pending tasks — <strong>DONE</strong></p></li>
+<li><p>Integration into Colang runtime flow — <strong>DONE</strong></p></li>
+</ul>
+<p><strong>Status</strong>: This milestone is complete. The DAG scheduler is implemented in <code class="docutils literal notranslate"><span class="pre">dag_scheduler.py</span></code> and integrated into the Colang v1 runtime.</p>
+<p><strong>Remaining work</strong>:</p>
+<ul class="simple">
+<li><p>Extend to Colang v2 runtime</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">depends_on</span></code> support in YAML config (currently code-only)</p></li>
+</ul>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p>3-rail parallel vs. serial with simulated 10ms I/O per rail</p></li>
+<li><p>Short-circuit: one rail fails immediately, measure total wall time</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">3rail_parallel vs 3rail_serial: ≥ 2.0× speedup</span>
+<span class="go">short_circuit_3rail:            wall time ≤ 1.2× single-rail time</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-5-split-streaming-into-a-dedicated-execution-mode">
+<h3>Milestone 5 — Split Streaming into a Dedicated Execution Mode<a class="headerlink" href="#milestone-5-split-streaming-into-a-dedicated-execution-mode" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Streaming is its own hot path with chunk-level processing.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">RollingBuffer</span></code> for bounded sliding-window context — <strong>DONE</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">stream_first</span></code> config for first-token priority — <strong>DONE</strong></p></li>
+<li><p>Chunk-boundary-aware rail dispatch (don’t split mid-token)</p></li>
+<li><p>Stream-safe output rails (process chunks without buffering entire response)</p></li>
+<li><p>First-token latency benchmark</p></li>
+</ul>
+<p><strong>Why it matters</strong>: Streaming is the primary UX for chat. Every ms of first-token delay is perceptible. Buffering the entire response to run output rails defeats the purpose.</p>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">streaming_sweep</span></code>: chunk sizes × context windows × rail counts</p></li>
+<li><p>First-token latency with/without output rails</p></li>
+<li><p>Throughput (tokens/sec) with streaming rails active</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">first_token_latency_no_rails:  ≤ 5 ms framework overhead</span>
+<span class="go">first_token_latency_1_rail:    ≤ 15 ms framework overhead</span>
+<span class="go">streaming_throughput:           ≥ 95% of raw provider throughput</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-6-reduce-wrapper-overhead">
+<h3>Milestone 6 — Reduce Wrapper Overhead<a class="headerlink" href="#milestone-6-reduce-wrapper-overhead" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: <code class="docutils literal notranslate"><span class="pre">RunnableRails</span></code> and other wrapper APIs add ≤ 5% overhead vs. direct engine call.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p>Profile <code class="docutils literal notranslate"><span class="pre">RunnableRails.__call__</span></code> vs. direct <code class="docutils literal notranslate"><span class="pre">LLMRails.generate</span></code></p></li>
+<li><p>Eliminate redundant message format conversions (langchain ↔ internal ↔ back)</p></li>
+<li><p>Lazy config resolution (don’t re-resolve on every call)</p></li>
+<li><p>Remove defensive deep copies where shallow copy or reference is safe</p></li>
+</ul>
+<p><strong>Why it matters</strong>: Many users interact through LangChain wrappers. If the wrapper adds 20% overhead, users blame the framework.</p>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">adapter_cost</span></code> suite: direct vs. RunnableRails, same scenario</p></li>
+<li><p>Profile with <code class="docutils literal notranslate"><span class="pre">cProfile</span></code> to find conversion hot spots</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">wrapper_overhead: ≤ 5% vs direct engine call</span>
+<span class="go">message_conversion: ≤ 0.5 ms per request</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-7-python-3-14-free-threaded-experimental-lane">
+<h3>Milestone 7 — Python 3.14 Free-Threaded Experimental Lane<a class="headerlink" href="#milestone-7-python-3-14-free-threaded-experimental-lane" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Evidence-driven evaluation of free-threaded Python for CPU-bound rails.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p>Thread-safety audit of shared mutable state — <strong>DONE</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ThreadSafeDict</span></code>, <code class="docutils literal notranslate"><span class="pre">ThreadSafeCache</span></code>, <code class="docutils literal notranslate"><span class="pre">atomic_init</span></code> primitives — <strong>DONE</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">RailThreadPool</span></code> with <code class="docutils literal notranslate"><span class="pre">&#64;cpu_bound</span></code> decorator — <strong>DONE</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&#64;cpu_bound</span></code> on built-in CPU-heavy rails (jailbreak, injection, validators) — <strong>DONE</strong></p></li>
+<li><p>ThreadSanitiser CI workflow — <strong>DONE</strong></p></li>
+<li><p>Benchmark: 4 CPU-bound rails, standard 3.14 vs. free-threaded 3.14t</p></li>
+</ul>
+<p><strong>Status</strong>: Infrastructure is complete. Needs benchmark evidence.</p>
+<p><strong>Remaining work</strong>:</p>
+<ul class="simple">
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">bench_threading.py</span></code> on both builds and publish results</p></li>
+<li><p>Document which rails benefit and by how much</p></li>
+<li><p>Keep as experimental until ≥ 2 releases of stability data</p></li>
+</ul>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p>4× <code class="docutils literal notranslate"><span class="pre">get_perplexity()</span></code> calls: serial vs. thread-pool on 3.14 vs. 3.14t</p></li>
+<li><p>4× YARA <code class="docutils literal notranslate"><span class="pre">_reject_injection()</span></code>: same comparison</p></li>
+<li><p>Mixed I/O + CPU rail pipeline</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">4_cpu_rails_314t vs 4_cpu_rails_314: ≥ 2.5× speedup</span>
+<span class="go">4_cpu_rails_314t vs 4_cpu_rails_312: ≥ 2.5× speedup</span>
+<span class="go">mixed_pipeline_314t:                  ≥ 1.3× vs 312</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="milestone-8-evaluate-subinterpreters-for-isolation">
+<h3>Milestone 8 — Evaluate Subinterpreters for Isolation<a class="headerlink" href="#milestone-8-evaluate-subinterpreters-for-isolation" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Determine if <code class="docutils literal notranslate"><span class="pre">interpreters</span></code> module (PEP 734, Python 3.13+) is viable for isolated plugin execution.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p>Proof-of-concept: run a custom action in a subinterpreter</p></li>
+<li><p>Benchmark: subinterpreter vs. <code class="docutils literal notranslate"><span class="pre">multiprocessing.Pool</span></code> vs. inline execution</p></li>
+<li><p>Measure: startup overhead, memory cost, data transfer cost</p></li>
+<li><p>Decision document: adopt, defer, or reject</p></li>
+</ul>
+<p><strong>Why it matters</strong>: Custom actions from untrusted sources need isolation. Subinterpreters could provide process-level isolation without process-level overhead.</p>
+<p><strong>Benchmark scenarios</strong>:</p>
+<ul class="simple">
+<li><p>Startup: create interpreter + run trivial function</p></li>
+<li><p>Throughput: 1000 action calls via each isolation method</p></li>
+<li><p>Memory: RSS with 10 interpreters vs. 10 processes</p></li>
+</ul>
+<p><strong>Example targets</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">subinterpreter_startup:  ≤ 5 ms (vs ~50 ms for multiprocessing)</span>
+<span class="go">subinterpreter_overhead: ≤ 2× inline execution</span>
+<span class="go">memory_per_interpreter:  ≤ 20 MB (vs ~40 MB per process)</span>
+</pre></div>
+</div>
+<p><strong>Reality check</strong>: As of Python 3.14, subinterpreters cannot share arbitrary Python objects across boundaries. Data must be serialized. This limits usefulness for actions that need access to shared config/state. <strong>Likely verdict: defer to 3.15+.</strong></p>
+</section>
+<hr class="docutils" />
+<section id="milestone-9-regression-gates-in-ci">
+<h3>Milestone 9 — Regression Gates in CI<a class="headerlink" href="#milestone-9-regression-gates-in-ci" title="Link to this heading">#</a></h3>
+<p><strong>Goal</strong>: Performance is a release criterion enforced automatically.</p>
+<p><strong>Deliverables</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">benchmarks/compare.py</span></code> with configurable thresholds — <strong>DONE</strong></p></li>
+<li><p>PR-level smoke benchmarks (latency, import, wrapper) — <strong>DONE</strong></p></li>
+<li><p>Nightly full suite (throughput, streaming, memory, CPU-heavy)</p></li>
+<li><p>Performance dashboard (GitHub Actions artifact or external)</p></li>
+<li><p>Baseline update process (manual approval required)</p></li>
+</ul>
+<p><strong>Status</strong>: Partially complete. PR smoke gates exist. Nightly suite needs expansion.</p>
+<p><strong>CI enforcement</strong>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">PR:      latency_smoke fails → PR blocked</span>
+<span class="go">PR:      import_cold_start regresses &gt; 20% → PR blocked</span>
+<span class="go">Nightly: memory_longrun RSS drift &gt; 50 MB → issue created</span>
+<span class="go">Nightly: streaming first-token regresses &gt; 20 ms → issue created</span>
+<span class="go">Nightly: free-threaded speedup drops below 2× → warning logged</span>
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="sample-benchmark-code-structure">
+<h2>4. Sample Benchmark Code Structure<a class="headerlink" href="#sample-benchmark-code-structure" title="Link to this heading">#</a></h2>
+<section id="repository-layout">
+<h3>Repository layout<a class="headerlink" href="#repository-layout" title="Link to this heading">#</a></h3>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">benchmarks/</span>
+<span class="go">├── __init__.py</span>
+<span class="go">├── scenarios.py          # BenchmarkScenario definitions</span>
+<span class="go">├── fake_provider.py      # Simulated LLM provider (configurable latency)</span>
+<span class="go">├── fake_rails.py         # CPU-bound and I/O-bound fake rails</span>
+<span class="go">├── run_latency.py        # Latency benchmark runner</span>
+<span class="go">├── run_streaming.py      # Streaming benchmark runner</span>
+<span class="go">├── run_memory.py         # Memory profiler (tracemalloc)</span>
+<span class="go">├── run_import.py         # Cold-start / import time</span>
+<span class="go">├── run_throughput.py      # Throughput (requests/sec)</span>
+<span class="go">├── bench_threading.py     # Free-threaded vs. standard comparison</span>
+<span class="go">├── bench_threadpool_vs_inline.py</span>
+<span class="go">├── compare.py            # Regression checker</span>
+<span class="go">├── dashboard.py          # Results aggregation / visualization</span>
+<span class="go">├── conftest.py           # Shared pytest fixtures</span>
+<span class="go">perf_baselines/</span>
+<span class="go">├── linux-py312.json</span>
+<span class="go">├── linux-py314.json</span>
+<span class="go">├── linux-py314t.json</span>
+<span class="go">├── README.md</span>
+</pre></div>
+</div>
+</section>
+<section id="core-data-models">
+<h3>Core data models<a class="headerlink" href="#core-data-models" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># benchmarks/scenarios.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BenchmarkScenario</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">num_rails</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">parallel</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">tracing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">streaming</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">rail_latency_ms</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>    <span class="c1"># simulated I/O per rail</span>
+    <span class="n">rail_cpu_ms</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>        <span class="c1"># simulated CPU work per rail</span>
+    <span class="n">provider_latency_ms</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">warmup_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
+
+<span class="n">LATENCY_SMOKE</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;1rail_serial_notrace&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;3rail_serial_notrace&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">3</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;3rail_parallel_notrace&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">parallel</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;1rail_serial_trace&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tracing</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;3rail_serial_trace&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">tracing</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;3rail_parallel_trace&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">parallel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tracing</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;1rail_wrapper&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">BenchmarkScenario</span><span class="p">(</span><span class="s2">&quot;3rail_wrapper&quot;</span><span class="p">,</span> <span class="n">num_rails</span><span class="o">=</span><span class="mi">3</span><span class="p">),</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="fake-rails">
+<h3>Fake rails<a class="headerlink" href="#fake-rails" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># benchmarks/fake_rails.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cpu_bound_rail</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50_000</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Simulate CPU-bound work (hashing).&quot;&quot;&quot;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">iterations</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">text</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">io_bound_rail</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">latency_s</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Simulate I/O-bound work (network call).&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">latency_s</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">text</span>
+</pre></div>
+</div>
+</section>
+<section id="fake-provider">
+<h3>Fake provider<a class="headerlink" href="#fake-provider" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># benchmarks/fake_provider.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeProvider</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">latency_ms</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">latency_s</span> <span class="o">=</span> <span class="n">latency_ms</span> <span class="o">/</span> <span class="mf">1000.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokens</span> <span class="o">=</span> <span class="n">tokens</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">latency_s</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latency_s</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Response to: </span><span class="si">{</span><span class="n">prompt</span><span class="p">[:</span><span class="mi">30</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="n">per_token</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">latency_s</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokens</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokens</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">per_token</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">per_token</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="sa">f</span><span class="s2">&quot;token_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> &quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="latency-runner">
+<h3>Latency runner<a class="headerlink" href="#latency-runner" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># benchmarks/run_latency.py (simplified core)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">statistics</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">measure_scenario</span><span class="p">(</span><span class="n">scenario</span><span class="p">,</span> <span class="n">rail_fn</span><span class="p">,</span> <span class="n">provider</span><span class="p">):</span>
+    <span class="n">timings</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># warmup</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">scenario</span><span class="o">.</span><span class="n">warmup_iterations</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">_run_once</span><span class="p">(</span><span class="n">scenario</span><span class="p">,</span> <span class="n">rail_fn</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+    <span class="c1"># measure</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">scenario</span><span class="o">.</span><span class="n">iterations</span><span class="p">):</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span>
+        <span class="k">await</span> <span class="n">_run_once</span><span class="p">(</span><span class="n">scenario</span><span class="p">,</span> <span class="n">rail_fn</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+        <span class="n">elapsed_ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span><span class="p">)</span> <span class="o">/</span> <span class="mf">1e6</span>
+        <span class="n">timings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">elapsed_ms</span><span class="p">)</span>
+
+    <span class="n">timings</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">timings</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="s2">&quot;p50_ms&quot;</span><span class="p">:</span> <span class="n">timings</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">n</span> <span class="o">*</span> <span class="mf">0.50</span><span class="p">)],</span>
+        <span class="s2">&quot;p95_ms&quot;</span><span class="p">:</span> <span class="n">timings</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">n</span> <span class="o">*</span> <span class="mf">0.95</span><span class="p">)],</span>
+        <span class="s2">&quot;p99_ms&quot;</span><span class="p">:</span> <span class="n">timings</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">n</span> <span class="o">*</span> <span class="mf">0.99</span><span class="p">)],</span>
+        <span class="s2">&quot;mean_ms&quot;</span><span class="p">:</span> <span class="n">statistics</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">timings</span><span class="p">),</span>
+    <span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="dag-scheduler-skeleton">
+<h3>DAG scheduler skeleton<a class="headerlink" href="#dag-scheduler-skeleton" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Simplified execution plan model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ExecutionGroup</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A set of rails that can run concurrently.&quot;&quot;&quot;</span>
+    <span class="n">rails</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">depends_on</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>  <span class="c1"># group indices</span>
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ExecutionPlan</span><span class="p">:</span>
+    <span class="n">groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ExecutionGroup</span><span class="p">]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">rails_config</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ExecutionPlan&quot;</span><span class="p">:</span>
+        <span class="c1"># Topological sort into groups using Kahn&#39;s algorithm</span>
+        <span class="c1"># See dag_scheduler.py for full implementation</span>
+        <span class="o">...</span>
+</pre></div>
+</div>
+</section>
+<section id="regression-comparison">
+<h3>Regression comparison<a class="headerlink" href="#regression-comparison" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># benchmarks/compare.py (simplified core)</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">check_regressions</span><span class="p">(</span><span class="n">baseline_path</span><span class="p">,</span> <span class="n">current_path</span><span class="p">,</span> <span class="n">max_mean_pct</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">max_p95_pct</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">baseline</span> <span class="o">=</span> <span class="p">{</span><span class="n">s</span><span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">]:</span> <span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">baseline_path</span><span class="p">))}</span>
+    <span class="n">current</span> <span class="o">=</span> <span class="p">{</span><span class="n">s</span><span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">]:</span> <span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">current_path</span><span class="p">))}</span>
+    <span class="n">failures</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">cur</span> <span class="ow">in</span> <span class="n">current</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">baseline</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">base</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">mean_delta</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur</span><span class="p">[</span><span class="s2">&quot;mean_ms&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">base</span><span class="p">[</span><span class="s2">&quot;mean_ms&quot;</span><span class="p">])</span> <span class="o">/</span> <span class="n">base</span><span class="p">[</span><span class="s2">&quot;mean_ms&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">100</span>
+        <span class="n">p95_delta</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur</span><span class="p">[</span><span class="s2">&quot;p95_ms&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">base</span><span class="p">[</span><span class="s2">&quot;p95_ms&quot;</span><span class="p">])</span> <span class="o">/</span> <span class="n">base</span><span class="p">[</span><span class="s2">&quot;p95_ms&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">100</span>
+        <span class="k">if</span> <span class="n">mean_delta</span> <span class="o">&gt;</span> <span class="n">max_mean_pct</span><span class="p">:</span>
+            <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">] mean regression: </span><span class="si">{</span><span class="n">mean_delta</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p95_delta</span> <span class="o">&gt;</span> <span class="n">max_p95_pct</span><span class="p">:</span>
+            <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">] p95 regression: </span><span class="si">{</span><span class="n">p95_delta</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">failures</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;REGRESSION FAILURES:&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">failures</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  ✗ </span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Checked </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">current</span><span class="p">)</span><span class="si">}</span><span class="s2"> scenarios — all within thresholds.&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="proposed-ci-matrix">
+<h2>5. Proposed CI Matrix<a class="headerlink" href="#proposed-ci-matrix" title="Link to this heading">#</a></h2>
+<section id="a-required-pr-matrix">
+<h3>A. Required PR Matrix<a class="headerlink" href="#a-required-pr-matrix" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Runner</p></th>
+<th class="head"><p>Python</p></th>
+<th class="head"><p>Suites</p></th>
+<th class="head"><p>Blocking?</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Ubuntu latest</p></td>
+<td><p>3.12</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">latency_smoke</span></code>, <code class="docutils literal notranslate"><span class="pre">import_cold_start</span></code></p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-odd"><td><p>Ubuntu latest</p></td>
+<td><p>3.14</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">latency_smoke</span></code>, <code class="docutils literal notranslate"><span class="pre">import_cold_start</span></code></p></td>
+<td><p>Yes</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Configuration axes per suite run:</p>
+<ul class="simple">
+<li><p>Tracing: on / off</p></li>
+<li><p>Execution: serial / parallel</p></li>
+<li><p>Interface: direct / wrapper</p></li>
+</ul>
+</section>
+<section id="b-nightly-matrix">
+<h3>B. Nightly Matrix<a class="headerlink" href="#b-nightly-matrix" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Runner</p></th>
+<th class="head"><p>Python</p></th>
+<th class="head"><p>Suites</p></th>
+<th class="head"><p>Action on failure</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Ubuntu latest</p></td>
+<td><p>3.12</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">throughput_cpu</span></code>, <code class="docutils literal notranslate"><span class="pre">throughput_io</span></code>, <code class="docutils literal notranslate"><span class="pre">streaming_sweep</span></code>, <code class="docutils literal notranslate"><span class="pre">memory_longrun</span></code>, <code class="docutils literal notranslate"><span class="pre">adapter_cost</span></code></p></td>
+<td><p>Create issue</p></td>
+</tr>
+<tr class="row-odd"><td><p>Ubuntu latest</p></td>
+<td><p>3.14</p></td>
+<td><p>Same as above</p></td>
+<td><p>Create issue</p></td>
+</tr>
+<tr class="row-even"><td><p>Ubuntu latest</p></td>
+<td><p>3.14t (free-threaded)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">throughput_cpu</span></code>, <code class="docutils literal notranslate"><span class="pre">bench_threading</span></code>, <code class="docutils literal notranslate"><span class="pre">memory_longrun</span></code></p></td>
+<td><p>Warning only</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="example-github-actions-yaml">
+<h3>Example GitHub Actions YAML<a class="headerlink" href="#example-github-actions-yaml" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Performance</span>
+<span class="nt">on</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">pull_request</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">develop</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">main</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">schedule</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cron</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;17</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*&quot;</span><span class="w">   </span><span class="c1"># nightly at 03:17 UTC</span>
+
+<span class="nt">jobs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">pr-perf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github.event_name == &#39;pull_request&#39;</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">matrix</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;3.12&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;3.14&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+<span class="w">    </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">PYTHONPATH</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ github.workspace }}</span>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v4</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/setup-python@v5</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ matrix.python-version }}</span>
+<span class="w">          </span><span class="nt">allow-prereleases</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install -e &quot;.[dev]&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run latency smoke benchmarks</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python -m benchmarks.run_latency --suite smoke --output /tmp/perf-latency.json</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run import benchmark</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python -m benchmarks.run_import --output /tmp/perf-import.json</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Check regressions</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">          </span><span class="no">python -m benchmarks.compare \</span>
+<span class="w">            </span><span class="no">--baseline perf_baselines/linux-py${{ matrix.python-version }}.json \</span>
+<span class="w">            </span><span class="no">--current /tmp/perf-latency.json \</span>
+<span class="w">            </span><span class="no">--max-mean-regression 10 \</span>
+<span class="w">            </span><span class="no">--max-p95-regression 5</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/upload-artifact@v4</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">perf-pr-py${{ matrix.python-version }}</span>
+<span class="w">          </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/perf-*.json</span>
+
+<span class="w">  </span><span class="nt">nightly-perf</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github.event_name == &#39;schedule&#39;</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">matrix</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">include</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;3.12&quot;</span>
+<span class="w">            </span><span class="nt">free-threaded</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;3.14&quot;</span>
+<span class="w">            </span><span class="nt">free-threaded</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;3.14&quot;</span>
+<span class="w">            </span><span class="nt">free-threaded</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v4</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/setup-python@v5</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ matrix.python-version }}</span>
+<span class="w">          </span><span class="nt">allow-prereleases</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">freethreaded</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ matrix.free-threaded }}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install -e &quot;.[dev]&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Full benchmark suite</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">          </span><span class="no">python -m benchmarks.run_latency --suite full --output /tmp/perf-latency.json</span>
+<span class="w">          </span><span class="no">python -m benchmarks.run_streaming --output /tmp/perf-streaming.json</span>
+<span class="w">          </span><span class="no">python -m benchmarks.run_memory --output /tmp/perf-memory.json</span>
+<span class="w">          </span><span class="no">python -m benchmarks.run_throughput --output /tmp/perf-throughput.json</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/upload-artifact@v4</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">perf-nightly-py${{ matrix.python-version }}${{ matrix.free-threaded &amp;&amp; &#39;t&#39; || &#39;&#39; }}</span>
+<span class="w">          </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/perf-*.json</span>
+<span class="w">          </span><span class="nt">retention-days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">90</span>
+</pre></div>
+</div>
+</section>
+<section id="baseline-management">
+<h3>Baseline management<a class="headerlink" href="#baseline-management" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Baselines stored in <code class="docutils literal notranslate"><span class="pre">perf_baselines/</span></code> as JSON, committed to the repo</p></li>
+<li><p>Updating baselines requires a dedicated PR with justification</p></li>
+<li><p>Compare script reads baseline + current, outputs pass/fail</p></li>
+<li><p>Nightly results uploaded as artifacts for trend analysis</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="benchmark-suite-catalog">
+<h2>6. Benchmark Suite Catalog<a class="headerlink" href="#benchmark-suite-catalog" title="Link to this heading">#</a></h2>
+<section id="latency-smoke">
+<h3><code class="docutils literal notranslate"><span class="pre">latency_smoke</span></code><a class="headerlink" href="#latency-smoke" title="Link to this heading">#</a></h3>
+<p><strong>Measures</strong>: End-to-end orchestration latency with fake provider (zero LLM latency).
+<strong>Why</strong>: Isolates framework overhead from provider variability.
+<strong>Scenarios</strong>: 1-rail serial, 3-rail serial, 3-rail parallel, with/without tracing, wrapper vs. direct.
+<strong>Pass/fail</strong>: p95 within 5% of baseline mean; mean within 10%.</p>
+</section>
+<section id="throughput-cpu">
+<h3><code class="docutils literal notranslate"><span class="pre">throughput_cpu</span></code><a class="headerlink" href="#throughput-cpu" title="Link to this heading">#</a></h3>
+<p><strong>Measures</strong>: Requests/second with CPU-bound rails (hashing, regex, perplexity simulation).
+<strong>Why</strong>: Tests thread-pool dispatch effectiveness and GIL impact.
+<strong>Scenarios</strong>: 1/2/4/8 CPU-bound rails, serial vs. parallel, standard vs. free-threaded.
+<strong>Pass/fail</strong>: ≥ 90% of baseline throughput.</p>
+</section>
+<section id="throughput-io">
+<h3><code class="docutils literal notranslate"><span class="pre">throughput_io</span></code><a class="headerlink" href="#throughput-io" title="Link to this heading">#</a></h3>
+<p><strong>Measures</strong>: Requests/second with I/O-bound rails (simulated 10ms network calls).
+<strong>Why</strong>: Tests asyncio concurrency effectiveness.
+<strong>Scenarios</strong>: 1/3/5 I/O rails, serial vs. parallel.
+<strong>Pass/fail</strong>: Parallel ≥ 2× serial for 3+ independent I/O rails.</p>
+</section>
+<section id="streaming-sweep">
+<h3><code class="docutils literal notranslate"><span class="pre">streaming_sweep</span></code><a class="headerlink" href="#streaming-sweep" title="Link to this heading">#</a></h3>
+<p><strong>Measures</strong>: First-token latency and tokens/sec across chunk sizes and context windows.
+<strong>Why</strong>: Streaming is the primary production UX.
+<strong>Scenarios</strong>: Chunk sizes (50, 100, 200, 400) × context windows (25, 50, 100) × rail counts (0, 1, 3).
+<strong>Pass/fail</strong>: First-token overhead ≤ 20ms; throughput ≥ 95% of raw provider.</p>
+</section>
+<section id="adapter-cost">
+<h3><code class="docutils literal notranslate"><span class="pre">adapter_cost</span></code><a class="headerlink" href="#adapter-cost" title="Link to this heading">#</a></h3>
+<p><strong>Measures</strong>: Overhead of wrapper APIs (RunnableRails) vs. direct engine call.
+<strong>Why</strong>: Users shouldn’t pay for the abstraction layer.
+<strong>Scenarios</strong>: Same request through direct API vs. each wrapper.
+<strong>Pass/fail</strong>: Wrapper overhead ≤ 5%.</p>
+</section>
+<section id="memory-longrun">
+<h3><code class="docutils literal notranslate"><span class="pre">memory_longrun</span></code><a class="headerlink" href="#memory-longrun" title="Link to this heading">#</a></h3>
+<p><strong>Measures</strong>: RSS and tracemalloc delta over 10k requests.
+<strong>Why</strong>: Detects memory leaks from cached objects, unclosed spans, accumulated buffers.
+<strong>Scenarios</strong>: 10k identical requests with config reload every 1k.
+<strong>Pass/fail</strong>: RSS drift ≤ 50MB; no monotonic growth trend.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="release-gates">
+<h2>7. Release Gates<a class="headerlink" href="#release-gates" title="Link to this heading">#</a></h2>
+<p>Before any release, the following must pass:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Gate</p></th>
+<th class="head"><p>Suite</p></th>
+<th class="head"><p>Criteria</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Smoke latency</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">latency_smoke</span></code></p></td>
+<td><p>All scenarios within 10% of baseline mean</p></td>
+</tr>
+<tr class="row-odd"><td><p>Memory stability</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">memory_longrun</span></code></p></td>
+<td><p>RSS drift ≤ 50 MB over 10k requests</p></td>
+</tr>
+<tr class="row-even"><td><p>Streaming</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">streaming_sweep</span></code></p></td>
+<td><p>First-token regression ≤ 20 ms</p></td>
+</tr>
+<tr class="row-odd"><td><p>Parallel beats serial</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">throughput_io</span></code></p></td>
+<td><p>3-rail parallel ≥ 2× serial</p></td>
+</tr>
+<tr class="row-even"><td><p>Import time</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">import_cold_start</span></code></p></td>
+<td><p>≤ 250 ms</p></td>
+</tr>
+<tr class="row-odd"><td><p>Free-threaded claims</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">throughput_cpu</span></code> on 3.14t</p></td>
+<td><p>Only claim speedup if benchmark evidence shows ≥ 2×</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Free-threaded Python rule</strong>: Release notes may only claim free-threaded benefits if the nightly <code class="docutils literal notranslate"><span class="pre">throughput_cpu</span></code> suite on 3.14t shows ≥ 2× speedup vs. standard 3.14 for the same scenario. No benchmark evidence → no claim.</p>
+</section>
+<hr class="docutils" />
+<section id="priority-order">
+<h2>8. Priority Order<a class="headerlink" href="#priority-order" title="Link to this heading">#</a></h2>
+<p>Strict execution order, highest ROI / lowest risk first:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Priority</p></th>
+<th class="head"><p>Milestone</p></th>
+<th class="head"><p>Risk</p></th>
+<th class="head"><p>ROI</p></th>
+<th class="head"><p>Rationale</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>1</strong></p></td>
+<td><p>M1 — Performance harness</p></td>
+<td><p>Low</p></td>
+<td><p>High</p></td>
+<td><p>Can’t optimize without measurement</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>2</strong></p></td>
+<td><p>M9 — Regression gates in CI</p></td>
+<td><p>Low</p></td>
+<td><p>High</p></td>
+<td><p>Prevents future regressions for free</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>3</strong></p></td>
+<td><p>M2 — Zero-overhead path</p></td>
+<td><p>Low</p></td>
+<td><p>High</p></td>
+<td><p>Removes waste on every request</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>4</strong></p></td>
+<td><p>M3 — Cache deterministic artifacts</p></td>
+<td><p>Low</p></td>
+<td><p>Medium</p></td>
+<td><p>One-time cost, ongoing benefit</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>5</strong></p></td>
+<td><p>M6 — Reduce wrapper overhead</p></td>
+<td><p>Low</p></td>
+<td><p>Medium</p></td>
+<td><p>Directly improves user-facing latency</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>6</strong></p></td>
+<td><p>M4 — DAG scheduler</p></td>
+<td><p>Medium</p></td>
+<td><p>High</p></td>
+<td><p>Already done; extend to v2 runtime</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>7</strong></p></td>
+<td><p>M5 — Streaming execution mode</p></td>
+<td><p>Medium</p></td>
+<td><p>High</p></td>
+<td><p>Partially done; needs first-token focus</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>8</strong></p></td>
+<td><p>M7 — Free-threaded Python</p></td>
+<td><p>Medium</p></td>
+<td><p>Medium</p></td>
+<td><p>Infrastructure done; needs evidence</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>9</strong></p></td>
+<td><p>M8 — Subinterpreters</p></td>
+<td><p>High</p></td>
+<td><p>Low</p></td>
+<td><p>Defer to Python 3.15+</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>The first three milestones (harness → gates → zero-overhead) should be completed before any other optimization work.</strong> They establish the measurement infrastructure and prevent regressions. Everything after that is optimization on a solid foundation.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="python-3.14-migration.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Python 3.14 Migration Guide</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="performance-improvements.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Performance Improvements &amp; Benchmark Evidence</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#executive-summary">1. Executive Summary</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-philosophy">Performance philosophy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bottleneck-taxonomy">Bottleneck taxonomy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-first-runtime-second">Architecture first, runtime second</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#success-criteria">2. Success Criteria</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#slo-style-targets">SLO-style targets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-read-these">How to read these</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-by-milestone-roadmap">3. Milestone-by-Milestone Roadmap</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-1-build-the-performance-harness">Milestone 1 — Build the Performance Harness</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-2-lock-down-the-zero-overhead-path">Milestone 2 — Lock Down the Zero-Overhead Path</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-3-compile-and-cache-deterministic-artifacts">Milestone 3 — Compile and Cache Deterministic Artifacts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-4-turn-linear-orchestration-into-a-dag-scheduler">Milestone 4 — Turn Linear Orchestration into a DAG Scheduler</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-5-split-streaming-into-a-dedicated-execution-mode">Milestone 5 — Split Streaming into a Dedicated Execution Mode</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-6-reduce-wrapper-overhead">Milestone 6 — Reduce Wrapper Overhead</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-7-python-3-14-free-threaded-experimental-lane">Milestone 7 — Python 3.14 Free-Threaded Experimental Lane</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-8-evaluate-subinterpreters-for-isolation">Milestone 8 — Evaluate Subinterpreters for Isolation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#milestone-9-regression-gates-in-ci">Milestone 9 — Regression Gates in CI</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-benchmark-code-structure">4. Sample Benchmark Code Structure</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#repository-layout">Repository layout</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#core-data-models">Core data models</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fake-rails">Fake rails</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fake-provider">Fake provider</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#latency-runner">Latency runner</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dag-scheduler-skeleton">DAG scheduler skeleton</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#regression-comparison">Regression comparison</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#proposed-ci-matrix">5. Proposed CI Matrix</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-required-pr-matrix">A. Required PR Matrix</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#b-nightly-matrix">B. Nightly Matrix</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-github-actions-yaml">Example GitHub Actions YAML</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#baseline-management">Baseline management</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmark-suite-catalog">6. Benchmark Suite Catalog</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#latency-smoke"><code class="docutils literal notranslate"><span class="pre">latency_smoke</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#throughput-cpu"><code class="docutils literal notranslate"><span class="pre">throughput_cpu</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#throughput-io"><code class="docutils literal notranslate"><span class="pre">throughput_io</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#streaming-sweep"><code class="docutils literal notranslate"><span class="pre">streaming_sweep</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adapter-cost"><code class="docutils literal notranslate"><span class="pre">adapter_cost</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-longrun"><code class="docutils literal notranslate"><span class="pre">memory_longrun</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#release-gates">7. Release Gates</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#priority-order">8. Priority Order</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2023-2026, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+<script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+
+  </body>
+</html>
