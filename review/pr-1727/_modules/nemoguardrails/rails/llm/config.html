@@ -1736,6 +1736,16 @@ window.addEventListener("load", load);</script>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Rail flow entries with optional dependency metadata.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="c1"># @computed_field makes this @property visible to Pydantic&#39;s serialisation</span>
+    <span class="c1"># machinery (.model_dump(), .model_dump_json(), JSON Schema generation, etc.).</span>
+    <span class="c1"># A plain @property would be invisible to Pydantic v2 — the field would be</span>
+    <span class="c1"># silently omitted from serialised output.  Because much of the codebase</span>
+    <span class="c1"># (and downstream YAML/JSON consumers) still expects a top-level &quot;flows&quot;</span>
+    <span class="c1"># list of strings, we derive it dynamically from the richer flow_configs</span>
+    <span class="c1"># list whilst keeping it present in every serialised representation.</span>
+    <span class="c1">#</span>
+    <span class="c1"># The ``# type: ignore[prop-decorator]`` suppresses a mypy false-positive:</span>
+    <span class="c1"># mypy does not yet understand that @computed_field can decorate a @property.</span>
     <span class="nd">@computed_field</span>  <span class="c1"># type: ignore[prop-decorator]</span>
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">flows</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>  <span class="c1"># type: ignore[override]</span>
@@ -2425,6 +2435,27 @@ window.addEventListener("load", load);</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">_join_config</span><span class="p">(</span><span class="n">dest_config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">additional_config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper to join two configuration.&quot;&quot;&quot;</span>
 
+    <span class="c1"># --- Merge strategy overview ---</span>
+    <span class="c1"># Configuration may be spread across several YAML files and programmatic</span>
+    <span class="c1"># dicts (e.g. from ``from_path`` or ``from_content``).  This function</span>
+    <span class="c1"># folds *additional_config* into *dest_config* **in place** using three</span>
+    <span class="c1"># distinct strategies depending on the field type:</span>
+    <span class="c1">#</span>
+    <span class="c1">#   1. **Dict fields** (user_messages, bot_messages, sensitive_data_detection,</span>
+    <span class="c1">#      embedding_search_provider): shallow-merged with {**dest, **additional},</span>
+    <span class="c1">#      so later values override earlier ones for the same key.</span>
+    <span class="c1">#</span>
+    <span class="c1">#   2. **List fields** (instructions, flows, models, prompts, docs):</span>
+    <span class="c1">#      concatenated — duplicates are *not* removed here (deduplication is</span>
+    <span class="c1">#      handled later where necessary, e.g. for import_paths).</span>
+    <span class="c1">#</span>
+    <span class="c1">#   3. **Scalar / last-writer-wins fields** (additional_fields list below):</span>
+    <span class="c1">#      the value from *additional_config* simply replaces whatever was in</span>
+    <span class="c1">#      *dest_config*.  This is the correct behaviour for settings like</span>
+    <span class="c1">#      ``thread_pool`` where partial merging would be confusing.</span>
+
+    <span class="c1"># Shallow-merge dict-typed message catalogues — later files override</span>
+    <span class="c1"># individual message keys whilst preserving ones they do not redefine.</span>
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;user_messages&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="o">**</span><span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;user_messages&quot;</span><span class="p">,</span> <span class="p">{}),</span>
         <span class="o">**</span><span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;user_messages&quot;</span><span class="p">,</span> <span class="p">{}),</span>
@@ -2435,6 +2466,8 @@ window.addEventListener("load", load);</script>
         <span class="o">**</span><span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bot_messages&quot;</span><span class="p">,</span> <span class="p">{}),</span>
     <span class="p">}</span>
 
+    <span class="c1"># List fields: plain concatenation — order matters for flow execution</span>
+    <span class="c1"># priority, so later configs append after earlier ones.</span>
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;instructions&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;instructions&quot;</span><span class="p">,</span> <span class="p">[])</span> <span class="o">+</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;instructions&quot;</span><span class="p">,</span> <span class="p">[])</span>
 
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;flows&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;flows&quot;</span><span class="p">,</span> <span class="p">[])</span> <span class="o">+</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;flows&quot;</span><span class="p">,</span> <span class="p">[])</span>
@@ -2445,25 +2478,42 @@ window.addEventListener("load", load);</script>
 
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;docs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;docs&quot;</span><span class="p">,</span> <span class="p">[])</span> <span class="o">+</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;docs&quot;</span><span class="p">,</span> <span class="p">[])</span>
 
+    <span class="c1"># Scalar with fallback — use the first non-None URL encountered.</span>
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;actions_server_url&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;actions_server_url&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
         <span class="s2">&quot;actions_server_url&quot;</span><span class="p">,</span> <span class="kc">None</span>
     <span class="p">)</span>
 
+    <span class="c1"># Shallow-merge — individual detection sub-keys (input/output/retrieval)</span>
+    <span class="c1"># from the additional config override those in the destination.</span>
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;sensitive_data_detection&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="o">**</span><span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sensitive_data_detection&quot;</span><span class="p">,</span> <span class="p">{}),</span>
         <span class="o">**</span><span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sensitive_data_detection&quot;</span><span class="p">,</span> <span class="p">{}),</span>
     <span class="p">}</span>
 
+    <span class="c1"># First non-empty provider wins (falsy dict is treated as absent).</span>
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;embedding_search_provider&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
         <span class="s2">&quot;embedding_search_provider&quot;</span><span class="p">,</span> <span class="p">{}</span>
     <span class="p">)</span> <span class="ow">or</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;embedding_search_provider&quot;</span><span class="p">,</span> <span class="p">{})</span>
 
     <span class="c1"># We join the arrays and keep only unique elements for import paths.</span>
+    <span class="c1"># Deduplication is essential here to avoid loading the same Colang</span>
+    <span class="c1"># library directory twice, which would produce duplicate flow definitions.</span>
     <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;import_paths&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;import_paths&quot;</span><span class="p">,</span> <span class="p">[])</span>
     <span class="k">for</span> <span class="n">import_path</span> <span class="ow">in</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;import_paths&quot;</span><span class="p">,</span> <span class="p">[]):</span>
         <span class="k">if</span> <span class="n">import_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;import_paths&quot;</span><span class="p">]:</span>
             <span class="n">dest_config</span><span class="p">[</span><span class="s2">&quot;import_paths&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">import_path</span><span class="p">)</span>
 
+    <span class="c1"># --- Last-writer-wins fields ---</span>
+    <span class="c1"># These are scalar or structured settings where partial merging would be</span>
+    <span class="c1"># ambiguous or incorrect.  The *additional_config* value wholly replaces</span>
+    <span class="c1"># the *dest_config* value if present.</span>
+    <span class="c1">#</span>
+    <span class="c1"># ``thread_pool`` is included here so that a single authoritative</span>
+    <span class="c1"># ThreadPoolConfig dict (enabled, max_workers, thread_name_prefix) is</span>
+    <span class="c1"># propagated from whichever YAML file defines it — no attempt is made to</span>
+    <span class="c1"># merge individual sub-keys, because a half-overridden pool configuration</span>
+    <span class="c1"># (e.g. enabled=True from one file but max_workers from another) could</span>
+    <span class="c1"># lead to confusing behaviour.</span>
     <span class="n">additional_fields</span> <span class="o">=</span> <span class="p">[</span>
         <span class="s2">&quot;sample_conversation&quot;</span><span class="p">,</span>
         <span class="s2">&quot;lowest_temperature&quot;</span><span class="p">,</span>
@@ -2480,7 +2530,7 @@ window.addEventListener("load", load);</script>
         <span class="s2">&quot;raw_llm_call_action&quot;</span><span class="p">,</span>
         <span class="s2">&quot;enable_rails_exceptions&quot;</span><span class="p">,</span>
         <span class="s2">&quot;tracing&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;thread_pool&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;thread_pool&quot;</span><span class="p">,</span>  <span class="c1"># whole-object replacement — see note above</span>
     <span class="p">]</span>
 
     <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">additional_fields</span><span class="p">:</span>
@@ -2488,6 +2538,10 @@ window.addEventListener("load", load);</script>
             <span class="n">dest_config</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="n">additional_config</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
 
     <span class="c1"># TODO: Rethink the best way to parse and load yaml config files</span>
+    <span class="c1"># Build the set of field names that have already been explicitly handled</span>
+    <span class="c1"># above.  Anything left over in additional_config is treated as opaque</span>
+    <span class="c1"># custom data and folded into dest_config[&quot;custom_data&quot;], allowing users</span>
+    <span class="c1"># to pass arbitrary keys through their YAML without modifying this function.</span>
     <span class="n">ignore_fields</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">additional_fields</span><span class="p">)</span><span class="o">.</span><span class="n">union</span><span class="p">(</span>
         <span class="p">{</span>
             <span class="s2">&quot;user_messages&quot;</span><span class="p">,</span>
@@ -2824,6 +2878,13 @@ window.addEventListener("load", load);</script>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Configuration for tracing.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="c1"># Top-level thread-pool configuration.  Declared here on RailsConfig so</span>
+    <span class="c1"># that it is propagated through _join_config&#39;s ``additional_fields``</span>
+    <span class="c1"># last-writer-wins list.  At runtime, the LLMRails initialiser reads</span>
+    <span class="c1"># this value to decide whether to instantiate a RailThreadPool and, if</span>
+    <span class="c1"># so, with how many workers.  Keeping it at the top level (rather than</span>
+    <span class="c1"># nested under ``rails``) ensures a single, unambiguous source of truth</span>
+    <span class="c1"># that applies to every rail section (input, output, retrieval, etc.).</span>
     <span class="n">thread_pool</span><span class="p">:</span> <span class="n">ThreadPoolConfig</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">default_factory</span><span class="o">=</span><span class="n">ThreadPoolConfig</span><span class="p">,</span>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Configuration for the CPU-bound thread-pool executor.&quot;</span><span class="p">,</span>
@@ -3192,6 +3253,10 @@ window.addEventListener("load", load);</script>
 <span class="sd">    - If values are lists, it concatenates them, ensuring unique elements.</span>
 <span class="sd">    - For other types, values from dict2 overwrite dict1.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># NOTE: This is a *deep* recursive merge, unlike _join_config which uses</span>
+    <span class="c1"># shallow strategies per field.  It is used by _join_rails_configs (the</span>
+    <span class="c1"># RailsConfig.__add__ path) where two fully-formed RailsConfig objects</span>
+    <span class="c1"># are combined and every nested dict/list must be reconciled.</span>
     <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">dict1</span><span class="p">)</span>  <span class="c1"># Create a copy of dict1 to avoid modifying the original</span>
 
     <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">dict2</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -3214,8 +3279,14 @@ window.addEventListener("load", load);</script>
 <span class="sd">    Concatenates two lists ensuring all elements are unique.</span>
 <span class="sd">    Handles unhashable types like dictionaries.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Items from list1 take precedence (appear first) because _join_dict</span>
+    <span class="c1"># calls this with the *additional* config&#39;s value as list1, giving the</span>
+    <span class="c1"># later config higher priority.</span>
     <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">list1</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">list2</span><span class="p">:</span>
+        <span class="c1"># ``in`` uses __eq__, so this works for unhashable types (dicts,</span>
+        <span class="c1"># lists) that cannot be placed in a set.  The trade-off is O(n*m)</span>
+        <span class="c1"># comparison cost, which is acceptable for configuration-sized lists.</span>
         <span class="k">if</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
             <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">result</span>

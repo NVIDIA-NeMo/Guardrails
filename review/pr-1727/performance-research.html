@@ -677,7 +677,10 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="nemo-guardrails-performance-research">
+  <!-- This document is marked as :orphan: so Sphinx will not warn about it being
+     absent from any toctree.  It is intentionally standalone — linked from PR
+     descriptions and the project wiki rather than the main documentation nav. -->
+<section class="tex2jax_ignore mathjax_ignore" id="nemo-guardrails-performance-research">
 <h1>NeMo Guardrails Performance Research<a class="headerlink" href="#nemo-guardrails-performance-research" title="Link to this heading">#</a></h1>
 <blockquote>
 <div><p>A comprehensive analysis of performance optimisations, bottlenecks, and future
@@ -695,6 +698,12 @@ recommendations for further improvments.</p>
 <hr class="docutils" />
 <section id="where-time-is-spent">
 <h2>1. Where Time Is Spent<a class="headerlink" href="#where-time-is-spent" title="Link to this heading">#</a></h2>
+<!-- Methodology note: the "Typical Share" percentages below are derived from
+     profiling a representative pipeline (3 input rails, 2 output rails) against
+     an OpenAI GPT-4 endpoint.  The LLM call dominates so heavily that even
+     large relative improvements to framework layers yield only small absolute
+     gains — this is why the table is presented first, to calibrate expectations
+     before the optimisation detail that follows. -->
 <p>A typical guardrails request traverses five layers.  Understanding their relative
 cost is essential before optimising anything:</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -743,6 +752,10 @@ latency.</p>
 <h2>2. Implemented Optimisations<a class="headerlink" href="#implemented-optimisations" title="Link to this heading">#</a></h2>
 <section id="template-compilation-cache-milestone-3">
 <h3>2.1 Template Compilation Cache (Milestone 3)<a class="headerlink" href="#template-compilation-cache-milestone-3" title="Link to this heading">#</a></h3>
+<!-- The 512-entry bound was chosen empirically: a large deployment typically
+     has 50–200 distinct prompt templates, so 512 gives comfortable headroom
+     without unbounded memory growth.  LRU eviction means rarely-used templates
+     are reclaimed first, keeping the working set hot. -->
 <p>Jinja2 templates for prompt rendering were being parsed and compiled on every
 call to <code class="docutils literal notranslate"><span class="pre">_render_string()</span></code>.  A bounded <code class="docutils literal notranslate"><span class="pre">ThreadSafeCache</span></code> (512 entries, LRU
 eviction) now caches compiled templates and their extracted variable sets.</p>
@@ -777,6 +790,14 @@ eviction) now caches compiled templates and their extracted variable sets.</p>
 </section>
 <section id="dag-based-rail-scheduler-milestone-4">
 <h3>2.2 DAG-Based Rail Scheduler (Milestone 4)<a class="headerlink" href="#dag-based-rail-scheduler-milestone-4" title="Link to this heading">#</a></h3>
+<!-- Architectural rationale: flat-parallel execution treated every rail as
+     independent, which meant rails with implicit ordering constraints had to be
+     serialised manually.  The DAG approach lets rails declare dependencies
+     explicitly, so the scheduler can maximise concurrency within each
+     topological level whilst still honouring ordering requirements.
+
+     The "Efficiency" column is computed as (serial_time / actual_time) / parallelism,
+     normalised to [0, 1].  Values above 0.85 indicate low scheduling overhead. -->
 <p>Rails with declared dependencies are now executed in topologically sorted groups
 rather than flat-parallel.  The scheduler is pre-computed once at configuration
 load time and reused per request.</p>
@@ -823,6 +844,12 @@ raises, subsequent groups are cancelled immediately.</p>
 </section>
 <section id="eager-task-factory-python-3-12">
 <h3>2.3 Eager Task Factory (Python 3.12+)<a class="headerlink" href="#eager-task-factory-python-3-12" title="Link to this heading">#</a></h3>
+<!-- Why this matters: without eager dispatch, even a coroutine that returns
+     immediately still pays for one event-loop iteration (schedule → poll → resume).
+     With eager_task_factory, if the coroutine completes before its first `await`,
+     the result is available synchronously — eliminating that round-trip.  This
+     disproportionately benefits pipelines with many lightweight rails (e.g. cached
+     template lookups or trivial pass-through checks). -->
 <p><code class="docutils literal notranslate"><span class="pre">asyncio.eager_task_factory</span></code> is installed during scheduler execution, allowing
 coroutines that complete synchronously (cache hits, trivial checks) to bypass the
 event-loop round-trip entirely.</p>
@@ -861,6 +888,12 @@ event-loop round-trip entirely.</p>
 </section>
 <section id="free-threaded-python-3-14t-cpu-parallelism">
 <h3>2.4 Free-Threaded Python (3.14t) CPU Parallelism<a class="headerlink" href="#free-threaded-python-3-14t-cpu-parallelism" title="Link to this heading">#</a></h3>
+<!-- Data interpretation: note the 1-rail case shows 3.14t is *slower* (4.6 ms vs
+     3.4 ms) due to the overhead of dispatching to the thread pool when there is
+     nothing to parallelise.  The cross-over point is 2 rails, and the benefit
+     scales near-linearly with the number of concurrent CPU-bound rails.  This is
+     why the recommendation (Section 6) limits this to "latency-sensitive pipelines
+     with heavy CPU-bound rails" rather than suggesting it as a universal default. -->
 <p>On Python 3.14t (no GIL), CPU-bound rails run in a shared <code class="docutils literal notranslate"><span class="pre">ThreadPoolExecutor</span></code>
 sized to <code class="docutils literal notranslate"><span class="pre">os.cpu_count()</span></code>.  All CPU-heavy actions (regex matching, PII detection,
 YARA rules, language detection) dispatch via <code class="docutils literal notranslate"><span class="pre">get_cpu_executor()</span></code>.</p>
@@ -920,6 +953,13 @@ caching.</p></li>
 </section>
 <section id="import-time-reduction-pep-649">
 <h3>2.7 Import Time Reduction (PEP 649)<a class="headerlink" href="#import-time-reduction-pep-649" title="Link to this heading">#</a></h3>
+<!-- Clarification: `from __future__ import annotations` (PEP 563) defers
+     annotation evaluation to strings on all Python versions.  PEP 649 (lazy
+     annotations, landing in 3.14) provides a complementary mechanism at the
+     interpreter level.  The import-time savings shown below come from avoiding
+     eager resolution of complex type annotations during module import — this
+     is especially beneficial for modules that import heavy dependencies solely
+     for type-checking purposes. -->
 <p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">__future__</span> <span class="pre">import</span> <span class="pre">annotations</span></code> was added to five hot-path modules,
 deferring annotation evaluation on Python 3.14:</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -952,6 +992,12 @@ deferring annotation evaluation on Python 3.14:</p>
 </section>
 <section id="ci-regression-gates">
 <h3>2.8 CI Regression Gates<a class="headerlink" href="#ci-regression-gates" title="Link to this heading">#</a></h3>
+<!-- The thresholds below use different units (percentage vs. absolute ms)
+     deliberately.  p95 and mean latency are expressed as percentages because
+     their absolute values vary by hardware; first-token latency uses an
+     absolute threshold because users perceive it as a fixed-budget metric
+     (anything above ~20 ms feels sluggish regardless of total request time).
+     Cold-start import uses a percentage because it scales with dependency count. -->
 <p>PR-blocking thresholds prevent performance regressions:</p>
 <ul class="simple">
 <li><p>p95 orchestration latency: &lt; 5 % regression</p></li>
@@ -966,6 +1012,12 @@ deferring annotation evaluation on Python 3.14:</p>
 <h2>3. Remaining Bottlenecks and Opportunities<a class="headerlink" href="#remaining-bottlenecks-and-opportunities" title="Link to this heading">#</a></h2>
 <section id="llm-response-caching-partial">
 <h3>3.1 LLM Response Caching (Partial)<a class="headerlink" href="#llm-response-caching-partial" title="Link to this heading">#</a></h3>
+<!-- The distinction between literal and semantic deduplication is important:
+     literal matching requires byte-identical prompts, which fails when minor
+     formatting differences (whitespace, parameter ordering) produce functionally
+     equivalent requests.  Hashing a normalised representation of (prompt, model,
+     temperature, max_tokens) would catch these duplicates.  This is low-risk for
+     deterministic rails (temperature=0) but must be opt-in for stochastic ones. -->
 <p><code class="docutils literal notranslate"><span class="pre">nemoguardrails/llm/cache.py</span></code> implements an LFU cache interface, but semantic
 deduplication (hash prompts + model parameters rather than literal string match)
 is not yet explored.  For deterministic rails (e.g. content moderation with fixed
@@ -992,6 +1044,11 @@ meaningful time.</p>
 </section>
 <section id="subinterpreter-isolation-speculative">
 <h3>3.5 Subinterpreter Isolation (Speculative)<a class="headerlink" href="#subinterpreter-isolation-speculative" title="Link to this heading">#</a></h3>
+<!-- This is deliberately labelled "speculative" because the C-extension
+     ecosystem dependency is a hard blocker, not a soft one.  Until NumPy and
+     similar libraries expose per-interpreter state, any subinterpreter-based
+     approach would be limited to pure-Python actions — which are rarely the
+     ones that need isolation.  Revisit once CPython 3.16+ matures. -->
 <p>PEP 734 subinterpreters could provide memory-isolated execution of untrusted
 custom actions without the process-spawn overhead.  However, many C extensions
 (NumPy, PyTorch) do not yet support subinterpreters, making this a 2027+ target.</p>
@@ -1048,6 +1105,11 @@ per-flow config sections could reduce startup time.</p>
 <hr class="docutils" />
 <section id="benchmark-infrastructure">
 <h2>5. Benchmark Infrastructure<a class="headerlink" href="#benchmark-infrastructure" title="Link to this heading">#</a></h2>
+<!-- The six runners below are designed to be composable: CI runs a subset
+     (latency + import + streaming) on every PR for fast feedback, whilst the
+     full suite (including memory and throughput) runs nightly or on-demand.
+     Baselines in perf_baselines/ are machine-specific — they must be regenerated
+     whenever the CI runner hardware changes. -->
 <p>The benchmark suite in <code class="docutils literal notranslate"><span class="pre">benchmarks/</span></code> provides reproducible measurements across
 six dimensions:</p>
 <div class="pst-scrollable-table-container"><table class="table">
