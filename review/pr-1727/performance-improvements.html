@@ -691,7 +691,7 @@ across Python 3.10, 3.12, 3.14, and 3.14t (free-threaded).</em></p>
 <li><p><a class="reference internal" href="#optimisation-inventory">Optimisation Inventory</a></p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#m2-zero-overhead-tracing-path">M2 — Zero-overhead tracing path</a></p></li>
-<li><p><a class="reference internal" href="#m3-deterministic-artifact-caching">M3 — Deterministic artifact caching</a></p></li>
+<li><p><a class="reference internal" href="#m3-deterministic-artefact-caching">M3 — Deterministic artefact caching</a></p></li>
 <li><p><a class="reference internal" href="#m6-wrapper-overhead-reduction">M6 — Wrapper overhead reduction</a></p></li>
 <li><p><a class="reference internal" href="#pep-649-deferred-annotation-evaluation">PEP 649 — Deferred annotation evaluation</a></p></li>
 </ul>
@@ -804,8 +804,8 @@ flags are evaluated.</p>
 relative to a hypothetical no-tracing build (per existing benchmark suite).</p>
 </section>
 <hr class="docutils" />
-<section id="m3-deterministic-artifact-caching">
-<h3>M3 — Deterministic artifact caching<a class="headerlink" href="#m3-deterministic-artifact-caching" title="Link to this heading">#</a></h3>
+<section id="m3-deterministic-artefact-caching">
+<h3>M3 — Deterministic artefact caching<a class="headerlink" href="#m3-deterministic-artefact-caching" title="Link to this heading">#</a></h3>
 <p><strong>Problem:</strong> The <code class="docutils literal notranslate"><span class="pre">_render_string()</span></code> method in both <code class="docutils literal notranslate"><span class="pre">LLMTaskManager</span></code> and the
 LLM generation actions re-parsed and re-compiled Jinja2 templates on every
 single invocation. <code class="docutils literal notranslate"><span class="pre">env.from_string()</span></code> and <code class="docutils literal notranslate"><span class="pre">meta.find_undeclared_variables()</span></code>
@@ -1260,7 +1260,7 @@ consider tuning <code class="docutils literal notranslate"><span class="pre">gc.
 <li><p><strong>Asyncio overhead per task</strong> — measures event-loop improvements.</p></li>
 </ol>
 <p>Do <em>not</em> compare absolute latencies across different machines — hardware
-differences dominate. Compare ratios and speedups insead.</p>
+differences dominate. Compare ratios and speedups instead.</p>
 </section>
 </section>
 <hr class="docutils" />
@@ -1352,7 +1352,7 @@ support Colang v2 flow definitions with explicit dependency declarations.</p></l
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optimisation-inventory">2. Optimisation Inventory</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#m2-zero-overhead-tracing-path">M2 — Zero-overhead tracing path</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#m3-deterministic-artifact-caching">M3 — Deterministic artifact caching</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#m3-deterministic-artefact-caching">M3 — Deterministic artefact caching</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#m6-wrapper-overhead-reduction">M6 — Wrapper overhead reduction</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pep-649-deferred-annotation-evaluation">PEP 649 — Deferred annotation evaluation</a></li>
 </ul>

@@ -834,12 +834,12 @@ cycle exists, startup fails with an error:</p>
 </section>
 </section>
 <hr class="docutils" />
-<section id="fallback-behavior">
-<h2>Fallback Behavior<a class="headerlink" href="#fallback-behavior" title="Link to this heading">#</a></h2>
+<section id="fallback-behaviour">
+<h2>Fallback Behaviour<a class="headerlink" href="#fallback-behaviour" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Configuration</p></th>
-<th class="head"><p>Behavior</p></th>
+<th class="head"><p>Behaviour</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1005,7 +1005,7 @@ standard GIL build the speedup is approximately 1.0x for CPU-bound work.</p>
 <section id="general-guidelines">
 <h3>General guidelines<a class="headerlink" href="#general-guidelines" title="Link to this heading">#</a></h3>
 <ol class="arabic">
-<li><p><strong>Start sequential, then optimize.</strong>  Get your rails working correctly in
+<li><p><strong>Start sequential, then optimise.</strong>  Get your rails working correctly in
 sequential mode first.  Add <code class="docutils literal notranslate"><span class="pre">parallel:</span> <span class="pre">true</span></code> only after confirming that
 the rails are independent or properly declaring dependencies.</p></li>
 <li><p><strong>Identify I/O-bound rails first.</strong>  Rails that call LLM endpoints or
@@ -1192,7 +1192,7 @@ and that you are using a free-threaded build (<code class="docutils literal notr
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cycle-detection">Cycle detection</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fallback-behavior">Fallback Behavior</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fallback-behaviour">Fallback Behaviour</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cpu-bound-rails-and-the-cpu-bound-decorator">CPU-Bound Rails and the <code class="docutils literal notranslate"><span class="pre">@cpu_bound</span></code> Decorator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#thread-pool-configuration-for-free-threaded-python">Thread Pool Configuration for Free-Threaded Python</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-your-python-build">Verifying your Python build</a></li>
