@@ -1144,6 +1144,7 @@ window.addEventListener("load", load);</script>
     <span class="n">Field</span><span class="p">,</span>
     <span class="n">PrivateAttr</span><span class="p">,</span>
     <span class="n">SecretStr</span><span class="p">,</span>
+    <span class="n">computed_field</span><span class="p">,</span>
     <span class="n">model_validator</span><span class="p">,</span>
     <span class="n">root_validator</span><span class="p">,</span>
     <span class="n">validator</span><span class="p">,</span>
@@ -1735,6 +1736,7 @@ window.addEventListener("load", load);</script>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Rail flow entries with optional dependency metadata.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="nd">@computed_field</span>  <span class="c1"># type: ignore[prop-decorator]</span>
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">flows</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>  <span class="c1"># type: ignore[override]</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the list of flow name strings (backward compatible).&quot;&quot;&quot;</span>
@@ -2478,6 +2480,7 @@ window.addEventListener("load", load);</script>
         <span class="s2">&quot;raw_llm_call_action&quot;</span><span class="p">,</span>
         <span class="s2">&quot;enable_rails_exceptions&quot;</span><span class="p">,</span>
         <span class="s2">&quot;tracing&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;thread_pool&quot;</span><span class="p">,</span>
     <span class="p">]</span>
 
     <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">additional_fields</span><span class="p">:</span>
