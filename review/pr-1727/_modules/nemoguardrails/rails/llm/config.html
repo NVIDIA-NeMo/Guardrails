@@ -3278,11 +3278,31 @@ window.addEventListener("load", load);</script>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Concatenates two lists ensuring all elements are unique.</span>
 <span class="sd">    Handles unhashable types like dictionaries.</span>
+
+<span class="sd">    Uses a ``set`` for O(1) membership checks on hashable items and falls</span>
+<span class="sd">    back to linear search only for unhashable items (e.g. dicts).  This</span>
+<span class="sd">    reduces the overall complexity from O(n*m) to O(n+m) for the common</span>
+<span class="sd">    case where all items are hashable.</span>
+
+<span class="sd">    Note: hashable and unhashable items are tracked in separate structures</span>
+<span class="sd">    (``seen`` set vs ``unhashable`` list), so cross-type equality is not</span>
+<span class="sd">    checked.  This is acceptable because config flow lists are homogeneous</span>
+<span class="sd">    in practice — either all strings or all dicts, never mixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Items from list1 take precedence (appear first) because _join_dict</span>
     <span class="c1"># calls this with the *additional* config&#39;s value as list1, giving the</span>
     <span class="c1"># later config higher priority.</span>
     <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">list1</span><span class="p">)</span>
+    <span class="c1"># Build a seen-set for O(1) membership checks on hashable items.</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="c1"># Track unhashable items separately (must use linear scan).</span>
+    <span class="n">unhashable</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">unhashable</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
     <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">list2</span><span class="p">:</span>
         <span class="c1"># ``in`` uses __eq__, so this works for unhashable types (dicts,</span>
         <span class="c1"># lists) that cannot be placed in a set.  The trade-off is O(n*m)</span>
