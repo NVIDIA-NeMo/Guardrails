@@ -1536,7 +1536,7 @@ window.addEventListener("load", load);</script>
         <span class="c1"># There are still some edge cases not covered by nest_asyncio.</span>
         <span class="c1"># Using a separate thread always for now.</span>
         <span class="n">loop</span> <span class="o">=</span> <span class="n">get_or_create_event_loop</span><span class="p">()</span>
-        <span class="k">if</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">check_sync_call_from_async_loop</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">check_sync_call_from_async_loop</span><span class="p">():</span>
             <span class="n">t</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_init_kb</span><span class="p">(),))</span>
             <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
             <span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
