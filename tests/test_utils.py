@@ -246,3 +246,51 @@ async def test_extract_error_json():
     assert result["error"]["message"] == error_message
     with pytest.raises(KeyError):
         result["error"]["code"]
+
+
+@pytest.mark.asyncio
+async def test_create_event_empty_string_value():
+    """Test that create_event handles empty string values without raising IndexError.
+
+    Regression test for https://github.com/NVIDIA/NeMo-Guardrails/issues/1700
+    """
+    from nemoguardrails.actions.core import create_event
+
+    result = await create_event(event={"_type": "SomeEvent", "param": ""})
+    assert len(result.events) == 1
+    assert result.events[0]["param"] == ""
+
+
+@pytest.mark.asyncio
+async def test_create_event_dollar_variable_resolution():
+    """Test that create_event still resolves $-prefixed variable references."""
+    from nemoguardrails.actions.core import create_event
+
+    result = await create_event(
+        event={"_type": "SomeEvent", "param": "$my_var"},
+        context={"my_var": "resolved_value"},
+    )
+    assert result.events[0]["param"] == "resolved_value"
+
+
+def test_utterance_bot_action_script_updated_validation():
+    """Test that UtteranceBotActionScriptUpdated validator rejects events missing interim_script.
+
+    Regression test for https://github.com/NVIDIA/NeMo-Guardrails/issues/1696
+    """
+    from nemoguardrails.utils import is_valid_event
+
+    # Valid event with interim_script
+    valid_event = new_event_dict(
+        "UtteranceBotActionScriptUpdated",
+        interim_script="hello",
+        action_uid="1234",
+    )
+    assert is_valid_event(valid_event) is True
+
+    # Invalid event missing interim_script should be rejected
+    with pytest.raises(AssertionError, match=r".*interim_script.*"):
+        new_event_dict(
+            "UtteranceBotActionScriptUpdated",
+            action_uid="1234",
+        )
