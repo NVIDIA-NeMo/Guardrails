@@ -266,8 +266,6 @@ async def _stream_llm_call(
     accumulated_metadata: Dict[str, Any] = {}
     last_chunk = None
 
-    last_chunk = None
-
     try:
         async for chunk in llm.astream(messages):
             last_chunk = chunk
