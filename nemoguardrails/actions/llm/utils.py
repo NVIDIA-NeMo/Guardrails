@@ -233,9 +233,9 @@ async def llm_call(
         else:
             response = await _invoke_with_message_list(generation_llm, prompt)
 
+        _store_reasoning_traces(response)
         _log_completion(response)
         _update_token_stats(response)
-        _store_reasoning_traces(response)
         _store_tool_calls(response)
         _store_response_metadata(response)
         return _extract_content(response)
@@ -407,9 +407,9 @@ def _update_token_stats(response) -> None:
         input_tokens = usage.get("input_tokens", 0)
         output_tokens = usage.get("output_tokens", 0)
 
-        llm_call_info.total_tokens += total
-        llm_call_info.prompt_tokens += input_tokens
-        llm_call_info.completion_tokens += output_tokens
+        llm_call_info.total_tokens = total
+        llm_call_info.prompt_tokens = input_tokens
+        llm_call_info.completion_tokens = output_tokens
 
         if llm_stats:
             llm_stats.inc("total_tokens", total)

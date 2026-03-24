@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.messages import AIMessage
 
-from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
+from nemoguardrails.actions.llm.utils import _log_completion, _log_prompt, _store_reasoning_traces, _update_token_stats
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
@@ -209,3 +209,71 @@ class TestTrackLlmCallDecorator:
 
         llm_stats = llm_stats_var.get()
         assert llm_stats.get_stat("total_time") > 0
+
+
+class TestTokenStatsAssignment:
+    def test_usage_metadata_uses_assignment_not_accumulation(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info.total_tokens = 100
+        llm_call_info.prompt_tokens = 60
+        llm_call_info.completion_tokens = 40
+        llm_call_info_var.set(llm_call_info)
+
+        llm_stats = LLMStats()
+        llm_stats_var.set(llm_stats)
+
+        response = AIMessage(
+            content="test",
+            usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        )
+
+        _update_token_stats(response)
+
+        assert llm_call_info.total_tokens == 15
+        assert llm_call_info.prompt_tokens == 10
+        assert llm_call_info.completion_tokens == 5
+
+    def test_response_metadata_uses_assignment_not_accumulation(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info.total_tokens = 100
+        llm_call_info.prompt_tokens = 60
+        llm_call_info.completion_tokens = 40
+        llm_call_info_var.set(llm_call_info)
+
+        llm_stats = LLMStats()
+        llm_stats_var.set(llm_stats)
+
+        response = MagicMock()
+        response.usage_metadata = None
+        response.response_metadata = {"token_usage": {"total_tokens": 20, "prompt_tokens": 12, "completion_tokens": 8}}
+
+        _update_token_stats(response)
+
+        assert llm_call_info.total_tokens == 20
+        assert llm_call_info.prompt_tokens == 12
+        assert llm_call_info.completion_tokens == 8
+
+
+class TestThinkTagsStrippedBeforeCompletion:
+    def test_completion_excludes_think_tags_when_reasoning_extracted_first(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info_var.set(llm_call_info)
+
+        response = AIMessage(content="<think>internal reasoning</think>Final answer")
+
+        _store_reasoning_traces(response)
+        _log_completion(response)
+
+        assert "<think>" not in llm_call_info.completion
+        assert "internal reasoning" not in llm_call_info.completion
+        assert "Final answer" in llm_call_info.completion
+
+    def test_completion_contains_think_tags_if_logged_before_extraction(self):
+        llm_call_info = LLMCallInfo()
+        llm_call_info_var.set(llm_call_info)
+
+        response = AIMessage(content="<think>internal reasoning</think>Final answer")
+
+        _log_completion(response)
+
+        assert "<think>" in llm_call_info.completion
