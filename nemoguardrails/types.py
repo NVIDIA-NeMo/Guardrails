@@ -151,6 +151,10 @@ class ChatMessage:
                         args_dict = json.loads(raw_args)
                     except json.JSONDecodeError:
                         raise ValueError(f"Tool call arguments are not valid JSON: {raw_args!r}")
+                    if not isinstance(args_dict, dict):
+                        raise ValueError(
+                            f"Tool call arguments must be a JSON object, got {type(args_dict).__name__}: {raw_args!r}"
+                        )
                 else:
                     args_dict = raw_args
 
@@ -165,13 +169,17 @@ class ChatMessage:
                     )
                 )
 
+        _standard_keys = {"role", "content", "tool_calls", "tool_call_id", "name", "provider_metadata"}
+        extra = {k: v for k, v in d.items() if k not in _standard_keys}
+        provider_metadata = {**d.get("provider_metadata", {}), **extra}
+
         return cls(
             role=role,
             content=d.get("content"),
             tool_calls=tool_calls,
             tool_call_id=d.get("tool_call_id"),
             name=d.get("name"),
-            provider_metadata=d.get("provider_metadata", {}),
+            provider_metadata=provider_metadata,
         )
 
 
@@ -221,7 +229,7 @@ class LLMModel(Protocol):
         **kwargs,
     ) -> "LLMResponse": ...
 
-    async def stream(
+    def stream(
         self,
         prompt: Union[str, List["ChatMessage"]],
         *,

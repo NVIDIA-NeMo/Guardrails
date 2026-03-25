@@ -220,6 +220,20 @@ class TestChatMessage:
         with pytest.raises(ValueError, match="not valid JSON"):
             ChatMessage.from_dict(d)
 
+    def test_from_dict_with_non_object_json_arguments(self):
+        d = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "tc_1",
+                    "type": "function",
+                    "function": {"name": "search", "arguments": "[]"},
+                }
+            ],
+        }
+        with pytest.raises(ValueError, match="must be a JSON object"):
+            ChatMessage.from_dict(d)
+
     def test_from_dict_with_legacy_flat_tool_calls(self):
         d = {
             "role": "assistant",
@@ -234,6 +248,11 @@ class TestChatMessage:
         d = {"role": "user", "content": "hi", "provider_metadata": {"custom_field": "value", "model": "gpt-4"}}
         msg = ChatMessage.from_dict(d)
         assert msg.provider_metadata == {"custom_field": "value", "model": "gpt-4"}
+
+    def test_from_dict_unknown_keys_captured_into_provider_metadata(self):
+        d = {"role": "user", "content": "hi", "unexpected_key": "v"}
+        msg = ChatMessage.from_dict(d)
+        assert msg.provider_metadata["unexpected_key"] == "v"
 
     def test_from_dict_missing_provider_metadata_defaults_to_empty(self):
         msg = ChatMessage.from_dict({"role": "user", "content": "hi"})
