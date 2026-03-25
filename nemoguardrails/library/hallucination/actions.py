@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -54,44 +55,27 @@ async def self_check_hallucination(
 
     if bot_response and last_bot_prompt_string:
         num_responses = HALLUCINATION_NUM_EXTRA_RESPONSES
-        # Use beam search for the LLM call, to get several completions with only one call.
-        # At the current moment, only OpenAI LLM engines are supported for computing the additional completions.
 
-        if "openai" not in str(type(llm)).lower():
-            log.warning(
-                f"Hallucination rail is optimized for OpenAI LLM engines. "
-                f"Current LLM engine is {type(llm).__name__}, which may not support all features."
-            )
-
-            if "n" not in llm.model_fields:
-                log.warning(
-                    f"LLM engine {type(llm).__name__} does not support the 'n' parameter for generating multiple completion choices. "
-                    f"Please use an OpenAI LLM engine or a model that supports the 'n' parameter for optimal performance."
-                )
-                return False
-
-        # Use the "generate" call from langchain to get all completions in the same response.
         last_bot_prompt = PromptTemplate(template="{text}", input_variables=["text"])
-
-        # Format the prompt manually
         formatted_prompt = last_bot_prompt.format(text=last_bot_prompt_string)
 
-        llm_with_config = llm.bind(temperature=1.0, n=num_responses)
-        extra_llm_response = await llm_with_config.agenerate([formatted_prompt])
+        async def _generate_extra_response(index: int) -> Optional[str]:
+            llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_HALLUCINATION.value))
+            try:
+                result = await llm_call(
+                    llm,
+                    formatted_prompt,
+                    llm_params={"temperature": 1.0},
+                )
+                result = get_multiline_response(result)
+                result = strip_quotes(result)
+                return result
+            except Exception as e:
+                log.warning(f"Extra LLM response {index + 1}/{num_responses} failed: {e}")
+                return None
 
-        extra_llm_completions = []
-        if len(extra_llm_response.generations) > 0:
-            extra_llm_completions = extra_llm_response.generations[0]
-
-        extra_responses = []
-        i = 0
-        while i < num_responses and i < len(extra_llm_completions):
-            result = extra_llm_completions[i].text
-            # We need the same post-processing of responses as in "generate_bot_message"
-            result = get_multiline_response(result)
-            result = strip_quotes(result)
-            extra_responses.append(result)
-            i += 1
+        results = await asyncio.gather(*[_generate_extra_response(i) for i in range(num_responses)])
+        extra_responses = [r for r in results if r is not None]
 
         if len(extra_responses) == 0:
             # Log message and return that no hallucination was found
