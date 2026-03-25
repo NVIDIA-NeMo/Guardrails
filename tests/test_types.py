@@ -268,6 +268,11 @@ class TestChatMessage:
         msg = ChatMessage.from_dict(d)
         assert msg.provider_metadata["unexpected_key"] == "v"
 
+    def test_from_dict_explicit_provider_metadata_overrides_extra_keys(self):
+        d = {"role": "user", "content": "hi", "logprobs": 10, "provider_metadata": {"logprobs": 5}}
+        msg = ChatMessage.from_dict(d)
+        assert msg.provider_metadata["logprobs"] == 5
+
     def test_from_dict_missing_provider_metadata_defaults_to_empty(self):
         msg = ChatMessage.from_dict({"role": "user", "content": "hi"})
         assert msg.provider_metadata == {}

@@ -176,7 +176,7 @@ class ChatMessage:
                 )
 
         extra = {k: v for k, v in d.items() if k not in _STANDARD_MESSAGE_KEYS}
-        provider_metadata = {**d.get("provider_metadata", {}), **extra}
+        provider_metadata = {**extra, **d.get("provider_metadata", {})}
 
         return cls(
             role=role,
