@@ -156,6 +156,10 @@ class ChatMessage:
                             f"Tool call arguments must be a JSON object, got {type(args_dict).__name__}: {raw_args!r}"
                         )
                 else:
+                    if not isinstance(raw_args, dict):
+                        raise ValueError(
+                            f"Tool call arguments must be a dict, got {type(raw_args).__name__}: {raw_args!r}"
+                        )
                     args_dict = raw_args
 
                 tool_calls.append(

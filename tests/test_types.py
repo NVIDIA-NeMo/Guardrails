@@ -234,6 +234,20 @@ class TestChatMessage:
         with pytest.raises(ValueError, match="must be a JSON object"):
             ChatMessage.from_dict(d)
 
+    def test_from_dict_with_non_dict_raw_arguments(self):
+        d = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "tc_1",
+                    "type": "function",
+                    "function": {"name": "search", "arguments": [1, 2, 3]},
+                }
+            ],
+        }
+        with pytest.raises(ValueError, match="must be a dict"):
+            ChatMessage.from_dict(d)
+
     def test_from_dict_with_legacy_flat_tool_calls(self):
         d = {
             "role": "assistant",
