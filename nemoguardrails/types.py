@@ -61,6 +61,8 @@ class UsageInfo:
 FinishReason = Literal["stop", "length", "tool_calls", "content_filter", "error", "other"]
 
 
+_STANDARD_MESSAGE_KEYS = {"role", "content", "tool_calls", "tool_call_id", "name", "provider_metadata"}
+
 _ROLE_ALIASES = {
     "bot": Role.ASSISTANT,
     "assistant": Role.ASSISTANT,
@@ -173,8 +175,7 @@ class ChatMessage:
                     )
                 )
 
-        _standard_keys = {"role", "content", "tool_calls", "tool_call_id", "name", "provider_metadata"}
-        extra = {k: v for k, v in d.items() if k not in _standard_keys}
+        extra = {k: v for k, v in d.items() if k not in _STANDARD_MESSAGE_KEYS}
         provider_metadata = {**d.get("provider_metadata", {}), **extra}
 
         return cls(
@@ -239,7 +240,9 @@ class LLMModel(Protocol):
         *,
         stop: Optional[List[str]] = None,
         **kwargs,
-    ) -> AsyncIterator["LLMResponseChunk"]: ...
+    ) -> AsyncIterator["LLMResponseChunk"]:
+        """Implementations must be async generator functions (use ``yield``)."""
+        ...
 
     @property
     def model_name(self) -> str: ...
@@ -258,7 +261,7 @@ class LLMFramework(Protocol):
     Each framework (LangChain, LiteLLM, etc.) implements this protocol to
     provide a factory for creating ``LLMModel`` instances.
 
-    ``mode`` and ``kwargs`` are optional. Not all frameworks need them.
+    ``mode`` and ``model_kwargs`` are optional. Not all frameworks need them.
     LangChain uses ``mode`` to choose between chat and text completion
     models; other frameworks may ignore it. Implementations should handle
     ``None`` values with sensible defaults.
@@ -269,5 +272,5 @@ class LLMFramework(Protocol):
         model_name: str,
         provider_name: str,
         mode: Optional[str] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> LLMModel: ...

@@ -450,7 +450,7 @@ class TestUsageInfo:
 class TestLLMFrameworkProtocol:
     def test_mock_satisfies_protocol(self):
         class MockFramework:
-            def create_model(self, model_name, provider_name, mode, kwargs):
+            def create_model(self, model_name, provider_name, mode, model_kwargs):
                 return None
 
         assert isinstance(MockFramework(), LLMFramework)
