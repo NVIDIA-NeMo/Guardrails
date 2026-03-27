@@ -137,24 +137,43 @@ class Model(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def set_and_validate_model(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            parameters = data.get("parameters")
-            if parameters is None:
-                return data
-            model_field = data.get("model")
-            model_from_params = parameters.get("model_name") or parameters.get("model")
+        if not isinstance(data, dict):
+            return None
 
-            if model_field and model_from_params:
-                raise InvalidModelConfigurationError(
-                    "Model name must be specified in exactly one place: either the `model` field, or in `parameters` (`parameters.model` or `parameters.model_name`).",
-                )
-            if not model_field and model_from_params:
-                data["model"] = model_from_params
-                if "model_name" in parameters and parameters["model_name"] == model_from_params:
-                    parameters.pop("model_name")
-                elif "model" in parameters and parameters["model"] == model_from_params:
-                    parameters.pop("model")
+        parameters = data.get("parameters")
+        if parameters is None:
             return data
+
+        raw_model_field = data.get("model")
+        raw_model_from_params = parameters.get("model_name") or parameters.get("model")
+
+        model_field = (
+            raw_model_field.strip() if isinstance(raw_model_field, str) else None
+        )
+        model_from_params = (
+            raw_model_from_params.strip()
+            if isinstance(raw_model_from_params, str)
+            else None
+        )
+
+        if model_field and model_from_params:
+            if model_field != model_from_params:
+                raise InvalidModelConfigurationError(
+                    "Conflicting model names: `model` and `parameters.model/model_name` must match if both are provided."
+                )
+
+        final_model = model_field or model_from_params
+        if not final_model:
+            return data
+
+        data["model"] = final_model
+
+        for key in ("model_name", "model"):
+            value = parameters.get(key)
+            if isinstance(value, str) and value.strip() == final_model:
+                parameters.pop(key)
+
+        return data
 
     @model_validator(mode="after")
     def model_must_be_none_empty(self) -> "Model":
