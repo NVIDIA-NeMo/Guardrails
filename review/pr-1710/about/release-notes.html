@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=ba17ea1a"></script>
+    <script src="../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../_static/doctools.js?v=9a2dae69"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,7 +56,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -619,8 +619,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -683,97 +681,113 @@
 For a complete record of changes in a release, refer to the
 <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md" rel="noreferer noopener" target="_blank">CHANGELOG.md</a> in the GitHub repository.</p>
 <hr class="docutils" />
-<section id="v0-20-0">
-<span id="id1"></span><h2>0.20.0<a class="headerlink" href="#v0-20-0" title="Link to this heading">#</a></h2>
+<section id="v0-21-0">
+<span id="id1"></span><h2>0.21.0<a class="headerlink" href="#v0-21-0" title="Link to this heading">#</a></h2>
 <section id="key-features">
-<span id="v0-20-0-features"></span><h3>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h3>
-<ul>
-<li><p>Added support for multilingual content safety models such as <a class="reference external" href="https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3" rel="noreferer noopener" target="_blank">NVIDIA Nemotron Safety Guard 8B v3</a>. This feature uses the <a class="reference external" href="https://github.com/LlmKira/fast-langdetect" rel="noreferer noopener" target="_blank">fast-langdetect package</a> to detect the user’s input language and return refusal messages in the appropriate language. To use this feature, install the NeMo Guardrails library with the <code class="docutils literal notranslate"><span class="pre">multilingual</span></code> extra.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemoguardrails<span class="o">[</span>multilingual<span class="o">]</span>
-</pre></div>
-</div>
-</li>
-<li><p>Added support for configuring custom refusal messages per language to complement multilingual content safety models. You can enable multilingual refusal messages and specify custom refusal messages in the <code class="docutils literal notranslate"><span class="pre">rails.config.content_safety</span></code> section of the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">content_safety</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">multilingual</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">        </span><span class="nt">refusal_messages</span><span class="p">:</span>
-<span class="w">          </span><span class="nt">en</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Sorry,</span><span class="nv"> </span><span class="s">I</span><span class="nv"> </span><span class="s">cannot</span><span class="nv"> </span><span class="s">help</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">that</span><span class="nv"> </span><span class="s">request.&quot;</span>
-<span class="w">          </span><span class="nt">es</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Lo</span><span class="nv"> </span><span class="s">siento,</span><span class="nv"> </span><span class="s">no</span><span class="nv"> </span><span class="s">puedo</span><span class="nv"> </span><span class="s">ayudar</span><span class="nv"> </span><span class="s">con</span><span class="nv"> </span><span class="s">esa</span><span class="nv"> </span><span class="s">solicitud.&quot;</span>
-<span class="w">          </span><span class="nt">zh</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;抱歉，我无法处理该请求。&quot;</span>
-<span class="w">          </span><span class="c1"># Add other languages as needed</span>
-</pre></div>
-</div>
-<p>For more information, refer to <a class="reference internal" href="../configure-rails/guardrail-catalog/content-safety.html#multilingual-refusal-messages"><span class="std std-ref">Multilingual Refusal Messages</span></a>.</p>
-</li>
-<li><p>Added support for <a class="reference external" href="https://huggingface.co/nvidia/gliner-PII" rel="noreferer noopener" target="_blank">NVIDIA GLiNER-PII</a> for detecting entities such as names, email addresses, phone numbers, social security numbers, and more. For more information, refer to <a class="reference internal" href="../configure-rails/guardrail-catalog/community/gliner.html"><span class="std std-doc">GLiNER Integration</span></a>.</p></li>
+<span id="v0-21-0-features"></span><h3>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Added the <code class="docutils literal notranslate"><span class="pre">IORails</span></code> class, a new optimized execution engine that runs NemoGuard input and output rails, such as
+content-safety, topic-safety, and jailbreak detection, in parallel. The engine is opt-in:
+set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code> to enable it. When enabled, the configuration is
+validated for compatibility and falls back to LLMRails if unsupported flows are detected.
+For more information, refer to <a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/parallel-rails.html#iorails-engine"><span class="std std-ref">IORails Engine</span></a>.</p></li>
+<li><p>Added the <code class="docutils literal notranslate"><span class="pre">check_async()</span></code> and <code class="docutils literal notranslate"><span class="pre">check()</span></code> methods on <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> to enable validating messages against input and output rails without triggering full LLM generation.
+Returns a <code class="docutils literal notranslate"><span class="pre">RailsResult</span></code> with <code class="docutils literal notranslate"><span class="pre">PASSED</span></code>, <code class="docutils literal notranslate"><span class="pre">MODIFIED</span></code>, or <code class="docutils literal notranslate"><span class="pre">BLOCKED</span></code> status.
+For more information, refer to <a class="reference internal" href="../run-rails/using-python-apis/check-messages.html"><span class="std std-doc">Checking Messages Against Rails</span></a>.</p></li>
+<li><p>The guardrails server now exposes a fully OpenAI-compatible
+REST API. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint accepts standard <code class="docutils literal notranslate"><span class="pre">ChatCompletion</span></code> requests with a
+<code class="docutils literal notranslate"><span class="pre">guardrails</span></code> field for config selection. A new <code class="docutils literal notranslate"><span class="pre">/v1/models</span></code> endpoint lists available models from the
+configured provider. The <code class="docutils literal notranslate"><span class="pre">openai</span></code> package is now a required component of the optional <code class="docutils literal notranslate"><span class="pre">server</span></code> extra (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1623" rel="noreferer noopener" target="_blank">#1623</a>).
+For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
+<li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
+LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
+every model call in the agent loop. It includes the <code class="docutils literal notranslate"><span class="pre">InputRailsMiddleware</span></code> and <code class="docutils literal notranslate"><span class="pre">OutputRailsMiddleware</span></code>
+convenience subclasses.
+For more information, refer to <a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Agent Middleware</span></a>.</p></li>
+<li><p>Added three new community rails:
+<a class="reference internal" href="../configure-rails/guardrail-catalog/community/policyai.html"><span class="std std-doc">PolicyAI</span></a> for policy-based content moderation,
+<a class="reference internal" href="../configure-rails/guardrail-catalog/community/crowdstrike-aidr.html"><span class="std std-doc">CrowdStrike AIDR</span></a> for AI-powered detection and response, and
+<a class="reference internal" href="../configure-rails/guardrail-catalog/community/regex.html"><span class="std std-doc">Regex Detection</span></a> for pattern-based content filtering on input, output, and retrieval.</p></li>
+<li><p>Jailbreak detection configuration is now validated at
+create-time. Invalid thresholds and malformed URLs raise errors immediately.
+For more information, refer to <a class="reference internal" href="../configure-rails/guardrail-catalog/jailbreak-protection.html#configuration-validation"><span class="std std-ref">Configuration Validation</span></a>.</p></li>
+<li><p>Embedding indexes are now initialized lazily.
+FastEmbed models are only downloaded when semantic search is needed, reducing startup time for
+configurations that use only input and output rails.</p></li>
 </ul>
 </section>
 <section id="breaking-changes">
-<h3>Breaking Changes<a class="headerlink" href="#breaking-changes" title="Link to this heading">#</a></h3>
+<span id="v0-21-0-breaking-changes"></span><h3>Breaking Changes<a class="headerlink" href="#breaking-changes" title="Link to this heading">#</a></h3>
 <ul>
-<li><p>A breaking change removes redundant streaming configuration for output rails. Prior to the change, streaming had to be enabled in two places: <code class="docutils literal notranslate"><span class="pre">streaming</span></code> and <code class="docutils literal notranslate"><span class="pre">rails.output.streaming.enabled</span></code>. This change removes the top-level <code class="docutils literal notranslate"><span class="pre">streaming</span></code> configuration.</p>
-<ul>
-<li><p>Example <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> before the change:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia_ai_endpoints</span>
-<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta/llama-3.3-70b-instruct</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content_safety</span>
-<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia_ai_endpoints</span>
-<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia/llama-3.1-nemoguard-8b-content-safety</span>
+<li><p>Streaming metadata parameter renamed. The <code class="docutils literal notranslate"><span class="pre">include_generation_metadata</span></code> parameter on
+<code class="docutils literal notranslate"><span class="pre">LLMRails.stream_async()</span></code> and <code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> is deprecated in favor of <code class="docutils literal notranslate"><span class="pre">include_metadata</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">generation_info</span></code> field in streaming chunk dicts is renamed to <code class="docutils literal notranslate"><span class="pre">metadata</span></code>.
+The deprecated parameter still works and emits a <code class="docutils literal notranslate"><span class="pre">DeprecationWarning</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Before (deprecated)</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">rails</span><span class="o">.</span><span class="n">stream_async</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="n">messages</span><span class="p">,</span> <span class="n">include_generation_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="s2">&quot;generation_info&quot;</span><span class="p">]</span>
 
-<span class="nt">rails</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">input</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content safety check input $model=content_safety</span>
-<span class="w">  </span><span class="nt">output</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content safety check output $model=content_safety</span>
-<span class="w">    </span><span class="nt">streaming</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="w">      </span><span class="nt">chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
-<span class="w">      </span><span class="nt">context_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
-
-<span class="hll"><span class="nt">streaming</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span><span class="w"> </span><span class="c1"># No longer needed starting from v0.20.0</span>
-</span></pre></div>
-</div>
-</li>
-<li><p>Example <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> after the change:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia_ai_endpoints</span>
-<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta/llama-3.3-70b-instruct</span>
-
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content_safety</span>
-<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia_ai_endpoints</span>
-<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia/llama-3.1-nemoguard-8b-content-safety</span>
-
-<span class="nt">rails</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">input</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content safety check input $model=content_safety</span>
-<span class="w">  </span><span class="nt">output</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content safety check output $model=content_safety</span>
-<span class="w">    </span><span class="nt">streaming</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
-<span class="w">      </span><span class="nt">chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
-<span class="w">      </span><span class="nt">context_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="c1"># After</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">rails</span><span class="o">.</span><span class="n">stream_async</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="n">messages</span><span class="p">,</span> <span class="n">include_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span>
 </pre></div>
 </div>
 </li>
+<li><p><code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> no longer inherits from LangChain <code class="docutils literal notranslate"><span class="pre">AsyncCallbackHandler</span></code>.
+Streaming now uses <code class="docutils literal notranslate"><span class="pre">llm.astream()</span></code> with direct <code class="docutils literal notranslate"><span class="pre">push_chunk()</span></code> calls.
+If your code depends on <code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> as a LangChain callback, update it to use the
+new <code class="docutils literal notranslate"><span class="pre">push_chunk()</span></code> interface.</p></li>
+<li><p>Removed the <code class="docutils literal notranslate"><span class="pre">stream_usage</span></code> parameter. The <code class="docutils literal notranslate"><span class="pre">stream_usage=True</span></code> parameter is no longer
+automatically added to LLM call kwargs. Streaming metadata is now captured through
+<code class="docutils literal notranslate"><span class="pre">response_metadata</span></code> and <code class="docutils literal notranslate"><span class="pre">usage_metadata</span></code> on final chunks.</p></li>
+<li><p>Server request and response format changed. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint now uses
+OpenAI-compatible request and response schemas. The previous <code class="docutils literal notranslate"><span class="pre">RequestBody</span></code> and <code class="docutils literal notranslate"><span class="pre">ResponseBody</span></code>
+classes are removed. For the new format, refer to
+<a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
+<li><p>ChatNVIDIA streaming patch removed. The custom
+<code class="docutils literal notranslate"><span class="pre">_langchain_nvidia_ai_endpoints_patch.py</span></code> module is removed.
+The standard <code class="docutils literal notranslate"><span class="pre">ChatNVIDIA</span></code> from <code class="docutils literal notranslate"><span class="pre">langchain_nvidia_ai_endpoints</span></code> is used directly.</p></li>
 </ul>
-<p>For more information, refer to <a class="reference internal" href="../run-rails/using-python-apis/streaming.html"><span class="std std-doc">Streaming Generated Responses in Real-Time</span></a>.</p>
-</li>
+</section>
+<section id="bug-fixes">
+<span id="v0-21-0-bug-fixes"></span><h3>Bug Fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Fixed a naming mismatch where the <code class="docutils literal notranslate"><span class="pre">generate_next_step</span></code> action did not match the
+<code class="docutils literal notranslate"><span class="pre">generate_next_steps</span></code> task enum value, which prevented task-specific LLM configuration
+from working correctly (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1603" rel="noreferer noopener" target="_blank">#1603</a>).</p></li>
+<li><p>Added the <code class="docutils literal notranslate"><span class="pre">valid</span></code> alias to action results in the GuardrailsAI integration so that
+Colang flows checking <code class="docutils literal notranslate"><span class="pre">$result[&quot;valid&quot;]</span></code> work as expected (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1611" rel="noreferer noopener" target="_blank">#1611</a>).</p></li>
+<li><p>Filtered the <code class="docutils literal notranslate"><span class="pre">stop</span></code> parameter for OpenAI reasoning models (such as GPT-5) that do not
+accept it, preventing <code class="docutils literal notranslate"><span class="pre">400</span></code> errors during dialogue rail execution (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1653" rel="noreferer noopener" target="_blank">#1653</a>).</p></li>
+<li><p>Fixed GLiNER PII detection to use “bot refuse to respond” instead of
+“bot inform answer unknown”, which returned a misleading “I don’t know” message (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1671" rel="noreferer noopener" target="_blank">#1671</a>).</p></li>
+<li><p>Fixed a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> when <code class="docutils literal notranslate"><span class="pre">stop=None</span></code> is passed to <code class="docutils literal notranslate"><span class="pre">StreamingHandler</span></code> by coercing
+<code class="docutils literal notranslate"><span class="pre">None</span></code> to an empty list (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1685" rel="noreferer noopener" target="_blank">#1685</a>).</p></li>
+<li><p>Fixed a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> in <code class="docutils literal notranslate"><span class="pre">RollingBuffer.format_chunks</span></code> when <code class="docutils literal notranslate"><span class="pre">include_metadata=True</span></code> is used
+with output rail streaming enabled. Dict chunks are now normalized to strings at the
+input boundary (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1687" rel="noreferer noopener" target="_blank">#1687</a>).</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> silently dropping content when rails return <code class="docutils literal notranslate"><span class="pre">MODIFIED</span></code> status.
+Input rails now replace the last user message and output rails replace the last AI
+message with the sanitized content (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1714" rel="noreferer noopener" target="_blank">#1714</a>).</p></li>
+<li><p>Cache hit statistics are now visible in the Stats log line. Cache stats are also
+visible in verbose mode (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1666" rel="noreferer noopener" target="_blank">#1666</a>, <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1667" rel="noreferer noopener" target="_blank">#1667</a>).</p></li>
 </ul>
 </section>
 <section id="other-changes">
-<h3>Other Changes<a class="headerlink" href="#other-changes" title="Link to this heading">#</a></h3>
+<span id="v0-21-0-other-changes"></span><h3>Other Changes<a class="headerlink" href="#other-changes" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p>Restructured the documentation with improved navigation, clearer content organization, and updated configuration reference and user guides.</p></li>
+<li><p>Updated the Fiddler Guardrails API to match the new specification: the <code class="docutils literal notranslate"><span class="pre">prompt</span></code> field is
+renamed to <code class="docutils literal notranslate"><span class="pre">input</span></code>, faithfulness uses strings instead of lists, and a new <code class="docutils literal notranslate"><span class="pre">fdl_roleplaying</span></code>
+category is added (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1619" rel="noreferer noopener" target="_blank">#1619</a>).</p></li>
+<li><p>Updated the Trend Micro Vision One AI Guard integration from the beta endpoint to the
+officially released GA endpoint. A required <code class="docutils literal notranslate"><span class="pre">TMV1-Application-Name</span></code> header is added and the
+request key is changed from <code class="docutils literal notranslate"><span class="pre">guard</span></code> to <code class="docutils literal notranslate"><span class="pre">prompt</span></code> (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1546" rel="noreferer noopener" target="_blank">#1546</a>).</p></li>
+<li><p>Added a Locust stress-test benchmark for load testing (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1629" rel="noreferer noopener" target="_blank">#1629</a>).</p></li>
+<li><p>Removed the <code class="docutils literal notranslate"><span class="pre">multi_kb</span></code> example (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1673" rel="noreferer noopener" target="_blank">#1673</a>).</p></li>
+<li><p>Removed the AI Virtual Assistant Blueprint notebook (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1682" rel="noreferer noopener" target="_blank">#1682</a>).</p></li>
+<li><p>Updated the Pangea User-Agent repo URL (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1610" rel="noreferer noopener" target="_blank">#1610</a>).</p></li>
+<li><p>Updated dependencies for the jailbreak detection Docker container (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1596" rel="noreferer noopener" target="_blank">#1596</a>).</p></li>
+<li><p>Major documentation revamp with improved structure and navigation.</p></li>
 </ul>
 </section>
 </section>
@@ -781,6 +795,7 @@ For a complete record of changes in a release, refer to the
 <section id="previous-release-notes">
 <h2>Previous Release Notes<a class="headerlink" href="#previous-release-notes" title="Link to this heading">#</a></h2>
 <ul class="simple">
+<li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.20.0/release-notes.html" rel="noreferer noopener" target="_blank">0.20.0</a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.19.0/release-notes.html" rel="noreferer noopener" target="_blank">0.19.0</a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.18.0/release-notes.html" rel="noreferer noopener" target="_blank">0.18.0</a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/0.17.0/release-notes.html" rel="noreferer noopener" target="_blank">0.17.0</a></p></li>
@@ -841,7 +856,7 @@ For a complete record of changes in a release, refer to the
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-20-0">0.20.0</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-21-0">0.21.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#previous-release-notes">Previous Release Notes</a></li>
 </ul>
   </nav></div>

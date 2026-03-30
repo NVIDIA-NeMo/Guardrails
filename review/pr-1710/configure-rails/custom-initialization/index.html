@@ -45,7 +45,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=ba17ea1a"></script>
+    <script src="../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,7 +56,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -619,8 +619,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -675,7 +673,7 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="configuring-custom-initialization">
 <h1>Configuring Custom Initialization<a class="headerlink" href="#configuring-custom-initialization" title="Link to this heading">#</a></h1>
-<p>The <code class="docutils literal notranslate"><span class="pre">config.py</span></code> file contains initialization code that runs <strong>once at startup</strong>, before the <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> instance is fully initialized. Use it to register custom providers and set up shared resources.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">config.py</span></code> file contains initialization code that runs once at startup, before the <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code> instance is fully initialized. Use it to register custom providers and set up shared resources.</p>
 <section id="when-to-use-config-py-vs-actions-py">
 <h2>When to Use config.py vs actions.py<a class="headerlink" href="#when-to-use-config-py-vs-actions-py" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -735,7 +733,7 @@ Init Function</div>
 <div class="sd-card-body docutils">
 <div class="sd-card-title sd-font-weight-bold docutils">
 LLM Providers</div>
-<p class="sd-card-text">Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.</p>
+<p class="sd-card-text">Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with the NVIDIA NeMo Guardrails library.</p>
 </div>
 <div class="sd-card-footer docutils">
 <p class="sd-card-text"><span class="sd-sphinx-override sd-badge sd-bg-secondary sd-bg-text-secondary">How To</span></p>
@@ -747,7 +745,7 @@ LLM Providers</div>
 <div class="sd-card-body docutils">
 <div class="sd-card-title sd-font-weight-bold docutils">
 Embedding Providers</div>
-<p class="sd-card-text">Register custom embedding providers for vector similarity search in NeMo Guardrails.</p>
+<p class="sd-card-text">Register custom embedding providers for vector similarity search in the NVIDIA NeMo Guardrails library.</p>
 </div>
 <div class="sd-card-footer docutils">
 <p class="sd-card-text"><span class="sd-sphinx-override sd-badge sd-bg-secondary sd-bg-text-secondary">How To</span></p>

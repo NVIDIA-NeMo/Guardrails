@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=ba17ea1a"></script>
+    <script src="../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../_static/doctools.js?v=9a2dae69"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,7 +56,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -619,8 +619,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -784,25 +782,28 @@ poetry<span class="w"> </span>install<span class="w"> </span>--extras<span class
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
 <td><p>OpenAI-hosted model integration</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sdd</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">server</span></code></p></td>
+<td><p><a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Guardrails API server</span></a> dependencies (aiofiles for async file handling, openai for API schemas). FastAPI is a core dependency. Required to run <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span> <span class="pre">server</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sdd</span></code></p></td>
 <td><p><a class="reference internal" href="../configure-rails/guardrail-catalog/pii-detection.html#presidio-based-sensitive-data-detection"><span class="std std-ref">Sensitive data detection</span></a> using Presidio</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">eval</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">eval</span></code></p></td>
 <td><p><a class="reference internal" href="../evaluation/evaluate-guardrails.html"><span class="std std-doc">Evaluation tools</span></a> for testing guardrails</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tracing</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tracing</span></code></p></td>
 <td><p>OpenTelemetry tracing support</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gcp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gcp</span></code></p></td>
 <td><p>Google Cloud Platform language services</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span></code></p></td>
 <td><p>YARA-based jailbreak detection heuristics</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">multilingual</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">multilingual</span></code></p></td>
 <td><p>Language detection for multilingual content</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
 <td><p>All optional packages</p></td>
 </tr>
 </tbody>

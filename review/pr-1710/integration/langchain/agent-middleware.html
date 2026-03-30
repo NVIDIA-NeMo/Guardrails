@@ -45,7 +45,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=ba17ea1a"></script>
+    <script src="../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,7 +56,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -619,8 +619,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -967,24 +965,23 @@
 <section id="known-limitations">
 <h2>Known Limitations<a class="headerlink" href="#known-limitations" title="Link to this heading">#</a></h2>
 <p>Be aware of the following constraints when using <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> with tool-calling agents.</p>
-<section id="output-rails-and-tool-calling-responses">
-<h3>Output Rails and Tool-Calling Responses<a class="headerlink" href="#output-rails-and-tool-calling-responses" title="Link to this heading">#</a></h3>
-<p>LLM-based output rails (such as <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code>) evaluate the <code class="docutils literal notranslate"><span class="pre">content</span></code> field of the model’s response. Intermediate tool-calling responses often have <strong>empty content</strong> (the actual instructions are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field). Depending on the LLM used for the self-check, an empty content field may be flagged as a violation.</p>
-<p>To work around this, disable output rails and rely on input rails for tool-calling agents:</p>
+<section id="security-considerations-for-tool-calling-agents">
+<h3>Security Considerations for Tool-Calling Agents<a class="headerlink" href="#security-considerations-for-tool-calling-agents" title="Link to this heading">#</a></h3>
+<p>Rails evaluate the <code class="docutils literal notranslate"><span class="pre">content</span></code> field of messages only. This has two implications for tool-calling agents:</p>
+<p><strong>Tool call arguments are not inspected.</strong> When the LLM generates a tool call, the arguments (e.g., <code class="docutils literal notranslate"><span class="pre">send_email(body=&quot;SSN:</span> <span class="pre">123-45-6789&quot;)</span></code>) are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field, not <code class="docutils literal notranslate"><span class="pre">content</span></code>. Input and output rails do not see or validate these arguments.</p>
+<p><strong>Tool results bypass input rails.</strong> When a tool returns its result as a <code class="docutils literal notranslate"><span class="pre">ToolMessage</span></code>, that message is not subject to input rail validation. Malicious or unexpected tool outputs can influence subsequent model responses without being checked.</p>
+<p>To mitigate these risks, enable output rails to validate the final LLM response before it reaches the user. This ensures that even if unsafe content enters through tool calls or tool results, the model’s response is still checked. However, note that intermediate tool-calling responses often have <strong>empty content</strong> (the instructions are in the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field), and some LLM-based output rails (such as <code class="docutils literal notranslate"><span class="pre">self_check_output</span></code>) may flag empty content as a false positive. If you encounter this, you can disable output rails as a workaround — but be aware this also removes the safety net for tool result content:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">guardrails</span> <span class="o">=</span> <span class="n">GuardrailsMiddleware</span><span class="p">(</span>
     <span class="n">config_path</span><span class="o">=</span><span class="s2">&quot;./config&quot;</span><span class="p">,</span>
     <span class="n">enable_output_rails</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
+<p>For more details, see <a class="reference external" href="https://docs.nvidia.com/nemo/guardrails/latest/integration/tools-integration.html#security-considerations" rel="noreferer noopener" target="_blank">Security Considerations</a> in the tools integration guide.</p>
 </section>
-<section id="tool-call-arguments-are-not-inspected">
-<h3>Tool Call Arguments Are Not Inspected<a class="headerlink" href="#tool-call-arguments-are-not-inspected" title="Link to this heading">#</a></h3>
-<p>Rails evaluate the <code class="docutils literal notranslate"><span class="pre">content</span></code> field of messages, not the <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> arguments. Content-based rails do not inspect PII or harmful content passed through tool call arguments (e.g., <code class="docutils literal notranslate"><span class="pre">send_email(body=&quot;SSN:</span> <span class="pre">123-45-6789&quot;)</span></code>).</p>
-</section>
-<section id="modified-status-is-ignored">
-<h3>MODIFIED Status Is Ignored<a class="headerlink" href="#modified-status-is-ignored" title="Link to this heading">#</a></h3>
-<p>When a rail modifies content (returns <code class="docutils literal notranslate"><span class="pre">RailStatus.MODIFIED</span></code>), the middleware treats it as a pass-through and the agent uses the original, unmodified content. This is by design — applying modifications to the agent’s internal state could cause inconsistencies.</p>
+<section id="modified-status-replaces-message-content">
+<h3>MODIFIED Status Replaces Message Content<a class="headerlink" href="#modified-status-replaces-message-content" title="Link to this heading">#</a></h3>
+<p>When a rail modifies content (returns <code class="docutils literal notranslate"><span class="pre">RailStatus.MODIFIED</span></code>), the middleware replaces the relevant message with the modified content. For input rails, the last user message is replaced. For output rails, the last AI message is replaced. This enables use cases like PII redaction and content sanitization.</p>
 </section>
 </section>
 <hr class="docutils" />
@@ -1146,9 +1143,8 @@
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-limitations">Known Limitations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#output-rails-and-tool-calling-responses">Output Rails and Tool-Calling Responses</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tool-call-arguments-are-not-inspected">Tool Call Arguments Are Not Inspected</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modified-status-is-ignored">MODIFIED Status Is Ignored</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#security-considerations-for-tool-calling-agents">Security Considerations for Tool-Calling Agents</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modified-status-replaces-message-content">MODIFIED Status Replaces Message Content</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api-reference">API Reference</a><ul class="nav section-nav flex-column">

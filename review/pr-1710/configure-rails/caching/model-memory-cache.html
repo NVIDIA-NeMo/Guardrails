@@ -45,7 +45,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=ba17ea1a"></script>
+    <script src="../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,7 +56,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -619,8 +619,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -680,7 +678,7 @@
 <span id="model-memory-cache"></span><h1>Memory Model Cache<a class="headerlink" href="#memory-model-cache" title="Link to this heading">#</a></h1>
 <p>The NVIDIA NeMo Guardrails library supports an in-memory cache that avoids making LLM calls for repeated prompts. The cache stores user prompts and their corresponding LLM responses. Before making an LLM call, the library checks if the prompt already exists in the cache. If found, the stored response is returned instead of calling the LLM, which improves latency.</p>
 <p>In-memory caches are supported for all NemoGuard models: <a class="reference external" href="https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety" rel="noreferer noopener" target="_blank">Content-Safety</a>, <a class="reference external" href="https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control" rel="noreferer noopener" target="_blank">Topic-Control</a>, and <a class="reference external" href="https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect" rel="noreferer noopener" target="_blank">Jailbreak Detection</a>. You can configure each model independently.</p>
-<p>The cache uses exact matching (after removing whitespace) on LLM prompts with a Least-Frequently-Used (LFU) algorithm for cache evictions.</p>
+<p>The cache uses exact matching (after normalizing whitespace) on LLM prompts with a Least-Frequently-Used (LFU) algorithm for cache evictions. Whitespace normalization collapses consecutive whitespace characters into a single space and trims leading/trailing whitespace.</p>
 <p>For observability, cache hits and misses are visible in OpenTelemetry (OTEL) telemetry and stored in logs at a configurable interval.</p>
 <p>To get started with caching, refer to the example configurations below. The rest of this page provides details about how the cache works, telemetry, and considerations for enabling caching in a horizontally scalable service.</p>
 <hr class="docutils" />
@@ -809,14 +807,7 @@ The LFU algorithm ensures that the most frequently accessed cache entries remain
 <p>The cache statistics are also logged at a configurable interval if <code class="docutils literal notranslate"><span class="pre">cache.stats.enabled</span></code> is set to <code class="docutils literal notranslate"><span class="pre">true</span></code>. Every <code class="docutils literal notranslate"><span class="pre">log_interval</span></code> seconds, the cache statistics are logged with the format shown below.</p>
 <p>The most important metric is the <em>Hit Rate</em>, which represents the proportion of LLM calls returned from the cache. If this value remains low, the exact-match approach might not be a good fit for your use case.</p>
 <p>These statistics accumulate while the library is running.</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&quot;LFU Cache Statistics - &quot;
-&quot;Size: 23/10000 | &quot;
-&quot;Hits: 20 | &quot;
-&quot;Misses: 3 | &quot;
-&quot;Hit Rate: 87% | &quot;
-&quot;Evictions: 0 | &quot;
-&quot;Puts: 21 | &quot;
-&quot;Updates: 4&quot;
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Cache Stats :: Size: 23/10000 | Hits: 20 | Misses: 3 | Hit Rate: 87.00% | Evictions: 0 | Puts: 21 | Updates: 4
 </pre></div>
 </div>
 <p>The following list describes the metrics included in the cache statistics:</p>

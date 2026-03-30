@@ -45,7 +45,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=ba17ea1a"></script>
+    <script src="../../_static/documentation_options.js?v=a8d1d600"></script>
     <script src="../../_static/doctools.js?v=9a2dae69"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -56,7 +56,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.21.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
@@ -619,8 +619,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../resources/faqs.html">FAQs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../resources/glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../resources/security/guidelines.html">Security</a></li>
 </ul>
 </div>
@@ -702,7 +700,7 @@
 <h2>Document Structure<a class="headerlink" href="#document-structure" title="Link to this heading">#</a></h2>
 <p>Documents in the knowledge base <code class="docutils literal notranslate"><span class="pre">kb</span></code> folder are automatically processed and indexed for retrieval. The system:</p>
 <ol class="arabic simple">
-<li><p>Splits documents into topic chunks based on markdown headers.</p></li>
+<li><p>Splits documents into topic chunks based on markdown headers. Large chunks are further split at blank lines to stay within a maximum chunk size.</p></li>
 <li><p>Uses the configured embedding model to create vector representations of each chunk.</p></li>
 <li><p>Stores the embeddings for efficient similarity search.</p></li>
 </ol>
@@ -802,25 +800,36 @@ Paid holidays include:
 <section id="using-custom-retrieve-relevant-chunks-action">
 <h3>2. Using Custom retrieve_relevant_chunks Action<a class="headerlink" href="#using-custom-retrieve-relevant-chunks-action" title="Link to this heading">#</a></h3>
 <p>Implement a custom action to retrieve chunks from external sources:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">action</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
 
-<span class="nd">@action</span><span class="p">()</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">retrieve_relevant_chunks</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">llm</span><span class="p">:</span> <span class="n">BaseLLM</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Custom retrieval from external knowledge base.&quot;&quot;&quot;</span>
-    <span class="n">user_message</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;last_user_message&quot;</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">action</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.actions.actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.kb.kb</span><span class="w"> </span><span class="kn">import</span> <span class="n">KnowledgeBase</span>
+
+<span class="nd">@action</span><span class="p">(</span><span class="n">is_system_action</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">retrieve_relevant_chunks</span><span class="p">(</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">kb</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">KnowledgeBase</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">user_message</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;last_user_message&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">context</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="c1"># Implement custom retrieval logic</span>
     <span class="c1"># For example, query an external vector database</span>
     <span class="n">chunks</span> <span class="o">=</span> <span class="k">await</span> <span class="n">query_external_kb</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
+    <span class="n">relevant_chunks</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">chunks</span>
+    <span class="k">return</span> <span class="n">ActionResult</span><span class="p">(</span>
+        <span class="n">return_value</span><span class="o">=</span><span class="n">relevant_chunks</span><span class="p">,</span>
+        <span class="n">context_updates</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;relevant_chunks&quot;</span><span class="p">:</span> <span class="n">relevant_chunks</span><span class="p">},</span>
+    <span class="p">)</span>
 </pre></div>
 </div>
 </section>
 <section id="using-custom-embeddingsearchprovider">
 <h3>3. Using Custom EmbeddingSearchProvider<a class="headerlink" href="#using-custom-embeddingsearchprovider" title="Link to this heading">#</a></h3>
 <p>For advanced use cases, implement a custom embedding search provider:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.embeddings.index</span><span class="w"> </span><span class="kn">import</span> <span class="n">EmbeddingsIndex</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.embeddings.index</span><span class="w"> </span><span class="kn">import</span> <span class="n">EmbeddingsIndex</span><span class="p">,</span> <span class="n">IndexItem</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">CustomEmbeddingSearchProvider</span><span class="p">(</span><span class="n">EmbeddingsIndex</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Custom embedding search provider.&quot;&quot;&quot;</span>
@@ -829,8 +838,7 @@ Paid holidays include:
         <span class="c1"># Custom indexing logic</span>
         <span class="k">pass</span>
 
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_results</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">IndexItem</span><span class="p">]:</span>
-        <span class="c1"># Custom search logic</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_results</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">IndexItem</span><span class="p">]:</span>
         <span class="k">pass</span>
 </pre></div>
 </div>
