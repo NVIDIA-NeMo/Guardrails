@@ -256,6 +256,18 @@ class LLMRails:
                 self.default_embedding_model = model.model
                 self.default_embedding_engine = model.engine
                 self.default_embedding_params = model.parameters or {}
+
+                for esp in [
+                    self.config.core.embedding_search_provider,
+                    self.config.knowledge_base.embedding_search_provider,
+                ]:
+                    if esp.name != "default":
+                        continue
+                    if "embedding_model" not in esp.parameters:
+                        esp.parameters["embedding_model"] = model.model
+                    if "embedding_engine" not in esp.parameters:
+                        esp.parameters["embedding_engine"] = model.engine
+
                 break
 
         # InteractionLogAdapters used for tracing

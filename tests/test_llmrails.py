@@ -1353,3 +1353,122 @@ async def test_generate_async_no_thinking_tags_when_no_reasoning():
 
         assert not result["content"].startswith("<think>")
         assert result["content"] == "Regular response"
+
+
+EMBEDDING_MODEL_CONFIG_BASE = {
+    "models": [
+        {"type": "main", "engine": "fake", "model": "fake"},
+        {"type": "embeddings", "engine": "SentenceTransformers", "model": "intfloat/e5-large-v2"},
+    ],
+    "user_messages": {"express greeting": ["Hello!"]},
+    "flows": [{"elements": [{"user": "express greeting"}, {"bot": "express greeting"}]}],
+    "bot_messages": {"express greeting": ["Hello! How are you?"]},
+}
+
+
+def test_embedding_model_backfills_search_provider_parameters():
+    config = RailsConfig.parse_object(EMBEDDING_MODEL_CONFIG_BASE)
+
+    assert "embedding_model" not in config.core.embedding_search_provider.parameters
+    assert "embedding_model" not in config.knowledge_base.embedding_search_provider.parameters
+
+    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+
+    assert rails.config.core.embedding_search_provider.parameters["embedding_model"] == "intfloat/e5-large-v2"
+    assert rails.config.core.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
+    assert rails.config.knowledge_base.embedding_search_provider.parameters["embedding_model"] == "intfloat/e5-large-v2"
+    assert (
+        rails.config.knowledge_base.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
+    )
+
+
+def test_embedding_model_does_not_overwrite_explicit_parameters():
+    config = RailsConfig.parse_object(
+        {
+            **EMBEDDING_MODEL_CONFIG_BASE,
+            "core": {
+                "embedding_search_provider": {
+                    "name": "default",
+                    "parameters": {"embedding_model": "my-core-model", "embedding_engine": "MyEngine"},
+                }
+            },
+            "knowledge_base": {
+                "embedding_search_provider": {
+                    "name": "default",
+                    "parameters": {"embedding_model": "my-kb-model", "embedding_engine": "MyKBEngine"},
+                }
+            },
+        }
+    )
+
+    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+
+    assert rails.config.core.embedding_search_provider.parameters["embedding_model"] == "my-core-model"
+    assert rails.config.core.embedding_search_provider.parameters["embedding_engine"] == "MyEngine"
+    assert rails.config.knowledge_base.embedding_search_provider.parameters["embedding_model"] == "my-kb-model"
+    assert rails.config.knowledge_base.embedding_search_provider.parameters["embedding_engine"] == "MyKBEngine"
+
+
+def test_embedding_model_partial_backfill_only_fills_missing():
+    config = RailsConfig.parse_object(
+        {
+            **EMBEDDING_MODEL_CONFIG_BASE,
+            "core": {
+                "embedding_search_provider": {
+                    "name": "default",
+                    "parameters": {"embedding_model": "my-core-model"},
+                }
+            },
+            "knowledge_base": {
+                "embedding_search_provider": {
+                    "name": "default",
+                    "parameters": {"embedding_engine": "MyKBEngine"},
+                }
+            },
+        }
+    )
+
+    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+
+    assert rails.config.core.embedding_search_provider.parameters["embedding_model"] == "my-core-model"
+    assert rails.config.core.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
+    assert rails.config.knowledge_base.embedding_search_provider.parameters["embedding_model"] == "intfloat/e5-large-v2"
+    assert rails.config.knowledge_base.embedding_search_provider.parameters["embedding_engine"] == "MyKBEngine"
+
+
+def test_embedding_model_no_backfill_for_custom_provider():
+    config = RailsConfig.parse_object(
+        {
+            **EMBEDDING_MODEL_CONFIG_BASE,
+            "core": {
+                "embedding_search_provider": {
+                    "name": "custom",
+                    "parameters": {"some_param": "value"},
+                }
+            },
+        }
+    )
+
+    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+
+    assert "embedding_model" not in rails.config.core.embedding_search_provider.parameters
+    assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
+    assert rails.config.core.embedding_search_provider.parameters["some_param"] == "value"
+
+
+def test_embedding_model_no_backfill_when_no_embeddings_model():
+    config = RailsConfig.parse_object(
+        {
+            "models": [{"type": "main", "engine": "fake", "model": "fake"}],
+            "user_messages": {"express greeting": ["Hello!"]},
+            "flows": [{"elements": [{"user": "express greeting"}, {"bot": "express greeting"}]}],
+            "bot_messages": {"express greeting": ["Hello! How are you?"]},
+        }
+    )
+
+    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+
+    assert "embedding_model" not in rails.config.core.embedding_search_provider.parameters
+    assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
+    assert "embedding_model" not in rails.config.knowledge_base.embedding_search_provider.parameters
+    assert "embedding_engine" not in rails.config.knowledge_base.embedding_search_provider.parameters
