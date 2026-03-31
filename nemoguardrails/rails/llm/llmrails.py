@@ -263,9 +263,9 @@ class LLMRails:
                 ]:
                     if esp.name != "default":
                         continue
-                    if "embedding_model" not in esp.parameters:
+                    if "embedding_model" not in esp.parameters and model.model is not None:
                         esp.parameters["embedding_model"] = model.model
-                    if "embedding_engine" not in esp.parameters:
+                    if "embedding_engine" not in esp.parameters and model.engine is not None:
                         esp.parameters["embedding_engine"] = model.engine
 
                 break
