@@ -1455,6 +1455,11 @@ def test_embedding_model_no_backfill_for_custom_provider():
     assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
     assert rails.config.core.embedding_search_provider.parameters["some_param"] == "value"
 
+    assert rails.config.knowledge_base.embedding_search_provider.parameters["embedding_model"] == "intfloat/e5-large-v2"
+    assert (
+        rails.config.knowledge_base.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
+    )
+
 
 def test_embedding_model_no_backfill_when_no_embeddings_model():
     config = RailsConfig.parse_object(
