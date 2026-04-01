@@ -15,6 +15,7 @@
 
 
 import textwrap
+from unittest.mock import patch
 
 import pytest
 
@@ -266,19 +267,10 @@ def test_user_message_index_searched_once_when_embeddings_only_disabled():
 
     chat.app.generate(messages=[{"role": "user", "content": "hello"}])
 
-    original_search = actions.user_message_index.search
-    call_count = 0
+    with patch.object(actions.user_message_index, "search", wraps=actions.user_message_index.search) as mock_search:
+        chat.app.generate(messages=[{"role": "user", "content": "hey there"}])
 
-    async def counting_search(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        return await original_search(*args, **kwargs)
-
-    actions.user_message_index.search = counting_search
-
-    chat.app.generate(messages=[{"role": "user", "content": "hey there"}])
-
-    assert call_count == 1, (
+    assert mock_search.call_count == 1, (
         f"user_message_index.search should be called exactly once "
-        f"when embeddings_only is disabled, but was called {call_count} times"
+        f"when embeddings_only is disabled, but was called {mock_search.call_count} times"
     )
