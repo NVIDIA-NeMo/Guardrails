@@ -393,29 +393,18 @@ class LLMGenerationActions:
                 text = event["text"]
 
             if self.user_message_index is not None:
-                threshold = None
-
-                if config.rails.dialog.user_messages:
+                if config.rails.dialog.user_messages and config.rails.dialog.user_messages.embeddings_only:
                     threshold = config.rails.dialog.user_messages.embeddings_only_similarity_threshold
+                    results = await self.user_message_index.search(text=text, max_results=5, threshold=threshold)
 
-                results = await self.user_message_index.search(text=text, max_results=5, threshold=threshold)
+                    if results:
+                        intent = results[0].meta["intent"]
+                        return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
+                    elif config.rails.dialog.user_messages.embeddings_only_fallback_intent:
+                        intent = config.rails.dialog.user_messages.embeddings_only_fallback_intent
+                        return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
 
-                # If the option to use only the embeddings is activated, we take the first
-                # canonical form.
-                if results and config.rails.dialog.user_messages.embeddings_only:
-                    intent = results[0].meta["intent"]
-
-                    return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
-
-                elif (
-                    config.rails.dialog.user_messages.embeddings_only
-                    and config.rails.dialog.user_messages.embeddings_only_fallback_intent
-                ):
-                    intent = config.rails.dialog.user_messages.embeddings_only_fallback_intent
-
-                    return ActionResult(events=[new_event_dict("UserIntent", intent=intent)])
-                else:
-                    results = await self.user_message_index.search(text=text, max_results=5, threshold=None)
+                results = await self.user_message_index.search(text=text, max_results=5, threshold=None)
                 # We add these in reverse order so the most relevant is towards the end.
                 for result in reversed(results):
                     examples += f'user "{result.text}"\n  {result.meta["intent"]}\n\n'
