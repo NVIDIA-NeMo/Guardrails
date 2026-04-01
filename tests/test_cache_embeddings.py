@@ -277,3 +277,48 @@ async def test_cache_dir_not_created():
         await test_class.get_embeddings(["test"])
 
         assert not os.path.exists(os.path.join(temp_dir, "nonexistent"))
+
+
+class StubInMemoryCacheIndex:
+    def __init__(self):
+        self._cache_config = EmbeddingsCacheConfig(
+            enabled=True,
+            key_generator="md5",
+            store="in_memory",
+        )
+        self.compute_count = 0
+
+    @property
+    def cache_config(self):
+        return self._cache_config
+
+    @cache_embeddings
+    async def _get_embeddings(self, texts):
+        self.compute_count += len(texts)
+        return [[1.0, 2.0, 3.0] for _ in texts]
+
+
+@pytest.mark.asyncio
+async def test_in_memory_cache_persists_across_calls():
+    index = StubInMemoryCacheIndex()
+
+    await index._get_embeddings(["hello"])
+    await index._get_embeddings(["hello"])
+
+    assert index.compute_count == 1, (
+        f"Expected underlying function to be called once (cache hit on second call), "
+        f"but was called {index.compute_count} times"
+    )
+
+
+@pytest.mark.asyncio
+async def test_in_memory_cache_stores_multiple_texts():
+    index = StubInMemoryCacheIndex()
+
+    await index._get_embeddings(["hello", "world"])
+    await index._get_embeddings(["hello"])
+    await index._get_embeddings(["world"])
+
+    assert index.compute_count == 2, (
+        f"Expected underlying function to be called for 2 texts total, but was called {index.compute_count} times"
+    )
