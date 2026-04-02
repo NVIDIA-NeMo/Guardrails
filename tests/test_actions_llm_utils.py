@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,32 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from langchain_core.language_models import BaseLanguageModel
-from langchain_core.messages import AIMessage
 
 from nemoguardrails.actions.llm.utils import (
-    _extract_reasoning_from_additional_kwargs,
-    _extract_reasoning_from_content_blocks,
-    _extract_tool_calls_from_attribute,
-    _extract_tool_calls_from_content_blocks,
-    _filter_params_for_openai_reasoning_models,
-    _infer_provider_from_module,
     _log_completion,
     _store_reasoning_traces,
     _store_tool_calls,
-    _stream_llm_call,
     _update_token_stats_from_chunk,
     llm_call,
 )
 from nemoguardrails.context import llm_call_info_var, llm_stats_var, reasoning_trace_var, tool_calls_var
 from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.integrations.langchain.llm_adapter import (
+    LangChainLLMAdapter,
+    _infer_provider_from_module,
+)
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats
-from tests.utils import get_bound_llm_magic_mock
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, Role, ToolCall, ToolCallFunction, UsageInfo
 
 
 @pytest.fixture(autouse=True)
@@ -70,24 +64,6 @@ class MockCommunityOllama:
 
 class MockUnknownLLM:
     __module__ = "some_custom_package.models"
-
-
-class MockTRTLLM:
-    __module__ = "nemoguardrails.llm.providers.trtllm.llm"
-
-
-class MockAzureLLM:
-    __module__ = "langchain_openai.chat_models"
-
-
-class MockLLMWithClient:
-    __module__ = "langchain_openai.chat_models"
-
-    class _MockClient:
-        base_url = "https://custom.endpoint.com/v1"
-
-    def __init__(self):
-        self.client = self._MockClient()
 
 
 def test_infer_provider_openai():
@@ -165,603 +141,183 @@ def test_infer_provider_deeply_nested_inheritance():
     assert provider == "anthropic"
 
 
-class MockResponse:
-    def __init__(self, content_blocks=None, additional_kwargs=None, tool_calls=None):
-        if content_blocks is not None:
-            self.content_blocks = content_blocks
-        if additional_kwargs is not None:
-            self.additional_kwargs = additional_kwargs
-        if tool_calls is not None:
-            self.tool_calls = tool_calls
-
-
-def test_extract_reasoning_from_content_blocks_single_reasoning():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "reasoning", "reasoning": "foo"},
-        ]
-    )
-    reasoning = _extract_reasoning_from_content_blocks(response)
-    assert reasoning == "foo"
-
-
-def test_extract_reasoning_from_content_blocks_with_text_and_reasoning():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "bar"},
-            {"type": "reasoning", "reasoning": "Let me think about this problem..."},
-        ]
-    )
-    reasoning = _extract_reasoning_from_content_blocks(response)
-    assert reasoning == "Let me think about this problem..."
-
-
-def test_extract_reasoning_from_content_blocks_returns_first_reasoning():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "reasoning", "reasoning": "First thought"},
-            {"type": "reasoning", "reasoning": "Second thought"},
-        ]
-    )
-    reasoning = _extract_reasoning_from_content_blocks(response)
-    assert reasoning == "First thought"
-
-
-def test_extract_reasoning_from_content_blocks_no_reasoning():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "Hello"},
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
-        ]
-    )
-    reasoning = _extract_reasoning_from_content_blocks(response)
-    assert reasoning is None
-
-
-def test_extract_reasoning_from_content_blocks_no_attribute():
-    response = MockResponse()
-    reasoning = _extract_reasoning_from_content_blocks(response)
-    assert reasoning is None
-
-
-def test_extract_reasoning_from_additional_kwargs_with_reasoning_content():
-    response = MockResponse(additional_kwargs={"reasoning_content": "Let me think about this problem..."})
-    reasoning = _extract_reasoning_from_additional_kwargs(response)
-    assert reasoning == "Let me think about this problem..."
-
-
-def test_extract_reasoning_from_additional_kwargs_no_reasoning_content():
-    response = MockResponse(additional_kwargs={"other_field": "some value"})
-    reasoning = _extract_reasoning_from_additional_kwargs(response)
-    assert reasoning is None
-
-
-def test_extract_reasoning_from_additional_kwargs_no_attribute():
-    response = MockResponse()
-    reasoning = _extract_reasoning_from_additional_kwargs(response)
-    assert reasoning is None
-
-
-def test_extract_reasoning_from_additional_kwargs_not_dict():
-    response = MockResponse(additional_kwargs="not a dict")
-    reasoning = _extract_reasoning_from_additional_kwargs(response)
-    assert reasoning is None
-
-
-def test_extract_tool_calls_from_content_blocks_single_tool_call():
-    expected_tool_call = {
-        "type": "tool_call",
-        "name": "foo",
-        "args": {"a": "b"},
-        "id": "abc_123",
-    }
-    response = MockResponse(content_blocks=[expected_tool_call])
-    tool_calls = _extract_tool_calls_from_content_blocks(response)
-    assert tool_calls is not None
-    assert len(tool_calls) == 1
-    assert tool_calls[0] == expected_tool_call
-
-
-def test_extract_tool_calls_from_content_blocks_multiple_tool_calls():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
-            {"type": "tool_call", "name": "bar", "args": {"c": "d"}, "id": "abc_234"},
-        ]
-    )
-    tool_calls = _extract_tool_calls_from_content_blocks(response)
-    assert tool_calls is not None
-    assert len(tool_calls) == 2
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[1]["name"] == "bar"
-
-
-def test_extract_tool_calls_from_content_blocks_mixed_content():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "Hello"},
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
-            {"type": "reasoning", "reasoning": "Thinking..."},
-            {"type": "tool_call", "name": "bar", "args": {"c": "d"}, "id": "abc_234"},
-        ]
-    )
-    tool_calls = _extract_tool_calls_from_content_blocks(response)
-    assert tool_calls is not None
-    assert len(tool_calls) == 2
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[1]["name"] == "bar"
-
-
-def test_extract_tool_calls_from_content_blocks_no_tool_calls():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "Hello"},
-            {"type": "reasoning", "reasoning": "Thinking..."},
-        ]
-    )
-    tool_calls = _extract_tool_calls_from_content_blocks(response)
-    assert tool_calls is None
-
-
-def test_extract_tool_calls_from_content_blocks_no_attribute():
-    response = MockResponse()
-    tool_calls = _extract_tool_calls_from_content_blocks(response)
-    assert tool_calls is None
-
-
-def test_extract_tool_calls_from_attribute_with_tool_calls():
-    response = MockResponse(
-        tool_calls=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
-            {"type": "tool_call", "name": "bar", "args": {"c": "d"}, "id": "abc_234"},
-        ]
-    )
-    tool_calls = _extract_tool_calls_from_attribute(response)
-    assert tool_calls is not None
-    assert len(tool_calls) == 2
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[1]["name"] == "bar"
-
-
-def test_extract_tool_calls_from_attribute_no_attribute():
-    response = MockResponse()
-    tool_calls = _extract_tool_calls_from_attribute(response)
-    assert tool_calls is None
-
-
-def test_store_reasoning_traces_from_content_blocks():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "The answer is 42."},
-            {"type": "reasoning", "reasoning": "Let me think about this problem..."},
-        ]
+def test_store_reasoning_traces_from_reasoning_field():
+    response = LLMResponse(
+        content="The answer is 42.",
+        reasoning="Let me think about this problem...",
     )
     _store_reasoning_traces(response)
 
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Let me think about this problem..."
-
-
-def test_store_reasoning_traces_from_additional_kwargs():
-    response = MockResponse(additional_kwargs={"reasoning_content": "Provider specific reasoning"})
-    _store_reasoning_traces(response)
-
-    reasoning = reasoning_trace_var.get()
-    assert reasoning == "Provider specific reasoning"
-
-
-def test_store_reasoning_traces_prefers_content_blocks_over_additional_kwargs():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "reasoning", "reasoning": "Content blocks reasoning"},
-        ],
-        additional_kwargs={"reasoning_content": "Additional kwargs reasoning"},
-    )
-    _store_reasoning_traces(response)
-
-    reasoning = reasoning_trace_var.get()
-    assert reasoning == "Content blocks reasoning"
-
-
-def test_store_reasoning_traces_fallback_to_additional_kwargs():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "No reasoning here"},
-        ],
-        additional_kwargs={"reasoning_content": "Fallback reasoning"},
-    )
-    _store_reasoning_traces(response)
-
-    reasoning = reasoning_trace_var.get()
-    assert reasoning == "Fallback reasoning"
 
 
 def test_store_reasoning_traces_no_reasoning():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "Just text"},
-        ]
-    )
+    response = LLMResponse(content="Just text")
     _store_reasoning_traces(response)
 
     reasoning = reasoning_trace_var.get()
     assert reasoning is None
 
 
-def test_store_tool_calls_from_content_blocks():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "Hello"},
-            {
-                "type": "tool_call",
-                "name": "search",
-                "args": {"query": "weather"},
-                "id": "call_1",
-            },
-            {
-                "type": "tool_call",
-                "name": "calculator",
-                "args": {"expr": "2+2"},
-                "id": "call_2",
-            },
-        ]
-    )
-    _store_tool_calls(response)
-
-    tool_calls = tool_calls_var.get()
-    assert tool_calls is not None
-    assert len(tool_calls) == 2
-    assert tool_calls[0]["name"] == "search"
-    assert tool_calls[1]["name"] == "calculator"
-
-
 def test_store_tool_calls_from_attribute():
-    response = MockResponse(
+    response = LLMResponse(
+        content="",
         tool_calls=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
-            {"type": "tool_call", "name": "bar", "args": {"c": "d"}, "id": "abc_234"},
-        ]
+            ToolCall(id="abc_123", function=ToolCallFunction(name="foo", arguments={"a": "b"})),
+            ToolCall(id="abc_234", function=ToolCallFunction(name="bar", arguments={"c": "d"})),
+        ],
     )
     _store_tool_calls(response)
 
     tool_calls = tool_calls_var.get()
     assert tool_calls is not None
     assert len(tool_calls) == 2
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[1]["name"] == "bar"
-
-
-def test_store_tool_calls_prefers_content_blocks_over_attribute():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "tool_call", "name": "from_blocks", "args": {}, "id": "1"},
-        ],
-        tool_calls=[
-            {"type": "tool_call", "name": "from_attribute", "args": {}, "id": "2"},
-        ],
-    )
-    _store_tool_calls(response)
-
-    tool_calls = tool_calls_var.get()
-    assert tool_calls is not None
-    assert len(tool_calls) == 1
-    assert tool_calls[0]["name"] == "from_blocks"
-
-
-def test_store_tool_calls_fallback_to_attribute():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "No tool calls here"},
-        ],
-        tool_calls=[
-            {"type": "tool_call", "name": "fallback_tool", "args": {}, "id": "1"},
-        ],
-    )
-    _store_tool_calls(response)
-
-    tool_calls = tool_calls_var.get()
-    assert tool_calls is not None
-    assert len(tool_calls) == 1
-    assert tool_calls[0]["name"] == "fallback_tool"
+    assert tool_calls[0]["function"]["name"] == "foo"
+    assert tool_calls[0]["function"]["arguments"] == {"a": "b"}
+    assert tool_calls[1]["function"]["name"] == "bar"
+    assert tool_calls[1]["function"]["arguments"] == {"c": "d"}
 
 
 def test_store_tool_calls_no_tool_calls():
-    response = MockResponse(
-        content_blocks=[
-            {"type": "text", "text": "Just text"},
-        ]
-    )
+    response = LLMResponse(content="Just text")
     _store_tool_calls(response)
 
     tool_calls = tool_calls_var.get()
     assert tool_calls is None
 
 
-def test_store_reasoning_traces_with_real_aimessage_from_content_blocks():
-    message = AIMessage(
+def test_store_reasoning_traces_with_reasoning():
+    response = LLMResponse(
         content="The answer is 42.",
-        additional_kwargs={"reasoning_content": "Let me think about this problem..."},
+        reasoning="Let me think about this problem...",
     )
 
-    _store_reasoning_traces(message)
+    _store_reasoning_traces(response)
 
     reasoning = reasoning_trace_var.get()
     assert reasoning == "Let me think about this problem..."
 
 
-def test_store_reasoning_traces_with_real_aimessage_no_reasoning():
-    message = AIMessage(
-        content="The answer is 42.",
-        additional_kwargs={"other_field": "some value"},
-    )
+def test_store_reasoning_traces_with_no_reasoning():
+    response = LLMResponse(content="The answer is 42.")
 
-    _store_reasoning_traces(message)
+    _store_reasoning_traces(response)
 
     reasoning = reasoning_trace_var.get()
     assert reasoning is None
 
 
-def test_store_tool_calls_with_real_aimessage_from_content_blocks():
-    message = AIMessage(
-        "",
-        tool_calls=[{"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}],
+def test_store_tool_calls_with_tool_call_objects():
+    response = LLMResponse(
+        content="",
+        tool_calls=[ToolCall(id="abc_123", function=ToolCallFunction(name="foo", arguments={"a": "b"}))],
     )
 
-    _store_tool_calls(message)
+    _store_tool_calls(response)
 
     tool_calls = tool_calls_var.get()
     assert tool_calls is not None
     assert len(tool_calls) == 1
-    assert tool_calls[0]["type"] == "tool_call"
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[0]["args"] == {"a": "b"}
+    assert tool_calls[0]["type"] == "function"
+    assert tool_calls[0]["function"]["name"] == "foo"
+    assert tool_calls[0]["function"]["arguments"] == {"a": "b"}
     assert tool_calls[0]["id"] == "abc_123"
 
 
-def test_store_tool_calls_with_real_aimessage_mixed_content():
-    message = AIMessage(
-        "foo",
-        tool_calls=[{"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"}],
+def test_store_tool_calls_with_content_and_tool_calls():
+    response = LLMResponse(
+        content="foo",
+        tool_calls=[ToolCall(id="abc_123", function=ToolCallFunction(name="foo", arguments={"a": "b"}))],
     )
 
-    _store_tool_calls(message)
+    _store_tool_calls(response)
 
     tool_calls = tool_calls_var.get()
     assert tool_calls is not None
     assert len(tool_calls) == 1
-    assert tool_calls[0]["type"] == "tool_call"
-    assert tool_calls[0]["name"] == "foo"
+    assert tool_calls[0]["type"] == "function"
+    assert tool_calls[0]["function"]["name"] == "foo"
 
 
-def test_store_tool_calls_with_real_aimessage_multiple_tool_calls():
-    message = AIMessage(
-        "",
+def test_store_tool_calls_with_multiple_tool_call_objects():
+    response = LLMResponse(
+        content="",
         tool_calls=[
-            {"type": "tool_call", "name": "foo", "args": {"a": "b"}, "id": "abc_123"},
-            {"type": "tool_call", "name": "bar", "args": {"c": "d"}, "id": "abc_234"},
+            ToolCall(id="abc_123", function=ToolCallFunction(name="foo", arguments={"a": "b"})),
+            ToolCall(id="abc_234", function=ToolCallFunction(name="bar", arguments={"c": "d"})),
         ],
     )
 
-    _store_tool_calls(message)
+    _store_tool_calls(response)
 
     tool_calls = tool_calls_var.get()
     assert tool_calls is not None
     assert len(tool_calls) == 2
-    assert tool_calls[0]["name"] == "foo"
-    assert tool_calls[1]["name"] == "bar"
+    assert tool_calls[0]["function"]["name"] == "foo"
+    assert tool_calls[1]["function"]["name"] == "bar"
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("llm_params", [None, {}])
-@pytest.mark.parametrize("stop", [None, ["User:"]])
-async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params, stop):
-    """Stop tokens must be passed to bind or ainvoke even when llm_params is None or empty."""
+async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
+    from unittest.mock import AsyncMock, MagicMock
+
     from nemoguardrails.actions.llm.utils import llm_call
 
-    mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"content": "response"})
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = MagicMock(content="response")
 
-    await llm_call(mock_llm, "prompt", stop=stop, llm_params=llm_params)
+    wrapped = LangChainLLMAdapter(mock_llm)
+    await llm_call(wrapped, "prompt", stop=["User:"], llm_params=llm_params)
 
-    if mock_llm.bind.called:
-        # Option A: Check if .bind() was called with the stop tokens
-        args, kwargs = mock_llm.bind.call_args
-        assert kwargs.get("stop", None) == stop
-    else:
-        # Option B: Check if it fell back to passing stop to .ainvoke
-        args, kwargs = mock_llm.ainvoke.call_args
-        assert kwargs.get("stop", None) == stop
+    assert mock_llm.ainvoke.call_args[1]["stop"] == ["User:"]
 
 
 @pytest.mark.asyncio
-async def test_llm_call_exception_enrichment_with_model_and_endpoint():
-    """Test that LLM invocation errors include model and endpoint context."""
+async def test_llm_call_exception_enrichment_with_model_and_provider():
     mock_llm = MockOpenAILLM()
     mock_llm.model_name = "gpt-4"
-    mock_llm.base_url = "https://api.openai.com/v1"
     mock_llm.ainvoke = AsyncMock(side_effect=ConnectionError("Connection refused"))
 
+    wrapped = LangChainLLMAdapter(mock_llm)
     with pytest.raises(LLMCallException) as exc_info:
-        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
+        await llm_call(wrapped, "test prompt")
 
     exc_str = str(exc_info.value)
     assert "gpt-4" in exc_str
-    assert "https://api.openai.com/v1" in exc_str
+    assert "provider=openai" in exc_str
     assert "Connection refused" in exc_str
     assert isinstance(exc_info.value.inner_exception, ConnectionError)
 
 
 @pytest.mark.asyncio
-async def test_llm_call_exception_without_endpoint():
-    """Test exception enrichment when endpoint URL is not available."""
-    mock_llm = AsyncMock()
-    mock_llm.__module__ = "langchain_openai.chat_models"
+async def test_llm_call_exception_without_provider():
+    mock_llm = MockUnknownLLM()
     mock_llm.model_name = "custom-model"
-    # No base_url attribute
     mock_llm.ainvoke = AsyncMock(side_effect=ValueError("Invalid request"))
 
+    wrapped = LangChainLLMAdapter(mock_llm)
     with pytest.raises(LLMCallException) as exc_info:
-        await llm_call(mock_llm, "test prompt")
+        await llm_call(wrapped, "test prompt")
 
-    # Should still have model name but no endpoint
-    assert "custom-model" in str(exc_info.value)
-    assert "Invalid request" in str(exc_info.value)
+    exc_str = str(exc_info.value)
+    assert "custom-model" in exc_str
+    assert "Invalid request" in exc_str
 
 
 @pytest.mark.asyncio
-async def test_llm_call_exception_extracts_azure_endpoint():
-    """Test that Azure-style endpoint URLs are extracted."""
-    mock_llm = MockAzureLLM()
+async def test_llm_call_kwargs_flow_through_to_generate():
+    mock_llm = MagicMock()
     mock_llm.model_name = "gpt-4"
-    mock_llm.azure_endpoint = "https://example.openai.azure.com"
-    mock_llm.ainvoke = AsyncMock(side_effect=Exception("Azure error"))
+    bound_llm = AsyncMock()
+    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm.bind.return_value = bound_llm
 
-    with pytest.raises(LLMCallException) as exc_info:
-        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
+    wrapped = LangChainLLMAdapter(mock_llm)
+    await llm_call(wrapped, "prompt", llm_params={"temperature": 0.5, "max_tokens": 100})
 
-    exc_str = str(exc_info.value)
-    assert "https://example.openai.azure.com" in exc_str
-    assert "gpt-4" in exc_str
-    assert "Azure error" in exc_str
-
-
-@pytest.mark.asyncio
-async def test_llm_call_exception_extracts_server_url():
-    """Test that TRT-style server_url is extracted."""
-    mock_llm = MockTRTLLM()
-    mock_llm.model_name = "llama-2-70b"
-    mock_llm.server_url = "https://triton.example.com:8000"
-    mock_llm.ainvoke = AsyncMock(side_effect=Exception("Triton server error"))
-
-    with pytest.raises(LLMCallException) as exc_info:
-        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
-
-    exc_str = str(exc_info.value)
-    assert "https://triton.example.com:8000" in exc_str
-    assert "llama-2-70b" in exc_str
-    assert "Triton server error" in exc_str
-
-
-@pytest.mark.asyncio
-async def test_llm_call_exception_extracts_nested_client_base_url():
-    """Test that nested client.base_url is extracted."""
-    mock_llm = MockLLMWithClient()
-    mock_llm.model_name = "gpt-4-turbo"
-    mock_llm.ainvoke = AsyncMock(side_effect=Exception("Client error"))
-
-    with pytest.raises(LLMCallException) as exc_info:
-        await llm_call(cast(BaseLanguageModel, mock_llm), "test prompt")
-
-    exc_str = str(exc_info.value)
-    assert "https://custom.endpoint.com/v1" in exc_str
-    assert "gpt-4-turbo" in exc_str
-    assert "Client error" in exc_str
-
-
-def _create_llm(model_name):
-    try:
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(model=model_name)
-    except Exception:
-
-        class _MockLLM:
-            def __init__(self, model_name):
-                self.model_name = model_name
-
-        return _MockLLM(model_name)
-
-
-class TestFilterParamsForOpenAIReasoningModels:
-    @pytest.mark.parametrize(
-        "model,params,expected",
-        [
-            ("gpt-4", {"temperature": 0.5, "max_tokens": 100}, {"temperature": 0.5, "max_tokens": 100}),
-            ("gpt-4o", {"temperature": 0.7}, {"temperature": 0.7}),
-            ("gpt-4o-mini", {"temperature": 0.3, "max_tokens": 50}, {"temperature": 0.3, "max_tokens": 50}),
-            ("gpt-5-chat", {"temperature": 0.5}, {"temperature": 0.5}),
-            ("o1-preview", {"temperature": 0.001, "max_tokens": 100}, {"max_tokens": 100}),
-            ("o1-mini", {"temperature": 0.5}, {}),
-            ("o3", {"temperature": 0.001, "max_tokens": 200}, {"max_tokens": 200}),
-            ("o3-mini", {"temperature": 0.1}, {}),
-            ("gpt-5", {"temperature": 0.001}, {}),
-            ("gpt-5-mini", {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
-            ("gpt-5-nano", {"temperature": 0.001}, {}),
-            ("o1-preview", {"max_tokens": 100}, {"max_tokens": 100}),
-            ("o1-preview", {}, {}),
-            ("gpt-5", {"stop": "stop"}, {}),
-            ("gpt-5-mini", {"temperature": 0.5, "max_tokens": 100, "stop": "stop"}, {"max_tokens": 100}),
-            ("o4-mini", {"stop": "stop"}, {}),
-            ("o3", {"stop": "stop"}, {}),
-            ("o3-pro", {"temperature": 0.5, "stop": "stop"}, {}),
-        ],
-    )
-    def test_filter_params(self, model, params, expected):
-        llm = _create_llm(model)
-        result = _filter_params_for_openai_reasoning_models(llm, params)
-        assert result == expected
-
-    def test_returns_none_when_llm_params_is_none(self):
-        llm = _create_llm("gpt-4")
-        result = _filter_params_for_openai_reasoning_models(llm, None)
-        assert result is None
-
-    def test_does_not_modify_original_params(self):
-        llm = _create_llm("o1-preview")
-        params = {"temperature": 0.5, "max_tokens": 100}
-        _filter_params_for_openai_reasoning_models(llm, params)
-        assert params == {"temperature": 0.5, "max_tokens": 100}
-
-    @pytest.mark.asyncio
-    async def test_llm_call_does_not_mutate_llm_params(self):
-        mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"content": "response"})
-        original_params = {"max_tokens": 100}
-        await llm_call(mock_llm, "prompt", stop=["User:"], llm_params=original_params)
-        assert original_params == {"max_tokens": 100}
-
-
-async def _empty_astream(*args, **kwargs):
-    return
-    yield
-
-
-class _FakeLLM:
-    def __init__(self, stop=None, kwargs=None):
-        self.stop = stop
-        if kwargs is not None:
-            self.kwargs = kwargs
-        self.astream = _empty_astream
-
-
-class TestStreamLlmCallStopCoercion:
-    @pytest.mark.asyncio
-    async def test_llm_stop_attr_none_coerced_to_list(self):
-        from nemoguardrails.streaming import StreamingHandler
-
-        llm = _FakeLLM(stop=None)
-        handler = StreamingHandler()
-        await _stream_llm_call(llm, "prompt", handler)
-
-        assert handler.stop == []
-
-    @pytest.mark.asyncio
-    async def test_llm_kwargs_stop_none_coerced_to_list(self):
-        from nemoguardrails.streaming import StreamingHandler
-
-        llm = _FakeLLM(kwargs={"stop": None})
-        handler = StreamingHandler()
-        await _stream_llm_call(llm, "prompt", handler)
-
-        assert handler.stop == []
-
-    @pytest.mark.asyncio
-    async def test_llm_with_valid_stop_preserved(self):
-        from nemoguardrails.streaming import StreamingHandler
-
-        llm = _FakeLLM(stop=["User:"])
-        handler = StreamingHandler()
-        await _stream_llm_call(llm, "prompt", handler)
-
-        assert handler.stop == ["User:"]
+    mock_llm.bind.assert_called_once_with(temperature=0.5, max_tokens=100)
 
 
 class TestLogCompletion:
@@ -769,7 +325,7 @@ class TestLogCompletion:
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
-        response = AIMessage(content="This is the response")
+        response = LLMResponse(content="This is the response")
         _log_completion(response)
 
         assert llm_call_info.completion == "This is the response"
@@ -778,9 +334,9 @@ class TestLogCompletion:
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
-        response = AIMessage(
+        response = LLMResponse(
             content="Final answer",
-            additional_kwargs={"reasoning_content": "Step 1: Think"},
+            reasoning="Step 1: Think",
         )
         _log_completion(response)
 
@@ -788,17 +344,17 @@ class TestLogCompletion:
 
 
 class TestUpdateTokenStatsFromChunk:
-    def test_extracts_from_generation_info(self):
+    def test_extracts_from_usage(self):
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
         llm_stats = LLMStats()
         llm_stats_var.set(llm_stats)
 
-        chunk = MagicMock()
-        chunk.usage_metadata = None
-        chunk.response_metadata = None
-        chunk.generation_info = {"usage": {"total_tokens": 25, "prompt_tokens": 15, "completion_tokens": 10}}
+        chunk = LLMResponseChunk(
+            delta_content="",
+            usage=UsageInfo(total_tokens=25, input_tokens=15, output_tokens=10),
+        )
 
         _update_token_stats_from_chunk(chunk)
 
@@ -806,20 +362,123 @@ class TestUpdateTokenStatsFromChunk:
         assert llm_call_info.prompt_tokens == 15
         assert llm_call_info.completion_tokens == 10
 
-    def test_extracts_from_usage_metadata(self):
+    def test_extracts_from_usage_metadata_via_adapter(self):
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
         llm_stats = LLMStats()
         llm_stats_var.set(llm_stats)
 
-        chunk = MagicMock()
-        chunk.usage_metadata = {"total_tokens": 30, "input_tokens": 20, "output_tokens": 10}
-        chunk.response_metadata = None
-        chunk.generation_info = None
+        chunk = LLMResponseChunk(
+            delta_content="",
+            usage=UsageInfo(total_tokens=30, input_tokens=20, output_tokens=10),
+        )
 
         _update_token_stats_from_chunk(chunk)
 
         assert llm_call_info.total_tokens == 30
         assert llm_call_info.prompt_tokens == 20
         assert llm_call_info.completion_tokens == 10
+
+
+class TestLlmCallDictToChatMessageConversion:
+    @pytest.mark.asyncio
+    async def test_llm_call_converts_dict_prompt_to_chat_messages(self):
+        received_prompt = None
+
+        class CaptureLLM:
+            async def generate(self, prompt, *, stop=None, **kwargs):
+                nonlocal received_prompt
+                received_prompt = prompt
+                return LLMResponse(content="ok")
+
+            async def stream(self, prompt, *, stop=None, **kwargs):
+                yield LLMResponseChunk(delta_content="ok")
+
+            @property
+            def model_name(self):
+                return "test"
+
+            @property
+            def provider_name(self):
+                return None
+
+            @property
+            def provider_url(self):
+                return None
+
+        model = CaptureLLM()
+        dict_prompt = [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Hello"},
+        ]
+        await llm_call(model, dict_prompt)
+
+        assert received_prompt is not None
+        assert isinstance(received_prompt, list)
+        assert len(received_prompt) == 2
+        assert all(isinstance(m, ChatMessage) for m in received_prompt)
+        assert received_prompt[0].role == Role.SYSTEM
+        assert received_prompt[0].content == "You are helpful."
+        assert received_prompt[1].role == Role.USER
+        assert received_prompt[1].content == "Hello"
+
+    @pytest.mark.asyncio
+    async def test_llm_call_passes_string_prompt_unchanged(self):
+        received_prompt = None
+
+        class CaptureLLM:
+            async def generate(self, prompt, *, stop=None, **kwargs):
+                nonlocal received_prompt
+                received_prompt = prompt
+                return LLMResponse(content="ok")
+
+            async def stream(self, prompt, *, stop=None, **kwargs):
+                yield LLMResponseChunk(delta_content="ok")
+
+            @property
+            def model_name(self):
+                return "test"
+
+            @property
+            def provider_name(self):
+                return None
+
+            @property
+            def provider_url(self):
+                return None
+
+        model = CaptureLLM()
+        await llm_call(model, "simple string prompt")
+
+        assert received_prompt == "simple string prompt"
+
+    @pytest.mark.asyncio
+    async def test_llm_call_handles_empty_list(self):
+        received_prompt = None
+
+        class CaptureLLM:
+            async def generate(self, prompt, *, stop=None, **kwargs):
+                nonlocal received_prompt
+                received_prompt = prompt
+                return LLMResponse(content="ok")
+
+            async def stream(self, prompt, *, stop=None, **kwargs):
+                yield LLMResponseChunk(delta_content="ok")
+
+            @property
+            def model_name(self):
+                return "test"
+
+            @property
+            def provider_name(self):
+                return None
+
+            @property
+            def provider_url(self):
+                return None
+
+        model = CaptureLLM()
+        await llm_call(model, [])
+
+        assert received_prompt == []

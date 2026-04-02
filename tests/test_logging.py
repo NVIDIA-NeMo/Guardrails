@@ -13,36 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-from unittest.mock import MagicMock
-
 import pytest
-from langchain_core.messages import AIMessage
 
-from nemoguardrails.actions.llm.utils import _log_completion, _log_prompt, _store_reasoning_traces, _update_token_stats
+from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
 from nemoguardrails.context import explain_info_var, llm_call_info_var, llm_stats_var
 from nemoguardrails.logging.explain import ExplainInfo, LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.logging.processing_log import processing_log_var
 from nemoguardrails.logging.stats import LLMStats
+from nemoguardrails.types import LLMResponse, UsageInfo
 
 
 @pytest.mark.asyncio
-async def test_token_usage_tracking_with_usage_metadata():
-    """Test that token usage is tracked when usage_metadata is available."""
-
+async def test_token_usage_tracking_with_usage():
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
 
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
-    ai_message = AIMessage(
+    response = LLMResponse(
         content="Hello! How can I help you?",
-        usage_metadata={"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
+        usage=UsageInfo(input_tokens=10, output_tokens=6, total_tokens=16),
     )
 
-    _update_token_stats(ai_message)
+    _update_token_stats(response)
 
     assert llm_call_info.total_tokens == 16
     assert llm_call_info.prompt_tokens == 10
@@ -54,45 +49,14 @@ async def test_token_usage_tracking_with_usage_metadata():
 
 
 @pytest.mark.asyncio
-async def test_token_usage_tracking_with_response_metadata_fallback():
-    """Test token usage tracking with response_metadata format."""
+async def test_no_token_usage_tracking_without_usage():
     llm_call_info = LLMCallInfo()
     llm_call_info_var.set(llm_call_info)
 
     llm_stats = LLMStats()
     llm_stats_var.set(llm_stats)
 
-    response = MagicMock()
-    response.usage_metadata = None
-    response.response_metadata = {
-        "token_usage": {
-            "total_tokens": 20,
-            "prompt_tokens": 12,
-            "completion_tokens": 8,
-        }
-    }
-
-    _update_token_stats(response)
-
-    assert llm_call_info.total_tokens == 20
-    assert llm_call_info.prompt_tokens == 12
-    assert llm_call_info.completion_tokens == 8
-
-    assert llm_stats.get_stat("total_tokens") == 20
-    assert llm_stats.get_stat("total_prompt_tokens") == 12
-    assert llm_stats.get_stat("total_completion_tokens") == 8
-
-
-@pytest.mark.asyncio
-async def test_no_token_usage_tracking_without_metadata():
-    """Test that no token usage is tracked when metadata is not available."""
-    llm_call_info = LLMCallInfo()
-    llm_call_info_var.set(llm_call_info)
-
-    llm_stats = LLMStats()
-    llm_stats_var.set(llm_stats)
-
-    response = AIMessage(content="Hello! How can I help you?")
+    response = LLMResponse(content="Hello! How can I help you?")
 
     _update_token_stats(response)
 
@@ -161,7 +125,6 @@ class TestTrackLlmCallDecorator:
 
         @track_llm_call
         async def mock_llm_call():
-            await asyncio.sleep(0.02)
             return "response"
 
         result = await mock_llm_call()
@@ -205,78 +168,9 @@ class TestTrackLlmCallDecorator:
 
         @track_llm_call
         async def mock_llm_call():
-            await asyncio.sleep(0.02)
             return "response"
 
         await mock_llm_call()
 
         llm_stats = llm_stats_var.get()
         assert llm_stats.get_stat("total_time") > 0
-
-
-class TestTokenStatsAssignment:
-    def test_usage_metadata_uses_assignment_not_accumulation(self):
-        llm_call_info = LLMCallInfo()
-        llm_call_info.total_tokens = 100
-        llm_call_info.prompt_tokens = 60
-        llm_call_info.completion_tokens = 40
-        llm_call_info_var.set(llm_call_info)
-
-        llm_stats = LLMStats()
-        llm_stats_var.set(llm_stats)
-
-        response = AIMessage(
-            content="test",
-            usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-        )
-
-        _update_token_stats(response)
-
-        assert llm_call_info.total_tokens == 15
-        assert llm_call_info.prompt_tokens == 10
-        assert llm_call_info.completion_tokens == 5
-
-    def test_response_metadata_uses_assignment_not_accumulation(self):
-        llm_call_info = LLMCallInfo()
-        llm_call_info.total_tokens = 100
-        llm_call_info.prompt_tokens = 60
-        llm_call_info.completion_tokens = 40
-        llm_call_info_var.set(llm_call_info)
-
-        llm_stats = LLMStats()
-        llm_stats_var.set(llm_stats)
-
-        response = MagicMock()
-        response.usage_metadata = None
-        response.response_metadata = {"token_usage": {"total_tokens": 20, "prompt_tokens": 12, "completion_tokens": 8}}
-
-        _update_token_stats(response)
-
-        assert llm_call_info.total_tokens == 20
-        assert llm_call_info.prompt_tokens == 12
-        assert llm_call_info.completion_tokens == 8
-
-
-class TestThinkTagsStrippedBeforeCompletion:
-    def test_completion_excludes_think_tags_when_reasoning_extracted_first(self):
-        llm_call_info = LLMCallInfo()
-        llm_call_info_var.set(llm_call_info)
-
-        response = AIMessage(content="<think>internal reasoning</think>Final answer")
-
-        _store_reasoning_traces(response)
-        _log_completion(response)
-
-        assert "<think>" not in llm_call_info.completion
-        assert "internal reasoning" not in llm_call_info.completion
-        assert "Final answer" in llm_call_info.completion
-
-    def test_completion_contains_think_tags_if_logged_before_extraction(self):
-        llm_call_info = LLMCallInfo()
-        llm_call_info_var.set(llm_call_info)
-
-        response = AIMessage(content="<think>internal reasoning</think>Final answer")
-
-        _log_completion(response)
-
-        assert "<think>" in llm_call_info.completion
