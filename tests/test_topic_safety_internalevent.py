@@ -21,6 +21,7 @@ import pytest
 
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent
 from nemoguardrails.library.topic_safety.actions import topic_safety_check_input
+from nemoguardrails.types import LLMResponse
 
 
 @pytest.mark.asyncio
@@ -55,7 +56,7 @@ async def test_topic_safety_check_input_with_internal_events():
     llm_task_manager = MockTaskManager()
 
     with patch("nemoguardrails.library.topic_safety.actions.llm_call", new_callable=AsyncMock) as mock_llm_call:
-        mock_llm_call.return_value = "on-topic"
+        mock_llm_call.return_value = LLMResponse(content="on-topic")
 
         # should not raise TypeError: 'InternalEvent' object is not subscriptable
         result = await topic_safety_check_input(

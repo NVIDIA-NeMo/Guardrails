@@ -16,8 +16,6 @@
 import logging
 from typing import Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
@@ -25,6 +23,7 @@ from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ log = logging.getLogger(__name__)
 async def self_check_output(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    llm: Optional[BaseLLM] = None,
+    llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
     **kwargs,
 ):
@@ -72,15 +71,17 @@ async def self_check_output(
         # Initialize the LLMCallInfo object
         llm_call_info_var.set(LLMCallInfo(task=task.value))
 
-        response = await llm_call(
-            llm,
-            prompt,
-            stop=stop,
-            llm_params={
-                "temperature": config.lowest_temperature,
-                "max_tokens": max_tokens,
-            },
-        )
+        response = (
+            await llm_call(
+                llm,
+                prompt,
+                stop=stop,
+                llm_params={
+                    "temperature": config.lowest_temperature,
+                    "max_tokens": max_tokens,
+                },
+            )
+        ).content
 
         log.info(f"Output self-checking result is: `{response}`.")
 

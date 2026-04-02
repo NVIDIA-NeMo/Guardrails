@@ -15,6 +15,7 @@
 
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
 from tests.utils import FakeLLM, TestChat
 
 COLANG_CONFIG = """
@@ -66,11 +67,13 @@ def test_llama_guard_check_all_safe():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
-        responses=[
-            "safe",  # llama_guard_check_input
-            "safe",  # llama_guard_check_output
-        ]
+    llama_guard_llm = LangChainLLMAdapter(
+        FakeLLM(
+            responses=[
+                "safe",  # llama_guard_check_input
+                "safe",  # llama_guard_check_output
+            ]
+        )
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
@@ -92,10 +95,12 @@ def test_llama_guard_check_input_unsafe():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
-        responses=[
-            "unsafe",  # llama_guard_check_input
-        ]
+    llama_guard_llm = LangChainLLMAdapter(
+        FakeLLM(
+            responses=[
+                "unsafe",  # llama_guard_check_input
+            ]
+        )
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
@@ -117,10 +122,12 @@ def test_llama_guard_check_input_error():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
-        responses=[
-            "error",  # llama_guard_check_input
-        ]
+    llama_guard_llm = LangChainLLMAdapter(
+        FakeLLM(
+            responses=[
+                "error",  # llama_guard_check_input
+            ]
+        )
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
@@ -142,11 +149,13 @@ def test_llama_guard_check_output_unsafe():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
-        responses=[
-            "safe",  # llama_guard_check_input
-            "unsafe",  # llama_guard_check_output
-        ]
+    llama_guard_llm = LangChainLLMAdapter(
+        FakeLLM(
+            responses=[
+                "safe",  # llama_guard_check_input
+                "unsafe",  # llama_guard_check_output
+            ]
+        )
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 
@@ -168,11 +177,13 @@ def test_llama_guard_check_output_error():
         ],
     )
 
-    llama_guard_llm = FakeLLM(
-        responses=[
-            "safe",  # llama_guard_check_input
-            "error",  # llama_guard_check_output
-        ]
+    llama_guard_llm = LangChainLLMAdapter(
+        FakeLLM(
+            responses=[
+                "safe",  # llama_guard_check_input
+                "error",  # llama_guard_check_output
+            ]
+        )
     )
     chat.app.register_action_param("llama_guard_llm", llama_guard_llm)
 

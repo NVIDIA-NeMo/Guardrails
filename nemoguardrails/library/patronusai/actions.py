@@ -19,7 +19,6 @@ import re
 from typing import List, Literal, Optional, Tuple, Union
 
 import aiohttp
-from langchain_core.language_models import BaseLLM
 
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
@@ -27,6 +26,7 @@ from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def patronus_lynx_check_output_hallucination_mapping(result: dict) -> bool:
 async def patronus_lynx_check_output_hallucination(
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
-    patronus_lynx_llm: Optional[BaseLLM] = None,
+    patronus_lynx_llm: Optional[LLMModel] = None,
     **kwargs,
 ) -> dict:
     """
@@ -104,12 +104,14 @@ async def patronus_lynx_check_output_hallucination(
     # Initialize the LLMCallInfo object
     llm_call_info_var.set(LLMCallInfo(task=Task.PATRONUS_LYNX_CHECK_OUTPUT_HALLUCINATION.value))
 
-    result = await llm_call(
-        patronus_lynx_llm,
-        check_output_hallucination_prompt,
-        stop=stop,
-        llm_params={"temperature": 0.0},
-    )
+    result = (
+        await llm_call(
+            patronus_lynx_llm,
+            check_output_hallucination_prompt,
+            stop=stop,
+            llm_params={"temperature": 0.0},
+        )
+    ).content
 
     hallucination, reasoning = parse_patronus_lynx_response(result)
     return {"hallucination": hallucination, "reasoning": reasoning}

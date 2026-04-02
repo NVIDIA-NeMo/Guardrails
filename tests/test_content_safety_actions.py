@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
 from nemoguardrails.library.content_safety.actions import (
     DEFAULT_REFUSAL_MESSAGES,
     SUPPORTED_LANGUAGES,
@@ -42,7 +43,7 @@ requires_fast_langdetect = pytest.mark.skipif(not HAS_FAST_LANGDETECT, reason="f
 @pytest.fixture
 def fake_llm():
     def _factory(response):
-        llm = FakeLLM(responses=[response])
+        llm = LangChainLLMAdapter(FakeLLM(responses=[response]))
         return {"test_model": llm}
 
     return _factory

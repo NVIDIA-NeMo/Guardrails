@@ -147,7 +147,7 @@ class FactCheckEvaluation:
                 force_string_to_message=True,
             )
             stop = self.llm_task_manager.get_stop_tokens(Task.SELF_CHECK_FACTS)
-            fact_check = asyncio.run(llm_call(prompt=fact_check_prompt, llm=self.llm, stop=stop))
+            fact_check = asyncio.run(llm_call(prompt=fact_check_prompt, llm=self.llm, stop=stop)).content
             end_time = time.time()
             time.sleep(0.5)  # avoid rate-limits
             fact_check = fact_check.lower().strip()
