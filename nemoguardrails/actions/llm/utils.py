@@ -277,12 +277,15 @@ def _raise_llm_call_exception(
     llm_call_info = llm_call_info_var.get()
     model_name = llm_call_info.llm_model_name if llm_call_info else model.model_name
     provider_name = llm_call_info.llm_provider_name if llm_call_info else model.provider_name
+    endpoint_url = model.provider_url
 
     context_parts = []
     if model_name:
         context_parts.append(f"model={model_name}")
     if provider_name:
         context_parts.append(f"provider={provider_name}")
+    if endpoint_url:
+        context_parts.append(f"endpoint={endpoint_url}")
 
     if context_parts:
         detail = f"Error invoking LLM ({', '.join(context_parts)})"
