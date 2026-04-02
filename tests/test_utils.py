@@ -246,3 +246,12 @@ async def test_extract_error_json():
     assert result["error"]["message"] == error_message
     with pytest.raises(KeyError):
         result["error"]["code"]
+
+
+def test_script_updated_event_requires_interim_script():
+    with pytest.raises(AssertionError, match=r".*interim_script.*"):
+        event_type = "UtteranceBotActionScriptUpdated"
+        e = new_event_dict(
+            event_type,
+            action_uid="some-uid",
+        )
