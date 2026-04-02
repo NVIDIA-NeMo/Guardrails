@@ -308,7 +308,7 @@ def chatmessage_to_langchain_message(msg: ChatMessage) -> BaseMessage:
     if cls is ToolMessage:
         kwargs["tool_call_id"] = msg.tool_call_id or ""
 
-    return cls(content=msg.content, **kwargs)
+    return cls(content=msg.content or "", **kwargs)
 
 
 def chatmessages_to_langchain_messages(msgs: List[ChatMessage]) -> List[BaseMessage]:

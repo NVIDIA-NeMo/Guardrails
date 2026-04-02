@@ -82,9 +82,9 @@ async def llm_call(
     except Exception as e:
         _raise_llm_call_exception(e, model)
 
+    _store_reasoning_traces(response)
     _log_completion(response)
     _update_token_stats(response)
-    _store_reasoning_traces(response)
     _store_tool_calls(response)
     _store_response_metadata(response)
     return response

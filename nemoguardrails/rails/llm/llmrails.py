@@ -1468,7 +1468,7 @@ class LLMRails:
             messages: List of message dicts with 'role' and 'content' fields.
                      Messages can contain any roles, but only user/assistant roles
                      determine which rails execute when ``rail_types`` is not provided.
-            rails: Optional list of rail types to run, e.g.
+            rail_types: Optional list of rail types to run, e.g.
                   ``[RailType.INPUT]`` or ``[RailType.OUTPUT]``.
                   When provided, overrides automatic detection.
 
@@ -1537,7 +1537,7 @@ class LLMRails:
 
         Args:
             messages: List of message dicts with 'role' and 'content' fields.
-            rails: Optional list of rail types to run. See check_async() for details.
+            rail_types: Optional list of rail types to run. See check_async() for details.
 
         Returns:
             RailsResult containing status, content, and optional blocking rail name.
