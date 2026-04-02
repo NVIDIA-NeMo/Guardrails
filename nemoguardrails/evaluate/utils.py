@@ -26,6 +26,7 @@ def initialize_llm(model_config: Model):
         model_name=model_config.model,
         provider_name=model_config.engine,
         kwargs=model_config.parameters,
+        mode="chat",
     )
 
 
