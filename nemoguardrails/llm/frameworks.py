@@ -40,7 +40,12 @@ def get_framework(name: str) -> LLMFramework:
     return _frameworks[name]
 
 
+_LAZY_FRAMEWORKS = {"langchain"}
+
+
 def set_default_framework(name: str) -> None:
+    if name not in _frameworks and name not in _LAZY_FRAMEWORKS:
+        raise KeyError(f"Unknown framework '{name}'. Register it first or use one of: {sorted(_LAZY_FRAMEWORKS)}")
     global _default_framework
     _default_framework = name
 

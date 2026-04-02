@@ -60,8 +60,13 @@ class TestRegistry:
         assert isinstance(fw, LangChainFramework)
 
     def test_set_and_get_default_framework(self):
+        register_framework("custom", FakeFramework())
         set_default_framework("custom")
         assert get_default_framework() == "custom"
+
+    def test_set_default_unknown_raises(self):
+        with pytest.raises(KeyError, match="Unknown framework"):
+            set_default_framework("nonexistent")
 
     def test_default_is_langchain(self):
         assert get_default_framework() == "langchain"
