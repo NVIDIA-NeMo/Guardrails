@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,16 +20,15 @@ from langchain_core.messages import AIMessage
 
 from nemoguardrails.actions.llm.utils import _store_reasoning_traces
 from nemoguardrails.context import reasoning_trace_var
+from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
+from nemoguardrails.types import LLMResponse
 
 
 class TestStoreReasoningTracesUnit:
     def test_store_reasoning_traces_with_valid_reasoning_content(self):
         test_reasoning = "Step 1: Analyze the question\nStep 2: Formulate response"
 
-        response = AIMessage(
-            content="The answer is 42",
-            additional_kwargs={"reasoning_content": test_reasoning},
-        )
+        response = LLMResponse(content="The answer is 42", reasoning=test_reasoning)
 
         _store_reasoning_traces(response)
 
@@ -39,7 +38,7 @@ class TestStoreReasoningTracesUnit:
         reasoning_trace_var.set(None)
 
     def test_store_reasoning_traces_with_empty_reasoning_content(self):
-        response = AIMessage(content="Response", additional_kwargs={"reasoning_content": ""})
+        response = LLMResponse(content="Response", reasoning="")
 
         reasoning_trace_var.set(None)
         _store_reasoning_traces(response)
@@ -50,7 +49,7 @@ class TestStoreReasoningTracesUnit:
         reasoning_trace_var.set(None)
 
     def test_store_reasoning_traces_with_none_reasoning_content(self):
-        response = AIMessage(content="Response", additional_kwargs={"reasoning_content": None})
+        response = LLMResponse(content="Response", reasoning=None)
 
         reasoning_trace_var.set(None)
         _store_reasoning_traces(response)
@@ -60,50 +59,8 @@ class TestStoreReasoningTracesUnit:
 
         reasoning_trace_var.set(None)
 
-    def test_store_reasoning_traces_without_reasoning_content_key(self):
-        response = AIMessage(content="Response", additional_kwargs={"other_key": "other_value"})
-
-        reasoning_trace_var.set(None)
-        _store_reasoning_traces(response)
-
-        stored_trace = reasoning_trace_var.get()
-        assert stored_trace is None
-
-        reasoning_trace_var.set(None)
-
-    def test_store_reasoning_traces_with_empty_additional_kwargs(self):
-        response = AIMessage(content="Response", additional_kwargs={})
-
-        reasoning_trace_var.set(None)
-        _store_reasoning_traces(response)
-
-        stored_trace = reasoning_trace_var.get()
-        assert stored_trace is None
-
-        reasoning_trace_var.set(None)
-
-    def test_store_reasoning_traces_without_additional_kwargs_attribute(self):
-        class SimpleResponse:
-            def __init__(self, content):
-                self.content = content
-
-        response = SimpleResponse("Response")
-
-        reasoning_trace_var.set(None)
-        _store_reasoning_traces(response)
-
-        stored_trace = reasoning_trace_var.get()
-        assert stored_trace is None
-
-        reasoning_trace_var.set(None)
-
-    def test_store_reasoning_traces_with_non_dict_additional_kwargs(self):
-        class ResponseWithInvalidKwargs:
-            def __init__(self):
-                self.content = "Response"
-                self.additional_kwargs = "not_a_dict"
-
-        response = ResponseWithInvalidKwargs()
+    def test_store_reasoning_traces_without_reasoning(self):
+        response = LLMResponse(content="Response")
 
         reasoning_trace_var.set(None)
         _store_reasoning_traces(response)
@@ -119,7 +76,7 @@ class TestStoreReasoningTracesUnit:
 
         reasoning_trace_var.set(initial_trace)
 
-        response = AIMessage(content="Response", additional_kwargs={"reasoning_content": new_trace})
+        response = LLMResponse(content="Response", reasoning=new_trace)
 
         _store_reasoning_traces(response)
 
@@ -130,21 +87,13 @@ class TestStoreReasoningTracesUnit:
         reasoning_trace_var.set(None)
 
     def test_store_reasoning_traces_clears_previous_when_no_new_reasoning(self):
-        """Test that previous reasoning traces are cleared when new response has no reasoning.
-
-        This prevents stale reasoning from previous LLM calls (e.g., safety checks)
-        from leaking into subsequent responses.
-        """
-        # Set up a previous reasoning trace (simulating a safety check)
         previous_trace = "Previous safety check reasoning that should be cleared"
         reasoning_trace_var.set(previous_trace)
 
-        # Simulate a response with NO reasoning content (like from gpt-4o-mini)
-        response = AIMessage(content="Regular response without reasoning", additional_kwargs={})
+        response = LLMResponse(content="Regular response without reasoning")
 
         _store_reasoning_traces(response)
 
-        # The previous trace should be cleared, not persist
         stored_trace = reasoning_trace_var.get()
         assert stored_trace is None, "Previous reasoning trace should be cleared when new response has no reasoning"
 
@@ -157,10 +106,7 @@ class TestStoreReasoningTracesUnit:
 3. Third, formulate a response
 4. Finally, validate the response"""
 
-        response = AIMessage(
-            content="Response",
-            additional_kwargs={"reasoning_content": multiline_reasoning},
-        )
+        response = LLMResponse(content="Response", reasoning=multiline_reasoning)
 
         _store_reasoning_traces(response)
 
@@ -172,10 +118,7 @@ class TestStoreReasoningTracesUnit:
     def test_store_reasoning_traces_with_special_characters(self):
         special_reasoning = "Thinking: Let's analyze this <step> with \"quotes\" and 'apostrophes' & symbols!"
 
-        response = AIMessage(
-            content="Response",
-            additional_kwargs={"reasoning_content": special_reasoning},
-        )
+        response = LLMResponse(content="Response", reasoning=special_reasoning)
 
         _store_reasoning_traces(response)
 
@@ -200,9 +143,9 @@ class TestReasoningTraceIntegration:
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "What is the answer?")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "What is the answer?")
 
-        assert result == "The answer is 42"
+        assert result.content == "The answer is 42"
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == test_reasoning
 
@@ -217,9 +160,9 @@ class TestReasoningTraceIntegration:
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "Hello")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "Hello")
 
-        assert result == "Regular response"
+        assert result.content == "Regular response"
         stored_trace = reasoning_trace_var.get()
         assert stored_trace is None
 
@@ -244,9 +187,9 @@ class TestReasoningTraceIntegration:
         ]
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, messages)
+        result = await llm_call(LangChainLLMAdapter(mock_llm), messages)
 
-        assert result == "Here's my response"
+        assert result.content == "Here's my response"
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == test_reasoning
 
@@ -278,12 +221,13 @@ class TestReasoningTraceIntegration:
 
         from nemoguardrails.actions.llm.utils import llm_call
 
+        wrapped = LangChainLLMAdapter(mock_llm)
         reasoning_trace_var.set(None)
-        result1 = await llm_call(mock_llm, "First query")
+        result1 = await llm_call(wrapped, "First query")
         trace1 = reasoning_trace_var.get()
 
         reasoning_trace_var.set(None)
-        result2 = await llm_call(mock_llm, "Second query")
+        result2 = await llm_call(wrapped, "Second query")
         trace2 = reasoning_trace_var.get()
 
         assert trace1 == first_reasoning
@@ -310,9 +254,9 @@ class TestReasoningTraceIntegration:
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "Query")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "Query")
 
-        assert result == "Response"
+        assert result.content == "Response"
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == test_reasoning
 
@@ -332,10 +276,10 @@ class TestReasoningTraceIntegration:
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "What is the answer?")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "What is the answer?")
 
-        assert result == "The answer is 42"
-        assert "<think>" not in result
+        assert result.content == "The answer is 42"
+        assert "<think>" not in result.content
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == test_reasoning
 
@@ -356,9 +300,9 @@ class TestReasoningTraceIntegration:
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "Query")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "Query")
 
-        assert result == f"<think>{reasoning_from_tags}</think>Response"
+        assert result.content == f"<think>{reasoning_from_tags}</think>Response"
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == reasoning_from_kwargs
 
@@ -380,10 +324,10 @@ Step 3: Formulate the answer"""
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "Question")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "Question")
 
-        assert result == "Final answer"
-        assert "<think>" not in result
+        assert result.content == "Final answer"
+        assert "<think>" not in result.content
         stored_trace = reasoning_trace_var.get()
         assert stored_trace == multiline_reasoning
 
@@ -401,9 +345,9 @@ Step 3: Formulate the answer"""
         from nemoguardrails.actions.llm.utils import llm_call
 
         reasoning_trace_var.set(None)
-        result = await llm_call(mock_llm, "Query")
+        result = await llm_call(LangChainLLMAdapter(mock_llm), "Query")
 
-        assert result == "<think>This is incomplete"
+        assert result.content == "<think>This is incomplete"
         stored_trace = reasoning_trace_var.get()
         assert stored_trace is None
 

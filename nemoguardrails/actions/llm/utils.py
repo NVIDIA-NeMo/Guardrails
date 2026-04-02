@@ -15,10 +15,7 @@
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
-
-from langchain_core.language_models import BaseLanguageModel
-from langchain_core.runnables.base import Runnable
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, cast
 
 from nemoguardrails.colang.v2_x.lang.colang_ast import Flow
 from nemoguardrails.colang.v2_x.runtime.flows import InternalEvent, InternalEvents
@@ -30,249 +27,84 @@ from nemoguardrails.context import (
     tool_calls_var,
 )
 from nemoguardrails.exceptions import LLMCallException
-from nemoguardrails.integrations.langchain.message_utils import dicts_to_messages
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
+from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
     from nemoguardrails.streaming import StreamingHandler
 
 logger = logging.getLogger(__name__)
 
-# Since different providers have different attributes for the base URL, we'll use this list
-# to attempt to extract the base URL from a `BaseLanguageModel` instance.
-BASE_URL_ATTRIBUTES = [
-    "base_url",
-    "endpoint_url",
-    "server_url",
-    "azure_endpoint",
-    "openai_api_base",
-    "api_base",
-    "api_host",
-    "endpoint",
-]
+
+def _ensure_chat_messages(prompt: Union[str, list]) -> Union[str, List[ChatMessage]]:
+    if isinstance(prompt, str):
+        return prompt
+    if not prompt:
+        return cast(List[ChatMessage], [])
+    if isinstance(prompt[0], ChatMessage):
+        return cast(List[ChatMessage], prompt)
+    return [ChatMessage.from_dict(d) for d in prompt]
 
 
-def _infer_provider_from_module(llm: BaseLanguageModel) -> Optional[str]:
-    """Infer provider name from the LLM's module path.
-
-    This function extracts the provider name from LangChain package naming conventions:
-    - langchain_openai -> openai
-    - langchain_anthropic -> anthropic
-    - langchain_google_genai -> google_genai
-    - langchain_nvidia_ai_endpoints -> nvidia_ai_endpoints
-    - langchain_community.chat_models.ollama -> ollama
-
-    For patched/wrapped classes, checks base classes as well.
-
-    Args:
-        llm: The LLM instance
-
-    Returns:
-        The inferred provider name, or None if it cannot be determined
-    """
-    module = type(llm).__module__
-
-    if module.startswith("langchain_"):
-        package = module.split(".")[0]
-        provider = package.replace("langchain_", "")
-
-        if provider == "community":
-            parts = module.split(".")
-            if len(parts) >= 3:
-                provider = parts[-1]
-                return provider
-        else:
-            return provider
-
-    for base_class in type(llm).__mro__[1:]:
-        base_module = base_class.__module__
-        if base_module.startswith("langchain_"):
-            package = base_module.split(".")[0]
-            provider = package.replace("langchain_", "")
-
-            if provider == "community":
-                parts = base_module.split(".")
-                if len(parts) >= 3:
-                    provider = parts[-1]
-                    return provider
-            else:
-                return provider
-
-    return None
-
-
-def get_llm_provider(llm: BaseLanguageModel) -> Optional[str]:
-    """Get the provider name for an LLM instance by inferring from module path.
-
-    This function extracts the provider name from LangChain package naming conventions.
-    See _infer_provider_from_module for details on the inference logic.
-
-    Args:
-        llm: The LLM instance
-
-    Returns:
-        The provider name if it can be inferred, None otherwise
-    """
-    return _infer_provider_from_module(llm)
-
-
-def _infer_model_name(llm: BaseLanguageModel):
-    """Helper to infer the model name based from an LLM instance.
-
-    Because not all models implement correctly _identifying_params from LangChain, we have to
-    try to do this manually.
-    """
-    for attr in ["model", "model_name"]:
-        if hasattr(llm, attr):
-            val = getattr(llm, attr)
-            if isinstance(val, str):
-                return val
-
-    model_kwargs = getattr(llm, "model_kwargs", None)
-    if model_kwargs and isinstance(model_kwargs, Dict):
-        for attr in ["model", "model_name", "name"]:
-            val = model_kwargs.get(attr)
-            if isinstance(val, str):
-                return val
-
-    # If we still can't figure out, return "unknown".
-    return "unknown"
-
-
-def _filter_params_for_openai_reasoning_models(llm: BaseLanguageModel, llm_params: Optional[dict]) -> Optional[dict]:
-    """Filter out unsupported parameters for OpenAI reasoning models.
-
-    OpenAI reasoning models (o1, o3, gpt-5 excluding gpt-5-chat) do only allow
-    specific parameters (e.g. temperature, which is always fixed at 1, or stop).
-    When using .bind() with different values for these parameters, the API
-    returns an error. This function removes the unsupported parameters for specific
-    OpenAI reasoning models to ensure correct functionality for the API calls.
-
-    See also: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
-
-    Stop not supported as a parameter in the following models (as of Jan 26):
-    gpt5+ (only gpt-5-chat-latest works), o3, o3-pro (but o3-mini works), o4-mini
-    """
-    if not llm_params or ("temperature" not in llm_params and "stop" not in llm_params):
-        return llm_params
-
-    model_name = _infer_model_name(llm).lower()
-
-    # Models that do not support temperature as a param, or changing its default value
-    is_temperature_not_supported = (
-        model_name.startswith("o1")
-        or model_name.startswith("o3")
-        or (model_name.startswith("gpt-5") and "chat" not in model_name)
-    )
-    # Models that do not support stop as a param
-    is_stop_not_supported = (
-        (model_name.startswith("o3") and "o3-mini" not in model_name)
-        or model_name.startswith("o4-mini")
-        or (model_name.startswith("gpt-5") and "gpt-5-chat" not in model_name)
-    )
-
-    if is_temperature_not_supported or is_stop_not_supported:
-        filtered = llm_params.copy()
-        if is_temperature_not_supported:
-            filtered.pop("temperature", None)
-        if is_stop_not_supported:
-            filtered.pop("stop", None)
-        return filtered
-
-    return llm_params
-
-
+# TODO: we must drop prompt in the codebase completely and use messages everywhere.
 @track_llm_call
 async def llm_call(
-    llm: Optional[BaseLanguageModel],
+    llm: Optional[Any],
     prompt: Union[str, List[dict]],
     model_name: Optional[str] = None,
     model_provider: Optional[str] = None,
     stop: Optional[List[str]] = None,
     llm_params: Optional[dict] = None,
     streaming_handler: Optional["StreamingHandler"] = None,
-) -> str:
-    """Calls the LLM with a prompt and returns the generated text.
-
-    If streaming_handler is provided, uses astream() to push chunks to the handler
-    as they arrive. The handler can be iterated over concurrently by other code.
-
-    Args:
-        llm: The language model instance to use
-        prompt: The prompt string or list of messages
-        model_name: Optional model name for tracking
-        model_provider: Optional model provider for tracking
-        stop: Optional list of stop tokens
-        llm_params: Optional configuration dictionary to pass to the LLM (e.g., temperature, max_tokens)
-        streaming_handler: Optional StreamingHandler to receive streaming chunks
-
-    Returns:
-        The generated text response
-    """
+) -> LLMResponse:
     if llm is None:
         raise LLMCallException(ValueError("No LLM provided to llm_call()"))
-    _setup_llm_call_info(llm, model_name, model_provider)
-    _log_prompt(prompt)
 
-    llm_params_with_stop: Optional[dict]
-    if stop:
-        llm_params_with_stop = llm_params.copy() if llm_params else {}
-        llm_params_with_stop["stop"] = stop
+    model: LLMModel
+    if isinstance(llm, LLMModel):
+        model = llm
     else:
-        llm_params_with_stop = llm_params
+        raise TypeError(
+            f"Expected an LLMModel instance, got {type(llm).__name__}. "
+            "Wrap your LLM with an appropriate adapter before passing it to llm_call()."
+        )
 
-    filtered_params = _filter_params_for_openai_reasoning_models(llm, llm_params_with_stop)
-    generation_llm: Union[BaseLanguageModel, Runnable] = llm.bind(**filtered_params) if filtered_params else llm
+    _setup_llm_call_info(model, model_name, model_provider)
+    _log_prompt(prompt)
+    chat_prompt = _ensure_chat_messages(prompt)
 
     if streaming_handler:
-        return await _stream_llm_call(generation_llm, prompt, streaming_handler)
-    else:
-        if isinstance(prompt, str):
-            response = await _invoke_with_string_prompt(generation_llm, prompt)
-        else:
-            response = await _invoke_with_message_list(generation_llm, prompt)
+        return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, llm_params)
 
-        _store_reasoning_traces(response)
-        _log_completion(response)
-        _update_token_stats(response)
-        _store_tool_calls(response)
-        _store_response_metadata(response)
-        return _extract_content(response)
+    try:
+        response: LLMResponse = await model.generate(chat_prompt, stop=stop, **(llm_params or {}))
+    except Exception as e:
+        _raise_llm_call_exception(e, model)
+
+    _log_completion(response)
+    _update_token_stats(response)
+    _store_reasoning_traces(response)
+    _store_tool_calls(response)
+    _store_response_metadata(response)
+    return response
 
 
 async def _stream_llm_call(
-    llm: Union[BaseLanguageModel, Runnable],
-    prompt: Union[str, List[dict]],
+    model: LLMModel,
+    prompt: Union[str, List[ChatMessage]],
     handler: "StreamingHandler",
-) -> str:
-    """Stream LLM response using astream().
-
-    Pushes each chunk to the handler's queue. Another consumer can
-    iterate over the handler concurrently to receive chunks.
-    """
-    if isinstance(prompt, list):
-        messages = _convert_messages_to_langchain_format(prompt)
-    else:
-        messages = prompt
-
-    stop = []
-    if hasattr(llm, "kwargs"):
-        current_params = getattr(llm, "kwargs", {})
-        stop = current_params.get("stop", [])
-    if not stop:
-        stop = getattr(llm, "stop", [])
-    handler.stop = stop
+    stop: Optional[List[str]],
+    llm_params: Optional[dict] = None,
+) -> LLMResponse:
+    handler.stop = stop or []
     accumulated_metadata: Dict[str, Any] = {}
-    last_chunk = None
+    last_chunk: Optional[LLMResponseChunk] = None
 
     try:
-        async for chunk in llm.astream(messages):
+        async for chunk in model.stream(prompt, stop=stop, **(llm_params or {})):
             last_chunk = chunk
-            if hasattr(chunk, "content"):
-                content = chunk.content
-            else:
-                content = str(chunk)
+            content = chunk.delta_content or ""
 
             chunk_metadata = _extract_chunk_metadata(chunk)
             if chunk_metadata:
@@ -292,30 +124,38 @@ async def _stream_llm_call(
         if last_chunk is not None:
             _update_token_stats_from_chunk(last_chunk)
 
-        return handler.completion
+        return LLMResponse(
+            content=handler.completion,
+            usage=last_chunk.usage if last_chunk else None,
+            provider_metadata=accumulated_metadata if accumulated_metadata else None,
+        )
 
     except Exception as e:
-        _raise_llm_call_exception(e, llm)
+        _raise_llm_call_exception(e, model)
 
 
-def _extract_chunk_metadata(chunk) -> Optional[Dict[str, Any]]:
+def _extract_chunk_metadata(chunk: LLMResponseChunk) -> Optional[Dict[str, Any]]:
     metadata: Dict[str, Any] = {}
-    if hasattr(chunk, "response_metadata") and chunk.response_metadata:
-        metadata["response_metadata"] = chunk.response_metadata
-    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
-        metadata["usage_metadata"] = chunk.usage_metadata
+    if chunk.provider_metadata:
+        metadata["provider_metadata"] = chunk.provider_metadata
+    if chunk.usage:
+        metadata["usage"] = {
+            "input_tokens": chunk.usage.input_tokens,
+            "output_tokens": chunk.usage.output_tokens,
+            "total_tokens": chunk.usage.total_tokens,
+        }
     return metadata if metadata else None
 
 
-def _setup_llm_call_info(llm: BaseLanguageModel, model_name: Optional[str], model_provider: Optional[str]) -> None:
+def _setup_llm_call_info(model: LLMModel, model_name: Optional[str], model_provider: Optional[str]) -> None:
     """Initialize or update LLM call info in context."""
     llm_call_info = llm_call_info_var.get()
     if llm_call_info is None:
         llm_call_info = LLMCallInfo()
         llm_call_info_var.set(llm_call_info)
 
-    llm_call_info.llm_model_name = model_name or _infer_model_name(llm)
-    llm_call_info.llm_provider_name = model_provider or _infer_provider_from_module(llm)
+    llm_call_info.llm_model_name = model_name or model.model_name
+    llm_call_info.llm_provider_name = model_provider or model.provider_name
 
 
 def _log_prompt(prompt: Union[str, List[dict]]) -> None:
@@ -358,8 +198,7 @@ def _log_prompt(prompt: Union[str, List[dict]]) -> None:
         )
 
 
-def _log_completion(response) -> None:
-    """Log the completion from the response."""
+def _log_completion(response: LLMResponse) -> None:
     llm_call_info = llm_call_info_var.get()
     if llm_call_info is None:
         return
@@ -367,12 +206,8 @@ def _log_completion(response) -> None:
     completion_text = _extract_content(response)
     llm_call_info.completion = completion_text
 
-    reasoning_content = None
-    if hasattr(response, "additional_kwargs"):
-        reasoning_content = response.additional_kwargs.get("reasoning_content")
-
-    if reasoning_content:
-        full_completion = f"{reasoning_content}\n---\n{completion_text}"
+    if response.reasoning:
+        full_completion = f"{response.reasoning}\n---\n{completion_text}"
     else:
         full_completion = completion_text
 
@@ -383,8 +218,7 @@ def _log_completion(response) -> None:
     )
 
 
-def _update_token_stats(response) -> None:
-    """Update token usage statistics from the response."""
+def _update_token_stats(response: LLMResponse) -> None:
     llm_call_info = llm_call_info_var.get()
     llm_stats = llm_stats_var.get()
 
@@ -398,51 +232,20 @@ def _update_token_stats(response) -> None:
     if not llm_call_info.completion_tokens:
         llm_call_info.completion_tokens = 0
 
-    token_stats_found = False
-
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
-        token_stats_found = True
-        usage = response.usage_metadata
-        total = usage.get("total_tokens", 0)
-        input_tokens = usage.get("input_tokens", 0)
-        output_tokens = usage.get("output_tokens", 0)
-
-        llm_call_info.total_tokens = total
-        llm_call_info.prompt_tokens = input_tokens
-        llm_call_info.completion_tokens = output_tokens
+    if response.usage:
+        llm_call_info.total_tokens += response.usage.total_tokens
+        llm_call_info.prompt_tokens += response.usage.input_tokens
+        llm_call_info.completion_tokens += response.usage.output_tokens
 
         if llm_stats:
-            llm_stats.inc("total_tokens", total)
-            llm_stats.inc("total_prompt_tokens", input_tokens)
-            llm_stats.inc("total_completion_tokens", output_tokens)
-
-    if not token_stats_found and hasattr(response, "response_metadata") and response.response_metadata:
-        token_usage = response.response_metadata.get("token_usage", {})
-        if token_usage:
-            token_stats_found = True
-            total = token_usage.get("total_tokens", 0)
-            prompt_tokens = token_usage.get("prompt_tokens", 0)
-            completion_tokens = token_usage.get("completion_tokens", 0)
-
-            llm_call_info.total_tokens = total
-            llm_call_info.prompt_tokens = prompt_tokens
-            llm_call_info.completion_tokens = completion_tokens
-
-            if llm_stats:
-                llm_stats.inc("total_tokens", total)
-                llm_stats.inc("total_prompt_tokens", prompt_tokens)
-                llm_stats.inc("total_completion_tokens", completion_tokens)
-
-    if not token_stats_found:
+            llm_stats.inc("total_tokens", response.usage.total_tokens)
+            llm_stats.inc("total_prompt_tokens", response.usage.input_tokens)
+            llm_stats.inc("total_completion_tokens", response.usage.output_tokens)
+    else:
         logger.info("Token stats in LLM call info cannot be computed for current model!")
 
 
-def _update_token_stats_from_chunk(chunk) -> None:
-    """Update token usage statistics from a streaming chunk.
-
-    For streaming, token usage is often provided in the last chunk's response_metadata,
-    usage_metadata, or generation_info with a slightly different format than non-streaming.
-    """
+def _update_token_stats_from_chunk(chunk: LLMResponseChunk) -> None:
     llm_call_info = llm_call_info_var.get()
     llm_stats = llm_stats_var.get()
 
@@ -456,107 +259,30 @@ def _update_token_stats_from_chunk(chunk) -> None:
     if not llm_call_info.completion_tokens:
         llm_call_info.completion_tokens = 0
 
-    token_stats_found = False
-
-    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
-        token_stats_found = True
-        usage = chunk.usage_metadata
-        total = usage.get("total_tokens", 0)
-        input_tokens = usage.get("input_tokens", 0)
-        output_tokens = usage.get("output_tokens", 0)
-
-        llm_call_info.total_tokens = total
-        llm_call_info.prompt_tokens = input_tokens
-        llm_call_info.completion_tokens = output_tokens
+    if chunk.usage:
+        llm_call_info.total_tokens = chunk.usage.total_tokens
+        llm_call_info.prompt_tokens = chunk.usage.input_tokens
+        llm_call_info.completion_tokens = chunk.usage.output_tokens
 
         if llm_stats:
-            llm_stats.inc("total_tokens", total)
-            llm_stats.inc("total_prompt_tokens", input_tokens)
-            llm_stats.inc("total_completion_tokens", output_tokens)
-
-    if not token_stats_found and hasattr(chunk, "response_metadata") and chunk.response_metadata:
-        token_usage = chunk.response_metadata.get("token_usage", {})
-        if not token_usage:
-            token_usage = chunk.response_metadata.get("usage", {})
-        if token_usage:
-            token_stats_found = True
-            total = token_usage.get("total_tokens", 0)
-            prompt_tokens = token_usage.get("prompt_tokens", token_usage.get("input_tokens", 0))
-            completion_tokens = token_usage.get("completion_tokens", token_usage.get("output_tokens", 0))
-
-            llm_call_info.total_tokens = total
-            llm_call_info.prompt_tokens = prompt_tokens
-            llm_call_info.completion_tokens = completion_tokens
-
-            if llm_stats:
-                llm_stats.inc("total_tokens", total)
-                llm_stats.inc("total_prompt_tokens", prompt_tokens)
-                llm_stats.inc("total_completion_tokens", completion_tokens)
-
-    if not token_stats_found and hasattr(chunk, "generation_info") and chunk.generation_info:
-        token_usage = chunk.generation_info.get("token_usage", {})
-        if not token_usage:
-            token_usage = chunk.generation_info.get("usage", {})
-        if token_usage:
-            token_stats_found = True
-            total = token_usage.get("total_tokens", 0)
-            prompt_tokens = token_usage.get("prompt_tokens", token_usage.get("input_tokens", 0))
-            completion_tokens = token_usage.get("completion_tokens", token_usage.get("output_tokens", 0))
-
-            llm_call_info.total_tokens = total
-            llm_call_info.prompt_tokens = prompt_tokens
-            llm_call_info.completion_tokens = completion_tokens
-
-            if llm_stats:
-                llm_stats.inc("total_tokens", total)
-                llm_stats.inc("total_prompt_tokens", prompt_tokens)
-                llm_stats.inc("total_completion_tokens", completion_tokens)
+            llm_stats.inc("total_tokens", chunk.usage.total_tokens)
+            llm_stats.inc("total_prompt_tokens", chunk.usage.input_tokens)
+            llm_stats.inc("total_completion_tokens", chunk.usage.output_tokens)
 
 
 def _raise_llm_call_exception(
     exception: Exception,
-    llm: Union[BaseLanguageModel, Runnable],
+    model: LLMModel,
 ) -> NoReturn:
-    """Raise an LLMCallException with enriched context about the failed invocation.
-
-    Args:
-        exception: The original exception that occurred
-        llm: The LLM instance that was being invoked
-
-    Raises:
-        LLMCallException with context message including model name and endpoint
-    """
-    # Extract model name from context
     llm_call_info = llm_call_info_var.get()
-    model_name = (
-        llm_call_info.llm_model_name
-        if llm_call_info
-        else _infer_model_name(llm)
-        if isinstance(llm, BaseLanguageModel)
-        else ""
-    )
+    model_name = llm_call_info.llm_model_name if llm_call_info else model.model_name
+    provider_name = llm_call_info.llm_provider_name if llm_call_info else model.provider_name
 
-    # Extract endpoint URL from the LLM instance
-    endpoint_url = None
-    for attr in BASE_URL_ATTRIBUTES:
-        if hasattr(llm, attr):
-            value = getattr(llm, attr, None)
-            if value:
-                endpoint_url = str(value)
-                break
-
-    # If we didn't find endpoint URL, check the nested client object.
-    if not endpoint_url and hasattr(llm, "client"):
-        client = getattr(llm, "client", None)
-        if client and hasattr(client, "base_url"):
-            endpoint_url = str(client.base_url)
-
-    # Build context message with model and endpoint info
     context_parts = []
     if model_name:
         context_parts.append(f"model={model_name}")
-    if endpoint_url:
-        context_parts.append(f"endpoint={endpoint_url}")
+    if provider_name:
+        context_parts.append(f"provider={provider_name}")
 
     if context_parts:
         detail = f"Error invoking LLM ({', '.join(context_parts)})"
@@ -565,88 +291,16 @@ def _raise_llm_call_exception(
         raise LLMCallException(exception) from exception
 
 
-async def _invoke_with_string_prompt(
-    llm: Union[BaseLanguageModel, Runnable],
-    prompt: str,
-):
-    """Invoke LLM with string prompt."""
-    try:
-        return await llm.ainvoke(prompt)
-    except Exception as e:
-        _raise_llm_call_exception(e, llm)
-
-
-async def _invoke_with_message_list(
-    llm: Union[BaseLanguageModel, Runnable],
-    prompt: List[dict],
-):
-    """Invoke LLM with message list after converting to LangChain format."""
-    messages = _convert_messages_to_langchain_format(prompt)
-
-    try:
-        return await llm.ainvoke(messages)
-    except Exception as e:
-        _raise_llm_call_exception(e, llm)
-
-
-def _convert_messages_to_langchain_format(prompt: List[dict]) -> List:
-    """Convert message list to LangChain message format."""
-    return dicts_to_messages(prompt)
-
-
-def _store_reasoning_traces(response) -> None:
-    """Store reasoning traces from response in context variable.
-
-    Tries multiple extraction methods in order of preference:
-    1. content_blocks with type="reasoning" (LangChain v1 standard)
-    2. additional_kwargs["reasoning_content"] (provider-specific)
-    3. <think> tags in content (legacy fallback)
-
-    Args:
-        response: The LLM response object
-    """
-    reasoning_content = _extract_reasoning_from_content_blocks(response)
+def _store_reasoning_traces(response: LLMResponse) -> None:
+    reasoning_content = response.reasoning
 
     if not reasoning_content:
-        reasoning_content = _extract_reasoning_from_additional_kwargs(response)
-
-    if not reasoning_content:
-        # Some LLM providers (e.g., certain NVIDIA models) embed reasoning in <think> tags
-        # instead of properly populating reasoning_content in additional_kwargs, so we need
-        # both extraction methods to support different provider implementations.
         reasoning_content = _extract_and_remove_think_tags(response)
 
-    # Always set the variable, even if reasoning_content is None.
-    # This ensures each LLM call has a clean slate and prevents stale reasoning
-    # traces from previous LLM calls (e.g., safety checks) from leaking through.
     reasoning_trace_var.set(reasoning_content)
 
 
-def _extract_reasoning_from_content_blocks(response) -> Optional[str]:
-    """Extract reasoning from content_blocks with type='reasoning'.
-
-    This is the LangChain v1 standard for structured content blocks.
-    """
-    if hasattr(response, "content_blocks"):
-        for block in response.content_blocks:
-            if block.get("type") == "reasoning":
-                return block.get("reasoning")
-    return None
-
-
-def _extract_reasoning_from_additional_kwargs(response) -> Optional[str]:
-    """Extract reasoning from additional_kwargs['reasoning_content'].
-
-    This is used by some providers for backward compatibility.
-    """
-    if hasattr(response, "additional_kwargs"):
-        additional_kwargs = response.additional_kwargs
-        if isinstance(additional_kwargs, dict):
-            return additional_kwargs.get("reasoning_content")
-    return None
-
-
-def _extract_and_remove_think_tags(response) -> Optional[str]:
+def _extract_and_remove_think_tags(response: LLMResponse) -> Optional[str]:
     """Extract reasoning from <think> tags and remove them from `response.content`.
 
     This function looks for <think>...</think> tags in the response content,
@@ -659,9 +313,6 @@ def _extract_and_remove_think_tags(response) -> Optional[str]:
     Returns:
         The extracted reasoning content, or None if no <think> tags found
     """
-    if not hasattr(response, "content"):
-        return None
-
     content = response.content
     has_opening_tag = "<think>" in content
     has_closing_tag = "</think>" in content
@@ -685,49 +336,20 @@ def _extract_and_remove_think_tags(response) -> Optional[str]:
     return None
 
 
-def _store_tool_calls(response) -> None:
-    """Extract and store tool calls from response in context."""
-    tool_calls = _extract_tool_calls_from_content_blocks(response)
-    if not tool_calls:
-        tool_calls = _extract_tool_calls_from_attribute(response)
-    tool_calls_var.set(tool_calls)
-
-
-def _extract_tool_calls_from_content_blocks(response) -> List | None:
-    if hasattr(response, "content_blocks"):
-        tool_calls = []
-        for block in response.content_blocks:
-            if block.get("type") == "tool_call":
-                tool_calls.append(block)
-        return tool_calls if tool_calls else None
-    return None
-
-
-def _extract_tool_calls_from_attribute(response) -> List | None:
-    return getattr(response, "tool_calls", None)
-
-
-def _store_response_metadata(response) -> None:
-    """Store response metadata excluding content for metadata preservation.
-
-    Also extracts reasoning content from additional_kwargs if available from LangChain.
-    """
-    if hasattr(response, "model_fields"):
-        metadata = {}
-        for field_name in response.model_fields:
-            if field_name != "content":  # Exclude content since it may be modified by rails
-                metadata[field_name] = getattr(response, field_name)
-        llm_response_metadata_var.set(metadata)
-
+def _store_tool_calls(response: LLMResponse) -> None:
+    if response.tool_calls:
+        tool_calls_var.set([tc.to_dict() for tc in response.tool_calls])
     else:
-        llm_response_metadata_var.set(None)
+        tool_calls_var.set(None)
 
 
-def _extract_content(response) -> str:
+def _store_response_metadata(response: LLMResponse) -> None:
+    llm_response_metadata_var.set(response.provider_metadata)
+
+
+def _extract_content(response: LLMResponse) -> str:
     """Extract text content from response."""
-    if hasattr(response, "content"):
-        return response.content
-    return str(response)
+    return response.content
 
 
 def get_colang_history(
