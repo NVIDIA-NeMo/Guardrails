@@ -261,16 +261,14 @@ class LLMFramework(Protocol):
     Each framework (LangChain, LiteLLM, etc.) implements this protocol to
     provide a factory for creating ``LLMModel`` instances.
 
-    ``mode`` and ``model_kwargs`` are optional. Not all frameworks need them.
-    LangChain uses ``mode`` to choose between chat and text completion
-    models; other frameworks may ignore it. Implementations should handle
-    ``None`` values with sensible defaults.
+    ``model_kwargs`` carries all provider-specific configuration. Framework
+    implementations extract what they need (e.g. LangChain pops ``mode``
+    to choose between chat and text completion models).
     """
 
     def create_model(
         self,
         model_name: str,
         provider_name: str,
-        mode: Optional[str] = None,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> LLMModel: ...
