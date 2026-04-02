@@ -18,13 +18,12 @@ from typing import Optional
 from unittest.mock import patch
 
 import pytest
-from langchain_core.language_models import BaseChatModel
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from tests.conftest import REASONING_TRACE_MOCK_PATH
-from tests.utils import FakeLLM, clean_events, event_sequence_conforms, get_bound_llm_magic_mock
+from tests.utils import FakeLLM, clean_events, event_sequence_conforms
 
 
 @pytest.fixture
@@ -747,7 +746,7 @@ async def test_llm_constructor_with_empty_models_config():
 
     injected_llm = FakeLLM(responses=["express greeting"])
     llm_rails = LLMRails(config=config, llm=injected_llm)
-    assert llm_rails.llm == injected_llm
+    assert llm_rails.llm.raw_llm == injected_llm
 
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
@@ -1059,9 +1058,9 @@ def test_explain_calls_ensure_explain_info():
     """Make sure if no `explain_info` attribute is present in LLMRails it's populated with
     an empty ExplainInfo object"""
 
-    mock_llm = get_bound_llm_magic_mock(ainvoke_return_value={"spec": BaseChatModel})
+    fake_llm = FakeLLM(responses=["express greeting"])
     config = RailsConfig.from_content(config={"models": []})
-    rails = LLMRails(config=config, llm=mock_llm)
+    rails = LLMRails(config=config, llm=fake_llm)
     rails.generate(messages=[{"role": "user", "content": "Hi!"}])
 
     rails.explain_info = None

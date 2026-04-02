@@ -48,5 +48,17 @@ else:
     # Use the original LLMRails class
     from nemoguardrails.rails import LLMRails
 
+from nemoguardrails.llm.frameworks import (  # noqa: E402
+    get_default_framework,
+    register_framework,
+    set_default_framework,
+)
+
 __version__ = version("nemoguardrails")
-__all__ = ["LLMRails", "RailsConfig"]
+__all__ = [
+    "LLMRails",
+    "RailsConfig",
+    "get_default_framework",
+    "register_framework",
+    "set_default_framework",
+]
