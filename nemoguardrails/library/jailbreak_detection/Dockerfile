@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y git gcc g++ python3-dev wget && apt-get
 
 # Predownload embedding-based jailbreak detection models, set environment variable for path
 WORKDIR /models
-RUN wget https://huggingface.co/nvidia/NemoGuard-JailbreakDetect/resolve/main/snowflake.pkl
+RUN wget https://huggingface.co/nvidia/NemoGuard-JailbreakDetect/resolve/main/snowflake.onnx
 ENV EMBEDDING_CLASSIFIER_PATH=/models
 
 # Set working directory

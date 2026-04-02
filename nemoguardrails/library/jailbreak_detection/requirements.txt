@@ -5,10 +5,9 @@ starlette>=0.50.0
 typer>=0.7.0
 uvicorn>=0.23.2
 transformers>=5.3.0
-torch>=2.10.0
+torch>=2.9.0
 torchvision>=0.25.0
-nemoguardrails>=0.20.0
 numpy==1.26.4
-scikit-learn==1.5.2
 einops>=0.8.2
 onnxruntime>=1.24.3
+huggingface_hub>=1.0

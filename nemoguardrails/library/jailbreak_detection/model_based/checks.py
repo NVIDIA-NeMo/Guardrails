@@ -41,7 +41,14 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
         )
         return None
 
-    from nemoguardrails.library.jailbreak_detection.model_based.models import (
+    # check if model is present. If not, download it.
+    if not Path(classifier_path).joinpath("snowflake.onnx").is_file():
+        from huggingface_hub import hf_hub_download
+
+        hf_hub_download(repo_id="nvidia/NemoGuard-JailbreakDetect", filename="snowflake.onnx", cache_dir=classifier_path)
+
+
+    from model_based.models import (
         JailbreakClassifier,
     )
 
