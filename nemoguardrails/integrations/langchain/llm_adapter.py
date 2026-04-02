@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
@@ -26,6 +27,8 @@ from nemoguardrails.types import (
     ToolCallFunction,
     UsageInfo,
 )
+
+log = logging.getLogger(__name__)
 
 
 def _infer_model_name(llm: Any):
@@ -41,7 +44,7 @@ def _infer_model_name(llm: Any):
                 return val
 
     model_kwargs = getattr(llm, "model_kwargs", None)
-    if model_kwargs and isinstance(model_kwargs, Dict):
+    if model_kwargs and isinstance(model_kwargs, dict):
         for attr in ["model", "model_name", "name"]:
             val = model_kwargs.get(attr)
             if isinstance(val, str):
@@ -77,9 +80,7 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
 
         if provider == "community":
             parts = module.split(".")
-            if len(parts) >= 3:
-                provider = parts[-1]
-                return provider
+            return parts[-1] if len(parts) >= 3 else "community"
         else:
             return provider
 
@@ -91,9 +92,7 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
 
             if provider == "community":
                 parts = base_module.split(".")
-                if len(parts) >= 3:
-                    provider = parts[-1]
-                    return provider
+                return parts[-1] if len(parts) >= 3 else "community"
             else:
                 return provider
 
@@ -156,6 +155,7 @@ class LangChainLLMAdapter:
         if is_openai_reasoning_model:
             filtered = params.copy()
             filtered.pop("temperature", None)
+            log.debug("Stripped 'temperature' for reasoning model '%s'", model_name)
             return filtered
 
         return params
@@ -251,10 +251,13 @@ def _build_usage_info(raw: Any) -> Optional[UsageInfo]:
             return None
     if not raw:
         return None
+    input_tokens = raw.get("input_tokens", raw.get("prompt_tokens", 0))
+    output_tokens = raw.get("output_tokens", raw.get("completion_tokens", 0))
+    total_tokens = raw.get("total_tokens") or (input_tokens + output_tokens)
     return UsageInfo(
-        input_tokens=raw.get("input_tokens", raw.get("prompt_tokens", 0)),
-        output_tokens=raw.get("output_tokens", raw.get("completion_tokens", 0)),
-        total_tokens=raw.get("total_tokens", 0),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
         reasoning_tokens=raw.get("reasoning_tokens"),
         cached_tokens=raw.get("cached_tokens", raw.get("cache_read_input_tokens")),
     )

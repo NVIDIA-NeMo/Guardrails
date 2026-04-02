@@ -170,7 +170,7 @@ def chatmessage_to_langchain_message(msg: "ChatMessage") -> BaseMessage:
                 for tc in msg.tool_calls
             ]
         return AIMessage(content=content, **kwargs)
-    return HumanMessage(content=content)
+    raise ValueError(f"Unsupported ChatMessage role: {msg.role}")
 
 
 def chatmessages_to_langchain_messages(msgs: List["ChatMessage"]) -> List[BaseMessage]:
