@@ -23,6 +23,7 @@ from langchain_core.messages import AIMessage
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.context import tool_calls_var
+from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
 from tests.utils import get_bound_llm_magic_mock
 
 
@@ -106,20 +107,21 @@ class TestToolCallingPassthroughOnly:
     @pytest.mark.asyncio
     async def test_tool_calls_work_in_passthrough_mode(self, config_passthrough, mock_llm_with_tool_calls):
         """Test that tool calls create BotToolCalls events in passthrough mode."""
-        # Set up context with tool calls
         tool_calls = [
             {
                 "id": "call_123",
-                "type": "tool_call",
-                "name": "test_tool",
-                "args": {"param": "value"},
+                "type": "function",
+                "function": {
+                    "name": "test_tool",
+                    "arguments": {"param": "value"},
+                },
             }
         ]
         tool_calls_var.set(tool_calls)
 
         generation_actions = LLMGenerationActions(
             config=config_passthrough,
-            llm=mock_llm_with_tool_calls,
+            llm=LangChainLLMAdapter(mock_llm_with_tool_calls),
             llm_task_manager=MagicMock(),
             get_embedding_search_provider_instance=MagicMock(return_value=None),
         )
@@ -133,7 +135,11 @@ class TestToolCallingPassthroughOnly:
 
         assert len(result.events) == 1
         assert result.events[0]["type"] == "BotToolCalls"
-        assert result.events[0]["tool_calls"] == tool_calls
+        stored = result.events[0]["tool_calls"]
+        assert len(stored) == 1
+        assert stored[0]["function"]["name"] == "test_tool"
+        assert stored[0]["function"]["arguments"] == {"param": "value"}
+        assert stored[0]["id"] == "call_123"
 
     @pytest.mark.asyncio
     async def test_tool_calls_ignored_in_non_passthrough_mode(self, config_no_passthrough, mock_llm_with_tool_calls):
@@ -150,7 +156,7 @@ class TestToolCallingPassthroughOnly:
 
         generation_actions = LLMGenerationActions(
             config=config_no_passthrough,
-            llm=mock_llm_with_tool_calls,
+            llm=LangChainLLMAdapter(mock_llm_with_tool_calls),
             llm_task_manager=MagicMock(),
             get_embedding_search_provider_instance=MagicMock(return_value=None),
         )
@@ -177,7 +183,7 @@ class TestToolCallingPassthroughOnly:
 
         generation_actions = LLMGenerationActions(
             config=config_passthrough,
-            llm=mock_llm_with_tool_calls,
+            llm=LangChainLLMAdapter(mock_llm_with_tool_calls),
             llm_task_manager=MagicMock(),
             get_embedding_search_provider_instance=MagicMock(return_value=None),
         )
@@ -194,12 +200,12 @@ class TestToolCallingPassthroughOnly:
 
     def test_llm_rails_integration_passthrough_mode(self, config_passthrough, mock_llm_with_tool_calls):
         """Test LLMRails with passthrough mode allows tool calls."""
-        rails = LLMRails(config=config_passthrough, llm=mock_llm_with_tool_calls)
+        rails = LLMRails(config=config_passthrough, llm=LangChainLLMAdapter(mock_llm_with_tool_calls))
 
         assert rails.config.passthrough is True
 
     def test_llm_rails_integration_non_passthrough_mode(self, config_no_passthrough, mock_llm_with_tool_calls):
         """Test LLMRails without passthrough mode."""
-        rails = LLMRails(config=config_no_passthrough, llm=mock_llm_with_tool_calls)
+        rails = LLMRails(config=config_no_passthrough, llm=LangChainLLMAdapter(mock_llm_with_tool_calls))
 
         assert rails.config.passthrough is False

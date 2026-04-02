@@ -26,6 +26,8 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from nemoguardrails.types import ChatMessage, Role
+
 
 def get_message_role(msg: BaseMessage) -> str:
     """Get the role string for a BaseMessage."""
@@ -145,36 +147,6 @@ def is_message_type(obj: Any, message_type: Type[BaseMessage]) -> bool:
 def is_base_message(obj: Any) -> bool:
     """Check if an object is any type of BaseMessage."""
     return isinstance(obj, BaseMessage)
-
-
-def chatmessage_to_langchain_message(msg: "ChatMessage") -> BaseMessage:
-    from nemoguardrails.types import Role
-
-    content = msg.content or ""
-    if msg.role == Role.USER:
-        return HumanMessage(content=content)
-    elif msg.role == Role.SYSTEM:
-        return SystemMessage(content=content)
-    elif msg.role == Role.TOOL:
-        return ToolMessage(content=content, tool_call_id=msg.tool_call_id or "")
-    elif msg.role == Role.ASSISTANT:
-        kwargs: Dict[str, Any] = {}
-        if msg.tool_calls:
-            kwargs["tool_calls"] = [
-                {
-                    "name": tc.function.name,
-                    "args": tc.function.arguments,
-                    "id": tc.id,
-                    "type": "tool_call",
-                }
-                for tc in msg.tool_calls
-            ]
-        return AIMessage(content=content, **kwargs)
-    raise ValueError(f"Unsupported ChatMessage role: {msg.role}")
-
-
-def chatmessages_to_langchain_messages(msgs: List["ChatMessage"]) -> List[BaseMessage]:
-    return [chatmessage_to_langchain_message(m) for m in msgs]
 
 
 def is_ai_message(obj: Any) -> bool:
@@ -308,3 +280,54 @@ def create_tool_message(
         kwargs["status"] = status
 
     return ToolMessage(content=content, **kwargs)
+
+
+_ROLE_TO_LANGCHAIN = {
+    Role.USER: HumanMessage,
+    Role.ASSISTANT: AIMessage,
+    Role.SYSTEM: SystemMessage,
+    Role.TOOL: ToolMessage,
+}
+
+
+def chatmessage_to_langchain_message(msg: ChatMessage) -> BaseMessage:
+    cls = _ROLE_TO_LANGCHAIN.get(msg.role)
+    if cls is None:
+        raise ValueError(f"Unsupported role: {msg.role}")
+
+    kwargs: Dict[str, Any] = {}
+    if msg.name is not None:
+        kwargs["name"] = msg.name
+
+    if cls is AIMessage and msg.tool_calls:
+        kwargs["tool_calls"] = [
+            {"name": tc.function.name, "args": tc.function.arguments, "id": tc.id, "type": tc.type}
+            for tc in msg.tool_calls
+        ]
+
+    if cls is ToolMessage:
+        kwargs["tool_call_id"] = msg.tool_call_id or ""
+
+    return cls(content=msg.content, **kwargs)
+
+
+def chatmessages_to_langchain_messages(msgs: List[ChatMessage]) -> List[BaseMessage]:
+    return [chatmessage_to_langchain_message(m) for m in msgs]
+
+
+def tool_calls_to_langchain_format(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    result = []
+    for tc in tool_calls:
+        func = tc.get("function")
+        if func:
+            result.append(
+                {
+                    "name": func.get("name", ""),
+                    "args": func.get("arguments", {}),
+                    "id": tc.get("id", ""),
+                    "type": "tool_call",
+                }
+            )
+        else:
+            result.append(tc)
+    return result

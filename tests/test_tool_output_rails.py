@@ -32,7 +32,8 @@ async def validate_tool_parameters(tool_calls, context=None, **kwargs):
     dangerous_patterns = ["eval", "exec", "system", "../", "rm -", "DROP", "DELETE"]
 
     for tool_call in tool_calls:
-        args = tool_call.get("args", {})
+        func = tool_call.get("function", {})
+        args = func.get("arguments", {})
         for param_value in args.values():
             if isinstance(param_value, str):
                 if any(pattern.lower() in param_value.lower() for pattern in dangerous_patterns):
@@ -45,7 +46,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
     """Test implementation of tool call validation."""
     tool_calls = tool_calls or (context.get("tool_calls", []) if context else [])
 
-    return all(isinstance(call, dict) and "name" in call and "id" in call for call in tool_calls)
+    return all(isinstance(call, dict) and "function" in call and "id" in call for call in tool_calls)
 
 
 @pytest.mark.asyncio
