@@ -17,7 +17,6 @@ import asyncio
 import logging
 from typing import Optional
 
-from langchain_core.language_models import BaseLLM
 from langchain_core.prompts import PromptTemplate
 
 from nemoguardrails import RailsConfig
@@ -31,6 +30,7 @@ from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ HALLUCINATION_NUM_EXTRA_RESPONSES = 2
 
 @action(output_mapping=lambda value: value)
 async def self_check_hallucination(
-    llm: BaseLLM,
+    llm: LLMModel,
     llm_task_manager: LLMTaskManager,
     context: Optional[dict] = None,
     use_llm_checking: bool = True,
@@ -62,12 +62,12 @@ async def self_check_hallucination(
         async def _generate_extra_response(index: int) -> Optional[str]:
             llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_HALLUCINATION.value))
             try:
-                result = await llm_call(
+                response = await llm_call(
                     llm,
                     formatted_prompt,
                     llm_params={"temperature": 1.0},
                 )
-                result = get_multiline_response(result)
+                result = get_multiline_response(response.content)
                 result = strip_quotes(result)
                 return result
             except Exception as e:
@@ -101,12 +101,14 @@ async def self_check_hallucination(
             llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_HALLUCINATION.value))
             stop = llm_task_manager.get_stop_tokens(task=Task.SELF_CHECK_HALLUCINATION)
 
-            agreement = await llm_call(
-                llm,
-                prompt,
-                stop=stop,
-                llm_params={"temperature": config.lowest_temperature},
-            )
+            agreement = (
+                await llm_call(
+                    llm,
+                    prompt,
+                    stop=stop,
+                    llm_params={"temperature": config.lowest_temperature},
+                )
+            ).content
 
             agreement = agreement.lower().strip()
             log.info(f"Agreement result for looking for hallucination is {agreement}.")

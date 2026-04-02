@@ -16,8 +16,6 @@
 import logging
 from typing import Dict, List, Optional
 
-from langchain_core.language_models import BaseLLM
-
 from nemoguardrails.actions.actions import action
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.context import llm_call_info_var
@@ -32,6 +30,7 @@ from nemoguardrails.llm.cache.utils import (
 from nemoguardrails.llm.filters import to_chat_messages
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.logging.explain import LLMCallInfo
+from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ TOPIC_SAFETY_MAX_TOKENS = 10
 
 @action()
 async def topic_safety_check_input(
-    llms: Dict[str, BaseLLM],
+    llms: Dict[str, LLMModel],
     llm_task_manager: LLMTaskManager,
     model_name: Optional[str] = None,
     context: Optional[dict] = None,
@@ -122,7 +121,8 @@ async def topic_safety_check_input(
             log.debug(f"Topic safety cache hit for model '{model_name}'")
             return cached_result
 
-    result = await llm_call(llm, messages, stop=stop, llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE})
+    response = await llm_call(llm, messages, stop=stop, llm_params={"temperature": TOPIC_SAFETY_TEMPERATURE})
+    result = response.content
 
     if result.lower().strip() == "off-topic":
         on_topic = False
