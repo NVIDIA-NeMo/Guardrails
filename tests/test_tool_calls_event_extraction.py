@@ -32,7 +32,8 @@ async def validate_tool_parameters(tool_calls, context=None, **kwargs):
     dangerous_patterns = ["eval", "exec", "system", "../", "rm -", "DROP", "DELETE"]
 
     for tool_call in tool_calls:
-        args = tool_call.get("args", {})
+        func = tool_call.get("function", {})
+        args = func.get("arguments", {})
         for param_value in args.values():
             if isinstance(param_value, str):
                 if any(pattern.lower() in param_value.lower() for pattern in dangerous_patterns):
@@ -45,7 +46,7 @@ async def self_check_tool_calls(tool_calls, context=None, **kwargs):
     """Test implementation of tool call validation."""
     tool_calls = tool_calls or (context.get("tool_calls", []) if context else [])
 
-    return all(isinstance(call, dict) and "name" in call and "id" in call for call in tool_calls)
+    return all(isinstance(call, dict) and "function" in call and "id" in call for call in tool_calls)
 
 
 @pytest.mark.asyncio
@@ -143,10 +144,12 @@ async def test_llmrails_extracts_tool_calls_from_events():
 
     test_tool_calls = [
         {
-            "name": "extract_test",
-            "args": {"data": "test"},
             "id": "call_extract",
-            "type": "tool_call",
+            "type": "function",
+            "function": {
+                "name": "extract_test",
+                "arguments": {"data": "test"},
+            },
         }
     ]
 
@@ -158,7 +161,7 @@ async def test_llmrails_extracts_tool_calls_from_events():
 
     assert extracted_tool_calls is not None
     assert len(extracted_tool_calls) == 1
-    assert extracted_tool_calls[0]["name"] == "extract_test"
+    assert extracted_tool_calls[0]["function"]["name"] == "extract_test"
 
 
 @pytest.mark.asyncio
@@ -167,10 +170,12 @@ async def test_tool_rails_cannot_clear_context_variable():
 
     test_tool_calls = [
         {
-            "name": "blocked_tool",
-            "args": {"param": "rm -rf /"},
             "id": "call_blocked",
-            "type": "tool_call",
+            "type": "function",
+            "function": {
+                "name": "blocked_tool",
+                "arguments": {"param": "rm -rf /"},
+            },
         }
     ]
 
@@ -181,7 +186,7 @@ async def test_tool_rails_cannot_clear_context_variable():
 
     assert result is False
     assert tool_calls_var.get() is not None, "Context variable should not be cleared by tool rails"
-    assert tool_calls_var.get()[0]["name"] == "blocked_tool"
+    assert tool_calls_var.get()[0]["function"]["name"] == "blocked_tool"
 
 
 @pytest.mark.asyncio
