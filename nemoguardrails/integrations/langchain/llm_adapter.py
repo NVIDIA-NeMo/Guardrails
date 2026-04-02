@@ -139,8 +139,6 @@ class LangChainLLMAdapter:
 
     @property
     def provider_url(self) -> Optional[str]:
-        # temp: uses _BASE_URL_ATTRIBUTES which duplicates utils.py BASE_URL_ATTRIBUTES.
-        # utils.py copy will be removed in stack-3 when it switches to model.provider_url.
         for attr in _BASE_URL_ATTRIBUTES:
             value = getattr(self._llm, attr, None)
             if value:
