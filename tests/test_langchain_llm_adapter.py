@@ -1,0 +1,348 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.messages import AIMessage
+
+from nemoguardrails.integrations.langchain.llm_adapter import (
+    LangChainFramework,
+    LangChainLLMAdapter,
+    _langchain_chunk_to_llm_response_chunk,
+    _langchain_response_to_llm_response,
+)
+from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, ToolCall
+
+
+class TestLangChainLLMAdapter:
+    def test_raw_llm_property(self):
+        mock_llm = MagicMock()
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.raw_llm is mock_llm
+
+    def test_model_name_property(self):
+        mock_llm = MagicMock()
+        mock_llm.model_name = "gpt-4"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.model_name == "gpt-4"
+
+    def test_provider_name_property(self):
+        mock_llm = MagicMock()
+        mock_llm.__module__ = "langchain_openai.chat_models"
+        type(mock_llm).__module__ = "langchain_openai.chat_models"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.provider_name == "openai"
+
+    def test_provider_url_from_base_url(self):
+        mock_llm = MagicMock(spec=[])
+        mock_llm.base_url = "https://api.openai.com/v1"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.provider_url == "https://api.openai.com/v1"
+
+    def test_provider_url_from_azure_endpoint(self):
+        mock_llm = MagicMock(spec=[])
+        mock_llm.azure_endpoint = "https://example.openai.azure.com"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.provider_url == "https://example.openai.azure.com"
+
+    def test_provider_url_from_server_url(self):
+        mock_llm = MagicMock(spec=[])
+        mock_llm.server_url = "https://triton.example.com:8000"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.provider_url == "https://triton.example.com:8000"
+
+    def test_provider_url_from_nested_client(self):
+        mock_llm = MagicMock(spec=[])
+        mock_llm.client = MagicMock()
+        mock_llm.client.base_url = "https://custom.endpoint.com/v1"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.provider_url == "https://custom.endpoint.com/v1"
+
+    def test_provider_url_returns_none_when_not_available(self):
+        mock_llm = MagicMock(spec=[])
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert adapter.provider_url is None
+
+    @pytest.mark.asyncio
+    async def test_generate_with_string_prompt(self):
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = AIMessage(content="hello world")
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("say hello")
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "hello world"
+        mock_llm.ainvoke.assert_called_once_with("say hello", stop=None)
+
+    @pytest.mark.asyncio
+    async def test_generate_with_chat_message_list(self):
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = AIMessage(content="hi there")
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate([ChatMessage.from_user("hello")])
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "hi there"
+        mock_llm.ainvoke.assert_called_once()
+        call_args = mock_llm.ainvoke.call_args
+        assert len(call_args[0][0]) == 1
+
+    @pytest.mark.asyncio
+    async def test_generate_returns_llm_response_with_reasoning(self):
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = AIMessage(
+            content="response",
+            additional_kwargs={"reasoning_content": "thinking"},
+            response_metadata={"model": "gpt-4"},
+        )
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("prompt")
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "response"
+        assert result.reasoning == "thinking"
+        assert result.model == "gpt-4"
+
+    @pytest.mark.asyncio
+    async def test_generate_maps_tool_calls(self):
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "search", "args": {"q": "weather"}, "id": "tc_1", "type": "tool_call"},
+            ],
+        )
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("prompt")
+
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert isinstance(result.tool_calls[0], ToolCall)
+        assert result.tool_calls[0].function.name == "search"
+        assert result.tool_calls[0].function.arguments == {"q": "weather"}
+        assert result.tool_calls[0].id == "tc_1"
+        assert result.tool_calls[0].type == "function"
+
+    @pytest.mark.asyncio
+    async def test_generate_maps_usage_metadata(self):
+        mock_llm = AsyncMock()
+        response = AIMessage(content="ok")
+        response.usage_metadata = {"total_tokens": 100, "input_tokens": 60, "output_tokens": 40}
+        mock_llm.ainvoke.return_value = response
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("prompt")
+
+        assert result.usage is not None
+        assert result.usage.total_tokens == 100
+        assert result.usage.input_tokens == 60
+        assert result.usage.output_tokens == 40
+
+    @pytest.mark.asyncio
+    async def test_stream_yields_llm_response_chunks(self):
+        mock_llm = MagicMock()
+        chunks = [
+            MagicMock(content="hel", response_metadata=None, usage_metadata=None, generation_info=None),
+            MagicMock(content="lo", response_metadata=None, usage_metadata=None, generation_info=None),
+        ]
+
+        async def mock_astream(*args, **kwargs):
+            for c in chunks:
+                yield c
+
+        mock_llm.astream = mock_astream
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        results = []
+        async for chunk in adapter.stream("say hello"):
+            results.append(chunk)
+
+        assert len(results) == 2
+        assert all(isinstance(r, LLMResponseChunk) for r in results)
+        assert results[0].delta_content == "hel"
+        assert results[1].delta_content == "lo"
+
+    @pytest.mark.asyncio
+    async def test_generate_passes_kwargs_via_bind(self):
+        mock_llm = MagicMock()
+        bound_llm = AsyncMock()
+        bound_llm.ainvoke.return_value = AIMessage(content="bound response")
+        mock_llm.bind.return_value = bound_llm
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("prompt", temperature=0.5, max_tokens=100)
+
+        mock_llm.bind.assert_called_once_with(temperature=0.5, max_tokens=100)
+        bound_llm.ainvoke.assert_called_once_with("prompt", stop=None)
+        assert result.content == "bound response"
+
+    @pytest.mark.asyncio
+    async def test_generate_no_kwargs_skips_bind(self):
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = AIMessage(content="direct response")
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("prompt")
+
+        mock_llm.bind.assert_not_called()
+        assert result.content == "direct response"
+
+    @pytest.mark.asyncio
+    async def test_generate_filters_reasoning_model_params(self):
+        mock_llm = MagicMock()
+        mock_llm.model_name = "o1-preview"
+        bound_llm = AsyncMock()
+        bound_llm.ainvoke.return_value = AIMessage(content="reasoning response")
+        mock_llm.bind.return_value = bound_llm
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        result = await adapter.generate("prompt", temperature=0.5, max_tokens=100)
+
+        mock_llm.bind.assert_called_once_with(max_tokens=100)
+        assert result.content == "reasoning response"
+
+    def test_satisfies_llm_model_protocol(self):
+        mock_llm = MagicMock()
+        mock_llm.model_name = "test"
+        adapter = LangChainLLMAdapter(mock_llm)
+        assert isinstance(adapter, LLMModel)
+
+
+class TestLangChainFramework:
+    def test_framework_creates_model(self):
+        framework = LangChainFramework()
+
+        mock_raw_llm = MagicMock()
+        with patch(
+            "nemoguardrails.llm.models.langchain_initializer.init_langchain_model",
+            return_value=mock_raw_llm,
+        ) as mock_init:
+            model = framework.create_model(
+                model_name="gpt-4",
+                provider_name="openai",
+                model_kwargs={"mode": "chat", "temperature": 0.5},
+            )
+
+        assert isinstance(model, LangChainLLMAdapter)
+        assert model.raw_llm is mock_raw_llm
+        mock_init.assert_called_once_with(
+            model_name="gpt-4",
+            provider_name="openai",
+            mode="chat",
+            kwargs={"temperature": 0.5},
+        )
+
+
+class TestFilterReasoningModelParams:
+    def _make_adapter(self, model_name):
+        mock_llm = MagicMock()
+        mock_llm.model_name = model_name
+        return LangChainLLMAdapter(mock_llm)
+
+    @pytest.mark.parametrize(
+        "model,params,expected",
+        [
+            ("gpt-4", {"temperature": 0.5, "max_tokens": 100}, {"temperature": 0.5, "max_tokens": 100}),
+            ("gpt-4o", {"temperature": 0.7}, {"temperature": 0.7}),
+            ("gpt-4o-mini", {"temperature": 0.3, "max_tokens": 50}, {"temperature": 0.3, "max_tokens": 50}),
+            ("gpt-5-chat", {"temperature": 0.5}, {"temperature": 0.5}),
+            ("o1-preview", {"temperature": 0.001, "max_tokens": 100}, {"max_tokens": 100}),
+            ("o1-mini", {"temperature": 0.5}, {}),
+            ("o3", {"temperature": 0.001, "max_tokens": 200}, {"max_tokens": 200}),
+            ("o3-mini", {"temperature": 0.1}, {}),
+            ("gpt-5", {"temperature": 0.001}, {}),
+            ("gpt-5-mini", {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("gpt-5-nano", {"temperature": 0.001}, {}),
+            ("o1-preview", {"max_tokens": 100}, {"max_tokens": 100}),
+            ("o1-preview", {}, {}),
+        ],
+    )
+    def test_filter_params(self, model, params, expected):
+        adapter = self._make_adapter(model)
+        result = adapter._filter_reasoning_model_params(params)
+        assert result == expected
+
+    def test_returns_none_when_params_is_none(self):
+        adapter = self._make_adapter("gpt-4")
+        result = adapter._filter_reasoning_model_params(None)
+        assert result is None
+
+    def test_does_not_modify_original_params(self):
+        adapter = self._make_adapter("o1-preview")
+        params = {"temperature": 0.5, "max_tokens": 100}
+        adapter._filter_reasoning_model_params(params)
+        assert params == {"temperature": 0.5, "max_tokens": 100}
+
+
+class TestConversionHelpers:
+    def test_langchain_response_to_llm_response_basic(self):
+        response = AIMessage(content="hello")
+        result = _langchain_response_to_llm_response(response)
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "hello"
+
+    def test_langchain_response_to_llm_response_with_tool_calls(self):
+        response = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "fn", "args": {"x": 1}, "id": "tc1", "type": "tool_call"},
+            ],
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].function.name == "fn"
+        assert result.tool_calls[0].function.arguments == {"x": 1}
+
+    def test_langchain_response_fallback_to_str(self):
+        result = _langchain_response_to_llm_response("plain text")
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "plain text"
+
+    def test_langchain_chunk_to_llm_response_chunk_with_content(self):
+        chunk = MagicMock()
+        chunk.content = "hello"
+        chunk.response_metadata = {"finish_reason": "stop"}
+        chunk.usage_metadata = None
+        chunk.generation_info = None
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert isinstance(result, LLMResponseChunk)
+        assert result.delta_content == "hello"
+        assert result.provider_metadata is not None
+        assert result.provider_metadata["finish_reason"] == "stop"
+
+    def test_langchain_chunk_to_llm_response_chunk_with_text(self):
+        chunk = MagicMock(spec=[])
+        chunk.text = "world"
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.delta_content == "world"
+
+    def test_langchain_chunk_to_llm_response_chunk_fallback_str(self):
+        result = _langchain_chunk_to_llm_response_chunk("raw string")
+
+        assert isinstance(result, LLMResponseChunk)
+        assert result.delta_content == "raw string"

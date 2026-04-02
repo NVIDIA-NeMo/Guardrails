@@ -147,6 +147,36 @@ def is_base_message(obj: Any) -> bool:
     return isinstance(obj, BaseMessage)
 
 
+def chatmessage_to_langchain_message(msg: "ChatMessage") -> BaseMessage:
+    from nemoguardrails.types import Role
+
+    content = msg.content or ""
+    if msg.role == Role.USER:
+        return HumanMessage(content=content)
+    elif msg.role == Role.SYSTEM:
+        return SystemMessage(content=content)
+    elif msg.role == Role.TOOL:
+        return ToolMessage(content=content, tool_call_id=msg.tool_call_id or "")
+    elif msg.role == Role.ASSISTANT:
+        kwargs: Dict[str, Any] = {}
+        if msg.tool_calls:
+            kwargs["tool_calls"] = [
+                {
+                    "name": tc.function.name,
+                    "args": tc.function.arguments,
+                    "id": tc.id,
+                    "type": "tool_call",
+                }
+                for tc in msg.tool_calls
+            ]
+        return AIMessage(content=content, **kwargs)
+    return HumanMessage(content=content)
+
+
+def chatmessages_to_langchain_messages(msgs: List["ChatMessage"]) -> List[BaseMessage]:
+    return [chatmessage_to_langchain_message(m) for m in msgs]
+
+
 def is_ai_message(obj: Any) -> bool:
     """Check if an object is an AIMessage."""
     return isinstance(obj, AIMessage)
