@@ -50,7 +50,7 @@ def test_get_and_clear_tool_calls_contextvar_empty():
     assert result is None
 
 
-def testdicts_to_messages_user():
+def test_dicts_to_messages_user():
     messages = [{"role": "user", "content": "Hello"}]
 
     result = dicts_to_messages(messages)
@@ -60,7 +60,7 @@ def testdicts_to_messages_user():
     assert result[0].content == "Hello"
 
 
-def testdicts_to_messages_assistant():
+def test_dicts_to_messages_assistant():
     messages = [{"role": "assistant", "content": "Hi there"}]
 
     result = dicts_to_messages(messages)
@@ -70,7 +70,7 @@ def testdicts_to_messages_assistant():
     assert result[0].content == "Hi there"
 
 
-def testdicts_to_messages_bot():
+def test_dicts_to_messages_bot():
     messages = [{"type": "bot", "content": "Hello from bot"}]
 
     result = dicts_to_messages(messages)
@@ -80,7 +80,7 @@ def testdicts_to_messages_bot():
     assert result[0].content == "Hello from bot"
 
 
-def testdicts_to_messages_system():
+def test_dicts_to_messages_system():
     messages = [{"role": "system", "content": "You are a helpful assistant"}]
 
     result = dicts_to_messages(messages)
@@ -90,7 +90,7 @@ def testdicts_to_messages_system():
     assert result[0].content == "You are a helpful assistant"
 
 
-def testdicts_to_messages_tool():
+def test_dicts_to_messages_tool():
     messages = [{"role": "tool", "content": "Tool result", "tool_call_id": "call_123"}]
 
     result = dicts_to_messages(messages)
@@ -101,7 +101,7 @@ def testdicts_to_messages_tool():
     assert result[0].tool_call_id == "call_123"
 
 
-def testdicts_to_messages_tool_no_id():
+def test_dicts_to_messages_tool_no_id():
     messages = [{"role": "tool", "content": "Tool result"}]
 
     result = dicts_to_messages(messages)
@@ -112,7 +112,7 @@ def testdicts_to_messages_tool_no_id():
     assert result[0].tool_call_id == ""
 
 
-def testdicts_to_messages_mixed():
+def test_dicts_to_messages_mixed():
     messages = [
         {"role": "system", "content": "System prompt"},
         {"role": "user", "content": "User message"},
@@ -130,7 +130,7 @@ def testdicts_to_messages_mixed():
     assert result[3].tool_call_id == "call_456"
 
 
-def testdicts_to_messages_unknown_type():
+def test_dicts_to_messages_unknown_type():
     messages = [{"role": "unknown", "content": "Unknown message"}]
 
     with pytest.raises(ValueError, match="Unknown message type: unknown"):
