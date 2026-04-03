@@ -131,7 +131,9 @@ def _content_safety_to_rail_result(parsed: object) -> RailResult:
     if isinstance(parsed, (list, tuple)):
         if parsed and parsed[0] is True:
             return RailResult(is_safe=True)
-        if len(parsed) > 1 and parsed[0] is False:
-            categories = ", ".join(str(c) for c in parsed[1:])
-            return RailResult(is_safe=False, reason=f"Safety categories: {categories}")
+        if parsed and parsed[0] is False:
+            if len(parsed) > 1:
+                categories = ", ".join(str(c) for c in parsed[1:])
+                return RailResult(is_safe=False, reason=f"Safety categories: {categories}")
+            return RailResult(is_safe=False, reason="Unknown")
     raise RuntimeError(f"Unexpected content safety parse result: {parsed}")

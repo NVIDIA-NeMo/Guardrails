@@ -29,7 +29,7 @@ from nemoguardrails.library.topic_safety.actions import (
 from nemoguardrails.library.topic_safety.iorails_actions import TopicSafetyInputAction
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from tests.guardrails.test_data import TOPIC_SAFETY_CONFIG
+from tests.guardrails.test_data import TOPIC_SAFETY_CONFIG, TOPIC_SAFETY_INPUT_PROMPT
 
 FLOW = "topic safety check input $model=topic_control"
 MESSAGES = [{"role": "user", "content": "What is the capital of France?"}]
@@ -169,3 +169,53 @@ class TestTopicSafetyRun:
         result = await action.run(FLOW, MESSAGES)
         assert not result.is_safe
         assert "timeout" in result.reason
+
+
+class TestTopicSafetyPromptIsList:
+    """Test that a list-type prompt raises."""
+
+    def test_list_prompt_raises(self):
+        config = RailsConfig.from_content(
+            config={
+                **TOPIC_SAFETY_CONFIG,
+                "prompts": [
+                    {
+                        "task": "topic_safety_check_input $model=topic_control",
+                        "messages": [{"type": "system", "content": "guidelines"}],
+                    },
+                ],
+            }
+        )
+        task_manager = LLMTaskManager(config)
+        model_manager = ModelManager(config)
+        action = TopicSafetyInputAction(model_manager, task_manager)
+        with pytest.raises(RuntimeError, match="must be a string template"):
+            action._create_prompt(FLOW, {"messages": MESSAGES})
+
+
+class TestTopicSafetyStopTokens:
+    """Test that stop tokens from task config are passed through."""
+
+    @pytest.mark.asyncio
+    async def test_passes_stop_tokens(self):
+        config = RailsConfig.from_content(
+            config={
+                **TOPIC_SAFETY_CONFIG,
+                "prompts": [
+                    {
+                        "task": "topic_safety_check_input $model=topic_control",
+                        "content": TOPIC_SAFETY_INPUT_PROMPT,
+                        "stop": ["</s>"],
+                    },
+                ],
+            }
+        )
+        task_manager = LLMTaskManager(config)
+        model_manager = ModelManager(config)
+        action = TopicSafetyInputAction(model_manager, task_manager)
+        action.model_manager.generate_async = AsyncMock(return_value="on-topic")
+
+        await action.run(FLOW, MESSAGES)
+
+        call_kwargs = action.model_manager.generate_async.call_args.kwargs
+        assert call_kwargs["stop"] == ["</s>"]

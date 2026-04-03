@@ -125,6 +125,15 @@ class TestResponseHelpers:
             await dummy_action._get_local_response()
 
 
+class TestValidateFlowName:
+    """Test _validate_flow_name on the base class."""
+
+    def test_mismatched_flow_name_raises(self, dummy_action):
+        dummy_action.action_name = "content safety check input"
+        with pytest.raises(RuntimeError, match="does not match expected action_name"):
+            dummy_action._validate_flow_name("topic safety check input $model=topic_control")
+
+
 class TestStaticHelpers:
     """Test shared static utilities on the base class."""
 

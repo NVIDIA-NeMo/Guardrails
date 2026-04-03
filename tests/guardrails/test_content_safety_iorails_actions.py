@@ -29,7 +29,7 @@ from nemoguardrails.library.content_safety.iorails_actions import (
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG
+from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, CONTENT_SAFETY_INPUT_PROMPT, CONTENT_SAFETY_OUTPUT_PROMPT
 
 FLOW_INPUT = "content safety check input $model=content_safety"
 FLOW_OUTPUT = "content safety check output $model=content_safety"
@@ -89,6 +89,11 @@ class TestContentSafetyToRailResult:
         assert not result.is_safe
         assert "S1: Violence" in result.reason
         assert "S17: Malware" in result.reason
+
+    def test_unsafe_no_categories(self):
+        result = _content_safety_to_rail_result([False])
+        assert not result.is_safe
+        assert result.reason == "Unknown"
 
     def test_unsafe_single_category(self):
         result = _content_safety_to_rail_result([False, "S17: Malware"])
@@ -207,3 +212,96 @@ class TestContentSafetyOutputRun:
         result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
         assert not result.is_safe
         assert "timeout" in result.reason
+
+
+class TestContentSafetyMissingConfig:
+    """Test that missing content_safety config raises."""
+
+    def test_input_missing_content_safety_config_raises(self):
+        config = RailsConfig.from_content(
+            config={
+                "models": CONTENT_SAFETY_CONFIG["models"],
+                "rails": CONTENT_SAFETY_CONFIG["rails"],
+                "prompts": CONTENT_SAFETY_CONFIG["prompts"],
+            }
+        )
+        # Clear the content_safety config to simulate it being None
+        config.rails.config.content_safety = None
+        task_manager = LLMTaskManager(config)
+        model_manager = ModelManager(config)
+        action = ContentSafetyInputAction(model_manager, task_manager)
+        with pytest.raises(RuntimeError, match="content_safety config is required"):
+            action._create_prompt(FLOW_INPUT, {"user_input": "test"})
+
+    def test_output_missing_content_safety_config_raises(self):
+        config = RailsConfig.from_content(
+            config={
+                "models": CONTENT_SAFETY_CONFIG["models"],
+                "rails": CONTENT_SAFETY_CONFIG["rails"],
+                "prompts": CONTENT_SAFETY_CONFIG["prompts"],
+            }
+        )
+        config.rails.config.content_safety = None
+        task_manager = LLMTaskManager(config)
+        model_manager = ModelManager(config)
+        action = ContentSafetyOutputAction(model_manager, task_manager)
+        with pytest.raises(RuntimeError, match="content_safety config is required"):
+            action._create_prompt(FLOW_OUTPUT, {"user_input": "test", "bot_response": "resp"})
+
+
+class TestContentSafetyStopTokens:
+    """Test that stop tokens from task config are passed through."""
+
+    @pytest.mark.asyncio
+    async def test_input_passes_stop_tokens(self):
+        config_with_stop = {
+            "models": CONTENT_SAFETY_CONFIG["models"],
+            "rails": CONTENT_SAFETY_CONFIG["rails"],
+            "prompts": [
+                {
+                    "task": "content_safety_check_input $model=content_safety",
+                    "content": CONTENT_SAFETY_INPUT_PROMPT,
+                    "output_parser": "nemoguard_parse_prompt_safety",
+                    "max_tokens": 50,
+                    "stop": ["</s>"],
+                },
+                CONTENT_SAFETY_CONFIG["prompts"][1],
+            ],
+        }
+        config = RailsConfig.from_content(config=config_with_stop)
+        task_manager = LLMTaskManager(config)
+        model_manager = ModelManager(config)
+        action = ContentSafetyInputAction(model_manager, task_manager)
+        action.model_manager.generate_async = AsyncMock(return_value=SAFE_JSON)
+
+        await action.run(FLOW_INPUT, MESSAGES)
+
+        call_kwargs = action.model_manager.generate_async.call_args.kwargs
+        assert call_kwargs["stop"] == ["</s>"]
+
+    @pytest.mark.asyncio
+    async def test_output_passes_stop_tokens(self):
+        config_with_stop = {
+            "models": CONTENT_SAFETY_CONFIG["models"],
+            "rails": CONTENT_SAFETY_CONFIG["rails"],
+            "prompts": [
+                CONTENT_SAFETY_CONFIG["prompts"][0],
+                {
+                    "task": "content_safety_check_output $model=content_safety",
+                    "content": CONTENT_SAFETY_OUTPUT_PROMPT,
+                    "output_parser": "nemoguard_parse_response_safety",
+                    "max_tokens": 50,
+                    "stop": ["</s>"],
+                },
+            ],
+        }
+        config = RailsConfig.from_content(config=config_with_stop)
+        task_manager = LLMTaskManager(config)
+        model_manager = ModelManager(config)
+        action = ContentSafetyOutputAction(model_manager, task_manager)
+        action.model_manager.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+
+        await action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
+
+        call_kwargs = action.model_manager.generate_async.call_args.kwargs
+        assert call_kwargs["stop"] == ["</s>"]

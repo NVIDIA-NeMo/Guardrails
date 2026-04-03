@@ -83,11 +83,10 @@ class RailAction(ABC):
         try:
             response = await self._get_response(flow, prompt, model_type)
             log.debug("[%s] %s response: %s", req_id, base_flow, truncate(response))
+            return self._parse_response(response)
         except Exception as e:
-            log.error("[%s] %s call failed: %s", req_id, base_flow, e)
+            log.error("[%s] %s failed: %s", req_id, base_flow, e)
             return RailResult(is_safe=False, reason=f"{base_flow} error: {e}")
-
-        return self._parse_response(response)
 
     # ------------------------------------------------------------------
     # Abstract hooks — subclasses must implement these
