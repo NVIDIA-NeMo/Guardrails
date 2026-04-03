@@ -39,7 +39,10 @@ class ContentSafetyInputAction(RailAction):
     def _create_prompt(self, flow: str, extracted: dict[str, Any]) -> list[dict]:
         model_type = self._require_model_type(flow)
         task_key = f"content_safety_check_input $model={model_type}"
-        reasoning_enabled = self.task_manager.config.rails.config.content_safety.reasoning.enabled
+        content_safety_config = self.task_manager.config.rails.config.content_safety
+        if content_safety_config is None:
+            raise RuntimeError("content_safety config is required for content safety rail")
+        reasoning_enabled = content_safety_config.reasoning.enabled
 
         prompt = self.task_manager.render_task_prompt(
             task=task_key,
@@ -60,7 +63,7 @@ class ContentSafetyInputAction(RailAction):
         response_text = await self._get_llm_response(model_type, prompt, **kwargs)
 
         # Parse via LLMTaskManager's registered output parser
-        return self.task_manager.parse_task_output(task=task_key, output=response_text)
+        return self.task_manager.parse_task_output(task=task_key, output=response_text)  # type: ignore[arg-type]
 
     def _parse_response(self, response: Any) -> RailResult:
         return _content_safety_to_rail_result(response)
@@ -86,7 +89,10 @@ class ContentSafetyOutputAction(RailAction):
     def _create_prompt(self, flow: str, extracted: dict[str, Any]) -> list[dict]:
         model_type = self._require_model_type(flow)
         task_key = f"content_safety_check_output $model={model_type}"
-        reasoning_enabled = self.task_manager.config.rails.config.content_safety.reasoning.enabled
+        content_safety_config = self.task_manager.config.rails.config.content_safety
+        if content_safety_config is None:
+            raise RuntimeError("content_safety config is required for content safety rail")
+        reasoning_enabled = content_safety_config.reasoning.enabled
 
         prompt = self.task_manager.render_task_prompt(
             task=task_key,
@@ -109,7 +115,7 @@ class ContentSafetyOutputAction(RailAction):
             kwargs["stop"] = stop
 
         response_text = await self._get_llm_response(model_type, prompt, **kwargs)
-        return self.task_manager.parse_task_output(task=task_key, output=response_text)
+        return self.task_manager.parse_task_output(task=task_key, output=response_text)  # type: ignore[arg-type]
 
     def _parse_response(self, response: Any) -> RailResult:
         return _content_safety_to_rail_result(response)
