@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.library.jailbreak_detection.iorails_actions import JailbreakDetectionAction
 
 FLOW = "jailbreak detection model"
@@ -57,22 +58,21 @@ class TestJailbreakPrompt:
 
 class TestJailbreakParseResponse:
     def test_safe(self, action):
-        result = action._parse_response({"jailbreak": False, "score": 0.1})
-        assert result.is_safe
-        assert "0.1" in result.reason
+        assert action._parse_response({"jailbreak": False, "score": 0.1}) == RailResult(
+            is_safe=True, reason="Score: 0.1"
+        )
 
     def test_jailbreak_detected(self, action):
-        result = action._parse_response({"jailbreak": True, "score": 0.95})
-        assert not result.is_safe
-        assert "0.95" in result.reason
+        assert action._parse_response({"jailbreak": True, "score": 0.95}) == RailResult(
+            is_safe=False, reason="Score: 0.95"
+        )
 
     def test_missing_jailbreak_field_raises(self, action):
         with pytest.raises(RuntimeError, match="missing 'jailbreak' field"):
             action._parse_response({"score": 0.5})
 
     def test_no_score_uses_unknown(self, action):
-        result = action._parse_response({"jailbreak": False})
-        assert "unknown" in result.reason
+        assert action._parse_response({"jailbreak": False}) == RailResult(is_safe=True, reason="Score: unknown")
 
 
 class TestJailbreakRun:

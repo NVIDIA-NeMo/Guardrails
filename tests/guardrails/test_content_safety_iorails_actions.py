@@ -85,20 +85,17 @@ class TestContentSafetyToRailResult:
         assert _content_safety_to_rail_result([True]) == RailResult(is_safe=True)
 
     def test_unsafe_with_categories(self):
-        result = _content_safety_to_rail_result([False, "S1: Violence", "S17: Malware"])
-        assert not result.is_safe
-        assert "S1: Violence" in result.reason
-        assert "S17: Malware" in result.reason
+        assert _content_safety_to_rail_result([False, "S1: Violence", "S17: Malware"]) == RailResult(
+            is_safe=False, reason="Safety categories: S1: Violence, S17: Malware"
+        )
 
     def test_unsafe_no_categories(self):
-        result = _content_safety_to_rail_result([False])
-        assert not result.is_safe
-        assert result.reason == "Unknown"
+        assert _content_safety_to_rail_result([False]) == RailResult(is_safe=False, reason="Unknown")
 
     def test_unsafe_single_category(self):
-        result = _content_safety_to_rail_result([False, "S17: Malware"])
-        assert not result.is_safe
-        assert "S17: Malware" in result.reason
+        assert _content_safety_to_rail_result([False, "S17: Malware"]) == RailResult(
+            is_safe=False, reason="Safety categories: S17: Malware"
+        )
 
     def test_empty_raises(self):
         with pytest.raises(RuntimeError, match="Unexpected"):
@@ -124,17 +121,14 @@ class TestContentSafetyInputExtract:
     """Test _extract_messages on ContentSafetyInputAction."""
 
     def test_extracts_user_input(self, input_action):
-        result = input_action._extract_messages(MESSAGES, None)
-        assert result["user_input"] == "How do I pick a lock?"
+        assert input_action._extract_messages(MESSAGES, None) == {"user_input": "How do I pick a lock?"}
 
 
 class TestContentSafetyInputPrompt:
     """Test _create_prompt on ContentSafetyInputAction."""
 
     def test_renders_prompt_with_user_input(self, input_action):
-        extracted = {"user_input": "test message"}
-        prompt = input_action._create_prompt(FLOW_INPUT, extracted)
-        assert isinstance(prompt, list)
+        prompt = input_action._create_prompt(FLOW_INPUT, {"user_input": "test message"})
         assert len(prompt) == 1
         assert prompt[0]["role"] == "user"
         assert "test message" in prompt[0]["content"]
@@ -145,9 +139,10 @@ class TestContentSafetyOutputExtract:
     """Test _extract_messages on ContentSafetyOutputAction."""
 
     def test_extracts_user_and_bot(self, output_action):
-        result = output_action._extract_messages(MESSAGES, BOT_RESPONSE)
-        assert result["user_input"] == "How do I pick a lock?"
-        assert result["bot_response"] == BOT_RESPONSE
+        assert output_action._extract_messages(MESSAGES, BOT_RESPONSE) == {
+            "user_input": "How do I pick a lock?",
+            "bot_response": BOT_RESPONSE,
+        }
 
 
 class TestContentSafetyOutputValidation:
@@ -217,34 +212,19 @@ class TestContentSafetyOutputRun:
 class TestContentSafetyMissingConfig:
     """Test that missing content_safety config raises."""
 
-    def test_input_missing_content_safety_config_raises(self):
-        config = RailsConfig.from_content(
-            config={
-                "models": CONTENT_SAFETY_CONFIG["models"],
-                "rails": CONTENT_SAFETY_CONFIG["rails"],
-                "prompts": CONTENT_SAFETY_CONFIG["prompts"],
-            }
-        )
-        # Clear the content_safety config to simulate it being None
+    @staticmethod
+    def _make_action(action_cls):
+        config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
         config.rails.config.content_safety = None
-        task_manager = LLMTaskManager(config)
-        model_manager = ModelManager(config)
-        action = ContentSafetyInputAction(model_manager, task_manager)
+        return action_cls(ModelManager(config), LLMTaskManager(config))
+
+    def test_input_missing_content_safety_config_raises(self):
+        action = self._make_action(ContentSafetyInputAction)
         with pytest.raises(RuntimeError, match="content_safety config is required"):
             action._create_prompt(FLOW_INPUT, {"user_input": "test"})
 
     def test_output_missing_content_safety_config_raises(self):
-        config = RailsConfig.from_content(
-            config={
-                "models": CONTENT_SAFETY_CONFIG["models"],
-                "rails": CONTENT_SAFETY_CONFIG["rails"],
-                "prompts": CONTENT_SAFETY_CONFIG["prompts"],
-            }
-        )
-        config.rails.config.content_safety = None
-        task_manager = LLMTaskManager(config)
-        model_manager = ModelManager(config)
-        action = ContentSafetyOutputAction(model_manager, task_manager)
+        action = self._make_action(ContentSafetyOutputAction)
         with pytest.raises(RuntimeError, match="content_safety config is required"):
             action._create_prompt(FLOW_OUTPUT, {"user_input": "test", "bot_response": "resp"})
 

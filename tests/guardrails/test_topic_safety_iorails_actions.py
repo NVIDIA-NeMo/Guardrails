@@ -77,36 +77,16 @@ class TestTopicSafetyExtract:
 
 class TestTopicSafetyPrompt:
     def test_builds_system_plus_messages(self, action):
-        extracted = {"messages": MESSAGES}
-        prompt = action._create_prompt(FLOW, extracted)
-
+        prompt = action._create_prompt(FLOW, {"messages": MESSAGES})
         assert prompt[0]["role"] == "system"
         assert prompt[0]["content"].endswith(TOPIC_SAFETY_OUTPUT_RESTRICTION)
+        assert prompt[0]["content"].count(TOPIC_SAFETY_OUTPUT_RESTRICTION) == 1
         assert prompt[1:] == MESSAGES
 
-    def test_appends_restriction_suffix(self, action):
-        """Output restriction is appended if not already present."""
-        extracted = {"messages": MESSAGES}
-        prompt = action._create_prompt(FLOW, extracted)
-        system_content = prompt[0]["content"]
-        assert TOPIC_SAFETY_OUTPUT_RESTRICTION in system_content
-
-    def test_no_double_suffix(self, action):
-        """If the prompt already ends with the restriction, don't duplicate."""
-        # The test config prompt doesn't include restriction, so it gets appended once.
-        extracted = {"messages": MESSAGES}
-        prompt = action._create_prompt(FLOW, extracted)
-        system_content = prompt[0]["content"]
-        assert system_content.count(TOPIC_SAFETY_OUTPUT_RESTRICTION) == 1
-
     def test_multi_turn_messages_included(self, action):
-        extracted = {"messages": MULTI_TURN}
-        prompt = action._create_prompt(FLOW, extracted)
-        # system + 3 conversation messages
+        prompt = action._create_prompt(FLOW, {"messages": MULTI_TURN})
         assert len(prompt) == 4
-        assert prompt[1]["role"] == "user"
-        assert prompt[2]["role"] == "assistant"
-        assert prompt[3]["role"] == "user"
+        assert [m["role"] for m in prompt] == ["system", "user", "assistant", "user"]
 
 
 class TestTopicSafetyParseResponse:
@@ -114,20 +94,15 @@ class TestTopicSafetyParseResponse:
         assert action._parse_response("on-topic") == RailResult(is_safe=True)
 
     def test_off_topic(self, action):
-        result = action._parse_response("off-topic")
-        assert not result.is_safe
-        assert "off-topic" in result.reason
+        assert action._parse_response("off-topic") == RailResult(is_safe=False, reason="Topic safety: off-topic")
 
-    def test_off_topic_case_insensitive(self, action):
-        assert not action._parse_response("Off-Topic").is_safe
+    @pytest.mark.parametrize("text", ["Off-Topic", "  off-topic  \n", "OFF-TOPIC"])
+    def test_off_topic_variants(self, action, text):
+        assert not action._parse_response(text).is_safe
 
-    def test_off_topic_with_whitespace(self, action):
-        assert not action._parse_response("  off-topic  \n").is_safe
-
-    def test_unexpected_response_is_safe(self, action):
-        """Any response that isn't 'off-topic' is treated as safe."""
-        assert action._parse_response("on-topic").is_safe
-        assert action._parse_response("something else").is_safe
+    @pytest.mark.parametrize("text", ["on-topic", "something else", ""])
+    def test_non_off_topic_is_safe(self, action, text):
+        assert action._parse_response(text).is_safe
 
 
 class TestTopicSafetyRun:
