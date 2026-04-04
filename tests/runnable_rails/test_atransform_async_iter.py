@@ -15,7 +15,6 @@
 
 """Tests that RunnableRails.atransform returns an AsyncIterator (fixes #1692)."""
 
-import asyncio
 from collections.abc import AsyncIterator, Iterator
 
 import pytest

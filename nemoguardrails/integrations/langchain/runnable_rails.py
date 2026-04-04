@@ -852,7 +852,7 @@ class RunnableRails(Runnable[Input, Output]):
 
     def transform(
         self,
-        input: Iterator[Input],
+        input_stream: Iterator[Input],
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
     ) -> Iterator[Output]:
@@ -862,12 +862,12 @@ class RunnableRails(Runnable[Input, Output]):
         item.  For RunnableRails the entire input must be collected before
         processing, so streaming granularity matches invoke.
         """
-        for item in input:
+        for item in input_stream:
             yield self.invoke(item, config, **kwargs)
 
     async def atransform(
         self,
-        input: AsyncIterator[Input],
+        input_stream: AsyncIterator[Input],
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
     ) -> AsyncIterator[Output]:
@@ -877,5 +877,5 @@ class RunnableRails(Runnable[Input, Output]):
         each item.  For RunnableRails the entire input must be collected before
         processing, so streaming granularity matches ainvoke.
         """
-        async for item in input:
+        async for item in input_stream:
             yield await self.ainvoke(item, config, **kwargs)
