@@ -852,24 +852,30 @@ class RunnableRails(Runnable[Input, Output]):
 
     def transform(
         self,
-        input: Input,
+        input: Iterator[Input],
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
-    ) -> Output:
+    ) -> Iterator[Output]:
         """Transform the input.
 
-        This is just an alias for invoke.
+        Consumes the input iterator and yields the result of invoke for each
+        item.  For RunnableRails the entire input must be collected before
+        processing, so streaming granularity matches invoke.
         """
-        return self.invoke(input, config, **kwargs)
+        for item in input:
+            yield self.invoke(item, config, **kwargs)
 
     async def atransform(
         self,
-        input: Input,
+        input: AsyncIterator[Input],
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
-    ) -> Output:
+    ) -> AsyncIterator[Output]:
         """Transform the input asynchronously.
 
-        This is just an alias for ainvoke.
+        Consumes the async input iterator and yields the result of ainvoke for
+        each item.  For RunnableRails the entire input must be collected before
+        processing, so streaming granularity matches ainvoke.
         """
-        return await self.ainvoke(input, config, **kwargs)
+        async for item in input:
+            yield await self.ainvoke(item, config, **kwargs)
