@@ -14,6 +14,7 @@
 # limitations under the License.
 import asyncio
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union, cast
@@ -29,6 +30,7 @@ from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
@@ -66,6 +68,12 @@ async def _run_chat_v1_0(
             raise RuntimeError("config_path cannot be None when server_url is None")
         rails_config = RailsConfig.from_path(config_path)
         rails_app = LLMRails(rails_config, verbose=verbose)
+        if isinstance(rails_app, Guardrails):
+            if verbose:
+                logging.getLogger("nemoguardrails.guardrails").setLevel(logging.DEBUG)
+            else:
+                logging.getLogger("nemoguardrails.guardrails").setLevel(logging.WARNING)
+            await rails_app.startup()
     else:
         rails_app = None
 
@@ -83,9 +91,13 @@ async def _run_chat_v1_0(
                 try:
                     bot_message_list = []
                     async for chunk in rails_app.stream_async(messages=history):
-                        if '{"event": "ABORT"' in chunk:
-                            dict_chunk = json.loads(chunk)
-                            console.print("\n\n[red]" + f"ABORT streaming. {dict_chunk['data']}" + "[/]")
+                        if isinstance(chunk, str) and chunk.startswith('{"error"'):
+                            try:
+                                error_data = json.loads(chunk)
+                                error_msg = error_data["error"].get("message", "Unknown error")
+                                console.print(f"\n\n[red]Streaming error: {error_msg}[/]")
+                            except (json.JSONDecodeError, KeyError):
+                                console.print(f"\n\n[red]Streaming error: {chunk}[/]")
                             break
 
                         console.print("[green]" + f"{chunk}" + "[/]", end="")

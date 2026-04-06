@@ -29,6 +29,7 @@ from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.llmrails import LLMRails
+from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 # Valid IORails input/output rails for has_only_iorails_flows tests
@@ -148,13 +149,16 @@ class TestGuardrailsRouting:
             messages = [{"role": "user", "content": "Hi how are you"}]
             mock_new_llm = MagicMock()
 
+            # Mock stream_async on the IORails instance
+            stream_async_iterator = MagicMock(spec=AsyncIterator)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=stream_async_iterator)
+
             assert guardrails.generate(messages=messages) == "iorails generate response"
 
             response = await guardrails.generate_async(messages=messages)
             assert response == "iorails generate_async response"
 
-            with pytest.raises(NotImplementedError, match="IORails doesn't support stream_async()"):
-                guardrails.stream_async(messages=messages)
+            assert guardrails.stream_async(messages=messages) is stream_async_iterator
 
             with pytest.raises(NotImplementedError, match="IORails doesn't support explain()"):
                 guardrails.explain()
@@ -164,6 +168,11 @@ class TestGuardrailsRouting:
 
             guardrails.rails_engine.generate.assert_called_once_with(messages=messages)
             guardrails.rails_engine.generate_async.assert_called_once_with(messages=messages)
+            guardrails.rails_engine.stream_async.assert_called_once_with(
+                messages=messages,
+                options=None,
+                include_metadata=False,
+            )
 
     @pytest.mark.asyncio
     @patch.object(LLMRails, "__init__", return_value=None)
@@ -868,3 +877,117 @@ class TestHasOnlyIORailsFlows:
         )
         guardrails = Guardrails(config=config)
         assert guardrails._has_only_iorails_flows() is False
+
+
+class TestStreamAsyncIORails:
+    """Tests for stream_async when routed through IORails."""
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_delegates_to_iorails(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """stream_async delegates to IORails.stream_async with correct args."""
+
+        async def mock_stream():
+            yield "hello"
+            yield " world"
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            assert isinstance(guardrails.rails_engine, IORails)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
+
+            chunks = []
+            async for chunk in guardrails.stream_async(messages=[{"role": "user", "content": "hi"}]):
+                chunks.append(chunk)
+
+            assert chunks == ["hello", " world"]
+            guardrails.rails_engine.stream_async.assert_called_once_with(
+                messages=[{"role": "user", "content": "hi"}],
+                options=None,
+                include_metadata=False,
+            )
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_forwards_supported_kwargs(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """options and include_metadata are forwarded to IORails.stream_async."""
+
+        async def mock_stream():
+            yield "ok"
+
+        opts = GenerationOptions(llm_params={"temperature": 0.5})
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            assert isinstance(guardrails.rails_engine, IORails)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
+
+            chunks = []
+            async for chunk in guardrails.stream_async(
+                messages=[{"role": "user", "content": "hi"}],
+                options=opts,
+                include_metadata=True,
+            ):
+                chunks.append(chunk)
+
+            guardrails.rails_engine.stream_async.assert_called_once_with(
+                messages=[{"role": "user", "content": "hi"}],
+                options=opts,
+                include_metadata=True,
+            )
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_filters_unsupported_kwargs(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """LLMRails-only kwargs (state, generator, etc.) are not passed to IORails."""
+
+        async def mock_stream():
+            yield "ok"
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            assert isinstance(guardrails.rails_engine, IORails)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
+
+            chunks = []
+            async for chunk in guardrails.stream_async(
+                messages=[{"role": "user", "content": "hi"}],
+                state={"events": []},
+                generator=MagicMock(),
+                include_generation_metadata=True,
+            ):
+                chunks.append(chunk)
+
+            # Only the supported kwargs should be passed
+            guardrails.rails_engine.stream_async.assert_called_once_with(
+                messages=[{"role": "user", "content": "hi"}],
+                options=None,
+                include_metadata=False,
+            )
+
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_prompt_converted_to_messages(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """A string prompt is converted to messages before reaching IORails."""
+
+        async def mock_stream():
+            yield "ok"
+
+        async with Guardrails(config=_content_safety_rails_config, use_iorails=True) as guardrails:
+            assert isinstance(guardrails.rails_engine, IORails)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
+
+            chunks = []
+            async for chunk in guardrails.stream_async(prompt="hello"):
+                chunks.append(chunk)
+
+            guardrails.rails_engine.stream_async.assert_called_once_with(
+                messages=[{"role": "user", "content": "hello"}],
+                options=None,
+                include_metadata=False,
+            )

@@ -180,15 +180,18 @@ class Guardrails:
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
     ) -> AsyncIterator[str | dict]:
-        """Generate an LLM response asynchronously with streaming support.
-        Only supported when using LLMRails
-        """
-
-        if isinstance(self.rails_engine, IORails):
-            raise NotImplementedError("IORails doesn't support stream_async()")
+        """Generate an LLM response asynchronously with streaming support."""
 
         stream_messages = self._convert_to_messages(prompt, messages)
-        # self.rails_engine must be LLMRails since we raise above if we're using IORails
+
+        if isinstance(self.rails_engine, IORails):
+            # Explicitly unpack IORails.stream_async() arguments (a subset of LLMRails.stream_async())
+            return self.rails_engine.stream_async(
+                messages=stream_messages,
+                options=kwargs.get("options"),
+                include_metadata=kwargs.get("include_metadata", False),
+            )
+
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.stream_async(messages=stream_messages, **kwargs)
 

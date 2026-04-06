@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,6 +25,7 @@ from nemoguardrails.cli.chat import (
     parse_events_inputs,
     run_chat,
 )
+from nemoguardrails.guardrails.guardrails import Guardrails
 
 chat_module = sys.modules["nemoguardrails.cli.chat"]
 
@@ -293,3 +295,180 @@ class TestRunChatV1Async:
             pass
 
         assert mock_session.post.called
+
+
+class TestRunChatV1Guardrails:
+    """Tests for _run_chat_v1_0 when LLMRails is aliased to Guardrails."""
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_guardrails_startup_called(self, mock_rails_config, mock_llm_rails, mock_input):
+        """When rails_app is a Guardrails instance, startup() is called."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        mock_rails = AsyncMock(spec=Guardrails)
+        mock_rails.generate_async = AsyncMock(return_value={"role": "assistant", "content": "Hi!"})
+        mock_rails.startup = AsyncMock()
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["test", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config")
+        except KeyboardInterrupt:
+            pass
+
+        mock_rails.startup.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_guardrails_verbose_sets_debug(self, mock_rails_config, mock_llm_rails, mock_input):
+        """When verbose=True and rails_app is Guardrails, logger is set to DEBUG."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        mock_rails = AsyncMock(spec=Guardrails)
+        mock_rails.generate_async = AsyncMock(return_value={"role": "assistant", "content": "Hi!"})
+        mock_rails.startup = AsyncMock()
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["test", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", verbose=True)
+        except KeyboardInterrupt:
+            pass
+
+        assert logging.getLogger("nemoguardrails.guardrails").level == logging.DEBUG
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_guardrails_non_verbose_sets_warning(self, mock_rails_config, mock_llm_rails, mock_input):
+        """When verbose=False and rails_app is Guardrails, logger is set to WARNING."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        mock_rails = AsyncMock(spec=Guardrails)
+        mock_rails.generate_async = AsyncMock(return_value={"role": "assistant", "content": "Hi!"})
+        mock_rails.startup = AsyncMock()
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["test", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", verbose=False)
+        except KeyboardInterrupt:
+            pass
+
+        assert logging.getLogger("nemoguardrails.guardrails").level == logging.WARNING
+
+
+class TestRunChatV1StreamingErrors:
+    """Tests for error chunk handling during streaming in _run_chat_v1_0."""
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_error_chunk_parsed_and_displayed(self, mock_rails_config, mock_llm_rails, mock_input):
+        """Valid error JSON chunks are parsed and the message is displayed."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        mock_rails = MagicMock()
+
+        async def mock_stream(*args, **kwargs):
+            yield "Hello"
+            yield '{"error": {"message": "Blocked by output rails", "type": "guardrails_violation", "code": "content_blocked"}}'
+
+        mock_rails.stream_async = mock_stream
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["test", KeyboardInterrupt()]
+
+        with patch.object(chat_module, "console") as mock_console:
+            try:
+                await _run_chat_v1_0(config_path="test_config", streaming=True)
+            except KeyboardInterrupt:
+                pass
+
+            printed = [str(call) for call in mock_console.print.call_args_list]
+            assert any("Blocked by output rails" in p for p in printed)
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_malformed_error_chunk_fallback(self, mock_rails_config, mock_llm_rails, mock_input):
+        """Malformed error JSON falls back to displaying the raw chunk."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        mock_rails = MagicMock()
+
+        async def mock_stream(*args, **kwargs):
+            yield '{"error": not valid json}'
+
+        mock_rails.stream_async = mock_stream
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["test", KeyboardInterrupt()]
+
+        with patch.object(chat_module, "console") as mock_console:
+            try:
+                await _run_chat_v1_0(config_path="test_config", streaming=True)
+            except KeyboardInterrupt:
+                pass
+
+            printed = [str(call) for call in mock_console.print.call_args_list]
+            assert any('{"error": not valid json}' in p for p in printed)
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_normal_streaming_completes(self, mock_rails_config, mock_llm_rails, mock_input):
+        """Normal streaming without errors completes and assembles the bot message."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        mock_rails = MagicMock()
+
+        async def mock_stream(*args, **kwargs):
+            yield "Hello"
+            yield " world"
+
+        mock_rails.stream_async = mock_stream
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["test", KeyboardInterrupt()]
+
+        with patch.object(chat_module, "console") as mock_console:
+            try:
+                await _run_chat_v1_0(config_path="test_config", streaming=True)
+            except KeyboardInterrupt:
+                pass
+
+            # Both chunks should have been printed in green
+            printed = [str(call) for call in mock_console.print.call_args_list]
+            assert any("Hello" in p for p in printed)
+            assert any(" world" in p for p in printed)
