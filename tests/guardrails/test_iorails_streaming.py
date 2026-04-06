@@ -248,6 +248,12 @@ class TestStreamAsyncOutputRailsStreamFirst:
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         _assert_error_chunk(chunks, code="content_blocked", message_contains="Blocked by output rails")
 
+        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        assert len(error_chunks) >= 1
+        error_data = json.loads(error_chunks[0])
+        assert error_data["error"]["type"] == "guardrails_violation"
+        assert error_data["error"]["code"] == "content_blocked"
+
     @pytest.mark.asyncio
     async def test_stream_first_yields_before_rail_check(self, iorails_stream_first):
         """Chunks appear before the output rail check in stream_first mode."""
@@ -291,6 +297,7 @@ class TestStreamAsyncOutputRailsGated:
         chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         content_chunks = [c for c in chunks if isinstance(c, str) and not c.startswith("{")]
+        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
         assert len(content_chunks) == 0
         _assert_error_chunk(chunks, code="content_blocked", message_contains="Blocked by output rails")
 
