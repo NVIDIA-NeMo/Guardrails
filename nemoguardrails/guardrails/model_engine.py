@@ -20,10 +20,12 @@ OpenAI-compatible /v1/chat/completions endpoint via aiohttp.
 Retries are handled by aiohttp-retry (ExponentialRetry).
 """
 
+import json
 import logging
 import os
 import time
-from typing import Any, Optional, cast
+from collections.abc import AsyncIterator
+from typing import Any, NamedTuple, Optional, cast
 
 import aiohttp
 from aiohttp_retry import ExponentialRetry, RetryClient
@@ -47,6 +49,15 @@ _ENGINE_BASE_URLS = {
 }
 
 _CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
+
+
+class _RequestParams(NamedTuple):
+    """Pre-built parameters for an HTTP request to the completions endpoint."""
+
+    client: RetryClient
+    url: str
+    headers: dict[str, str]
+    body: dict[str, Any]
 
 
 class ModelEngineError(Exception):
@@ -149,6 +160,55 @@ class ModelEngine:
         # If no key is available, assume it's a local model that doesn't need one
         return None
 
+    def _ensure_running(self) -> None:
+        """Raise if the engine has not been started."""
+        if not self._running:
+            raise ModelEngineError(
+                f"ModelEngine for '{self.model_name}' has not been started. Call start() first.",
+                model_name=self.model_name,
+            )
+
+    def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
+        """Build the client, URL, headers, and body common to every request."""
+        client = cast(RetryClient, self._client)
+        url = self.base_url.rstrip("/") + _CHAT_COMPLETIONS_ENDPOINT
+
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        body: dict[str, Any] = {"model": self.model_name, "messages": messages, **kwargs}
+        return _RequestParams(client=client, url=url, headers=headers, body=body)
+
+    async def _raise_for_status(self, response: aiohttp.ClientResponse, req_id: str, t0: float) -> None:
+        """Raise ``ModelEngineError`` if the HTTP status indicates an error."""
+        if response.status >= 400:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            error_body = await safe_read_body(response)
+            log.warning(
+                "[%s] HTTP %s from model '%s' time=%.1fms",
+                req_id,
+                response.status,
+                self.model_name,
+                elapsed_ms,
+            )
+            raise ModelEngineError(
+                f"HTTP {response.status} from model '{self.model_name}': {error_body}",
+                model_name=self.model_name,
+                status=response.status,
+            )
+
+    def _wrap_exception(self, exc: Exception, req_id: str, t0: float, label: str = "Request") -> ModelEngineError:
+        """Wrap an unexpected exception in a ``ModelEngineError``."""
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        log.warning("[%s] %s to model '%s' failed time=%.1fms", req_id, label, self.model_name, elapsed_ms)
+        return ModelEngineError(
+            f"{label} to model '{self.model_name}' failed: {exc}",
+            model_name=self.model_name,
+        )
+
+    # -- Public request methods ------------------------------------------
+
     async def call(
         self,
         messages: LLMMessages,
@@ -169,48 +229,19 @@ class ModelEngine:
         Raises:
             ModelEngineError: If the request fails after all retries.
         """
-
-        if not self._running:
-            raise ModelEngineError(
-                f"ModelEngine for '{self.model_name}' has not been started. Call start() first.",
-                model_name=self.model_name,
-            )
-
-        # Cast as RetryClient so type-checking knows it isn't None
-        client = cast(RetryClient, self._client)
-
-        url = self.base_url.rstrip("/") + _CHAT_COMPLETIONS_ENDPOINT
-
-        headers: dict[str, str] = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-
-        body: dict[str, Any] = {
-            "model": self.model_name,
-            "messages": messages,
-            **kwargs,
-        }
+        self._ensure_running()
+        req = self._prepare_request(messages, **kwargs)
 
         req_id = get_request_id()
-        log.info("[%s] HTTP POST %s model='%s'", req_id, url, self.model_name)
-        log.debug("[%s] HTTP request body: %s", req_id, truncate(body))
+        log.info("[%s] HTTP POST %s model='%s'", req_id, req.url, self.model_name)
+        log.debug("[%s] HTTP request body: %s", req_id, truncate(req.body))
 
         t0 = time.monotonic()
         try:
-            async with client.post(url, json=body, headers=headers) as response:
+            async with req.client.post(req.url, json=req.body, headers=req.headers) as response:
+                await self._raise_for_status(response, req_id, t0)
+
                 elapsed_ms = (time.monotonic() - t0) * 1000
-
-                if response.status >= 400:
-                    error_body = await safe_read_body(response)
-                    log.warning(
-                        "[%s] HTTP %s from model '%s' time=%.1fms", req_id, response.status, self.model_name, elapsed_ms
-                    )
-                    raise ModelEngineError(
-                        f"HTTP {response.status} from model '{self.model_name}': {error_body}",
-                        model_name=self.model_name,
-                        status=response.status,
-                    )
-
                 result = await response.json()
                 log.debug(
                     "[%s] HTTP response status=%s time=%.1fms body: %s",
@@ -224,12 +255,78 @@ class ModelEngine:
         except ModelEngineError:
             raise
         except Exception as exc:
-            elapsed_ms = (time.monotonic() - t0) * 1000
-            log.warning("[%s] Request to model '%s' failed time=%.1fms", req_id, self.model_name, elapsed_ms)
-            raise ModelEngineError(
-                f"Request to model '{self.model_name}' failed: {exc}",
-                model_name=self.model_name,
-            ) from exc
+            raise self._wrap_exception(exc, req_id, t0) from exc
+
+    async def stream_call(
+        self,
+        messages: LLMMessages,
+        **kwargs: Any,
+    ) -> AsyncIterator[str]:
+        """Make a streaming POST request to the /v1/chat/completions endpoint.
+
+        Sends ``stream=True`` and yields content-delta strings as they arrive
+        via SSE.  Retries are handled by the RetryClient (same as ``call()``).
+
+        Args:
+            messages: List of message dicts in OpenAI format.
+            **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
+
+        Yields:
+            Content-delta strings from each streamed chunk.
+
+        Raises:
+            ModelEngineError: If the request fails after all retries.
+        """
+        self._ensure_running()
+        req = self._prepare_request(messages, stream=True, **kwargs)
+
+        # For streaming, disable the total timeout (response body streams
+        # for the full generation duration) and use sock_read to detect stalls
+        # between individual SSE chunks.
+        stream_timeout = aiohttp.ClientTimeout(
+            total=None,
+            connect=self._timeout.connect,
+            sock_read=self._timeout.total,
+        )
+
+        req_id = get_request_id()
+        log.info("[%s] HTTP POST (stream) %s model='%s'", req_id, req.url, self.model_name)
+        log.debug("[%s] HTTP request body: %s", req_id, truncate(req.body))
+
+        t0 = time.monotonic()
+        try:
+            async with req.client.post(req.url, json=req.body, headers=req.headers, timeout=stream_timeout) as response:
+                await self._raise_for_status(response, req_id, t0)
+
+                async for raw_line in response.content:
+                    line = raw_line.decode("utf-8").strip()
+                    if not line:
+                        continue
+                    if not line.startswith("data: "):
+                        continue
+
+                    payload = line[len("data: ") :]
+                    if payload == "[DONE]":
+                        break
+
+                    try:
+                        chunk = json.loads(payload)
+                    except json.JSONDecodeError:
+                        log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
+                        continue
+
+                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content")
+                    if content:
+                        yield content
+
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.debug("[%s] Stream completed time=%.1fms", req_id, elapsed_ms)
+
+        except ModelEngineError:
+            raise
+        except Exception as exc:
+            raise self._wrap_exception(exc, req_id, t0, label="Stream request") from exc
 
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""

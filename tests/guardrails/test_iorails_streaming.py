@@ -1,0 +1,289 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for IORails streaming support."""
+
+import asyncio
+import json
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.options import GenerationOptions
+from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+
+# --- Helpers / factories ------------------------------------------------
+
+
+def _make_streaming_config(*, enabled: bool = True, stream_first: bool = True) -> dict:
+    """Build a NEMOGUARDS_CONFIG variant with output-rail streaming settings."""
+    return {
+        **NEMOGUARDS_CONFIG,
+        "rails": {
+            **NEMOGUARDS_CONFIG["rails"],
+            "output": {
+                **NEMOGUARDS_CONFIG["rails"]["output"],
+                "streaming": {
+                    "enabled": enabled,
+                    "chunk_size": 5,
+                    "context_size": 2,
+                    "stream_first": stream_first,
+                },
+            },
+        },
+    }
+
+
+_INPUT_ONLY_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "output": {"flows": []},
+    },
+}
+
+
+async def _mock_stream(model_type, messages, **kwargs):
+    """Async generator simulating streaming chunks from the main LLM."""
+    for chunk in ["Hello", " from", " the", " streaming", " LLM", "!", " Have", " a", " nice", " day"]:
+        yield chunk
+
+
+async def _collect(async_iter):
+    """Collect all chunks from an async iterator into a list."""
+    return [chunk async for chunk in async_iter]
+
+
+def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stream):
+    """Attach standard mocks for input rails, output rails, and LLM streaming."""
+    iorails.rails_manager.is_input_safe = AsyncMock(
+        return_value=RailResult(is_safe=input_safe, reason=None if input_safe else "blocked")
+    )
+    iorails.rails_manager.is_output_safe = AsyncMock(
+        return_value=RailResult(is_safe=output_safe, reason=None if output_safe else "blocked")
+    )
+    iorails.model_manager.stream_async = stream
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def iorails():
+    """IORails with output rails but streaming NOT enabled."""
+    return IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def iorails_stream_first():
+    """IORails with output rails and streaming enabled (stream_first=True)."""
+    return IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=True)))
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def iorails_stream_check_first():
+    """IORails with output rails and streaming enabled (stream_first=False)."""
+    return IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=False)))
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def iorails_input_only():
+    """IORails with input rails only, no output rails."""
+    return IORails(RailsConfig.from_content(config=_INPUT_ONLY_CONFIG))
+
+
+class TestStreamAsyncValidation:
+    """Test that stream_async raises when output rails exist but streaming is disabled."""
+
+    def test_raises_when_output_rails_without_streaming(self, iorails):
+        with pytest.raises(StreamingNotSupportedError):
+            iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
+
+    @pytest.mark.asyncio
+    async def test_no_error_when_no_output_rails(self, iorails_input_only):
+        _wire_mocks(iorails_input_only)
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert len(chunks) > 0
+
+    @pytest.mark.asyncio
+    async def test_no_error_when_streaming_enabled(self, iorails_stream_first):
+        _wire_mocks(iorails_stream_first)
+        chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert len(chunks) > 0
+
+
+class TestStreamAsyncNoOutputRails:
+    """Test streaming when there are no output rails -- chunks flow straight through."""
+
+    @pytest.mark.asyncio
+    async def test_streams_all_chunks(self, iorails_input_only):
+        _wire_mocks(iorails_input_only)
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert "".join(chunks) == "Hello from the streaming LLM! Have a nice day"
+
+    @pytest.mark.asyncio
+    async def test_input_rails_block(self, iorails_input_only):
+        _wire_mocks(iorails_input_only, input_safe=False)
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "bad"}]))
+        assert "".join(chunks) == REFUSAL_MESSAGE
+
+    @pytest.mark.asyncio
+    async def test_generation_options_forwarded(self, iorails_input_only):
+        captured_kwargs = {}
+
+        async def capturing_stream(model_type, messages, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield "ok"
+
+        _wire_mocks(iorails_input_only, stream=capturing_stream)
+        options = GenerationOptions(llm_params={"temperature": 0.42})
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], options=options)
+        )
+        assert "".join(chunks) == "ok"
+        assert captured_kwargs.get("temperature") == 0.42
+
+
+# --- Tests: Output rails with stream_first=True -------------------------
+
+
+class TestStreamAsyncOutputRailsStreamFirst:
+    """Test streaming with output rails in stream_first=True mode (optimistic)."""
+
+    @pytest.mark.asyncio
+    async def test_safe_output_streams_all(self, iorails_stream_first):
+        _wire_mocks(iorails_stream_first)
+        chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        text = "".join(c for c in chunks if not c.startswith("{"))
+        assert "Hello from the streaming LLM" in text
+
+    @pytest.mark.asyncio
+    async def test_unsafe_output_injects_error(self, iorails_stream_first):
+        _wire_mocks(iorails_stream_first, output_safe=False)
+        chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        assert len(error_chunks) >= 1
+        error_data = json.loads(error_chunks[0])
+        assert error_data["error"]["type"] == "guardrails_violation"
+        assert error_data["error"]["code"] == "content_blocked"
+
+    @pytest.mark.asyncio
+    async def test_stream_first_yields_before_rail_check(self, iorails_stream_first):
+        yield_order = []
+
+        async def tracking_rail(messages, response):
+            yield_order.append("rail_check")
+            return RailResult(is_safe=True)
+
+        _wire_mocks(iorails_stream_first)
+        iorails_stream_first.rails_manager.is_output_safe = tracking_rail
+
+        async for chunk in iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]):
+            if not chunk.startswith("{"):
+                yield_order.append(f"chunk:{chunk}")
+
+        first_chunk_idx = next(i for i, v in enumerate(yield_order) if v.startswith("chunk:"))
+        first_rail_idx = next(i for i, v in enumerate(yield_order) if v == "rail_check")
+        assert first_chunk_idx < first_rail_idx
+
+
+# --- Tests: Output rails with stream_first=False ------------------------
+
+
+class TestStreamAsyncOutputRailsGated:
+    """Test streaming with output rails in stream_first=False mode (gated)."""
+
+    @pytest.mark.asyncio
+    async def test_safe_output_streams_all(self, iorails_stream_check_first):
+        _wire_mocks(iorails_stream_check_first)
+        chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        text = "".join(c for c in chunks if not c.startswith("{"))
+        assert "Hello from the streaming LLM" in text
+
+    @pytest.mark.asyncio
+    async def test_unsafe_output_yields_nothing_then_error(self, iorails_stream_check_first):
+        _wire_mocks(iorails_stream_check_first, output_safe=False)
+        chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        content_chunks = [c for c in chunks if isinstance(c, str) and not c.startswith("{")]
+        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        assert len(content_chunks) == 0
+        assert len(error_chunks) >= 1
+        assert json.loads(error_chunks[0])["error"]["code"] == "content_blocked"
+
+    @pytest.mark.asyncio
+    async def test_gated_yields_after_rail_check(self, iorails_stream_check_first):
+        yield_order = []
+
+        async def tracking_rail(messages, response):
+            yield_order.append("rail_check")
+            return RailResult(is_safe=True)
+
+        _wire_mocks(iorails_stream_check_first)
+        iorails_stream_check_first.rails_manager.is_output_safe = tracking_rail
+
+        async for chunk in iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]):
+            if not chunk.startswith("{"):
+                yield_order.append(f"chunk:{chunk}")
+
+        assert len([v for v in yield_order if v == "rail_check"]) > 0
+        assert len([v for v in yield_order if v.startswith("chunk:")]) > 0
+        assert yield_order[0] == "rail_check"
+
+
+class TestStreamAsyncErrors:
+    """Test error propagation during streaming."""
+
+    @pytest.mark.asyncio
+    async def test_generation_error_yields_error_json(self, iorails_input_only):
+        async def failing_stream(model_type, messages, **kwargs):
+            raise RuntimeError("LLM exploded")
+            yield  # noqa: unreachable -- makes this an async generator
+
+        _wire_mocks(iorails_input_only, stream=failing_stream)
+        chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        assert len(error_chunks) >= 1
+        error_data = json.loads(error_chunks[0])
+        assert error_data["error"]["code"] == "generation_failed"
+        assert "LLM exploded" in error_data["error"]["message"]
+
+
+class TestStreamAsyncConcurrency:
+    """Test the streaming semaphore for concurrency control."""
+
+    @pytest.mark.asyncio
+    async def test_semaphore_exhaustion_raises(self, iorails_input_only):
+        _wire_mocks(iorails_input_only)
+        iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
+
+        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+            async for _ in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_semaphore_released_after_stream(self, iorails_input_only):
+        _wire_mocks(iorails_input_only)
+        iorails_input_only._stream_semaphore = asyncio.Semaphore(1)
+
+        await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert iorails_input_only._stream_semaphore._value == 1

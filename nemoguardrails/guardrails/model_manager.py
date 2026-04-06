@@ -20,6 +20,7 @@ Each ModelEngine owns its own RetryClient with per-model settings.
 """
 
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 from nemoguardrails.guardrails.api_engine import APIEngine
@@ -158,6 +159,15 @@ class ModelManager:
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result
+
+    async def stream_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> AsyncIterator[str]:
+        """Stream chat completion chunks from the named model engine."""
+        req_id = get_request_id()
+        log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
+
+        engine = self._get_model_engine(model_type)
+        async for chunk in engine.stream_call(messages, **kwargs):
+            yield chunk
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         req_id = get_request_id()

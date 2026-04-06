@@ -15,8 +15,10 @@
 
 """Unit tests for model_engine module."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
 from nemoguardrails.guardrails._http import (
@@ -390,6 +392,175 @@ class TestModelEngineCall:
 
         with pytest.raises(ModelEngineError, match="has not been started"):
             await engine.call([{"role": "user", "content": "Hi"}])
+
+
+class TestModelEngineStreamCall:
+    """Test ModelEngine.stream_call() SSE streaming."""
+
+    @staticmethod
+    def _make_sse_content(chunks):
+        """Build raw SSE byte lines from a list of content strings."""
+        lines = []
+        for text in chunks:
+            payload = json.dumps({"choices": [{"delta": {"content": text}}]})
+            lines.append(f"data: {payload}\n\n".encode())
+        lines.append(b"data: [DONE]\n\n")
+        return lines
+
+    @staticmethod
+    def _mock_streaming_response(raw_lines, status=200):
+        """Create a mock aiohttp response that yields raw_lines from response.content."""
+
+        async def _content_iter():
+            for line in raw_lines:
+                yield line
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = status
+        mock_response.content = _content_iter()
+        return mock_response
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_yields_content_chunks(self):
+        """stream_call() yields content deltas from SSE lines."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["Hello", " world", "!"])
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["Hello", " world", "!"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_sends_stream_true(self):
+        """stream_call() includes stream=True in the request body."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["stream"] is True
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_forwards_kwargs(self):
+        """Extra kwargs (temperature, etc.) are included in the request body."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}], temperature=0.5):
+            pass
+
+        body = mock_client.post.call_args[1]["json"]
+        assert body["temperature"] == 0.5
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_http_error(self):
+        """stream_call() raises ModelEngineError on HTTP 4xx/5xx."""
+        engine = ModelEngine(_make_model())
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 500
+        mock_response.text = AsyncMock(return_value="internal error")
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError) as exc_info:
+            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                pass
+
+        assert exc_info.value.status == 500
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_raises_if_not_started(self):
+        """stream_call() raises ModelEngineError if start() hasn't been called."""
+        engine = ModelEngine(_make_model())
+
+        with pytest.raises(ModelEngineError, match="has not been started"):
+            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                pass
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_uses_streaming_timeout(self):
+        """stream_call() overrides total timeout to None and sets sock_read."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = self._make_sse_content(["ok"])
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            pass
+
+        call_kwargs = mock_client.post.call_args[1]
+        timeout = call_kwargs["timeout"]
+        assert isinstance(timeout, aiohttp.ClientTimeout)
+        assert timeout.total is None
+        assert timeout.connect == engine._timeout.connect
+        assert timeout.sock_read == engine._timeout.total
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_skips_empty_content(self):
+        """Chunks where delta has no 'content' key are skipped."""
+        engine = ModelEngine(_make_model())
+
+        # Include a chunk with role-only delta (no content) — typical for first SSE event
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"role": "assistant"}}]}\n\n',
+            b'data: {"choices": [{"delta": {"content": "Hello"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["Hello"]
 
 
 class TestModelEngineConstants:
