@@ -353,6 +353,14 @@ class TestStreamAsyncErrors:
     async def test_mid_stream_failure_yields_partial_then_error(self, iorails_input_only):
         """A failure after some successful chunks yields partial output then error JSON."""
         _wire_mocks(iorails_input_only, stream=_mid_stream_failure)
+        """LLM exceptions are surfaced as error JSON chunks."""
+
+        async def failing_stream(model_type, messages, **kwargs):
+            """Mock stream that raises immediately."""
+            raise RuntimeError("LLM exploded")
+            yield  # noqa: unreachable -- makes this an async generator
+
+        _wire_mocks(iorails_input_only, stream=failing_stream)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         content_chunks = [c for c in chunks if not c.startswith("{")]
