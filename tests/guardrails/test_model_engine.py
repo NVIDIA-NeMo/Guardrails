@@ -412,6 +412,7 @@ class TestModelEngineStreamCall:
         """Create a mock aiohttp response that yields raw_lines from response.content."""
 
         async def _content_iter():
+            """Async generator yielding raw SSE byte lines."""
             for line in raw_lines:
                 yield line
 

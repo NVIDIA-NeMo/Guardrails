@@ -113,17 +113,20 @@ class TestStreamAsyncValidation:
     """Test that stream_async raises when output rails exist but streaming is disabled."""
 
     def test_raises_when_output_rails_without_streaming(self, iorails):
+        """Raises StreamingNotSupportedError when output rails exist but streaming is disabled."""
         with pytest.raises(StreamingNotSupportedError):
             iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
 
     @pytest.mark.asyncio
     async def test_no_error_when_no_output_rails(self, iorails_input_only):
+        """Succeeds when there are no output rails at all."""
         _wire_mocks(iorails_input_only)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
         assert len(chunks) > 0
 
     @pytest.mark.asyncio
     async def test_no_error_when_streaming_enabled(self, iorails_stream_first):
+        """Succeeds when output rails have streaming enabled."""
         _wire_mocks(iorails_stream_first)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         assert len(chunks) > 0
@@ -151,21 +154,25 @@ class TestStreamAsyncNoOutputRails:
 
     @pytest.mark.asyncio
     async def test_streams_all_chunks(self, iorails_input_only):
+        """All LLM chunks are yielded to the caller."""
         _wire_mocks(iorails_input_only)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
         assert "".join(chunks) == "Hello from the streaming LLM! Have a nice day"
 
     @pytest.mark.asyncio
     async def test_input_rails_block(self, iorails_input_only):
+        """Yields the refusal message when input rails block."""
         _wire_mocks(iorails_input_only, input_safe=False)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "bad"}]))
         assert "".join(chunks) == REFUSAL_MESSAGE
 
     @pytest.mark.asyncio
     async def test_generation_options_forwarded(self, iorails_input_only):
+        """llm_params from GenerationOptions are forwarded to the LLM call."""
         captured_kwargs = {}
 
         async def capturing_stream(model_type, messages, **kwargs):
+            """Mock stream that records kwargs."""
             captured_kwargs.update(kwargs)
             yield "ok"
 
@@ -186,6 +193,7 @@ class TestStreamAsyncOutputRailsStreamFirst:
 
     @pytest.mark.asyncio
     async def test_safe_output_streams_all(self, iorails_stream_first):
+        """All chunks are streamed when output rails pass."""
         _wire_mocks(iorails_stream_first)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         text = "".join(c for c in chunks if not c.startswith("{"))
@@ -193,6 +201,7 @@ class TestStreamAsyncOutputRailsStreamFirst:
 
     @pytest.mark.asyncio
     async def test_unsafe_output_injects_error(self, iorails_stream_first):
+        """Error JSON is injected into the stream when output rails block."""
         _wire_mocks(iorails_stream_first, output_safe=False)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -204,9 +213,11 @@ class TestStreamAsyncOutputRailsStreamFirst:
 
     @pytest.mark.asyncio
     async def test_stream_first_yields_before_rail_check(self, iorails_stream_first):
+        """Chunks appear before the output rail check in stream_first mode."""
         yield_order = []
 
         async def tracking_rail(messages, response):
+            """Mock output rail that records call order."""
             yield_order.append("rail_check")
             return RailResult(is_safe=True)
 
@@ -230,6 +241,7 @@ class TestStreamAsyncOutputRailsGated:
 
     @pytest.mark.asyncio
     async def test_safe_output_streams_all(self, iorails_stream_check_first):
+        """All chunks are eventually yielded when output rails pass."""
         _wire_mocks(iorails_stream_check_first)
         chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         text = "".join(c for c in chunks if not c.startswith("{"))
@@ -237,6 +249,7 @@ class TestStreamAsyncOutputRailsGated:
 
     @pytest.mark.asyncio
     async def test_unsafe_output_yields_nothing_then_error(self, iorails_stream_check_first):
+        """No content chunks appear before the error in gated mode."""
         _wire_mocks(iorails_stream_check_first, output_safe=False)
         chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
@@ -248,9 +261,11 @@ class TestStreamAsyncOutputRailsGated:
 
     @pytest.mark.asyncio
     async def test_gated_yields_after_rail_check(self, iorails_stream_check_first):
+        """Each chunk batch only appears after its rail check passes."""
         yield_order = []
 
         async def tracking_rail(messages, response):
+            """Mock output rail that records call order."""
             yield_order.append("rail_check")
             return RailResult(is_safe=True)
 
@@ -271,7 +286,10 @@ class TestStreamAsyncErrors:
 
     @pytest.mark.asyncio
     async def test_generation_error_yields_error_json(self, iorails_input_only):
+        """LLM exceptions are surfaced as error JSON chunks."""
+
         async def failing_stream(model_type, messages, **kwargs):
+            """Mock stream that raises immediately."""
             raise RuntimeError("LLM exploded")
             yield  # noqa: unreachable -- makes this an async generator
 
@@ -290,6 +308,7 @@ class TestStreamAsyncConcurrency:
 
     @pytest.mark.asyncio
     async def test_semaphore_exhaustion_raises(self, iorails_input_only):
+        """Raises QueueFull when all streaming slots are taken."""
         _wire_mocks(iorails_input_only)
         iorails_input_only._stream_semaphore = asyncio.Semaphore(0)
 
@@ -299,6 +318,7 @@ class TestStreamAsyncConcurrency:
 
     @pytest.mark.asyncio
     async def test_semaphore_released_after_stream(self, iorails_input_only):
+        """Semaphore slot is released after the stream is fully consumed."""
         _wire_mocks(iorails_input_only)
         iorails_input_only._stream_semaphore = asyncio.Semaphore(1)
 
@@ -311,6 +331,7 @@ class TestStreamAsyncConcurrency:
         task_started = asyncio.Event()
 
         async def slow_stream(model_type, messages, **kwargs):
+            """Mock stream that yields many chunks to allow early exit testing."""
             task_started.set()
             for i in range(1000):
                 yield f"chunk{i}"

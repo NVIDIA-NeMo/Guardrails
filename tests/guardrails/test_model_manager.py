@@ -465,6 +465,7 @@ class TestModelManagerStreamAsync:
         messages = [{"role": "user", "content": "Hi"}]
 
         async def mock_stream_call(msgs, **kwargs):
+            """Mock stream yielding two chunks."""
             for chunk in ["Hello", " world"]:
                 yield chunk
 
@@ -484,6 +485,7 @@ class TestModelManagerStreamAsync:
         captured_kwargs = {}
 
         async def mock_stream_call(msgs, **kwargs):
+            """Mock stream that records kwargs."""
             captured_kwargs.update(kwargs)
             yield "ok"
 
