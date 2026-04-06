@@ -25,6 +25,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from typing import Optional, Union
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
@@ -192,10 +193,21 @@ class IORails:
         Raises:
             StreamingNotSupportedError: If output rails are present but
                 ``rails.output.streaming.enabled`` is False.
+            ValueError: If ``include_metadata=True`` with output rails
+                streaming enabled (BufferStrategy requires plain string chunks).
             asyncio.QueueFull: If the streaming concurrency limit is
                 reached (load shedding).
         """
         self._validate_streaming_with_output_rails()
+
+        output_streaming = self.config.rails.output.streaming
+        has_output_rails = output_streaming and output_streaming.enabled and len(self.config.rails.output.flows) > 0
+        if include_metadata and has_output_rails:
+            raise ValueError(
+                "include_metadata=True is not supported when output rails streaming is enabled. "
+                "BufferStrategy requires plain string chunks. Use include_metadata=False or "
+                "disable output rails streaming."
+            )
 
         # Extract llm_params from GenerationOptions if provided
         llm_kwargs: dict = {}
@@ -278,9 +290,17 @@ class IORails:
                             yield chunk
                 finally:
                     try:
-                        await task
+                        if not task.done():
+                            task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await task
                     finally:
-                        reset_request_id(token)
+                        try:
+                            reset_request_id(token)
+                        except ValueError:
+                            # GeneratorExit triggers cleanup in a different context
+                            # where the token is no longer valid — safe to ignore.
+                            pass
             finally:
                 self._stream_semaphore.release()
 

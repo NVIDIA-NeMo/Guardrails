@@ -23,7 +23,7 @@ import pytest
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, STREAM_MAX_CONCURRENCY, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -126,6 +126,23 @@ class TestStreamAsyncValidation:
     async def test_no_error_when_streaming_enabled(self, iorails_stream_first):
         _wire_mocks(iorails_stream_first)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        assert len(chunks) > 0
+
+    def test_raises_when_include_metadata_with_output_rails_streaming(self, iorails_stream_first):
+        """include_metadata=True is rejected when output rails streaming is enabled."""
+        with pytest.raises(ValueError, match="include_metadata=True is not supported"):
+            iorails_stream_first.stream_async(
+                messages=[{"role": "user", "content": "hi"}],
+                include_metadata=True,
+            )
+
+    @pytest.mark.asyncio
+    async def test_include_metadata_allowed_without_output_rails(self, iorails_input_only):
+        """include_metadata=True is fine when there are no output rails."""
+        _wire_mocks(iorails_input_only)
+        chunks = await _collect(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
+        )
         assert len(chunks) > 0
 
 
@@ -287,3 +304,27 @@ class TestStreamAsyncConcurrency:
 
         await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
         assert iorails_input_only._stream_semaphore._value == 1
+
+    @pytest.mark.asyncio
+    async def test_background_task_cancelled_on_early_exit(self, iorails_input_only):
+        """When the consumer breaks early, the background generation task is cancelled."""
+        task_started = asyncio.Event()
+
+        async def slow_stream(model_type, messages, **kwargs):
+            task_started.set()
+            for i in range(1000):
+                yield f"chunk{i}"
+                await asyncio.sleep(0)  # yield control so cancellation can propagate
+
+        _wire_mocks(iorails_input_only, stream=slow_stream)
+
+        async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]):
+            if task_started.is_set():
+                break  # consumer exits early
+
+        # Give the event loop a few ticks to process cancellation and cleanup
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+        # Semaphore should be released even after early exit
+        assert iorails_input_only._stream_semaphore._value == STREAM_MAX_CONCURRENCY

@@ -315,7 +315,10 @@ class ModelEngine:
                         log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
                         continue
 
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    choices = chunk.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta") or {}
                     content = delta.get("content")
                     if content:
                         yield content
