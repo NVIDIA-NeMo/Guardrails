@@ -454,3 +454,50 @@ class TestModelManagerApiEngineStopErrors:
 
         with pytest.raises(RuntimeError, match="Engine jailbreak_detection"):
             await manager.stop()
+
+
+class TestModelManagerStreamAsync:
+    """Test stream_async routes to the correct engine and yields chunks."""
+
+    @pytest.mark.asyncio
+    async def test_streams_chunks_from_correct_engine(self, manager):
+        """Calls the named engine's stream_call and yields all chunks."""
+        messages = [{"role": "user", "content": "Hi"}]
+
+        async def mock_stream_call(msgs, **kwargs):
+            for chunk in ["Hello", " world"]:
+                yield chunk
+
+        engine = manager._get_model_engine("main")
+        engine.stream_call = mock_stream_call
+
+        chunks = []
+        async for chunk in manager.stream_async("main", messages):
+            chunks.append(chunk)
+
+        assert chunks == ["Hello", " world"]
+
+    @pytest.mark.asyncio
+    async def test_forwards_kwargs_to_engine(self, manager):
+        """Extra kwargs are forwarded to engine.stream_call()."""
+        messages = [{"role": "user", "content": "Hi"}]
+        captured_kwargs = {}
+
+        async def mock_stream_call(msgs, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield "ok"
+
+        engine = manager._get_model_engine("main")
+        engine.stream_call = mock_stream_call
+
+        async for _ in manager.stream_async("main", messages, temperature=0.7):
+            pass
+
+        assert captured_kwargs["temperature"] == 0.7
+
+    @pytest.mark.asyncio
+    async def test_raises_key_error_for_unknown_model_type(self, manager):
+        """Raises KeyError when the model type doesn't exist."""
+        with pytest.raises(KeyError):
+            async for _ in manager.stream_async("nonexistent", [{"role": "user", "content": "Hi"}]):
+                pass

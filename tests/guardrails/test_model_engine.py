@@ -562,6 +562,71 @@ class TestModelEngineStreamCall:
 
         assert chunks == ["Hello"]
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_skips_empty_and_non_data_lines(self):
+        """Empty lines and non-'data:' lines (e.g. comments, event types) are skipped."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b"\n",  # empty line
+            b": keepalive\n",  # SSE comment
+            b"event: ping\n",  # non-data event line
+            b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["ok"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_skips_unparseable_json(self):
+        """Malformed JSON in an SSE data line is logged and skipped."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b"data: {not valid json}\n\n",
+            b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["ok"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_unexpected_exception_wraps_in_model_engine_error(self):
+        """Non-HTTP exceptions during streaming are wrapped in ModelEngineError."""
+        engine = ModelEngine(_make_model())
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(side_effect=RuntimeError("connection dropped"))
+        engine._client = mock_client
+        engine._running = True
+
+        with pytest.raises(ModelEngineError, match="connection dropped"):
+            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
+                pass
+
 
 class TestModelEngineConstants:
     """Test values of model-engine-specific constants."""

@@ -249,33 +249,40 @@ class IORails:
 
         async def _wrapped_iterator():
             """Wrap the base iterator with semaphore-based concurrency control."""
-            # Try to acquire a streaming slot; raise immediately if saturated
-            if self._stream_semaphore._value <= 0:  # noqa: SLF001
+            # Non-blocking acquire; raises immediately if all slots are taken.
+            # locked() returns True when the semaphore value is 0.  Because there
+            # is no await between the check and acquire(), no other coroutine can
+            # interleave in asyncio's cooperative model, so this is race-free.
+            if self._stream_semaphore.locked():
                 raise asyncio.QueueFull("Streaming concurrency limit reached")
-
             await self._stream_semaphore.acquire()
-            # Set request ID here so both the generation task (via create_task
-            # context copy) and output rails (running in this coroutine) share it.
-            token = set_new_request_id()
-            task = asyncio.create_task(_generation_task())
-            try:
-                # Determine base iterator: with or without output rails
-                output_streaming = self.config.rails.output.streaming
-                if output_streaming and output_streaming.enabled and len(self.config.rails.output.flows) > 0:
-                    base_iterator = self._run_output_rails_in_streaming(
-                        streaming_handler=streaming_handler,
-                        messages=messages,
-                    )
-                else:
-                    base_iterator = streaming_handler
 
-                async for chunk in base_iterator:
-                    if chunk is not None:
-                        yield chunk
+            try:
+                # Set request ID here so both the generation task (via create_task
+                # context copy) and output rails (running in this coroutine) share it.
+                token = set_new_request_id()
+                task = asyncio.create_task(_generation_task())
+                try:
+                    # Determine base iterator: with or without output rails
+                    output_streaming = self.config.rails.output.streaming
+                    if output_streaming and output_streaming.enabled and len(self.config.rails.output.flows) > 0:
+                        base_iterator = self._run_output_rails_in_streaming(
+                            streaming_handler=streaming_handler,
+                            messages=messages,
+                        )
+                    else:
+                        base_iterator = streaming_handler
+
+                    async for chunk in base_iterator:
+                        if chunk is not None:
+                            yield chunk
+                finally:
+                    try:
+                        await task
+                    finally:
+                        reset_request_id(token)
             finally:
                 self._stream_semaphore.release()
-                await task
-                reset_request_id(token)
 
         return _wrapped_iterator()
 
