@@ -730,6 +730,30 @@ class TestModelEngineStreamCall:
             async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
                 pass
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_skips_empty_choices(self):
+        """SSE events with choices: [] (e.g. include_usage) are skipped without IndexError."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": []}\n\n',
+            b'data: {"choices": [{"delta": {"content": "ok"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["ok"]
+
 
 class TestModelEngineConstants:
     """Test values of model-engine-specific constants."""
