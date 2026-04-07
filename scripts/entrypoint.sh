@@ -20,8 +20,19 @@ if [[ ! -f "$CONFIG_DIR/rails.co" ]]; then
 fi
 
 echo "✅ Configuration validated. Starting server..."
-exec /app/.venv/bin/nemoguardrails server \
+
+CMD=(/app/.venv/bin/nemoguardrails server \
   --config "/app/config" \
   --port "$PORT" \
   --default-config-id "$CONFIG_ID" \
-  --disable-chat-ui
+  --disable-chat-ui)
+
+# If OTEL_EXPORTER_OTLP_ENDPOINT is set and opentelemetry-instrument is available,
+# wrap the server with auto-instrumentation
+if [[ -n "$OTEL_EXPORTER_OTLP_ENDPOINT" ]] && command -v opentelemetry-instrument &>/dev/null; then
+  echo "OpenTelemetry enabled: endpoint=$OTEL_EXPORTER_OTLP_ENDPOINT service=${OTEL_SERVICE_NAME:-nemo-guardrails}"
+  export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-nemo-guardrails}"
+  exec opentelemetry-instrument "${CMD[@]}"
+else
+  exec "${CMD[@]}"
+fi
