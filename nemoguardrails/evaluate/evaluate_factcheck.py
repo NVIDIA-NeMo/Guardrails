@@ -20,7 +20,6 @@ import time
 
 import tqdm
 import typer
-from langchain_core.prompts import PromptTemplate
 
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
@@ -28,6 +27,7 @@ from nemoguardrails.evaluate.utils import load_dataset
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.utils import get_or_create_event_loop
 
 
 class FactCheckEvaluation:
@@ -89,13 +89,7 @@ class FactCheckEvaluation:
         that it will not be grounded in the evidence passage. change details in the answer to make the answer
         wrong but yet believable.\nevidence: {evidence}\nanswer: {answer}\nincorrect answer:"""
 
-        create_negatives_prompt = PromptTemplate(
-            template=create_negatives_template,
-            input_variables=["evidence", "answer"],
-        )
-
-        # Bind config parameters to the LLM for generating negative samples
-        llm_with_config = self.llm.bind(temperature=0.8, max_tokens=300)
+        loop = get_or_create_event_loop()
 
         print("Creating negative samples...")
         for data in tqdm.tqdm(dataset):
@@ -103,13 +97,11 @@ class FactCheckEvaluation:
             evidence = data["evidence"]
             answer = data["answer"]
 
-            # Format the prompt and invoke the LLM directly
-            formatted_prompt = create_negatives_prompt.format(evidence=evidence, answer=answer)
-            negative_answer = llm_with_config.invoke(formatted_prompt)
-            if isinstance(negative_answer, str):
-                data["incorrect_answer"] = negative_answer.strip()
-            else:
-                data["incorrect_answer"] = negative_answer.content.strip()
+            formatted_prompt = create_negatives_template.format(evidence=evidence, answer=answer)
+            response = loop.run_until_complete(
+                self.llm.generate_async(formatted_prompt, temperature=0.8, max_tokens=300)
+            )
+            data["incorrect_answer"] = response.content.strip()
 
         return dataset
 
