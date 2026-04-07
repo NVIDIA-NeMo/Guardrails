@@ -26,7 +26,7 @@ from unittest.mock import patch
 import pytest
 from langchain_core.language_models import BaseChatModel, BaseLLM
 
-from nemoguardrails.llm.models.langchain_initializer import (
+from nemoguardrails.integrations.langchain.langchain_initializer import (
     _PROVIDER_INITIALIZERS,
     _SPECIAL_MODEL_INITIALIZERS,
     ModelInitializationError,
@@ -117,7 +117,9 @@ class TestGPT35TurboInstructInitializer:
     def test_init_gpt35_turbo_instruct(self):
         """Test that _init_gpt35_turbo_instruct calls _init_text_completion_model."""
 
-        with patch("nemoguardrails.llm.models.langchain_initializer._init_text_completion_model") as mock_init:
+        with patch(
+            "nemoguardrails.integrations.langchain.langchain_initializer._init_text_completion_model"
+        ) as mock_init:
             mock_init.return_value = "text_model"
             result = _init_gpt35_turbo_instruct("gpt-3.5-turbo-instruct", "openai", {})
             assert result == "text_model"
@@ -125,7 +127,9 @@ class TestGPT35TurboInstructInitializer:
 
     def test_init_gpt35_turbo_instruct_error(self):
         """Test that _init_gpt35_turbo_instruct raises ModelInitializationError on failure."""
-        with patch("nemoguardrails.llm.models.langchain_initializer._init_text_completion_model") as mock_init:
+        with patch(
+            "nemoguardrails.integrations.langchain.langchain_initializer._init_text_completion_model"
+        ) as mock_init:
             mock_init.side_effect = ValueError("Text model failed")
             with pytest.raises(
                 ModelInitializationError,

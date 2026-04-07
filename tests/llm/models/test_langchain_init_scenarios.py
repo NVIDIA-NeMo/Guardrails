@@ -51,13 +51,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemoguardrails.llm.models.langchain_initializer import (
+from nemoguardrails.integrations.langchain.langchain_initializer import (
     _PROVIDER_INITIALIZERS,
     _SPECIAL_MODEL_INITIALIZERS,
     ModelInitializationError,
     init_langchain_model,
 )
-from nemoguardrails.llm.providers.providers import (
+from nemoguardrails.integrations.langchain.providers.providers import (
     _chat_providers,
     _llm_providers,
     register_chat_provider,
@@ -213,7 +213,9 @@ class TestSuccessScenarios:
 
         if scenario == "chat_completion_success":
             mock_model = MagicMock()
-            with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model", return_value=mock_model):
+            with patch(
+                "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=mock_model
+            ):
                 result = init_langchain_model(model_name, provider, mode, {})
                 assert result == mock_model
         else:
@@ -281,7 +283,7 @@ class TestSingleErrorScenarios:
             provider_cls = MockProvider(behavior, exc_type, msg).create_class()
             if init_type == "chat":
                 with patch(
-                    "nemoguardrails.llm.models.langchain_initializer.init_chat_model",
+                    "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model",
                     side_effect=exc_type(msg),
                 ):
                     with pytest.raises(ModelInitializationError) as exc_info:
@@ -368,7 +370,7 @@ class TestMultipleErrorPriority:
                 registry.register_chat(provider, MockProvider("error", exc_type, msg).create_class())
 
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer.init_chat_model",
+            "nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model",
             side_effect=chat_exc[0](chat_exc[1]),
         ):
             with pytest.raises(ModelInitializationError) as exc_info:
@@ -422,7 +424,7 @@ class TestErrorRecovery:
         if text_cls:
             registry.register_llm(provider, text_cls)
 
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
             if isinstance(chat_behavior, MagicMock):
                 mock_chat.return_value = chat_behavior
             else:
@@ -489,7 +491,7 @@ class TestSpecialCaseHandling:
 
             assert "langchain_nvidia_ai_endpoints" in str(exc_info.value)
         finally:
-            from nemoguardrails.llm.models.langchain_initializer import _init_nvidia_model
+            from nemoguardrails.integrations.langchain.langchain_initializer import _init_nvidia_model
 
             _PROVIDER_INITIALIZERS["nvidia_ai_endpoints"] = _init_nvidia_model
 
@@ -534,7 +536,7 @@ class TestModeFiltering:
 
         registry.register_llm(provider, MockProvider("success").create_class())
 
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model", return_value=None):
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None):
             result = init_langchain_model("test-model", provider, "chat", {})
 
         assert result is not None
@@ -592,7 +594,7 @@ class TestEdgeCases:
         The generic error tells the user initialization failed but doesn't
         have specific details since nothing actually tried and failed.
         """
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model", return_value=None):
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model", return_value=None):
             with pytest.raises(ModelInitializationError) as exc_info:
                 init_langchain_model("test-model", "nonexistent_xyz", "chat", {})
 
@@ -685,7 +687,7 @@ class TestMultipleErrorScenarios:
         WHY: Community chat is the most specific initializer that ran,
         so its error is most relevant.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             _SPECIAL_MODEL_INITIALIZERS,
             ModelInitializationError,
             init_langchain_model,
@@ -696,11 +698,11 @@ class TestMultipleErrorScenarios:
 
         original_special = _SPECIAL_MODEL_INITIALIZERS.get("test-multi-error")
 
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
             mock_chat.side_effect = ValueError("Chat completion error")
 
             with patch(
-                "nemoguardrails.llm.models.langchain_initializer._get_chat_completion_provider"
+                "nemoguardrails.integrations.langchain.langchain_initializer._get_chat_completion_provider"
             ) as mock_community:
                 mock_provider = MagicMock()
                 mock_provider.model_fields = {"model": None}
@@ -733,11 +735,11 @@ class TestMultipleErrorScenarios:
         WHY: ImportError tells users which package to install. This is more
         actionable than a ValueError about configuration.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             ModelInitializationError,
             init_langchain_model,
         )
-        from nemoguardrails.llm.providers.providers import (
+        from nemoguardrails.integrations.langchain.providers.providers import (
             _chat_providers,
             register_chat_provider,
         )
@@ -754,7 +756,7 @@ class TestMultipleErrorScenarios:
         try:
             register_chat_provider(test_provider, ValueErrorProvider)
 
-            with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
                 mock_chat.side_effect = ImportError("Missing langchain_partner package - SHOULD WIN")
 
                 with pytest.raises(ModelInitializationError) as exc_info:
@@ -779,11 +781,11 @@ class TestMultipleErrorScenarios:
         WHY: The first missing package encountered is the most direct
         blocker. Install that first, then retry.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             ModelInitializationError,
             init_langchain_model,
         )
-        from nemoguardrails.llm.providers.providers import (
+        from nemoguardrails.integrations.langchain.providers.providers import (
             _chat_providers,
             register_chat_provider,
         )
@@ -800,7 +802,7 @@ class TestMultipleErrorScenarios:
         try:
             register_chat_provider(test_provider, SecondImportErrorProvider)
 
-            with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
                 mock_chat.side_effect = ImportError("First ImportError - SHOULD WIN")
 
                 with pytest.raises(ModelInitializationError) as exc_info:
@@ -825,7 +827,7 @@ class TestMultipleErrorScenarios:
         WHY: The fallback system is working as designed. Special case
         failed, but a more general initializer succeeded.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             _SPECIAL_MODEL_INITIALIZERS,
             init_langchain_model,
         )
@@ -839,7 +841,7 @@ class TestMultipleErrorScenarios:
             _SPECIAL_MODEL_INITIALIZERS["test-recovery"] = special_fails
 
             mock_model = MagicMock()
-            with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
                 mock_chat.return_value = mock_model
 
                 result = init_langchain_model("test-recovery-model", "openai", "chat", {})
@@ -861,11 +863,11 @@ class TestMultipleErrorScenarios:
         WHY: Community chat initializer is more specific than general
         chat completion, so its error is likely more relevant.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             ModelInitializationError,
             init_langchain_model,
         )
-        from nemoguardrails.llm.providers.providers import register_chat_provider
+        from nemoguardrails.integrations.langchain.providers.providers import register_chat_provider
 
         class CommunityFailProvider:
             model_fields = {"model": None}
@@ -879,7 +881,7 @@ class TestMultipleErrorScenarios:
         try:
             register_chat_provider(test_provider, CommunityFailProvider)
 
-            with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
                 mock_chat.side_effect = ValueError("Chat error: invalid model - should NOT win")
 
                 with pytest.raises(ModelInitializationError) as exc_info:
@@ -904,12 +906,12 @@ class TestMultipleErrorScenarios:
         Text completion is the more general initializer, but since it's
         the last one tried, its error takes precedence.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             _SPECIAL_MODEL_INITIALIZERS,
             ModelInitializationError,
             init_langchain_model,
         )
-        from nemoguardrails.llm.providers.providers import register_llm_provider
+        from nemoguardrails.integrations.langchain.providers.providers import register_llm_provider
 
         def special_fails(*args, **kwargs):
             raise ValueError("Special error - should NOT win")
@@ -957,11 +959,11 @@ class TestMultipleErrorScenarios:
         WHY: Both RuntimeError and ValueError are caught by the same
         Exception handler. No special priority between them, so last wins.
         """
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             ModelInitializationError,
             init_langchain_model,
         )
-        from nemoguardrails.llm.providers.providers import register_chat_provider
+        from nemoguardrails.integrations.langchain.providers.providers import register_chat_provider
 
         class ValueErrorProvider:
             model_fields = {"model": None}
@@ -975,7 +977,7 @@ class TestMultipleErrorScenarios:
         try:
             register_chat_provider(test_provider, ValueErrorProvider)
 
-            with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_chat:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_chat:
                 mock_chat.side_effect = RuntimeError("RuntimeError from chat - should NOT win")
 
                 with pytest.raises(ModelInitializationError) as exc_info:

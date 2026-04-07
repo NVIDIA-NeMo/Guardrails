@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemoguardrails.llm.providers.providers import _llm_providers
+from nemoguardrails.integrations.langchain.providers.providers import _llm_providers
 
 
 def test_acall_method_added():

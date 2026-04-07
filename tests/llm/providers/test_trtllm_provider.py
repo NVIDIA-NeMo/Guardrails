@@ -18,8 +18,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemoguardrails.llm.providers.providers import _llm_providers
-from nemoguardrails.llm.providers.trtllm.llm import TRTLLM
+from nemoguardrails.integrations.langchain.providers.providers import _llm_providers
+from nemoguardrails.integrations.langchain.providers.trtllm.llm import TRTLLM
 
 
 def test_trtllm_provider_registered():
@@ -39,7 +39,7 @@ async def test_trtllm_provider_has_acall():
 async def test_trtllm_provider_acall_implementation():
     """Test the implementation of the _acall method in the TRTLLM provider."""
     # Create a mock instance of TRTLLM
-    with patch("nemoguardrails.llm.providers.trtllm.llm.TRTLLM") as mock_trtllm:
+    with patch("nemoguardrails.integrations.langchain.providers.trtllm.llm.TRTLLM") as mock_trtllm:
         # Configure the mock to return a specific value from _call
         mock_instance = MagicMock()
         mock_instance._call.return_value = "Mock TRTLLM response"

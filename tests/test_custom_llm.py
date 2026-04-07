@@ -16,8 +16,8 @@
 import os
 
 from nemoguardrails import LLMRails, RailsConfig
-from nemoguardrails.llm.providers import get_llm_provider_names
-from nemoguardrails.llm.providers.providers import get_community_chat_provider_names
+from nemoguardrails.integrations.langchain.providers import get_llm_provider_names
+from nemoguardrails.integrations.langchain.providers.providers import get_community_chat_provider_names
 
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 

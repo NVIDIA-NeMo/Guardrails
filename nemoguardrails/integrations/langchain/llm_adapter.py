@@ -216,7 +216,7 @@ class LangChainFramework:
         provider_name: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> LLMModel:
-        from nemoguardrails.llm.models.langchain_initializer import (
+        from nemoguardrails.integrations.langchain.langchain_initializer import (
             init_langchain_model,
         )
 
