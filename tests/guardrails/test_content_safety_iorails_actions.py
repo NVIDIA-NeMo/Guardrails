@@ -20,13 +20,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.model_manager import ModelManager
-from nemoguardrails.library.content_safety.iorails_actions import (
+from nemoguardrails.guardrails.actions.content_safety_action import (
     ContentSafetyInputAction,
     ContentSafetyOutputAction,
     _content_safety_to_rail_result,
 )
+from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, CONTENT_SAFETY_INPUT_PROMPT, CONTENT_SAFETY_OUTPUT_PROMPT

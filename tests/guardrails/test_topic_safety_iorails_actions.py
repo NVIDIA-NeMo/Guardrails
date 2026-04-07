@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.library.topic_safety.actions import (
@@ -26,7 +27,6 @@ from nemoguardrails.library.topic_safety.actions import (
     TOPIC_SAFETY_OUTPUT_RESTRICTION,
     TOPIC_SAFETY_TEMPERATURE,
 )
-from nemoguardrails.library.topic_safety.iorails_actions import TopicSafetyInputAction
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import TOPIC_SAFETY_CONFIG, TOPIC_SAFETY_INPUT_PROMPT

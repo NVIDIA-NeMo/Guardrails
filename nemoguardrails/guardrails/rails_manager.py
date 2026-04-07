@@ -26,6 +26,12 @@ import logging
 from collections.abc import Coroutine, Mapping
 from typing import Any, Optional
 
+from nemoguardrails.guardrails.actions.content_safety_action import (
+    ContentSafetyInputAction,
+    ContentSafetyOutputAction,
+)
+from nemoguardrails.guardrails.actions.jailbreak_detection_action import JailbreakDetectionAction
+from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
 from nemoguardrails.guardrails.guardrails_types import (
     RailDirection,
     RailResult,
@@ -33,12 +39,6 @@ from nemoguardrails.guardrails.guardrails_types import (
 )
 from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.guardrails.rail_action import RailAction
-from nemoguardrails.library.content_safety.iorails_actions import (
-    ContentSafetyInputAction,
-    ContentSafetyOutputAction,
-)
-from nemoguardrails.library.jailbreak_detection.iorails_actions import JailbreakDetectionAction
-from nemoguardrails.library.topic_safety.iorails_actions import TopicSafetyInputAction
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 
