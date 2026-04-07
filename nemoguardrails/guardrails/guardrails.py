@@ -184,16 +184,26 @@ class Guardrails:
 
         stream_messages = self._convert_to_messages(prompt, messages)
 
+        async def _with_startup(iterator: AsyncIterator[str | dict]) -> AsyncIterator[str | dict]:
+            await self._ensure_started()
+            async for chunk in iterator:
+                yield chunk
+
         if isinstance(self.rails_engine, IORails):
-            # Explicitly unpack IORails.stream_async() arguments (a subset of LLMRails.stream_async())
-            return self.rails_engine.stream_async(
-                messages=stream_messages,
-                options=kwargs.get("options"),
-                include_metadata=kwargs.get("include_metadata", False),
+            # IORails.stream_async() only accepts messages, options, include_metadata
+            unsupported = set(kwargs) - {"options", "include_metadata"}
+            if unsupported:
+                log.warning("IORails stream_async: ignoring unsupported kwargs: %s", unsupported)
+            return _with_startup(
+                self.rails_engine.stream_async(
+                    messages=stream_messages,
+                    options=kwargs.get("options"),
+                    include_metadata=kwargs.get("include_metadata", False),
+                )
             )
 
         llmrails = cast(LLMRails, self.rails_engine)
-        return llmrails.stream_async(messages=stream_messages, **kwargs)
+        return _with_startup(llmrails.stream_async(messages=stream_messages, **kwargs))
 
     def explain(self) -> ExplainInfo:
         """Get the latest ExplainInfo object for debugging.

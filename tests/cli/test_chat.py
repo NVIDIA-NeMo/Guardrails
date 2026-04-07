@@ -300,6 +300,14 @@ class TestRunChatV1Async:
 class TestRunChatV1Guardrails:
     """Tests for _run_chat_v1_0 when LLMRails is aliased to Guardrails."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_guardrails_logger(self):
+        """Save and restore the guardrails logger level to prevent cross-test leakage."""
+        logger = logging.getLogger("nemoguardrails.guardrails")
+        original_level = logger.level
+        yield
+        logger.setLevel(original_level)
+
     @pytest.mark.asyncio
     @patch("builtins.input")
     @patch.object(chat_module, "LLMRails")

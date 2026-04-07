@@ -1,7 +1,7 @@
 # NeMoGuard Safety Rails Example
 
 This example showcases the use of NVIDIA's NeMoGuard NIMs for comprehensive AI safety including content moderation, topic control, and jailbreak detection.
-The streaming mode is enabled, with a context window of 50 chunks, and a prior-window size of 10 chunks.
+The streaming mode is enabled, with a chunk size of 50 and a context window of 10.
 
 ## Configuration Files
 

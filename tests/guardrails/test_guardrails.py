@@ -19,7 +19,6 @@ These tests mock the underlying LLMRails instantiation and verify that the Guard
 class correctly delegates method calls with properly formatted parameters.
 """
 
-from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -96,20 +95,23 @@ class TestGuardrailsRouting:
 
             # Set up mocks on the real (but uninitialized) LLMRails instance
             explain_info = ExplainInfo()
-            stream_async_iterator = MagicMock(spec=AsyncIterator)
             mock_new_llm = MagicMock()
+
+            async def mock_stream():
+                yield "chunk1"
 
             guardrails.rails_engine.generate = MagicMock(return_value="generate() response")
             guardrails.rails_engine.generate_async = AsyncMock(return_value="generate_async() response")
             guardrails.rails_engine.explain = MagicMock(return_value=explain_info)
-            guardrails.rails_engine.stream_async = MagicMock(return_value=stream_async_iterator)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
             guardrails.rails_engine.update_llm = MagicMock()
 
             # Call all methods
             messages = [{"role": "user", "content": "Hi how are you"}]
             assert guardrails.generate(messages=messages) == "generate() response"
             assert await guardrails.generate_async(messages=messages) == "generate_async() response"
-            assert guardrails.stream_async(messages=messages) is stream_async_iterator
+            chunks = [chunk async for chunk in guardrails.stream_async(messages=messages)]
+            assert chunks == ["chunk1"]
             assert guardrails.explain() is explain_info
             guardrails.update_llm(mock_new_llm)
 
@@ -150,15 +152,18 @@ class TestGuardrailsRouting:
             mock_new_llm = MagicMock()
 
             # Mock stream_async on the IORails instance
-            stream_async_iterator = MagicMock(spec=AsyncIterator)
-            guardrails.rails_engine.stream_async = MagicMock(return_value=stream_async_iterator)
+            async def mock_stream():
+                yield "iorails chunk"
+
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
 
             assert guardrails.generate(messages=messages) == "iorails generate response"
 
             response = await guardrails.generate_async(messages=messages)
             assert response == "iorails generate_async response"
 
-            assert guardrails.stream_async(messages=messages) is stream_async_iterator
+            chunks = [chunk async for chunk in guardrails.stream_async(messages=messages)]
+            assert chunks == ["iorails chunk"]
 
             with pytest.raises(NotImplementedError, match="IORails doesn't support explain()"):
                 guardrails.explain()
@@ -199,20 +204,23 @@ class TestGuardrailsRouting:
 
             # Set up mocks on the real (but uninitialized) LLMRails instance
             explain_info = ExplainInfo()
-            stream_async_iterator = MagicMock(spec=AsyncIterator)
             mock_new_llm = MagicMock()
+
+            async def mock_stream():
+                yield "chunk1"
 
             guardrails.rails_engine.generate = MagicMock(return_value="generate() response")
             guardrails.rails_engine.generate_async = AsyncMock(return_value="generate_async() response")
             guardrails.rails_engine.explain = MagicMock(return_value=explain_info)
-            guardrails.rails_engine.stream_async = MagicMock(return_value=stream_async_iterator)
+            guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
             guardrails.rails_engine.update_llm = MagicMock()
 
             # Call all methods
             messages = [{"role": "user", "content": "Hi how are you"}]
             assert guardrails.generate(messages=messages) == "generate() response"
             assert await guardrails.generate_async(messages=messages) == "generate_async() response"
-            assert guardrails.stream_async(messages=messages) is stream_async_iterator
+            chunks = [chunk async for chunk in guardrails.stream_async(messages=messages)]
+            assert chunks == ["chunk1"]
             assert guardrails.explain() is explain_info
             guardrails.update_llm(mock_new_llm)
 
@@ -943,7 +951,7 @@ class TestStreamAsyncIORails:
     @patch.object(IORails, "start", new_callable=AsyncMock)
     @patch.object(IORails, "__init__", return_value=None)
     async def test_filters_unsupported_kwargs(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
-        """LLMRails-only kwargs (state, generator, etc.) are not passed to IORails."""
+        """LLMRails-only kwargs (state, generator, etc.) are not passed to IORails and a warning is logged."""
 
         async def mock_stream():
             yield "ok"
@@ -952,14 +960,18 @@ class TestStreamAsyncIORails:
             assert isinstance(guardrails.rails_engine, IORails)
             guardrails.rails_engine.stream_async = MagicMock(return_value=mock_stream())
 
-            chunks = []
-            async for chunk in guardrails.stream_async(
-                messages=[{"role": "user", "content": "hi"}],
-                state={"events": []},
-                generator=MagicMock(),
-                include_generation_metadata=True,
-            ):
-                chunks.append(chunk)
+            with patch("nemoguardrails.guardrails.guardrails.log") as mock_log:
+                chunks = []
+                async for chunk in guardrails.stream_async(
+                    messages=[{"role": "user", "content": "hi"}],
+                    state={"events": []},
+                    generator=MagicMock(),
+                    include_generation_metadata=True,
+                ):
+                    chunks.append(chunk)
+
+                mock_log.warning.assert_called_once()
+                assert "ignoring unsupported kwargs" in mock_log.warning.call_args[0][0]
 
             # Only the supported kwargs should be passed
             guardrails.rails_engine.stream_async.assert_called_once_with(
