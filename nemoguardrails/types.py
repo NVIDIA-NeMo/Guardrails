@@ -261,7 +261,8 @@ class LLMFramework(Protocol):
     """Protocol for pluggable LLM framework backends.
 
     Each framework (LangChain, LiteLLM, etc.) implements this protocol to
-    provide a factory for creating ``LLMModel`` instances.
+    provide a factory for creating ``LLMModel`` instances and managing
+    its own set of providers.
 
     ``model_kwargs`` carries all provider-specific configuration. Framework
     implementations extract what they need (e.g. LangChain pops ``mode``
@@ -274,3 +275,7 @@ class LLMFramework(Protocol):
         provider_name: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> LLMModel: ...
+
+    def register_provider(self, name: str, provider_cls: Any) -> None: ...
+
+    def get_provider_names(self) -> List[str]: ...

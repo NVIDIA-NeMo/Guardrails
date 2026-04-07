@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,20 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Re-export from new location for backwards compatibility.
-# Implementation moved to nemoguardrails/integrations/langchain/providers/.
-from nemoguardrails.integrations.langchain.providers import (
-    get_chat_provider_names,
-    get_community_chat_provider_names,
-    get_llm_provider_names,
-    register_chat_provider,
-    register_llm_provider,
-)
+from typing import Any, List
+
+from nemoguardrails.llm.frameworks import get_default_framework, get_framework
+
+
+def _active_framework():
+    return get_framework(get_default_framework())
+
+
+def register_provider(name: str, provider_cls: Any) -> None:
+    _active_framework().register_provider(name, provider_cls)
+
+
+def get_provider_names() -> List[str]:
+    return _active_framework().get_provider_names()
+
+
+def register_chat_provider(name: str, provider_cls: Any) -> None:
+    register_provider(name, provider_cls)
+
+
+def register_llm_provider(name: str, provider_cls: Any) -> None:
+    register_provider(name, provider_cls)
+
+
+def get_chat_provider_names() -> List[str]:
+    return get_provider_names()
+
+
+def get_llm_provider_names() -> List[str]:
+    return get_provider_names()
+
 
 __all__ = [
-    "get_chat_provider_names",
-    "get_community_chat_provider_names",
-    "get_llm_provider_names",
+    "register_provider",
+    "get_provider_names",
     "register_chat_provider",
     "register_llm_provider",
+    "get_chat_provider_names",
+    "get_llm_provider_names",
 ]
