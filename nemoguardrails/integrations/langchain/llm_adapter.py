@@ -184,7 +184,7 @@ class LangChainLLMAdapter:
             return chatmessages_to_langchain_messages(prompt)
         return prompt
 
-    async def generate(
+    async def generate_async(
         self,
         prompt: Union[str, List[ChatMessage]],
         *,
@@ -196,7 +196,7 @@ class LangChainLLMAdapter:
         response = await llm.ainvoke(messages, stop=stop)
         return _langchain_response_to_llm_response(response)
 
-    async def stream(
+    async def stream_async(
         self,
         prompt: Union[str, List[ChatMessage]],
         *,

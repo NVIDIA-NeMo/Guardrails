@@ -78,7 +78,7 @@ async def llm_call(
         return await _stream_llm_call(model, chat_prompt, streaming_handler, stop, llm_params)
 
     try:
-        response: LLMResponse = await model.generate(chat_prompt, stop=stop, **(llm_params or {}))
+        response: LLMResponse = await model.generate_async(chat_prompt, stop=stop, **(llm_params or {}))
     except Exception as e:
         _raise_llm_call_exception(e, model)
 
@@ -102,7 +102,7 @@ async def _stream_llm_call(
     last_chunk: Optional[LLMResponseChunk] = None
 
     try:
-        async for chunk in model.stream(prompt, stop=stop, **(llm_params or {})):
+        async for chunk in model.stream_async(prompt, stop=stop, **(llm_params or {})):
             last_chunk = chunk
             content = chunk.delta_content or ""
 

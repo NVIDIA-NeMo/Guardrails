@@ -415,10 +415,10 @@ class TestLLMResponseChunk:
 class TestLLMModelProtocol:
     def test_mock_satisfies_protocol(self):
         class MockLLM:
-            async def generate(self, prompt, *, stop=None, **kwargs):
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
                 return LLMResponse(content="response")
 
-            async def stream(self, prompt, *, stop=None, **kwargs):
+            async def stream_async(self, prompt, *, stop=None, **kwargs):
                 yield LLMResponseChunk(delta_content="chunk")
 
             @property
@@ -437,7 +437,7 @@ class TestLLMModelProtocol:
 
     def test_incomplete_class_fails_protocol(self):
         class IncompleteLLM:
-            async def generate(self, prompt, *, stop=None, **kwargs):
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
                 return LLMResponse(content="response")
 
         assert not isinstance(IncompleteLLM(), LLMModel)
