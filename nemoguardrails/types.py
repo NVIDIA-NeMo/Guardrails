@@ -228,7 +228,7 @@ class LLMModel(Protocol):
     max_tokens).
     """
 
-    async def generate(
+    async def generate_async(
         self,
         prompt: Union[str, List["ChatMessage"]],
         *,
@@ -236,7 +236,7 @@ class LLMModel(Protocol):
         **kwargs,
     ) -> "LLMResponse": ...
 
-    def stream(
+    def stream_async(
         self,
         prompt: Union[str, List["ChatMessage"]],
         *,

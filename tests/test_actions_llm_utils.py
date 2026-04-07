@@ -387,12 +387,12 @@ class TestLlmCallDictToChatMessageConversion:
         received_prompt = None
 
         class CaptureLLM:
-            async def generate(self, prompt, *, stop=None, **kwargs):
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
                 nonlocal received_prompt
                 received_prompt = prompt
                 return LLMResponse(content="ok")
 
-            async def stream(self, prompt, *, stop=None, **kwargs):
+            async def stream_async(self, prompt, *, stop=None, **kwargs):
                 yield LLMResponseChunk(delta_content="ok")
 
             @property
@@ -428,12 +428,12 @@ class TestLlmCallDictToChatMessageConversion:
         received_prompt = None
 
         class CaptureLLM:
-            async def generate(self, prompt, *, stop=None, **kwargs):
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
                 nonlocal received_prompt
                 received_prompt = prompt
                 return LLMResponse(content="ok")
 
-            async def stream(self, prompt, *, stop=None, **kwargs):
+            async def stream_async(self, prompt, *, stop=None, **kwargs):
                 yield LLMResponseChunk(delta_content="ok")
 
             @property
@@ -458,12 +458,12 @@ class TestLlmCallDictToChatMessageConversion:
         received_prompt = None
 
         class CaptureLLM:
-            async def generate(self, prompt, *, stop=None, **kwargs):
+            async def generate_async(self, prompt, *, stop=None, **kwargs):
                 nonlocal received_prompt
                 received_prompt = prompt
                 return LLMResponse(content="ok")
 
-            async def stream(self, prompt, *, stop=None, **kwargs):
+            async def stream_async(self, prompt, *, stop=None, **kwargs):
                 yield LLMResponseChunk(delta_content="ok")
 
             @property
