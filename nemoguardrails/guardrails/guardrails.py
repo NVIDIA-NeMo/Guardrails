@@ -24,8 +24,6 @@ LLM responses with programmable guardrails.
 import logging
 from typing import AsyncIterator, Optional, Tuple, Union, cast, overload
 
-from langchain_core.language_models import BaseChatModel, BaseLLM
-
 from nemoguardrails.guardrails import configure_logging
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
@@ -34,6 +32,7 @@ from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
+from nemoguardrails.types import LLMModel
 
 # Queue configuration constants
 MAX_QUEUE_SIZE = 256
@@ -54,7 +53,7 @@ class Guardrails:
     def __init__(
         self,
         config: RailsConfig,
-        llm: Optional[Union[BaseLLM, BaseChatModel]] = None,
+        llm: Optional[LLMModel] = None,
         verbose: bool = False,
         *,
         use_iorails: bool = True,  # False -> fall back to LLMRails instead
@@ -204,7 +203,7 @@ class Guardrails:
         llmrails = cast(LLMRails, self.rails_engine)
         return llmrails.explain()
 
-    def update_llm(self, llm: Union[BaseLLM, BaseChatModel]) -> None:
+    def update_llm(self, llm: LLMModel) -> None:
         """Replace the main LLM with a new one.
         Only supported for LLMRails, since IORails doesn't take LLM as argument
         """
