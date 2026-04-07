@@ -263,7 +263,24 @@ def _build_usage_info(raw: Any) -> Optional[UsageInfo]:
     )
 
 
-def _extract_reasoning(response) -> Optional[str]:
+_EXTRACTED_METADATA_KEYS = frozenset(
+    {
+        "model_name",
+        "model",
+        "finish_reason",
+        "stop_reason",
+        "stop_sequence",
+        "id",
+        "request_id",
+        "token_usage",
+        "usage",
+    }
+)
+
+_REASONING_KEYS = frozenset({"reasoning_content"})
+
+
+def _extract_reasoning(response: Any) -> Optional[str]:
     content_blocks = getattr(response, "content_blocks", None)
     if content_blocks:
         for block in content_blocks:
@@ -281,94 +298,85 @@ def _extract_reasoning(response) -> Optional[str]:
     return None
 
 
-def _langchain_response_to_llm_response(response) -> LLMResponse:
+def _extract_tool_calls(response: Any) -> Optional[List[ToolCall]]:
+    raw = getattr(response, "tool_calls", None)
+    if not raw:
+        return None
+    return [
+        ToolCall(
+            id=tc.get("id") or str(uuid.uuid4()),
+            type="function",
+            function=ToolCallFunction(
+                name=tc.get("name", ""),
+                arguments=tc.get("args", {}),
+            ),
+        )
+        for tc in raw
+    ]
+
+
+def _extract_usage(response: Any) -> Optional[UsageInfo]:
+    usage = _build_usage_info(getattr(response, "usage_metadata", None))
+    if usage is not None:
+        return usage
+
+    for source in (
+        getattr(response, "response_metadata", None) or {},
+        getattr(response, "generation_info", None) or {},
+    ):
+        token_usage = source.get("token_usage") or source.get("usage")
+        if token_usage:
+            usage = _build_usage_info(token_usage)
+            if usage is not None:
+                return usage
+
+    return None
+
+
+def _extract_model_info(response_metadata: Dict[str, Any]) -> tuple:
+    model = response_metadata.get("model_name") or response_metadata.get("model")
+    raw_finish = response_metadata.get("finish_reason") or response_metadata.get("stop_reason")
+    finish_reason = _map_finish_reason(raw_finish)
+    stop_sequence = response_metadata.get("stop_sequence")
+    request_id = response_metadata.get("id") or response_metadata.get("request_id")
+    return model, finish_reason, stop_sequence, request_id
+
+
+def _build_provider_metadata(
+    response_metadata: Dict[str, Any],
+    additional_kwargs: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    result: Dict[str, Any] = {k: v for k, v in response_metadata.items() if k not in _EXTRACTED_METADATA_KEYS}
+    if additional_kwargs:
+        for k, v in additional_kwargs.items():
+            if k not in _REASONING_KEYS and k not in result:
+                result[k] = v
+    return result or None
+
+
+def _langchain_response_to_llm_response(response: Any) -> LLMResponse:
     content = getattr(response, "content", None)
     if content is None:
         content = str(response)
 
-    reasoning = _extract_reasoning(response)
-
-    raw_tool_calls = getattr(response, "tool_calls", None)
-    tool_calls = None
-    if raw_tool_calls:
-        tool_calls = []
-        for tc in raw_tool_calls:
-            if isinstance(tc, dict):
-                tool_calls.append(
-                    ToolCall(
-                        id=tc.get("id") or str(uuid.uuid4()),
-                        type="function",
-                        function=ToolCallFunction(
-                            name=tc.get("name", ""),
-                            arguments=tc.get("args", {}),
-                        ),
-                    )
-                )
-            else:
-                tool_calls.append(
-                    ToolCall(
-                        id=getattr(tc, "id", None) or str(uuid.uuid4()),
-                        type="function",
-                        function=ToolCallFunction(
-                            name=getattr(tc, "name", ""),
-                            arguments=getattr(tc, "args", {}),
-                        ),
-                    )
-                )
-
     response_metadata = getattr(response, "response_metadata", None) or {}
     additional_kwargs = getattr(response, "additional_kwargs", None) or {}
-
-    usage_metadata = getattr(response, "usage_metadata", None)
-    usage = _build_usage_info(usage_metadata)
-    if usage is None and response_metadata:
-        token_usage = response_metadata.get("token_usage") or response_metadata.get("usage")
-        if token_usage:
-            usage = _build_usage_info(token_usage)
-
-    model = response_metadata.get("model_name") or response_metadata.get("model")
-
-    raw_finish = response_metadata.get("finish_reason") or response_metadata.get("stop_reason")
-    finish_reason = _map_finish_reason(raw_finish)
-
-    stop_sequence = response_metadata.get("stop_sequence")
-
-    request_id = response_metadata.get("id") or response_metadata.get("request_id")
-
-    extracted_keys = {
-        "model_name",
-        "model",
-        "finish_reason",
-        "stop_reason",
-        "stop_sequence",
-        "id",
-        "request_id",
-        "token_usage",
-        "usage",
-    }
-    reasoning_keys = {"reasoning_content"}
-    provider_metadata: Dict[str, Any] = {}
-    for k, v in response_metadata.items():
-        if k not in extracted_keys:
-            provider_metadata[k] = v
-    for k, v in additional_kwargs.items():
-        if k not in reasoning_keys and k not in provider_metadata:
-            provider_metadata[k] = v
+    model, finish_reason, stop_sequence, request_id = _extract_model_info(response_metadata)
 
     return LLMResponse(
         content=content,
-        reasoning=reasoning,
-        tool_calls=tool_calls,
+        reasoning=_extract_reasoning(response),
+        tool_calls=_extract_tool_calls(response),
         model=model,
         finish_reason=finish_reason,
         stop_sequence=stop_sequence,
         request_id=request_id,
-        usage=usage,
-        provider_metadata=provider_metadata if provider_metadata else None,
+        usage=_extract_usage(response),
+        provider_metadata=_build_provider_metadata(response_metadata, additional_kwargs),
     )
 
 
-def _langchain_chunk_to_llm_response_chunk(chunk) -> LLMResponseChunk:
+def _langchain_chunk_to_llm_response_chunk(chunk: Any) -> LLMResponseChunk:
     content = getattr(chunk, "content", None)
     if content is None:
         content = getattr(chunk, "text", None)
@@ -377,27 +385,10 @@ def _langchain_chunk_to_llm_response_chunk(chunk) -> LLMResponseChunk:
 
     response_metadata = getattr(chunk, "response_metadata", None) or {}
     generation_info = getattr(chunk, "generation_info", None) or {}
-
-    usage_metadata = getattr(chunk, "usage_metadata", None)
-    usage = _build_usage_info(usage_metadata)
-    if usage is None and response_metadata:
-        token_usage = response_metadata.get("token_usage") or response_metadata.get("usage")
-        if token_usage:
-            usage = _build_usage_info(token_usage)
-    if usage is None and generation_info:
-        token_usage = generation_info.get("token_usage") or generation_info.get("usage")
-        if token_usage:
-            usage = _build_usage_info(token_usage)
-
-    provider_metadata: Dict[str, Any] = {}
-    for k, v in response_metadata.items():
-        provider_metadata[k] = v
-    for k, v in generation_info.items():
-        if k not in provider_metadata:
-            provider_metadata[k] = v
+    merged_metadata = {**response_metadata, **generation_info}
 
     return LLMResponseChunk(
         delta_content=content,
-        usage=usage,
-        provider_metadata=provider_metadata if provider_metadata else None,
+        usage=_extract_usage(chunk),
+        provider_metadata=merged_metadata or None,
     )
