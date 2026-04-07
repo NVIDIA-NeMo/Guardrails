@@ -82,7 +82,7 @@ class TestLangChainLLMAdapter:
         mock_llm.ainvoke.return_value = AIMessage(content="hello world")
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("say hello")
+        result = await adapter.generate_async("say hello")
 
         assert isinstance(result, LLMResponse)
         assert result.content == "hello world"
@@ -94,7 +94,7 @@ class TestLangChainLLMAdapter:
         mock_llm.ainvoke.return_value = AIMessage(content="hi there")
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate([ChatMessage.from_user("hello")])
+        result = await adapter.generate_async([ChatMessage.from_user("hello")])
 
         assert isinstance(result, LLMResponse)
         assert result.content == "hi there"
@@ -112,7 +112,7 @@ class TestLangChainLLMAdapter:
         )
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("prompt")
+        result = await adapter.generate_async("prompt")
 
         assert isinstance(result, LLMResponse)
         assert result.content == "response"
@@ -130,7 +130,7 @@ class TestLangChainLLMAdapter:
         )
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("prompt")
+        result = await adapter.generate_async("prompt")
 
         assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
@@ -148,7 +148,7 @@ class TestLangChainLLMAdapter:
         mock_llm.ainvoke.return_value = response
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("prompt")
+        result = await adapter.generate_async("prompt")
 
         assert result.usage is not None
         assert result.usage.total_tokens == 100
@@ -171,7 +171,7 @@ class TestLangChainLLMAdapter:
         adapter = LangChainLLMAdapter(mock_llm)
 
         results = []
-        async for chunk in adapter.stream("say hello"):
+        async for chunk in adapter.stream_async("say hello"):
             results.append(chunk)
 
         assert len(results) == 2
@@ -187,7 +187,7 @@ class TestLangChainLLMAdapter:
         mock_llm.bind.return_value = bound_llm
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("prompt", temperature=0.5, max_tokens=100)
+        result = await adapter.generate_async("prompt", temperature=0.5, max_tokens=100)
 
         mock_llm.bind.assert_called_once_with(temperature=0.5, max_tokens=100)
         bound_llm.ainvoke.assert_called_once_with("prompt", stop=None)
@@ -199,7 +199,7 @@ class TestLangChainLLMAdapter:
         mock_llm.ainvoke.return_value = AIMessage(content="direct response")
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("prompt")
+        result = await adapter.generate_async("prompt")
 
         mock_llm.bind.assert_not_called()
         assert result.content == "direct response"
@@ -213,7 +213,7 @@ class TestLangChainLLMAdapter:
         mock_llm.bind.return_value = bound_llm
         adapter = LangChainLLMAdapter(mock_llm)
 
-        result = await adapter.generate("prompt", temperature=0.5, max_tokens=100)
+        result = await adapter.generate_async("prompt", temperature=0.5, max_tokens=100)
 
         mock_llm.bind.assert_called_once_with(max_tokens=100)
         assert result.content == "reasoning response"
