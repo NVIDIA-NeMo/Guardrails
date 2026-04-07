@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .providers import (
+# Re-export from new location for backwards compatibility.
+# Implementation moved to nemoguardrails/integrations/langchain/providers/.
+from nemoguardrails.integrations.langchain.providers import (
     get_chat_provider_names,
     get_community_chat_provider_names,
     get_llm_provider_names,

@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nemoguardrails.llm.providers.providers import (
+from nemoguardrails.integrations.langchain.providers.providers import (
     discover_langchain_providers,
 )
 
@@ -30,11 +30,15 @@ class MockBaseLLM:
 
 @pytest.fixture
 def mock_discover_function():
-    with patch("nemoguardrails.llm.providers.providers._discover_langchain_community_llm_providers") as mock_func:
+    with patch(
+        "nemoguardrails.integrations.langchain.providers.providers._discover_langchain_community_llm_providers"
+    ) as mock_func:
         mock_providers = {"mock_provider": MockBaseLLM}
         mock_func.return_value = mock_providers
-        with patch("nemoguardrails.llm.providers.providers._patch_acall_method_to") as mock_patch:
-            with patch("nemoguardrails.llm.providers.providers._llm_providers") as mock_llm_providers:
+        with patch("nemoguardrails.integrations.langchain.providers.providers._patch_acall_method_to") as mock_patch:
+            with patch(
+                "nemoguardrails.integrations.langchain.providers.providers._llm_providers"
+            ) as mock_llm_providers:
                 mock_llm_providers.update(mock_providers)
                 yield mock_func
 

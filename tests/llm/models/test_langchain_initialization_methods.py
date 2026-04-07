@@ -24,7 +24,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemoguardrails.llm.models.langchain_initializer import (
+from nemoguardrails.integrations.langchain.langchain_initializer import (
     _init_chat_completion_model,
     _init_community_chat_models,
     _init_text_completion_model,
@@ -36,9 +36,9 @@ class TestChatCompletionInitializer:
     """Tests for the chat completion initializer."""
 
     def test_init_chat_completion_model_success(self):
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_init:
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_init:
             mock_init.return_value = "chat_model"
-            with patch("nemoguardrails.llm.models.langchain_initializer.version") as mock_version:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.version") as mock_version:
                 mock_version.return_value = "0.2.7"
                 result = _init_chat_completion_model("gpt-3.5-turbo", "openai", {})
                 assert result == "chat_model"
@@ -48,9 +48,9 @@ class TestChatCompletionInitializer:
                 )
 
     def test_init_chat_completion_model_with_api_key_success(self):
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_init:
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_init:
             mock_init.return_value = "chat_model"
-            with patch("nemoguardrails.llm.models.langchain_initializer.version") as mock_version:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.version") as mock_version:
                 mock_version.return_value = "0.2.7"
                 # Pass in an API Key for use in LLM calls
                 kwargs = {"api_key": "sk-svcacct-abcdef12345"}
@@ -63,7 +63,7 @@ class TestChatCompletionInitializer:
                 )
 
     def test_init_chat_completion_model_old_version(self):
-        with patch("nemoguardrails.llm.models.langchain_initializer.version") as mock_version:
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.version") as mock_version:
             mock_version.return_value = "0.2.6"
             with pytest.raises(
                 RuntimeError,
@@ -72,9 +72,9 @@ class TestChatCompletionInitializer:
                 _init_chat_completion_model("gpt-3.5-turbo", "openai", {})
 
     def test_init_chat_completion_model_error(self):
-        with patch("nemoguardrails.llm.models.langchain_initializer.init_chat_model") as mock_init:
+        with patch("nemoguardrails.integrations.langchain.langchain_initializer.init_chat_model") as mock_init:
             mock_init.side_effect = ValueError("Chat model failed")
-            with patch("nemoguardrails.llm.models.langchain_initializer.version") as mock_version:
+            with patch("nemoguardrails.integrations.langchain.langchain_initializer.version") as mock_version:
                 mock_version.return_value = "0.2.7"
                 with pytest.raises(ValueError, match="Chat model failed"):
                     _init_chat_completion_model("gpt-3.5-turbo", "openai", {})
@@ -85,7 +85,7 @@ class TestCommunityChatInitializer:
 
     def test_init_community_chat_models_success(self):
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer._get_chat_completion_provider"
+            "nemoguardrails.integrations.langchain.langchain_initializer._get_chat_completion_provider"
         ) as mock_get_provider:
             mock_provider_cls = MagicMock()
             mock_provider_cls.model_fields = {"model": None}
@@ -98,7 +98,7 @@ class TestCommunityChatInitializer:
 
     def test_init_community_chat_models_with_api_key_success(self):
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer._get_chat_completion_provider"
+            "nemoguardrails.integrations.langchain.langchain_initializer._get_chat_completion_provider"
         ) as mock_get_provider:
             mock_provider_cls = MagicMock()
             mock_provider_cls.model_fields = {"model": None}
@@ -113,7 +113,7 @@ class TestCommunityChatInitializer:
 
     def test_init_community_chat_models_no_provider(self):
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer._get_chat_completion_provider"
+            "nemoguardrails.integrations.langchain.langchain_initializer._get_chat_completion_provider"
         ) as mock_get_provider:
             mock_get_provider.return_value = None
             assert _init_community_chat_models("community-model", "provider", {}) is None
@@ -124,7 +124,7 @@ class TestTextCompletionInitializer:
 
     def test_init_text_completion_model_success(self):
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer._get_text_completion_provider"
+            "nemoguardrails.integrations.langchain.langchain_initializer._get_text_completion_provider"
         ) as mock_get_provider:
             mock_provider_cls = MagicMock()
             mock_provider_cls.model_fields = {"model": None}
@@ -137,7 +137,7 @@ class TestTextCompletionInitializer:
 
     def test_init_text_completion_model_with_api_key_success(self):
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer._get_text_completion_provider"
+            "nemoguardrails.integrations.langchain.langchain_initializer._get_text_completion_provider"
         ) as mock_get_provider:
             mock_provider_cls = MagicMock()
             mock_provider_cls.model_fields = {"model": None}
@@ -152,7 +152,7 @@ class TestTextCompletionInitializer:
 
     def test_init_text_completion_model_no_provider(self):
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer._get_text_completion_provider"
+            "nemoguardrails.integrations.langchain.langchain_initializer._get_text_completion_provider"
         ) as mock_get_provider:
             mock_get_provider.return_value = None
             assert _init_text_completion_model("text-model", "provider", {}) is None

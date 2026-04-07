@@ -89,13 +89,13 @@ class MetadataMockChatModel(BaseChatModel):
 @pytest.fixture(autouse=True)
 def metadata_mock_provider():
     """Fixture that registers mock chat provider for testing."""
-    from nemoguardrails.llm.providers import register_chat_provider
+    from nemoguardrails.integrations.langchain.providers import register_chat_provider
 
     register_chat_provider("metadata_mock_llm", MetadataMockChatModel)
 
     yield
 
-    from nemoguardrails.llm.providers.providers import _chat_providers
+    from nemoguardrails.integrations.langchain.providers.providers import _chat_providers
 
     _chat_providers.pop("metadata_mock_llm", None)
 

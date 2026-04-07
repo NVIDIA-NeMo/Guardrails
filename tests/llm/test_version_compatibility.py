@@ -18,7 +18,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 import pytest
 
-from nemoguardrails.llm.providers.providers import (
+from nemoguardrails.integrations.langchain.providers.providers import (
     _chat_providers,
     _discover_langchain_community_chat_providers,
     _discover_langchain_community_llm_providers,
@@ -350,7 +350,7 @@ def test_discover_partner_chat_providers_no_providers_attr(monkeypatch):
     monkeypatch.delattr(_base, "_BUILTIN_PROVIDERS", raising=False)
     monkeypatch.delattr(_base, "_SUPPORTED_PROVIDERS", raising=False)
 
-    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+    from nemoguardrails.integrations.langchain.providers.providers import _CUSTOM_CHAT_PROVIDERS
 
     result = _discover_langchain_partner_chat_providers()
     assert result == _CUSTOM_CHAT_PROVIDERS
@@ -364,7 +364,7 @@ def test_discover_partner_chat_providers_set_type(monkeypatch):
     monkeypatch.delattr(_base, "_BUILTIN_PROVIDERS", raising=False)
     monkeypatch.setattr(_base, "_SUPPORTED_PROVIDERS", providers_set, raising=False)
 
-    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+    from nemoguardrails.integrations.langchain.providers.providers import _CUSTOM_CHAT_PROVIDERS
 
     result = _discover_langchain_partner_chat_providers()
     assert result == providers_set | _CUSTOM_CHAT_PROVIDERS
@@ -381,7 +381,7 @@ def test_discover_partner_chat_providers_supported_dict(monkeypatch):
     monkeypatch.delattr(_base, "_BUILTIN_PROVIDERS", raising=False)
     monkeypatch.setattr(_base, "_SUPPORTED_PROVIDERS", providers_dict, raising=False)
 
-    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+    from nemoguardrails.integrations.langchain.providers.providers import _CUSTOM_CHAT_PROVIDERS
 
     result = _discover_langchain_partner_chat_providers()
     assert result == set(providers_dict.keys()) | _CUSTOM_CHAT_PROVIDERS
@@ -395,7 +395,7 @@ def test_discover_partner_chat_providers_builtin_set(monkeypatch):
     monkeypatch.setattr(_base, "_BUILTIN_PROVIDERS", providers_set)
     monkeypatch.delattr(_base, "_SUPPORTED_PROVIDERS", raising=False)
 
-    from nemoguardrails.llm.providers.providers import _CUSTOM_CHAT_PROVIDERS
+    from nemoguardrails.integrations.langchain.providers.providers import _CUSTOM_CHAT_PROVIDERS
 
     result = _discover_langchain_partner_chat_providers()
     assert result == providers_set | _CUSTOM_CHAT_PROVIDERS

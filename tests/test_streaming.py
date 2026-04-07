@@ -602,7 +602,7 @@ def custom_streaming_providers():
     """Fixture that registers both custom chat and LLM providers for testing."""
     from langchain_core.language_models import BaseChatModel, BaseLLM
 
-    from nemoguardrails.llm.providers import (
+    from nemoguardrails.integrations.langchain.providers import (
         register_chat_provider,
         register_llm_provider,
     )
@@ -683,7 +683,7 @@ def custom_streaming_providers():
     yield
 
     # clean up
-    from nemoguardrails.llm.providers.providers import _chat_providers, _llm_providers
+    from nemoguardrails.integrations.langchain.providers.providers import _chat_providers, _llm_providers
 
     _chat_providers.pop("custom_streaming", None)
     _chat_providers.pop("custom_none_streaming", None)

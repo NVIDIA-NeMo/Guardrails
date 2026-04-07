@@ -20,8 +20,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.language_models import BaseChatModel, BaseLLM
 
-from nemoguardrails.llm.models.langchain_initializer import init_langchain_model
-from nemoguardrails.llm.providers.providers import (
+from nemoguardrails.integrations.langchain.langchain_initializer import init_langchain_model
+from nemoguardrails.integrations.langchain.providers.providers import (
     _chat_providers,
     _discover_langchain_community_chat_providers,
     _discover_langchain_community_llm_providers,
@@ -41,7 +41,7 @@ class MockLangChainChatModel:
 
 @pytest.fixture
 def mock_langchain_llms():
-    with patch("nemoguardrails.llm.providers.providers.llms") as mock_llms:
+    with patch("nemoguardrails.integrations.langchain.providers.providers.llms") as mock_llms:
         # mock  get_type_to_cls_dict method
         mock_llms.get_type_to_cls_dict.return_value = {"mock_provider": MockLangChainLLM}
         yield mock_llms
@@ -49,7 +49,7 @@ def mock_langchain_llms():
 
 @pytest.fixture
 def mock_langchain_chat_models():
-    with patch("nemoguardrails.llm.providers.providers._module_lookup") as mock_lookup:
+    with patch("nemoguardrails.integrations.langchain.providers.providers._module_lookup") as mock_lookup:
         # mock the items method to return a list of tuples
         mock_lookup.items.return_value = [
             (
@@ -57,7 +57,7 @@ def mock_langchain_chat_models():
                 "langchain_community.chat_models.mock_provider",
             )
         ]
-        with patch("nemoguardrails.llm.providers.providers.importlib.import_module") as mock_import:
+        with patch("nemoguardrails.integrations.langchain.providers.providers.importlib.import_module") as mock_import:
             # mock the import_module function
             mock_module = MagicMock()
             mock_module.MockLangChainChatModel = MockLangChainChatModel
