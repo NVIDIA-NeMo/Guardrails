@@ -19,8 +19,6 @@ import sys
 from typing import List
 
 import typer
-from langchain_community.cache import SQLiteCache
-from langchain_core.globals import set_llm_cache
 
 from nemoguardrails.eval.check import LLMJudgeComplianceChecker
 from nemoguardrails.eval.eval import run_eval
@@ -173,7 +171,13 @@ def check_compliance(
         console.print("[orange]Caching is disabled.[/]")
     else:
         console.print("[green]Caching is enabled.[/]")
-        set_llm_cache(SQLiteCache(database_path=".langchain.db"))
+        try:
+            from langchain_community.cache import SQLiteCache
+            from langchain_core.globals import set_llm_cache
+
+            set_llm_cache(SQLiteCache(database_path=".langchain.db"))
+        except ImportError:
+            console.print("[yellow]langchain not installed, LLM caching unavailable.[/]")
 
     console.print(f"Using eval configuration from {eval_config_path}.")
     console.print(f"Using output paths: {output_path}.")

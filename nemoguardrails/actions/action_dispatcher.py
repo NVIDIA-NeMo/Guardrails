@@ -23,8 +23,6 @@ from importlib.machinery import ModuleSpec
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
 
-from langchain_core.runnables import Runnable
-
 from nemoguardrails import utils
 from nemoguardrails.exceptions import LLMCallException
 
@@ -218,11 +216,10 @@ class ActionDispatcher:
                         else:
                             log.warning(f"Synchronous action `{action_name}` has been called.")
 
-                    elif isinstance(fn, Runnable):
-                        # If it's a Runnable, we invoke it as well
-                        runnable = fn
-
-                        result = await runnable.ainvoke(input=params)
+                    elif hasattr(fn, "ainvoke") and callable(fn.ainvoke):  # type: ignore[union-attr]
+                        # Duck-type check for LangChain Runnables (or any object
+                        # with ainvoke) to avoid importing langchain in core.
+                        result = await fn.ainvoke(input=params)  # type: ignore[union-attr]
                     else:
                         # TODO: there should be a common base class here
                         fn_run_func = getattr(fn, "run", None)

@@ -17,8 +17,6 @@ import asyncio
 import logging
 from typing import Optional
 
-from langchain_core.prompts import PromptTemplate
-
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import (
@@ -56,8 +54,7 @@ async def self_check_hallucination(
     if bot_response and last_bot_prompt_string:
         num_responses = HALLUCINATION_NUM_EXTRA_RESPONSES
 
-        last_bot_prompt = PromptTemplate(template="{text}", input_variables=["text"])
-        formatted_prompt = last_bot_prompt.format(text=last_bot_prompt_string)
+        formatted_prompt = last_bot_prompt_string
 
         async def _generate_extra_response(index: int) -> Optional[str]:
             llm_call_info_var.set(LLMCallInfo(task=Task.SELF_CHECK_HALLUCINATION.value))
