@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.language_models import BaseChatModel, BaseLLM
 
-from nemoguardrails.llm.providers.providers import (
+from nemoguardrails.integrations.langchain.providers.providers import (
     _acall,
     _chat_providers,
     _get_chat_completion_provider,
@@ -53,7 +53,7 @@ class MockChatModel(BaseChatModel):
 
 @pytest.fixture
 def mock_langchain_llms():
-    with patch("nemoguardrails.llm.providers.providers.llms") as mock_llms:
+    with patch("nemoguardrails.integrations.langchain.providers.providers.llms") as mock_llms:
         mock_dict = {"mock_provider": MockLLM}
         mock_llms.get_type_to_cls_dict.return_value = mock_dict
         mock_llms.type_to_cls_dict = mock_dict
@@ -62,9 +62,9 @@ def mock_langchain_llms():
 
 @pytest.fixture
 def mock_langchain_chat_models():
-    with patch("nemoguardrails.llm.providers.providers._module_lookup") as mock_lookup:
+    with patch("nemoguardrails.integrations.langchain.providers.providers._module_lookup") as mock_lookup:
         mock_lookup.items.return_value = [("mock_provider", "langchain_community.chat_models.mock_provider")]
-        with patch("nemoguardrails.llm.providers.providers.importlib.import_module") as mock_import:
+        with patch("nemoguardrails.integrations.langchain.providers.providers.importlib.import_module") as mock_import:
             mock_module = MagicMock()
             mock_module.mock_provider = MockChatModel
             mock_import.return_value = mock_module
@@ -178,7 +178,7 @@ def test_get_chat_provider_names():
 def test_get_text_completion_provider():
     # test with a registered provider
     with patch(
-        "nemoguardrails.llm.providers.providers._llm_providers",
+        "nemoguardrails.integrations.langchain.providers.providers._llm_providers",
         {"test_provider": MockLLM},
     ):
         provider = _get_text_completion_provider("test_provider")
@@ -192,7 +192,7 @@ def test_get_text_completion_provider():
 def test_get_chat_completion_provider():
     # test with a registered provider
     with patch(
-        "nemoguardrails.llm.providers.providers._chat_providers",
+        "nemoguardrails.integrations.langchain.providers.providers._chat_providers",
         {"test_provider": MockChatModel},
     ):
         provider = _get_chat_completion_provider("test_provider")

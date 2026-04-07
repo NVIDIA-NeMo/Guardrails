@@ -235,7 +235,7 @@ class TestLangChainFramework:
 
         mock_raw_llm = MagicMock()
         with patch(
-            "nemoguardrails.llm.models.langchain_initializer.init_langchain_model",
+            "nemoguardrails.integrations.langchain.langchain_initializer.init_langchain_model",
             return_value=mock_raw_llm,
         ) as mock_init:
             model = framework.create_model(

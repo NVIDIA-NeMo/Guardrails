@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nemoguardrails.llm.models.langchain_initializer import (
+from nemoguardrails.integrations.langchain.langchain_initializer import (
     ModelInitializationError,
     init_langchain_model,
 )
@@ -27,10 +27,14 @@ from nemoguardrails.llm.models.langchain_initializer import (
 def mock_initializers():
     """Mock all initialization methods for unit tests."""
     with (
-        patch("nemoguardrails.llm.models.langchain_initializer._handle_model_special_cases") as mock_special,
-        patch("nemoguardrails.llm.models.langchain_initializer._init_chat_completion_model") as mock_chat,
-        patch("nemoguardrails.llm.models.langchain_initializer._init_community_chat_models") as mock_community,
-        patch("nemoguardrails.llm.models.langchain_initializer._init_text_completion_model") as mock_text,
+        patch(
+            "nemoguardrails.integrations.langchain.langchain_initializer._handle_model_special_cases"
+        ) as mock_special,
+        patch("nemoguardrails.integrations.langchain.langchain_initializer._init_chat_completion_model") as mock_chat,
+        patch(
+            "nemoguardrails.integrations.langchain.langchain_initializer._init_community_chat_models"
+        ) as mock_community,
+        patch("nemoguardrails.integrations.langchain.langchain_initializer._init_text_completion_model") as mock_text,
     ):
         # Set __name__ attributes for the mocks
         mock_special.__name__ = "_handle_model_special_cases"

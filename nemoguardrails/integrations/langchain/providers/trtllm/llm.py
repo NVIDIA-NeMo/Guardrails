@@ -25,7 +25,7 @@ from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseLLM
 from pydantic.v1 import Field, root_validator
 
-from nemoguardrails.llm.providers.trtllm.client import TritonClient
+from nemoguardrails.integrations.langchain.providers.trtllm.client import TritonClient
 
 STOP_WORDS = ["</s>"]
 BAD_WORDS = [""]

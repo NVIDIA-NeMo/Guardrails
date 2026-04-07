@@ -13,6 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Re-export from new location for backwards compatibility.
-# Implementation moved to nemoguardrails/integrations/langchain/langchain_initializer.py.
-from nemoguardrails.integrations.langchain.langchain_initializer import *  # noqa: F401,F403
+from .providers import (
+    get_chat_provider_names,
+    get_community_chat_provider_names,
+    get_llm_provider_names,
+    register_chat_provider,
+    register_llm_provider,
+)
+
+__all__ = [
+    "get_chat_provider_names",
+    "get_community_chat_provider_names",
+    "get_llm_provider_names",
+    "register_chat_provider",
+    "register_llm_provider",
+]

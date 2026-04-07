@@ -18,7 +18,7 @@
 import os
 
 from nemoguardrails.actions import action
-from nemoguardrails.actions.langchain.safetools import (
+from nemoguardrails.integrations.langchain.actions.safetools import (
     ApifyWrapperSafe,
     BingSearchAPIWrapperSafe,
     GoogleSearchAPIWrapperSafe,
