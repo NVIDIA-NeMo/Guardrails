@@ -200,6 +200,29 @@ class LangChainLLMAdapter:
 
 
 class LangChainFramework:
+    def register_provider(self, name: str, provider_cls: Any) -> None:
+        from langchain_core.language_models import BaseChatModel
+
+        from nemoguardrails.integrations.langchain.providers.providers import (
+            register_chat_provider as _register_chat,
+        )
+        from nemoguardrails.integrations.langchain.providers.providers import (
+            register_llm_provider as _register_llm,
+        )
+
+        if isinstance(provider_cls, type) and issubclass(provider_cls, BaseChatModel):
+            _register_chat(name, provider_cls)
+        else:
+            _register_llm(name, provider_cls)
+
+    def get_provider_names(self) -> List[str]:
+        from nemoguardrails.integrations.langchain.providers.providers import (
+            get_chat_provider_names,
+            get_llm_provider_names,
+        )
+
+        return sorted(set(get_chat_provider_names() + get_llm_provider_names()))
+
     def create_model(
         self,
         model_name: str,
