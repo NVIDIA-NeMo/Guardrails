@@ -35,6 +35,7 @@ from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from nemoguardrails import LLMRails, RailsConfig, utils
+from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
@@ -76,7 +77,7 @@ class GuardrailsApp(FastAPI):
 # backends and storage engines.
 registered_loggers: List[Callable] = []
 
-api_description = """Guardrails Sever API."""
+api_description = """Guardrails Server API."""
 
 # The headers for each request
 api_request_headers: contextvars.ContextVar = contextvars.ContextVar("headers")
@@ -302,7 +303,7 @@ def _update_models_in_config(config: RailsConfig, main_model: Model) -> RailsCon
     return config.model_copy(update={"models": models})
 
 
-def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
+async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRails:
     """Returns the rails instance for the given config id and model.
 
     Args:
@@ -361,6 +362,9 @@ def _get_rails(config_ids: List[str], model_name: Optional[str] = None) -> LLMRa
         full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
 
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
+    if isinstance(llm_rails, Guardrails):
+        await llm_rails.startup()
+
     llm_rails_instances[configs_cache_key] = llm_rails
 
     # If we have a cache for the events, we restore it
@@ -477,7 +481,7 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
             )
 
     try:
-        llm_rails = _get_rails(config_ids, model_name=body.model)
+        llm_rails = await _get_rails(config_ids, model_name=body.model)
 
     except ValueError as ex:
         log.exception(ex)
