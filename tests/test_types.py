@@ -473,6 +473,12 @@ class TestLLMFrameworkProtocol:
             def create_model(self, model_name, provider_name, model_kwargs=None):
                 return None
 
+            def register_provider(self, name, provider_cls):
+                pass
+
+            def get_provider_names(self):
+                return []
+
         assert isinstance(MockFramework(), LLMFramework)
 
     def test_incomplete_class_fails_protocol(self):
