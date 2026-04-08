@@ -17,7 +17,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.imports import check_optional_dependency
-from tests.utils import FakeLLM, TestChat
+from tests.utils import FakeLLMModel, TestChat
 
 GUARDRAILS_AVAILABLE = check_optional_dependency("guardrails")
 REGEX_MATCH_AVAILABLE = False
@@ -222,7 +222,7 @@ class TestGuardrailsAIBlockingBehavior:
             yaml_content=INPUT_RAILS_ONLY_CONFIG_EXCEPTION,
         )
 
-        llm = FakeLLM(responses=["  express greeting", "Hello! How can I help you today?"])
+        llm = FakeLLMModel(responses=["  express greeting", "Hello! How can I help you today?"])
 
         rails = LLMRails(config=config, llm=llm)
 
@@ -290,7 +290,7 @@ class TestGuardrailsAIBlockingBehavior:
             yaml_content=OUTPUT_RAILS_ONLY_CONFIG_EXCEPTION,
         )
 
-        llm = FakeLLM(
+        llm = FakeLLMModel(
             responses=[
                 "  express greeting",
                 "general response",
@@ -375,7 +375,7 @@ class TestGuardrailsAIBlockingBehavior:
             yaml_content=INPUT_AND_OUTPUT_RAILS_CONFIG_EXCEPTION,
         )
 
-        llm = FakeLLM(responses=["  express greeting", "general response", "Hello! How are you?"])
+        llm = FakeLLMModel(responses=["  express greeting", "general response", "Hello! How are you?"])
 
         rails = LLMRails(config=config, llm=llm)
 
@@ -396,7 +396,7 @@ class TestGuardrailsAIBlockingBehavior:
             yaml_content=INPUT_AND_OUTPUT_RAILS_CONFIG_EXCEPTION,
         )
 
-        llm = FakeLLM(
+        llm = FakeLLMModel(
             responses=[
                 "  express greeting",
                 "general response",

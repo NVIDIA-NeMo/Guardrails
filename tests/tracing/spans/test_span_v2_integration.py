@@ -19,7 +19,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.tracing import create_span_extractor
 from nemoguardrails.tracing.spans import LLMSpan, is_opentelemetry_span
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
 
 @pytest.fixture
@@ -75,7 +75,7 @@ tracing:
 def test_span_v2_configuration(v2_config):
     assert v2_config.tracing.span_format == "opentelemetry"
 
-    llm = FakeLLM(responses=["Hello! I'm here to help."])
+    llm = FakeLLMModel(responses=["Hello! I'm here to help."])
     _rails = LLMRails(config=v2_config, llm=llm)
 
     extractor = create_span_extractor(span_format="opentelemetry")
@@ -84,7 +84,7 @@ def test_span_v2_configuration(v2_config):
 
 @pytest.mark.asyncio
 async def test_v2_spans_generated_with_events(v2_config):
-    llm = FakeLLM(responses=["  express greeting", "Hello! How can I help you today?"])
+    llm = FakeLLMModel(responses=["  express greeting", "Hello! How can I help you today?"])
 
     rails = LLMRails(config=v2_config, llm=llm)
 
@@ -130,7 +130,7 @@ async def test_v2_spans_generated_with_events(v2_config):
 def test_v1_backward_compatibility(v1_config):
     assert v1_config.tracing.span_format == "legacy"
 
-    llm = FakeLLM(responses=["Hello!"])
+    llm = FakeLLMModel(responses=["Hello!"])
     _rails = LLMRails(config=v1_config, llm=llm)
 
     extractor = create_span_extractor(span_format="legacy")

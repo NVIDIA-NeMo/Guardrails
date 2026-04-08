@@ -16,7 +16,7 @@
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
 
 @pytest.mark.asyncio
@@ -36,7 +36,7 @@ async def test_system_message_conversion_v1():
         }
     )
 
-    llm = FakeLLM(responses=["Hello!"])
+    llm = FakeLLMModel(responses=["Hello!"])
     llm_rails = LLMRails(config=config, llm=llm)
 
     messages = [
@@ -68,7 +68,7 @@ async def test_system_message_conversion_v2x():
         }
     )
 
-    llm = FakeLLM(responses=["Hello!"])
+    llm = FakeLLMModel(responses=["Hello!"])
     llm_rails = LLMRails(config=config, llm=llm)
 
     messages = [
@@ -99,7 +99,7 @@ async def test_system_message_conversion_multiple():
         }
     )
 
-    llm = FakeLLM(responses=["Hello!"])
+    llm = FakeLLMModel(responses=["Hello!"])
     llm_rails = LLMRails(config=config, llm=llm)
 
     messages = [
@@ -131,7 +131,7 @@ async def test_system_message_end_to_end():
         }
     )
 
-    llm = FakeLLM(responses=["Hello there!"])
+    llm = FakeLLMModel(responses=["Hello there!"])
     llm_rails = LLMRails(config=config, llm=llm)
 
     response = await llm_rails.generate_async(

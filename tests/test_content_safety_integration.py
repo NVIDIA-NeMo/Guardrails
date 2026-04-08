@@ -25,7 +25,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails import RailsConfig
-from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
 from nemoguardrails.library.content_safety.actions import (
     content_safety_check_input,
     content_safety_check_output,
@@ -37,11 +36,11 @@ from nemoguardrails.llm.output_parsers import (
     nemotron_reasoning_parse_prompt_safety,
     nemotron_reasoning_parse_response_safety,
 )
-from tests.utils import FakeLLM, TestChat
+from tests.utils import FakeLLMModel, TestChat
 
 
 def _create_mock_setup(llm_responses, parsed_result):
-    mock_llm = LangChainLLMAdapter(FakeLLM(responses=llm_responses))
+    mock_llm = FakeLLMModel(responses=llm_responses)
     llms = {"test_model": mock_llm}
 
     mock_task_manager = MagicMock()
@@ -307,7 +306,7 @@ class TestReasoningEnabledEndToEnd:
         self, reasoning_enabled, expected_token, is_harmful, safety_response, expected_response
     ):
         """Test content_safety_check_input renders correct token and handles safe/harmful input."""
-        content_safety_llm = FakeLLM(responses=[safety_response])
+        content_safety_llm = FakeLLMModel(responses=[safety_response])
 
         config = RailsConfig.from_content(
             yaml_content=textwrap.dedent(
@@ -352,7 +351,7 @@ class TestReasoningEnabledEndToEnd:
         )
 
         chat.app.runtime.registered_action_params["llms"] = {
-            "content_safety_reasoning": LangChainLLMAdapter(content_safety_llm)
+            "content_safety_reasoning": content_safety_llm
         }
 
         user_message = "Hello"

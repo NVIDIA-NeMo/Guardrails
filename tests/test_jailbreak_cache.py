@@ -30,7 +30,7 @@ from nemoguardrails.rails.llm.config import (
     RailsConfig,
 )
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
 
 @pytest.fixture
@@ -256,7 +256,7 @@ async def test_jailbreak_without_cache_local(mock_check_jailbreak, mock_task_man
 
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
 def test_jailbreak_detection_type_skips_llm_initialization(mock_init_llm_model):
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(

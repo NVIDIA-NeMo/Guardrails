@@ -19,13 +19,13 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.rails.llm.config import CacheStatsConfig, Model, ModelCacheConfig
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
 
 @pytest.mark.asyncio
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
 async def test_end_to_end_cache_integration_with_content_safety(mock_init_llm_model):
-    mock_llm = FakeLLM(responses=["express greeting"])
+    mock_llm = FakeLLMModel(responses=["express greeting"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -48,7 +48,7 @@ async def test_end_to_end_cache_integration_with_content_safety(mock_init_llm_mo
         ]
     )
 
-    llm = FakeLLM(responses=["express greeting"])
+    llm = FakeLLMModel(responses=["express greeting"])
 
     rails = LLMRails(config=config, llm=llm, verbose=False)
 
@@ -72,7 +72,7 @@ async def test_end_to_end_cache_integration_with_content_safety(mock_init_llm_mo
 @pytest.mark.asyncio
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
 async def test_cache_isolation_between_models(mock_init_llm_model):
-    mock_llm = FakeLLM(responses=["safe"])
+    mock_llm = FakeLLMModel(responses=["safe"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -97,7 +97,7 @@ async def test_cache_isolation_between_models(mock_init_llm_model):
         ]
     )
 
-    llm = FakeLLM(responses=["safe"])
+    llm = FakeLLMModel(responses=["safe"])
 
     rails = LLMRails(config=config, llm=llm, verbose=False)
 
@@ -120,7 +120,7 @@ async def test_cache_isolation_between_models(mock_init_llm_model):
 @pytest.mark.asyncio
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
 async def test_cache_disabled_for_main_model_in_integration(mock_init_llm_model):
-    mock_llm = FakeLLM(responses=["safe"])
+    mock_llm = FakeLLMModel(responses=["safe"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -140,7 +140,7 @@ async def test_cache_disabled_for_main_model_in_integration(mock_init_llm_model)
         ]
     )
 
-    llm = FakeLLM(responses=["safe"])
+    llm = FakeLLMModel(responses=["safe"])
 
     rails = LLMRails(config=config, llm=llm, verbose=False)
 

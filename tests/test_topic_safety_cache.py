@@ -18,13 +18,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.context import llm_call_info_var, llm_stats_var
-from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
 from nemoguardrails.library.topic_safety.actions import topic_safety_check_input
 from nemoguardrails.llm.cache.lfu import LFUCache
 from nemoguardrails.llm.cache.utils import create_normalized_cache_key
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.stats import LLMStats
-from tests.utils import FakeLLM
+from tests.utils import FakeLLMModel
 
 
 @pytest.fixture
@@ -38,7 +37,7 @@ def mock_task_manager():
 
 @pytest.fixture
 def fake_llm_topic():
-    llm = LangChainLLMAdapter(FakeLLM(responses=["on-topic"]))
+    llm = FakeLLMModel(responses=["on-topic"])
     return {"test_model": llm}
 
 
