@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,6 +24,14 @@ from nemoguardrails.llm.frameworks import (
     get_framework,
     register_framework,
     set_default_framework,
+)
+from nemoguardrails.llm.providers import (
+    get_chat_provider_names,
+    get_llm_provider_names,
+    get_provider_names,
+    register_chat_provider,
+    register_llm_provider,
+    register_provider,
 )
 from nemoguardrails.types import LLMModel
 
@@ -82,3 +91,78 @@ class TestRegistry:
         _reset_frameworks()
         with pytest.raises(KeyError):
             get_framework("temp")
+
+
+class FakeChatProvider:
+    pass
+
+
+class FakeLLMProvider:
+    async def _acall(self, prompt, stop=None, **kwargs):
+        return "fake"
+
+
+@pytest.fixture(autouse=False)
+def clean_providers():
+    from nemoguardrails.integrations.langchain.providers import providers as _p
+
+    chat_backup = dict(_p._chat_providers)
+    llm_backup = dict(_p._llm_providers)
+    yield
+    _p._chat_providers.clear()
+    _p._chat_providers.update(chat_backup)
+    _p._llm_providers.clear()
+    _p._llm_providers.update(llm_backup)
+
+
+@pytest.mark.usefixtures("clean_providers")
+class TestProviderRegistration:
+    def test_register_provider_appears_in_get_provider_names(self):
+        register_provider("test_provider", FakeChatProvider)
+        assert "test_provider" in get_provider_names()
+
+    def test_register_chat_provider_appears_in_chat_names(self):
+        register_chat_provider("test_chat", FakeChatProvider)
+        assert "test_chat" in get_chat_provider_names()
+
+    def test_register_llm_provider_appears_in_llm_names(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            register_llm_provider("test_llm", FakeLLMProvider)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert "test_llm" in get_llm_provider_names()
+
+    def test_chat_and_llm_provider_names_are_different_subsets(self):
+        register_chat_provider("only_chat_test", FakeChatProvider)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            register_llm_provider("only_llm_test", FakeLLMProvider)
+
+        chat_names = get_chat_provider_names()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            llm_names = get_llm_provider_names()
+
+        assert "only_chat_test" in chat_names
+        assert "only_chat_test" not in llm_names
+        assert "only_llm_test" in llm_names
+        assert "only_llm_test" not in chat_names
+
+    def test_get_provider_names_returns_both(self):
+        register_chat_provider("both_chat", FakeChatProvider)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            register_llm_provider("both_llm", FakeLLMProvider)
+
+        all_names = get_provider_names()
+        assert "both_chat" in all_names
+        assert "both_llm" in all_names
+
+    def test_register_llm_provider_emits_deprecation(self):
+        with pytest.warns(DeprecationWarning, match="removed in 0.23.0"):
+            register_llm_provider("dep_test", FakeLLMProvider)
+
+    def test_get_llm_provider_names_emits_deprecation(self):
+        with pytest.warns(DeprecationWarning, match="removed in 0.23.0"):
+            get_llm_provider_names()
