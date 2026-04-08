@@ -53,7 +53,7 @@ def task_manager(config):
 
 @pytest.fixture
 def engine_registry(config):
-    return EngineRegistry(config)
+    return EngineRegistry(config.models, config.rails.config)
 
 
 @pytest.fixture
@@ -161,7 +161,7 @@ class TestTopicSafetyPromptIsList:
             }
         )
         task_manager = LLMTaskManager(config)
-        engine_registry = EngineRegistry(config)
+        engine_registry = EngineRegistry(config.models, config.rails.config)
         action = TopicSafetyInputAction(engine_registry, task_manager)
         with pytest.raises(RuntimeError, match="must be a string template"):
             action._create_prompt(MODEL_TYPE, {"messages": MESSAGES})
@@ -185,7 +185,7 @@ class TestTopicSafetyStopTokens:
             }
         )
         task_manager = LLMTaskManager(config)
-        engine_registry = EngineRegistry(config)
+        engine_registry = EngineRegistry(config.models, config.rails.config)
         action = TopicSafetyInputAction(engine_registry, task_manager)
         action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
 

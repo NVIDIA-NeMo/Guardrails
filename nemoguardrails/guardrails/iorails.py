@@ -62,7 +62,7 @@ class IORails:
         self.config = config
 
         # Engine registry holds one or more engines. Each engine calls a single model or API
-        self.engine_registry = EngineRegistry(config)
+        self.engine_registry = EngineRegistry(config.models, config.rails.config)
 
         # Rails Manager is responsible for running rails by making calls to the engine registry
         self.rails_manager = RailsManager(config, self.engine_registry)

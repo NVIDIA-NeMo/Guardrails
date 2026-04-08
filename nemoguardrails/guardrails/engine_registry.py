@@ -26,7 +26,7 @@ from typing import Any
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.rails.llm.config import Model, RailsConfigData
 
 log = logging.getLogger(__name__)
 
@@ -39,12 +39,12 @@ class EngineRegistry:
     Each engine owns its own HTTP client with per-model retry and timeout settings.
     """
 
-    def __init__(self, config: RailsConfig) -> None:
+    def __init__(self, models: list[Model], rails_config_data: RailsConfigData) -> None:
         self._engines: dict[str, ModelEngine] = {}
         self._api_engines: dict[str, APIEngine] = {}
         self._running = False
 
-        for model_config in config.models:
+        for model_config in models:
             self._engines[model_config.type] = ModelEngine(model_config)
             log.info(
                 "Registered model engine: type=%s, model=%s, base_url=%s",
@@ -53,12 +53,12 @@ class EngineRegistry:
                 self._engines[model_config.type].base_url,
             )
 
-        self._init_jailbreak_detection_engine(config)
+        self._init_jailbreak_detection_engine(rails_config_data)
 
-    def _init_jailbreak_detection_engine(self, config: RailsConfig) -> None:
+    def _init_jailbreak_detection_engine(self, rails_config_data: RailsConfigData) -> None:
         """Initialize APIEngine instances from rails configuration."""
 
-        jailbreak_config = config.rails.config.jailbreak_detection
+        jailbreak_config = rails_config_data.jailbreak_detection
         if jailbreak_config and jailbreak_config.nim_base_url:
             self._api_engines["jailbreak_detection"] = APIEngine.from_jailbreak_config(jailbreak_config)
             log.info(

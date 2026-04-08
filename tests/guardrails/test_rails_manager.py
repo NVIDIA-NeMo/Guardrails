@@ -61,7 +61,7 @@ def content_safety_rails_config():
 
 @pytest.fixture
 def content_safety_engine_registry(content_safety_rails_config):
-    return EngineRegistry(content_safety_rails_config)
+    return EngineRegistry(content_safety_rails_config.models, content_safety_rails_config.rails.config)
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def nemoguards_rails_config():
 
 @pytest.fixture
 def nemoguards_engine_registry(nemoguards_rails_config):
-    return EngineRegistry(nemoguards_rails_config)
+    return EngineRegistry(nemoguards_rails_config.models, nemoguards_rails_config.rails.config)
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ def topic_safety_rails_config():
 
 @pytest.fixture
 def topic_safety_engine_registry(topic_safety_rails_config):
-    return EngineRegistry(topic_safety_rails_config)
+    return EngineRegistry(topic_safety_rails_config.models, topic_safety_rails_config.rails.config)
 
 
 @pytest.fixture
@@ -102,19 +102,19 @@ def topic_safety_rails_manager(topic_safety_rails_config, topic_safety_engine_re
 @pytest.fixture
 def parallel_input_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_INPUT_CONFIG)
-    return RailsManager(config, EngineRegistry(config))
+    return RailsManager(config, EngineRegistry(config.models, config.rails.config))
 
 
 @pytest.fixture
 def parallel_output_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_OUTPUT_CONFIG)
-    return RailsManager(config, EngineRegistry(config))
+    return RailsManager(config, EngineRegistry(config.models, config.rails.config))
 
 
 @pytest.fixture
 def parallel_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG)
-    return RailsManager(config, EngineRegistry(config))
+    return RailsManager(config, EngineRegistry(config.models, config.rails.config))
 
 
 # --- Init tests ---

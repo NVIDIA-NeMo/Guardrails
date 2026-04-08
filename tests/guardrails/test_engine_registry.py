@@ -34,7 +34,7 @@ def rails_config():
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def manager(rails_config):
     """Create a EngineRegistry from test config."""
-    return EngineRegistry(rails_config)
+    return EngineRegistry(rails_config.models, rails_config.rails.config)
 
 
 class TestEngineRegistryInit:
@@ -49,7 +49,7 @@ class TestEngineRegistryInit:
     def test_empty_config_creates_no_engines(self):
         """Empty models list results in no engines."""
         config = RailsConfig.from_content(config={"models": []})
-        mgr = EngineRegistry(config)
+        mgr = EngineRegistry(config.models, config.rails.config)
         assert len(mgr._engines) == 0
 
 

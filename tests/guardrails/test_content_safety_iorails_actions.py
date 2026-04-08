@@ -66,7 +66,7 @@ def task_manager(config):
 
 @pytest.fixture
 def engine_registry(config):
-    return EngineRegistry(config)
+    return EngineRegistry(config.models, config.rails.config)
 
 
 @pytest.fixture
@@ -246,7 +246,7 @@ class TestContentSafetyMissingConfig:
     def _make_action(action_cls):
         config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
         config.rails.config.content_safety = None
-        return action_cls(EngineRegistry(config), LLMTaskManager(config))
+        return action_cls(EngineRegistry(config.models, config.rails.config), LLMTaskManager(config))
 
     def test_input_missing_content_safety_config_raises(self):
         action = self._make_action(ContentSafetyInputAction)
@@ -280,7 +280,7 @@ class TestContentSafetyStopTokens:
         }
         config = RailsConfig.from_content(config=config_with_stop)
         task_manager = LLMTaskManager(config)
-        engine_registry = EngineRegistry(config)
+        engine_registry = EngineRegistry(config.models, config.rails.config)
         action = ContentSafetyInputAction(engine_registry, task_manager)
         action.engine_registry.generate_async = AsyncMock(return_value=SAFE_JSON)
 
@@ -307,7 +307,7 @@ class TestContentSafetyStopTokens:
         }
         config = RailsConfig.from_content(config=config_with_stop)
         task_manager = LLMTaskManager(config)
-        engine_registry = EngineRegistry(config)
+        engine_registry = EngineRegistry(config.models, config.rails.config)
         action = ContentSafetyOutputAction(engine_registry, task_manager)
         action.engine_registry.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
 
