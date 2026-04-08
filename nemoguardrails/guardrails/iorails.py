@@ -37,7 +37,6 @@ from nemoguardrails.guardrails.guardrails_types import (
     set_new_request_id,
     truncate,
 )
-from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -62,11 +61,11 @@ class IORails:
         self._running = False
         self.config = config
 
-        # Model Manager has one or more ModelEngine inside. Each ModelEngine calls a single model or API
-        self.model_manager = ModelManager(config)
+        # Engine registry holds one or more engines. Each engine calls a single model or API
+        self.engine_registry = EngineRegistry(config)
 
-        # Rails Manager is responsible for running rails by making calls to Model Manager
-        self.rails_manager = RailsManager(config, self.model_manager)
+        # Rails Manager is responsible for running rails by making calls to the engine registry
+        self.rails_manager = RailsManager(config, self.engine_registry)
 
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)
@@ -85,7 +84,7 @@ class IORails:
         # When starting up, make sure self._running is always set to True even on exceptions.
         # This allows the stop() method to clean up any state
         try:
-            await self.model_manager.start()
+            await self.engine_registry.start()
         finally:
             self._running = True
 
@@ -94,9 +93,9 @@ class IORails:
         if not self._running:
             return
 
-        # If any exceptions are thrown when stopping ModelManager, set the _running to False
+        # If any exceptions are thrown when stopping EngineRegistry, set the _running to False
         try:
-            await self.model_manager.stop()
+            await self.engine_registry.stop()
         finally:
             self._running = False
 
@@ -145,7 +144,7 @@ class IORails:
             if isinstance(options, GenerationOptions) and options.llm_params:
                 llm_kwargs = options.llm_params
 
-            response_text = await self.model_manager.generate_async("main", messages, **llm_kwargs)
+            response_text = await self.engine_registry.generate_async("main", messages, **llm_kwargs)
             log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
             # Step 3: Check output rails

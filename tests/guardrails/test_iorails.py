@@ -40,19 +40,19 @@ def iorails(rails_config):
 
 
 class TestIORailsInit:
-    """Test IORails wires up ModelManager and RailsManager from config."""
+    """Test IORails wires up EngineRegistry and RailsManager from config."""
 
-    def test_creates_model_manager(self, iorails):
-        """ModelManager is created during init."""
-        assert iorails.model_manager is not None
+    def test_creates_engine_registry(self, iorails):
+        """EngineRegistry is created during init."""
+        assert iorails.engine_registry is not None
 
     def test_creates_rails_manager(self, iorails):
         """RailsManager is created during init."""
         assert iorails.rails_manager is not None
 
-    def test_rails_manager_uses_model_manager(self, iorails):
-        """RailsManager receives the same ModelManager instance."""
-        assert iorails.rails_manager.model_manager is iorails.model_manager
+    def test_rails_manager_uses_engine_registry(self, iorails):
+        """RailsManager receives the same EngineRegistry instance."""
+        assert iorails.rails_manager.engine_registry is iorails.engine_registry
 
 
 class TestGenerateAsync:
@@ -65,14 +65,14 @@ class TestGenerateAsync:
         llm_response = "Hello from LLM"
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value=llm_response)
+        iorails.engine_registry.generate_async = AsyncMock(return_value=llm_response)
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": llm_response}
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
-        iorails.model_manager.generate_async.assert_called_once_with("main", messages)
+        iorails.engine_registry.generate_async.assert_called_once_with("main", messages)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
     @pytest.mark.asyncio
@@ -85,14 +85,14 @@ class TestGenerateAsync:
         options = GenerationOptions(llm_params=llm_params)
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value=llm_response)
+        iorails.engine_registry.generate_async = AsyncMock(return_value=llm_response)
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         result = await iorails.generate_async(messages, options=options)
 
         assert result == {"role": "assistant", "content": llm_response}
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
-        iorails.model_manager.generate_async.assert_called_once_with("main", messages, **llm_params)
+        iorails.engine_registry.generate_async.assert_called_once_with("main", messages, **llm_params)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
     @pytest.mark.asyncio
@@ -113,7 +113,7 @@ class TestGenerateAsync:
             return RailResult(is_safe=True)
 
         iorails.rails_manager.is_input_safe = mock_input_safe
-        iorails.model_manager.generate_async = mock_generate
+        iorails.engine_registry.generate_async = mock_generate
         iorails.rails_manager.is_output_safe = mock_output_safe
 
         await iorails.generate_async([{"role": "user", "content": "hi"}])
@@ -123,7 +123,7 @@ class TestGenerateAsync:
     async def test_unsafe_input(self, iorails):
         """Returns refusal and skips LLM + output check when input is unsafe."""
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
-        iorails.model_manager.generate_async = AsyncMock()
+        iorails.engine_registry.generate_async = AsyncMock()
         iorails.rails_manager.is_output_safe = AsyncMock()
 
         messages = [{"role": "user", "content": "bad input"}]
@@ -131,7 +131,7 @@ class TestGenerateAsync:
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
-        iorails.model_manager.generate_async.assert_not_called()
+        iorails.engine_registry.generate_async.assert_not_called()
         iorails.rails_manager.is_output_safe.assert_not_called()
 
     @pytest.mark.asyncio
@@ -141,14 +141,14 @@ class TestGenerateAsync:
         llm_response = "Unsafe response from the LLM!"
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value=llm_response)
+        iorails.engine_registry.generate_async = AsyncMock(return_value=llm_response)
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
 
         result = await iorails.generate_async(messages)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         iorails.rails_manager.is_input_safe.assert_called_once_with(messages)
-        iorails.model_manager.generate_async.assert_called_once_with("main", messages)
+        iorails.engine_registry.generate_async.assert_called_once_with("main", messages)
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, llm_response)
 
     @pytest.mark.asyncio
@@ -180,58 +180,58 @@ class TestIORailsLifecycle:
 
     @pytest.mark.asyncio
     async def test_start_stop_lifecycle(self, iorails):
-        """start() delegates to model_manager.start(), stop() to model_manager.stop()."""
-        iorails.model_manager.start = AsyncMock()
-        iorails.model_manager.stop = AsyncMock()
+        """start() delegates to engine_registry.start(), stop() to engine_registry.stop()."""
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
 
         assert not iorails._running
         await iorails.start()
         assert iorails._running
-        iorails.model_manager.start.assert_called_once()
+        iorails.engine_registry.start.assert_called_once()
 
         await iorails.stop()
         assert not iorails._running
-        iorails.model_manager.stop.assert_called_once()
+        iorails.engine_registry.stop.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_start_is_idempotent(self, iorails):
-        """Calling start() twice only starts model_manager once."""
-        iorails.model_manager.start = AsyncMock()
+        """Calling start() twice only starts engine_registry once."""
+        iorails.engine_registry.start = AsyncMock()
 
         await iorails.start()
         await iorails.start()
 
-        iorails.model_manager.start.assert_called_once()
+        iorails.engine_registry.start.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stop_is_idempotent(self, iorails):
-        """Calling stop() twice only stops model_manager once."""
-        iorails.model_manager.start = AsyncMock()
-        iorails.model_manager.stop = AsyncMock()
+        """Calling stop() twice only stops engine_registry once."""
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
 
         await iorails.start()
         await iorails.stop()
         await iorails.stop()
 
-        iorails.model_manager.stop.assert_called_once()
+        iorails.engine_registry.stop.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stop_without_start_is_noop(self, iorails):
         """stop() without a prior start() does not raise."""
-        iorails.model_manager.stop = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
 
         await iorails.stop()
         assert not iorails._running
-        iorails.model_manager.stop.assert_not_called()
+        iorails.engine_registry.stop.assert_not_called()
 
 
 class TestIORailsStartErrors:
     """Test IORails start() error propagation."""
 
     @pytest.mark.asyncio
-    async def test_start_propagates_model_manager_error(self, iorails):
-        """start() re-raises when model_manager.start() fails."""
-        iorails.model_manager.start = AsyncMock(side_effect=RuntimeError("engine failed"))
+    async def test_start_propagates_engine_registry_error(self, iorails):
+        """start() re-raises when engine_registry.start() fails."""
+        iorails.engine_registry.start = AsyncMock(side_effect=RuntimeError("engine failed"))
 
         with pytest.raises(RuntimeError, match="engine failed"):
             await iorails.start()
@@ -240,13 +240,13 @@ class TestIORailsStartErrors:
 
     @pytest.mark.asyncio
     async def test_start_propagates_model_engine_error(self, iorails):
-        """A ModelEngine failure propagates through ModelManager up to IORails.start()."""
-        # Inject the failure at the ModelEngine level, leaving ModelManager real
-        engine = iorails.model_manager._get_model_engine("content_safety")
+        """A ModelEngine failure propagates through EngineRegistry up to IORails.start()."""
+        # Inject the failure at the ModelEngine level, leaving EngineRegistry real
+        engine = iorails.engine_registry._get_model_engine("content_safety")
         engine.start = AsyncMock(side_effect=RuntimeError("NIM endpoint unreachable"))
 
         # Mock the other engines so they don't make real HTTP connections
-        for engine_type, engine in iorails.model_manager._engines.items():
+        for engine_type, engine in iorails.engine_registry._engines.items():
             if engine_type != "content_safety":
                 engine.start = AsyncMock()
                 engine.stop = AsyncMock()
@@ -255,40 +255,40 @@ class TestIORailsStartErrors:
             await iorails.start()
 
         assert iorails._running
-        assert not iorails.model_manager._running
+        assert not iorails.engine_registry._running
 
         # The engines that started successfully should have been rolled back
-        for engine_type, engine in iorails.model_manager._engines.items():
+        for engine_type, engine in iorails.engine_registry._engines.items():
             if engine_type != "content_safety":
                 engine.stop.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_start_failure_allows_retry(self, iorails):
         """After a failed start(), a subsequent start() is not blocked by the idempotency guard."""
-        iorails.model_manager.start = AsyncMock(side_effect=RuntimeError("first fail"))
+        iorails.engine_registry.start = AsyncMock(side_effect=RuntimeError("first fail"))
 
         with pytest.raises(RuntimeError):
             await iorails.start()
         assert iorails._running
 
-        # Stop IORails (and underlying ModelManager)
+        # Stop IORails (and underlying EngineRegistry)
         await iorails.stop()
 
         # Call start() without an exception being thrown, now this will work
-        iorails.model_manager.start = AsyncMock()
+        iorails.engine_registry.start = AsyncMock()
         await iorails.start()
         assert iorails._running
-        iorails.model_manager.start.assert_called_once()
+        iorails.engine_registry.start.assert_called_once()
 
 
 class TestIORailsStopErrors:
     """Test IORails stop() error propagation."""
 
     @pytest.mark.asyncio
-    async def test_stop_propagates_model_manager_error(self, iorails):
-        """stop() re-raises when model_manager.stop() fails, but sets _running=False."""
-        iorails.model_manager.start = AsyncMock()
-        iorails.model_manager.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
+    async def test_stop_propagates_engine_registry_error(self, iorails):
+        """stop() re-raises when engine_registry.stop() fails, but sets _running=False."""
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
 
         await iorails.start()
         assert iorails._running
@@ -306,16 +306,16 @@ class TestIORailsContextManager:
     @pytest.mark.asyncio
     async def test_context_manager_calls_start_and_stop(self, iorails):
         """async with calls start() on enter and stop() on exit."""
-        iorails.model_manager.start = AsyncMock()
-        iorails.model_manager.stop = AsyncMock()
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
 
         async with iorails as engine:
             assert engine is iorails
             assert iorails._running
-            iorails.model_manager.start.assert_called_once()
+            iorails.engine_registry.start.assert_called_once()
 
         assert not iorails._running
-        iorails.model_manager.stop.assert_called_once()
+        iorails.engine_registry.stop.assert_called_once()
 
 
 class TestGenerate:
@@ -327,7 +327,7 @@ class TestGenerate:
         expected = {"role": "assistant", "content": "Hello from LLM"}
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value="Hello from LLM")
+        iorails.engine_registry.generate_async = AsyncMock(return_value="Hello from LLM")
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         # Patch IORails so the temp instance inside generate() uses our mocked iorails
@@ -342,13 +342,13 @@ class TestGenerate:
         options = GenerationOptions(llm_params={"temperature": 0.5})
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value="response")
+        iorails.engine_registry.generate_async = AsyncMock(return_value="response")
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails):
             iorails.generate(messages, options=options)
 
-        iorails.model_manager.generate_async.assert_called_once_with("main", messages, temperature=0.5)
+        iorails.engine_registry.generate_async.assert_called_once_with("main", messages, temperature=0.5)
 
     def test_generate_raises_when_called_from_async_loop(self, iorails):
         """generate() raises RuntimeError when called inside a running event loop."""

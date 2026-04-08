@@ -26,13 +26,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
     RailResult,
     get_request_id,
     truncate,
 )
-from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 
@@ -58,8 +58,8 @@ class RailAction(ABC):
     fallback_model: Optional[str] = None
     requires_model: bool = True
 
-    def __init__(self, model_manager: ModelManager, task_manager: LLMTaskManager) -> None:
-        self.model_manager = model_manager
+    def __init__(self, engine_registry: EngineRegistry, task_manager: LLMTaskManager) -> None:
+        self.engine_registry = engine_registry
         self.task_manager = task_manager
 
     async def run(
@@ -138,10 +138,10 @@ class RailAction(ABC):
         messages: list[dict],
         **kwargs: Any,
     ) -> str:
-        """Call an LLM via ModelManager and return the response text."""
+        """Call an LLM via EngineRegistry and return the response text."""
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
-        return await self.model_manager.generate_async(model_type, messages, **kwargs)
+        return await self.engine_registry.generate_async(model_type, messages, **kwargs)
 
     async def _get_api_response(
         self,
@@ -149,8 +149,8 @@ class RailAction(ABC):
         body: dict[str, Any],
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Call an API endpoint via ModelManager and return the response dict."""
-        return await self.model_manager.api_call(api_name, body, **kwargs)
+        """Call an API endpoint via EngineRegistry and return the response dict."""
+        return await self.engine_registry.api_call(api_name, body, **kwargs)
 
     async def _get_local_response(self, **kwargs: Any) -> Any:
         """Run a local/in-process check. Override in subclasses that need it."""

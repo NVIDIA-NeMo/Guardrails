@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Model manager for IORails engine.
+"""Engine registry for IORails engine.
 
-Manages a collection of ModelEngine instances, one per configured model type.
-Each ModelEngine owns its own RetryClient with per-model settings.
+Manages a collection of ModelEngine and APIEngine instances, one per configured
+model type. Each engine owns its own RetryClient with per-model settings.
 """
 
 import logging
@@ -31,8 +31,8 @@ from nemoguardrails.rails.llm.config import RailsConfig
 log = logging.getLogger(__name__)
 
 
-class ModelManager:
-    """Manages ModelEngine instances for IORails.
+class EngineRegistry:
+    """Registry of ModelEngine and APIEngine instances for IORails.
 
     Creates one ModelEngine per configured model, keyed by model type
     (e.g. "main", "content_safety", "jailbreak_detection").

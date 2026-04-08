@@ -58,9 +58,9 @@ class DummyRailAction(RailAction):
 
 @pytest.fixture
 def dummy_action():
-    model_manager = MagicMock()
+    engine_registry = MagicMock()
     task_manager = MagicMock()
-    return DummyRailAction(model_manager, task_manager)
+    return DummyRailAction(engine_registry, task_manager)
 
 
 class TestRunPipeline:
@@ -97,22 +97,22 @@ class TestResponseHelpers:
     """Test the concrete _get_llm_response, _get_api_response helpers."""
 
     @pytest.mark.asyncio
-    async def test_get_llm_response_delegates_to_model_manager(self, dummy_action):
-        dummy_action.model_manager.generate_async = AsyncMock(return_value="llm output")
+    async def test_get_llm_response_delegates_to_engine_registry(self, dummy_action):
+        dummy_action.engine_registry.generate_async = AsyncMock(return_value="llm output")
         result = await dummy_action._get_llm_response(
             "content_safety", [{"role": "user", "content": "test"}], temperature=0.01
         )
         assert result == "llm output"
-        dummy_action.model_manager.generate_async.assert_awaited_once_with(
+        dummy_action.engine_registry.generate_async.assert_awaited_once_with(
             "content_safety", [{"role": "user", "content": "test"}], temperature=0.01
         )
 
     @pytest.mark.asyncio
-    async def test_get_api_response_delegates_to_model_manager(self, dummy_action):
-        dummy_action.model_manager.api_call = AsyncMock(return_value={"jailbreak": False})
+    async def test_get_api_response_delegates_to_engine_registry(self, dummy_action):
+        dummy_action.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False})
         result = await dummy_action._get_api_response("jailbreak_detection", {"input": "test"})
         assert result == {"jailbreak": False}
-        dummy_action.model_manager.api_call.assert_awaited_once_with("jailbreak_detection", {"input": "test"})
+        dummy_action.engine_registry.api_call.assert_awaited_once_with("jailbreak_detection", {"input": "test"})
 
     @pytest.mark.asyncio
     async def test_get_local_response_raises_not_implemented(self, dummy_action):

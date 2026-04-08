@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for model_manager module."""
+"""Unit tests for engine_registry module."""
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemoguardrails.guardrails.model_manager import ModelManager
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
@@ -33,12 +33,12 @@ def rails_config():
 @pytest.fixture
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def manager(rails_config):
-    """Create a ModelManager from test config."""
-    return ModelManager(rails_config)
+    """Create a EngineRegistry from test config."""
+    return EngineRegistry(rails_config)
 
 
-class TestModelManagerInit:
-    """Test ModelManager creates engines from config."""
+class TestEngineRegistryInit:
+    """Test EngineRegistry creates engines from config."""
 
     def test_create_engines_for_each_model_type(self, manager):
         """Creates one engine per model type in config."""
@@ -49,11 +49,11 @@ class TestModelManagerInit:
     def test_empty_config_creates_no_engines(self):
         """Empty models list results in no engines."""
         config = RailsConfig.from_content(config={"models": []})
-        mgr = ModelManager(config)
+        mgr = EngineRegistry(config)
         assert len(mgr._engines) == 0
 
 
-class TestModelManagerGetModelEngine:
+class TestEngineRegistryGetModelEngine:
     """Test engine lookup by model type."""
 
     def test_get_existing_engine(self, manager):
@@ -79,8 +79,8 @@ class TestModelManagerGetModelEngine:
         assert "main" in str(exc_info.value)
 
 
-class TestModelManagerLifecycle:
-    """Test ModelManager start/stop delegation to engines."""
+class TestEngineRegistryLifecycle:
+    """Test EngineRegistry start/stop delegation to engines."""
 
     @pytest.mark.asyncio
     async def test_start_calls_start_on_all_engines(self, manager):
@@ -149,7 +149,7 @@ class TestModelManagerLifecycle:
             engine.stop.assert_not_called()
 
 
-class TestModelManagerGenerateAsync:
+class TestEngineRegistryGenerateAsync:
     """Test generate_async routes to the correct engine and extracts content."""
 
     @pytest.mark.asyncio
@@ -185,8 +185,8 @@ class TestModelManagerGenerateAsync:
             await manager.generate_async("nonexistent", [{"role": "user", "content": "Hi"}])
 
 
-class TestModelManagerStartErrors:
-    """Test ModelManager start() error handling and rollback."""
+class TestEngineRegistryStartErrors:
+    """Test EngineRegistry start() error handling and rollback."""
 
     @pytest.mark.asyncio
     async def test_start_rolls_back_on_engine_failure(self, manager):
@@ -251,8 +251,8 @@ class TestModelManagerStartErrors:
         engines[1][1].stop.assert_called_once()
 
 
-class TestModelManagerStopErrors:
-    """Test ModelManager stop() error handling."""
+class TestEngineRegistryStopErrors:
+    """Test EngineRegistry stop() error handling."""
 
     @pytest.mark.asyncio
     async def test_stop_raises_on_engine_error(self, manager):
@@ -308,7 +308,7 @@ class TestModelManagerStopErrors:
             engine.stop.assert_called_once()
 
 
-class TestModelManagerContextManager:
+class TestEngineRegistryContextManager:
     """Test async context manager calls start/stop correctly."""
 
     @pytest.mark.asyncio
@@ -327,7 +327,7 @@ class TestModelManagerContextManager:
             engine.stop.assert_called_once()
 
 
-class TestModelManagerGetApiEngine:
+class TestEngineRegistryGetApiEngine:
     """Test API engine lookup by name."""
 
     def test_get_existing_api_engine(self, manager):
@@ -348,7 +348,7 @@ class TestModelManagerGetApiEngine:
         assert "jailbreak_detection" in str(exc_info.value)
 
 
-class TestModelManagerApiCall:
+class TestEngineRegistryApiCall:
     """Test api_call routes to the correct API engine."""
 
     @pytest.mark.asyncio
@@ -380,7 +380,7 @@ class TestModelManagerApiCall:
             await manager.api_call("nonexistent", {"input": "test"})
 
 
-class TestModelManagerApiEngineStartErrors:
+class TestEngineRegistryApiEngineStartErrors:
     """Test start() error handling for API engines."""
 
     @pytest.mark.asyncio
@@ -420,7 +420,7 @@ class TestModelManagerApiEngineStartErrors:
             await manager.start()
 
 
-class TestModelManagerApiEngineStopErrors:
+class TestEngineRegistryApiEngineStopErrors:
     """Test stop() error handling for API engines."""
 
     @pytest.mark.asyncio

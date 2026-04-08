@@ -25,8 +25,8 @@ from nemoguardrails.guardrails.actions.content_safety_action import (
     ContentSafetyOutputAction,
     _content_safety_to_rail_result,
 )
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, CONTENT_SAFETY_INPUT_PROMPT, CONTENT_SAFETY_OUTPUT_PROMPT
@@ -65,18 +65,18 @@ def task_manager(config):
 
 
 @pytest.fixture
-def model_manager(config):
-    return ModelManager(config)
+def engine_registry(config):
+    return EngineRegistry(config)
 
 
 @pytest.fixture
-def input_action(model_manager, task_manager):
-    return ContentSafetyInputAction(model_manager, task_manager)
+def input_action(engine_registry, task_manager):
+    return ContentSafetyInputAction(engine_registry, task_manager)
 
 
 @pytest.fixture
-def output_action(model_manager, task_manager):
-    return ContentSafetyOutputAction(model_manager, task_manager)
+def output_action(engine_registry, task_manager):
+    return ContentSafetyOutputAction(engine_registry, task_manager)
 
 
 class TestContentSafetyToRailResult:
@@ -195,21 +195,21 @@ class TestContentSafetyInputRun:
 
     @pytest.mark.asyncio
     async def test_safe_input(self, input_action):
-        input_action.model_manager.generate_async = AsyncMock(return_value=SAFE_JSON)
+        input_action.engine_registry.generate_async = AsyncMock(return_value=SAFE_JSON)
         result = await input_action.run(FLOW_INPUT, MESSAGES)
         assert result.is_safe
-        input_action.model_manager.generate_async.assert_awaited_once()
+        input_action.engine_registry.generate_async.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_unsafe_input(self, input_action):
-        input_action.model_manager.generate_async = AsyncMock(return_value=UNSAFE_JSON)
+        input_action.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_JSON)
         result = await input_action.run(FLOW_INPUT, MESSAGES)
         assert not result.is_safe
         assert "S1: Violence" in result.reason
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, input_action):
-        input_action.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("connection refused"))
+        input_action.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("connection refused"))
         result = await input_action.run(FLOW_INPUT, MESSAGES)
         assert not result.is_safe
         assert "connection refused" in result.reason
@@ -220,20 +220,20 @@ class TestContentSafetyOutputRun:
 
     @pytest.mark.asyncio
     async def test_safe_output(self, output_action):
-        output_action.model_manager.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        output_action.engine_registry.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
         result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_unsafe_output(self, output_action):
-        output_action.model_manager.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
+        output_action.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
         result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
         assert not result.is_safe
         assert "S17: Malware" in result.reason
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, output_action):
-        output_action.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
+        output_action.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
         result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
         assert not result.is_safe
         assert "timeout" in result.reason
@@ -246,7 +246,7 @@ class TestContentSafetyMissingConfig:
     def _make_action(action_cls):
         config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
         config.rails.config.content_safety = None
-        return action_cls(ModelManager(config), LLMTaskManager(config))
+        return action_cls(EngineRegistry(config), LLMTaskManager(config))
 
     def test_input_missing_content_safety_config_raises(self):
         action = self._make_action(ContentSafetyInputAction)
@@ -280,13 +280,13 @@ class TestContentSafetyStopTokens:
         }
         config = RailsConfig.from_content(config=config_with_stop)
         task_manager = LLMTaskManager(config)
-        model_manager = ModelManager(config)
-        action = ContentSafetyInputAction(model_manager, task_manager)
-        action.model_manager.generate_async = AsyncMock(return_value=SAFE_JSON)
+        engine_registry = EngineRegistry(config)
+        action = ContentSafetyInputAction(engine_registry, task_manager)
+        action.engine_registry.generate_async = AsyncMock(return_value=SAFE_JSON)
 
         await action.run(FLOW_INPUT, MESSAGES)
 
-        call_kwargs = action.model_manager.generate_async.call_args.kwargs
+        call_kwargs = action.engine_registry.generate_async.call_args.kwargs
         assert call_kwargs["stop"] == ["</s>"]
 
     @pytest.mark.asyncio
@@ -307,11 +307,11 @@ class TestContentSafetyStopTokens:
         }
         config = RailsConfig.from_content(config=config_with_stop)
         task_manager = LLMTaskManager(config)
-        model_manager = ModelManager(config)
-        action = ContentSafetyOutputAction(model_manager, task_manager)
-        action.model_manager.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        engine_registry = EngineRegistry(config)
+        action = ContentSafetyOutputAction(engine_registry, task_manager)
+        action.engine_registry.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
 
         await action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
 
-        call_kwargs = action.model_manager.generate_async.call_args.kwargs
+        call_kwargs = action.engine_registry.generate_async.call_args.kwargs
         assert call_kwargs["stop"] == ["</s>"]

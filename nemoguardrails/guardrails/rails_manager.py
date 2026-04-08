@@ -32,12 +32,12 @@ from nemoguardrails.guardrails.actions.content_safety_action import (
 )
 from nemoguardrails.guardrails.actions.jailbreak_detection_action import JailbreakDetectionAction
 from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     RailDirection,
     RailResult,
     get_request_id,
 )
-from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.guardrails.rail_action import RailAction
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
@@ -64,8 +64,8 @@ class RailsManager:
     them sequentially or in parallel.
     """
 
-    def __init__(self, config: RailsConfig, model_manager: ModelManager) -> None:
-        self.model_manager = model_manager
+    def __init__(self, config: RailsConfig, engine_registry: EngineRegistry) -> None:
+        self.engine_registry = engine_registry
         self.task_manager = LLMTaskManager(config)
 
         # Determine which input/output rails are enabled
@@ -96,7 +96,7 @@ class RailsManager:
         if action_cls is None:
             available = sorted(_ACTION_CLASSES.keys())
             raise RuntimeError(f"Rail flow '{base_name}' not supported. Available: {available}")
-        return action_cls(self.model_manager, self.task_manager)
+        return action_cls(self.engine_registry, self.task_manager)
 
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
         """Run all enabled input rails, short-circuiting on the first failure.

@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nemoguardrails.guardrails.model_manager import ModelManager
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import (
@@ -60,13 +60,13 @@ def content_safety_rails_config():
 
 
 @pytest.fixture
-def content_safety_model_manager(content_safety_rails_config):
-    return ModelManager(content_safety_rails_config)
+def content_safety_engine_registry(content_safety_rails_config):
+    return EngineRegistry(content_safety_rails_config)
 
 
 @pytest.fixture
-def content_safety_rails_manager(content_safety_rails_config, content_safety_model_manager):
-    return RailsManager(content_safety_rails_config, content_safety_model_manager)
+def content_safety_rails_manager(content_safety_rails_config, content_safety_engine_registry):
+    return RailsManager(content_safety_rails_config, content_safety_engine_registry)
 
 
 @pytest.fixture
@@ -75,13 +75,13 @@ def nemoguards_rails_config():
 
 
 @pytest.fixture
-def nemoguards_model_manager(nemoguards_rails_config):
-    return ModelManager(nemoguards_rails_config)
+def nemoguards_engine_registry(nemoguards_rails_config):
+    return EngineRegistry(nemoguards_rails_config)
 
 
 @pytest.fixture
-def nemoguards_rails_manager(nemoguards_rails_config, nemoguards_model_manager):
-    return RailsManager(nemoguards_rails_config, nemoguards_model_manager)
+def nemoguards_rails_manager(nemoguards_rails_config, nemoguards_engine_registry):
+    return RailsManager(nemoguards_rails_config, nemoguards_engine_registry)
 
 
 @pytest.fixture
@@ -90,31 +90,31 @@ def topic_safety_rails_config():
 
 
 @pytest.fixture
-def topic_safety_model_manager(topic_safety_rails_config):
-    return ModelManager(topic_safety_rails_config)
+def topic_safety_engine_registry(topic_safety_rails_config):
+    return EngineRegistry(topic_safety_rails_config)
 
 
 @pytest.fixture
-def topic_safety_rails_manager(topic_safety_rails_config, topic_safety_model_manager):
-    return RailsManager(topic_safety_rails_config, topic_safety_model_manager)
+def topic_safety_rails_manager(topic_safety_rails_config, topic_safety_engine_registry):
+    return RailsManager(topic_safety_rails_config, topic_safety_engine_registry)
 
 
 @pytest.fixture
 def parallel_input_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_INPUT_CONFIG)
-    return RailsManager(config, ModelManager(config))
+    return RailsManager(config, EngineRegistry(config))
 
 
 @pytest.fixture
 def parallel_output_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_OUTPUT_CONFIG)
-    return RailsManager(config, ModelManager(config))
+    return RailsManager(config, EngineRegistry(config))
 
 
 @pytest.fixture
 def parallel_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG)
-    return RailsManager(config, ModelManager(config))
+    return RailsManager(config, EngineRegistry(config))
 
 
 # --- Init tests ---
@@ -164,13 +164,13 @@ class TestIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_safe(self, content_safety_rails_manager):
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        content_safety_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
+        content_safety_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         assert "Violence" in result.reason
@@ -183,7 +183,7 @@ class TestIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
+        content_safety_rails_manager.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
         result = await content_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         assert "error" in result.reason.lower()
@@ -194,13 +194,13 @@ class TestIsOutputSafe:
 
     @pytest.mark.asyncio
     async def test_safe(self, content_safety_rails_manager):
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        content_safety_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "response")
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
+        content_safety_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "bad response")
         assert not result.is_safe
         assert "S17: Malware" in result.reason
@@ -213,7 +213,7 @@ class TestIsOutputSafe:
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, content_safety_rails_manager):
-        content_safety_rails_manager.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("fail"))
+        content_safety_rails_manager.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("fail"))
         result = await content_safety_rails_manager.is_output_safe(MESSAGES, "response")
         assert not result.is_safe
 
@@ -226,26 +226,26 @@ class TestSequentialMultiRail:
 
     @pytest.mark.asyncio
     async def test_all_safe(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        nemoguards_rails_manager.model_manager.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+        nemoguards_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_first_rail_blocks(self, nemoguards_rails_manager):
         """Content safety blocks -> topic safety and jailbreak never called."""
-        nemoguards_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
-        nemoguards_rails_manager.model_manager.api_call = AsyncMock()
+        nemoguards_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
+        nemoguards_rails_manager.engine_registry.api_call = AsyncMock()
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         # Jailbreak API should not have been called (short-circuit)
-        nemoguards_rails_manager.model_manager.api_call.assert_not_awaited()
+        nemoguards_rails_manager.engine_registry.api_call.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_jailbreak_blocks(self, nemoguards_rails_manager):
         """Content and topic pass, jailbreak blocks."""
-        nemoguards_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        nemoguards_rails_manager.model_manager.api_call = AsyncMock(return_value={"jailbreak": True, "score": 0.95})
+        nemoguards_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": True, "score": 0.95})
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         assert "0.95" in result.reason
@@ -259,20 +259,20 @@ class TestTopicSafetyIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_on_topic(self, topic_safety_rails_manager):
-        topic_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value="on-topic")
+        topic_safety_rails_manager.engine_registry.generate_async = AsyncMock(return_value="on-topic")
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_off_topic(self, topic_safety_rails_manager):
-        topic_safety_rails_manager.model_manager.generate_async = AsyncMock(return_value="off-topic")
+        topic_safety_rails_manager.engine_registry.generate_async = AsyncMock(return_value="off-topic")
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
         assert "off-topic" in result.reason
 
     @pytest.mark.asyncio
     async def test_model_error(self, topic_safety_rails_manager):
-        topic_safety_rails_manager.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
+        topic_safety_rails_manager.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
         result = await topic_safety_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
@@ -285,22 +285,22 @@ class TestJailbreakDetectionIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_safe(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        nemoguards_rails_manager.model_manager.api_call = AsyncMock(return_value={"jailbreak": False, "score": -0.99})
+        nemoguards_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": -0.99})
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_jailbreak_detected(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        nemoguards_rails_manager.model_manager.api_call = AsyncMock(return_value={"jailbreak": True, "score": 0.92})
+        nemoguards_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": True, "score": 0.92})
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
     @pytest.mark.asyncio
     async def test_api_error(self, nemoguards_rails_manager):
-        nemoguards_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        nemoguards_rails_manager.model_manager.api_call = AsyncMock(side_effect=RuntimeError("connection refused"))
+        nemoguards_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        nemoguards_rails_manager.engine_registry.api_call = AsyncMock(side_effect=RuntimeError("connection refused"))
         result = await nemoguards_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
@@ -336,8 +336,8 @@ class TestParallelIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_all_safe(self, parallel_input_rails_manager):
-        parallel_input_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        parallel_input_rails_manager.model_manager.api_call = AsyncMock(
+        parallel_input_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        parallel_input_rails_manager.engine_registry.api_call = AsyncMock(
             return_value={"jailbreak": False, "score": 0.01}
         )
         result = await parallel_input_rails_manager.is_input_safe(MESSAGES)
@@ -345,8 +345,8 @@ class TestParallelIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_one_unsafe(self, parallel_input_rails_manager):
-        parallel_input_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
-        parallel_input_rails_manager.model_manager.api_call = AsyncMock(
+        parallel_input_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
+        parallel_input_rails_manager.engine_registry.api_call = AsyncMock(
             return_value={"jailbreak": False, "score": 0.01}
         )
         result = await parallel_input_rails_manager.is_input_safe(MESSAGES)
@@ -360,8 +360,8 @@ class TestParallelIsInputSafe:
 
     @pytest.mark.asyncio
     async def test_model_error(self, parallel_input_rails_manager):
-        parallel_input_rails_manager.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("fail"))
-        parallel_input_rails_manager.model_manager.api_call = AsyncMock(
+        parallel_input_rails_manager.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("fail"))
+        parallel_input_rails_manager.engine_registry.api_call = AsyncMock(
             return_value={"jailbreak": False, "score": 0.01}
         )
         result = await parallel_input_rails_manager.is_input_safe(MESSAGES)
@@ -376,13 +376,13 @@ class TestParallelIsOutputSafe:
 
     @pytest.mark.asyncio
     async def test_all_safe(self, parallel_output_rails_manager):
-        parallel_output_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        parallel_output_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
         result = await parallel_output_rails_manager.is_output_safe(MESSAGES, "response")
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_one_unsafe(self, parallel_output_rails_manager):
-        parallel_output_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
+        parallel_output_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
         result = await parallel_output_rails_manager.is_output_safe(MESSAGES, "bad response")
         assert not result.is_safe
 
@@ -401,24 +401,24 @@ class TestParallelBothDirections:
 
     @pytest.mark.asyncio
     async def test_both_safe(self, parallel_rails_manager):
-        parallel_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
-        parallel_rails_manager.model_manager.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+        parallel_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_INPUT_JSON)
+        parallel_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
         input_result = await parallel_rails_manager.is_input_safe(MESSAGES)
         assert input_result.is_safe
 
-        parallel_rails_manager.model_manager.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        parallel_rails_manager.engine_registry.generate_async = AsyncMock(return_value=SAFE_OUTPUT_JSON)
         output_result = await parallel_rails_manager.is_output_safe(MESSAGES, "response")
         assert output_result.is_safe
 
     @pytest.mark.asyncio
     async def test_input_unsafe(self, parallel_rails_manager):
-        parallel_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
-        parallel_rails_manager.model_manager.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+        parallel_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_INPUT_JSON)
+        parallel_rails_manager.engine_registry.api_call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
         result = await parallel_rails_manager.is_input_safe(MESSAGES)
         assert not result.is_safe
 
     @pytest.mark.asyncio
     async def test_output_unsafe(self, parallel_rails_manager):
-        parallel_rails_manager.model_manager.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
+        parallel_rails_manager.engine_registry.generate_async = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
         result = await parallel_rails_manager.is_output_safe(MESSAGES, "response")
         assert not result.is_safe

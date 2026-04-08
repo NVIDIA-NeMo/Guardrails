@@ -20,8 +20,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from nemoguardrails.guardrails.actions.topic_safety_action import TopicSafetyInputAction
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailResult
-from nemoguardrails.guardrails.model_manager import ModelManager
 from nemoguardrails.library.topic_safety.actions import (
     TOPIC_SAFETY_MAX_TOKENS,
     TOPIC_SAFETY_OUTPUT_RESTRICTION,
@@ -52,13 +52,13 @@ def task_manager(config):
 
 
 @pytest.fixture
-def model_manager(config):
-    return ModelManager(config)
+def engine_registry(config):
+    return EngineRegistry(config)
 
 
 @pytest.fixture
-def action(model_manager, task_manager):
-    return TopicSafetyInputAction(model_manager, task_manager)
+def action(engine_registry, task_manager):
+    return TopicSafetyInputAction(engine_registry, task_manager)
 
 
 class TestTopicSafetyMissingModel:
@@ -107,31 +107,31 @@ class TestTopicSafetyParseResponse:
 class TestTopicSafetyRun:
     @pytest.mark.asyncio
     async def test_on_topic(self, action):
-        action.model_manager.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
         result = await action.run(FLOW, MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_off_topic(self, action):
-        action.model_manager.generate_async = AsyncMock(return_value="off-topic")
+        action.engine_registry.generate_async = AsyncMock(return_value="off-topic")
         result = await action.run(FLOW, MESSAGES)
         assert not result.is_safe
 
     @pytest.mark.asyncio
     async def test_passes_temperature_and_max_tokens(self, action):
-        action.model_manager.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
         await action.run(FLOW, MESSAGES)
 
-        call_kwargs = action.model_manager.generate_async.call_args
+        call_kwargs = action.engine_registry.generate_async.call_args
         assert call_kwargs.kwargs["temperature"] == TOPIC_SAFETY_TEMPERATURE
         assert call_kwargs.kwargs["max_tokens"] == TOPIC_SAFETY_MAX_TOKENS
 
     @pytest.mark.asyncio
     async def test_system_prompt_contains_guidelines(self, action):
-        action.model_manager.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
         await action.run(FLOW, MESSAGES)
 
-        call_args = action.model_manager.generate_async.call_args
+        call_args = action.engine_registry.generate_async.call_args
         llm_messages = call_args[0][1]  # second positional arg
         system_msg = llm_messages[0]
         assert system_msg["role"] == "system"
@@ -139,7 +139,7 @@ class TestTopicSafetyRun:
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, action):
-        action.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
+        action.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
         result = await action.run(FLOW, MESSAGES)
         assert not result.is_safe
         assert "timeout" in result.reason
@@ -161,8 +161,8 @@ class TestTopicSafetyPromptIsList:
             }
         )
         task_manager = LLMTaskManager(config)
-        model_manager = ModelManager(config)
-        action = TopicSafetyInputAction(model_manager, task_manager)
+        engine_registry = EngineRegistry(config)
+        action = TopicSafetyInputAction(engine_registry, task_manager)
         with pytest.raises(RuntimeError, match="must be a string template"):
             action._create_prompt(MODEL_TYPE, {"messages": MESSAGES})
 
@@ -185,11 +185,11 @@ class TestTopicSafetyStopTokens:
             }
         )
         task_manager = LLMTaskManager(config)
-        model_manager = ModelManager(config)
-        action = TopicSafetyInputAction(model_manager, task_manager)
-        action.model_manager.generate_async = AsyncMock(return_value="on-topic")
+        engine_registry = EngineRegistry(config)
+        action = TopicSafetyInputAction(engine_registry, task_manager)
+        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
 
         await action.run(FLOW, MESSAGES)
 
-        call_kwargs = action.model_manager.generate_async.call_args.kwargs
+        call_kwargs = action.engine_registry.generate_async.call_args.kwargs
         assert call_kwargs["stop"] == ["</s>"]
