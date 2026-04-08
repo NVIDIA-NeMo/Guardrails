@@ -17,8 +17,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions.actions import ActionResult, action
-from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
-from tests.utils import FakeLLM, TestChat
+from tests.utils import FakeLLMModel, TestChat
 
 COLANG_CONFIG = """
 define user express greeting
@@ -99,12 +98,10 @@ def test_patronus_lynx_returns_no_hallucination():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = LangChainLLMAdapter(
-        FakeLLM(
+    patronus_lynx_llm = FakeLLMModel(
             responses=[
                 '{"REASONING": ["There is no hallucination."], "SCORE": "PASS"}',
             ]
-        )
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -130,12 +127,10 @@ def test_patronus_lynx_returns_hallucination():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = LangChainLLMAdapter(
-        FakeLLM(
+    patronus_lynx_llm = FakeLLMModel(
             responses=[
                 '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
             ]
-        )
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -161,12 +156,10 @@ def test_patronus_lynx_parses_score_when_no_double_quote():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = LangChainLLMAdapter(
-        FakeLLM(
+    patronus_lynx_llm = FakeLLMModel(
             responses=[
                 '{"REASONING": ["There is no hallucination."], "SCORE": PASS}',
             ]
-        )
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -190,12 +183,10 @@ def test_patronus_lynx_returns_no_hallucination_when_no_retrieved_context():
         ],
     )
 
-    patronus_lynx_llm = LangChainLLMAdapter(
-        FakeLLM(
+    patronus_lynx_llm = FakeLLMModel(
             responses=[
                 '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
             ]
-        )
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -221,12 +212,10 @@ def test_patronus_lynx_returns_hallucination_when_no_score_in_llm_output():
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = LangChainLLMAdapter(
-        FakeLLM(
+    patronus_lynx_llm = FakeLLMModel(
             responses=[
                 '{"REASONING": ["Mock reasoning."]}',
             ]
-        )
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -252,12 +241,10 @@ def test_patronus_lynx_returns_no_hallucination_when_no_reasoning_in_llm_output(
 
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
-    patronus_lynx_llm = LangChainLLMAdapter(
-        FakeLLM(
+    patronus_lynx_llm = FakeLLMModel(
             responses=[
                 '{"SCORE": "PASS"}',
             ]
-        )
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 

@@ -17,7 +17,7 @@ import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.actions import ActionResult
-from tests.utils import FakeLLM, any_event_conforms, event_conforms
+from tests.utils import FakeLLMModel, any_event_conforms, event_conforms
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def rails_config():
 
 @pytest.mark.asyncio
 async def test_simple_context_update_from_action(rails_config):
-    llm = FakeLLM(
+    llm = FakeLLMModel(
         responses=[
             "  express greeting",
             "  express greeting",

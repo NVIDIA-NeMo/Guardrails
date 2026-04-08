@@ -23,7 +23,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
 from tests.conftest import REASONING_TRACE_MOCK_PATH
-from tests.utils import FakeLLM, clean_events, event_sequence_conforms
+from tests.utils import FakeLLMModel, clean_events, event_sequence_conforms
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def rails_config():
 
 @pytest.mark.asyncio
 async def test_1(rails_config):
-    llm = FakeLLM(
+    llm = FakeLLMModel(
         responses=[
             "  express greeting",
             "  ask math question",
@@ -579,7 +579,7 @@ async def test_1(rails_config):
 
 @pytest.mark.asyncio
 async def test_2(rails_config):
-    llm = FakeLLM(
+    llm = FakeLLMModel(
         responses=[
             "  express greeting",
             "  ask math question",
@@ -641,11 +641,11 @@ def llm_config_with_main():
 @pytest.mark.asyncio
 @patch(
     "nemoguardrails.rails.llm.llmrails.init_llm_model",
-    return_value=FakeLLM(responses=["this should not be used"]),
+    return_value=FakeLLMModel(responses=["this should not be used"]),
 )
 async def test_llm_config_precedence(mock_init, llm_config_with_main):
     """Test that LLM provided via constructor takes precedence over config's main LLM."""
-    injected_llm = FakeLLM(responses=["express greeting"])
+    injected_llm = FakeLLMModel(responses=["express greeting"])
     llm_rails = LLMRails(config=llm_config_with_main, llm=injected_llm)
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
@@ -656,11 +656,11 @@ async def test_llm_config_precedence(mock_init, llm_config_with_main):
 @pytest.mark.asyncio
 @patch(
     "nemoguardrails.rails.llm.llmrails.init_llm_model",
-    return_value=FakeLLM(responses=["this should not be used"]),
+    return_value=FakeLLMModel(responses=["this should not be used"]),
 )
 async def test_llm_config_warning(mock_init, llm_config_with_main, caplog):
     """Test that a warning is logged when both constructor LLM and config main LLM are provided."""
-    injected_llm = FakeLLM(responses=["express greeting"])
+    injected_llm = FakeLLMModel(responses=["express greeting"])
     caplog.clear()
     _ = LLMRails(config=llm_config_with_main, llm=injected_llm)
     warning_msg = "Both an LLM was provided via constructor and a main LLM is specified in the config"
@@ -705,11 +705,11 @@ def llm_config_with_multiple_models():
 @pytest.mark.asyncio
 @patch(
     "nemoguardrails.rails.llm.llmrails.init_llm_model",
-    return_value=FakeLLM(responses=["content safety response"]),
+    return_value=FakeLLMModel(responses=["content safety response"]),
 )
 async def test_other_models_honored(mock_init, llm_config_with_multiple_models):
     """Test that other model configurations are still honored when main LLM is provided via constructor."""
-    injected_llm = FakeLLM(responses=["express greeting"])
+    injected_llm = FakeLLMModel(responses=["express greeting"])
     llm_rails = LLMRails(config=llm_config_with_multiple_models, llm=injected_llm)
     assert hasattr(llm_rails, "content_safety_llm")
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
@@ -744,9 +744,9 @@ async def test_llm_constructor_with_empty_models_config():
         }
     )
 
-    injected_llm = FakeLLM(responses=["express greeting"])
+    injected_llm = FakeLLMModel(responses=["express greeting"])
     llm_rails = LLMRails(config=config, llm=injected_llm)
-    assert llm_rails.llm.raw_llm == injected_llm
+    assert llm_rails.llm is injected_llm
 
     events = [{"type": "UtteranceUserActionFinished", "final_transcript": "Hello!"}]
     new_events = await llm_rails.runtime.generate_events(events)
@@ -756,7 +756,7 @@ async def test_llm_constructor_with_empty_models_config():
 @pytest.mark.asyncio
 @patch(
     "nemoguardrails.rails.llm.llmrails.init_llm_model",
-    return_value=FakeLLM(responses=["safe"]),
+    return_value=FakeLLMModel(responses=["safe"]),
 )
 async def test_main_llm_from_config_registered_as_action_param(mock_init, llm_config_with_main):
     """Test that main LLM initialized from config is properly registered as action parameter.
@@ -765,14 +765,13 @@ async def test_main_llm_from_config_registered_as_action_param(mock_init, llm_co
     is initialized from the config, it gets properly registered as an action parameter.
     This prevents the regression where actions expecting an 'llm' parameter would receive None.
     """
-    from langchain_core.language_models import BaseLLM
-
     from nemoguardrails.actions import action
+    from nemoguardrails.types import LLMModel
 
     @action(name="test_llm_action")
-    async def test_llm_action(llm: BaseLLM):
+    async def test_llm_action(llm: LLMModel):
         assert llm is not None
-        assert hasattr(llm, "agenerate_prompt")
+        assert hasattr(llm, "generate_async")
         return "llm_action_success"
 
     llm_rails = LLMRails(config=llm_config_with_main)
@@ -814,7 +813,7 @@ async def test_main_llm_from_config_registered_as_action_param(mock_init, llm_co
 @patch.dict(os.environ, {"TEST_OPENAI_KEY": "secret-api-key-from-env"})
 def test_api_key_environment_variable_passed_to_init_llm_model(mock_init_llm_model):
     """Test that API keys from environment variables are passed to init_llm_model."""
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -851,8 +850,8 @@ def test_api_key_environment_variable_for_non_main_models(mock_init_llm_model):
 
     This test ensures the fix works for all model types, not just the main model.
     """
-    mock_main_llm = FakeLLM(responses=["main response"])
-    mock_content_safety_llm = FakeLLM(responses=["safety response"])
+    mock_main_llm = FakeLLMModel(responses=["main response"])
+    mock_content_safety_llm = FakeLLMModel(responses=["safety response"])
 
     mock_init_llm_model.side_effect = [mock_main_llm, mock_content_safety_llm]
 
@@ -894,7 +893,7 @@ def test_missing_api_key_environment_variable_graceful_handling(mock_init_llm_mo
     variable doesn't exist during LLM initialization, the system doesn't crash and
     doesn't pass a None/empty API key.
     """
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     with patch.dict(os.environ, {"TEMP_API_KEY": "temporary-key"}):
@@ -926,7 +925,7 @@ def test_api_key_environment_variable_logic_without_rails_init():
     This test shows that the extracted helper method works correctly
     """
     config = RailsConfig(models=[Model(type="main", engine="fake", model="fake")])
-    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
 
     # case 1: env var exists
     class ModelWithEnvVar:
@@ -965,7 +964,7 @@ def test_api_key_environment_variable_logic_without_rails_init():
 def test_register_methods_return_self():
     """Test that all register_* methods return self for method chaining."""
     config = RailsConfig.from_content(config={"models": []})
-    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
 
     # Test register_action returns self
     def dummy_action():
@@ -1026,7 +1025,7 @@ def test_register_methods_return_self():
 def test_method_chaining():
     """Test that method chaining works correctly with register_* methods."""
     config = RailsConfig.from_content(config={"models": []})
-    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=[]))
 
     def dummy_action():
         return "action_result"
@@ -1058,7 +1057,7 @@ def test_explain_calls_ensure_explain_info():
     """Make sure if no `explain_info` attribute is present in LLMRails it's populated with
     an empty ExplainInfo object"""
 
-    fake_llm = FakeLLM(responses=["express greeting"])
+    fake_llm = FakeLLMModel(responses=["express greeting"])
     config = RailsConfig.from_content(config={"models": []})
     rails = LLMRails(config=config, llm=fake_llm)
     rails.generate(messages=[{"role": "user", "content": "Hi!"}])
@@ -1071,7 +1070,7 @@ def test_explain_calls_ensure_explain_info():
 
 @patch("nemoguardrails.rails.llm.llmrails.init_llm_model")
 def test_cache_initialization_disabled_by_default(mock_init_llm_model):
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -1099,7 +1098,7 @@ def test_cache_initialization_disabled_by_default(mock_init_llm_model):
 def test_cache_initialization_with_enabled_cache(mock_init_llm_model):
     from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
 
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -1134,7 +1133,7 @@ def test_cache_initialization_with_enabled_cache(mock_init_llm_model):
 def test_cache_not_created_for_main_and_embeddings_models(mock_init_llm_model):
     from nemoguardrails.rails.llm.config import ModelCacheConfig
 
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -1165,7 +1164,7 @@ def test_cache_not_created_for_main_and_embeddings_models(mock_init_llm_model):
 def test_cache_initialization_with_zero_maxsize_raises_error(mock_init_llm_model):
     from nemoguardrails.rails.llm.config import ModelCacheConfig
 
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -1187,7 +1186,7 @@ def test_cache_initialization_with_zero_maxsize_raises_error(mock_init_llm_model
 def test_cache_initialization_with_stats_enabled(mock_init_llm_model):
     from nemoguardrails.rails.llm.config import CacheStatsConfig, ModelCacheConfig
 
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -1219,7 +1218,7 @@ def test_cache_initialization_with_stats_enabled(mock_init_llm_model):
 def test_cache_initialization_with_multiple_models(mock_init_llm_model):
     from nemoguardrails.rails.llm.config import ModelCacheConfig
 
-    mock_llm = FakeLLM(responses=["response"])
+    mock_llm = FakeLLMModel(responses=["response"])
     mock_init_llm_model.return_value = mock_llm
 
     config = RailsConfig(
@@ -1264,7 +1263,7 @@ async def test_generate_async_reasoning_content_field_passthrough():
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": []})
-        llm = FakeLLM(responses=["The answer is 42"])
+        llm = FakeLLMModel(responses=["The answer is 42"])
         llm_rails = LLMRails(config=config, llm=llm)
 
         result = await llm_rails.generate_async(
@@ -1285,7 +1284,7 @@ async def test_generate_async_reasoning_content_none():
         mock_get_reasoning.return_value = None
 
         config = RailsConfig.from_content(config={"models": []})
-        llm = FakeLLM(responses=["Regular response"])
+        llm = FakeLLMModel(responses=["Regular response"])
         llm_rails = LLMRails(config=config, llm=llm)
 
         result = await llm_rails.generate_async(
@@ -1308,7 +1307,7 @@ async def test_generate_async_reasoning_not_in_response_content():
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": []})
-        llm = FakeLLM(responses=["The answer is 42"])
+        llm = FakeLLMModel(responses=["The answer is 42"])
         llm_rails = LLMRails(config=config, llm=llm)
 
         result = await llm_rails.generate_async(
@@ -1329,7 +1328,7 @@ async def test_generate_async_reasoning_with_thinking_tags():
         mock_get_reasoning.return_value = test_reasoning_trace
 
         config = RailsConfig.from_content(config={"models": [], "passthrough": True})
-        llm = FakeLLM(responses=["The answer is 42"])
+        llm = FakeLLMModel(responses=["The answer is 42"])
         llm_rails = LLMRails(config=config, llm=llm)
 
         result = await llm_rails.generate_async(messages=[{"role": "user", "content": "What is the answer?"}])
@@ -1345,7 +1344,7 @@ async def test_generate_async_no_thinking_tags_when_no_reasoning():
         mock_get_reasoning.return_value = None
 
         config = RailsConfig.from_content(config={"models": []})
-        llm = FakeLLM(responses=["Regular response"])
+        llm = FakeLLMModel(responses=["Regular response"])
         llm_rails = LLMRails(config=config, llm=llm)
 
         result = await llm_rails.generate_async(messages=[{"role": "user", "content": "Hello"}])

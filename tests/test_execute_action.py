@@ -18,7 +18,7 @@ import os
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
-from tests.utils import FakeLLM, any_event_conforms, event_sequence_conforms
+from tests.utils import FakeLLMModel, any_event_conforms, event_sequence_conforms
 
 TEST_CONFIGS_PATH = os.path.join(os.path.dirname(__file__), "test_configs")
 
@@ -49,7 +49,7 @@ def _get_llm_rails(rails_config, llm):
 
 @pytest.mark.asyncio
 async def test_action_execution_with_result(rails_config):
-    llm = FakeLLM(
+    llm = FakeLLMModel(
         responses=[
             "  express greeting",
         ]
@@ -266,7 +266,7 @@ async def test_action_execution_with_result(rails_config):
 
 @pytest.mark.asyncio
 async def test_action_execution_with_parameter(rails_config):
-    llm = FakeLLM(responses=["  express greeting", "  request access", '  "Access granted!"'])
+    llm = FakeLLMModel(responses=["  express greeting", "  request access", '  "Access granted!"'])
 
     llm_rails = _get_llm_rails(rails_config, llm)
 
@@ -283,7 +283,7 @@ async def test_action_execution_with_parameter(rails_config):
 
 @pytest.mark.asyncio
 async def test_action_execution_with_if(rails_config):
-    llm = FakeLLM(responses=["  request access", '  "Access denied!"'])
+    llm = FakeLLMModel(responses=["  request access", '  "Access denied!"'])
 
     llm_rails = _get_llm_rails(rails_config, llm)
 

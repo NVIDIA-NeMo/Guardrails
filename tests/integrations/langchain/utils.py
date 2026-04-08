@@ -1,0 +1,96 @@
+import asyncio
+from typing import Any, Dict, List, Mapping, Optional
+
+from langchain_core.callbacks.manager import (
+    AsyncCallbackManagerForLLMRun,
+    CallbackManagerForLLMRun,
+)
+from langchain_core.language_models import LLM
+
+
+class FakeLLM(LLM):
+    responses: List
+    i: int = 0
+    streaming: bool = False
+    exception: Optional[Exception] = None
+    token_usage: Optional[List[Dict[str, int]]] = None
+    should_return_token_usage: bool = False
+
+    @property
+    def _llm_type(self) -> str:
+        return "fake-list"
+
+    def _call(self, prompt, stop=None, run_manager=None, **kwargs):
+        if self.exception:
+            raise self.exception
+        if self.i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {self.i + 1} in FakeLLM."
+            )
+        response = self.responses[self.i]
+        self.i += 1
+        return response
+
+    async def _acall(self, prompt, stop=None, run_manager=None, **kwargs):
+        if self.exception:
+            raise self.exception
+        if self.i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {self.i + 1} in FakeLLM."
+            )
+        response = self.responses[self.i]
+        self.i += 1
+        return response
+
+    async def _astream(self, prompt, stop=None, run_manager=None, **kwargs):
+        from langchain_core.outputs import GenerationChunk
+
+        if self.i >= len(self.responses):
+            raise RuntimeError(
+                f"No responses available for query number {self.i + 1} in FakeLLM."
+            )
+        response = self.responses[self.i]
+        self.i += 1
+        if self.exception:
+            raise self.exception
+        chunks = response.split(" ")
+        for j in range(len(chunks)):
+            chunk = chunks[j] + " " if j < len(chunks) - 1 else chunks[j]
+            await asyncio.sleep(0.05)
+            yield GenerationChunk(text=chunk)
+
+    def _get_token_usage_for_response(self, response_index):
+        llm_output = {}
+        if self.token_usage and 0 <= response_index < len(self.token_usage) and self.should_return_token_usage:
+            llm_output = {"token_usage": self.token_usage[response_index]}
+        return llm_output
+
+    def _generate(self, prompts, stop=None, run_manager=None, **kwargs):
+        from langchain_core.outputs import Generation, LLMResult
+
+        generations = [[Generation(text=self._call(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
+        llm_output = self._get_token_usage_for_response(self.i - 1)
+        return LLMResult(generations=generations, llm_output=llm_output)
+
+    async def _agenerate(self, prompts, stop=None, run_manager=None, **kwargs):
+        from langchain_core.outputs import Generation, LLMResult
+
+        generations = [
+            [Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts
+        ]
+        llm_output = self._get_token_usage_for_response(self.i - 1)
+        return LLMResult(generations=generations, llm_output=llm_output)
+
+    async def ainvoke(self, input, config=None, *, stop=None, **kwargs):
+        from langchain_core.messages import AIMessage
+
+        text = await self._acall(str(input), stop)
+        token_usage_data = self._get_token_usage_for_response(self.i - 1)
+        response_metadata = {}
+        if token_usage_data:
+            response_metadata = token_usage_data
+        return AIMessage(content=text, response_metadata=response_metadata)
+
+    @property
+    def _identifying_params(self) -> Mapping[str, Any]:
+        return {}
