@@ -34,6 +34,14 @@ from nemoguardrails.integrations.langchain.providers.providers import (
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    "ModelInitializationError",
+    "ModelInitMethod",
+    "ModelInitializer",
+    "init_langchain_model",
+    "try_initialization_method",
+]
+
 
 # Suppress specific LangChain warnings
 # warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)

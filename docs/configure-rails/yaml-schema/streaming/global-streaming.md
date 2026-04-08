@@ -136,7 +136,7 @@ for llm_call in response.log.llm_calls:
 For LLMs deployed using `HuggingFacePipeline`, additional configuration is required:
 
 ```python
-from nemoguardrails.llm.providers.huggingface import AsyncTextIteratorStreamer
+from nemoguardrails.integrations.langchain.providers.huggingface import AsyncTextIteratorStreamer
 
 # Create streamer with tokenizer
 streamer = AsyncTextIteratorStreamer(tokenizer, skip_prompt=True)

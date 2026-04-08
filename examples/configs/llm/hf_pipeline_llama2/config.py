@@ -16,11 +16,11 @@ import os
 import os.path
 
 import torch
-from nemoguardrails.llm.helpers import get_llm_instance_wrapper
-from nemoguardrails.llm.providers.huggingface import HuggingFacePipelineCompatible
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from nemoguardrails import LLMRails, RailsConfig
+from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
+from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
 from nemoguardrails.llm.providers import register_llm_provider
 
 
