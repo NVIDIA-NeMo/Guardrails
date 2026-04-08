@@ -98,12 +98,12 @@ class TestResponseHelpers:
 
     @pytest.mark.asyncio
     async def test_get_llm_response_delegates_to_engine_registry(self, dummy_action):
-        dummy_action.engine_registry.generate_async = AsyncMock(return_value="llm output")
+        dummy_action.engine_registry.model_call = AsyncMock(return_value="llm output")
         result = await dummy_action._get_llm_response(
             "content_safety", [{"role": "user", "content": "test"}], temperature=0.01
         )
         assert result == "llm output"
-        dummy_action.engine_registry.generate_async.assert_awaited_once_with(
+        dummy_action.engine_registry.model_call.assert_awaited_once_with(
             "content_safety", [{"role": "user", "content": "test"}], temperature=0.01
         )
 

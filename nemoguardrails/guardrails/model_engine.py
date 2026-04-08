@@ -339,6 +339,24 @@ class ModelEngine:
         except Exception as exc:
             raise self._wrap_exception(exc, req_id, t0, label="Stream request") from exc
 
+    async def generate(self, messages: LLMMessages, **kwargs: Any) -> str:
+        """Generate a chat completion and return the response content string.
+
+        Calls the /v1/chat/completions endpoint and extracts the assistant
+        message content from the OpenAI-format response.
+
+        Raises:
+            ModelEngineError: If the request fails or the response format is unexpected.
+        """
+        response = await self.call(messages, **kwargs)
+        try:
+            return response["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ModelEngineError(
+                f"Unexpected response format from model '{self.model_name}': {exc}",
+                model_name=self.model_name,
+            ) from exc
+
     async def __aenter__(self):
         """Context manager (used for testing rather than long-lived instance)"""
         await self.start()

@@ -144,7 +144,7 @@ class IORails:
             if isinstance(options, GenerationOptions) and options.llm_params:
                 llm_kwargs = options.llm_params
 
-            response_text = await self.engine_registry.generate_async("main", messages, **llm_kwargs)
+            response_text = await self.engine_registry.model_call("main", messages, **llm_kwargs)
             log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
             # Step 3: Check output rails

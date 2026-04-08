@@ -150,31 +150,29 @@ class TestEngineRegistryLifecycle:
 
 
 class TestEngineRegistryGenerateAsync:
-    """Test generate_async routes to the correct engine and extracts content."""
+    """Test model_call routes to the correct engine."""
 
     @pytest.mark.asyncio
     async def test_generate_from_correct_engine(self, manager):
-        """Calls the named engine and returns choices[0].message.content."""
+        """Calls the named engine's generate() and returns its result."""
         messages = [{"role": "user", "content": "Hi"}]
-        mock_response = {"choices": [{"message": {"role": "assistant", "content": "Hello world"}}]}
         engine = manager._get_model_engine("main")
-        engine.call = AsyncMock(return_value=mock_response)
+        engine.generate = AsyncMock(return_value="Hello world")
 
-        result = await manager.generate_async("main", messages)
+        result = await manager.model_call("main", messages)
         assert result == "Hello world"
-        engine.call.assert_called_once_with(messages)
+        engine.generate.assert_called_once_with(messages)
 
     @pytest.mark.asyncio
     async def test_passes_kwargs_to_engine(self, manager):
-        """Extra kwargs (temperature, max_tokens) are forwarded to engine.call()."""
+        """Extra kwargs (temperature, max_tokens) are forwarded to engine.generate()."""
         messages = [{"role": "user", "content": "Hi"}]
-        mock_response = {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
         engine = manager._get_model_engine("main")
-        engine.call = AsyncMock(return_value=mock_response)
+        engine.generate = AsyncMock(return_value="ok")
 
-        await manager.generate_async("main", messages, temperature=0.5, max_tokens=100)
+        await manager.model_call("main", messages, temperature=0.5, max_tokens=100)
 
-        call_kwargs = engine.call.call_args[1]
+        call_kwargs = engine.generate.call_args[1]
         assert call_kwargs["temperature"] == 0.5
         assert call_kwargs["max_tokens"] == 100
 
@@ -182,7 +180,7 @@ class TestEngineRegistryGenerateAsync:
     async def test_raises_key_error_for_unknown_model_type(self, manager):
         """Raises KeyError when the model type doesn't exist."""
         with pytest.raises(KeyError):
-            await manager.generate_async("nonexistent", [{"role": "user", "content": "Hi"}])
+            await manager.model_call("nonexistent", [{"role": "user", "content": "Hi"}])
 
 
 class TestEngineRegistryStartErrors:

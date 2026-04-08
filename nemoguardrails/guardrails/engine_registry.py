@@ -148,14 +148,13 @@ class EngineRegistry:
             raise KeyError(f"No API engine configured with name '{api_name}'. Available: {available}")
         return self._api_engines[api_name]
 
-    async def generate_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
-        """Generate a chat completion response from the named model engine."""
+    async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
+        """Route a chat completion request to the named model engine."""
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_model_engine(model_type)
-        response = await engine.call(messages, **kwargs)
-        result = response["choices"][0]["message"]["content"]
+        result = await engine.generate(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result

@@ -141,7 +141,7 @@ class RailAction(ABC):
         """Call an LLM via EngineRegistry and return the response text."""
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
-        return await self.engine_registry.generate_async(model_type, messages, **kwargs)
+        return await self.engine_registry.model_call(model_type, messages, **kwargs)
 
     async def _get_api_response(
         self,

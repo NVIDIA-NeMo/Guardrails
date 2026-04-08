@@ -107,31 +107,31 @@ class TestTopicSafetyParseResponse:
 class TestTopicSafetyRun:
     @pytest.mark.asyncio
     async def test_on_topic(self, action):
-        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.model_call = AsyncMock(return_value="on-topic")
         result = await action.run(FLOW, MESSAGES)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_off_topic(self, action):
-        action.engine_registry.generate_async = AsyncMock(return_value="off-topic")
+        action.engine_registry.model_call = AsyncMock(return_value="off-topic")
         result = await action.run(FLOW, MESSAGES)
         assert not result.is_safe
 
     @pytest.mark.asyncio
     async def test_passes_temperature_and_max_tokens(self, action):
-        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.model_call = AsyncMock(return_value="on-topic")
         await action.run(FLOW, MESSAGES)
 
-        call_kwargs = action.engine_registry.generate_async.call_args
+        call_kwargs = action.engine_registry.model_call.call_args
         assert call_kwargs.kwargs["temperature"] == TOPIC_SAFETY_TEMPERATURE
         assert call_kwargs.kwargs["max_tokens"] == TOPIC_SAFETY_MAX_TOKENS
 
     @pytest.mark.asyncio
     async def test_system_prompt_contains_guidelines(self, action):
-        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.model_call = AsyncMock(return_value="on-topic")
         await action.run(FLOW, MESSAGES)
 
-        call_args = action.engine_registry.generate_async.call_args
+        call_args = action.engine_registry.model_call.call_args
         llm_messages = call_args[0][1]  # second positional arg
         system_msg = llm_messages[0]
         assert system_msg["role"] == "system"
@@ -139,7 +139,7 @@ class TestTopicSafetyRun:
 
     @pytest.mark.asyncio
     async def test_model_error_returns_unsafe(self, action):
-        action.engine_registry.generate_async = AsyncMock(side_effect=RuntimeError("timeout"))
+        action.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("timeout"))
         result = await action.run(FLOW, MESSAGES)
         assert not result.is_safe
         assert "timeout" in result.reason
@@ -187,9 +187,9 @@ class TestTopicSafetyStopTokens:
         task_manager = LLMTaskManager(config)
         engine_registry = EngineRegistry(config.models, config.rails.config)
         action = TopicSafetyInputAction(engine_registry, task_manager)
-        action.engine_registry.generate_async = AsyncMock(return_value="on-topic")
+        action.engine_registry.model_call = AsyncMock(return_value="on-topic")
 
         await action.run(FLOW, MESSAGES)
 
-        call_kwargs = action.engine_registry.generate_async.call_args.kwargs
+        call_kwargs = action.engine_registry.model_call.call_args.kwargs
         assert call_kwargs["stop"] == ["</s>"]
