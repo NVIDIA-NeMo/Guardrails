@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import logging
+import warnings
 from typing import List, Literal, Optional, Tuple, cast
 
 import typer
@@ -31,9 +32,14 @@ ProviderType = Literal["text completion", "chat completion"]
 
 def _list_providers() -> None:
     """List all available providers."""
-    console.print("\n[bold]Text Completion Providers:[/]")
-    for provider in sorted(get_llm_provider_names()):
-        console.print(f"  • {provider}")
+    # Suppress deprecation warning: get_llm_provider_names is deprecated for
+    # external callers but the CLI intentionally shows both categories until
+    # text completion providers are removed in 0.23.0.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        console.print("\n[bold]Text Completion Providers:[/]")
+        for provider in sorted(get_llm_provider_names()):
+            console.print(f"  • {provider}")
 
     console.print("\n[bold]Chat Completion Providers:[/]")
     for provider in sorted(get_chat_provider_names()):
@@ -45,7 +51,10 @@ def _get_provider_completions(
 ) -> List[str]:
     """Get list of providers based on type."""
     if provider_type == "text completion":
-        return sorted(get_llm_provider_names())
+        # See comment in _list_providers for why we suppress this warning.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            return sorted(get_llm_provider_names())
     elif provider_type == "chat completion":
         return sorted(get_chat_provider_names())
     return []
