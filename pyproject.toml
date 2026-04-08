@@ -180,8 +180,7 @@ include = [
   "nemoguardrails/server/**",
   "tests/test_callbacks.py",
   "nemoguardrails/benchmark/**",
-  "nemoguardrails/guardrails/**",
-  "nemoguardrails/library/**/iorails_actions.py"
+  "nemoguardrails/guardrails/**"
 ]
 exclude = [
   "nemoguardrails/llm/providers/trtllm/**",

@@ -32,6 +32,7 @@ from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import TOPIC_SAFETY_CONFIG, TOPIC_SAFETY_INPUT_PROMPT
 
 FLOW = "topic safety check input $model=topic_control"
+MODEL_TYPE = "topic_control"
 MESSAGES = [{"role": "user", "content": "What is the capital of France?"}]
 MULTI_TURN = [
     {"role": "user", "content": "Hi there"},
@@ -60,13 +61,11 @@ def action(model_manager, task_manager):
     return TopicSafetyInputAction(model_manager, task_manager)
 
 
-class TestTopicSafetyValidation:
-    def test_valid(self, action):
-        action._validate_input(FLOW, MESSAGES, None)
-
-    def test_missing_model_raises(self, action):
+class TestTopicSafetyMissingModel:
+    @pytest.mark.asyncio
+    async def test_missing_model_raises(self, action):
         with pytest.raises(RuntimeError, match="No \\$model="):
-            action._validate_input("topic safety check input", MESSAGES, None)
+            await action.run("topic safety check input", MESSAGES)
 
 
 class TestTopicSafetyExtract:
@@ -77,14 +76,14 @@ class TestTopicSafetyExtract:
 
 class TestTopicSafetyPrompt:
     def test_builds_system_plus_messages(self, action):
-        prompt = action._create_prompt(FLOW, {"messages": MESSAGES})
+        prompt = action._create_prompt(MODEL_TYPE, {"messages": MESSAGES})
         assert prompt[0]["role"] == "system"
         assert prompt[0]["content"].endswith(TOPIC_SAFETY_OUTPUT_RESTRICTION)
         assert prompt[0]["content"].count(TOPIC_SAFETY_OUTPUT_RESTRICTION) == 1
         assert prompt[1:] == MESSAGES
 
     def test_multi_turn_messages_included(self, action):
-        prompt = action._create_prompt(FLOW, {"messages": MULTI_TURN})
+        prompt = action._create_prompt(MODEL_TYPE, {"messages": MULTI_TURN})
         assert len(prompt) == 4
         assert [m["role"] for m in prompt] == ["system", "user", "assistant", "user"]
 
@@ -165,7 +164,7 @@ class TestTopicSafetyPromptIsList:
         model_manager = ModelManager(config)
         action = TopicSafetyInputAction(model_manager, task_manager)
         with pytest.raises(RuntimeError, match="must be a string template"):
-            action._create_prompt(FLOW, {"messages": MESSAGES})
+            action._create_prompt(MODEL_TYPE, {"messages": MESSAGES})
 
 
 class TestTopicSafetyStopTokens:

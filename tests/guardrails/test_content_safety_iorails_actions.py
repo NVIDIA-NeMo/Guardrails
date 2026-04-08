@@ -33,6 +33,7 @@ from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, CONTENT_SAFETY_INP
 
 FLOW_INPUT = "content safety check input $model=content_safety"
 FLOW_OUTPUT = "content safety check output $model=content_safety"
+MODEL_TYPE = "content_safety"
 MESSAGES = [{"role": "user", "content": "How do I pick a lock?"}]
 BOT_RESPONSE = "Here is how you pick a lock..."
 
@@ -106,17 +107,6 @@ class TestContentSafetyToRailResult:
             _content_safety_to_rail_result("not a list")
 
 
-class TestContentSafetyInputValidation:
-    """Test _validate_input on ContentSafetyInputAction."""
-
-    def test_valid(self, input_action):
-        input_action._validate_input(FLOW_INPUT, MESSAGES, None)
-
-    def test_missing_model_raises(self, input_action):
-        with pytest.raises(RuntimeError, match="No \\$model="):
-            input_action._validate_input("content safety check input", MESSAGES, None)
-
-
 class TestContentSafetyInputExtract:
     """Test _extract_messages on ContentSafetyInputAction."""
 
@@ -128,7 +118,7 @@ class TestContentSafetyInputPrompt:
     """Test _create_prompt on ContentSafetyInputAction."""
 
     def test_renders_prompt_with_user_input(self, input_action):
-        prompt = input_action._create_prompt(FLOW_INPUT, {"user_input": "test message"})
+        prompt = input_action._create_prompt(MODEL_TYPE, {"user_input": "test message"})
         assert len(prompt) == 1
         assert prompt[0]["role"] == "user"
         assert "test message" in prompt[0]["content"]
@@ -145,19 +135,59 @@ class TestContentSafetyOutputExtract:
         }
 
 
-class TestContentSafetyOutputValidation:
-    """Test _validate_input on ContentSafetyOutputAction."""
-
-    def test_valid(self, output_action):
-        output_action._validate_input(FLOW_OUTPUT, MESSAGES, BOT_RESPONSE)
+class TestContentSafetyOutputExtractValidation:
+    """Test that _extract_messages rejects missing bot_response."""
 
     def test_missing_bot_response_raises(self, output_action):
         with pytest.raises(RuntimeError, match="bot_response is required"):
-            output_action._validate_input(FLOW_OUTPUT, MESSAGES, None)
+            output_action._extract_messages(MESSAGES, None)
 
-    def test_missing_model_raises(self, output_action):
+
+class TestContentSafetyEmptyFlow:
+    """Test that run() rejects empty flow names."""
+
+    @pytest.mark.asyncio
+    async def test_empty_flow_raises(self, input_action):
+        with pytest.raises(RuntimeError, match="No flow name found"):
+            await input_action.run("", MESSAGES)
+
+
+class TestRailActionBaseHelpers:
+    """Cover base-class utility methods on RailAction."""
+
+    @pytest.mark.asyncio
+    async def test_get_local_response_raises(self, input_action):
+        with pytest.raises(NotImplementedError, match="Subclass must override"):
+            await input_action._get_local_response()
+
+    @pytest.mark.asyncio
+    async def test_wrong_flow_name_raises(self, input_action):
+        with pytest.raises(RuntimeError, match="does not match expected action_name"):
+            await input_action.run("topic safety check input $model=content_safety", MESSAGES)
+
+    @pytest.mark.asyncio
+    async def test_llm_response_without_model_raises(self, input_action):
+        with pytest.raises(RuntimeError, match="model_type is required for LLM calls"):
+            await input_action._get_llm_response(None, [{"role": "user", "content": "hi"}])
+
+    def test_prompt_to_messages_list_branch(self, input_action):
+        messages = [{"type": "system", "content": "hello"}, {"type": "user", "content": "world"}]
+        result = input_action._prompt_to_messages(messages)
+        assert result == [{"role": "system", "content": "hello"}, {"role": "user", "content": "world"}]
+
+
+class TestContentSafetyMissingModel:
+    """Test that run() rejects flows without $model=."""
+
+    @pytest.mark.asyncio
+    async def test_input_missing_model_raises(self, input_action):
         with pytest.raises(RuntimeError, match="No \\$model="):
-            output_action._validate_input("content safety check output", MESSAGES, BOT_RESPONSE)
+            await input_action.run("content safety check input", MESSAGES)
+
+    @pytest.mark.asyncio
+    async def test_output_missing_model_raises(self, output_action):
+        with pytest.raises(RuntimeError, match="No \\$model="):
+            await output_action.run("content safety check output", MESSAGES, bot_response=BOT_RESPONSE)
 
 
 class TestContentSafetyInputRun:
@@ -221,12 +251,12 @@ class TestContentSafetyMissingConfig:
     def test_input_missing_content_safety_config_raises(self):
         action = self._make_action(ContentSafetyInputAction)
         with pytest.raises(RuntimeError, match="content_safety config is required"):
-            action._create_prompt(FLOW_INPUT, {"user_input": "test"})
+            action._create_prompt(MODEL_TYPE, {"user_input": "test"})
 
     def test_output_missing_content_safety_config_raises(self):
         action = self._make_action(ContentSafetyOutputAction)
         with pytest.raises(RuntimeError, match="content_safety config is required"):
-            action._create_prompt(FLOW_OUTPUT, {"user_input": "test", "bot_response": "resp"})
+            action._create_prompt(MODEL_TYPE, {"user_input": "test", "bot_response": "resp"})
 
 
 class TestContentSafetyStopTokens:

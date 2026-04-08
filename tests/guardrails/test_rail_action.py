@@ -29,26 +29,23 @@ from nemoguardrails.guardrails.rail_action import RailAction
 class DummyRailAction(RailAction):
     """Minimal concrete subclass that records calls for testing."""
 
+    action_name = "some flow"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.calls: list[str] = []
         self.fail_at: Optional[str] = None
         self.fake_response: Any = "dummy_response"
 
-    def _validate_input(self, flow, messages, bot_response):
-        self.calls.append("validate_input")
-        if self.fail_at == "validate_input":
-            raise RuntimeError("validation failed")
-
     def _extract_messages(self, messages, bot_response):
         self.calls.append("extract_messages")
         return {"user_input": "extracted"}
 
-    def _create_prompt(self, flow, extracted):
+    def _create_prompt(self, model_type, extracted):
         self.calls.append("create_prompt")
         return [{"role": "user", "content": "test prompt"}]
 
-    async def _get_response(self, flow, prompt, model_type):
+    async def _get_response(self, model_type, prompt):
         self.calls.append("get_response")
         if self.fail_at == "get_response":
             raise RuntimeError("model call failed")
@@ -73,7 +70,6 @@ class TestRunPipeline:
     async def test_calls_all_steps_in_order(self, dummy_action):
         result = await dummy_action.run("some flow $model=test", [{"role": "user", "content": "hi"}])
         assert dummy_action.calls == [
-            "validate_input",
             "extract_messages",
             "create_prompt",
             "get_response",
@@ -82,11 +78,10 @@ class TestRunPipeline:
         assert result.is_safe
 
     @pytest.mark.asyncio
-    async def test_validation_error_propagates(self, dummy_action):
-        dummy_action.fail_at = "validate_input"
-        with pytest.raises(RuntimeError, match="validation failed"):
-            await dummy_action.run("flow", [{"role": "user", "content": "hi"}])
-        assert dummy_action.calls == ["validate_input"]
+    async def test_flow_name_mismatch_propagates(self, dummy_action):
+        with pytest.raises(RuntimeError, match="does not match expected action_name"):
+            await dummy_action.run("wrong flow $model=test", [{"role": "user", "content": "hi"}])
+        assert dummy_action.calls == []
 
     @pytest.mark.asyncio
     async def test_get_response_error_returns_unsafe(self, dummy_action):
@@ -160,12 +155,15 @@ class TestStaticHelpers:
         with pytest.raises(RuntimeError, match="No user message"):
             RailAction._last_user_content([])
 
-    def test_require_model_type(self):
-        assert RailAction._require_model_type("content safety check input $model=content_safety") == "content_safety"
+    def test_get_model_type_extracts_model(self, dummy_action):
+        assert dummy_action._get_model_type("some flow $model=content_safety") == "content_safety"
 
-    def test_require_model_type_missing_raises(self):
-        with pytest.raises(RuntimeError, match="No \\$model="):
-            RailAction._require_model_type("jailbreak detection model")
+    def test_get_model_type_returns_fallback(self, dummy_action):
+        dummy_action.fallback_model = "default_model"
+        assert dummy_action._get_model_type("some flow") == "default_model"
+
+    def test_get_model_type_returns_none_without_fallback(self, dummy_action):
+        assert dummy_action._get_model_type("some flow") is None
 
     def test_prompt_to_messages_string(self):
         result = RailAction._prompt_to_messages("hello world")

@@ -33,12 +33,6 @@ def action():
     return JailbreakDetectionAction(model_manager, task_manager)
 
 
-class TestJailbreakValidation:
-    def test_valid(self, action):
-        """No $model= required for jailbreak detection."""
-        action._validate_input(FLOW, MESSAGES, None)
-
-
 class TestJailbreakExtract:
     def test_extracts_user_input(self, action):
         result = action._extract_messages(MESSAGES, None)
@@ -52,7 +46,7 @@ class TestJailbreakExtract:
 class TestJailbreakPrompt:
     def test_creates_api_payload(self, action):
         extracted = {"user_input": "test prompt"}
-        prompt = action._create_prompt(FLOW, extracted)
+        prompt = action._create_prompt(None, extracted)
         assert prompt == {"input": "test prompt"}
 
 

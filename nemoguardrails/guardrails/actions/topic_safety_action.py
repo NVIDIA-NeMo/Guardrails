@@ -30,18 +30,12 @@ class TopicSafetyInputAction(RailAction):
     """Check whether user input is on-topic per configured guidelines."""
 
     action_name = "topic safety check input"
-
-    def _validate_input(self, flow: str, messages: LLMMessages, bot_response: Optional[str]) -> None:
-        self._validate_flow_name(flow)
-        self._require_model_type(flow)
+    requires_model = True
 
     def _extract_messages(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
-        # Topic safety passes the full conversation to the model — extraction
-        # just captures the raw messages for _create_prompt to use.
         return {"messages": messages}
 
-    def _create_prompt(self, flow: str, extracted: dict[str, Any]) -> list[dict]:
-        model_type = self._require_model_type(flow)
+    def _create_prompt(self, model_type: Optional[str], extracted: dict[str, Any]) -> list[dict]:
         task_key = f"topic_safety_check_input $model={model_type}"
 
         system_prompt = self.task_manager.render_task_prompt(task=task_key)
@@ -54,8 +48,7 @@ class TopicSafetyInputAction(RailAction):
 
         return [{"role": "system", "content": system_prompt}, *extracted["messages"]]
 
-    async def _get_response(self, flow: str, prompt: Any, model_type: Optional[str]) -> str:
-        model_type = self._require_model_type(flow)
+    async def _get_response(self, model_type: Optional[str], prompt: Any) -> str:
         task_key = f"topic_safety_check_input $model={model_type}"
 
         stop = self.task_manager.get_stop_tokens(task=task_key)

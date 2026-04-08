@@ -25,18 +25,15 @@ class JailbreakDetectionAction(RailAction):
     """Detect jailbreak attempts via the NIM jailbreak detection API."""
 
     action_name = "jailbreak detection model"
-
-    def _validate_input(self, flow: str, messages: LLMMessages, bot_response: Optional[str]) -> None:
-        self._validate_flow_name(flow)
+    requires_model = False
 
     def _extract_messages(self, messages: LLMMessages, bot_response: Optional[str]) -> dict[str, Any]:
         return {"user_input": self._last_user_content(messages)}
 
-    def _create_prompt(self, flow: str, extracted: dict[str, Any]) -> dict[str, str]:
-        # API payload, not an LLM prompt
+    def _create_prompt(self, model_type: Optional[str], extracted: dict[str, Any]) -> dict[str, str]:
         return {"input": extracted["user_input"]}
 
-    async def _get_response(self, flow: str, prompt: Any, model_type: Optional[str]) -> dict:
+    async def _get_response(self, model_type: Optional[str], prompt: Any) -> dict:
         return await self._get_api_response("jailbreak_detection", prompt)
 
     def _parse_response(self, response: Any) -> RailResult:
