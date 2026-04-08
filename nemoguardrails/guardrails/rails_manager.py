@@ -80,8 +80,7 @@ class RailsManager:
         self._actions: dict[str, RailAction] = {}
         for flow in self.input_flows + self.output_flows:
             base_name = _get_flow_name(flow) or flow
-            if base_name not in self._actions:
-                self._actions[base_name] = self._create_action(base_name)
+            self._actions[flow] = self._create_action(base_name)
 
         log.info(
             "RailsManager initialized: input_flows=%s, output_flows=%s, input_parallel=%s, output_parallel=%s",
@@ -134,8 +133,7 @@ class RailsManager:
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Dispatch a single rail flow to its RailAction instance."""
-        base_name = _get_flow_name(flow) or flow
-        action = self._actions[base_name]
+        action = self._actions[flow]
         return await action.run(flow, messages, bot_response)
 
     async def _run_rails_sequential(

@@ -146,13 +146,13 @@ class TestRailsManagerInit:
             RailsManager(config, MagicMock())
 
     def test_actions_created_for_flows(self, content_safety_rails_manager):
-        assert "content safety check input" in content_safety_rails_manager._actions
-        assert "content safety check output" in content_safety_rails_manager._actions
+        assert "content safety check input $model=content_safety" in content_safety_rails_manager._actions
+        assert "content safety check output $model=content_safety" in content_safety_rails_manager._actions
 
     def test_nemoguards_actions_created(self, nemoguards_rails_manager):
-        assert "content safety check input" in nemoguards_rails_manager._actions
-        assert "content safety check output" in nemoguards_rails_manager._actions
-        assert "topic safety check input" in nemoguards_rails_manager._actions
+        assert "content safety check input $model=content_safety" in nemoguards_rails_manager._actions
+        assert "content safety check output $model=content_safety" in nemoguards_rails_manager._actions
+        assert "topic safety check input $model=topic_control" in nemoguards_rails_manager._actions
         assert "jailbreak detection model" in nemoguards_rails_manager._actions
 
 
