@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessages,
@@ -73,10 +73,9 @@ class RailAction(ABC):
         base_flow = _get_flow_name(flow)
         self._validate_flow_name(base_flow)
 
-        flow_model_type: str | None = self._get_model_type(flow)
-        if self.requires_model and not flow_model_type:
+        model_type = self._get_model_type(flow)
+        if self.requires_model and not model_type:
             raise RuntimeError(f"No $model= specified for '{base_flow}' and no fallback_model defined")
-        model_type = cast(str, flow_model_type)
 
         extracted = self._extract_messages(messages, bot_response)
         log.debug("[%s] %s extracted: %s", req_id, base_flow, truncate(extracted))
