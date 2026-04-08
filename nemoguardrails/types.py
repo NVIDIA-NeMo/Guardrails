@@ -164,9 +164,13 @@ class ChatMessage:
                         )
                     args_dict = raw_args
 
+                tc_id = tc.get("id")
+                if not tc_id:
+                    raise ValueError("Tool call missing required 'id' field.")
+
                 tool_calls.append(
                     ToolCall(
-                        id=tc.get("id", ""),
+                        id=tc_id,
                         type=tc.get("type", "function"),
                         function=ToolCallFunction(
                             name=func_data.get("name", ""),

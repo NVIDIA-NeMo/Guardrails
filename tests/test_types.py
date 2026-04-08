@@ -258,6 +258,22 @@ class TestChatMessage:
         assert msg.tool_calls[0].function.arguments == {"q": "x"}
         assert msg.tool_calls[0].id == "tc_1"
 
+    def test_from_dict_raises_on_tool_call_missing_id(self):
+        d = {
+            "role": "assistant",
+            "tool_calls": [{"function": {"name": "search", "arguments": {"q": "x"}}}],
+        }
+        with pytest.raises(ValueError, match="missing required 'id'"):
+            ChatMessage.from_dict(d)
+
+    def test_from_dict_raises_on_tool_call_empty_id(self):
+        d = {
+            "role": "assistant",
+            "tool_calls": [{"id": "", "function": {"name": "search", "arguments": {"q": "x"}}}],
+        }
+        with pytest.raises(ValueError, match="missing required 'id'"):
+            ChatMessage.from_dict(d)
+
     def test_from_dict_captures_provider_metadata(self):
         d = {"role": "user", "content": "hi", "provider_metadata": {"custom_field": "value", "model": "gpt-4"}}
         msg = ChatMessage.from_dict(d)
