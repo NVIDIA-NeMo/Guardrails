@@ -32,3 +32,17 @@ def reset_reasoning_trace_var():
 
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()
+
+
+def pytest_collection_modifyitems(config, items):
+    try:
+        import langchain_core  # noqa: F401
+
+        return
+    except ImportError:
+        pass
+
+    skip_langchain = pytest.mark.skip(reason="langchain not installed")
+    for item in items:
+        if "integrations/langchain" in str(item.fspath):
+            item.add_marker(skip_langchain)

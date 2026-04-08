@@ -21,13 +21,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 from unittest.mock import AsyncMock, MagicMock
 
-from langchain_core.callbacks.manager import (
-    AsyncCallbackManagerForLLMRun,
-    CallbackManagerForLLMRun,
-)
-from langchain_core.language_models import LLM
-from langchain_core.messages import AIMessage
-
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.colang import parse_colang_file
 from nemoguardrails.colang.v2_x.runtime.flows import State
@@ -35,6 +28,7 @@ from nemoguardrails.colang.v2_x.runtime.runtime import (
     create_flow_configs_from_flow_list,
 )
 from nemoguardrails.colang.v2_x.runtime.statemachine import initialize_state
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 from nemoguardrails.utils import EnhancedJsonEncoder, new_event_dict, new_uuid
 
 # test providers that are known to support token usage reporting
@@ -42,141 +36,84 @@ from nemoguardrails.utils import EnhancedJsonEncoder, new_event_dict, new_uuid
 _TEST_PROVIDERS_WITH_TOKEN_USAGE = ["openai", "azure_openai", "nim"]
 
 
-class FakeLLM(LLM):
-    """Fake LLM wrapper for testing purposes."""
+class FakeLLMModel:
+    """Framework-agnostic fake LLM for testing. Implements LLMModel protocol."""
 
-    responses: List
-    i: int = 0
-    streaming: bool = False
-    exception: Optional[Exception] = None
-    token_usage: Optional[List[Dict[str, int]]] = None  # Token usage per response
-    should_return_token_usage: bool = False
-
-    @property
-    def _llm_type(self) -> str:
-        """Return type of llm."""
-        return "fake-list"
-
-    def _call(
+    def __init__(
         self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> str:
-        # If an exception is set, raise it
-        if self.exception:
-            raise self.exception
-
-        if self.i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLM. "
-                "Most likely, too many LLM calls are made or additional responses need to be provided."
-            )
-
-        response = self.responses[self.i]
-        self.i += 1
-        return response
-
-    async def _acall(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> str:
-        # If an exception is set, raise it
-        if self.exception:
-            raise self.exception
-
-        if self.i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLM. "
-                "Most likely, too many LLM calls are made or additional responses need to be provided."
-            )
-
-        response = self.responses[self.i]
-
-        self.i += 1
-
-        return response
-
-    async def _astream(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs: Any,
+        responses: Optional[List[str]] = None,
+        llm_responses: Optional[List[LLMResponse]] = None,
+        streaming: bool = False,
+        exception: Optional[Exception] = None,
+        token_usage: Optional[List[Dict[str, int]]] = None,
+        should_return_token_usage: bool = False,
     ):
-        from langchain_core.outputs import GenerationChunk
-
-        if self.i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLM. "
-                "Most likely, too many LLM calls are made or additional responses need to be provided."
-            )
-
-        response = self.responses[self.i]
-        self.i += 1
-
-        if self.exception:
-            raise self.exception
-
-        chunks = response.split(" ")
-        for i in range(len(chunks)):
-            if i < len(chunks) - 1:
-                chunk = chunks[i] + " "
-            else:
-                chunk = chunks[i]
-
-            await asyncio.sleep(0.05)
-            yield GenerationChunk(text=chunk)
-
-    def _get_token_usage_for_response(self, response_index: int) -> Dict[str, Any]:
-        """Get token usage data for the given response index if conditions are met."""
-
-        llm_output = {}
-        if (
-            self.token_usage
-            and response_index >= 0
-            and response_index < len(self.token_usage)
-            and self.should_return_token_usage
-        ):
-            llm_output = {"token_usage": self.token_usage[response_index]}
-        return llm_output
-
-    def _generate(self, prompts, stop=None, run_manager=None, **kwargs):
-        """Override _generate to provide token usage in LLMResult."""
-
-        from langchain_core.outputs import Generation, LLMResult
-
-        generations = [[Generation(text=self._call(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
-
-        llm_output = self._get_token_usage_for_response(self.i - 1)
-        return LLMResult(generations=generations, llm_output=llm_output)
-
-    async def _agenerate(self, prompts, stop=None, run_manager=None, **kwargs):
-        """Override _agenerate to provide token usage in LLMResult."""
-        from langchain_core.outputs import Generation, LLMResult
-
-        generations = [[Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
-
-        llm_output = self._get_token_usage_for_response(self.i - 1)
-        return LLMResult(generations=generations, llm_output=llm_output)
-
-    async def ainvoke(self, input, config=None, *, stop=None, **kwargs):
-        from langchain_core.messages import AIMessage
-
-        text = await self._acall(str(input), stop)
-        token_usage_data = self._get_token_usage_for_response(self.i - 1)
-        response_metadata = {}
-        if token_usage_data:
-            response_metadata = token_usage_data
-        return AIMessage(content=text, response_metadata=response_metadata)
+        if llm_responses is not None:
+            self._llm_responses = llm_responses
+        elif responses is not None:
+            self._llm_responses = [LLMResponse(content=r) for r in responses]
+        else:
+            self._llm_responses = []
+        self.responses = responses or [r.content for r in self._llm_responses]
+        self.i = 0
+        self.streaming = streaming
+        self.exception = exception
+        self.token_usage = token_usage
+        self.should_return_token_usage = should_return_token_usage
 
     @property
-    def _identifying_params(self) -> Mapping[str, Any]:
-        return {}
+    def model_name(self) -> str:
+        return "fake"
+
+    @property
+    def provider_name(self) -> Optional[str]:
+        return "test"
+
+    @property
+    def provider_url(self) -> Optional[str]:
+        return None
+
+    def _next_response(self) -> LLMResponse:
+        if self.exception:
+            raise self.exception
+        if self.i >= len(self._llm_responses):
+            raise RuntimeError(
+                f"No responses available for query number {self.i + 1} in FakeLLMModel. "
+                "Most likely, too many LLM calls are made or additional responses need to be provided."
+            )
+        response = self._llm_responses[self.i]
+        self.i += 1
+        return response
+
+    def _get_usage(self) -> Optional[UsageInfo]:
+        idx = self.i - 1
+        if self.token_usage and self.should_return_token_usage and 0 <= idx < len(self.token_usage):
+            u = self.token_usage[idx]
+            return UsageInfo(
+                input_tokens=u.get("prompt_tokens", u.get("input_tokens", 0)),
+                output_tokens=u.get("completion_tokens", u.get("output_tokens", 0)),
+                total_tokens=u.get("total_tokens", 0),
+            )
+        return None
+
+    async def generate_async(self, prompt, *, stop=None, **kwargs) -> LLMResponse:
+        response = self._next_response()
+        usage = self._get_usage()
+        if usage:
+            response.usage = usage
+        return response
+
+    async def stream_async(self, prompt, *, stop=None, **kwargs):
+        response = self._next_response()
+        text = response.content
+        chunks = text.split(" ")
+        for j, chunk in enumerate(chunks):
+            content = chunk + " " if j < len(chunks) - 1 else chunk
+            await asyncio.sleep(0.05)
+            yield LLMResponseChunk(delta_content=content)
+        # Final yield point so concurrent consumers (asyncio.create_task) can
+        # process the last chunk before the caller continues after the async for.
+        await asyncio.sleep(0)
 
 
 class TestChat:
@@ -206,6 +143,7 @@ class TestChat:
         streaming: bool = False,
         llm_exception: Optional[Exception] = None,
         token_usage: Optional[List[Dict[str, int]]] = None,
+        llm: Optional[Any] = None,
     ):
         """Creates a TestChat instance.
 
@@ -216,19 +154,21 @@ class TestChat:
             llm_exception: An exception to be raised by the LLM (for testing error handling).
             token_usage: Optional token usage data for simulating token usage reporting.
         """
-        self.llm = None
-        if llm_completions is not None:
+        if llm is not None:
+            self.llm = llm
+        elif llm_completions is not None:
             main_model = next((model for model in config.models if model.type == "main"), None)
             should_return_token_usage = bool(main_model and main_model.engine in _TEST_PROVIDERS_WITH_TOKEN_USAGE)
 
-            self.llm = FakeLLM(
+            self.llm = FakeLLMModel(
                 responses=llm_completions,
                 streaming=streaming,
+                exception=llm_exception,
                 token_usage=token_usage,
                 should_return_token_usage=should_return_token_usage,
             )
-            if llm_exception:
-                self.llm.exception = llm_exception
+        else:
+            self.llm = None
 
         self.config = config
         self.app = LLMRails(config, llm=self.llm)
