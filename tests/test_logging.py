@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import pytest
 
 from nemoguardrails.actions.llm.utils import _log_prompt, _update_token_stats
@@ -125,6 +127,7 @@ class TestTrackLlmCallDecorator:
 
         @track_llm_call
         async def mock_llm_call():
+            await asyncio.sleep(0.02)
             return "response"
 
         result = await mock_llm_call()
@@ -168,6 +171,7 @@ class TestTrackLlmCallDecorator:
 
         @track_llm_call
         async def mock_llm_call():
+            await asyncio.sleep(0.02)
             return "response"
 
         await mock_llm_call()
