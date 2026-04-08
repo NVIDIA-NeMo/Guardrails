@@ -14,11 +14,11 @@
 # limitations under the License.
 from functools import lru_cache
 
-from nemoguardrails.llm.helpers import get_llm_instance_wrapper
-from nemoguardrails.llm.providers.huggingface import HuggingFacePipelineCompatible
 from torch import float16
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
+from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
+from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
 from nemoguardrails.llm.providers import register_llm_provider
 
 
