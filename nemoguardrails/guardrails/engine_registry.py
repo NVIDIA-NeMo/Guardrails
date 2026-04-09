@@ -24,6 +24,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from nemoguardrails.guardrails.api_engine import APIEngine
+from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
@@ -34,37 +35,32 @@ log = logging.getLogger(__name__)
 class EngineRegistry:
     """Registry of ModelEngine and APIEngine instances for IORails.
 
-    Creates one ModelEngine per configured model, keyed by model type
-    (e.g. "main", "content_safety", "jailbreak_detection").
+    Creates one engine per configured model or API service, keyed by name.
     Each engine owns its own HTTP client with per-model retry and timeout settings.
     """
 
     def __init__(self, models: list[Model], rails_config_data: RailsConfigData) -> None:
-        self._engines: dict[str, ModelEngine] = {}
-        self._api_engines: dict[str, APIEngine] = {}
+        self._engines: dict[str, BaseEngine] = {}
         self._running = False
 
         for model_config in models:
-            self._engines[model_config.type] = ModelEngine(model_config)
+            engine = ModelEngine(model_config)
+            self._engines[model_config.type] = engine
             log.info(
                 "Registered model engine: type=%s, model=%s, base_url=%s",
                 model_config.type,
                 model_config.model,
-                self._engines[model_config.type].base_url,
+                engine.base_url,
             )
-
-        self._init_jailbreak_detection_engine(rails_config_data)
-
-    def _init_jailbreak_detection_engine(self, rails_config_data: RailsConfigData) -> None:
-        """Initialize APIEngine instances from rails configuration."""
 
         jailbreak_config = rails_config_data.jailbreak_detection
         if jailbreak_config and jailbreak_config.nim_base_url:
-            self._api_engines["jailbreak_detection"] = APIEngine.from_jailbreak_config(jailbreak_config)
+            api_engine = APIEngine.from_jailbreak_config(jailbreak_config)
+            self._engines["jailbreak_detection"] = api_engine
             log.info(
                 "Registered API engine: name=%s, url=%s",
                 "jailbreak_detection",
-                self._api_engines["jailbreak_detection"].url,
+                api_engine.url,
             )
 
     async def start(self) -> None:
@@ -72,27 +68,18 @@ class EngineRegistry:
         if self._running:
             return
 
-        started = []
-        engine_errors = {}
+        started: list[BaseEngine] = []
+        engine_errors: dict[str, Exception] = {}
 
-        for engine_type, engine in self._engines.items():
+        for name, engine in self._engines.items():
             try:
                 await engine.start()
                 started.append(engine)
             except Exception as e:
-                engine_errors[engine_type] = e
-                log.error("Error starting model engine type %s: %s", engine_type, e)
-
-        for api_name, api_engine in self._api_engines.items():
-            try:
-                await api_engine.start()
-                started.append(api_engine)
-            except Exception as e:
-                engine_errors[api_name] = e
-                log.error("Error starting API engine %s: %s", api_name, e)
+                engine_errors[name] = e
+                log.error("Error starting engine %s: %s", name, e)
 
         if engine_errors:
-            # Roll back engines that started successfully to avoid leaked clients
             for engine in started:
                 try:
                     await engine.stop()
@@ -110,21 +97,14 @@ class EngineRegistry:
         if not self._running:
             return
 
-        engine_errors = {}
+        engine_errors: dict[str, Exception] = {}
         try:
-            for engine_type, engine in self._engines.items():
+            for name, engine in self._engines.items():
                 try:
                     await engine.stop()
                 except Exception as e:
-                    engine_errors[engine_type] = e
-                    log.error("Error stopping model engine type %s: %s", engine_type, e)
-
-            for api_name, api_engine in self._api_engines.items():
-                try:
-                    await api_engine.stop()
-                except Exception as e:
-                    engine_errors[api_name] = e
-                    log.error("Error stopping API engine %s: %s", api_name, e)
+                    engine_errors[name] = e
+                    log.error("Error stopping engine %s: %s", name, e)
         finally:
             self._running = False
 
@@ -134,26 +114,22 @@ class EngineRegistry:
             )
             raise RuntimeError(f"Failed to stop engines: {engine_error_string}")
 
-    def _get_model_engine(self, model_type: str) -> ModelEngine:
-        """Look up a ModelEngine by its model type."""
-        if model_type not in self._engines:
+    def _get_engine(self, name: str, expected_type: type) -> BaseEngine:
+        """Look up an engine by name, verifying its type."""
+        if name not in self._engines:
             available = list(self._engines.keys())
-            raise KeyError(f"No model configured with type '{model_type}'. Available types: {available}")
-        return self._engines[model_type]
-
-    def _get_api_engine(self, api_name: str) -> APIEngine:
-        """Look up an APIEngine by its name."""
-        if api_name not in self._api_engines:
-            available = list(self._api_engines.keys())
-            raise KeyError(f"No API engine configured with name '{api_name}'. Available: {available}")
-        return self._api_engines[api_name]
+            raise KeyError(f"No engine configured with name '{name}'. Available: {available}")
+        engine = self._engines[name]
+        if not isinstance(engine, expected_type):
+            raise TypeError(f"Engine '{name}' is {type(engine).__name__}, expected {expected_type.__name__}")
+        return engine
 
     async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
         """Route a chat completion request to the named model engine."""
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
-        engine = self._get_model_engine(model_type)
+        engine: ModelEngine = self._get_engine(model_type, ModelEngine)  # type: ignore[assignment]
         result = await engine.generate(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
@@ -169,9 +145,11 @@ class EngineRegistry:
             yield chunk
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        """Route an API request to the named API engine."""
         req_id = get_request_id()
         log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
-        api_engine = self._get_api_engine(api_name)
+
+        api_engine: APIEngine = self._get_engine(api_name, APIEngine)  # type: ignore[assignment]
         response = await api_engine.call(message, **kwargs)
 
         log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))

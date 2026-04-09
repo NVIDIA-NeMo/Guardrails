@@ -22,6 +22,7 @@ import pytest
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -242,7 +243,7 @@ class TestIORailsStartErrors:
     async def test_start_propagates_model_engine_error(self, iorails):
         """A ModelEngine failure propagates through EngineRegistry up to IORails.start()."""
         # Inject the failure at the ModelEngine level, leaving EngineRegistry real
-        engine = iorails.engine_registry._get_model_engine("content_safety")
+        engine = iorails.engine_registry._get_engine("content_safety", ModelEngine)
         engine.start = AsyncMock(side_effect=RuntimeError("NIM endpoint unreachable"))
 
         # Mock the other engines so they don't make real HTTP connections
