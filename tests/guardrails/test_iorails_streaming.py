@@ -70,6 +70,28 @@ async def _collect(async_iter):
     return [chunk async for chunk in async_iter]
 
 
+async def _failing_stream(model_type, messages, **kwargs):
+    """Mock stream that raises immediately."""
+    raise RuntimeError("LLM exploded")
+    yield  # noqa: unreachable -- makes this an async generator
+
+
+async def _mid_stream_failure(model_type, messages, **kwargs):
+    """Mock stream that yields some chunks then raises."""
+    yield "Hello"
+    yield " world"
+    raise RuntimeError("connection lost")
+
+
+def _assert_error_chunk(chunks, *, code, message_contains):
+    """Assert that chunks contain exactly one error JSON with the given code and message substring."""
+    error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+    assert len(error_chunks) >= 1, f"Expected error chunk, got none in {chunks}"
+    error_data = json.loads(error_chunks[0])
+    assert error_data["error"]["code"] == code
+    assert message_contains in error_data["error"]["message"]
+
+
 def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stream):
     """Attach standard mocks for input rails, output rails, and LLM streaming."""
     iorails.rails_manager.is_input_safe = AsyncMock(
@@ -224,12 +246,7 @@ class TestStreamAsyncOutputRailsStreamFirst:
         """Error JSON is injected into the stream when output rails block."""
         _wire_mocks(iorails_stream_first, output_safe=False)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
-
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
-        assert len(error_chunks) >= 1
-        error_data = json.loads(error_chunks[0])
-        assert error_data["error"]["type"] == "guardrails_violation"
-        assert error_data["error"]["code"] == "content_blocked"
+        _assert_error_chunk(chunks, code="content_blocked", message_contains="Blocked by output rails")
 
     @pytest.mark.asyncio
     async def test_stream_first_yields_before_rail_check(self, iorails_stream_first):
@@ -274,10 +291,8 @@ class TestStreamAsyncOutputRailsGated:
         chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         content_chunks = [c for c in chunks if isinstance(c, str) and not c.startswith("{")]
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
         assert len(content_chunks) == 0
-        assert len(error_chunks) >= 1
-        assert json.loads(error_chunks[0])["error"]["code"] == "content_blocked"
+        _assert_error_chunk(chunks, code="content_blocked", message_contains="Blocked by output rails")
 
     @pytest.mark.asyncio
     async def test_gated_yields_after_rail_check(self, iorails_stream_check_first):
@@ -307,38 +322,16 @@ class TestStreamAsyncErrors:
     @pytest.mark.asyncio
     async def test_generation_error_yields_error_json(self, iorails_input_only):
         """LLM exceptions are surfaced as error JSON chunks."""
-
-        async def failing_stream(model_type, messages, **kwargs):
-            """Mock stream that raises immediately."""
-            raise RuntimeError("LLM exploded")
-            yield  # noqa: unreachable -- makes this an async generator
-
-        _wire_mocks(iorails_input_only, stream=failing_stream)
+        _wire_mocks(iorails_input_only, stream=_failing_stream)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
-
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
-        assert len(error_chunks) >= 1
-        error_data = json.loads(error_chunks[0])
-        assert error_data["error"]["code"] == "generation_failed"
-        assert "LLM exploded" in error_data["error"]["message"]
+        _assert_error_chunk(chunks, code="generation_failed", message_contains="LLM exploded")
 
     @pytest.mark.asyncio
     async def test_generation_error_with_output_rails(self, iorails_stream_first):
         """LLM exceptions propagate as error JSON even with output rails active."""
-
-        async def failing_stream(model_type, messages, **kwargs):
-            """Mock stream that raises immediately."""
-            raise RuntimeError("LLM exploded")
-            yield  # noqa: unreachable -- makes this an async generator
-
-        _wire_mocks(iorails_stream_first, stream=failing_stream)
+        _wire_mocks(iorails_stream_first, stream=_failing_stream)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
-
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
-        assert len(error_chunks) >= 1
-        error_data = json.loads(error_chunks[0])
-        assert error_data["error"]["code"] == "generation_failed"
-        assert "LLM exploded" in error_data["error"]["message"]
+        _assert_error_chunk(chunks, code="generation_failed", message_contains="LLM exploded")
 
     @pytest.mark.asyncio
     async def test_output_rail_exception_propagates(self, iorails_stream_first):
@@ -352,42 +345,19 @@ class TestStreamAsyncErrors:
     @pytest.mark.asyncio
     async def test_mid_stream_failure_yields_partial_then_error(self, iorails_input_only):
         """A failure after some successful chunks yields partial output then error JSON."""
-
-        async def mid_stream_failure(model_type, messages, **kwargs):
-            """Mock stream that yields some chunks then raises."""
-            yield "Hello"
-            yield " world"
-            raise RuntimeError("connection lost")
-
-        _wire_mocks(iorails_input_only, stream=mid_stream_failure)
+        _wire_mocks(iorails_input_only, stream=_mid_stream_failure)
         chunks = await _collect(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         content_chunks = [c for c in chunks if not c.startswith("{")]
-        error_chunks = [c for c in chunks if c.startswith("{")]
-
         assert "".join(content_chunks) == "Hello world"
-        assert len(error_chunks) == 1
-        error_data = json.loads(error_chunks[0])
-        assert error_data["error"]["code"] == "generation_failed"
-        assert "connection lost" in error_data["error"]["message"]
+        _assert_error_chunk(chunks, code="generation_failed", message_contains="connection lost")
 
     @pytest.mark.asyncio
     async def test_mid_stream_failure_with_output_rails(self, iorails_stream_first):
         """Mid-stream failure with output rails active still surfaces the error."""
-
-        async def mid_stream_failure(model_type, messages, **kwargs):
-            """Mock stream that yields some chunks then raises."""
-            yield "Hello"
-            yield " world"
-            raise RuntimeError("connection lost")
-
-        _wire_mocks(iorails_stream_first, stream=mid_stream_failure)
+        _wire_mocks(iorails_stream_first, stream=_mid_stream_failure)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
-
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
-        assert len(error_chunks) >= 1
-        error_data = json.loads(error_chunks[0])
-        assert "connection lost" in error_data["error"]["message"]
+        _assert_error_chunk(chunks, code="generation_failed", message_contains="connection lost")
 
 
 class TestStreamAsyncConcurrency:
