@@ -354,9 +354,33 @@ class TestStreamAsyncErrors:
 
     @pytest.mark.asyncio
     async def test_mid_stream_failure_with_output_rails(self, iorails_stream_first):
-        """Mid-stream failure with output rails active still surfaces the error."""
+        """Mid-stream failure with output rails active still surfaces the error (stream_first)."""
         _wire_mocks(iorails_stream_first, stream=_mid_stream_failure)
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+        _assert_error_chunk(chunks, code="generation_failed", message_contains="connection lost")
+
+    @pytest.mark.asyncio
+    async def test_generation_error_bypasses_output_rails_gated(self, iorails_stream_check_first):
+        """In stream_first=False, generation errors bypass output rails instead of being checked."""
+        _wire_mocks(iorails_stream_check_first, stream=_failing_stream)
+        # Output rail would block if the error JSON were fed through it
+        iorails_stream_check_first.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="blocked")
+        )
+
+        chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        # Should see generation_failed, NOT content_blocked
+        _assert_error_chunk(chunks, code="generation_failed", message_contains="LLM exploded")
+
+    @pytest.mark.asyncio
+    async def test_mid_stream_error_bypasses_output_rails_gated(self, iorails_stream_check_first):
+        """In stream_first=False, mid-stream errors bypass output rails."""
+        _wire_mocks(iorails_stream_check_first, stream=_mid_stream_failure)
+
+        chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        # The error chunk should come through as generation_failed
         _assert_error_chunk(chunks, code="generation_failed", message_contains="connection lost")
 
 

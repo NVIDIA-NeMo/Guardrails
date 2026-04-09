@@ -51,6 +51,9 @@ REFUSAL_MESSAGE = "I'm sorry, I can't respond to that."
 # Default concurrency budget for streaming requests (separate from the AsyncWorkQueue for generate_async)
 STREAM_MAX_CONCURRENCY = 256
 
+# Error type used by _generation_task when pushing error JSON into the stream
+_GENERATION_ERROR_TYPE = "generation_error"
+
 
 class IORails:
     """Workflow engine for accelerated Input/Output rails inference."""
@@ -254,7 +257,7 @@ class IORails:
                     exc_info=True,
                 )
                 error_payload = json.dumps(
-                    {"error": {"message": str(e), "type": "generation_error", "code": "generation_failed"}}
+                    {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
@@ -343,6 +346,17 @@ class IORails:
         async for chunk_batch in buffer_strategy(streaming_handler):
             user_output_chunks = chunk_batch.user_output_chunks
             bot_response_chunk = buffer_strategy.format_chunks(chunk_batch.processing_context)
+
+            # If the batch contains a generation error from _generation_task,
+            # yield it directly and stop — don't feed error JSON through output rails.
+            for chunk in user_output_chunks:
+                try:
+                    parsed = json.loads(chunk)
+                    if isinstance(parsed, dict) and parsed.get("error", {}).get("type") == _GENERATION_ERROR_TYPE:
+                        yield chunk
+                        return
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
             if stream_first:
                 for chunk in user_output_chunks:

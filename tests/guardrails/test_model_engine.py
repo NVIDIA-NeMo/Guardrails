@@ -409,17 +409,30 @@ class TestModelEngineStreamCall:
 
     @staticmethod
     def _mock_streaming_response(raw_lines, status=200):
-        """Create a mock aiohttp response that yields raw_lines from response.content."""
+        """Create a mock aiohttp response with a readline()-based content mock.
 
-        async def _content_iter():
-            """Async generator yielding raw SSE byte lines."""
-            for line in raw_lines:
-                yield line
+        Splits each raw_line on ``\\n`` boundaries so that readline() returns
+        one line at a time, matching real aiohttp StreamReader behaviour.
+        """
+        # Flatten raw_lines into individual \n-terminated lines
+        all_lines = []
+        for raw in raw_lines:
+            for part in raw.split(b"\n"):
+                if part:
+                    all_lines.append(part + b"\n")
+
+        line_iter = iter(all_lines)
+
+        async def _readline():
+            return next(line_iter, b"")
+
+        mock_content = MagicMock()
+        mock_content.readline = _readline
 
         mock_response = AsyncMock()
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.status = status
-        mock_response.content = _content_iter()
+        mock_response.content = mock_content
         return mock_response
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
