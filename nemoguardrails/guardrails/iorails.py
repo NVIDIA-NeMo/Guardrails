@@ -38,6 +38,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     truncate,
 )
 from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
@@ -61,11 +62,15 @@ class IORails:
         self._running = False
         self.config = config
 
-        # Engine registry holds one or more engines. Each engine calls a single model or API
         self.engine_registry = EngineRegistry(config.models, config.rails.config)
-
-        # Rails Manager is responsible for running rails by making calls to the engine registry
-        self.rails_manager = RailsManager(config, self.engine_registry)
+        self.rails_manager = RailsManager(
+            engine_registry=self.engine_registry,
+            task_manager=LLMTaskManager(config),
+            input_flows=config.rails.input.flows,
+            output_flows=config.rails.output.flows,
+            input_parallel=config.rails.input.parallel or False,
+            output_parallel=config.rails.output.parallel or False,
+        )
 
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)

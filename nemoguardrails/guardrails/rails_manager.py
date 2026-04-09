@@ -40,7 +40,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 )
 from nemoguardrails.guardrails.rail_action import RailAction
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
+from nemoguardrails.rails.llm.config import _get_flow_name
 
 log = logging.getLogger(__name__)
 
@@ -64,17 +64,24 @@ class RailsManager:
     them sequentially or in parallel.
     """
 
-    def __init__(self, config: RailsConfig, engine_registry: EngineRegistry) -> None:
+    def __init__(
+        self,
+        *,
+        engine_registry: EngineRegistry,
+        task_manager: LLMTaskManager,
+        input_flows: list[str],
+        output_flows: list[str],
+        input_parallel: bool = False,
+        output_parallel: bool = False,
+    ) -> None:
         self.engine_registry = engine_registry
-        self.task_manager = LLMTaskManager(config)
+        self.task_manager = task_manager
 
-        # Determine which input/output rails are enabled
-        self.input_flows: list[str] = list(config.rails.input.flows)
-        self.output_flows: list[str] = list(config.rails.output.flows)
+        self.input_flows: list[str] = list(input_flows)
+        self.output_flows: list[str] = list(output_flows)
 
-        # Parallel execution flags (Optional[bool] in config, coerce to bool)
-        self.input_parallel: bool = config.rails.input.parallel or False
-        self.output_parallel: bool = config.rails.output.parallel or False
+        self.input_parallel: bool = input_parallel
+        self.output_parallel: bool = output_parallel
 
         # Build action instances for each configured flow
         self._actions: dict[str, RailAction] = {}

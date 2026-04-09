@@ -22,12 +22,13 @@ individual iorails_actions test files.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import (
     CONTENT_SAFETY_CONFIG,
@@ -51,7 +52,18 @@ UNSAFE_OUTPUT_JSON = json.dumps(
 MESSAGES = [{"role": "user", "content": "hello"}]
 
 
-# --- Fixtures ---
+def _make_rails_manager(config: RailsConfig, engine_registry: EngineRegistry | None = None) -> RailsManager:
+    """Build a RailsManager from a RailsConfig, extracting the narrow params."""
+    if engine_registry is None:
+        engine_registry = EngineRegistry(config.models, config.rails.config)
+    return RailsManager(
+        engine_registry=engine_registry,
+        task_manager=LLMTaskManager(config),
+        input_flows=config.rails.input.flows,
+        output_flows=config.rails.output.flows,
+        input_parallel=config.rails.input.parallel or False,
+        output_parallel=config.rails.output.parallel or False,
+    )
 
 
 @pytest.fixture
@@ -66,7 +78,7 @@ def content_safety_engine_registry(content_safety_rails_config):
 
 @pytest.fixture
 def content_safety_rails_manager(content_safety_rails_config, content_safety_engine_registry):
-    return RailsManager(content_safety_rails_config, content_safety_engine_registry)
+    return _make_rails_manager(content_safety_rails_config, content_safety_engine_registry)
 
 
 @pytest.fixture
@@ -81,7 +93,7 @@ def nemoguards_engine_registry(nemoguards_rails_config):
 
 @pytest.fixture
 def nemoguards_rails_manager(nemoguards_rails_config, nemoguards_engine_registry):
-    return RailsManager(nemoguards_rails_config, nemoguards_engine_registry)
+    return _make_rails_manager(nemoguards_rails_config, nemoguards_engine_registry)
 
 
 @pytest.fixture
@@ -96,25 +108,25 @@ def topic_safety_engine_registry(topic_safety_rails_config):
 
 @pytest.fixture
 def topic_safety_rails_manager(topic_safety_rails_config, topic_safety_engine_registry):
-    return RailsManager(topic_safety_rails_config, topic_safety_engine_registry)
+    return _make_rails_manager(topic_safety_rails_config, topic_safety_engine_registry)
 
 
 @pytest.fixture
 def parallel_input_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_INPUT_CONFIG)
-    return RailsManager(config, EngineRegistry(config.models, config.rails.config))
+    return _make_rails_manager(config)
 
 
 @pytest.fixture
 def parallel_output_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_OUTPUT_CONFIG)
-    return RailsManager(config, EngineRegistry(config.models, config.rails.config))
+    return _make_rails_manager(config)
 
 
 @pytest.fixture
 def parallel_rails_manager():
     config = RailsConfig.from_content(config=NEMOGUARDS_PARALLEL_CONFIG)
-    return RailsManager(config, EngineRegistry(config.models, config.rails.config))
+    return _make_rails_manager(config)
 
 
 # --- Init tests ---
@@ -132,7 +144,7 @@ class TestRailsManagerInit:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     def test_empty_rails_config(self):
         config = RailsConfig.from_content(config={"models": []})
-        mgr = RailsManager(config, MagicMock())
+        mgr = _make_rails_manager(config)
         assert mgr.input_flows == []
         assert mgr.output_flows == []
 
@@ -143,7 +155,7 @@ class TestRailsManagerInit:
         }
         with pytest.raises(RuntimeError, match="not supported"):
             config = RailsConfig.from_content(config=config_with_unknown)
-            RailsManager(config, MagicMock())
+            _make_rails_manager(config)
 
     def test_actions_created_for_flows(self, content_safety_rails_manager):
         assert "content safety check input $model=content_safety" in content_safety_rails_manager._actions
