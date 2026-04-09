@@ -1,0 +1,32 @@
+"""
+https://docs.veroq.ai
+
+VeroQ Shield — fact-checking guardrail for LLM output.
+
+Extracts claims from the bot response, verifies each against live sources,
+and blocks responses that contain contradicted facts.
+"""
+
+flow veroq check output facts
+  """Guardrail based on the VeroQ trust score and claim verdicts."""
+  $result = await CallVeroqApiAction
+
+  if $result.claims_contradicted > 0
+    if $system.config.enable_rails_exceptions
+      send VeroqFactCheckRailException(message="VeroQ Shield detected contradicted claims in the response.")
+    else
+      bot inform facts could not be verified
+    abort
+
+  if $result.trust_score < 0.7
+    if $system.config.enable_rails_exceptions
+      send VeroqLowTrustRailException(message="VeroQ Shield trust score is below threshold.")
+    else
+      bot inform answer may be inaccurate
+    abort
+
+flow bot inform facts could not be verified
+  bot say "I'm not confident in the accuracy of that response. Some claims could not be verified against trusted sources."
+
+flow bot inform answer may be inaccurate
+  bot say "I'm not fully confident in the accuracy of that response. Please verify the information independently."
