@@ -68,6 +68,12 @@ class IORails:
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)
 
+    @property
+    def _has_streaming_output_rails(self) -> bool:
+        """True when output rails are configured and streaming is enabled for them."""
+        streaming = self.config.rails.output.streaming
+        return streaming is not None and streaming.enabled and len(self.config.rails.output.flows) > 0
+
     async def start(self) -> None:
         """Start the IORails engine. Call this during service startup."""
         if self._running:
@@ -128,13 +134,13 @@ class IORails:
                 return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
             # Step 2: Generate response from main LLM
-            # If we got an `options=GenerationOptions`, then unpack GenerationOptions.llm_params and add
-            # that to the main LLM call
             log.info("[%s] Calling main LLM", req_id)
             llm_kwargs = {}
-            if kwargs.get("options") and isinstance(kwargs["options"], GenerationOptions):
-                generation_options = kwargs["options"]
-                llm_kwargs = generation_options.llm_params if generation_options.llm_params else {}
+            options = kwargs.get("options")
+            if options and isinstance(options, dict):
+                options = GenerationOptions(**options)
+            if isinstance(options, GenerationOptions) and options.llm_params:
+                llm_kwargs = options.llm_params
 
             response_text = await self.model_manager.generate_async("main", messages, **llm_kwargs)
             log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
@@ -158,9 +164,7 @@ class IORails:
 
     def _validate_streaming_with_output_rails(self) -> None:
         """Raise if output rails exist but streaming is not enabled for them."""
-        if len(self.config.rails.output.flows) > 0 and (
-            not self.config.rails.output.streaming or not self.config.rails.output.streaming.enabled
-        ):
+        if len(self.config.rails.output.flows) > 0 and not self._has_streaming_output_rails:
             raise StreamingNotSupportedError(
                 "stream_async() cannot be used when output rails are configured but "
                 "rails.output.streaming.enabled is False. Either set "
@@ -202,9 +206,7 @@ class IORails:
         """
         self._validate_streaming_with_output_rails()
 
-        output_streaming = self.config.rails.output.streaming
-        has_output_rails = output_streaming and output_streaming.enabled and len(self.config.rails.output.flows) > 0
-        if include_metadata and has_output_rails:
+        if include_metadata and self._has_streaming_output_rails:
             raise ValueError(
                 "include_metadata=True is not supported when output rails streaming is enabled. "
                 "BufferStrategy requires plain string chunks. Use include_metadata=False or "
@@ -213,8 +215,10 @@ class IORails:
 
         # Extract llm_params from GenerationOptions if provided
         llm_kwargs: dict = {}
-        if options and isinstance(options, GenerationOptions):
-            llm_kwargs = options.llm_params if options.llm_params else {}
+        if options and isinstance(options, dict):
+            options = GenerationOptions(**options)
+        if isinstance(options, GenerationOptions) and options.llm_params:
+            llm_kwargs = options.llm_params
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
@@ -281,8 +285,7 @@ class IORails:
                 task = asyncio.create_task(_generation_task())
                 try:
                     # Determine base iterator: with or without output rails
-                    output_streaming = self.config.rails.output.streaming
-                    if output_streaming and output_streaming.enabled and len(self.config.rails.output.flows) > 0:
+                    if self._has_streaming_output_rails:
                         base_iterator = self._run_output_rails_in_streaming(
                             streaming_handler=streaming_handler,
                             messages=messages,
