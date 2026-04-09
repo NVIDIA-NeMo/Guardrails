@@ -111,6 +111,8 @@ class IORails:
 
     async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Run input rails, generation, and output rails. Return response if safe."""
+        await self.start()
+
         token = set_new_request_id()
         req_id = get_request_id()
         t0 = time.monotonic()
@@ -224,9 +226,6 @@ class IORails:
             req_id = get_request_id()
             t0 = time.monotonic()
             try:
-                log.info("[%s] stream_async generation task started", req_id)
-                log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
-
                 # Step 1: Input rails (non-streaming)
                 log.info("[%s] Running input rails", req_id)
                 input_result = await self.rails_manager.is_input_safe(messages)
@@ -245,7 +244,7 @@ class IORails:
             except Exception as e:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error(
-                    "[%s] stream_async generation task failed time=%.1fms",
+                    "[%s] generation task failed time=%.1fms",
                     req_id,
                     elapsed_ms,
                     exc_info=True,
@@ -257,10 +256,13 @@ class IORails:
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             finally:
                 elapsed_ms = (time.monotonic() - t0) * 1000
-                log.info("[%s] stream_async time=%.1fms", req_id, elapsed_ms)
+                log.info("[%s] generation task completed time=%.1fms", req_id, elapsed_ms)
 
         async def _wrapped_iterator():
             """Wrap the base iterator with semaphore-based concurrency control."""
+            # Ensure engines are running (idempotent if already started).
+            await self.start()
+
             # Non-blocking acquire; raises immediately if all slots are taken.
             # locked() returns True when the semaphore value is 0.  Because there
             # is no await between the check and acquire(), no other coroutine can
@@ -269,10 +271,13 @@ class IORails:
                 raise asyncio.QueueFull("Streaming concurrency limit reached")
             await self._stream_semaphore.acquire()
 
+            token = set_new_request_id()
+            req_id = get_request_id()
+            t0 = time.monotonic()
             try:
-                # Set request ID here so both the generation task (via create_task
-                # context copy) and output rails (running in this coroutine) share it.
-                token = set_new_request_id()
+                log.info("[%s] stream_async called", req_id)
+                log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
+
                 task = asyncio.create_task(_generation_task())
                 try:
                     # Determine base iterator: with or without output rails
@@ -301,7 +306,13 @@ class IORails:
                             # GeneratorExit triggers cleanup in a different context
                             # where the token is no longer valid — safe to ignore.
                             pass
+            except Exception:
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.error("[%s] stream_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
+                raise
             finally:
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.info("[%s] stream_async completed time=%.1fms", req_id, elapsed_ms)
                 self._stream_semaphore.release()
 
         return _wrapped_iterator()
