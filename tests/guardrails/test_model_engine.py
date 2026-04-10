@@ -786,3 +786,13 @@ class TestModelEngineGenerate:
 
         with pytest.raises(ModelEngineError, match="Unexpected response format"):
             await engine.generate([{"role": "user", "content": "Hi"}])
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_raises_on_null_content(self):
+        """generate() raises ModelEngineError when content is None (e.g. tool_calls response)."""
+        engine = ModelEngine(_make_model())
+        engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
+
+        with pytest.raises(ModelEngineError, match="Expected string content"):
+            await engine.generate([{"role": "user", "content": "Hi"}])

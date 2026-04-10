@@ -318,9 +318,15 @@ class ModelEngine(BaseEngine):
         """
         response = await self.call(messages, **kwargs)
         try:
-            return response["choices"][0]["message"]["content"]
+            content = response["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise ModelEngineError(
                 f"Unexpected response format from model '{self.model_name}': {exc}",
                 model_name=self.model_name,
             ) from exc
+        if not isinstance(content, str):
+            raise ModelEngineError(
+                f"Expected string content from model '{self.model_name}', got {type(content).__name__}",
+                model_name=self.model_name,
+            )
+        return content
