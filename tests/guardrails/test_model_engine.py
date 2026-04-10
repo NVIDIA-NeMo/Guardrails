@@ -15,6 +15,7 @@
 
 """Unit tests for model_engine module."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -239,6 +240,48 @@ class TestModelEngineLifecycle:
         await engine.stop()
         await engine.stop()  # second stop is a no-op
         assert engine._running is False
+
+
+class TestModelEngineConcurrentLifecycle:
+    """Test that the asyncio.Lock in BaseEngine protects stop() from races.
+
+    start() has no await in its critical section so it's effectively atomic
+    in asyncio's cooperative model. stop() has `await client.close()` which
+    creates a real interleaving window — the lock prevents double-close.
+    """
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    @pytest.mark.asyncio
+    async def test_concurrent_stop_closes_client_once(self):
+        """Two concurrent stop() calls only close the client once."""
+        engine = ModelEngine(_make_model())
+        await engine.start()
+
+        close_mock = AsyncMock()
+        engine._client.close = close_mock
+
+        await asyncio.gather(engine.stop(), engine.stop())
+
+        assert not engine._running
+        assert engine._client is None
+        close_mock.assert_awaited_once()
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
+    @pytest.mark.asyncio
+    async def test_concurrent_start_stop_does_not_leak(self):
+        """Concurrent start() and stop() leave the engine in a consistent state."""
+        engine = ModelEngine(_make_model())
+        await engine.start()
+        assert engine._running
+
+        await asyncio.gather(engine.stop(), engine.start())
+
+        # Engine should be in a consistent state (either running or not)
+        if engine._running:
+            assert engine._client is not None
+            await engine.stop()
+        else:
+            assert engine._client is None
 
 
 class TestModelEngineContextManager:

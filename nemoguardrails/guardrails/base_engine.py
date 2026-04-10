@@ -15,6 +15,7 @@
 
 """Base class for IORails HTTP engines with aiohttp retry client lifecycle."""
 
+import asyncio
 from typing import Optional
 
 import aiohttp
@@ -53,29 +54,32 @@ class BaseEngine:
         )
         self._client: Optional[RetryClient] = None
         self._running = False
+        self._lock = asyncio.Lock()
 
     async def start(self) -> None:
         """Create this engine's RetryClient. Call during service startup."""
-        if self._running:
-            return
+        async with self._lock:
+            if self._running:
+                return
 
-        self._client = RetryClient(
-            retry_options=self._retry_options,
-            client_session=aiohttp.ClientSession(timeout=self._timeout),
-        )
-        self._running = True
+            self._client = RetryClient(
+                retry_options=self._retry_options,
+                client_session=aiohttp.ClientSession(timeout=self._timeout),
+            )
+            self._running = True
 
     async def stop(self) -> None:
         """Close this engine's RetryClient. Call during service shutdown."""
-        if not self._running:
-            return
+        async with self._lock:
+            if not self._running:
+                return
 
-        try:
-            if self._client:
-                await self._client.close()
-                self._client = None
-        finally:
-            self._running = False
+            try:
+                if self._client:
+                    await self._client.close()
+                    self._client = None
+            finally:
+                self._running = False
 
     async def __aenter__(self):
         await self.start()
