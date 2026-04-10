@@ -140,7 +140,7 @@ class EngineRegistry:
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
-        engine = self._get_model_engine(model_type)
+        engine: ModelEngine = self._get_engine(model_type, ModelEngine)  # type: ignore[assignment]
         async for chunk in engine.stream_call(messages, **kwargs):
             yield chunk
 

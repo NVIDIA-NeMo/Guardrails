@@ -476,7 +476,7 @@ class TestModelManagerStreamAsync:
             for chunk in ["Hello", " world"]:
                 yield chunk
 
-        engine = manager._get_model_engine("main")
+        engine = manager._get_engine("main", ModelEngine)
         engine.stream_call = mock_stream_call
 
         chunks = []
@@ -496,7 +496,7 @@ class TestModelManagerStreamAsync:
             captured_kwargs.update(kwargs)
             yield "ok"
 
-        engine = manager._get_model_engine("main")
+        engine = manager._get_engine("main", ModelEngine)
         engine.stream_call = mock_stream_call
 
         async for _ in manager.stream_async("main", messages, temperature=0.7):

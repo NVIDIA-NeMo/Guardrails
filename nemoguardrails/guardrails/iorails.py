@@ -29,6 +29,7 @@ from contextlib import suppress
 from typing import Optional, Union
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
@@ -248,7 +249,7 @@ class IORails:
 
                 # Step 2: Stream main LLM
                 log.info("[%s] Streaming main LLM", req_id)
-                async for chunk in self.model_manager.stream_async("main", messages, **llm_kwargs):
+                async for chunk in self.engine_registry.stream_async("main", messages, **llm_kwargs):
                     await streaming_handler.push_chunk(chunk)
 
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]

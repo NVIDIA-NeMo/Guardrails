@@ -159,18 +159,18 @@ class TestGenerateAsync:
         llm_params = {"temperature": 0.01, "max_completion_tokens": 1000}
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value="ok")
+        iorails.engine_registry.model_call = AsyncMock(return_value="ok")
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         await iorails.generate_async(messages, options={"llm_params": llm_params})
 
-        iorails.model_manager.generate_async.assert_called_once_with("main", messages, **llm_params)
+        iorails.engine_registry.model_call.assert_called_once_with("main", messages, **llm_params)
 
     @pytest.mark.asyncio
     async def test_generate_async_propagates_exception(self, iorails):
         """Exceptions from the LLM call propagate to the caller."""
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(side_effect=RuntimeError("LLM internal error"))
+        iorails.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("LLM internal error"))
 
         with pytest.raises(RuntimeError, match="LLM internal error"):
             await iorails.generate_async([{"role": "user", "content": "hi"}])

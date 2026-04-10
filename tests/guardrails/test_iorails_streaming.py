@@ -100,7 +100,7 @@ def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stre
     iorails.rails_manager.is_output_safe = AsyncMock(
         return_value=RailResult(is_safe=output_safe, reason=None if output_safe else "blocked")
     )
-    iorails.model_manager.stream_async = stream
+    iorails.engine_registry.stream_async = stream
 
 
 @pytest.fixture
