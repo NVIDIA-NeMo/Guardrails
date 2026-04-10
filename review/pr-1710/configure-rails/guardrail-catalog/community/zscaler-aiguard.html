@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Trend Micro Vision One AI Application Security &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+    <title>Zscaler AI Guard Integration &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
   
   
   
@@ -52,7 +52,7 @@
     <script src="../../../_static/copybutton.js?v=6dbb43f8"></script>
     <script src="../../../_static/search-assets.bundle.js?v=00e3e057"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'configure-rails/guardrail-catalog/community/trend-micro';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'configure-rails/guardrail-catalog/community/zscaler-aiguard';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
@@ -61,12 +61,12 @@
             false;
         </script>
 
-    <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/guardrail-catalog/community/trend-micro.html" />
+    <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/guardrail-catalog/community/zscaler-aiguard.html" />
     <link rel="icon" href="../../../_static/favicon.png"/>
 
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Zscaler AI Guard Integration" href="zscaler-aiguard.html" />
-    <link rel="prev" title="Regular Expression Detection Integration" href="regex.html" />
+    <link rel="next" title="Configuring Custom Actions" href="../../actions/index.html" />
+    <link rel="prev" title="Trend Micro Vision One AI Application Security" href="trend-micro.html" />
 
 
 
@@ -448,8 +448,8 @@
 <li class="toctree-l3"><a class="reference internal" href="privateai.html">Private AI</a></li>
 <li class="toctree-l3"><a class="reference internal" href="prompt-security.html">Prompt Security</a></li>
 <li class="toctree-l3"><a class="reference internal" href="regex.html">Regex</a></li>
-<li class="toctree-l3 current active"><a class="current reference internal" href="#">Trend Micro</a></li>
-<li class="toctree-l3"><a class="reference internal" href="zscaler-aiguard.html">Zscaler AI Guard</a></li>
+<li class="toctree-l3"><a class="reference internal" href="trend-micro.html">Trend Micro</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">Zscaler AI Guard</a></li>
 </ul>
 </details></li>
 </ul>
@@ -661,7 +661,7 @@
     
     <li class="breadcrumb-item"><a href="../third-party.html" class="nav-link">Third-Party APIs</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Trend Micro Vision One AI Application Security</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Zscaler AI Guard Integration</span></li>
   </ul>
 </nav>
 </div>
@@ -678,67 +678,97 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="trend-micro-vision-one-ai-application-security">
-<h1>Trend Micro Vision One AI Application Security<a class="headerlink" href="#trend-micro-vision-one-ai-application-security" title="Link to this heading">#</a></h1>
-<p>Trend Micro Vision One <a class="reference external" href="https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-ai-scanner-ai-guard" rel="noreferer noopener" target="_blank">AI Application Security’s</a> AI Guard feature uses a configurable policy to identify risks in AI Applications, such as:</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="zscaler-ai-guard-integration">
+<h1>Zscaler AI Guard Integration<a class="headerlink" href="#zscaler-ai-guard-integration" title="Link to this heading">#</a></h1>
+<p>The Zscaler AI Guard guardrail uses the <a class="reference external" href="https://help.zscaler.com/ai-guard" rel="noreferer noopener" target="_blank">Zscaler AI Guard</a> DAS API to scan prompts and LLM responses for security threats, including:</p>
 <ul class="simple">
-<li><p>Prompt injection attacks</p></li>
-<li><p>Toxicity, violent, and other harmful content</p></li>
-<li><p>Sensitive Data</p></li>
+<li><p><strong>Credentials and secrets</strong> - API keys, tokens, passwords, and cloud credentials</p></li>
+<li><p><strong>PII (Personally Identifiable Information)</strong> - Names, emails, phone numbers, SSNs, and other personal data</p></li>
+<li><p><strong>Toxicity</strong> - Violent, abusive, hateful, or harmful content</p></li>
+<li><p><strong>Prompt injection</strong> - Adversarial prompts designed to manipulate AI behavior or bypass security controls</p></li>
+<li><p><strong>Malicious URLs</strong> - Known malicious URLs and domains</p></li>
+<li><p><strong>Policy violations</strong> - Custom content policy violations configured in the AI Guard console</p></li>
+</ul>
+<p>The integration uses the <a class="reference external" href="https://pypi.org/project/zscaler-sdk-python/" rel="noreferer noopener" target="_blank">zscaler-sdk-python</a> SDK and implements <strong>fail-closed</strong> semantics: if the API call fails or returns an unexpected result, the content is blocked by default.</p>
+<p>The following environment variables are required:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_API_KEY</span></code>: Zscaler AI Guard API key (Bearer token). Obtain from AI Guard Console → Private AI Apps → Applications → API Keys.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_CLOUD</span></code>: Cloud region. Options: <code class="docutils literal notranslate"><span class="pre">us1</span></code> (default), <code class="docutils literal notranslate"><span class="pre">us2</span></code>, <code class="docutils literal notranslate"><span class="pre">eu1</span></code>, <code class="docutils literal notranslate"><span class="pre">eu2</span></code>.</p></li>
+</ul>
+<p>Optionally, to use a specific policy instead of automatic resolution:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_POLICY_ID</span></code>: Integer policy ID. When set, the integration calls <code class="docutils literal notranslate"><span class="pre">execute-policy</span></code> with the given ID instead of <code class="docutils literal notranslate"><span class="pre">resolve-and-execute-policy</span></code>.</p></li>
 </ul>
 <section id="setup">
 <h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
-<ol class="arabic simple">
-<li><p>Create a new <a class="reference external" href="https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-platform-api-keys" rel="noreferer noopener" target="_blank">Vision One API Key</a> with permissions to Call Detection API</p></li>
-<li><p>See the <a class="reference external" href="https://docs.trendmicro.com/en-us/documentation/article/trend-vision-one-platform-api-keys" rel="noreferer noopener" target="_blank">AI Guard Integration Guide</a> for details around creating your policy</p></li>
-</ol>
-<p><a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/trend_micro/" rel="noreferer noopener" target="_blank">Colang v1</a>:</p>
+<section id="colang-v1">
+<h3>Colang v1<a class="headerlink" href="#colang-v1" title="Link to this heading">#</a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># config.yml</span>
 
+<span class="c1"># Optional: show detailed block messages (severity, policy name, detectors)</span>
+<span class="nt">enable_rails_exceptions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
 <span class="nt">rails</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">trend_micro</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">v1_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails&quot;</span><span class="w">  </span><span class="c1"># Trend Micro AI Guard Endpoint</span>
-<span class="w">      </span><span class="nt">api_key_env_var</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;V1_API_KEY&quot;</span>
-<span class="w">      </span><span class="nt">application_name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;my-ai-app&quot;</span><span class="w">  </span><span class="c1"># Required: Application identifier (max 64 chars, alphanumeric, hyphens, underscores)</span>
-<span class="w">      </span><span class="c1"># Optional:</span>
-<span class="w">      </span><span class="nt">detailed_response</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Set to true for detailed AI Guard results</span>
-<span class="w">      </span><span class="c1"># For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails</span>
-<span class="w">      </span><span class="c1"># where region is: eu, jp, au, in, sg, or mea</span>
 <span class="w">  </span><span class="nt">input</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">trend ai guard input</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zscaler aiguard moderation on input</span>
 
 <span class="w">  </span><span class="nt">output</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">trend ai guard output</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zscaler aiguard moderation on output</span>
 </pre></div>
 </div>
-<p><a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/trend_micro_v2/" rel="noreferer noopener" target="_blank">Colang v2</a>:</p>
+</section>
+<section id="colang-v2">
+<h3>Colang v2<a class="headerlink" href="#colang-v2" title="Link to this heading">#</a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># config.yml</span>
+
 <span class="nt">colang_version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2.x&quot;</span>
-<span class="nt">rails</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">trend_micro</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">v1_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://api.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails&quot;</span><span class="w">  </span><span class="c1"># Trend Micro AI Guard Endpoint</span>
-<span class="w">      </span><span class="nt">api_key_env_var</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;V1_API_KEY&quot;</span>
-<span class="w">      </span><span class="nt">application_name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;my-ai-app&quot;</span><span class="w">  </span><span class="c1"># Required: Application identifier (max 64 chars, alphanumeric, hyphens, underscores)</span>
-<span class="w">      </span><span class="c1"># Optional:</span>
-<span class="w">      </span><span class="nt">detailed_response</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Set to true for detailed AI results</span>
-<span class="w">      </span><span class="c1"># For other regions, use: https://api.{region}.xdr.trendmicro.com/v3.0/aiSecurity/applyGuardrails</span>
-<span class="w">      </span><span class="c1"># where region is: eu, jp, au, in, sg, or mea</span>
 </pre></div>
 </div>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp"># </span>rails.co
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span># rails.co
 
-<span class="go">import guardrails</span>
-<span class="go">import nemoguardrails.library.trend_micro</span>
+import guardrails
+import nemoguardrails.library.zscaler_aiguard
 
-<span class="go">flow input rails $input_text</span>
-<span class="go">    trend ai guard $input_text</span>
+flow input rails $input_text
+    zscaler aiguard moderation on input
 
-<span class="go">flow output rails $output_text</span>
-<span class="go">    trend ai guard $output_text</span>
+flow output rails $output_text
+    zscaler aiguard moderation on output
+</pre></div>
+</div>
+</section>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Input scanning</strong>: Before user prompts reach the LLM, the <code class="docutils literal notranslate"><span class="pre">zscaler</span> <span class="pre">aiguard</span> <span class="pre">moderation</span> <span class="pre">on</span> <span class="pre">input</span></code> flow sends the prompt to the AI Guard API with <code class="docutils literal notranslate"><span class="pre">direction=&quot;IN&quot;</span></code>.</p></li>
+<li><p><strong>Output scanning</strong>: After the LLM generates a response, the <code class="docutils literal notranslate"><span class="pre">zscaler</span> <span class="pre">aiguard</span> <span class="pre">moderation</span> <span class="pre">on</span> <span class="pre">output</span></code> flow sends the response to the AI Guard API with <code class="docutils literal notranslate"><span class="pre">direction=&quot;OUT&quot;</span></code>.</p></li>
+<li><p><strong>Policy selection</strong>: By default, the integration calls <code class="docutils literal notranslate"><span class="pre">resolve-and-execute-policy</span></code> which automatically selects the appropriate policy. If <code class="docutils literal notranslate"><span class="pre">AIGUARD_POLICY_ID</span></code> is set, it instead calls <code class="docutils literal notranslate"><span class="pre">execute-policy</span></code> with the specified policy ID.</p></li>
+<li><p><strong>Verdict handling</strong>: If the API returns an <code class="docutils literal notranslate"><span class="pre">action</span></code> of <code class="docutils literal notranslate"><span class="pre">BLOCK</span></code>, the flow aborts and the bot refuses to respond. If the API returns <code class="docutils literal notranslate"><span class="pre">ALLOW</span></code> or <code class="docutils literal notranslate"><span class="pre">DETECT</span></code>, the content passes through normally.</p></li>
+<li><p><strong>Rails exceptions</strong>: When <code class="docutils literal notranslate"><span class="pre">enable_rails_exceptions:</span> <span class="pre">true</span></code> is set at the top level of the config, blocked requests emit a <code class="docutils literal notranslate"><span class="pre">ZscalerAiguardInputRailException</span></code> or <code class="docutils literal notranslate"><span class="pre">ZscalerAiguardOutputRailException</span></code> with a detailed message containing the severity, policy name, blocking detectors, and transaction ID.</p></li>
+<li><p><strong>Fail-closed</strong>: If the API call fails (network error, timeout, etc.), the action returns <code class="docutils literal notranslate"><span class="pre">action:</span> <span class="pre">BLOCK</span></code> by default to prevent potentially unsafe content from passing through.</p></li>
+</ol>
+</section>
+<section id="detectors">
+<h2>Detectors<a class="headerlink" href="#detectors" title="Link to this heading">#</a></h2>
+<p>The AI Guard policy engine evaluates all configured detectors and returns a single <code class="docutils literal notranslate"><span class="pre">ALLOW</span></code> / <code class="docutils literal notranslate"><span class="pre">BLOCK</span></code> / <code class="docutils literal notranslate"><span class="pre">DETECT</span></code> verdict. Available detectors include:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">toxicity</span></code> - Toxic or harmful language</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pii</span></code> - Personally identifiable information</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">personalData</span></code> - Personal data patterns</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">piiDeepscan</span></code> - Deep PII scanning</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">secrets</span></code> - Credentials, API keys, tokens</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">promptInjection</span></code> - Prompt injection attempts</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">maliciousUrl</span></code> - Malicious URL detection</p></li>
+</ul>
+<p>Detectors are configured in the <a class="reference external" href="https://help.zscaler.com/aiguard" rel="noreferer noopener" target="_blank">Zscaler AI Guard console</a>, not in the NeMo Guardrails configuration.</p>
+</section>
+<section id="dependencies">
+<h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">#</a></h2>
+<p>Install the required SDK:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>zscaler-sdk-python
 </pre></div>
 </div>
 </section>
@@ -755,20 +785,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="regex.html"
+       href="trend-micro.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Regular Expression Detection Integration</p>
+        <p class="prev-next-title">Trend Micro Vision One AI Application Security</p>
       </div>
     </a>
     <a class="right-next"
-       href="zscaler-aiguard.html"
+       href="../../actions/index.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Zscaler AI Guard Integration</p>
+        <p class="prev-next-title">Configuring Custom Actions</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -793,7 +823,14 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#colang-v1">Colang v1</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#colang-v2">Colang v2</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#detectors">Detectors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dependencies">Dependencies</a></li>
 </ul>
   </nav></div>
 

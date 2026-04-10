@@ -877,6 +877,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l3"><a class="reference internal" href="../../../../configure-rails/guardrail-catalog/community/prompt-security.html">Prompt Security</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../configure-rails/guardrail-catalog/community/regex.html">Regex</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../configure-rails/guardrail-catalog/community/trend-micro.html">Trend Micro</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../configure-rails/guardrail-catalog/community/zscaler-aiguard.html">Zscaler AI Guard</a></li>
 </ul>
 </details></li>
 </ul>
@@ -1365,6 +1366,18 @@ window.addEventListener("load", load);</script>
                 <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">model</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_engine</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">engine</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_params</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">or</span> <span class="p">{}</span>
+
+                <span class="k">for</span> <span class="n">esp</span> <span class="ow">in</span> <span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">embedding_search_provider</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">knowledge_base</span><span class="o">.</span><span class="n">embedding_search_provider</span><span class="p">,</span>
+                <span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">esp</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;default&quot;</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="s2">&quot;embedding_model&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">esp</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">and</span> <span class="n">model</span><span class="o">.</span><span class="n">model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">esp</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;embedding_model&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">model</span>
+                    <span class="k">if</span> <span class="s2">&quot;embedding_engine&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">esp</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">and</span> <span class="n">model</span><span class="o">.</span><span class="n">engine</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">esp</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;embedding_engine&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">engine</span>
+
                 <span class="k">break</span>
 
         <span class="c1"># InteractionLogAdapters used for tracing</span>
