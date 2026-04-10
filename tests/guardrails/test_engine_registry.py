@@ -219,23 +219,25 @@ class TestEngineRegistryStartErrors:
     @pytest.mark.asyncio
     async def test_start_rolls_back_on_engine_failure(self, manager):
         """When one engine fails to start, already-started engines are stopped."""
-        engines = list(manager._engines.values())
+        failing_engine = "jailbreak_detection"
 
-        # All but the last engine start OK; the last one raises
-        for eng in engines[:-1]:
-            eng.start = AsyncMock()
-            eng.stop = AsyncMock()
-        engines[-1].start = AsyncMock(side_effect=RuntimeError("Error starting model"))
-        engines[-1].stop = AsyncMock()
+        for name, engine in manager._engines.items():
+            if name == failing_engine:
+                engine.start = AsyncMock(side_effect=RuntimeError("Error starting model"))
+            else:
+                engine.start = AsyncMock()
+                engine.stop = AsyncMock()
 
         with pytest.raises(RuntimeError, match="Failed to start engine"):
             await manager.start()
 
-        # Successfully-started engines should have been rolled back
-        for eng in engines[:-1]:
-            eng.stop.assert_called_once()
+        # Engines before the failing one should have been rolled back
+        engine_names = list(manager._engines.keys())
+        failed_idx = engine_names.index(failing_engine)
+        for i, name in enumerate(engine_names):
+            if i < failed_idx:
+                manager._engines[name].stop.assert_called_once()
 
-        # Manager should not be running
         assert not manager._running
 
     @pytest.mark.asyncio
@@ -256,28 +258,28 @@ class TestEngineRegistryStartErrors:
     @pytest.mark.asyncio
     async def test_start_rollback_swallows_stop_errors(self, manager):
         """Rollback continues even if stopping a started engine raises."""
-        engines = list(manager._engines.values())
+        failing_engine = "jailbreak_detection"
+        stop_error_engine = "main"
 
-        # First engine starts OK but stop raises during rollback
-        engines[0].start = AsyncMock()
-        engines[0].stop = AsyncMock(side_effect=RuntimeError("stop failed"))
-
-        # Middle engines start OK
-        for eng in engines[1:-1]:
-            eng.start = AsyncMock()
-            eng.stop = AsyncMock()
-
-        # Last engine fails to start
-        engines[-1].start = AsyncMock(side_effect=RuntimeError("start failed"))
-        engines[-1].stop = AsyncMock()
+        for name, engine in manager._engines.items():
+            if name == failing_engine:
+                engine.start = AsyncMock(side_effect=RuntimeError("start failed"))
+            elif name == stop_error_engine:
+                engine.start = AsyncMock()
+                engine.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
+            else:
+                engine.start = AsyncMock()
+                engine.stop = AsyncMock()
 
         with pytest.raises(RuntimeError, match="Failed to start engine"):
             await manager.start()
 
         # All started engines should have had stop() called (even if one raises)
-        engines[0].stop.assert_called_once()
-        for eng in engines[1:-1]:
-            eng.stop.assert_called_once()
+        engine_names = list(manager._engines.keys())
+        failed_idx = engine_names.index(failing_engine)
+        for i, name in enumerate(engine_names):
+            if i < failed_idx:
+                manager._engines[name].stop.assert_called_once()
 
 
 class TestEngineRegistryStopErrors:
