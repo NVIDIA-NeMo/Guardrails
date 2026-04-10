@@ -85,9 +85,9 @@ class ModelEngine(BaseEngine):
 
         params = model_config.parameters or {}
         super().__init__(
-            timeout_total=float(params.get("timeout", DEFAULT_TIMEOUT_TOTAL)),
-            timeout_connect=float(params.get("timeout_connect", DEFAULT_TIMEOUT_CONNECT)),
-            max_attempts=int(params.get("max_attempts", DEFAULT_MAX_ATTEMPTS)),
+            timeout_total=float(params.get("timeout") or DEFAULT_TIMEOUT_TOTAL),
+            timeout_connect=float(params.get("timeout_connect") or DEFAULT_TIMEOUT_CONNECT),
+            max_attempts=int(params.get("max_attempts") or DEFAULT_MAX_ATTEMPTS),
         )
 
     def _resolve_base_url(self) -> str:
