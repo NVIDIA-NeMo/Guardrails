@@ -77,6 +77,7 @@ class ModelEngine(BaseEngine):
     """
 
     def __init__(self, model_config: Model) -> None:
+        """Resolve base URL, API key, and retry settings from the model config."""
         self.model_config = model_config
         self.model_name: str = model_config.model or ""
         self.base_url: str = self._resolve_base_url()

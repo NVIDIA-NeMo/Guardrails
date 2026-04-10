@@ -61,6 +61,7 @@ class APIEngine(BaseEngine):
         timeout_connect: float = DEFAULT_TIMEOUT_CONNECT,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     ) -> None:
+        """Configure the API endpoint URL, auth key, and retry settings."""
         self.base_url = base_url
         self.endpoint = endpoint
         self.api_key = api_key

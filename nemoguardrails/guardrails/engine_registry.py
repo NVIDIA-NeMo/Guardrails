@@ -42,6 +42,7 @@ class EngineRegistry:
     """
 
     def __init__(self, models: list[Model], rails_config_data: RailsConfigData) -> None:
+        """Build one engine per configured model and API service."""
         self._engines: dict[str, BaseEngine] = {}
         self._running = False
 

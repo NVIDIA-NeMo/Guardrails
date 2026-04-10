@@ -59,6 +59,7 @@ class RailAction(ABC):
     requires_model: bool = True
 
     def __init__(self, engine_registry: EngineRegistry, task_manager: LLMTaskManager) -> None:
+        """Store the engine registry and task manager for use by subclass hooks."""
         self.engine_registry = engine_registry
         self.task_manager = task_manager
 

@@ -60,6 +60,7 @@ class IORails:
     """Workflow engine for accelerated Input/Output rails inference."""
 
     def __init__(self, config: RailsConfig) -> None:
+        """Build the engine registry and rails manager from the given config."""
         self._running = False
         self.config = config
 

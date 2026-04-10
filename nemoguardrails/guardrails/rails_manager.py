@@ -74,6 +74,7 @@ class RailsManager:
         input_parallel: bool = False,
         output_parallel: bool = False,
     ) -> None:
+        """Build RailAction instances for each configured input and output flow."""
         self.engine_registry = engine_registry
         self.task_manager = task_manager
 

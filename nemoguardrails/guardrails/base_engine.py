@@ -43,6 +43,7 @@ class BaseEngine:
         timeout_connect: float = DEFAULT_TIMEOUT_CONNECT,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     ) -> None:
+        """Initialize timeout, retry options, and client state."""
         self._timeout = aiohttp.ClientTimeout(
             total=timeout_total,
             connect=timeout_connect,
