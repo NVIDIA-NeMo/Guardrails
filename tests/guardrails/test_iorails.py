@@ -318,6 +318,85 @@ class TestIORailsContextManager:
         iorails.model_manager.stop.assert_called_once()
 
 
+class TestAutoStart:
+    """Test that generate_async and stream_async auto-start IORails.
+
+    Verify IORails.start() is called internally at the start of generate_async() and
+    inside stream_async()'s _wrapped_iterator.
+    """
+
+    @pytest.fixture
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def iorails_input_only(self):
+        """IORails with no output rails (needed for stream_async without StreamingNotSupportedError)."""
+        input_only_config = {
+            **NEMOGUARDS_CONFIG,
+            "rails": {**NEMOGUARDS_CONFIG["rails"], "output": {"flows": []}},
+        }
+        return IORails(RailsConfig.from_content(config=input_only_config))
+
+    @pytest.mark.asyncio
+    async def test_generate_async_calls_start(self, iorails):
+        """generate_async() calls start() automatically before running the pipeline."""
+        iorails.model_manager.start = AsyncMock()
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.model_manager.generate_async = AsyncMock(return_value="ok")
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        assert not iorails._running
+        await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        iorails.model_manager.start.assert_called_once()
+        assert iorails._running
+
+    @pytest.mark.asyncio
+    async def test_generate_async_start_is_idempotent(self, iorails):
+        """Two generate_async() calls only trigger start() once."""
+        iorails.model_manager.start = AsyncMock()
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.model_manager.generate_async = AsyncMock(return_value="ok")
+        iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        await iorails.generate_async([{"role": "user", "content": "hi"}])
+        await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        iorails.model_manager.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stream_async_calls_start(self, iorails_input_only):
+        """stream_async() calls start() automatically before streaming."""
+
+        async def mock_stream(model_type, messages, **kwargs):
+            yield "hello"
+
+        iorails_input_only.model_manager.start = AsyncMock()
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_input_only.model_manager.stream_async = mock_stream
+
+        assert not iorails_input_only._running
+        chunks = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
+
+        iorails_input_only.model_manager.start.assert_called_once()
+        assert iorails_input_only._running
+        assert chunks == ["hello"]
+
+    @pytest.mark.asyncio
+    async def test_stream_async_start_is_idempotent(self, iorails_input_only):
+        """Two stream_async() calls only trigger start() once."""
+
+        async def mock_stream(model_type, messages, **kwargs):
+            yield "hi"
+
+        iorails_input_only.model_manager.start = AsyncMock()
+        iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails_input_only.model_manager.stream_async = mock_stream
+
+        _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
+        _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
+
+        iorails_input_only.model_manager.start.assert_called_once()
+
+
 class TestGenerate:
     """Test the synchronous generate() method."""
 

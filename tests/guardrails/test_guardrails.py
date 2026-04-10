@@ -785,6 +785,26 @@ class TestGuardrailsLifecycle:
         assert guardrails._started
         mock_start.assert_called_once()
 
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock)
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_stream_async_lazy_starts(self, mock_init, mock_start, mock_stop, _content_safety_rails_config):
+        """stream_async() calls startup() automatically if not already started."""
+
+        async def mock_stream():
+            yield "hello"
+
+        guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
+        guardrails._rails_engine.stream_async = MagicMock(return_value=mock_stream())
+
+        assert not guardrails._started
+        chunks = [chunk async for chunk in guardrails.stream_async(messages=[{"role": "user", "content": "hi"}])]
+
+        assert guardrails._started
+        mock_start.assert_called_once()
+        assert chunks == ["hello"]
+
 
 class TestHasOnlyIORailsFlows:
     """Check all the permutations of configs with `has_only_iorails_flows()`"""
