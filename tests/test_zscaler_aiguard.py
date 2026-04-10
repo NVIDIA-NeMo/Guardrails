@@ -22,7 +22,7 @@ import pytest
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
 
-CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
+CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), "test_configs")
 
 input_rail_config = RailsConfig.from_content(
     yaml_content="""

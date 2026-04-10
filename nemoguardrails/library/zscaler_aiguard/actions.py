@@ -145,7 +145,10 @@ async def call_zscaler_aiguard_api(
         return {
             "action": "ALLOW",
             "severity": "NONE",
+            "policy_name": "none",
+            "transaction_id": None,
             "detectors": {},
+            "blocking_detectors": [],
             "message": "",
         }
 
@@ -172,6 +175,7 @@ async def call_zscaler_aiguard_api(
                 "action": "BLOCK",
                 "severity": "UNKNOWN",
                 "detectors": {},
+                "blocking_detectors": [],
                 "message": _build_block_message(direction, "UNKNOWN", "unknown", []),
             }
 
