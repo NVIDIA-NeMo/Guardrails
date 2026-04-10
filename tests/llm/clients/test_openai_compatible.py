@@ -1,0 +1,256 @@
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk, Role, ToolCall
+
+
+def _make_completion_response(
+    content="Hello",
+    model="gpt-4o",
+    finish_reason="stop",
+    tool_calls=None,
+    reasoning_content=None,
+    usage=None,
+):
+    message = {"content": content, "role": "assistant"}
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+    if reasoning_content:
+        message["reasoning_content"] = reasoning_content
+    response = {
+        "id": "chatcmpl-123",
+        "model": model,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+    }
+    if usage:
+        response["usage"] = usage
+    return response
+
+
+def _make_stream_chunks(deltas, model="gpt-4o", usage=None):
+    chunks = []
+    for i, delta in enumerate(deltas):
+        finish_reason = None
+        if i == len(deltas) - 1:
+            finish_reason = "stop"
+        chunks.append(
+            {
+                "id": "chatcmpl-123",
+                "model": model,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+            }
+        )
+    if usage:
+        chunks.append({"id": "chatcmpl-123", "model": model, "choices": [], "usage": usage})
+    return chunks
+
+
+class TestOpenAICompatibleClient:
+    def test_properties(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        assert client.model_name == "gpt-4o"
+        assert client.provider_name == "openai"
+        assert client.provider_url == "https://api.openai.com/v1"
+
+    def test_provider_name_nim(self):
+        client = OpenAICompatibleClient(
+            model="llama", base_url="https://integrate.api.nvidia.com/v1"
+        )
+        assert client.provider_name == "nim"
+
+    def test_provider_name_local(self):
+        client = OpenAICompatibleClient(
+            model="llama", base_url="http://localhost:11434/v1"
+        )
+        assert client.provider_name == "local"
+
+    @pytest.mark.asyncio
+    async def test_generate_basic(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        response_data = _make_completion_response(
+            content="Hello there!",
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        )
+        client._apost = AsyncMock(return_value=response_data)
+
+        result = await client.generate_async("Hi")
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "Hello there!"
+        assert result.model == "gpt-4o"
+        assert result.finish_reason == "stop"
+        assert result.usage.input_tokens == 10
+        assert result.usage.output_tokens == 5
+        assert result.usage.total_tokens == 15
+
+    @pytest.mark.asyncio
+    async def test_generate_with_tool_calls(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        response_data = _make_completion_response(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_abc",
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                }
+            ],
+            finish_reason="tool_calls",
+        )
+        client._apost = AsyncMock(return_value=response_data)
+
+        result = await client.generate_async("What's the weather?")
+
+        assert result.tool_calls is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_abc"
+        assert result.tool_calls[0].function.name == "get_weather"
+        assert result.tool_calls[0].function.arguments == {"city": "Paris"}
+        assert result.finish_reason == "tool_calls"
+
+    @pytest.mark.asyncio
+    async def test_generate_with_reasoning(self):
+        client = OpenAICompatibleClient(
+            model="o3", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        response_data = _make_completion_response(
+            content="42", reasoning_content="Let me think step by step..."
+        )
+        client._apost = AsyncMock(return_value=response_data)
+
+        result = await client.generate_async("What is the answer?")
+
+        assert result.content == "42"
+        assert result.reasoning == "Let me think step by step..."
+
+    @pytest.mark.asyncio
+    async def test_generate_with_chat_messages(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        response_data = _make_completion_response(content="Hi!")
+        client._apost = AsyncMock(return_value=response_data)
+
+        messages = [
+            ChatMessage(role=Role.SYSTEM, content="You are helpful."),
+            ChatMessage(role=Role.USER, content="Hello"),
+        ]
+        result = await client.generate_async(messages)
+
+        call_payload = client._apost.call_args[0][1]
+        assert call_payload["messages"][0]["role"] == "system"
+        assert call_payload["messages"][1]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_stream_basic(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        chunks = _make_stream_chunks(
+            [{"content": "Hello"}, {"content": " there"}, {"content": "!"}],
+            usage={"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+        )
+
+        async def mock_stream(*args, **kwargs):
+            for chunk in chunks:
+                yield chunk
+
+        client._apost_stream = mock_stream
+
+        results = []
+        async for chunk in client.stream_async("Hi"):
+            results.append(chunk)
+
+        assert len(results) == 4
+        assert results[0].delta_content == "Hello"
+        assert results[1].delta_content == " there"
+        assert results[2].delta_content == "!"
+        assert results[2].finish_reason == "stop"
+        assert results[3].usage.total_tokens == 8
+
+    @pytest.mark.asyncio
+    async def test_payload_includes_stop_and_kwargs(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-test",
+            temperature=0.7,
+        )
+        response_data = _make_completion_response()
+        client._apost = AsyncMock(return_value=response_data)
+
+        await client.generate_async("Hi", stop=["END"], max_tokens=100)
+
+        payload = client._apost.call_args[0][1]
+        assert payload["model"] == "gpt-4o"
+        assert payload["stop"] == ["END"]
+        assert payload["temperature"] == 0.7
+        assert payload["max_tokens"] == 100
+
+
+class TestDefaultFramework:
+    def test_create_model_openai(self):
+        from nemoguardrails.llm.clients.framework import DefaultFramework
+
+        fw = DefaultFramework()
+        model = fw.create_model("gpt-4o", "openai", {"api_key": "sk-test"})
+
+        assert isinstance(model, OpenAICompatibleClient)
+        assert model.model_name == "gpt-4o"
+        assert model.provider_url == "https://api.openai.com/v1"
+
+    def test_create_model_nim(self):
+        from nemoguardrails.llm.clients.framework import DefaultFramework
+
+        fw = DefaultFramework()
+        model = fw.create_model("llama", "nim", {"api_key": "nvapi-test"})
+
+        assert isinstance(model, OpenAICompatibleClient)
+        assert model.provider_url == "https://integrate.api.nvidia.com/v1"
+
+    def test_create_model_custom_base_url(self):
+        from nemoguardrails.llm.clients.framework import DefaultFramework
+
+        fw = DefaultFramework()
+        model = fw.create_model("my-model", "custom", {"base_url": "https://my.api.com/v1"})
+
+        assert model.provider_url == "https://my.api.com/v1"
+
+    def test_create_model_unknown_provider_no_base_url_raises(self):
+        from nemoguardrails.llm.clients.framework import DefaultFramework
+
+        fw = DefaultFramework()
+        with pytest.raises(ValueError, match="No default base_url"):
+            fw.create_model("model", "unknown_provider", {})
+
+    def test_get_provider_names(self):
+        from nemoguardrails.llm.clients.framework import DefaultFramework
+
+        fw = DefaultFramework()
+        names = fw.get_provider_names()
+        assert "openai" in names
+        assert "nim" in names
+        assert "ollama" in names
+
+    def test_framework_registered_in_lazy_frameworks(self):
+        from nemoguardrails.llm.frameworks import _LAZY_FRAMEWORKS
+
+        assert "default" in _LAZY_FRAMEWORKS
+
+    def test_framework_lazy_loading(self):
+        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.frameworks import _reset_frameworks, get_framework
+
+        _reset_frameworks()
+        fw = get_framework("default")
+        assert isinstance(fw, DefaultFramework)
+        _reset_frameworks()
