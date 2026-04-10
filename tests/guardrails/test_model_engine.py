@@ -191,9 +191,7 @@ class TestModelEngineConfig:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "key"})
     def test_null_timeout_falls_back_to_default(self):
         """Explicit None for timeout/timeout_connect/max_attempts uses defaults."""
-        engine = ModelEngine(
-            _make_model(parameters={"timeout": None, "timeout_connect": None, "max_attempts": None})
-        )
+        engine = ModelEngine(_make_model(parameters={"timeout": None, "timeout_connect": None, "max_attempts": None}))
         assert engine._timeout.total == DEFAULT_TIMEOUT_TOTAL
         assert engine._timeout.connect == DEFAULT_TIMEOUT_CONNECT
         assert engine._retry_options.attempts == DEFAULT_MAX_ATTEMPTS
