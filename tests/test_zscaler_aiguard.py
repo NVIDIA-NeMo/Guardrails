@@ -310,6 +310,39 @@ async def test_zscaler_aiguard_exception_includes_message():
 
 
 @pytest.mark.asyncio
+async def test_zscaler_aiguard_output_exception():
+    """When enable_rails_exceptions is true, output block should raise ZscalerAiguardOutputRailException."""
+    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard_exceptions"))
+
+    chat = TestChat(
+        config,
+        llm_completions=[
+            "John's SSN is 123-45-6789",
+        ],
+    )
+
+    async def mock_action(text=None, direction="IN", **kwargs):
+        if direction == "OUT":
+            return _block_result(
+                direction="OUT",
+                blocking_detectors=["pii"],
+                message="Zscaler AI Guard blocked the LLM response. Severity: CRITICAL. Policy: PolicyApp01. Detectors: pii. Transaction: txn-002.",
+            )
+        return _allow_result()
+
+    chat.app.register_action(mock_action, "call_zscaler_aiguard_api")
+
+    chat >> "Tell me about John"
+    result = await chat.app.generate_async(messages=chat.history)
+
+    assert result["role"] == "exception"
+    assert result["content"]["type"] == "ZscalerAiguardOutputRailException"
+    msg = result["content"].get("message") or ""
+    assert "Severity: CRITICAL" in msg
+    assert "Policy: PolicyApp01" in msg
+
+
+@pytest.mark.asyncio
 async def test_zscaler_aiguard_inline_config_output():
     """Verify output rail blocks when AI Guard returns BLOCK for the bot response."""
     chat = TestChat(
@@ -504,6 +537,8 @@ async def test_zscaler_aiguard_action_exception_fail_closed():
 
         assert result["action"] == "BLOCK"
         assert result["severity"] == "UNKNOWN"
+        assert result["policy_name"] == "unknown"
+        assert result["transaction_id"] is None
         assert "Connection refused" in result["error"]
         assert "message" in result
         assert result["message"] != ""
@@ -524,6 +559,8 @@ async def test_zscaler_aiguard_action_none_result_blocks():
 
         assert result["action"] == "BLOCK"
         assert result["severity"] == "UNKNOWN"
+        assert result["policy_name"] == "unknown"
+        assert result["transaction_id"] is None
         assert "message" in result
         assert result["message"] != ""
 

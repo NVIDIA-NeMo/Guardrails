@@ -174,6 +174,8 @@ async def call_zscaler_aiguard_api(
             return {
                 "action": "BLOCK",
                 "severity": "UNKNOWN",
+                "policy_name": "unknown",
+                "transaction_id": None,
                 "detectors": {},
                 "blocking_detectors": [],
                 "message": _build_block_message(direction, "UNKNOWN", "unknown", []),
@@ -187,7 +189,13 @@ async def call_zscaler_aiguard_api(
         detector_responses = _get_attr(result, "detector_responses") or _get_attr(result, "detectorResponses") or {}
         detectors = {}
         blocking_detectors = []
-        for name, det in detector_responses.items() if isinstance(detector_responses, dict) else []:
+        if not isinstance(detector_responses, dict):
+            log.warning(
+                "AI Guard returned non-dict detector_responses (%s) — skipping detector parsing",
+                type(detector_responses).__name__,
+            )
+            detector_responses = {}
+        for name, det in detector_responses.items():
             det_action = str(_get_attr(det, "action", "unknown")).upper()
             det_triggered = _get_attr(det, "triggered", False)
             detectors[name] = {
@@ -236,6 +244,8 @@ async def call_zscaler_aiguard_api(
         return {
             "action": "BLOCK",
             "severity": "UNKNOWN",
+            "policy_name": "unknown",
+            "transaction_id": None,
             "detectors": {},
             "blocking_detectors": [],
             "error": str(e),
