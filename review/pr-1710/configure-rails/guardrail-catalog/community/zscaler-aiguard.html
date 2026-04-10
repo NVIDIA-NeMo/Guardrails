@@ -680,7 +680,7 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="zscaler-ai-guard-integration">
 <h1>Zscaler AI Guard Integration<a class="headerlink" href="#zscaler-ai-guard-integration" title="Link to this heading">#</a></h1>
-<p>The Zscaler AI Guard guardrail uses the <a class="reference external" href="https://help.zscaler.com/ai-guard" rel="noreferer noopener" target="_blank">Zscaler AI Guard</a> DAS API to scan prompts and LLM responses for security threats, including:</p>
+<p>The Zscaler AI Guard guardrail uses the <a class="reference external" href="https://help.zscaler.com/ai-guard" rel="noreferer noopener" target="_blank">Zscaler AI Guard</a> API to scan prompts and LLM responses for security threats, including:</p>
 <ul class="simple">
 <li><p><strong>Credentials and secrets</strong> - API keys, tokens, passwords, and cloud credentials</p></li>
 <li><p><strong>PII (Personally Identifiable Information)</strong> - Names, emails, phone numbers, SSNs, and other personal data</p></li>
@@ -689,15 +689,15 @@
 <li><p><strong>Malicious URLs</strong> - Known malicious URLs and domains</p></li>
 <li><p><strong>Policy violations</strong> - Custom content policy violations configured in the AI Guard console</p></li>
 </ul>
-<p>The integration uses the <a class="reference external" href="https://pypi.org/project/zscaler-sdk-python/" rel="noreferer noopener" target="_blank">zscaler-sdk-python</a> SDK and implements <strong>fail-closed</strong> semantics: if the API call fails or returns an unexpected result, the content is blocked by default.</p>
+<p>The integration uses the <a class="reference external" href="https://pypi.org/project/zscaler-sdk-python/" rel="noreferer noopener" target="_blank">zscaler-sdk-python</a> SDK and implements <strong>fail-closed</strong> semantics: if the API call fails or returns an unexpected result, the integration blocks the content by default.</p>
 <p>The following environment variables are required:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_API_KEY</span></code>: Zscaler AI Guard API key (Bearer token). Obtain from AI Guard Console → Private AI Apps → Applications → API Keys.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_API_KEY</span></code>: Zscaler AI Guard API key (Bearer token). To obtain this key, go to <strong>AI Guard Console</strong> &gt; <strong>Private AI Apps</strong> &gt; <strong>Applications</strong> &gt; <strong>API Keys</strong>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_CLOUD</span></code>: Cloud region. Options: <code class="docutils literal notranslate"><span class="pre">us1</span></code> (default), <code class="docutils literal notranslate"><span class="pre">us2</span></code>, <code class="docutils literal notranslate"><span class="pre">eu1</span></code>, <code class="docutils literal notranslate"><span class="pre">eu2</span></code>.</p></li>
 </ul>
-<p>Optionally, to use a specific policy instead of automatic resolution:</p>
+<p>To use a specific policy instead of automatic resolution, set the following optional variable:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_POLICY_ID</span></code>: Integer policy ID. When set, the integration calls <code class="docutils literal notranslate"><span class="pre">execute-policy</span></code> with the given ID instead of <code class="docutils literal notranslate"><span class="pre">resolve-and-execute-policy</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">AIGUARD_POLICY_ID</span></code>: Integer policy ID. When set, the integration calls <code class="docutils literal notranslate"><span class="pre">execute-policy</span></code> with the specified ID instead of <code class="docutils literal notranslate"><span class="pre">resolve-and-execute-policy</span></code>.</p></li>
 </ul>
 <section id="setup">
 <h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
@@ -745,10 +745,10 @@ flow output rails $output_text
 <ol class="arabic simple">
 <li><p><strong>Input scanning</strong>: Before user prompts reach the LLM, the <code class="docutils literal notranslate"><span class="pre">zscaler</span> <span class="pre">aiguard</span> <span class="pre">moderation</span> <span class="pre">on</span> <span class="pre">input</span></code> flow sends the prompt to the AI Guard API with <code class="docutils literal notranslate"><span class="pre">direction=&quot;IN&quot;</span></code>.</p></li>
 <li><p><strong>Output scanning</strong>: After the LLM generates a response, the <code class="docutils literal notranslate"><span class="pre">zscaler</span> <span class="pre">aiguard</span> <span class="pre">moderation</span> <span class="pre">on</span> <span class="pre">output</span></code> flow sends the response to the AI Guard API with <code class="docutils literal notranslate"><span class="pre">direction=&quot;OUT&quot;</span></code>.</p></li>
-<li><p><strong>Policy selection</strong>: By default, the integration calls <code class="docutils literal notranslate"><span class="pre">resolve-and-execute-policy</span></code> which automatically selects the appropriate policy. If <code class="docutils literal notranslate"><span class="pre">AIGUARD_POLICY_ID</span></code> is set, it instead calls <code class="docutils literal notranslate"><span class="pre">execute-policy</span></code> with the specified policy ID.</p></li>
+<li><p><strong>Policy selection</strong>: By default, the integration calls <code class="docutils literal notranslate"><span class="pre">resolve-and-execute-policy</span></code>, which automatically selects the appropriate policy. If <code class="docutils literal notranslate"><span class="pre">AIGUARD_POLICY_ID</span></code> is set, the integration calls <code class="docutils literal notranslate"><span class="pre">execute-policy</span></code> with the specified policy ID instead.</p></li>
 <li><p><strong>Verdict handling</strong>: If the API returns an <code class="docutils literal notranslate"><span class="pre">action</span></code> of <code class="docutils literal notranslate"><span class="pre">BLOCK</span></code>, the flow aborts and the bot refuses to respond. If the API returns <code class="docutils literal notranslate"><span class="pre">ALLOW</span></code> or <code class="docutils literal notranslate"><span class="pre">DETECT</span></code>, the content passes through normally.</p></li>
-<li><p><strong>Rails exceptions</strong>: When <code class="docutils literal notranslate"><span class="pre">enable_rails_exceptions:</span> <span class="pre">true</span></code> is set at the top level of the config, blocked requests emit a <code class="docutils literal notranslate"><span class="pre">ZscalerAiguardInputRailException</span></code> or <code class="docutils literal notranslate"><span class="pre">ZscalerAiguardOutputRailException</span></code> with a detailed message containing the severity, policy name, blocking detectors, and transaction ID.</p></li>
-<li><p><strong>Fail-closed</strong>: If the API call fails (network error, timeout, etc.), the action returns <code class="docutils literal notranslate"><span class="pre">action:</span> <span class="pre">BLOCK</span></code> by default to prevent potentially unsafe content from passing through.</p></li>
+<li><p><strong>Rails exceptions</strong>: Setting <code class="docutils literal notranslate"><span class="pre">enable_rails_exceptions:</span> <span class="pre">true</span></code> at the top level of the config causes blocked requests to emit a <code class="docutils literal notranslate"><span class="pre">ZscalerAiguardInputRailException</span></code> or <code class="docutils literal notranslate"><span class="pre">ZscalerAiguardOutputRailException</span></code>. The exception message contains the severity, policy name, blocking detectors, and transaction ID.</p></li>
+<li><p><strong>Fail-closed</strong>: If the API call fails (network error, timeout, or authentication failure), the action returns <code class="docutils literal notranslate"><span class="pre">action:</span> <span class="pre">BLOCK</span></code> by default to prevent potentially unsafe content from passing through.</p></li>
 </ol>
 </section>
 <section id="detectors">
@@ -763,7 +763,7 @@ flow output rails $output_text
 <li><p><code class="docutils literal notranslate"><span class="pre">promptInjection</span></code> - Prompt injection attempts</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">maliciousUrl</span></code> - Malicious URL detection</p></li>
 </ul>
-<p>Detectors are configured in the <a class="reference external" href="https://help.zscaler.com/aiguard" rel="noreferer noopener" target="_blank">Zscaler AI Guard console</a>, not in the NeMo Guardrails configuration.</p>
+<p>Configure detectors in the <a class="reference external" href="https://help.zscaler.com/aiguard" rel="noreferer noopener" target="_blank">Zscaler AI Guard console</a>, not in the NeMo Guardrails configuration.</p>
 </section>
 <section id="dependencies">
 <h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">#</a></h2>
