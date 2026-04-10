@@ -252,16 +252,22 @@ class TestIORailsStartErrors:
                 engine.start = AsyncMock()
                 engine.stop = AsyncMock()
 
-        with pytest.raises(RuntimeError, match="Failed to start engines"):
+        with pytest.raises(RuntimeError, match="Failed to start engine"):
             await iorails.start()
 
         assert iorails._running
         assert not iorails.engine_registry._running
 
-        # The engines that started successfully should have been rolled back
-        for engine_type, engine in iorails.engine_registry._engines.items():
-            if engine_type != "content_safety":
-                engine.stop.assert_called_once()
+        # With fail-fast, only engines that started before the failing one are rolled back.
+        # Engines after it in iteration order never had start() called.
+        engine_names = list(iorails.engine_registry._engines.keys())
+        failed_idx = engine_names.index("content_safety")
+        for i, name in enumerate(engine_names):
+            eng = iorails.engine_registry._engines[name]
+            if i < failed_idx:
+                eng.stop.assert_called_once()
+            elif name != "content_safety":
+                eng.stop.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_start_failure_allows_retry(self, iorails):

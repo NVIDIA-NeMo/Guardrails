@@ -76,26 +76,19 @@ class EngineRegistry:
             return
 
         started: list[BaseEngine] = []
-        engine_errors: dict[str, Exception] = {}
 
         for name, engine in self._engines.items():
             try:
                 await engine.start()
                 started.append(engine)
             except Exception as e:
-                engine_errors[name] = e
                 log.error("Error starting engine %s: %s", name, e)
-
-        if engine_errors:
-            for engine in started:
-                try:
-                    await engine.stop()
-                except Exception:
-                    pass
-            engine_error_string = ", ".join(
-                f"Engine {name}: exception {exception}" for name, exception in engine_errors.items()
-            )
-            raise RuntimeError(f"Failed to start engines: {engine_error_string}")
+                for eng in started:
+                    try:
+                        await eng.stop()
+                    except Exception:
+                        pass
+                raise RuntimeError(f"Failed to start engine: Engine {name}: exception {e}") from e
 
         self._running = True
 
@@ -132,7 +125,12 @@ class EngineRegistry:
         return engine
 
     async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
-        """Route a chat completion request to the named model engine."""
+        """Route a chat completion request to the named model engine.
+
+        Raises:
+            KeyError: If no engine is registered with the given name.
+            TypeError: If the named engine is not a ModelEngine.
+        """
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
@@ -143,7 +141,12 @@ class EngineRegistry:
         return result
 
     async def stream_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> AsyncIterator[str]:
-        """Stream chat completion chunks from the named model engine."""
+        """Stream chat completion chunks from the named model engine.
+
+        Raises:
+            KeyError: If no engine is registered with the given name.
+            TypeError: If the named engine is not a ModelEngine.
+        """
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
@@ -152,7 +155,12 @@ class EngineRegistry:
             yield chunk
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-        """Route an API request to the named API engine."""
+        """Route an API request to the named API engine.
+
+        Raises:
+            KeyError: If no engine is registered with the given name.
+            TypeError: If the named engine is not an APIEngine.
+        """
         req_id = get_request_id()
         log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
 

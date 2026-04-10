@@ -228,7 +228,7 @@ class TestEngineRegistryStartErrors:
         engines[-1].start = AsyncMock(side_effect=RuntimeError("Error starting model"))
         engines[-1].stop = AsyncMock()
 
-        with pytest.raises(RuntimeError, match="Failed to start engines"):
+        with pytest.raises(RuntimeError, match="Failed to start engine"):
             await manager.start()
 
         # Successfully-started engines should have been rolled back
@@ -271,7 +271,7 @@ class TestEngineRegistryStartErrors:
         engines[-1].start = AsyncMock(side_effect=RuntimeError("start failed"))
         engines[-1].stop = AsyncMock()
 
-        with pytest.raises(RuntimeError, match="Failed to start engines"):
+        with pytest.raises(RuntimeError, match="Failed to start engine"):
             await manager.start()
 
         # All started engines should have had stop() called (even if one raises)
@@ -425,7 +425,7 @@ class TestEngineRegistryApiEngineStartErrors:
         api_engine.start = AsyncMock(side_effect=RuntimeError("API unreachable"))
         api_engine.stop = AsyncMock()
 
-        with pytest.raises(RuntimeError, match="Failed to start engines"):
+        with pytest.raises(RuntimeError, match="Failed to start engine"):
             await manager.start()
 
         # Engines that started successfully should have been rolled back
