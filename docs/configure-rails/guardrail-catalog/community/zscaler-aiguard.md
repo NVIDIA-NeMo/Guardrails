@@ -9,7 +9,7 @@ The Zscaler AI Guard guardrail uses the [Zscaler AI Guard](https://help.zscaler.
 - **Malicious URLs** - Known malicious URLs and domains
 - **Policy violations** - Custom content policy violations configured in the AI Guard console
 
-The integration uses the [zscaler-sdk-python](https://pypi.org/project/zscaler-sdk-python/) SDK and implements **fail-closed** semantics: if the API call fails or returns an unexpected result, the content is blocked by default.
+The integration uses the [zscaler-sdk-python](https://pypi.org/project/zscaler-sdk-python/) SDK and implements **fail-closed** semantics: if the API call fails or returns an unexpected result, the integration blocks the content by default.
 
 The following environment variables are required:
 
