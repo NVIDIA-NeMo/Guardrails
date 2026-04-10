@@ -18,7 +18,7 @@ The following environment variables are required:
 
 To use a specific policy instead of automatic resolution, set the following optional variable:
 
-- `AIGUARD_POLICY_ID`: Integer policy ID. When set, the integration calls `execute-policy` with the given ID instead of `resolve-and-execute-policy`.
+- `AIGUARD_POLICY_ID`: Integer policy ID. When set, the integration calls `execute-policy` with the specified ID instead of `resolve-and-execute-policy`.
 
 ## Setup
 
