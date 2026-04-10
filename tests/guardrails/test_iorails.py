@@ -374,7 +374,9 @@ class TestAutoStart:
         iorails_input_only.model_manager.stream_async = mock_stream
 
         assert not iorails_input_only._running
-        chunks = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
+        chunks = [
+            chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])
+        ]
 
         iorails_input_only.model_manager.start.assert_called_once()
         assert iorails_input_only._running
