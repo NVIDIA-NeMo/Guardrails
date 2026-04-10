@@ -67,7 +67,7 @@ flow output rails $output_text
 2. **Output scanning**: After the LLM generates a response, the `zscaler aiguard moderation on output` flow sends the response to the AI Guard API with `direction="OUT"`.
 3. **Policy selection**: By default, the integration calls `resolve-and-execute-policy`, which automatically selects the appropriate policy. If `AIGUARD_POLICY_ID` is set, the integration calls `execute-policy` with the specified policy ID instead.
 4. **Verdict handling**: If the API returns an `action` of `BLOCK`, the flow aborts and the bot refuses to respond. If the API returns `ALLOW` or `DETECT`, the content passes through normally.
-5. **Rails exceptions**: When `enable_rails_exceptions: true` is set at the top level of the config, blocked requests emit a `ZscalerAiguardInputRailException` or `ZscalerAiguardOutputRailException` with a detailed message containing the severity, policy name, blocking detectors, and transaction ID.
+5. **Rails exceptions**: Setting `enable_rails_exceptions: true` at the top level of the config causes blocked requests to emit a `ZscalerAiguardInputRailException` or `ZscalerAiguardOutputRailException`. The exception message contains the severity, policy name, blocking detectors, and transaction ID.
 6. **Fail-closed**: If the API call fails (network error, timeout, etc.), the action returns `action: BLOCK` by default to prevent potentially unsafe content from passing through.
 
 ## Detectors
