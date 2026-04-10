@@ -1,6 +1,6 @@
 # Zscaler AI Guard Integration
 
-The Zscaler AI Guard guardrail uses the [Zscaler AI Guard](https://help.zscaler.com/ai-guard) DAS API to scan prompts and LLM responses for security threats, including:
+The Zscaler AI Guard guardrail uses the [Zscaler AI Guard](https://help.zscaler.com/ai-guard) API to scan prompts and LLM responses for security threats, including:
 
 - **Credentials and secrets** - API keys, tokens, passwords, and cloud credentials
 - **PII (Personally Identifiable Information)** - Names, emails, phone numbers, SSNs, and other personal data
