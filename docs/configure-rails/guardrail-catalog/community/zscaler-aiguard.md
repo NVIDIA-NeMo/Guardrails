@@ -13,7 +13,7 @@ The integration uses the [zscaler-sdk-python](https://pypi.org/project/zscaler-s
 
 The following environment variables are required:
 
-- `AIGUARD_API_KEY`: Zscaler AI Guard API key (Bearer token). Obtain from AI Guard Console → Private AI Apps → Applications → API Keys.
+- `AIGUARD_API_KEY`: Zscaler AI Guard API key (Bearer token). To obtain this key, go to **AI Guard Console** > **Private AI Apps** > **Applications** > **API Keys**.
 - `AIGUARD_CLOUD`: Cloud region. Options: `us1` (default), `us2`, `eu1`, `eu2`.
 
 Optionally, to use a specific policy instead of automatic resolution:
