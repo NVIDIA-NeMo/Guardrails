@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -25,7 +24,6 @@ from nemoguardrails.cli.chat import (
     parse_events_inputs,
     run_chat,
 )
-from nemoguardrails.guardrails.guardrails import Guardrails
 
 chat_module = sys.modules["nemoguardrails.cli.chat"]
 

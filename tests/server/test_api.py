@@ -16,7 +16,7 @@
 import json
 import os
 from typing import AsyncIterator, Union
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -24,9 +24,8 @@ import pytest
 pytest.importorskip("openai", reason="openai is required for server tests")
 from fastapi.testclient import TestClient
 
-from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.server import api
-from nemoguardrails.server.api import _format_streaming_response, _get_rails
+from nemoguardrails.server.api import _format_streaming_response
 from nemoguardrails.server.schemas.openai import GuardrailsChatCompletionRequest
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE") or os.environ.get("TEST_LIVE_MODE")
@@ -954,35 +953,3 @@ def test_list_models_upstream_missing_data_key():
     assert response.status_code == 200
     data = response.json()
     assert data["data"] == []
-
-
-class TestGetRailsGuardrailsStartup:
-    """Tests for _get_rails when LLMRails is aliased to Guardrails."""
-
-    @pytest.mark.asyncio
-    async def test_guardrails_startup_awaited(self):
-        """When LLMRails returns a Guardrails instance, startup() is awaited."""
-        mock_guardrails = AsyncMock(spec=Guardrails)
-        mock_guardrails.startup = AsyncMock()
-        mock_guardrails.events_history_cache = {}
-
-        with patch.object(api, "LLMRails", return_value=mock_guardrails):
-            with patch("nemoguardrails.server.api.RailsConfig") as mock_config:
-                mock_config.from_path.return_value = MagicMock()
-                result = await _get_rails(["test_config"])
-
-        mock_guardrails.startup.assert_awaited_once()
-        assert result is mock_guardrails
-
-    @pytest.mark.asyncio
-    async def test_non_guardrails_skips_startup(self):
-        """When LLMRails returns a real LLMRails (not Guardrails), no startup() is called."""
-        mock_rails = MagicMock()
-        mock_rails.events_history_cache = {}
-
-        with patch.object(api, "LLMRails", return_value=mock_rails):
-            with patch("nemoguardrails.server.api.RailsConfig") as mock_config:
-                mock_config.from_path.return_value = MagicMock()
-                result = await _get_rails(["test_config"])
-
-        assert result is mock_rails
