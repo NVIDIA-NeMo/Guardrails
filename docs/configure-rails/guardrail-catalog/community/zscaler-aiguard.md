@@ -82,7 +82,7 @@ The AI Guard policy engine evaluates all configured detectors and returns a sing
 - `promptInjection` - Prompt injection attempts
 - `maliciousUrl` - Malicious URL detection
 
-Detectors are configured in the [Zscaler AI Guard console](https://help.zscaler.com/aiguard), not in the NeMo Guardrails configuration.
+Configure detectors in the [Zscaler AI Guard console](https://help.zscaler.com/aiguard), not in the NeMo Guardrails configuration.
 
 ## Dependencies
 
