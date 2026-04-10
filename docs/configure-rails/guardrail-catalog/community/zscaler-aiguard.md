@@ -48,7 +48,7 @@ rails:
 colang_version: "2.x"
 ```
 
-```colang
+```text
 # rails.co
 
 import guardrails
