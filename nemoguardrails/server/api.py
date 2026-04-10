@@ -35,7 +35,6 @@ from starlette.responses import StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from nemoguardrails import LLMRails, RailsConfig, utils
-from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.server.datastore.datastore import DataStore
@@ -362,9 +361,6 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
         full_llm_rails_config = _update_models_in_config(full_llm_rails_config, main_model)
 
     llm_rails = LLMRails(config=full_llm_rails_config, verbose=True)
-    if isinstance(llm_rails, Guardrails):
-        await llm_rails.startup()
-
     llm_rails_instances[configs_cache_key] = llm_rails
 
     # If we have a cache for the events, we restore it

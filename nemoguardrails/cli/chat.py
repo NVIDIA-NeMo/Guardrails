@@ -14,7 +14,6 @@
 # limitations under the License.
 import asyncio
 import json
-import logging
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union, cast
@@ -30,7 +29,6 @@ from nemoguardrails.colang.v2_x.runtime.eval import eval_expression
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
 from nemoguardrails.exceptions import StreamingNotSupportedError
-from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.logging import verbose
 from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
@@ -68,12 +66,6 @@ async def _run_chat_v1_0(
             raise RuntimeError("config_path cannot be None when server_url is None")
         rails_config = RailsConfig.from_path(config_path)
         rails_app = LLMRails(rails_config, verbose=verbose)
-        if isinstance(rails_app, Guardrails):
-            if verbose:
-                logging.getLogger("nemoguardrails.guardrails").setLevel(logging.DEBUG)
-            else:
-                logging.getLogger("nemoguardrails.guardrails").setLevel(logging.WARNING)
-            await rails_app.startup()
     else:
         rails_app = None
 
