@@ -22,8 +22,6 @@ import pytest
 from nemoguardrails import RailsConfig
 from tests.utils import TestChat
 
-CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), "test_configs")
-
 input_rail_config = RailsConfig.from_content(
     yaml_content="""
         models: []
@@ -47,6 +45,20 @@ output_rail_config = RailsConfig.from_content(
 both_rails_config = RailsConfig.from_content(
     yaml_content="""
         models: []
+        rails:
+          input:
+            flows:
+              - zscaler aiguard moderation on input
+          output:
+            flows:
+              - zscaler aiguard moderation on output
+    """
+)
+
+exceptions_config = RailsConfig.from_content(
+    yaml_content="""
+        models: []
+        enable_rails_exceptions: true
         rails:
           input:
             flows:
@@ -118,7 +130,7 @@ def _reset_sdk_client():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_input_allowed():
     """Clean user input should pass through to the LLM."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
+    config = both_rails_config
 
     chat = TestChat(
         config,
@@ -137,7 +149,7 @@ async def test_zscaler_aiguard_input_allowed():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_input_blocked():
     """Input containing sensitive data should be blocked (default path, no exception)."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
+    config = both_rails_config
 
     chat = TestChat(
         config,
@@ -158,7 +170,7 @@ async def test_zscaler_aiguard_input_blocked():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_output_allowed():
     """Clean LLM output should pass through to the user."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
+    config = both_rails_config
 
     chat = TestChat(
         config,
@@ -177,7 +189,7 @@ async def test_zscaler_aiguard_output_allowed():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_output_blocked():
     """LLM output containing PII should be blocked (default path, no exception)."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
+    config = both_rails_config
 
     chat = TestChat(
         config,
@@ -201,7 +213,7 @@ async def test_zscaler_aiguard_output_blocked():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_api_error_blocks():
     """API failures should trigger fail-closed behavior (default path, no exception)."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
+    config = both_rails_config
 
     chat = TestChat(
         config,
@@ -227,7 +239,7 @@ async def test_zscaler_aiguard_api_error_blocks():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_detect_action_allows():
     """DETECT verdict (non-BLOCK, non-ALLOW) should be treated as ALLOW by the flow."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard"))
+    config = both_rails_config
 
     chat = TestChat(
         config,
@@ -282,7 +294,7 @@ async def test_zscaler_aiguard_inline_config_input():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_exception_includes_message():
     """When enable_rails_exceptions is true, exception must include severity and policy in message."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard_exceptions"))
+    config = exceptions_config
 
     chat = TestChat(
         config,
@@ -312,7 +324,7 @@ async def test_zscaler_aiguard_exception_includes_message():
 @pytest.mark.asyncio
 async def test_zscaler_aiguard_output_exception():
     """When enable_rails_exceptions is true, output block should raise ZscalerAiguardOutputRailException."""
-    config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "zscaler_aiguard_exceptions"))
+    config = exceptions_config
 
     chat = TestChat(
         config,
