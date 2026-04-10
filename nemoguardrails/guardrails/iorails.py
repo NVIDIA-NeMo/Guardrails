@@ -24,7 +24,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import suppress
 from typing import Optional, Union
 
@@ -332,7 +332,7 @@ class IORails:
         self,
         streaming_handler: AsyncIterator[Union[str, dict]],
         messages: LLMMessages,
-    ) -> AsyncIterator[Union[str, dict]]:
+    ) -> AsyncGenerator[Union[str, dict], None]:
         """Buffer streamed chunks and run output rails on each batch.
 
         Uses the same ``RollingBuffer`` and ``stream_first`` semantics as

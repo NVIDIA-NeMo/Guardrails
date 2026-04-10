@@ -24,7 +24,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any, NamedTuple, Optional, cast
 
 import aiohttp
@@ -177,8 +177,6 @@ class ModelEngine(BaseEngine):
             model_name=self.model_name,
         )
 
-    # -- Public request methods ------------------------------------------
-
     async def call(
         self,
         messages: LLMMessages,
@@ -231,7 +229,7 @@ class ModelEngine(BaseEngine):
         self,
         messages: LLMMessages,
         **kwargs: Any,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncGenerator[str, None]:
         """Make a streaming POST request to the /v1/chat/completions endpoint.
 
         Sends ``stream=True`` and yields content-delta strings as they arrive
