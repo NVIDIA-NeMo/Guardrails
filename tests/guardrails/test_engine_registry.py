@@ -463,7 +463,7 @@ class TestEngineRegistryApiEngineStopErrors:
             await manager.stop()
 
 
-class TestModelManagerStreamAsync:
+class TestEngineRegistryStreamAsync:
     """Test stream_async routes to the correct engine and yields chunks."""
 
     @pytest.mark.asyncio

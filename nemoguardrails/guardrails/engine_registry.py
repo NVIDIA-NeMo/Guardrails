@@ -21,7 +21,7 @@ model type. Each engine owns its own RetryClient with per-model settings.
 
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, TypeVar
 
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
@@ -30,6 +30,8 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 
 log = logging.getLogger(__name__)
+
+_EngineT = TypeVar("_EngineT", bound=BaseEngine)
 
 
 class EngineRegistry:
@@ -114,7 +116,7 @@ class EngineRegistry:
             )
             raise RuntimeError(f"Failed to stop engines: {engine_error_string}")
 
-    def _get_engine(self, name: str, expected_type: type) -> BaseEngine:
+    def _get_engine(self, name: str, expected_type: type[_EngineT]) -> _EngineT:
         """Look up an engine by name, verifying its type."""
         if name not in self._engines:
             available = list(self._engines.keys())
@@ -129,7 +131,7 @@ class EngineRegistry:
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
-        engine: ModelEngine = self._get_engine(model_type, ModelEngine)  # type: ignore[assignment]
+        engine = self._get_engine(model_type, ModelEngine)
         result = await engine.generate(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
@@ -140,7 +142,7 @@ class EngineRegistry:
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
-        engine: ModelEngine = self._get_engine(model_type, ModelEngine)  # type: ignore[assignment]
+        engine = self._get_engine(model_type, ModelEngine)
         async for chunk in engine.stream_call(messages, **kwargs):
             yield chunk
 
@@ -149,7 +151,7 @@ class EngineRegistry:
         req_id = get_request_id()
         log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
 
-        api_engine: APIEngine = self._get_engine(api_name, APIEngine)  # type: ignore[assignment]
+        api_engine = self._get_engine(api_name, APIEngine)
         response = await api_engine.call(message, **kwargs)
 
         log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))
