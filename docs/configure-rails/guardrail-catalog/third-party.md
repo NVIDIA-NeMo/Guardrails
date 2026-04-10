@@ -286,7 +286,7 @@ For more details, check out the [Cisco AI Defense Integration](community/ai-defe
 
 ## Zscaler AI Guard
 
-The NeMo Guardrails library supports using [Zscaler AI Guard](https://www.zscaler.com/platform/ai-guard) for input and output content moderation via the `zscaler-sdk-python` SDK. It detects credentials, PII, toxicity, prompt injection, malicious URLs, and policy violations.
+The NeMo Guardrails library supports using [Zscaler AI Guard](https://www.zscaler.com/platform/ai-guard) for input and output content moderation through the `zscaler-sdk-python` SDK. It detects credentials, PII, toxicity, prompt injection, malicious URLs, and policy violations.
 
 To activate the protection, you need to set the `AIGUARD_API_KEY` and `AIGUARD_CLOUD` environment variables.
 
