@@ -57,6 +57,11 @@ class EngineRegistry:
 
         jailbreak_config = rails_config_data.jailbreak_detection
         if jailbreak_config and jailbreak_config.nim_base_url:
+            if "jailbreak_detection" in self._engines:
+                raise ValueError(
+                    "Engine name 'jailbreak_detection' is already registered as a model engine. "
+                    "Cannot register the jailbreak detection API engine with the same name."
+                )
             api_engine = APIEngine.from_jailbreak_config(jailbreak_config)
             self._engines["jailbreak_detection"] = api_engine
             log.info(

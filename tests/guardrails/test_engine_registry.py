@@ -54,6 +54,29 @@ class TestEngineRegistryInit:
         mgr = EngineRegistry(config.models, config.rails.config)
         assert len(mgr._engines) == 0
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_model_type_collision_with_api_engine_raises(self):
+        """Raises ValueError when a model type collides with an API engine name."""
+        config = RailsConfig.from_content(
+            config={
+                "models": [
+                    {"type": "main", "engine": "nim", "model": "meta/llama-3.3-70b-instruct"},
+                    {"type": "jailbreak_detection", "engine": "nim", "model": "some/model"},
+                ],
+                "rails": {
+                    "config": {
+                        "jailbreak_detection": {
+                            "nim_base_url": "https://ai.api.nvidia.com",
+                            "nim_server_endpoint": "/v1/security/nvidia/nemoguard-jailbreak-detect",
+                            "api_key_env_var": "NVIDIA_API_KEY",
+                        }
+                    }
+                },
+            }
+        )
+        with pytest.raises(ValueError, match="already registered"):
+            EngineRegistry(config.models, config.rails.config)
+
 
 class TestEngineRegistryGetModelEngine:
     """Test engine lookup by model type."""
