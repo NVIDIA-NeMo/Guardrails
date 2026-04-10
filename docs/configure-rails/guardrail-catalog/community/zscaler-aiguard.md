@@ -16,7 +16,7 @@ The following environment variables are required:
 - `AIGUARD_API_KEY`: Zscaler AI Guard API key (Bearer token). To obtain this key, go to **AI Guard Console** > **Private AI Apps** > **Applications** > **API Keys**.
 - `AIGUARD_CLOUD`: Cloud region. Options: `us1` (default), `us2`, `eu1`, `eu2`.
 
-Optionally, to use a specific policy instead of automatic resolution:
+To use a specific policy instead of automatic resolution, set the following optional variable:
 
 - `AIGUARD_POLICY_ID`: Integer policy ID. When set, the integration calls `execute-policy` with the given ID instead of `resolve-and-execute-policy`.
 
