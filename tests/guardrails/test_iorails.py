@@ -398,6 +398,14 @@ class TestAutoStart:
 
         iorails_input_only.model_manager.start.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_stream_async_propagates_start_failure(self, iorails_input_only):
+        """start() failure inside stream_async propagates to the caller."""
+        iorails_input_only.model_manager.start = AsyncMock(side_effect=RuntimeError("engine unavailable"))
+
+        with pytest.raises(RuntimeError, match="engine unavailable"):
+            _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
+
 
 class TestGenerate:
     """Test the synchronous generate() method."""

@@ -805,6 +805,22 @@ class TestGuardrailsLifecycle:
         mock_start.assert_called_once()
         assert chunks == ["hello"]
 
+    @pytest.mark.asyncio
+    @patch.object(IORails, "stop", new_callable=AsyncMock)
+    @patch.object(IORails, "start", new_callable=AsyncMock, side_effect=RuntimeError("engine down"))
+    @patch.object(IORails, "__init__", return_value=None)
+    async def test_startup_failure_leaves_not_started(
+        self, mock_init, mock_start, mock_stop, _content_safety_rails_config
+    ):
+        """If IORails.start() fails during startup(), _started stays False."""
+        guardrails = Guardrails(config=_content_safety_rails_config, verbose=False, use_iorails=True)
+
+        with pytest.raises(RuntimeError, match="engine down"):
+            await guardrails.startup()
+
+        assert not guardrails._started
+        mock_start.assert_called_once()
+
 
 class TestHasOnlyIORailsFlows:
     """Check all the permutations of configs with `has_only_iorails_flows()`"""
