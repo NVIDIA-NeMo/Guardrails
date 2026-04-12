@@ -80,7 +80,7 @@ To get more details on the LLM calls that were executed, including the raw respo
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 
 from nemoguardrails.logging.explain import LLMCallInfo
 
@@ -196,7 +196,8 @@ class GenerationOptions(BaseModel):
         description="Options about what to include in the log. By default, nothing is included. ",
     )
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_fields(cls, values):
         # Translate the `rails` generation option from List[str] to dict.
         if "rails" in values and isinstance(values["rails"], list):

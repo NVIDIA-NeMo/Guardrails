@@ -29,9 +29,8 @@ from pydantic import (
     Field,
     PrivateAttr,
     SecretStr,
+    field_validator,
     model_validator,
-    root_validator,
-    validator,
 )
 
 from nemoguardrails import utils
@@ -436,7 +435,8 @@ class TaskPrompt(BaseModel):
         ge=1,
     )
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_fields(cls, values):
         if not values.get("content") and not values.get("messages"):
             raise InvalidRailsConfigurationError("One of `content` or `messages` must be provided.")
@@ -1592,7 +1592,8 @@ class RailsConfig(BaseModel):
         description="Configuration for tracing.",
     )
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_model_exists_for_input_rails(cls, values):
         """Make sure we have a model for each input rail where one is provided using $model=<model_type>"""
         rails = values.get("rails", {})
@@ -1618,7 +1619,8 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_model_exists_for_output_rails(cls, values):
         """Make sure we have a model for each output rail where one is provided using $model=<model_type>"""
         rails = values.get("rails", {})
@@ -1644,7 +1646,8 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_prompt_exist_for_self_check_rails(cls, values):
         rails = values.get("rails", {})
         prompts = values.get("prompts", []) or []
@@ -1701,7 +1704,8 @@ class RailsConfig(BaseModel):
 
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_output_parser_exists(cls, values):
         tasks_requiring_output_parser = [
             "self_check_input",
@@ -1724,7 +1728,8 @@ class RailsConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def check_jailbreak_detection_config(cls, values):
         """Validate jailbreak detection configuration against enabled flows."""
         rails = values.get("rails") or {}
@@ -1778,7 +1783,8 @@ class RailsConfig(BaseModel):
 
         return values
 
-    @root_validator(pre=True, allow_reuse=True)
+    @model_validator(mode="before")
+    @classmethod
     def fill_in_default_values_for_v2_x(cls, values):
         instructions = values.get("instructions", {})
         sample_conversation = values.get("sample_conversation")
@@ -1793,7 +1799,8 @@ class RailsConfig(BaseModel):
 
         return values
 
-    @validator("models")
+    @field_validator("models")
+    @classmethod
     def validate_models_api_key_env_var(cls, models):
         """Model API Key Env var must be set to make LLM calls"""
         api_keys = [m.api_key_env_var for m in models]
