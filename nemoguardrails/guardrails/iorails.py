@@ -372,6 +372,7 @@ class IORails:
                     "error": {
                         "message": f"Blocked by output rails: {output_result.reason}",
                         "type": "guardrails_violation",
+                        "param": "output_rails",
                         "code": "content_blocked",
                     }
                 }

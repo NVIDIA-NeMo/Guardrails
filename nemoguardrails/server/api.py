@@ -371,9 +371,9 @@ async def _get_rails(config_ids: List[str], model_name: Optional[str] = None) ->
 
 class ChunkErrorMetadata(BaseModel):
     message: str
-    type: str
-    param: str
-    code: str
+    type: Optional[str] = None
+    param: Optional[str] = None
+    code: Optional[str] = None
 
 
 class ChunkError(BaseModel):
