@@ -22,7 +22,7 @@ from nemoguardrails.integrations.langchain.providers.providers import get_commun
 CONFIGS_FOLDER = os.path.join(os.path.dirname(__file__), ".", "test_configs")
 
 
-def test_custom_llm_registration():
+def test_custom_llm_registration(langchain_framework):
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_custom_llm"))
 
     _ = LLMRails(config)
@@ -31,7 +31,7 @@ def test_custom_llm_registration():
     assert "custom_llm" in supported_llms
 
 
-def test_custom_chat_model_registration():
+def test_custom_chat_model_registration(langchain_framework):
     config = RailsConfig.from_path(os.path.join(CONFIGS_FOLDER, "with_custom_chat_model"))
     _ = LLMRails(config)
 

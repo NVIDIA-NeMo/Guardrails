@@ -16,7 +16,7 @@
 from nemoguardrails.llm.providers import get_llm_provider_names
 
 
-def test_get_llm_provider_names():
+def test_get_llm_provider_names(langchain_framework):
     supported_providers = [
         "ai21",
         "aleph_alpha",
