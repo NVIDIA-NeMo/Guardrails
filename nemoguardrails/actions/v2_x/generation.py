@@ -447,7 +447,7 @@ class LLMGenerationActionsV2dotx(LLMGenerationActions):
         generation_llm_params = generation_options and generation_options.llm_params
         text = await llm_call(
             llm,
-            user_message,
+            prompt,
             streaming_handler=streaming_handler,
             llm_params=generation_llm_params,
         )
