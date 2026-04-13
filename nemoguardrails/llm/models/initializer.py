@@ -17,8 +17,12 @@
 
 from typing import Any, Dict, Literal
 
-from nemoguardrails.llm.models.langchain_initializer import ModelInitializationError
+from nemoguardrails.llm.frameworks import get_default_framework, get_framework
 from nemoguardrails.types import LLMModel
+
+
+class ModelInitializationError(Exception):
+    pass
 
 
 def init_llm_model(
@@ -41,8 +45,6 @@ def init_llm_model(
     Raises:
         ModelInitializationError: If model initialization fails
     """
-    from nemoguardrails.llm.frameworks import get_default_framework, get_framework
-
     model_kwargs = dict(kwargs) if kwargs else {}
     model_kwargs["mode"] = mode
 
