@@ -31,6 +31,7 @@ from nemoguardrails.integrations.langchain.providers.providers import (
     _get_text_completion_provider,
     _parse_version,
 )
+from nemoguardrails.llm.models.initializer import ModelInitializationError
 
 log = logging.getLogger(__name__)
 
@@ -47,12 +48,6 @@ __all__ = [
 # warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
 # warnings.filterwarnings("ignore", category=LangChainBetaWarning)
 warnings.filterwarnings("ignore", module="langchain_nvidia_ai_endpoints._common")
-
-
-class ModelInitializationError(Exception):
-    """Raised when model initialization fails."""
-
-    pass
 
 
 ModelInitMethod = Callable[[str, str, Dict[str, Any]], Optional[Union[BaseChatModel, BaseLLM]]]
