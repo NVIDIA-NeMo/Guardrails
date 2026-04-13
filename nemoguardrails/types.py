@@ -105,13 +105,13 @@ class ChatMessage:
         if self.content is not None:
             payload["content"] = self.content
 
-        if self.tool_calls:
+        if self.tool_calls is not None:
             payload["tool_calls"] = [tc.to_dict() for tc in self.tool_calls]
 
-        if self.tool_call_id:
+        if self.tool_call_id is not None:
             payload["tool_call_id"] = self.tool_call_id
 
-        if self.name:
+        if self.name is not None:
             payload["name"] = self.name
 
         if self.provider_metadata:
@@ -131,7 +131,9 @@ class ChatMessage:
         captured into ``provider_metadata``.
         """
 
-        raw_role = d.get("role", "user")
+        raw_role = d.get("role")
+        if raw_role is None:
+            raise ValueError("Missing required key: 'role'")
         role = _ROLE_ALIASES.get(raw_role)
         if role is None:
             raise ValueError(f"Unknown role: {raw_role}")

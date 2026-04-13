@@ -158,6 +158,18 @@ class TestChatMessage:
         ]
         assert "tool_call_id" not in d
 
+    def test_to_dict_preserves_empty_string_fields(self):
+        msg = ChatMessage(role=Role.ASSISTANT, content="", tool_call_id="", name="")
+        d = msg.to_dict()
+        assert d["content"] == ""
+        assert d["tool_call_id"] == ""
+        assert d["name"] == ""
+
+    def test_to_dict_preserves_empty_tool_calls_list(self):
+        msg = ChatMessage(role=Role.ASSISTANT, tool_calls=[])
+        d = msg.to_dict()
+        assert d["tool_calls"] == []
+
     def test_to_dict_keeps_arguments_as_dict(self):
         tc = ToolCall(
             id="tc_1",
@@ -341,10 +353,9 @@ class TestChatMessage:
         msg = ChatMessage.from_dict({"role": alias, "content": "test"})
         assert msg.role == expected_role
 
-    def test_from_dict_defaults_to_user_when_role_missing(self):
-        msg = ChatMessage.from_dict({"content": "hi"})
-        assert msg.role == Role.USER
-        assert msg.content == "hi"
+    def test_from_dict_raises_when_role_missing(self):
+        with pytest.raises(ValueError, match="Missing required key"):
+            ChatMessage.from_dict({"content": "hi"})
 
     def test_from_dict_unknown_role(self):
         with pytest.raises(ValueError, match="Unknown role"):
@@ -370,6 +381,8 @@ class TestLLMResponse:
             tool_calls=[tc],
             model="gpt-4",
             finish_reason="stop",
+            stop_sequence="\n",
+            request_id="req-123",
             usage=UsageInfo(total_tokens=100, input_tokens=50, output_tokens=50),
             provider_metadata={"key": "val"},
         )
@@ -377,6 +390,8 @@ class TestLLMResponse:
         assert resp.usage.total_tokens == 100
         assert resp.reasoning == "thinking..."
         assert resp.model == "gpt-4"
+        assert resp.stop_sequence == "\n"
+        assert resp.request_id == "req-123"
 
 
 class TestLLMResponseChunk:
