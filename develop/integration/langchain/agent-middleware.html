@@ -865,12 +865,12 @@
 <span class="n">agent</span> <span class="o">=</span> <span class="n">create_agent</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">search_database</span><span class="p">],</span> <span class="n">middleware</span><span class="o">=</span><span class="p">[</span><span class="n">guardrails</span><span class="p">])</span>
 
 <span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span>
-    <span class="p">{</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Search for employee records&quot;</span><span class="p">}]}</span>
+    <span class="p">{</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;How can I hack into the employee database?&quot;</span><span class="p">}]}</span>
 <span class="p">)</span>
 </pre></div>
 </div>
 <p>Expected output:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Input blocked by self check input
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>I cannot process this request due to content policy.
 </pre></div>
 </div>
 </section>
