@@ -184,25 +184,25 @@ class TestEngineRegistryGenerateAsync:
 
     @pytest.mark.asyncio
     async def test_generate_from_correct_engine(self, manager):
-        """Calls the named engine's generate() and returns its result."""
+        """Calls the named engine's chat_completion() and returns its result."""
         messages = [{"role": "user", "content": "Hi"}]
         engine = manager._get_engine("main", ModelEngine)
-        engine.generate = AsyncMock(return_value="Hello world")
+        engine.chat_completion = AsyncMock(return_value="Hello world")
 
         result = await manager.model_call("main", messages)
         assert result == "Hello world"
-        engine.generate.assert_called_once_with(messages)
+        engine.chat_completion.assert_called_once_with(messages)
 
     @pytest.mark.asyncio
     async def test_passes_kwargs_to_engine(self, manager):
-        """Extra kwargs (temperature, max_tokens) are forwarded to engine.generate()."""
+        """Extra kwargs (temperature, max_tokens) are forwarded to engine.chat_completion()."""
         messages = [{"role": "user", "content": "Hi"}]
         engine = manager._get_engine("main", ModelEngine)
-        engine.generate = AsyncMock(return_value="ok")
+        engine.chat_completion = AsyncMock(return_value="ok")
 
         await manager.model_call("main", messages, temperature=0.5, max_tokens=100)
 
-        call_kwargs = engine.generate.call_args[1]
+        call_kwargs = engine.chat_completion.call_args[1]
         assert call_kwargs["temperature"] == 0.5
         assert call_kwargs["max_tokens"] == 100
 
@@ -488,43 +488,43 @@ class TestEngineRegistryApiEngineStopErrors:
             await manager.stop()
 
 
-class TestEngineRegistryStreamAsync:
-    """Test stream_async routes to the correct engine and yields chunks."""
+class TestEngineRegistryStreamModelCall:
+    """Test stream_model_call routes to the correct engine and yields chunks."""
 
     @pytest.mark.asyncio
     async def test_streams_chunks_from_correct_engine(self, manager):
-        """Calls the named engine's stream_call and yields all chunks."""
+        """Calls the named engine's stream_chat_completion and yields all chunks."""
         messages = [{"role": "user", "content": "Hi"}]
 
-        async def mock_stream_call(msgs, **kwargs):
+        async def mock_stream_chat_completion(msgs, **kwargs):
             """Mock stream yielding two chunks."""
             for chunk in ["Hello", " world"]:
                 yield chunk
 
         engine = manager._get_engine("main", ModelEngine)
-        engine.stream_call = mock_stream_call
+        engine.stream_chat_completion = mock_stream_chat_completion
 
         chunks = []
-        async for chunk in manager.stream_async("main", messages):
+        async for chunk in manager.stream_model_call("main", messages):
             chunks.append(chunk)
 
         assert chunks == ["Hello", " world"]
 
     @pytest.mark.asyncio
     async def test_forwards_kwargs_to_engine(self, manager):
-        """Extra kwargs are forwarded to engine.stream_call()."""
+        """Extra kwargs are forwarded to engine.stream_chat_completion()."""
         messages = [{"role": "user", "content": "Hi"}]
         captured_kwargs = {}
 
-        async def mock_stream_call(msgs, **kwargs):
+        async def mock_stream_chat_completion(msgs, **kwargs):
             """Mock stream that records kwargs."""
             captured_kwargs.update(kwargs)
             yield "ok"
 
         engine = manager._get_engine("main", ModelEngine)
-        engine.stream_call = mock_stream_call
+        engine.stream_chat_completion = mock_stream_chat_completion
 
-        async for _ in manager.stream_async("main", messages, temperature=0.7):
+        async for _ in manager.stream_model_call("main", messages, temperature=0.7):
             pass
 
         assert captured_kwargs["temperature"] == 0.7
@@ -533,5 +533,5 @@ class TestEngineRegistryStreamAsync:
     async def test_raises_key_error_for_unknown_model_type(self, manager):
         """Raises KeyError when the model type doesn't exist."""
         with pytest.raises(KeyError):
-            async for _ in manager.stream_async("nonexistent", [{"role": "user", "content": "Hi"}]):
+            async for _ in manager.stream_model_call("nonexistent", [{"role": "user", "content": "Hi"}]):
                 pass

@@ -308,7 +308,7 @@ class ModelEngine(BaseEngine):
         except Exception as exc:
             raise self._wrap_exception(exc, req_id, t0, label="Stream request") from exc
 
-    async def generate(self, messages: LLMMessages, **kwargs: Any) -> str:
+    async def chat_completion(self, messages: LLMMessages, **kwargs: Any) -> str:
         """Generate a chat completion and return the response content string.
 
         Calls the /v1/chat/completions endpoint and extracts the assistant
@@ -331,3 +331,15 @@ class ModelEngine(BaseEngine):
                 model_name=self.model_name,
             )
         return content
+
+    async def stream_chat_completion(self, messages: LLMMessages, **kwargs: Any) -> AsyncGenerator[str, None]:
+        """Stream a chat completion and yield content-delta strings.
+
+        Calls the /v1/chat/completions endpoint with streaming enabled and
+        yields content strings as they arrive.
+
+        Raises:
+            ModelEngineError: If the request fails after all retries.
+        """
+        async for chunk in self.stream_call(messages, **kwargs):
+            yield chunk

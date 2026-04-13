@@ -730,27 +730,70 @@ class TestModelEngineConstants:
         assert _CHAT_COMPLETIONS_ENDPOINT == "/v1/chat/completions"
 
 
-class TestModelEngineGenerate:
-    """Test ModelEngine.generate() extracts content from OpenAI-format response."""
+class TestModelEngineStreamChatCompletion:
+    """Test ModelEngine.stream_chat_completion() delegates to stream_call()."""
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_yields_chunks_from_stream_call(self):
+        """stream_chat_completion() yields all chunks from stream_call()."""
+        engine = ModelEngine(_make_model())
+
+        async def mock_stream_call(msgs, **kwargs):
+            for chunk in ["Hello", " world"]:
+                yield chunk
+
+        engine.stream_call = mock_stream_call
+
+        chunks = []
+        async for chunk in engine.stream_chat_completion([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["Hello", " world"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_forwards_kwargs_to_stream_call(self):
+        """stream_chat_completion() passes kwargs through to stream_call()."""
+        engine = ModelEngine(_make_model())
+        captured_kwargs = {}
+
+        async def mock_stream_call(msgs, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield "ok"
+
+        engine.stream_call = mock_stream_call
+
+        async for _ in engine.stream_chat_completion(
+            [{"role": "user", "content": "Hi"}], temperature=0.7, max_tokens=50
+        ):
+            pass
+
+        assert captured_kwargs["temperature"] == 0.7
+        assert captured_kwargs["max_tokens"] == 50
+
+
+class TestModelEngineChatCompletion:
+    """Test ModelEngine.chat_completion() extracts content from OpenAI-format response."""
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_returns_content_string(self):
-        """generate() returns the assistant message content from the response."""
+        """chat_completion() returns the assistant message content from the response."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"role": "assistant", "content": "Hello!"}}]})
 
-        result = await engine.generate([{"role": "user", "content": "Hi"}])
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
         assert result == "Hello!"
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_forwards_kwargs_to_call(self):
-        """generate() passes kwargs through to call()."""
+        """chat_completion() passes kwargs through to call()."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
 
-        await engine.generate([{"role": "user", "content": "Hi"}], temperature=0.5, max_tokens=100)
+        await engine.chat_completion([{"role": "user", "content": "Hi"}], temperature=0.5, max_tokens=100)
         call_kwargs = engine.call.call_args[1]
         assert call_kwargs["temperature"] == 0.5
         assert call_kwargs["max_tokens"] == 100
@@ -758,49 +801,49 @@ class TestModelEngineGenerate:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_missing_choices(self):
-        """generate() raises ModelEngineError when 'choices' key is missing."""
+        """chat_completion() raises ModelEngineError when 'choices' key is missing."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={})
 
         with pytest.raises(ModelEngineError, match="Unexpected response format"):
-            await engine.generate([{"role": "user", "content": "Hi"}])
+            await engine.chat_completion([{"role": "user", "content": "Hi"}])
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_empty_choices(self):
-        """generate() raises ModelEngineError when choices list is empty."""
+        """chat_completion() raises ModelEngineError when choices list is empty."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": []})
 
         with pytest.raises(ModelEngineError, match="Unexpected response format"):
-            await engine.generate([{"role": "user", "content": "Hi"}])
+            await engine.chat_completion([{"role": "user", "content": "Hi"}])
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_missing_message(self):
-        """generate() raises ModelEngineError when 'message' key is missing from choice."""
+        """chat_completion() raises ModelEngineError when 'message' key is missing from choice."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{}]})
 
         with pytest.raises(ModelEngineError, match="Unexpected response format"):
-            await engine.generate([{"role": "user", "content": "Hi"}])
+            await engine.chat_completion([{"role": "user", "content": "Hi"}])
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_missing_content(self):
-        """generate() raises ModelEngineError when 'content' key is missing from message."""
+        """chat_completion() raises ModelEngineError when 'content' key is missing from message."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {}}]})
 
         with pytest.raises(ModelEngineError, match="Unexpected response format"):
-            await engine.generate([{"role": "user", "content": "Hi"}])
+            await engine.chat_completion([{"role": "user", "content": "Hi"}])
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_null_content(self):
-        """generate() raises ModelEngineError when content is None (e.g. tool_calls response)."""
+        """chat_completion() raises ModelEngineError when content is None (e.g. tool_calls response)."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
 
         with pytest.raises(ModelEngineError, match="Expected string content"):
-            await engine.generate([{"role": "user", "content": "Hi"}])
+            await engine.chat_completion([{"role": "user", "content": "Hi"}])

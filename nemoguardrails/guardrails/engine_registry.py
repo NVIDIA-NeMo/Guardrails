@@ -136,12 +136,14 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        result = await engine.generate(messages, **kwargs)
+        result = await engine.chat_completion(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result
 
-    async def stream_async(self, model_type: str, messages: list[dict], **kwargs: Any) -> AsyncGenerator[str, None]:
+    async def stream_model_call(
+        self, model_type: str, messages: list[dict], **kwargs: Any
+    ) -> AsyncGenerator[str, None]:
         """Stream chat completion chunks from the named model engine.
 
         Raises:
@@ -152,7 +154,7 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        async for chunk in engine.stream_call(messages, **kwargs):
+        async for chunk in engine.stream_chat_completion(messages, **kwargs):
             yield chunk
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:

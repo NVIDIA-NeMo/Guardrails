@@ -250,7 +250,7 @@ class IORails:
 
                 # Step 2: Stream main LLM
                 log.info("[%s] Streaming main LLM", req_id)
-                async for chunk in self.engine_registry.stream_async("main", messages, **llm_kwargs):
+                async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
                     await streaming_handler.push_chunk(chunk)
 
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
