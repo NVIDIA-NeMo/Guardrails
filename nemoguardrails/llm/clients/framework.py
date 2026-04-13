@@ -35,16 +35,22 @@ def _resolve_api_key(provider_name: str) -> Optional[str]:
 
 
 class DefaultFramework:
+    def __init__(self):
+        self._providers: Dict[str, Any] = {}
+
     def create_model(
         self,
         model_name: str,
         provider_name: str,
         model_kwargs: Optional[Dict[str, Any]] = None,
     ) -> LLMModel:
-        from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
-
         kwargs = dict(model_kwargs) if model_kwargs else {}
         kwargs.pop("mode", None)
+
+        if provider_name in self._providers:
+            return self._providers[provider_name](model=model_name, **kwargs)
+
+        from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 
         base_url = kwargs.pop("base_url", None) or _resolve_base_url(provider_name)
         api_key = kwargs.pop("api_key", None) or _resolve_api_key(provider_name)
@@ -57,7 +63,7 @@ class DefaultFramework:
         )
 
     def register_provider(self, name: str, provider_cls: Any) -> None:
-        pass
+        self._providers[name] = provider_cls
 
     def get_provider_names(self) -> List[str]:
-        return sorted(_DEFAULT_BASE_URLS.keys())
+        return sorted(set(list(_DEFAULT_BASE_URLS.keys()) + list(self._providers.keys())))

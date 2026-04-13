@@ -197,6 +197,34 @@ class TestOpenAICompatibleClient:
         assert payload["max_tokens"] == 100
 
 
+    @pytest.mark.asyncio
+    async def test_reasoning_model_strips_temperature(self):
+        client = OpenAICompatibleClient(
+            model="o3-mini", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        response_data = _make_completion_response(content="Hello", model="o3-mini")
+        client._apost = AsyncMock(return_value=response_data)
+
+        await client.generate_async("Hi", temperature=0.5, max_tokens=100)
+
+        payload = client._apost.call_args[0][1]
+        assert "temperature" not in payload
+        assert payload["max_tokens"] == 100
+
+    @pytest.mark.asyncio
+    async def test_non_reasoning_model_keeps_temperature(self):
+        client = OpenAICompatibleClient(
+            model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test"
+        )
+        response_data = _make_completion_response()
+        client._apost = AsyncMock(return_value=response_data)
+
+        await client.generate_async("Hi", temperature=0.5)
+
+        payload = client._apost.call_args[0][1]
+        assert payload["temperature"] == 0.5
+
+
 class TestDefaultFramework:
     def test_create_model_openai(self):
         from nemoguardrails.llm.clients.framework import DefaultFramework

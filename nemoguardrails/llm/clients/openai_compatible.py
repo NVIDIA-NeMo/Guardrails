@@ -20,6 +20,15 @@ _FINISH_REASON_MAP: Dict[str, FinishReason] = {
 }
 
 
+def _is_reasoning_model(model_name: str) -> bool:
+    name = model_name.lower()
+    return (
+        name.startswith("o1")
+        or name.startswith("o3")
+        or (name.startswith("gpt-5") and "chat" not in name)
+    )
+
+
 class OpenAICompatibleClient(BaseClient):
     _ROUTE = "/chat/completions"
 
@@ -87,6 +96,10 @@ class OpenAICompatibleClient(BaseClient):
             payload["stream"] = True
             payload["stream_options"] = {"include_usage": True}
         merged = {**self._default_kwargs, **kwargs}
+        if _is_reasoning_model(self._model):
+            merged.pop("temperature", None)
+            merged.pop("stop", None)
+            payload.pop("stop", None)
         payload.update(merged)
         return payload
 

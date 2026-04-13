@@ -49,7 +49,7 @@ def test_task_specific_model_for_generate_user_intent_and_generate_next_steps():
             models:
               - type: main
                 engine: openai
-                model: gpt-3.5-turbo-instruct
+                model: gpt-4o
 
               - type: generate_user_intent
                 engine: openai
@@ -89,4 +89,4 @@ def test_task_specific_model_for_generate_user_intent_and_generate_next_steps():
 
     other_calls = [call for call in res.log.llm_calls if call.task not in task_specific_tasks]
     for call in other_calls:
-        assert call.llm_model_name == "gpt-3.5-turbo-instruct"
+        assert call.llm_model_name == "gpt-4o"
