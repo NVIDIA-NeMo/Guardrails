@@ -16,7 +16,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
 
 from nemoguardrails.integrations.langchain.llm_adapter import (
     LangChainFramework,
@@ -24,7 +24,11 @@ from nemoguardrails.integrations.langchain.llm_adapter import (
     _langchain_chunk_to_llm_response_chunk,
     _langchain_response_to_llm_response,
 )
-from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, ToolCall
+from nemoguardrails.integrations.langchain.message_utils import (
+    chatmessage_to_langchain_message,
+    chatmessages_to_langchain_messages,
+)
+from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, Role, ToolCall, ToolCallFunction
 
 
 class TestLangChainLLMAdapter:
@@ -319,21 +323,109 @@ class TestConversionHelpers:
         assert isinstance(result, LLMResponse)
         assert result.content == "plain text"
 
-    def test_langchain_chunk_to_llm_response_chunk_with_content(self):
-        chunk = MagicMock()
-        chunk.content = "hello"
-        chunk.response_metadata = {"finish_reason": "stop"}
-        chunk.usage_metadata = None
-        chunk.generation_info = None
+    def test_chunk_midstream_content_only(self):
+        chunk = AIMessageChunk(content="Hello", response_metadata={"model_provider": "openai"})
 
         result = _langchain_chunk_to_llm_response_chunk(chunk)
 
         assert isinstance(result, LLMResponseChunk)
-        assert result.delta_content == "hello"
-        assert result.provider_metadata is not None
-        assert result.provider_metadata["finish_reason"] == "stop"
+        assert result.delta_content == "Hello"
+        assert result.finish_reason is None
+        assert result.model is None
+        assert result.delta_reasoning is None
+        assert result.usage is None
 
-    def test_langchain_chunk_to_llm_response_chunk_with_text(self):
+    def test_chunk_openai_finish_reason(self):
+        chunk = AIMessageChunk(
+            content="",
+            response_metadata={
+                "finish_reason": "stop",
+                "model_name": "gpt-4o-mini-2024-07-18",
+                "system_fingerprint": "fp_abc123",
+                "service_tier": "default",
+            },
+        )
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason == "stop"
+        assert result.model == "gpt-4o-mini-2024-07-18"
+        assert result.provider_metadata["system_fingerprint"] == "fp_abc123"
+        assert "finish_reason" not in result.provider_metadata
+        assert "model_name" not in result.provider_metadata
+
+    def test_chunk_openai_usage(self):
+        chunk = AIMessageChunk(
+            content="",
+            usage_metadata={
+                "input_tokens": 50,
+                "output_tokens": 20,
+                "total_tokens": 70,
+            },
+        )
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.usage is not None
+        assert result.usage.input_tokens == 50
+        assert result.usage.output_tokens == 20
+        assert result.usage.total_tokens == 70
+
+    def test_chunk_nvidia_finish_reason(self):
+        chunk = AIMessageChunk(
+            content="",
+            response_metadata={
+                "finish_reason": "stop",
+                "model_name": "meta/llama-3.3-70b-instruct",
+            },
+        )
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason == "stop"
+        assert result.model == "meta/llama-3.3-70b-instruct"
+
+    def test_chunk_anthropic_reasoning(self):
+        chunk = AIMessageChunk(
+            content="",
+            additional_kwargs={"reasoning_content": "Let me think..."},
+            response_metadata={
+                "stop_reason": "end_turn",
+                "model": "claude-sonnet-4-20250514",
+            },
+        )
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.delta_reasoning == "Let me think..."
+        assert result.finish_reason == "stop"
+        assert result.model == "claude-sonnet-4-20250514"
+
+    def test_chunk_tool_calls_finish_reason(self):
+        chunk = AIMessageChunk(
+            content="",
+            response_metadata={
+                "finish_reason": "tool_calls",
+                "model_name": "gpt-4o-mini-2024-07-18",
+            },
+        )
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.finish_reason == "tool_calls"
+
+    def test_chunk_trailing_empty(self):
+        chunk = AIMessageChunk(content="", response_metadata={})
+
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert result.delta_content == ""
+        assert result.finish_reason is None
+        assert result.model is None
+        assert result.usage is None
+        assert result.provider_metadata is None
+
+    def test_chunk_with_text_fallback(self):
         chunk = MagicMock(spec=[])
         chunk.text = "world"
 
@@ -341,8 +433,92 @@ class TestConversionHelpers:
 
         assert result.delta_content == "world"
 
-    def test_langchain_chunk_to_llm_response_chunk_fallback_str(self):
+    def test_chunk_fallback_str(self):
         result = _langchain_chunk_to_llm_response_chunk("raw string")
 
         assert isinstance(result, LLMResponseChunk)
         assert result.delta_content == "raw string"
+
+
+class TestChatMessageToLangChain:
+    def test_user_message(self):
+        msg = ChatMessage(role=Role.USER, content="hello")
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, HumanMessage)
+        assert result.content == "hello"
+
+    def test_system_message(self):
+        msg = ChatMessage(role=Role.SYSTEM, content="you are helpful")
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, SystemMessage)
+        assert result.content == "you are helpful"
+
+    def test_assistant_message(self):
+        msg = ChatMessage(role=Role.ASSISTANT, content="hi there")
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, AIMessage)
+        assert result.content == "hi there"
+        assert result.tool_calls == []
+
+    def test_assistant_message_with_tool_calls(self):
+        msg = ChatMessage(
+            role=Role.ASSISTANT,
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="call_123",
+                    function=ToolCallFunction(name="get_weather", arguments={"city": "Paris"}),
+                )
+            ],
+        )
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, AIMessage)
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["name"] == "get_weather"
+        assert result.tool_calls[0]["args"] == {"city": "Paris"}
+        assert result.tool_calls[0]["id"] == "call_123"
+
+    def test_tool_message(self):
+        msg = ChatMessage(role=Role.TOOL, content='{"temp": 22}', tool_call_id="call_123")
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, ToolMessage)
+        assert result.content == '{"temp": 22}'
+        assert result.tool_call_id == "call_123"
+
+    def test_tool_message_missing_tool_call_id(self):
+        msg = ChatMessage(role=Role.TOOL, content="result")
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, ToolMessage)
+        assert result.tool_call_id == ""
+
+    def test_none_content_becomes_empty_string(self):
+        msg = ChatMessage(role=Role.USER, content=None)
+        result = chatmessage_to_langchain_message(msg)
+
+        assert isinstance(result, HumanMessage)
+        assert result.content == ""
+
+    def test_unsupported_role_raises(self):
+        msg = ChatMessage(role=Role.USER, content="test")
+        msg.role = "unknown"
+        with pytest.raises(ValueError, match="Unsupported ChatMessage role"):
+            chatmessage_to_langchain_message(msg)
+
+    def test_batch_conversion(self):
+        msgs = [
+            ChatMessage(role=Role.SYSTEM, content="be helpful"),
+            ChatMessage(role=Role.USER, content="hi"),
+            ChatMessage(role=Role.ASSISTANT, content="hello"),
+        ]
+        results = chatmessages_to_langchain_messages(msgs)
+
+        assert len(results) == 3
+        assert isinstance(results[0], SystemMessage)
+        assert isinstance(results[1], HumanMessage)
+        assert isinstance(results[2], AIMessage)

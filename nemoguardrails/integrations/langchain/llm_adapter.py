@@ -15,7 +15,7 @@
 
 import logging
 import uuid
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, NamedTuple, Optional, Union
 
 from nemoguardrails.types import (
     ChatMessage,
@@ -333,13 +333,20 @@ def _extract_usage(response: Any) -> Optional[UsageInfo]:
     return None
 
 
-def _extract_model_info(response_metadata: Dict[str, Any]) -> tuple:
+class _ModelInfo(NamedTuple):
+    model: Optional[str]
+    finish_reason: Optional[FinishReason]
+    stop_sequence: Optional[str]
+    request_id: Optional[str]
+
+
+def _extract_model_info(response_metadata: Dict[str, Any]) -> _ModelInfo:
     model = response_metadata.get("model_name") or response_metadata.get("model")
     raw_finish = response_metadata.get("finish_reason") or response_metadata.get("stop_reason")
     finish_reason = _map_finish_reason(raw_finish)
     stop_sequence = response_metadata.get("stop_sequence")
     request_id = response_metadata.get("id") or response_metadata.get("request_id")
-    return model, finish_reason, stop_sequence, request_id
+    return _ModelInfo(model, finish_reason, stop_sequence, request_id)
 
 
 def _build_provider_metadata(
@@ -387,8 +394,14 @@ def _langchain_chunk_to_llm_response_chunk(chunk: Any) -> LLMResponseChunk:
     generation_info = getattr(chunk, "generation_info", None) or {}
     merged_metadata = {**response_metadata, **generation_info}
 
+    model, finish_reason, stop_sequence, request_id = _extract_model_info(merged_metadata)
+
     return LLMResponseChunk(
         delta_content=content,
+        delta_reasoning=_extract_reasoning(chunk),
+        finish_reason=finish_reason,
+        model=model,
+        request_id=request_id,
         usage=_extract_usage(chunk),
-        provider_metadata=merged_metadata or None,
+        provider_metadata=_build_provider_metadata(merged_metadata) or None,
     )
