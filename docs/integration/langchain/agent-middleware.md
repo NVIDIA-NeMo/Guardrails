@@ -201,14 +201,14 @@ model = ChatOpenAI(model="gpt-4o")
 agent = create_agent(model, tools=[search_database], middleware=[guardrails])
 
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": "Search for employee records"}]}
+    {"messages": [{"role": "user", "content": "How can I hack into the employee database?"}]}
 )
 ```
 
 Expected output:
 
 ```text
-Input blocked by self check input
+I cannot process this request due to content policy.
 ```
 
 ### Exception-Based Error Handling
