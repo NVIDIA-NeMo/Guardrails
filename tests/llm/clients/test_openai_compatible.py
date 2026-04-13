@@ -227,7 +227,7 @@ class TestOpenAICompatibleClient:
 
 class TestDefaultFramework:
     def test_create_model_openai(self):
-        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.default_framework import DefaultFramework
 
         fw = DefaultFramework()
         model = fw.create_model("gpt-4o", "openai", {"api_key": "sk-test"})
@@ -237,7 +237,7 @@ class TestDefaultFramework:
         assert model.provider_url == "https://api.openai.com/v1"
 
     def test_create_model_nim(self):
-        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.default_framework import DefaultFramework
 
         fw = DefaultFramework()
         model = fw.create_model("llama", "nim", {"api_key": "nvapi-test"})
@@ -246,7 +246,7 @@ class TestDefaultFramework:
         assert model.provider_url == "https://integrate.api.nvidia.com/v1"
 
     def test_create_model_custom_base_url(self):
-        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.default_framework import DefaultFramework
 
         fw = DefaultFramework()
         model = fw.create_model("my-model", "custom", {"base_url": "https://my.api.com/v1"})
@@ -254,14 +254,14 @@ class TestDefaultFramework:
         assert model.provider_url == "https://my.api.com/v1"
 
     def test_create_model_unknown_provider_no_base_url_raises(self):
-        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.default_framework import DefaultFramework
 
         fw = DefaultFramework()
         with pytest.raises(ValueError, match="No default base_url"):
             fw.create_model("model", "unknown_provider", {})
 
     def test_get_provider_names(self):
-        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.default_framework import DefaultFramework
 
         fw = DefaultFramework()
         names = fw.get_provider_names()
@@ -275,7 +275,7 @@ class TestDefaultFramework:
         assert "default" in _LAZY_FRAMEWORKS
 
     def test_framework_lazy_loading(self):
-        from nemoguardrails.llm.clients.framework import DefaultFramework
+        from nemoguardrails.llm.default_framework import DefaultFramework
         from nemoguardrails.llm.frameworks import _reset_frameworks, get_framework
 
         _reset_frameworks()
