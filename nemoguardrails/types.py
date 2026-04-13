@@ -140,7 +140,7 @@ class ChatMessage:
 
         tool_calls = None
         raw_tool_calls = d.get("tool_calls")
-        if raw_tool_calls:
+        if raw_tool_calls is not None:
             tool_calls = []
             for tc in raw_tool_calls:
                 func_data = tc.get("function")
