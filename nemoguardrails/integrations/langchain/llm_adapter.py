@@ -31,6 +31,16 @@ from nemoguardrails.types import (
 log = logging.getLogger(__name__)
 
 
+def _flatten_content(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, list):
+        return "".join(block.get("text", "") if isinstance(block, dict) else str(block) for block in raw)
+    return str(raw)
+
+
 def _infer_model_name(llm: Any):
     """Helper to infer the model name based from an LLM instance.
 
@@ -362,7 +372,7 @@ def _build_provider_metadata(
 
 
 def _langchain_response_to_llm_response(response: Any) -> LLMResponse:
-    content = getattr(response, "content", None)
+    content = _flatten_content(getattr(response, "content", None))
     if content is None:
         content = str(response)
 
@@ -384,9 +394,9 @@ def _langchain_response_to_llm_response(response: Any) -> LLMResponse:
 
 
 def _langchain_chunk_to_llm_response_chunk(chunk: Any) -> LLMResponseChunk:
-    content = getattr(chunk, "content", None)
+    content = _flatten_content(getattr(chunk, "content", None))
     if content is None:
-        content = getattr(chunk, "text", None)
+        content = _flatten_content(getattr(chunk, "text", None))
     if content is None:
         content = str(chunk)
 

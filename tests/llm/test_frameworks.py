@@ -29,6 +29,7 @@ from nemoguardrails.types import LLMModel
 
 @pytest.fixture(autouse=True)
 def clean_registry():
+    _reset_frameworks()
     yield
     _reset_frameworks()
 

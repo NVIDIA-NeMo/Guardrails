@@ -323,6 +323,38 @@ class TestConversionHelpers:
         assert isinstance(result, LLMResponse)
         assert result.content == "plain text"
 
+    def test_response_list_content_anthropic_thinking(self):
+        response = AIMessage(
+            content=[
+                {"type": "thinking", "thinking": "Let me reason about this..."},
+                {"type": "text", "text": "The answer is 42."},
+            ],
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert isinstance(result.content, str)
+        assert result.content == "The answer is 42."
+
+    def test_response_list_content_mixed_blocks(self):
+        response = AIMessage(
+            content=[
+                {"type": "text", "text": "Hello "},
+                {"type": "text", "text": "world"},
+            ],
+        )
+        result = _langchain_response_to_llm_response(response)
+
+        assert result.content == "Hello world"
+
+    def test_chunk_list_content_flattened(self):
+        chunk = AIMessageChunk(
+            content=[{"type": "text", "text": "streamed"}],
+        )
+        result = _langchain_chunk_to_llm_response_chunk(chunk)
+
+        assert isinstance(result.delta_content, str)
+        assert result.delta_content == "streamed"
+
     def test_chunk_midstream_content_only(self):
         chunk = AIMessageChunk(content="Hello", response_metadata={"model_provider": "openai"})
 
