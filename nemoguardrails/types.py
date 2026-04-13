@@ -131,7 +131,7 @@ class ChatMessage:
         captured into ``provider_metadata``.
         """
 
-        raw_role = d.get("role")
+        raw_role = d.get("role") or d.get("type")
         if raw_role is None:
             raise ValueError("Missing required key: 'role'")
         role = _ROLE_ALIASES.get(raw_role)

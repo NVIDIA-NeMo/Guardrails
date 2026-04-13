@@ -539,7 +539,7 @@ class TestChatMessageToLangChain:
     def test_unsupported_role_raises(self):
         msg = ChatMessage(role=Role.USER, content="test")
         msg.role = "unknown"
-        with pytest.raises(ValueError, match="Unsupported ChatMessage role"):
+        with pytest.raises(ValueError, match="Unsupported role"):
             chatmessage_to_langchain_message(msg)
 
     def test_batch_conversion(self):
