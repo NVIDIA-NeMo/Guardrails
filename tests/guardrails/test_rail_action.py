@@ -23,8 +23,6 @@ import pytest
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.rail_action import RailAction
 
-# --- Concrete subclass for testing the base class ---
-
 
 class DummyRailAction(RailAction):
     """Minimal concrete subclass that records calls for testing."""

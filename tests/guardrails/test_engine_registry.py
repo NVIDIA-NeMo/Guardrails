@@ -533,5 +533,4 @@ class TestEngineRegistryStreamModelCall:
     async def test_raises_key_error_for_unknown_model_type(self, manager):
         """Raises KeyError when the model type doesn't exist."""
         with pytest.raises(KeyError):
-            async for _ in manager.stream_model_call("nonexistent", [{"role": "user", "content": "Hi"}]):
-                pass
+            await anext(manager.stream_model_call("nonexistent", [{"role": "user", "content": "Hi"}]))

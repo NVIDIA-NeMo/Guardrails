@@ -284,12 +284,10 @@ class TestModelEngineConcurrentLifecycle:
 
         await asyncio.gather(engine.stop(), engine.start())
 
-        # Engine should be in a consistent state (either running or not)
+        # Engine should be in a consistent state — clean up if still running
+        assert (engine._running and engine._client is not None) or (not engine._running and engine._client is None)
         if engine._running:
-            assert engine._client is not None
             await engine.stop()
-        else:
-            assert engine._client is None
 
 
 class TestModelEngineContextManager:
@@ -563,8 +561,7 @@ class TestModelEngineStreamCall:
         engine._running = True
 
         with pytest.raises(ModelEngineError) as exc_info:
-            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
-                pass
+            await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
 
         assert exc_info.value.status == 500
 
@@ -575,8 +572,7 @@ class TestModelEngineStreamCall:
         engine = ModelEngine(_make_model())
 
         with pytest.raises(ModelEngineError, match="has not been started"):
-            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
-                pass
+            await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -689,8 +685,7 @@ class TestModelEngineStreamCall:
         engine._running = True
 
         with pytest.raises(ModelEngineError, match="connection dropped"):
-            async for _ in engine.stream_call([{"role": "user", "content": "Hi"}]):
-                pass
+            await anext(engine.stream_call([{"role": "user", "content": "Hi"}]))
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -715,6 +710,66 @@ class TestModelEngineStreamCall:
             chunks.append(chunk)
 
         assert chunks == ["ok"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_eof_without_done(self):
+        """Stream ends gracefully when readline() returns empty bytes (no [DONE] marker)."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n',
+            # No "data: [DONE]" — readline() will return b"" next
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["Hi"]
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_skips_blank_lines(self):
+        """Blank lines (whitespace-only) between SSE events are skipped."""
+        engine = ModelEngine(_make_model())
+
+        # Build lines manually to include real blank lines the helper would strip
+        line_data = [
+            b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n',
+            b"   \n",  # whitespace-only line — empty after strip()
+            b'data: {"choices": [{"delta": {"content": "!"}}]}\n',
+            b"data: [DONE]\n",
+        ]
+        line_iter = iter(line_data)
+
+        async def _readline():
+            return next(line_iter, b"")
+
+        mock_content = MagicMock()
+        mock_content.readline = _readline
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.content = mock_content
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert chunks == ["Hi", "!"]
 
 
 class TestModelEngineConstants:
