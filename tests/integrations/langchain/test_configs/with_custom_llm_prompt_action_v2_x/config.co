@@ -1,0 +1,10 @@
+flow main
+  $questions = []
+  while True
+    await CustomLlmRequestAction(
+        prompt_template_name="my_custom_prompt",
+        instructions="A new question",
+        var_name="utterance",
+        questions=$questions) as $action
+    $questions = $questions + [$action.return_value]
+    await UtteranceBotAction(script=$action.return_value)
