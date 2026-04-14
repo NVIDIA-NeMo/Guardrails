@@ -18,7 +18,7 @@ import asyncio
 import json
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 from unittest.mock import AsyncMock, MagicMock
 
 from nemoguardrails import LLMRails, RailsConfig

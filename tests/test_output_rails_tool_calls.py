@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
@@ -120,9 +135,7 @@ async def test_complex_chain_with_tool_calls():
     )
 
     rails = LLMRails(config, llm=fake_llm)
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "My date of birth is 01/01/1990."}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "My date of birth is 01/01/1990."}])
 
     assert result["tool_calls"] is not None
     assert result["tool_calls"][0]["function"]["name"] == "print_gathered_patient_info"
@@ -169,9 +182,7 @@ async def test_self_check_output_rail_bypassed():
     )
 
     rails = LLMRails(config, llm=fake_llm)
-    result = await rails.generate_async(
-        messages=[{"role": "user", "content": "Perform sensitive operation"}]
-    )
+    result = await rails.generate_async(messages=[{"role": "user", "content": "Perform sensitive operation"}])
 
     assert result["tool_calls"] is not None
     assert result["tool_calls"][0]["function"]["name"] == "sensitive_operation"
@@ -180,9 +191,7 @@ async def test_self_check_output_rail_bypassed():
 
 @pytest.mark.asyncio
 async def test_backward_compatibility_text_blocking():
-    fake_llm = FakeLLMModel(
-        llm_responses=[LLMResponse(content="This response should be blocked by output rails")]
-    )
+    fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="This response should be blocked by output rails")])
 
     config = RailsConfig.from_content(
         """

@@ -99,9 +99,9 @@ def test_patronus_lynx_returns_no_hallucination():
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     patronus_lynx_llm = FakeLLMModel(
-            responses=[
-                '{"REASONING": ["There is no hallucination."], "SCORE": "PASS"}',
-            ]
+        responses=[
+            '{"REASONING": ["There is no hallucination."], "SCORE": "PASS"}',
+        ]
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -128,9 +128,9 @@ def test_patronus_lynx_returns_hallucination():
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     patronus_lynx_llm = FakeLLMModel(
-            responses=[
-                '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
-            ]
+        responses=[
+            '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
+        ]
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -157,9 +157,9 @@ def test_patronus_lynx_parses_score_when_no_double_quote():
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     patronus_lynx_llm = FakeLLMModel(
-            responses=[
-                '{"REASONING": ["There is no hallucination."], "SCORE": PASS}',
-            ]
+        responses=[
+            '{"REASONING": ["There is no hallucination."], "SCORE": PASS}',
+        ]
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -184,9 +184,9 @@ def test_patronus_lynx_returns_no_hallucination_when_no_retrieved_context():
     )
 
     patronus_lynx_llm = FakeLLMModel(
-            responses=[
-                '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
-            ]
+        responses=[
+            '{"REASONING": ["There is a hallucination."], "SCORE": "FAIL"}',
+        ]
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -213,9 +213,9 @@ def test_patronus_lynx_returns_hallucination_when_no_score_in_llm_output():
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     patronus_lynx_llm = FakeLLMModel(
-            responses=[
-                '{"REASONING": ["Mock reasoning."]}',
-            ]
+        responses=[
+            '{"REASONING": ["Mock reasoning."]}',
+        ]
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
@@ -242,9 +242,9 @@ def test_patronus_lynx_returns_no_hallucination_when_no_reasoning_in_llm_output(
     chat.app.register_action(retrieve_relevant_chunks, "retrieve_relevant_chunks")
 
     patronus_lynx_llm = FakeLLMModel(
-            responses=[
-                '{"SCORE": "PASS"}',
-            ]
+        responses=[
+            '{"SCORE": "PASS"}',
+        ]
     )
     chat.app.register_action_param("patronus_lynx_llm", patronus_lynx_llm)
 
