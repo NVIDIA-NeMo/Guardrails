@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -44,5 +45,6 @@ def pytest_collection_modifyitems(config, items):
 
     skip_langchain = pytest.mark.skip(reason="langchain not installed")
     for item in items:
-        if "integrations/langchain" in str(item.fspath):
+        parts = Path(item.fspath).parts
+        if "integrations" in parts and "langchain" in parts:
             item.add_marker(skip_langchain)
