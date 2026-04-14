@@ -11,6 +11,8 @@ on:
 env:
   POETRY_VERSION: 1.8.2
   PYTHON_VERSION: "3.11"
+  CFLAGS: "-march=x86-64"
+  CXXFLAGS: "-march=x86-64"
 
 jobs:
   lint:
@@ -28,6 +30,10 @@ jobs:
         id: full-python-version
         run: echo "version=$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")" >> $GITHUB_OUTPUT
 
+      - name: Get runner architecture
+        id: runner-arch
+        run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
+
       - name: Bootstrap poetry
         run: |
           curl -sSL https://install.python-poetry.org | POETRY_VERSION=${{ env.POETRY_VERSION }} python -
@@ -41,7 +47,7 @@ jobs:
         id: cache
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ steps.runner-arch.outputs.arch }}-${{ steps.full-python-version.outputs.version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Ensure cache is healthy
         if: steps.cache.outputs.cache-hit == 'true'

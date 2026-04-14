@@ -85,6 +85,12 @@ jobs:
       - name: Check Poetry .lock
         run: poetry check --lock
 
+      - name: Set baseline x86-64 compiler flags
+        if: runner.os == 'Linux'
+        run: |
+          echo "CFLAGS=-march=x86-64" >> $GITHUB_ENV
+          echo "CXXFLAGS=-march=x86-64" >> $GITHUB_ENV
+
       - name: Install dependencies
         run: |
           if [ "${{ inputs.upgrade-deps}}" = "true" ]; then
