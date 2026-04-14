@@ -97,7 +97,9 @@ class FakeLLMModel:
         return None
 
     async def generate_async(self, prompt, *, stop=None, **kwargs) -> LLMResponse:
-        response = self._next_response()
+        import copy
+
+        response = copy.copy(self._next_response())
         usage = self._get_usage()
         if usage:
             response.usage = usage
