@@ -129,8 +129,7 @@ async def _stream_llm_call(
 
             await handler.push_chunk(content, chunk_metadata)
 
-        if accumulated_metadata:
-            llm_response_metadata_var.set(accumulated_metadata)
+        llm_response_metadata_var.set(accumulated_metadata or None)
 
         await handler.finish()
 
@@ -148,6 +147,9 @@ async def _stream_llm_call(
             tool_calls_var.set(None)
 
         reasoning_content = "".join(accumulated_reasoning) if accumulated_reasoning else None
+        # TODO: call _extract_and_remove_think_tags on the completed response
+        # to handle models that stream reasoning via <think> tags in content
+        # rather than via delta_reasoning. Pre-existing gap, not introduced here.
         reasoning_trace_var.set(reasoning_content)
 
         return LLMResponse(
