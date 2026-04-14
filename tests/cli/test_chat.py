@@ -293,3 +293,325 @@ class TestRunChatV1Async:
             pass
 
         assert mock_session.post.called
+
+
+class TestStreamingErrorRegression:
+    """Regression tests for GitHub issue #1771: streaming error handling bugs.
+
+    Bug 1: Empty/partial assistant message appended to history when streaming error occurs.
+           Lines 98-99 build bot_message unconditionally, and line 173 appends it to
+           history even after an error break, polluting the conversation context.
+
+    Bug 2: Fragile error detection via chunk.startswith('{"error"') on line 86.
+           Leading whitespace or alternate JSON formatting cause error chunks to be
+           misclassified as normal streaming text.
+    """
+
+    # ------------------------------------------------------------------ #
+    #  Bug 1: empty / partial assistant message in history after error    #
+    # ------------------------------------------------------------------ #
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_error_does_not_append_empty_assistant_to_history(
+        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
+    ):
+        """Streaming error on the very first chunk should NOT leave an empty
+        assistant message in history for subsequent turns."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        captured_histories = []
+        call_count = 0
+
+        async def mock_stream_async(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            messages = kwargs.get("messages") or (args[0] if args else [])
+            captured_histories.append([dict(m) for m in messages])
+            if call_count == 1:
+                yield '{"error": {"message": "test error"}}'
+            else:
+                yield "Success"
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        # Two real inputs so we can inspect history on the second stream_async call
+        mock_input.side_effect = ["hello", "world", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        assert len(captured_histories) == 2, f"Expected 2 stream_async calls, got {len(captured_histories)}"
+
+        second_history = captured_histories[1]
+        empty_assistant_msgs = [m for m in second_history if m["role"] == "assistant" and m["content"] == ""]
+        assert len(empty_assistant_msgs) == 0, (
+            f"Empty assistant message found in history after streaming error: {second_history}"
+        )
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_error_after_partial_tokens_does_not_pollute_history(
+        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
+    ):
+        """When an error arrives after partial tokens have already streamed,
+        the incomplete content must NOT appear as a valid assistant message
+        in the conversation history."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        captured_histories = []
+        call_count = 0
+
+        async def mock_stream_async(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            messages = kwargs.get("messages") or (args[0] if args else [])
+            captured_histories.append([dict(m) for m in messages])
+            if call_count == 1:
+                yield "Partial "
+                yield "response "
+                yield '{"error": {"message": "mid-stream error"}}'
+            else:
+                yield "Success"
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["hello", "world", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        assert len(captured_histories) == 2
+
+        second_history = captured_histories[1]
+        assistant_msgs = [m for m in second_history if m["role"] == "assistant"]
+        for msg in assistant_msgs:
+            assert msg["content"] != "Partial response ", (
+                f"Incomplete assistant message from errored stream found in history: {second_history}"
+            )
+
+    # ------------------------------------------------------------------ #
+    #  Bug 2: fragile error detection via startswith('{"error"')          #
+    # ------------------------------------------------------------------ #
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_error_with_leading_whitespace_is_detected(
+        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
+    ):
+        """Error chunk with leading whitespace must still be recognised as an error,
+        not silently passed through as normal assistant text."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        captured_histories = []
+        call_count = 0
+
+        async def mock_stream_async(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            messages = kwargs.get("messages") or (args[0] if args else [])
+            captured_histories.append([dict(m) for m in messages])
+            if call_count == 1:
+                yield '  {"error": {"message": "whitespace error"}}'
+            else:
+                yield "Success"
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["hello", "world", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        assert len(captured_histories) == 2
+
+        second_history = captured_histories[1]
+        for msg in second_history:
+            if msg["role"] == "assistant":
+                assert '"error"' not in msg["content"], (
+                    f"Error JSON with leading whitespace was not detected and leaked "
+                    f"into assistant content: {msg['content']}"
+                )
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_error_with_space_after_brace_is_detected(
+        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
+    ):
+        """Error chunk formatted as '{ "error": ...}' (space after opening brace)
+        must still be recognised as an error."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        captured_histories = []
+        call_count = 0
+
+        async def mock_stream_async(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            messages = kwargs.get("messages") or (args[0] if args else [])
+            captured_histories.append([dict(m) for m in messages])
+            if call_count == 1:
+                yield '{ "error": {"message": "formatted error"} }'
+            else:
+                yield "Success"
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["hello", "world", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        assert len(captured_histories) == 2
+
+        second_history = captured_histories[1]
+        for msg in second_history:
+            if msg["role"] == "assistant":
+                assert '"error"' not in msg["content"], (
+                    f"Error JSON with non-standard formatting was not detected: {msg['content']}"
+                )
+
+    # ------------------------------------------------------------------ #
+    #  Bug 2 baselines: sanity checks that pass before AND after the fix  #
+    # ------------------------------------------------------------------ #
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_standard_error_format_is_detected(self, mock_rails_config, mock_llm_rails, mock_console, mock_input):
+        """Baseline: the canonical '{"error": ...}' format must be detected
+        as an error.  This should pass with both current and fixed code."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        async def mock_stream_async(*args, **kwargs):
+            yield '{"error": {"message": "standard error"}}'
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["hello", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        error_printed = any("Streaming error" in str(call_args) for call_args in mock_console.print.call_args_list)
+        assert error_printed, "Standard error format was not detected - no error message printed"
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_normal_chunk_not_detected_as_error(
+        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
+    ):
+        """Baseline: normal streaming text must NOT trigger the error path.
+        This should pass with both current and fixed code."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        async def mock_stream_async(*args, **kwargs):
+            yield "Hello "
+            yield "world!"
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["hello", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        error_printed = any("Streaming error" in str(call_args) for call_args in mock_console.print.call_args_list)
+        assert not error_printed, "Normal streaming text was incorrectly detected as error"
+
+        green_prints = [
+            str(call_args) for call_args in mock_console.print.call_args_list if "[green]" in str(call_args)
+        ]
+        assert len(green_prints) > 0, "Normal streaming text was not printed to console"
+
+    @pytest.mark.asyncio
+    @patch("builtins.input")
+    @patch.object(chat_module, "console")
+    @patch.object(chat_module, "LLMRails")
+    @patch.object(chat_module, "RailsConfig")
+    async def test_json_with_error_key_but_string_value_not_treated_as_error(
+        self, mock_rails_config, mock_llm_rails, mock_console, mock_input
+    ):
+        """A JSON chunk like '{"error": "rate limited"}' where the error value
+        is a string (not a dict) must NOT be treated as a streaming error.
+        Only the structured format '{"error": {"message": ...}}' is a real error."""
+        from nemoguardrails.cli.chat import _run_chat_v1_0
+
+        mock_config = MagicMock()
+        mock_rails_config.from_path.return_value = mock_config
+
+        async def mock_stream_async(*args, **kwargs):
+            yield '{"error": "not a real streaming error"}'
+
+        mock_rails = MagicMock()
+        mock_rails.stream_async = mock_stream_async
+        mock_llm_rails.return_value = mock_rails
+
+        mock_input.side_effect = ["hello", KeyboardInterrupt()]
+
+        try:
+            await _run_chat_v1_0(config_path="test_config", streaming=True)
+        except KeyboardInterrupt:
+            pass
+
+        error_printed = any("Streaming error" in str(call_args) for call_args in mock_console.print.call_args_list)
+        assert not error_printed, "JSON with string 'error' value was incorrectly treated as a streaming error"
