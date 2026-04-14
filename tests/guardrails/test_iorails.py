@@ -345,29 +345,29 @@ class TestAutoStart:
     @pytest.mark.asyncio
     async def test_generate_async_calls_start(self, iorails):
         """generate_async() calls start() automatically before running the pipeline."""
-        iorails.model_manager.start = AsyncMock()
+        iorails.engine_registry.start = AsyncMock()
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value="ok")
+        iorails.engine_registry.model_call = AsyncMock(return_value="ok")
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         assert not iorails._running
         await iorails.generate_async([{"role": "user", "content": "hi"}])
 
-        iorails.model_manager.start.assert_called_once()
+        iorails.engine_registry.start.assert_called_once()
         assert iorails._running
 
     @pytest.mark.asyncio
     async def test_generate_async_start_is_idempotent(self, iorails):
         """Two generate_async() calls only trigger start() once."""
-        iorails.model_manager.start = AsyncMock()
+        iorails.engine_registry.start = AsyncMock()
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.model_manager.generate_async = AsyncMock(return_value="ok")
+        iorails.engine_registry.model_call = AsyncMock(return_value="ok")
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         await iorails.generate_async([{"role": "user", "content": "hi"}])
         await iorails.generate_async([{"role": "user", "content": "hi"}])
 
-        iorails.model_manager.start.assert_called_once()
+        iorails.engine_registry.start.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stream_async_calls_start(self, iorails_input_only):
@@ -376,16 +376,16 @@ class TestAutoStart:
         async def mock_stream(model_type, messages, **kwargs):
             yield "hello"
 
-        iorails_input_only.model_manager.start = AsyncMock()
+        iorails_input_only.engine_registry.start = AsyncMock()
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails_input_only.model_manager.stream_async = mock_stream
+        iorails_input_only.engine_registry.stream_model_call = mock_stream
 
         assert not iorails_input_only._running
         chunks = [
             chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])
         ]
 
-        iorails_input_only.model_manager.start.assert_called_once()
+        iorails_input_only.engine_registry.start.assert_called_once()
         assert iorails_input_only._running
         assert chunks == ["hello"]
 
@@ -396,19 +396,19 @@ class TestAutoStart:
         async def mock_stream(model_type, messages, **kwargs):
             yield "hi"
 
-        iorails_input_only.model_manager.start = AsyncMock()
+        iorails_input_only.engine_registry.start = AsyncMock()
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails_input_only.model_manager.stream_async = mock_stream
+        iorails_input_only.engine_registry.stream_model_call = mock_stream
 
         _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
         _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
 
-        iorails_input_only.model_manager.start.assert_called_once()
+        iorails_input_only.engine_registry.start.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stream_async_propagates_start_failure(self, iorails_input_only):
         """start() failure inside stream_async propagates to the caller."""
-        iorails_input_only.model_manager.start = AsyncMock(side_effect=RuntimeError("engine unavailable"))
+        iorails_input_only.engine_registry.start = AsyncMock(side_effect=RuntimeError("engine unavailable"))
 
         with pytest.raises(RuntimeError, match="engine unavailable"):
             _ = [chunk async for chunk in iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])]
