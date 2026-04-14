@@ -19,6 +19,13 @@ __all__ = [
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
     "LLMCallException",
+    "LLMClientError",
+    "LLMAuthenticationError",
+    "LLMRateLimitError",
+    "LLMBadRequestError",
+    "LLMContextWindowError",
+    "LLMUnsupportedParamsError",
+    "LLMServerError",
     "StreamingNotSupportedError",
 ]
 
@@ -78,3 +85,51 @@ class LLMCallException(Exception):
 
         self.inner_exception = inner_exception
         self.detail = detail
+
+
+class LLMClientError(Exception):
+    def __init__(
+        self,
+        status_code: int,
+        error_message: str,
+        error_type: Optional[str] = None,
+        error_code: Optional[str] = None,
+    ):
+        self.status_code = status_code
+        self.error_message = error_message
+        self.error_type = error_type
+        self.error_code = error_code
+        super().__init__(f"[{status_code}] {error_message}")
+
+
+class LLMAuthenticationError(LLMClientError):
+    pass
+
+
+class LLMRateLimitError(LLMClientError):
+    def __init__(
+        self,
+        status_code: int,
+        error_message: str,
+        error_type: Optional[str] = None,
+        error_code: Optional[str] = None,
+        retry_after_seconds: Optional[float] = None,
+    ):
+        super().__init__(status_code, error_message, error_type, error_code)
+        self.retry_after_seconds = retry_after_seconds
+
+
+class LLMBadRequestError(LLMClientError):
+    pass
+
+
+class LLMContextWindowError(LLMBadRequestError):
+    pass
+
+
+class LLMUnsupportedParamsError(LLMBadRequestError):
+    pass
+
+
+class LLMServerError(LLMClientError):
+    pass
