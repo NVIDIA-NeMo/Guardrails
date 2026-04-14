@@ -1,10 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import asyncio
 from typing import Any, Dict, List, Mapping, Optional
 
-from langchain_core.callbacks.manager import (
-    AsyncCallbackManagerForLLMRun,
-    CallbackManagerForLLMRun,
-)
 from langchain_core.language_models import LLM
 
 
@@ -24,9 +35,7 @@ class FakeLLM(LLM):
         if self.exception:
             raise self.exception
         if self.i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLM."
-            )
+            raise RuntimeError(f"No responses available for query number {self.i + 1} in FakeLLM.")
         response = self.responses[self.i]
         self.i += 1
         return response
@@ -35,9 +44,7 @@ class FakeLLM(LLM):
         if self.exception:
             raise self.exception
         if self.i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLM."
-            )
+            raise RuntimeError(f"No responses available for query number {self.i + 1} in FakeLLM.")
         response = self.responses[self.i]
         self.i += 1
         return response
@@ -46,9 +53,7 @@ class FakeLLM(LLM):
         from langchain_core.outputs import GenerationChunk
 
         if self.i >= len(self.responses):
-            raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLM."
-            )
+            raise RuntimeError(f"No responses available for query number {self.i + 1} in FakeLLM.")
         response = self.responses[self.i]
         self.i += 1
         if self.exception:
@@ -75,9 +80,7 @@ class FakeLLM(LLM):
     async def _agenerate(self, prompts, stop=None, run_manager=None, **kwargs):
         from langchain_core.outputs import Generation, LLMResult
 
-        generations = [
-            [Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts
-        ]
+        generations = [[Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
         llm_output = self._get_token_usage_for_response(self.i - 1)
         return LLMResult(generations=generations, llm_output=llm_output)
 

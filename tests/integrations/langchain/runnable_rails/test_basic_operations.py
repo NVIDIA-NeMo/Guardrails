@@ -23,7 +23,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
-from tests.utils import FakeLLM
+from tests.integrations.langchain.utils import FakeLLM
 
 
 def test_runnable_rails_basic():

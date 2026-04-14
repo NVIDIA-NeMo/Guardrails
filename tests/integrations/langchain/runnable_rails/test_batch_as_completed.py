@@ -19,7 +19,7 @@ import pytest
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
-from tests.utils import FakeLLM
+from tests.integrations.langchain.utils import FakeLLM
 
 
 @pytest.fixture

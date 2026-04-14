@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
 
 from nemoguardrails.actions.llm.utils import _store_reasoning_traces
@@ -115,9 +130,7 @@ class TestReasoningTraceIntegration:
     async def test_llm_call_extracts_reasoning_from_additional_kwargs(self):
         test_reasoning = "Let me think about this carefully..."
 
-        fake_llm = FakeLLMModel(
-            llm_responses=[LLMResponse(content="The answer is 42", reasoning=test_reasoning)]
-        )
+        fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="The answer is 42", reasoning=test_reasoning)])
 
         from nemoguardrails.actions.llm.utils import llm_call
 
@@ -132,9 +145,7 @@ class TestReasoningTraceIntegration:
 
     @pytest.mark.asyncio
     async def test_llm_call_handles_missing_reasoning_content(self):
-        fake_llm = FakeLLMModel(
-            llm_responses=[LLMResponse(content="Regular response")]
-        )
+        fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Regular response")])
 
         from nemoguardrails.actions.llm.utils import llm_call
 
@@ -151,9 +162,7 @@ class TestReasoningTraceIntegration:
     async def test_llm_call_with_message_list_extracts_reasoning(self):
         test_reasoning = "Analyzing the conversation context..."
 
-        fake_llm = FakeLLMModel(
-            llm_responses=[LLMResponse(content="Here's my response", reasoning=test_reasoning)]
-        )
+        fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Here's my response", reasoning=test_reasoning)])
 
         from nemoguardrails.actions.llm.utils import llm_call
 
@@ -202,9 +211,7 @@ class TestReasoningTraceIntegration:
     async def test_reasoning_content_with_other_additional_kwargs(self):
         test_reasoning = "Complex reasoning process"
 
-        fake_llm = FakeLLMModel(
-            llm_responses=[LLMResponse(content="Response", reasoning=test_reasoning)]
-        )
+        fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="Response", reasoning=test_reasoning)])
 
         from nemoguardrails.actions.llm.utils import llm_call
 
@@ -221,11 +228,7 @@ class TestReasoningTraceIntegration:
     async def test_llm_call_extracts_reasoning_from_think_tags(self):
         test_reasoning = "Let me analyze this step by step"
 
-        fake_llm = FakeLLMModel(
-            llm_responses=[
-                LLMResponse(content=f"<think>{test_reasoning}</think>The answer is 42")
-            ]
-        )
+        fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content=f"<think>{test_reasoning}</think>The answer is 42")])
 
         from nemoguardrails.actions.llm.utils import llm_call
 
@@ -271,9 +274,7 @@ Step 2: Break down the problem
 Step 3: Formulate the answer"""
 
         fake_llm = FakeLLMModel(
-            llm_responses=[
-                LLMResponse(content=f"<think>{multiline_reasoning}</think>Final answer")
-            ]
+            llm_responses=[LLMResponse(content=f"<think>{multiline_reasoning}</think>Final answer")]
         )
 
         from nemoguardrails.actions.llm.utils import llm_call
@@ -290,9 +291,7 @@ Step 3: Formulate the answer"""
 
     @pytest.mark.asyncio
     async def test_llm_call_handles_incomplete_think_tags(self):
-        fake_llm = FakeLLMModel(
-            llm_responses=[LLMResponse(content="<think>This is incomplete")]
-        )
+        fake_llm = FakeLLMModel(llm_responses=[LLMResponse(content="<think>This is incomplete")])
 
         from nemoguardrails.actions.llm.utils import llm_call
 

@@ -32,7 +32,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
 from nemoguardrails.logging.verbose import set_verbose
-from tests.utils import FakeLLM
+from tests.integrations.langchain.utils import FakeLLM
 
 
 def has_nvidia_ai_endpoints():

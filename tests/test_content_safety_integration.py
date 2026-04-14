@@ -350,9 +350,7 @@ class TestReasoningEnabledEndToEnd:
             llm_completions=["Hello! How can I help you?"],
         )
 
-        chat.app.runtime.registered_action_params["llms"] = {
-            "content_safety_reasoning": content_safety_llm
-        }
+        chat.app.runtime.registered_action_params["llms"] = {"content_safety_reasoning": content_safety_llm}
 
         user_message = "Hello"
         response = chat.app.generate(messages=[{"role": "user", "content": user_message}])

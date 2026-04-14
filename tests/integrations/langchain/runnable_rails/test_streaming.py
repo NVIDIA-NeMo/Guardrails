@@ -25,7 +25,7 @@ from langchain_core.runnables import RunnablePassthrough
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
-from tests.utils import FakeLLM
+from tests.integrations.langchain.utils import FakeLLM
 
 
 class StreamingFakeLLM(FakeLLM):
@@ -296,7 +296,7 @@ def test_auto_streaming_without_streaming_flag():
 
     assert llm.streaming
 
-    from tests.utils import FakeLLM
+    from tests.integrations.langchain.utils import FakeLLM
 
     non_streaming_llm = FakeLLM(responses=["Auto-streaming test response"])
     assert not getattr(non_streaming_llm, "streaming", False)
@@ -317,7 +317,7 @@ def test_auto_streaming_without_streaming_flag():
 @pytest.mark.asyncio
 async def test_streaming_state_restoration():
     """Test that streaming state is properly restored after streaming calls."""
-    from tests.utils import FakeLLM
+    from tests.integrations.langchain.utils import FakeLLM
 
     llm = FakeLLM(responses=["State restoration test"])
     llm.streaming = False
@@ -340,7 +340,7 @@ async def test_streaming_state_restoration():
 
 def test_langchain_parity_ux():
     """Test that RunnableRails provides the same UX as regular LangChain streaming."""
-    from tests.utils import FakeLLM
+    from tests.integrations.langchain.utils import FakeLLM
 
     llm = FakeLLM(responses=["LangChain parity test"])
 
@@ -366,7 +366,7 @@ def test_langchain_parity_ux():
 
 def test_mixed_streaming_and_non_streaming_calls():
     """Test that streaming and non-streaming calls work together seamlessly."""
-    from tests.utils import FakeLLM
+    from tests.integrations.langchain.utils import FakeLLM
 
     llm = FakeLLM(responses=["Mixed call test 1", "Mixed call test 2", "Mixed call test 3"])
     llm.streaming = False
@@ -392,7 +392,7 @@ def test_mixed_streaming_and_non_streaming_calls():
 
 def test_streaming_with_different_input_types():
     """Test auto-streaming with various input types."""
-    from tests.utils import FakeLLM
+    from tests.integrations.langchain.utils import FakeLLM
 
     llm = FakeLLM(responses=["Input type test"] * 4)
     llm.streaming = False
