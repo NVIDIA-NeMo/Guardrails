@@ -554,3 +554,117 @@ class TestChatMessageToLangChain:
         assert isinstance(results[0], SystemMessage)
         assert isinstance(results[1], HumanMessage)
         assert isinstance(results[2], AIMessage)
+
+
+def _make_lc_chunk(content="", tool_call_chunks=None, response_metadata=None, usage_metadata=None):
+    return MagicMock(
+        content=content,
+        tool_call_chunks=tool_call_chunks or [],
+        response_metadata=response_metadata,
+        usage_metadata=usage_metadata,
+        generation_info=None,
+    )
+
+
+def _make_adapter_with_chunks(chunks):
+    mock_llm = MagicMock()
+
+    async def mock_astream(*args, **kwargs):
+        for c in chunks:
+            yield c
+
+    mock_llm.astream = mock_astream
+    return LangChainLLMAdapter(mock_llm)
+
+
+async def _collect_stream(adapter, prompt="test"):
+    results = []
+    async for chunk in adapter.stream_async(prompt):
+        results.append(chunk)
+    return results
+
+
+class TestStreamingToolCalls:
+    @pytest.mark.asyncio
+    async def test_single_tool_call(self):
+        adapter = _make_adapter_with_chunks(
+            [
+                _make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "call_abc", "name": "get_weather", "args": ""}]),
+                _make_lc_chunk(tool_call_chunks=[{"index": 0, "args": '{"city"'}]),
+                _make_lc_chunk(tool_call_chunks=[{"index": 0, "args": ':"Paris"}'}]),
+                _make_lc_chunk(response_metadata={"finish_reason": "tool_calls"}),
+            ]
+        )
+
+        results = await _collect_stream(adapter)
+
+        assert results[0].delta_tool_calls is None
+        assert results[1].delta_tool_calls is None
+        assert results[2].delta_tool_calls is None
+        final = results[3]
+        assert final.finish_reason == "tool_calls"
+        assert len(final.delta_tool_calls) == 1
+        assert final.delta_tool_calls[0].id == "call_abc"
+        assert final.delta_tool_calls[0].function.name == "get_weather"
+        assert final.delta_tool_calls[0].function.arguments == {"city": "Paris"}
+
+    @pytest.mark.asyncio
+    async def test_parallel_tool_calls(self):
+        adapter = _make_adapter_with_chunks(
+            [
+                _make_lc_chunk(
+                    tool_call_chunks=[
+                        {"index": 0, "id": "call_1", "name": "get_weather", "args": ""},
+                        {"index": 1, "id": "call_2", "name": "get_time", "args": ""},
+                    ]
+                ),
+                _make_lc_chunk(
+                    tool_call_chunks=[
+                        {"index": 0, "args": '{"city":"Paris"}'},
+                        {"index": 1, "args": '{"city":"Paris"}'},
+                    ]
+                ),
+                _make_lc_chunk(response_metadata={"finish_reason": "tool_calls"}),
+            ]
+        )
+
+        results = await _collect_stream(adapter)
+
+        final = results[-1]
+        assert len(final.delta_tool_calls) == 2
+        assert final.delta_tool_calls[0].function.name == "get_weather"
+        assert final.delta_tool_calls[1].function.name == "get_time"
+        assert final.delta_tool_calls[0].function.arguments == {"city": "Paris"}
+        assert final.delta_tool_calls[1].function.arguments == {"city": "Paris"}
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_falls_back_to_empty_dict(self):
+        adapter = _make_adapter_with_chunks(
+            [
+                _make_lc_chunk(tool_call_chunks=[{"index": 0, "id": "call_x", "name": "broken", "args": ""}]),
+                _make_lc_chunk(tool_call_chunks=[{"index": 0, "args": "{not valid json"}]),
+                _make_lc_chunk(response_metadata={"finish_reason": "tool_calls"}),
+            ]
+        )
+
+        results = await _collect_stream(adapter)
+
+        assert results[-1].delta_tool_calls[0].function.arguments == {}
+
+    @pytest.mark.asyncio
+    async def test_text_only_stream_unaffected(self):
+        adapter = _make_adapter_with_chunks(
+            [
+                _make_lc_chunk(content="Hello"),
+                _make_lc_chunk(content=" world", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+
+        results = await _collect_stream(adapter)
+
+        assert len(results) == 2
+        assert results[0].delta_content == "Hello"
+        assert results[0].delta_tool_calls is None
+        assert results[1].delta_content == " world"
+        assert results[1].finish_reason == "stop"
+        assert results[1].delta_tool_calls is None
