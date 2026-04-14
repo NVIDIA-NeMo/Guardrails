@@ -14,9 +14,11 @@
 # limitations under the License.
 
 import asyncio
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Union
+from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.language_models import LLM
+from langchain_core.messages import AIMessage
 
 
 class FakeLLM(LLM):
@@ -97,3 +99,21 @@ class FakeLLM(LLM):
     @property
     def _identifying_params(self) -> Mapping[str, Any]:
         return {}
+
+
+def get_bound_llm_magic_mock(ainvoke_return_value: Union[AIMessage, dict]) -> MagicMock:
+    mock_llm = MagicMock()
+    mock_llm.return_value = mock_llm
+
+    bound_llm_mock = AsyncMock()
+    if isinstance(ainvoke_return_value, dict):
+        bound_llm_mock.ainvoke.return_value = MagicMock(**ainvoke_return_value)
+    else:
+        bound_llm_mock.ainvoke.return_value = ainvoke_return_value
+
+    mock_llm.bind.return_value = bound_llm_mock
+    if isinstance(ainvoke_return_value, dict):
+        mock_llm.ainvoke = AsyncMock(return_value=MagicMock(**ainvoke_return_value))
+    else:
+        mock_llm.ainvoke = AsyncMock(return_value=ainvoke_return_value)
+    return mock_llm

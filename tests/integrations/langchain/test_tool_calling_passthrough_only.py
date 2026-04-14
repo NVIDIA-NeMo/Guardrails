@@ -24,7 +24,7 @@ from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.actions.llm.generation import LLMGenerationActions
 from nemoguardrails.context import tool_calls_var
 from nemoguardrails.integrations.langchain.llm_adapter import LangChainLLMAdapter
-from tests.utils import get_bound_llm_magic_mock
+from tests.integrations.langchain.utils import get_bound_llm_magic_mock
 
 
 @pytest.fixture
