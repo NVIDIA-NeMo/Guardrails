@@ -233,9 +233,9 @@ def _update_token_stats(response: LLMResponse) -> None:
         llm_call_info.completion_tokens = 0
 
     if response.usage:
-        llm_call_info.total_tokens += response.usage.total_tokens
-        llm_call_info.prompt_tokens += response.usage.input_tokens
-        llm_call_info.completion_tokens += response.usage.output_tokens
+        llm_call_info.total_tokens = response.usage.total_tokens
+        llm_call_info.prompt_tokens = response.usage.input_tokens
+        llm_call_info.completion_tokens = response.usage.output_tokens
 
         if llm_stats:
             llm_stats.inc("total_tokens", response.usage.total_tokens)
