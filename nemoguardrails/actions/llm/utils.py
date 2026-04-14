@@ -98,7 +98,8 @@ async def _stream_llm_call(
     llm_params: Optional[dict] = None,
 ) -> LLMResponse:
     handler.stop = stop or []
-    accumulated_metadata: Dict[str, Any] = {}
+    streaming_handler_metadata: Dict[str, Any] = {}
+    accumulated_provider_metadata: Dict[str, Any] = {}
     accumulated_reasoning: List[str] = []
     tool_calls = None
     model_name: Optional[str] = None
@@ -122,14 +123,16 @@ async def _stream_llm_call(
                 request_id = chunk.request_id
             if chunk.usage:
                 usage = chunk.usage
+            if chunk.provider_metadata:
+                accumulated_provider_metadata.update(chunk.provider_metadata)
 
             chunk_metadata = _extract_chunk_metadata(chunk)
             if chunk_metadata:
-                accumulated_metadata.update(chunk_metadata)
+                streaming_handler_metadata.update(chunk_metadata)
 
             await handler.push_chunk(content, chunk_metadata)
 
-        llm_response_metadata_var.set(accumulated_metadata or None)
+        llm_response_metadata_var.set(accumulated_provider_metadata or None)
 
         await handler.finish()
 
@@ -160,7 +163,7 @@ async def _stream_llm_call(
             finish_reason=finish_reason,
             request_id=request_id,
             usage=usage,
-            provider_metadata=accumulated_metadata if accumulated_metadata else None,
+            provider_metadata=accumulated_provider_metadata or None,
         )
 
     except Exception as e:
