@@ -215,6 +215,258 @@ class TestOpenAICompatibleClient:
         payload = client._apost.call_args[0][1]
         assert payload["temperature"] == 0.5
 
+    @pytest.mark.asyncio
+    async def test_generate_cached_tokens(self):
+        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
+        response_data = _make_completion_response(
+            usage={
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "total_tokens": 120,
+                "prompt_tokens_details": {"cached_tokens": 50},
+                "completion_tokens_details": {"reasoning_tokens": 5},
+            }
+        )
+        client._apost = AsyncMock(return_value=response_data)
+
+        result = await client.generate_async("Hi")
+
+        assert result.usage.cached_tokens == 50
+        assert result.usage.reasoning_tokens == 5
+
+    @pytest.mark.asyncio
+    async def test_generate_null_token_details(self):
+        client = OpenAICompatibleClient(
+            model="nvidia/nemotron", base_url="https://integrate.api.nvidia.com/v1", api_key="nvapi-test"
+        )
+        response_data = _make_completion_response(
+            usage={
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "total_tokens": 120,
+                "prompt_tokens_details": None,
+                "completion_tokens_details": None,
+            }
+        )
+        client._apost = AsyncMock(return_value=response_data)
+
+        result = await client.generate_async("Hi")
+
+        assert result.usage.input_tokens == 100
+        assert result.usage.cached_tokens is None
+        assert result.usage.reasoning_tokens is None
+
+    @pytest.mark.asyncio
+    async def test_stream_single_tool_call(self):
+        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_abc",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": ""},
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"ci'}}]},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"tool_calls": [{"index": 0, "function": {"arguments": 'ty":"Paris"}'}}]},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+            },
+        ]
+
+        async def mock_stream(*args, **kwargs):
+            for chunk in chunks:
+                yield chunk
+
+        client._apost_stream = mock_stream
+
+        results = []
+        async for chunk in client.stream_async("What's the weather?"):
+            results.append(chunk)
+
+        assert len(results) == 5
+        assert results[0].delta_tool_calls is None
+        assert results[1].delta_tool_calls is None
+        assert results[2].delta_tool_calls is None
+
+        final = results[3]
+        assert final.finish_reason == "tool_calls"
+        assert final.delta_tool_calls is not None
+        assert len(final.delta_tool_calls) == 1
+        assert final.delta_tool_calls[0].id == "call_abc"
+        assert final.delta_tool_calls[0].function.name == "get_weather"
+        assert final.delta_tool_calls[0].function.arguments == {"city": "Paris"}
+
+        assert results[4].usage.total_tokens == 25
+
+    @pytest.mark.asyncio
+    async def test_stream_parallel_tool_calls(self):
+        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {"name": "get_weather", "arguments": ""},
+                                },
+                                {
+                                    "index": 1,
+                                    "id": "call_2",
+                                    "type": "function",
+                                    "function": {"name": "get_time", "arguments": ""},
+                                },
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {"index": 0, "function": {"arguments": '{"city":"Paris"}'}},
+                                {"index": 1, "function": {"arguments": '{"city":"Paris"}'}},
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+            },
+        ]
+
+        async def mock_stream(*args, **kwargs):
+            for chunk in chunks:
+                yield chunk
+
+        client._apost_stream = mock_stream
+
+        results = []
+        async for chunk in client.stream_async("Weather and time?"):
+            results.append(chunk)
+
+        final = results[-1]
+        assert final.finish_reason == "tool_calls"
+        assert len(final.delta_tool_calls) == 2
+        assert final.delta_tool_calls[0].function.name == "get_weather"
+        assert final.delta_tool_calls[0].function.arguments == {"city": "Paris"}
+        assert final.delta_tool_calls[1].function.name == "get_time"
+        assert final.delta_tool_calls[1].function.arguments == {"city": "Paris"}
+
+    @pytest.mark.asyncio
+    async def test_stream_tool_call_invalid_json(self):
+        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_x",
+                                    "type": "function",
+                                    "function": {"name": "broken", "arguments": ""},
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{not valid"}}]},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+            },
+        ]
+
+        async def mock_stream(*args, **kwargs):
+            for chunk in chunks:
+                yield chunk
+
+        client._apost_stream = mock_stream
+
+        results = []
+        async for chunk in client.stream_async("test"):
+            results.append(chunk)
+
+        final = results[-1]
+        assert final.delta_tool_calls is not None
+        assert final.delta_tool_calls[0].function.arguments == {}
+
 
 class TestErrorHandling:
     @pytest.mark.asyncio

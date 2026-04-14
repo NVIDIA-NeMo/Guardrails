@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
@@ -22,11 +37,7 @@ _FINISH_REASON_MAP: Dict[str, FinishReason] = {
 
 def _is_reasoning_model(model_name: str) -> bool:
     name = model_name.lower()
-    return (
-        name.startswith("o1")
-        or name.startswith("o3")
-        or (name.startswith("gpt-5") and "chat" not in name)
-    )
+    return name.startswith("o1") or name.startswith("o3") or (name.startswith("gpt-5") and "chat" not in name)
 
 
 class OpenAICompatibleClient(BaseClient):
@@ -124,10 +135,58 @@ class OpenAICompatibleClient(BaseClient):
     ) -> AsyncIterator[LLMResponseChunk]:
         messages = self._to_messages(prompt)
         payload = self._build_payload(messages, stop=stop, stream=True, **kwargs)
+
+        tool_call_acc: Dict[int, Dict[str, Any]] = {}
+
         async for chunk_data in self._apost_stream(self._ROUTE, payload):
+            choices = chunk_data.get("choices", [])
+            if choices:
+                delta = choices[0].get("delta", {})
+                raw_tool_calls = delta.get("tool_calls")
+                if raw_tool_calls:
+                    for tc_delta in raw_tool_calls:
+                        idx = tc_delta["index"]
+                        if idx not in tool_call_acc:
+                            tool_call_acc[idx] = {
+                                "id": tc_delta.get("id", ""),
+                                "type": tc_delta.get("type", "function"),
+                                "function_name": tc_delta.get("function", {}).get("name", ""),
+                                "arguments_buffer": "",
+                            }
+                        arg_fragment = tc_delta.get("function", {}).get("arguments", "")
+                        if arg_fragment:
+                            tool_call_acc[idx]["arguments_buffer"] += arg_fragment
+
             chunk = self._parse_chunk(chunk_data)
-            if chunk is not None:
-                yield chunk
+            if chunk is None:
+                continue
+
+            if chunk.finish_reason == "tool_calls" and tool_call_acc:
+                chunk.delta_tool_calls = self._finalize_tool_calls(tool_call_acc)
+
+            yield chunk
+
+    @staticmethod
+    def _finalize_tool_calls(acc: Dict[int, Dict[str, Any]]) -> List[ToolCall]:
+        result = []
+        for idx in sorted(acc.keys()):
+            entry = acc[idx]
+            raw_args = entry["arguments_buffer"]
+            try:
+                args_dict = json.loads(raw_args) if raw_args else {}
+            except json.JSONDecodeError:
+                args_dict = {}
+            result.append(
+                ToolCall(
+                    id=entry["id"],
+                    type=entry["type"],
+                    function=ToolCallFunction(
+                        name=entry["function_name"],
+                        arguments=args_dict,
+                    ),
+                )
+            )
+        return result
 
     def _parse_response(self, data: Dict[str, Any]) -> LLMResponse:
         choice = data["choices"][0]
@@ -153,8 +212,12 @@ class OpenAICompatibleClient(BaseClient):
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 total_tokens=raw_usage.get("total_tokens") or (input_tokens + output_tokens),
-                reasoning_tokens=raw_usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
+                reasoning_tokens=(raw_usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+                cached_tokens=(raw_usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
             )
+
+        _extracted = {"model", "choices", "usage", "id", "object", "created"}
+        provider_metadata = {k: v for k, v in data.items() if k not in _extracted and v is not None}
 
         return LLMResponse(
             content=content,
@@ -162,7 +225,9 @@ class OpenAICompatibleClient(BaseClient):
             tool_calls=tool_calls,
             model=data.get("model"),
             finish_reason=finish_reason,
+            request_id=data.get("id"),
             usage=usage,
+            provider_metadata=provider_metadata or None,
         )
 
     def _parse_chunk(self, data: Dict[str, Any]) -> Optional[LLMResponseChunk]:
@@ -173,10 +238,13 @@ class OpenAICompatibleClient(BaseClient):
                 input_tokens = raw_usage.get("prompt_tokens", 0)
                 output_tokens = raw_usage.get("completion_tokens", 0)
                 return LLMResponseChunk(
+                    request_id=data.get("id"),
                     usage=UsageInfo(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         total_tokens=raw_usage.get("total_tokens") or (input_tokens + output_tokens),
+                        reasoning_tokens=(raw_usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+                        cached_tokens=(raw_usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
                     ),
                 )
             return None
@@ -194,6 +262,7 @@ class OpenAICompatibleClient(BaseClient):
             delta_reasoning=reasoning,
             model=data.get("model"),
             finish_reason=finish_reason,
+            request_id=data.get("id"),
         )
 
     @staticmethod
