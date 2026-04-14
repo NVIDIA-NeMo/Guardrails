@@ -144,10 +144,15 @@ async def _stream_llm_call(
 
         if tool_calls:
             tool_calls_var.set([tc.to_dict() for tc in tool_calls])
+        else:
+            tool_calls_var.set(None)
+
+        reasoning_content = "".join(accumulated_reasoning) if accumulated_reasoning else None
+        reasoning_trace_var.set(reasoning_content)
 
         return LLMResponse(
             content=handler.completion,
-            reasoning="".join(accumulated_reasoning) if accumulated_reasoning else None,
+            reasoning=reasoning_content,
             tool_calls=tool_calls,
             model=model_name,
             finish_reason=finish_reason,

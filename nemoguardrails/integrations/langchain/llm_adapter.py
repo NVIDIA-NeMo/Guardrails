@@ -388,6 +388,7 @@ def _finalize_tool_call_acc(acc: Dict[int, Dict[str, Any]]) -> List[ToolCall]:
         try:
             args_dict = json.loads(raw_args) if raw_args else {}
         except json.JSONDecodeError:
+            log.warning("Failed to parse tool call arguments for '%s' (index %d): %r", entry["name"], idx, raw_args)
             args_dict = {}
         result.append(
             ToolCall(

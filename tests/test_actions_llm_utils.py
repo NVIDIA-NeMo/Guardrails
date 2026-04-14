@@ -539,6 +539,7 @@ class TestStreamLlmCallAccumulation:
         assert result.reasoning == "Let me think..."
         assert result.model == "gpt-4o"
         assert result.finish_reason == "stop"
+        assert reasoning_trace_var.get() == "Let me think..."
 
     @pytest.mark.asyncio
     async def test_text_only(self):
