@@ -469,91 +469,226 @@ class TestOpenAICompatibleClient:
 
 
 class TestErrorHandling:
-    @pytest.mark.asyncio
-    async def test_auth_error(self):
-        from nemoguardrails.exceptions import LLMAuthenticationError
+    def _make_client(self):
+        return OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
 
-        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
+    def _mock_error_response(self, client, status_code, body, headers=None):
+        import httpx
 
         async def mock_post(*args, **kwargs):
-            import httpx
-
+            resp_headers = dict(headers or {})
+            if isinstance(body, dict):
+                return httpx.Response(
+                    status_code,
+                    json=body,
+                    headers=resp_headers,
+                    request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+                )
             return httpx.Response(
-                401,
-                json={
-                    "error": {"message": "Invalid API key", "type": "invalid_request_error", "code": "invalid_api_key"}
-                },
+                status_code,
+                text=body,
+                headers=resp_headers,
                 request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
             )
 
         client._get_client = AsyncMock()
         client._get_client.return_value.post = mock_post
+
+    @pytest.mark.asyncio
+    async def test_401_auth_error(self):
+        from nemoguardrails.exceptions import LLMAuthenticationError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client,
+            401,
+            {"error": {"message": "Invalid API key", "type": "invalid_request_error", "code": "invalid_api_key"}},
+        )
 
         with pytest.raises(LLMAuthenticationError) as exc_info:
             await client.generate_async("Hi")
         assert exc_info.value.status_code == 401
         assert "Invalid API key" in exc_info.value.error_message
+        assert exc_info.value.error_code == "invalid_api_key"
 
     @pytest.mark.asyncio
-    async def test_bad_request_error(self):
+    async def test_403_permission_denied(self):
+        from nemoguardrails.exceptions import LLMAuthenticationError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client, 403, {"error": {"message": "Country, region, or territory not supported", "type": "access_denied"}}
+        )
+
+        with pytest.raises(LLMAuthenticationError) as exc_info:
+            await client.generate_async("Hi")
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_429_rate_limit(self):
+        from nemoguardrails.exceptions import LLMRateLimitError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client, 429, {"error": {"message": "Rate limit reached for gpt-4o", "type": "tokens"}}
+        )
+
+        with pytest.raises(LLMRateLimitError) as exc_info:
+            await client.generate_async("Hi")
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.retry_after_seconds is None
+
+    @pytest.mark.asyncio
+    async def test_429_rate_limit_with_retry_after(self):
+        from nemoguardrails.exceptions import LLMRateLimitError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client,
+            429,
+            {"error": {"message": "Rate limit reached"}},
+            headers={"retry-after": "20"},
+        )
+
+        with pytest.raises(LLMRateLimitError) as exc_info:
+            await client.generate_async("Hi")
+        assert exc_info.value.retry_after_seconds == 20.0
+
+    @pytest.mark.asyncio
+    async def test_400_bad_request(self):
         from nemoguardrails.exceptions import LLMBadRequestError
 
-        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
-
-        async def mock_post(*args, **kwargs):
-            import httpx
-
-            return httpx.Response(
-                400,
-                json={"error": {"message": "Invalid temperature value", "type": "invalid_request_error"}},
-                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
-            )
-
-        client._get_client = AsyncMock()
-        client._get_client.return_value.post = mock_post
+        client = self._make_client()
+        self._mock_error_response(
+            client, 400, {"error": {"message": "Invalid temperature value", "type": "invalid_request_error"}}
+        )
 
         with pytest.raises(LLMBadRequestError) as exc_info:
             await client.generate_async("Hi")
         assert exc_info.value.status_code == 400
+        assert "Invalid temperature" in exc_info.value.error_message
 
     @pytest.mark.asyncio
-    async def test_context_window_error(self):
+    async def test_400_context_window(self):
         from nemoguardrails.exceptions import LLMContextWindowError
 
-        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
-
-        async def mock_post(*args, **kwargs):
-            import httpx
-
-            return httpx.Response(
-                400,
-                json={"error": {"message": "This model's maximum context length is 8192 tokens"}},
-                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
-            )
-
-        client._get_client = AsyncMock()
-        client._get_client.return_value.post = mock_post
+        client = self._make_client()
+        self._mock_error_response(
+            client, 400, {"error": {"message": "This model's maximum context length is 8192 tokens"}}
+        )
 
         with pytest.raises(LLMContextWindowError):
             await client.generate_async("Hi")
 
     @pytest.mark.asyncio
+    async def test_400_unsupported_params(self):
+        from nemoguardrails.exceptions import LLMUnsupportedParamsError
+
+        client = self._make_client()
+        self._mock_error_response(client, 400, {"error": {"message": "temperature is not supported with this model"}})
+
+        with pytest.raises(LLMUnsupportedParamsError):
+            await client.generate_async("Hi")
+
+    @pytest.mark.asyncio
+    async def test_422_unprocessable_entity(self):
+        from nemoguardrails.exceptions import LLMBadRequestError
+
+        client = self._make_client()
+        self._mock_error_response(client, 422, {"error": {"message": "Invalid schema for function parameters"}})
+
+        with pytest.raises(LLMBadRequestError) as exc_info:
+            await client.generate_async("Hi")
+        assert exc_info.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_500_server_error(self):
+        from nemoguardrails.exceptions import LLMServerError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client, 500, {"error": {"message": "The server had an error processing your request"}}
+        )
+
+        with pytest.raises(LLMServerError) as exc_info:
+            await client.generate_async("Hi")
+        assert exc_info.value.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_503_service_unavailable(self):
+        from nemoguardrails.exceptions import LLMServerError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client, 503, {"error": {"message": "The engine is currently overloaded, please try again later"}}
+        )
+
+        with pytest.raises(LLMServerError) as exc_info:
+            await client.generate_async("Hi")
+        assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_unparseable_error_body(self):
+        from nemoguardrails.exceptions import LLMServerError
+
+        client = self._make_client()
+        self._mock_error_response(client, 500, "Internal Server Error")
+
+        with pytest.raises(LLMServerError) as exc_info:
+            await client.generate_async("Hi")
+        assert "Internal Server Error" in exc_info.value.error_message
+
+    @pytest.mark.asyncio
+    async def test_vllm_flat_error_format(self):
+        from nemoguardrails.exceptions import LLMBadRequestError
+
+        client = self._make_client()
+        self._mock_error_response(
+            client,
+            400,
+            {
+                "object": "error",
+                "message": "The model does not support chat completions",
+                "type": "BadRequestError",
+                "param": None,
+                "code": 400,
+            },
+        )
+
+        with pytest.raises(LLMBadRequestError) as exc_info:
+            await client.generate_async("Hi")
+        assert "does not support" in exc_info.value.error_message
+
+    @pytest.mark.asyncio
+    async def test_detail_field_error_format(self):
+        from nemoguardrails.exceptions import LLMBadRequestError
+
+        client = self._make_client()
+        self._mock_error_response(client, 422, {"detail": "Validation error on field temperature"})
+
+        with pytest.raises(LLMBadRequestError) as exc_info:
+            await client.generate_async("Hi")
+        assert "Validation error" in exc_info.value.error_message
+
+    @pytest.mark.asyncio
+    async def test_error_string_in_error_field(self):
+        from nemoguardrails.exceptions import LLMServerError
+
+        client = self._make_client()
+        self._mock_error_response(client, 500, {"error": "something went wrong"})
+
+        with pytest.raises(LLMServerError) as exc_info:
+            await client.generate_async("Hi")
+        assert "something went wrong" in exc_info.value.error_message
+
+    @pytest.mark.asyncio
     async def test_error_redacts_api_key(self):
         from nemoguardrails.exceptions import LLMAuthenticationError
 
-        client = OpenAICompatibleClient(model="gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
-
-        async def mock_post(*args, **kwargs):
-            import httpx
-
-            return httpx.Response(
-                401,
-                json={"error": {"message": "Incorrect API key provided: sk-proj-abc123def456"}},
-                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
-            )
-
-        client._get_client = AsyncMock()
-        client._get_client.return_value.post = mock_post
+        client = self._make_client()
+        self._mock_error_response(
+            client, 401, {"error": {"message": "Incorrect API key provided: sk-proj-abc123def456"}}
+        )
 
         with pytest.raises(LLMAuthenticationError) as exc_info:
             await client.generate_async("Hi")

@@ -134,8 +134,10 @@ class BaseClient:
                 error_code = error_obj.get("code")
             elif isinstance(error_obj, str):
                 error_message = error_obj
+            if not error_message:
+                error_message = data.get("message") or data.get("detail") or ""
         except (json.JSONDecodeError, AttributeError):
-            error_message = body or f"HTTP {status_code}"
+            error_message = body or ""
 
         if not error_message:
             error_message = f"HTTP {status_code}"
