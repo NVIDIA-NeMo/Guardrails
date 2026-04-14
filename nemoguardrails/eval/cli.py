@@ -170,12 +170,12 @@ def check_compliance(
     if disable_llm_cache:
         console.print("[orange]Caching is disabled.[/]")
     else:
-        console.print("[green]Caching is enabled.[/]")
         try:
             from langchain_community.cache import SQLiteCache
             from langchain_core.globals import set_llm_cache
 
             set_llm_cache(SQLiteCache(database_path=".langchain.db"))
+            console.print("[green]Caching is enabled.[/]")
         except ImportError:
             console.print("[yellow]langchain not installed, LLM caching unavailable.[/]")
 
