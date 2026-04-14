@@ -1370,7 +1370,7 @@ def test_embedding_model_backfills_search_provider_parameters():
     assert "embedding_model" not in config.core.embedding_search_provider.parameters
     assert "embedding_model" not in config.knowledge_base.embedding_search_provider.parameters
 
-    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=["  express greeting"]))
 
     assert rails.config.core.embedding_search_provider.parameters["embedding_model"] == "intfloat/e5-large-v2"
     assert rails.config.core.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
@@ -1399,7 +1399,7 @@ def test_embedding_model_does_not_overwrite_explicit_parameters():
         }
     )
 
-    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=["  express greeting"]))
 
     assert rails.config.core.embedding_search_provider.parameters["embedding_model"] == "my-core-model"
     assert rails.config.core.embedding_search_provider.parameters["embedding_engine"] == "MyEngine"
@@ -1426,7 +1426,7 @@ def test_embedding_model_partial_backfill_only_fills_missing():
         }
     )
 
-    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=["  express greeting"]))
 
     assert rails.config.core.embedding_search_provider.parameters["embedding_model"] == "my-core-model"
     assert rails.config.core.embedding_search_provider.parameters["embedding_engine"] == "SentenceTransformers"
@@ -1447,7 +1447,7 @@ def test_embedding_model_no_backfill_for_custom_provider():
         }
     )
 
-    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=["  express greeting"]))
 
     assert "embedding_model" not in rails.config.core.embedding_search_provider.parameters
     assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
@@ -1469,7 +1469,7 @@ def test_embedding_model_no_backfill_when_no_embeddings_model():
         }
     )
 
-    rails = LLMRails(config=config, llm=FakeLLM(responses=["  express greeting"]))
+    rails = LLMRails(config=config, llm=FakeLLMModel(responses=["  express greeting"]))
 
     assert "embedding_model" not in rails.config.core.embedding_search_provider.parameters
     assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
