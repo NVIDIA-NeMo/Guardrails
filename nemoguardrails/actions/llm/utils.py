@@ -29,7 +29,7 @@ from nemoguardrails.context import (
 from nemoguardrails.exceptions import LLMCallException
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
-from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk
+from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
 
 if TYPE_CHECKING:
     from nemoguardrails.streaming import StreamingHandler
@@ -99,12 +99,29 @@ async def _stream_llm_call(
 ) -> LLMResponse:
     handler.stop = stop or []
     accumulated_metadata: Dict[str, Any] = {}
-    last_chunk: Optional[LLMResponseChunk] = None
+    accumulated_reasoning: List[str] = []
+    tool_calls = None
+    model_name: Optional[str] = None
+    finish_reason: Optional[str] = None
+    request_id: Optional[str] = None
+    usage: Optional[UsageInfo] = None
 
     try:
         async for chunk in model.stream_async(prompt, stop=stop, **(llm_params or {})):
-            last_chunk = chunk
             content = chunk.delta_content or ""
+
+            if chunk.delta_reasoning:
+                accumulated_reasoning.append(chunk.delta_reasoning)
+            if chunk.delta_tool_calls:
+                tool_calls = chunk.delta_tool_calls
+            if chunk.model:
+                model_name = chunk.model
+            if chunk.finish_reason:
+                finish_reason = chunk.finish_reason
+            if chunk.request_id:
+                request_id = chunk.request_id
+            if chunk.usage:
+                usage = chunk.usage
 
             chunk_metadata = _extract_chunk_metadata(chunk)
             if chunk_metadata:
@@ -121,12 +138,21 @@ async def _stream_llm_call(
         if llm_call_info:
             llm_call_info.completion = handler.completion
 
-        if last_chunk is not None:
-            _update_token_stats_from_chunk(last_chunk)
+        if usage:
+            fake_chunk = LLMResponseChunk(usage=usage)
+            _update_token_stats_from_chunk(fake_chunk)
+
+        if tool_calls:
+            tool_calls_var.set([tc.to_dict() for tc in tool_calls])
 
         return LLMResponse(
             content=handler.completion,
-            usage=last_chunk.usage if last_chunk else None,
+            reasoning="".join(accumulated_reasoning) if accumulated_reasoning else None,
+            tool_calls=tool_calls,
+            model=model_name,
+            finish_reason=finish_reason,
+            request_id=request_id,
+            usage=usage,
             provider_metadata=accumulated_metadata if accumulated_metadata else None,
         )
 
@@ -135,6 +161,11 @@ async def _stream_llm_call(
 
 
 def _extract_chunk_metadata(chunk: LLMResponseChunk) -> Optional[Dict[str, Any]]:
+    # This feeds handler.push_chunk() for the StreamingHandler consumer path
+    # (API responses, output rails). Separate from the field accumulation in
+    # _stream_llm_call which builds the returned LLMResponse for the pipeline.
+    # TODO(Pouyanpi): consider pushing tool_calls and reasoning through the handler too,
+    # so output rails and streaming consumers can see them in real-time.
     metadata: Dict[str, Any] = {}
     if chunk.provider_metadata:
         metadata["provider_metadata"] = chunk.provider_metadata
