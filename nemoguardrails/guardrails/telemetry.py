@@ -17,8 +17,12 @@
 
 All OpenTelemetry API imports are isolated in this module so the rest of the
 guardrails package never imports ``opentelemetry`` directly.  When the
-``opentelemetry-api`` package is not installed the module degrades gracefully
-and every public function returns a safe default.
+``opentelemetry-api`` package is not installed, the public entry points
+``is_tracing_enabled``, ``get_tracer``, and ``traced_request`` degrade
+gracefully (returning ``False``, ``None``, or a no-span passthrough
+respectively).  Lower-level helpers like ``request_span`` and
+``trace_id_to_request_id`` require OTEL to be available and are only
+reachable through ``traced_request`` when a non-``None`` tracer is provided.
 """
 
 import logging
@@ -59,7 +63,7 @@ else:
         from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
         _OTEL_AVAILABLE = True
-    except ImportError:
+    except ImportError:  # pragma: no cover
         _OTEL_AVAILABLE = False
 
 _tracer = None
@@ -119,7 +123,6 @@ def request_span(tracer):
     ) as span:
         req_id = trace_id_to_request_id(span)
         span.set_attribute(GenAIAttributes.GEN_AI_OPERATION_NAME, OperationNames.GUARDRAILS)
-        span.set_attribute("service.name", SystemConstants.SYSTEM_NAME)
         span.set_attribute("request.id", req_id)
         try:
             yield span, req_id

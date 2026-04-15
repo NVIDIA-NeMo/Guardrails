@@ -100,7 +100,6 @@ class TestGenerateAsyncWithTracing:
         spans = exporter.get_finished_spans()
         attrs = dict(spans[0].attributes)
         assert attrs["gen_ai.operation.name"] == "guardrails"
-        assert attrs["service.name"] == "nemo-guardrails"
         assert "request.id" in attrs
         assert len(attrs["request.id"]) == 16
 
@@ -229,7 +228,6 @@ class TestEndToEndTracing:
         # Attributes
         attrs = dict(span.attributes)
         assert attrs["gen_ai.operation.name"] == "guardrails"
-        assert attrs["service.name"] == "nemo-guardrails"
         req_id = attrs["request.id"]
         assert len(req_id) == 16
         int(req_id, 16)  # valid hex

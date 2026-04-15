@@ -115,8 +115,34 @@ class TestRequestSpan:
 
         attrs = dict(spans[0].attributes) if (spans := exporter.get_finished_spans()) else {}
         assert attrs["gen_ai.operation.name"] == "guardrails"
-        assert attrs["service.name"] == "nemo-guardrails"
         assert attrs["request.id"] == req_id
+
+    def test_service_name_not_on_span(self, otel_provider):
+        """service.name is a Resource attribute, not a span attribute."""
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with request_span(tracer) as (span, req_id):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert "service.name" not in attrs
+
+    def test_service_name_on_resource(self):
+        """service.name should come from the TracerProvider's Resource."""
+        from opentelemetry.sdk.resources import Resource
+
+        resource = Resource.create({"service.name": "nemo-guardrails"})
+        provider = TracerProvider(resource=resource)
+        exporter = InMemorySpanExporter()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        tracer = provider.get_tracer("test")
+
+        with request_span(tracer) as (span, req_id):
+            pass
+
+        finished = exporter.get_finished_spans()
+        assert finished[0].resource.attributes["service.name"] == "nemo-guardrails"
 
     def test_request_id_is_16_hex(self, otel_provider):
         provider, _ = otel_provider
