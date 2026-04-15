@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Canonical OpenTelemetry instrumentation for the IORails engine.
+"""Inline OpenTelemetry instrumentation for the IORails engine.
 
 All OpenTelemetry API imports are isolated in this module so the rest of the
 guardrails package never imports ``opentelemetry`` directly.  When the
@@ -80,11 +80,16 @@ def get_tracer():
     if not _OTEL_AVAILABLE:
         return None
     if _tracer is None:
-        from importlib.metadata import version
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            lib_version = version("nemoguardrails")
+        except PackageNotFoundError:  # pragma: no cover
+            lib_version = "0.0.0-dev"
 
         _tracer = trace.get_tracer(
             SystemConstants.SYSTEM_NAME,
-            instrumenting_library_version=version("nemoguardrails"),
+            instrumenting_library_version=lib_version,
             schema_url="https://opentelemetry.io/schemas/1.26.0",
         )
     return _tracer

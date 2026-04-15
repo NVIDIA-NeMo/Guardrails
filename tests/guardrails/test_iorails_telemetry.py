@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests: IORails generate_async with canonical OTEL tracing."""
+"""Integration tests: IORails generate_async with inline OTEL instrumentation."""
 
 import asyncio
 import copy

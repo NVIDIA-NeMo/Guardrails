@@ -78,7 +78,7 @@ class IORails:
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)
 
-        # Canonical OTEL tracing
+        # Inline OTEL instrumentation
         self._tracing_enabled = is_tracing_enabled(config.tracing)
         self._tracer = get_tracer() if self._tracing_enabled else None
 
