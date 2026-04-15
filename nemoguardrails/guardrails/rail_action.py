@@ -33,6 +33,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     get_request_id,
     truncate,
 )
+from nemoguardrails.guardrails.telemetry import action_span, get_tracer
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 
@@ -70,28 +71,30 @@ class RailAction(ABC):
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Execute the full rail pipeline and return a safety result."""
-        req_id = get_request_id()
-        base_flow = _get_flow_name(flow)
-        self._validate_flow_name(base_flow)
+        tracer = get_tracer()
+        with action_span(tracer, self.action_name):
+            req_id = get_request_id()
+            base_flow = _get_flow_name(flow)
+            self._validate_flow_name(base_flow)
 
-        model_type = self._get_model_type(flow)
-        if self.requires_model and not model_type:
-            raise RuntimeError(f"No $model= specified for '{base_flow}' and no fallback_model defined")
+            model_type = self._get_model_type(flow)
+            if self.requires_model and not model_type:
+                raise RuntimeError(f"No $model= specified for '{base_flow}' and no fallback_model defined")
 
-        extracted = self._extract_messages(messages, bot_response)
-        log.debug("[%s] %s extracted: %s", req_id, base_flow, truncate(extracted))
+            extracted = self._extract_messages(messages, bot_response)
+            log.debug("[%s] %s extracted: %s", req_id, base_flow, truncate(extracted))
 
-        prompt = self._create_prompt(model_type, extracted)
-        if prompt is not None:
-            log.debug("[%s] %s prompt: %s", req_id, base_flow, truncate(prompt))
+            prompt = self._create_prompt(model_type, extracted)
+            if prompt is not None:
+                log.debug("[%s] %s prompt: %s", req_id, base_flow, truncate(prompt))
 
-        try:
-            response = await self._get_response(model_type, prompt)
-            log.debug("[%s] %s response: %s", req_id, base_flow, truncate(response))
-            return self._parse_response(response)
-        except Exception as e:
-            log.error("[%s] %s failed: %s", req_id, base_flow, e)
-            return RailResult(is_safe=False, reason=f"{base_flow} error: {e}")
+            try:
+                response = await self._get_response(model_type, prompt)
+                log.debug("[%s] %s response: %s", req_id, base_flow, truncate(response))
+                return self._parse_response(response)
+            except Exception as e:
+                log.error("[%s] %s failed: %s", req_id, base_flow, e)
+                return RailResult(is_safe=False, reason=f"{base_flow} error: {e}")
 
     def _get_model_type(self, flow: str) -> Optional[str]:
         """Extract model from the flow's ``$model=`` parameter, falling back to :attr:`fallback_model`."""

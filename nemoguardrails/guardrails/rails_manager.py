@@ -39,8 +39,10 @@ from nemoguardrails.guardrails.guardrails_types import (
     get_request_id,
 )
 from nemoguardrails.guardrails.rail_action import RailAction
+from nemoguardrails.guardrails.telemetry import get_tracer, rail_span
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_name
+from nemoguardrails.tracing.constants import GuardrailsAttributes
 
 log = logging.getLogger(__name__)
 
@@ -141,8 +143,14 @@ class RailsManager:
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Dispatch a single rail flow to its RailAction instance."""
-        action = self._actions[flow]
-        return await action.run(flow, messages, bot_response)
+        tracer = get_tracer()
+        direction = RailDirection.INPUT if flow in self.input_flows else RailDirection.OUTPUT
+        with rail_span(tracer, flow, direction) as span:
+            action = self._actions[flow]
+            result = await action.run(flow, messages, bot_response)
+            if span is not None and not result.is_safe:
+                span.set_attribute(GuardrailsAttributes.RAIL_STOP, True)
+            return result
 
     async def _run_rails_sequential(
         self,

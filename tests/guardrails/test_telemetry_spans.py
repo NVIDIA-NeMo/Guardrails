@@ -1,0 +1,196 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for telemetry span helpers: rail_span, action_span, llm_call_span, api_call_span."""
+
+import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanKind, StatusCode
+
+from nemoguardrails.guardrails.guardrails_types import RailDirection
+from nemoguardrails.guardrails.telemetry import (
+    action_span,
+    api_call_span,
+    llm_call_span,
+    rail_span,
+)
+
+
+@pytest.fixture
+def otel_provider():
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return provider, exporter
+
+
+class TestRailSpan:
+    def test_creates_internal_span(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with rail_span(tracer, "content safety check input $model=content_safety", RailDirection.INPUT) as span:
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "guardrails.rail"
+        assert spans[0].kind == SpanKind.INTERNAL
+
+    def test_sets_attributes(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with rail_span(tracer, "content safety check output $model=content_safety", RailDirection.OUTPUT):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["rail.type"] == "Output"
+        assert attrs["rail.name"] == "content safety check output $model=content_safety"
+
+    def test_noop_when_tracer_none(self):
+        with rail_span(None, "some flow", RailDirection.INPUT) as span:
+            assert span is None
+
+    def test_records_exception(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(RuntimeError, match="rail failed"):
+            with rail_span(tracer, "some flow", RailDirection.INPUT):
+                raise RuntimeError("rail failed")
+
+        spans = exporter.get_finished_spans()
+        assert spans[0].status.status_code == StatusCode.ERROR
+
+
+class TestActionSpan:
+    def test_creates_internal_span(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with action_span(tracer, "content safety check input"):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "guardrails.action"
+        assert spans[0].kind == SpanKind.INTERNAL
+
+    def test_sets_action_name(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with action_span(tracer, "jailbreak detection"):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["action.name"] == "jailbreak detection"
+
+    def test_noop_when_tracer_none(self):
+        with action_span(None, "some action") as span:
+            assert span is None
+
+
+class TestLlmCallSpan:
+    def test_creates_client_span(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "main", "nim"):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].kind == SpanKind.CLIENT
+
+    def test_span_name_follows_convention(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "main", "nim"):
+            pass
+
+        assert exporter.get_finished_spans()[0].name == "chat meta/llama-3.3-70b-instruct"
+
+    def test_sets_genai_attributes(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "main", "nim", "chat"):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.operation.name"] == "chat"
+        assert attrs["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
+        assert attrs["gen_ai.provider.name"] == "nim"
+
+    def test_records_error_type(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(ConnectionError):
+            with llm_call_span(tracer, "model", "main", "nim"):
+                raise ConnectionError("timeout")
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "ConnectionError"
+
+    def test_noop_when_tracer_none(self):
+        with llm_call_span(None, "model", "main", "nim") as span:
+            assert span is None
+
+
+class TestApiCallSpan:
+    def test_creates_client_span(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with api_call_span(tracer, "jailbreak_detection"):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].kind == SpanKind.CLIENT
+        assert spans[0].name == "api jailbreak_detection"
+
+    def test_sets_operation_name(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with api_call_span(tracer, "jailbreak_detection"):
+            pass
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes)
+        assert attrs["gen_ai.operation.name"] == "api"
+
+    def test_records_error_type(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(ValueError):
+            with api_call_span(tracer, "jailbreak_detection"):
+                raise ValueError("bad response")
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        assert span.attributes["error.type"] == "ValueError"
+
+    def test_noop_when_tracer_none(self):
+        with api_call_span(None, "jailbreak_detection") as span:
+            assert span is None

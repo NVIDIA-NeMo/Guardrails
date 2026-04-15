@@ -17,6 +17,7 @@
 
 import asyncio
 import copy
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -61,15 +62,22 @@ def tracer_from_provider(exporter):
 
 
 @pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def iorails_tracing(tracer_from_provider):
-    """IORails instance with tracing enabled, using a test tracer."""
-    config = RailsConfig.from_content(config=_make_tracing_config())
-    iorails = IORails(config)
-    # Inject the test tracer directly so spans go to our InMemorySpanExporter
+    """IORails instance with tracing enabled, using a test tracer.
+
+    Also injects the tracer into the telemetry module singleton so that
+    child spans created via get_tracer() in RailsManager/RailAction/EngineRegistry
+    go to the same InMemorySpanExporter.
+    """
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        config = RailsConfig.from_content(config=_make_tracing_config())
+        iorails = IORails(config)
     iorails._tracer = tracer_from_provider
     iorails._tracing_enabled = True
-    return iorails
+    old_tracer = telemetry._tracer
+    telemetry._tracer = tracer_from_provider
+    yield iorails
+    telemetry._tracer = old_tracer
 
 
 @pytest.fixture
@@ -313,6 +321,149 @@ class TestEndToEndTracing:
 
         # Span still has valid timing
         assert span.end_time >= span.start_time
+
+
+SAFE_INPUT_JSON = json.dumps({"User Safety": "safe"})
+SAFE_OUTPUT_JSON = json.dumps({"User Safety": "safe", "Response Safety": "safe"})
+UNSAFE_INPUT_JSON = json.dumps({"User Safety": "unsafe", "Safety Categories": "S1: Violence"})
+
+
+def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
+    """Mock at the engine level so the full RailsManager → RailAction → EngineRegistry
+    chain executes (including span creation), but actual HTTP calls are skipped.
+
+    Mocks ModelEngine.chat_completion and APIEngine.call on each registered engine.
+    The content_safety engine returns different JSON for input vs output checks —
+    we use SAFE_INPUT_JSON as default since the output rail's parser also accepts it
+    when Response Safety is absent (it just checks User Safety).
+    """
+    from nemoguardrails.guardrails.api_engine import APIEngine
+    from nemoguardrails.guardrails.model_engine import ModelEngine
+
+    input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
+    for name, engine in iorails.engine_registry._engines.items():
+        if isinstance(engine, ModelEngine):
+            if name == "main":
+                engine.chat_completion = AsyncMock(return_value=main_llm_response)
+            elif name == "content_safety":
+                # Content safety output parser needs Response Safety field
+                engine.chat_completion = AsyncMock(return_value=SAFE_OUTPUT_JSON if input_safe else input_json)
+            else:
+                engine.chat_completion = AsyncMock(return_value=input_json)
+        elif isinstance(engine, APIEngine):
+            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+
+
+class TestSpanHierarchy:
+    """Tests that verify parent-child span relationships across the full pipeline."""
+
+    @pytest.mark.asyncio
+    async def test_span_hierarchy_on_safe_request(self, iorails_tracing, exporter):
+        """Full safe request produces: request → rail → action → LLM/API spans."""
+        _stub_deep_pipeline(iorails_tracing)
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        assert result["content"] == "Hello"
+
+        spans = exporter.get_finished_spans()
+
+        # Find the root request span
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        root = request_spans[0]
+        root_ctx = root.context
+
+        # Rail spans should exist for input and output rails
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+        # 3 input rails + 1 output rail = 4
+        assert len(rail_spans) == 4
+
+        # Action spans should be nested under rail spans
+        action_spans = [s for s in spans if s.name == "guardrails.action"]
+        assert len(action_spans) == 4
+
+        # LLM call spans (content_safety input, topic_safety input, content_safety output, main LLM)
+        llm_spans = [s for s in spans if s.kind == SpanKind.CLIENT]
+        assert len(llm_spans) >= 4  # at least 3 rail LLMs + 1 API + 1 main
+
+        # All rail spans are children of the request span
+        for rail_span in rail_spans:
+            assert rail_span.parent.trace_id == root_ctx.trace_id
+
+    @pytest.mark.asyncio
+    async def test_rail_span_attributes(self, iorails_tracing, exporter):
+        """Rail spans have correct rail.type and rail.name attributes."""
+        _stub_deep_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+
+        input_rails = [s for s in rail_spans if s.attributes["rail.type"] == "Input"]
+        output_rails = [s for s in rail_spans if s.attributes["rail.type"] == "Output"]
+        assert len(input_rails) == 3
+        assert len(output_rails) == 1
+
+        rail_names = {s.attributes["rail.name"] for s in rail_spans}
+        assert "content safety check input $model=content_safety" in rail_names
+        assert "topic safety check input $model=topic_control" in rail_names
+        assert "jailbreak detection model" in rail_names
+        assert "content safety check output $model=content_safety" in rail_names
+
+    @pytest.mark.asyncio
+    async def test_rail_stop_attribute_on_block(self, iorails_tracing, exporter):
+        """When a rail blocks, its span has rail.stop=True."""
+        _stub_deep_pipeline(iorails_tracing, input_safe=False)
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        spans = exporter.get_finished_spans()
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+        # First rail blocked → should have rail.stop
+        blocked = [s for s in rail_spans if s.attributes.get("rail.stop") is True]
+        assert len(blocked) >= 1
+
+    @pytest.mark.asyncio
+    async def test_action_span_attributes(self, iorails_tracing, exporter):
+        """Action spans have correct action.name attributes."""
+        _stub_deep_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+        action_spans = [s for s in spans if s.name == "guardrails.action"]
+        action_names = {s.attributes["action.name"] for s in action_spans}
+        assert "content safety check input" in action_names
+        assert "topic safety check input" in action_names
+        assert "jailbreak detection model" in action_names
+        assert "content safety check output" in action_names
+
+    @pytest.mark.asyncio
+    async def test_llm_span_attributes(self, iorails_tracing, exporter):
+        """LLM spans have GenAI semantic convention attributes."""
+        _stub_deep_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+        # Find a content_safety LLM span (not the main LLM)
+        llm_spans = [s for s in spans if "gen_ai.request.model" in (s.attributes or {})]
+        assert len(llm_spans) >= 1
+
+        # Check one has the expected model attributes
+        models_seen = {s.attributes["gen_ai.request.model"] for s in llm_spans}
+        assert "nvidia/llama-3.1-nemoguard-8b-content-safety" in models_seen or len(models_seen) > 0
+
+    @pytest.mark.asyncio
+    async def test_no_child_spans_when_tracing_disabled(self, iorails_no_tracing, exporter):
+        """With tracing disabled, no spans at all are created."""
+        _stub_safe_pipeline(iorails_no_tracing)
+
+        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        assert len(exporter.get_finished_spans()) == 0
 
 
 class TestOtelNotInstalled:

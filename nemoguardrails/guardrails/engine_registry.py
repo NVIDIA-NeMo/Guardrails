@@ -27,6 +27,7 @@ from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
+from nemoguardrails.guardrails.telemetry import api_call_span, get_tracer, llm_call_span
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 
 log = logging.getLogger(__name__)
@@ -136,7 +137,9 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        result = await engine.chat_completion(messages, **kwargs)
+        tracer = get_tracer()
+        with llm_call_span(tracer, engine.model_name, model_type, engine.model_config.engine or "unknown"):
+            result = await engine.chat_completion(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result
@@ -167,8 +170,10 @@ class EngineRegistry:
         req_id = get_request_id()
         log.debug("[%s] API engine '%s' request: %s", req_id, api_name, truncate(message))
 
-        api_engine = self._get_engine(api_name, APIEngine)
-        response = await api_engine.call(message, **kwargs)
+        tracer = get_tracer()
+        with api_call_span(tracer, api_name):
+            api_engine = self._get_engine(api_name, APIEngine)
+            response = await api_engine.call(message, **kwargs)
 
         log.debug("[%s] API engine '%s' response: %s", req_id, api_name, truncate(response))
         return response
