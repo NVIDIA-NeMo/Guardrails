@@ -1,0 +1,175 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for nemoguardrails.guardrails.telemetry module."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
+
+from nemoguardrails.guardrails import telemetry
+from nemoguardrails.guardrails.telemetry import (
+    get_tracer,
+    is_tracing_enabled,
+    request_span,
+    trace_id_to_request_id,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_tracer_singleton():
+    """Reset the module-level tracer singleton between tests."""
+    telemetry._tracer = None
+    yield
+    telemetry._tracer = None
+
+
+@pytest.fixture
+def otel_provider():
+    """Set up a real TracerProvider with an InMemorySpanExporter for assertions."""
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return provider, exporter
+
+
+class TestGetTracer:
+    def test_returns_tracer(self):
+        tracer = get_tracer()
+        assert tracer is not None
+
+    def test_returns_same_instance(self):
+        t1 = get_tracer()
+        t2 = get_tracer()
+        assert t1 is t2
+
+    def test_returns_none_without_otel(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._tracer = None
+            assert get_tracer() is None
+
+
+class TestTraceIdToRequestId:
+    def test_format_is_16_hex_chars(self, otel_provider):
+        provider, _ = otel_provider
+        tracer = provider.get_tracer("test")
+        with tracer.start_as_current_span("test") as span:
+            req_id = trace_id_to_request_id(span)
+            assert len(req_id) == 16
+            int(req_id, 16)  # must be valid hex
+
+    def test_matches_trace_id_suffix(self, otel_provider):
+        provider, _ = otel_provider
+        tracer = provider.get_tracer("test")
+        with tracer.start_as_current_span("test") as span:
+            full_trace_id = format_trace_id(span.get_span_context().trace_id)
+            req_id = trace_id_to_request_id(span)
+            assert full_trace_id.endswith(req_id)
+
+    def test_zero_trace_id_falls_back_to_random(self):
+        span = MagicMock()
+        ctx = MagicMock()
+        ctx.trace_id = 0
+        span.get_span_context.return_value = ctx
+
+        req_id = trace_id_to_request_id(span)
+        assert len(req_id) == 16
+        int(req_id, 16)  # valid hex
+
+
+class TestRequestSpan:
+    def test_creates_server_span(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with request_span(tracer) as (span, req_id):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "guardrails.request"
+        assert spans[0].kind == SpanKind.SERVER
+
+    def test_sets_required_attributes(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with request_span(tracer) as (span, req_id):
+            pass
+
+        attrs = dict(spans[0].attributes) if (spans := exporter.get_finished_spans()) else {}
+        assert attrs["gen_ai.operation.name"] == "guardrails"
+        assert attrs["service.name"] == "nemo-guardrails"
+        assert attrs["request.id"] == req_id
+
+    def test_request_id_is_16_hex(self, otel_provider):
+        provider, _ = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with request_span(tracer) as (span, req_id):
+            assert len(req_id) == 16
+            int(req_id, 16)
+
+    def test_records_exception_on_error(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(ValueError, match="boom"):
+            with request_span(tracer) as (span, req_id):
+                raise ValueError("boom")
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].status.status_code == StatusCode.ERROR
+        events = spans[0].events
+        exception_events = [e for e in events if e.name == "exception"]
+        assert len(exception_events) == 1
+        assert "boom" in exception_events[0].attributes["exception.message"]
+
+    def test_span_ended_on_success(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with request_span(tracer) as (span, req_id):
+            pass
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].end_time is not None
+
+
+class TestIsTracingEnabled:
+    def test_enabled_with_otel(self):
+        config = MagicMock()
+        config.enabled = True
+        assert is_tracing_enabled(config) is True
+
+    def test_disabled_when_config_disabled(self):
+        config = MagicMock()
+        config.enabled = False
+        assert is_tracing_enabled(config) is False
+
+    def test_disabled_when_config_none(self):
+        assert is_tracing_enabled(None) is False
+
+    def test_disabled_without_otel(self):
+        config = MagicMock()
+        config.enabled = True
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            assert is_tracing_enabled(config) is False

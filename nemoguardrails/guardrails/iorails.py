@@ -39,6 +39,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     truncate,
 )
 from nemoguardrails.guardrails.rails_manager import RailsManager
+from nemoguardrails.guardrails.telemetry import get_tracer, is_tracing_enabled, traced_request
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -76,6 +77,10 @@ class IORails:
 
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)
+
+        # Canonical OTEL tracing
+        self._tracing_enabled = is_tracing_enabled(config.tracing)
+        self._tracer = get_tracer() if self._tracing_enabled else None
 
     @property
     def _has_streaming_output_rails(self) -> bool:
@@ -128,48 +133,51 @@ class IORails:
         """Run input rails, generation, and output rails. Return response if safe."""
         await self.start()
 
-        token = set_new_request_id()
-        req_id = get_request_id()
-        t0 = time.monotonic()
-        try:
-            log.info("[%s] generate_async called", req_id)
-            log.debug("[%s] generate_async messages=%s", req_id, truncate(messages))
+        tracer = self._tracer if self._tracing_enabled else None
+        with traced_request(tracer) as req_id:
+            t0 = time.monotonic()
+            try:
+                return await self._do_generate(messages, req_id, **kwargs)
+            except Exception:
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
+                raise
+            finally:
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
 
-            # Step 1: Check input rails
-            log.info("[%s] Running input rails", req_id)
-            input_result = await self.rails_manager.is_input_safe(messages)
-            if not input_result.is_safe:
-                log.info("[%s] Input blocked: %s", req_id, input_result.reason)
-                return {"role": "assistant", "content": REFUSAL_MESSAGE}
+    async def _do_generate(self, messages: LLMMessages, req_id: str, **kwargs) -> LLMMessage:
+        """Core pipeline: input rails -> LLM call -> output rails."""
+        log.info("[%s] generate_async called", req_id)
+        log.debug("[%s] generate_async messages=%s", req_id, truncate(messages))
 
-            # Step 2: Generate response from main LLM
-            log.info("[%s] Calling main LLM", req_id)
-            llm_kwargs = {}
-            options = kwargs.get("options")
-            if options and isinstance(options, dict):
-                options = GenerationOptions(**options)
-            if isinstance(options, GenerationOptions) and options.llm_params:
-                llm_kwargs = options.llm_params
+        # Step 1: Check input rails
+        log.info("[%s] Running input rails", req_id)
+        input_result = await self.rails_manager.is_input_safe(messages)
+        if not input_result.is_safe:
+            log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+            return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
-            response_text = await self.engine_registry.model_call("main", messages, **llm_kwargs)
-            log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
+        # Step 2: Generate response from main LLM
+        log.info("[%s] Calling main LLM", req_id)
+        llm_kwargs = {}
+        options = kwargs.get("options")
+        if options and isinstance(options, dict):
+            options = GenerationOptions(**options)
+        if isinstance(options, GenerationOptions) and options.llm_params:
+            llm_kwargs = options.llm_params
 
-            # Step 3: Check output rails
-            log.info("[%s] Running output rails", req_id)
-            output_result = await self.rails_manager.is_output_safe(messages, response_text)
-            if not output_result.is_safe:
-                log.info("[%s] Output blocked: %s", req_id, output_result.reason)
-                return {"role": "assistant", "content": REFUSAL_MESSAGE}
+        response_text = await self.engine_registry.model_call("main", messages, **llm_kwargs)
+        log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
-            return {"role": "assistant", "content": response_text}
-        except Exception:
-            elapsed_ms = (time.monotonic() - t0) * 1000
-            log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
-            raise
-        finally:
-            elapsed_ms = (time.monotonic() - t0) * 1000
-            log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
-            reset_request_id(token)
+        # Step 3: Check output rails
+        log.info("[%s] Running output rails", req_id)
+        output_result = await self.rails_manager.is_output_safe(messages, response_text)
+        if not output_result.is_safe:
+            log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+            return {"role": "assistant", "content": REFUSAL_MESSAGE}
+
+        return {"role": "assistant", "content": response_text}
 
     def _validate_streaming_with_output_rails(self) -> None:
         """Raise if output rails exist but streaming is not enabled for them."""

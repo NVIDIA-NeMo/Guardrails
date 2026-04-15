@@ -51,6 +51,16 @@ def set_new_request_id() -> Token[str]:
     return _request_id_var.set(rid)
 
 
+def set_request_id(request_id: str) -> Token[str]:
+    """Set an explicit request ID (e.g., derived from an OTEL trace ID).
+
+    Unlike ``set_new_request_id`` which generates a random ID, this accepts
+    a caller-provided string.  Returns the reset token for use with
+    ``reset_request_id``.
+    """
+    return _request_id_var.set(request_id)
+
+
 def get_request_id() -> str:
     """Return the current per-request correlation ID."""
     return _request_id_var.get()
