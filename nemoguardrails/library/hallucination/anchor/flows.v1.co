@@ -1,0 +1,12 @@
+define subflow anchor check hallucination
+  """Output rail for checking hallucinations using Anchor drift monitoring."""
+  if $check_hallucination == True
+    $is_safe = execute check_anchor_drift
+    $check_hallucination = False
+
+    if $is_safe == False
+      if $config.enable_rails_exceptions
+        create event SelfCheckHallucinationRailException(message="Hallucination detected by Anchor drift check. The previous answer may not be accurate")
+      else
+        bot inform answer unknown
+      stop

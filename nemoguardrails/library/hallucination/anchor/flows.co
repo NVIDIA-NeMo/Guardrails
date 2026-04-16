@@ -1,0 +1,13 @@
+flow anchor check hallucination
+  """Output rail for checking hallucinations using Anchor drift monitoring."""
+  if $check_hallucination == True
+    $is_safe = await check_anchor_drift()
+    global $check_hallucination
+    $check_hallucination = False
+
+    if $is_safe == False
+      if $system.config.enable_rails_exceptions
+        send SelfCheckHallucinationRailException(message="Hallucination detected by Anchor drift check. The previous answer may not be accurate")
+      else
+        bot inform answer unknown
+      abort
