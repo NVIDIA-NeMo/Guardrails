@@ -55,7 +55,7 @@ def set_new_request_id() -> Token[str]:
     return _request_id_var.set(rid)
 
 
-def set_request_id(request_id: str) -> Token[str]:
+def _set_request_id(request_id: str) -> Token[str]:
     """Set an explicit request ID (e.g., derived from an OTEL trace ID).
 
     Unlike ``set_new_request_id`` which generates a random ID, this accepts

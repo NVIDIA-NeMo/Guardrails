@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Generator, Optional, Tuple
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
     REQUEST_ID_HEX_CHARS,
+    _set_request_id,
 )
 from nemoguardrails.guardrails.guardrails_types import (
     get_request_id as _get_request_id,
@@ -43,9 +44,6 @@ from nemoguardrails.guardrails.guardrails_types import (
 )
 from nemoguardrails.guardrails.guardrails_types import (
     set_new_request_id as _set_new_request_id,
-)
-from nemoguardrails.guardrails.guardrails_types import (
-    set_request_id as _set_request_id,
 )
 from nemoguardrails.tracing.constants import (
     GenAIAttributes,
