@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import logging
 import os
 from typing import Optional
 
-import requests
+import httpx
 
 from nemoguardrails.actions import action
 
@@ -56,17 +55,17 @@ async def check_anchor_drift(context: Optional[dict] = None, threshold: float = 
     try:
         # Call the Anchor Scoring API
         # Target: On-premise Anchor Engine score endpoint
-        response = await asyncio.to_thread(
-            requests.post,
-            f"{base_url}/api/score",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "action": last_bot_message,
-                "context": source_context,
-                "threshold": threshold,
-            },
-            timeout=5,
-        )
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{base_url}/api/score",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "action": last_bot_message,
+                    "context": source_context,
+                    "threshold": threshold,
+                },
+                timeout=5.0,
+            )
 
         if response.status_code == 200:
             result = response.json()
@@ -79,7 +78,7 @@ async def check_anchor_drift(context: Optional[dict] = None, threshold: float = 
             )
             return True
 
-    except (requests.RequestException, ValueError, TypeError) as e:
+    except (httpx.RequestError, ValueError, TypeError) as e:
         # Fail open to preserve UX, but keep diagnostics.
         log.warning("Anchor drift check failed: %s", e)
         return True
