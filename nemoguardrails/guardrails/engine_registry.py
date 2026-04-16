@@ -138,7 +138,7 @@ class EngineRegistry:
 
         engine = self._get_engine(model_type, ModelEngine)
         tracer = get_tracer()
-        with llm_call_span(tracer, engine.model_name, model_type, engine.model_config.engine or "unknown"):
+        with llm_call_span(tracer, engine.model_name, engine.model_config.engine or "unknown"):
             result = await engine.chat_completion(messages, **kwargs)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))

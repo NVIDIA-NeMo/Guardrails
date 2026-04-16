@@ -216,7 +216,6 @@ def action_span(tracer: Optional["Tracer"], action_name: str) -> Generator[Optio
 def llm_call_span(
     tracer: Optional["Tracer"],
     model_name: str,
-    model_type: str,
     provider_name: str,
     operation_name: str = "chat",
 ) -> Generator[Optional["Span"], None, None]:

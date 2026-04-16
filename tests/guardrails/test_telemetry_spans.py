@@ -111,7 +111,7 @@ class TestLlmCallSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "main", "nim"):
+        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "nim"):
             pass
 
         spans = exporter.get_finished_spans()
@@ -122,7 +122,7 @@ class TestLlmCallSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "main", "nim"):
+        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "nim"):
             pass
 
         assert exporter.get_finished_spans()[0].name == "chat meta/llama-3.3-70b-instruct"
@@ -131,7 +131,7 @@ class TestLlmCallSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "main", "nim", "chat"):
+        with llm_call_span(tracer, "meta/llama-3.3-70b-instruct", "nim", "chat"):
             pass
 
         attrs = dict(exporter.get_finished_spans()[0].attributes)
@@ -144,7 +144,7 @@ class TestLlmCallSpan:
         tracer = provider.get_tracer("test")
 
         with pytest.raises(ConnectionError):
-            with llm_call_span(tracer, "model", "main", "nim"):
+            with llm_call_span(tracer, "model", "nim"):
                 raise ConnectionError("timeout")
 
         span = exporter.get_finished_spans()[0]
@@ -152,7 +152,7 @@ class TestLlmCallSpan:
         assert span.attributes["error.type"] == "ConnectionError"
 
     def test_noop_when_tracer_none(self):
-        with llm_call_span(None, "model", "main", "nim") as span:
+        with llm_call_span(None, "model", "nim") as span:
             assert span is None
 
 

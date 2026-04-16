@@ -600,8 +600,14 @@ class TestSpanHierarchy:
 
     @pytest.mark.asyncio
     async def test_no_child_spans_when_tracing_disabled(self, iorails_no_tracing, exporter):
-        """With tracing disabled, no spans at all are created."""
-        _stub_safe_pipeline(iorails_no_tracing)
+        """With tracing disabled, no spans at all are created.
+
+        Uses ``_stub_deep_pipeline`` so the full RailsManager → RailAction →
+        EngineRegistry chain executes (including every ``get_tracer()`` call
+        site).  This exercises the code paths that would otherwise create
+        orphaned child spans, not just the top-level IORails entry point.
+        """
+        _stub_deep_pipeline(iorails_no_tracing)
 
         await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
 
