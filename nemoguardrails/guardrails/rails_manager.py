@@ -117,7 +117,7 @@ class RailsManager:
         if not self.input_flows:
             return RailResult(is_safe=True)
 
-        rails = {flow: self._run_rail(flow, messages) for flow in self.input_flows}
+        rails = {flow: self._run_rail(flow, RailDirection.INPUT, messages) for flow in self.input_flows}
         if self.input_parallel:
             return await self._run_rails_parallel(rails, RailDirection.INPUT)
         return await self._run_rails_sequential(rails, RailDirection.INPUT)
@@ -131,7 +131,10 @@ class RailsManager:
         if not self.output_flows:
             return RailResult(is_safe=True)
 
-        rails = {flow: self._run_rail(flow, messages, bot_response=response) for flow in self.output_flows}
+        rails = {
+            flow: self._run_rail(flow, RailDirection.OUTPUT, messages, bot_response=response)
+            for flow in self.output_flows
+        }
         if self.output_parallel:
             return await self._run_rails_parallel(rails, RailDirection.OUTPUT)
         return await self._run_rails_sequential(rails, RailDirection.OUTPUT)
@@ -139,12 +142,12 @@ class RailsManager:
     async def _run_rail(
         self,
         flow: str,
+        direction: RailDirection,
         messages: list[dict],
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Dispatch a single rail flow to its RailAction instance."""
         tracer = get_tracer()
-        direction = RailDirection.INPUT if flow in self.input_flows else RailDirection.OUTPUT
         with rail_span(tracer, flow, direction) as span:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
