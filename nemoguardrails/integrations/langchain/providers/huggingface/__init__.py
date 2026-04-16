@@ -12,3 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from nemoguardrails.integrations.langchain.providers.huggingface.pipeline import HuggingFacePipelineCompatible
+from nemoguardrails.integrations.langchain.providers.huggingface.streamers import AsyncTextIteratorStreamer
+
+__all__ = [
+    "HuggingFacePipelineCompatible",
+    "AsyncTextIteratorStreamer",
+]

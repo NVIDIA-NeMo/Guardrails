@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.integrations.langchain.providers.trtllm.client import TritonClient
-from nemoguardrails.integrations.langchain.providers.trtllm.llm import TRTLLM
-
-__all__ = [
-    "TritonClient",
-    "TRTLLM",
-]
+# TODO(0.24.0): remove this file and its test in TestMovedModuleStubs
+raise ImportError(
+    "nemoguardrails.llm.providers.trtllm has moved to "
+    "nemoguardrails.integrations.langchain.providers.trtllm. "
+    "Please update your imports."
+)

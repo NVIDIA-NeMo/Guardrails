@@ -183,6 +183,41 @@ class TestImportOptionalDependency:
             assert result == mock_module
 
 
+class TestMovedModuleStubs:
+    def test_old_helpers_path_raises(self):
+        with pytest.raises(ImportError, match="nemoguardrails.integrations.langchain.helpers"):
+            import nemoguardrails.llm.helpers  # noqa: F401
+
+    def test_old_huggingface_path_raises(self):
+        with pytest.raises(ImportError, match="nemoguardrails.integrations.langchain.providers.huggingface"):
+            import nemoguardrails.llm.providers.huggingface  # noqa: F401
+
+    def test_old_trtllm_path_raises(self):
+        with pytest.raises(ImportError, match="nemoguardrails.integrations.langchain.providers.trtllm"):
+            import nemoguardrails.llm.providers.trtllm  # noqa: F401
+
+    def test_new_helpers_path_works(self):
+        from nemoguardrails.integrations.langchain.helpers import get_llm_instance_wrapper
+
+        assert callable(get_llm_instance_wrapper)
+
+    def test_new_huggingface_path_works(self):
+        from nemoguardrails.integrations.langchain.providers.huggingface import HuggingFacePipelineCompatible
+
+        assert HuggingFacePipelineCompatible is not None
+
+    def test_new_trtllm_path_works(self):
+        from nemoguardrails.integrations.langchain.providers.trtllm import TRTLLM, TritonClient
+
+        assert TRTLLM is not None
+        assert TritonClient is not None
+
+    def test_providers_shim_works(self):
+        from nemoguardrails.llm.providers import register_llm_provider
+
+        assert callable(register_llm_provider)
+
+
 class TestGetOptionalDependency:
     def test_get_known_dependency_available(self):
         module = get_optional_dependency("langchain", errors="ignore")
