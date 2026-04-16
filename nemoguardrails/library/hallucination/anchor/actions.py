@@ -43,6 +43,9 @@ async def check_anchor_drift(context: Optional[dict] = None, threshold: float = 
             "ANCHOR_BASE_URL to your on-premise Anchor Engine instance."
         )
 
+    # Coalesce Colang variables defensively
+    threshold = 0.95 if threshold is None else threshold
+
     # Get the last bot message and the context/reference
     context = context or {}
     last_bot_message = context.get("last_bot_message")

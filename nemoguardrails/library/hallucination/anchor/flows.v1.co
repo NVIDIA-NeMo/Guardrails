@@ -1,7 +1,7 @@
 define subflow anchor check hallucination
   """Output rail for checking hallucinations using Anchor drift monitoring."""
   if $check_hallucination == True
-    $is_safe = execute check_anchor_drift
+    $is_safe = execute check_anchor_drift(threshold=$anchor_threshold)
     $check_hallucination = False
 
     if $is_safe == False

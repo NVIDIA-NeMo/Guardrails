@@ -35,43 +35,48 @@ async def test_check_anchor_drift_missing_context_vars(monkeypatch):
 
 
 @pytest.mark.asyncio
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-async def test_check_anchor_drift_allow(mock_post, monkeypatch):
+@patch("nemoguardrails.library.hallucination.anchor.actions.httpx.AsyncClient")
+async def test_check_anchor_drift_allow(mock_client_cls, monkeypatch):
     monkeypatch.setenv("ANCHOR_API_KEY", "test_key")
-    mock_response = httpx.Response(200, json={"allow": True}, request=httpx.Request("POST", "url"))
-    mock_post.return_value = mock_response
+    mock_client = AsyncMock()
+    mock_client_cls.return_value.__aenter__.return_value = mock_client
+    mock_client.post.return_value = httpx.Response(200, json={"allow": True}, request=httpx.Request("POST", "url"))
 
     res = await check_anchor_drift(context={"last_bot_message": "hello", "relevant_chunks": "hello world"})
     assert res is True
 
 
 @pytest.mark.asyncio
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-async def test_check_anchor_drift_block(mock_post, monkeypatch):
+@patch("nemoguardrails.library.hallucination.anchor.actions.httpx.AsyncClient")
+async def test_check_anchor_drift_block(mock_client_cls, monkeypatch):
     monkeypatch.setenv("ANCHOR_API_KEY", "test_key")
-    mock_response = httpx.Response(200, json={"allow": False}, request=httpx.Request("POST", "url"))
-    mock_post.return_value = mock_response
+    mock_client = AsyncMock()
+    mock_client_cls.return_value.__aenter__.return_value = mock_client
+    mock_client.post.return_value = httpx.Response(200, json={"allow": False}, request=httpx.Request("POST", "url"))
 
     res = await check_anchor_drift(context={"last_bot_message": "hello", "relevant_chunks": "hello world"})
     assert res is False
 
 
 @pytest.mark.asyncio
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-async def test_check_anchor_drift_non_200(mock_post, monkeypatch):
+@patch("nemoguardrails.library.hallucination.anchor.actions.httpx.AsyncClient")
+async def test_check_anchor_drift_non_200(mock_client_cls, monkeypatch):
     monkeypatch.setenv("ANCHOR_API_KEY", "test_key")
-    mock_response = httpx.Response(500, request=httpx.Request("POST", "url"))
-    mock_post.return_value = mock_response
+    mock_client = AsyncMock()
+    mock_client_cls.return_value.__aenter__.return_value = mock_client
+    mock_client.post.return_value = httpx.Response(500, request=httpx.Request("POST", "url"))
 
     res = await check_anchor_drift(context={"last_bot_message": "hello", "relevant_chunks": "hello world"})
     assert res is True
 
 
 @pytest.mark.asyncio
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-async def test_check_anchor_drift_exception(mock_post, monkeypatch):
+@patch("nemoguardrails.library.hallucination.anchor.actions.httpx.AsyncClient")
+async def test_check_anchor_drift_exception(mock_client_cls, monkeypatch):
     monkeypatch.setenv("ANCHOR_API_KEY", "test_key")
-    mock_post.side_effect = httpx.RequestError("error")
+    mock_client = AsyncMock()
+    mock_client_cls.return_value.__aenter__.return_value = mock_client
+    mock_client.post.side_effect = httpx.RequestError("error")
 
     res = await check_anchor_drift(context={"last_bot_message": "hello", "relevant_chunks": "hello world"})
     assert res is True
