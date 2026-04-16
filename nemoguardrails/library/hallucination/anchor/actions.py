@@ -26,10 +26,11 @@ async def check_anchor_drift(
             drift alert.
     """
     api_key = os.environ.get("ANCHOR_API_KEY")
+    base_url = os.environ.get("ANCHOR_BASE_URL", "http://localhost:3000")
     if not api_key:
         raise ValueError(
-            "Missing ANCHOR_API_KEY. Please sign up at "
-            "https://anchor-app-one.vercel.app to get your free API key."
+            "Missing ANCHOR_API_KEY. Please provide your API key and set "
+            "ANCHOR_BASE_URL to your on-premise Anchor Engine instance."
         )
 
     # Get the last bot message and the context/reference
@@ -43,10 +44,10 @@ async def check_anchor_drift(
 
     try:
         # Call the Anchor Scoring API
-        # Target: https://anchor-app-one.vercel.app/api/score
+        # Target: On-premise Anchor Engine score endpoint
         response = await asyncio.to_thread(
             requests.post,
-            "https://anchor-app-one.vercel.app/api/score",
+            f"{base_url}/api/score",
             headers={"Authorization": f"Bearer {api_key}"},
             json={
                 "action": last_bot_message,
