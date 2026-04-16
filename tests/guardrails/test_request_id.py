@@ -26,13 +26,19 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id, reset_request_id, set_new_request_id
+from nemoguardrails.guardrails.guardrails_types import (
+    REQUEST_ID_HEX_CHARS,
+    RailResult,
+    get_request_id,
+    reset_request_id,
+    set_new_request_id,
+)
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
-REQUEST_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$")
+REQUEST_ID_PATTERN = re.compile(rf"^[0-9a-f]{{{REQUEST_ID_HEX_CHARS}}}$")
 
 
 class SingleUseBarrier:

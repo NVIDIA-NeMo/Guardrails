@@ -32,6 +32,10 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Generator, Optional, Tuple
 
 from nemoguardrails.guardrails.guardrails_types import (
+    REQUEST_ID_BYTES,
+    REQUEST_ID_HEX_CHARS,
+)
+from nemoguardrails.guardrails.guardrails_types import (
     get_request_id as _get_request_id,
 )
 from nemoguardrails.guardrails.guardrails_types import (
@@ -111,14 +115,15 @@ _INVALID_TRACE_ID = 0
 def trace_id_to_request_id(span: "Span") -> str:
     """Derive a human-readable request ID from the span's OTEL trace ID.
 
-    Returns the last 16 hex characters of the 128-bit trace ID (the low
-    64 bits, which carry the highest entropy).  When the trace ID is zero
-    (e.g. a ``NoOpTracerProvider`` is active) a random fallback is used.
+    Returns the last ``REQUEST_ID_HEX_CHARS`` hex characters of the 128-bit
+    trace ID (the low 64 bits, which carry the highest entropy).  When the
+    trace ID is zero (e.g. a ``NoOpTracerProvider`` is active) a random
+    fallback is used.
     """
     ctx = span.get_span_context()
     if ctx.trace_id == _INVALID_TRACE_ID:
-        return secrets.token_hex(8)  # 16 hex chars
-    return format_trace_id(ctx.trace_id)[-16:]
+        return secrets.token_hex(REQUEST_ID_BYTES)
+    return format_trace_id(ctx.trace_id)[-REQUEST_ID_HEX_CHARS:]
 
 
 @contextmanager

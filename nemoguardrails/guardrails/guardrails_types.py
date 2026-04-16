@@ -42,12 +42,16 @@ class RailResult:
 # Default max character length for truncate(). Used to keep DEBUG log lines short.
 LOG_CONTENT_TRUNCATE_LENGTH = 200
 
+# Request ID sizing: 8 bytes → 16 hex characters (64 bits of entropy).
+REQUEST_ID_BYTES = 8
+REQUEST_ID_HEX_CHARS = REQUEST_ID_BYTES * 2
+
 _request_id_var: ContextVar[str] = ContextVar("request_id", default="no-req-id")
 
 
 def set_new_request_id() -> Token[str]:
-    """Generate an 8-char hex request ID, set it in the current context, and return the reset token."""
-    rid = secrets.token_hex(4)  # 4 bytes -> 8 hex chars
+    """Generate a random request ID, set it in the current context, and return the reset token."""
+    rid = secrets.token_hex(REQUEST_ID_BYTES)
     return _request_id_var.set(rid)
 
 

@@ -26,10 +26,11 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
 from nemoguardrails.guardrails import telemetry
-from nemoguardrails.guardrails.guardrails_types import RailResult, get_request_id
+from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.test_telemetry import _is_valid_hex_string
 
 
 def _make_tracing_config():
@@ -101,7 +102,7 @@ class TestGenerateAsyncWithTracing:
         attrs = dict(spans[0].attributes)
         assert attrs["gen_ai.operation.name"] == "guardrails"
         assert "request.id" in attrs
-        assert len(attrs["request.id"]) == 16
+        assert len(attrs["request.id"]) == REQUEST_ID_HEX_CHARS
 
     @pytest.mark.asyncio
     async def test_request_id_derived_from_trace_id(self, iorails_tracing, exporter):
@@ -160,8 +161,8 @@ class TestGenerateAsyncWithoutTracing:
         assert len(exporter.get_finished_spans()) == 0
 
     @pytest.mark.asyncio
-    async def test_request_id_is_short_random(self, iorails_no_tracing):
-        """Without tracing, request IDs are the original 8-char random hex."""
+    async def test_request_id_length_consistent_without_tracing(self, iorails_no_tracing):
+        """Without tracing, request IDs are random but the same length as trace-derived IDs."""
         captured_req_id = None
 
         async def capture_req_id(messages):
@@ -175,7 +176,7 @@ class TestGenerateAsyncWithoutTracing:
         await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
 
         assert captured_req_id is not None
-        assert len(captured_req_id) == 8
+        assert len(captured_req_id) == REQUEST_ID_HEX_CHARS
 
 
 class TestEndToEndTracing:
@@ -229,8 +230,7 @@ class TestEndToEndTracing:
         attrs = dict(span.attributes)
         assert attrs["gen_ai.operation.name"] == "guardrails"
         req_id = attrs["request.id"]
-        assert len(req_id) == 16
-        int(req_id, 16)  # valid hex
+        assert _is_valid_hex_string(req_id, REQUEST_ID_HEX_CHARS)
 
         # Request ID derived from trace ID
         full_trace_id = format_trace_id(span.context.trace_id)

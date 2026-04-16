@@ -15,6 +15,7 @@
 
 """Unit tests for nemoguardrails.guardrails.telemetry module."""
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -24,12 +25,20 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
 from nemoguardrails.guardrails import telemetry
+from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS
 from nemoguardrails.guardrails.telemetry import (
     get_tracer,
     is_tracing_enabled,
     request_span,
     trace_id_to_request_id,
 )
+
+_HEX_PATTERN = re.compile(r"^[0-9a-f]+$")
+
+
+def _is_valid_hex_string(value: str, expected_length: int) -> bool:
+    """Return True if *value* is a lowercase hex string of exactly *expected_length* chars."""
+    return len(value) == expected_length and _HEX_PATTERN.match(value) is not None
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +56,20 @@ def otel_provider():
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     return provider, exporter
+
+
+class TestIsValidHexString:
+    def test_happy_path(self):
+        assert _is_valid_hex_string("abcdef0123456789", 16) is True
+
+    def test_length_mismatch(self):
+        assert _is_valid_hex_string("abcd", 16) is False
+
+    def test_invalid_hex_chars(self):
+        assert _is_valid_hex_string("zzzzzzzzzzzzzzzz", 16) is False
+
+    def test_invalid_chars_and_length_mismatch(self):
+        assert _is_valid_hex_string("xyz", 16) is False
 
 
 class TestGetTracer:
@@ -71,8 +94,7 @@ class TestTraceIdToRequestId:
         tracer = provider.get_tracer("test")
         with tracer.start_as_current_span("test") as span:
             req_id = trace_id_to_request_id(span)
-            assert len(req_id) == 16
-            int(req_id, 16)  # must be valid hex
+            assert _is_valid_hex_string(req_id, REQUEST_ID_HEX_CHARS)
 
     def test_matches_trace_id_suffix(self, otel_provider):
         provider, _ = otel_provider
@@ -89,8 +111,7 @@ class TestTraceIdToRequestId:
         span.get_span_context.return_value = ctx
 
         req_id = trace_id_to_request_id(span)
-        assert len(req_id) == 16
-        int(req_id, 16)  # valid hex
+        assert _is_valid_hex_string(req_id, REQUEST_ID_HEX_CHARS)
 
 
 class TestRequestSpan:
@@ -149,8 +170,7 @@ class TestRequestSpan:
         tracer = provider.get_tracer("test")
 
         with request_span(tracer) as (span, req_id):
-            assert len(req_id) == 16
-            int(req_id, 16)
+            assert _is_valid_hex_string(req_id, REQUEST_ID_HEX_CHARS)
 
     def test_records_exception_on_error(self, otel_provider):
         provider, exporter = otel_provider
