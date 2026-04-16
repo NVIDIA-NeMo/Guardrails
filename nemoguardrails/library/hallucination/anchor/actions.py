@@ -1,7 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+import asyncio
+import logging
 import os
 import requests
 from typing import Optional
 from nemoguardrails.actions import action
+
+log = logging.getLogger(__name__)
 
 @action(name="check_anchor_drift", is_system_action=False)
 async def check_anchor_drift(
@@ -20,6 +26,7 @@ async def check_anchor_drift(
         raise ValueError("Missing ANCHOR_API_KEY. Please sign up at https://anchor-app-one.vercel.app to get your free API key.")
 
     # Get the last bot message and the context/reference
+    context = context or {}
     last_bot_message = context.get("last_bot_message")
     source_context = context.get("relevant_chunks", "") # Typical NeMo context key
 
@@ -29,7 +36,8 @@ async def check_anchor_drift(
     try:
         # Call the Anchor Scoring API
         # Target: https://anchor-app-one.vercel.app/api/score
-        response = requests.post(
+        response = await asyncio.to_thread(
+            requests.post,
             "https://anchor-app-one.vercel.app/api/score",
             headers={"Authorization": f"Bearer {api_key}"},
             json={
@@ -43,10 +51,14 @@ async def check_anchor_drift(
         if response.status_code == 200:
             result = response.json()
             # If 'allow' is False, drift was detected
-            return result.get("allow", True)
+            return bool(result.get("allow", True))
+        else:
+            log.warning("Anchor API returned non-200 status: %s", response.status_code)
+            return True
             
-    except Exception as e:
-        # Log error or silently fail to maintain UX
+    except (requests.RequestException, ValueError, TypeError) as e:
+        # Fail open to preserve UX, but keep diagnostics.
+        log.warning("Anchor drift check failed: %s", e)
         return True
 
     return True
