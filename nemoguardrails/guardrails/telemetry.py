@@ -123,12 +123,14 @@ def trace_id_to_request_id(span: "Span") -> str:
 def record_span_error(span: Optional["Span"], exc: BaseException) -> None:
     """Record an exception on an OTEL span and set its status to ERROR.
 
-    Safe to call with ``None`` (no-op).  Use when a caller catches an
-    exception that would otherwise propagate out of a ``*_span`` context
-    manager, e.g. when converting a raised error into a return value.
+    Also sets the ``error.type`` attribute to the exception's class name
+    (per OTEL GenAI conditional-required convention).  Safe to call with
+    ``None`` (no-op).  Use from every span helper's ``except`` block and
+    from callers that swallow exceptions before they can propagate.
     """
     if span is None:
         return
+    span.set_attribute("error.type", type(exc).__name__)
     span.record_exception(exc)
     span.set_status(StatusCode.ERROR, str(exc))
 
@@ -154,8 +156,7 @@ def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
         try:
             yield span, req_id
         except Exception as exc:
-            span.record_exception(exc)
-            span.set_status(StatusCode.ERROR, str(exc))
+            record_span_error(span, exc)
             raise
 
 
@@ -183,8 +184,7 @@ def rail_span(
         try:
             yield span
         except Exception as exc:
-            span.record_exception(exc)
-            span.set_status(StatusCode.ERROR, str(exc))
+            record_span_error(span, exc)
             raise
 
 
@@ -207,8 +207,7 @@ def action_span(tracer: Optional["Tracer"], action_name: str) -> Generator[Optio
         try:
             yield span
         except Exception as exc:
-            span.record_exception(exc)
-            span.set_status(StatusCode.ERROR, str(exc))
+            record_span_error(span, exc)
             raise
 
 
@@ -240,9 +239,7 @@ def llm_call_span(
         try:
             yield span
         except Exception as exc:
-            span.set_attribute("error.type", type(exc).__name__)
-            span.record_exception(exc)
-            span.set_status(StatusCode.ERROR, str(exc))
+            record_span_error(span, exc)
             raise
 
 
@@ -266,9 +263,7 @@ def api_call_span(tracer: Optional["Tracer"], api_name: str) -> Generator[Option
         try:
             yield span
         except Exception as exc:
-            span.set_attribute("error.type", type(exc).__name__)
-            span.record_exception(exc)
-            span.set_status(StatusCode.ERROR, str(exc))
+            record_span_error(span, exc)
             raise
 
 
