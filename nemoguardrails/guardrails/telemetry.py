@@ -35,15 +35,9 @@ from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
     REQUEST_ID_HEX_CHARS,
     _set_request_id,
-)
-from nemoguardrails.guardrails.guardrails_types import (
-    get_request_id as _get_request_id,
-)
-from nemoguardrails.guardrails.guardrails_types import (
-    reset_request_id as _reset_request_id,
-)
-from nemoguardrails.guardrails.guardrails_types import (
-    set_new_request_id as _set_new_request_id,
+    get_request_id,
+    reset_request_id,
+    set_new_request_id,
 )
 from nemoguardrails.tracing.constants import (
     GenAIAttributes,
@@ -188,10 +182,10 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[str, None, None]:
             try:
                 yield req_id
             finally:
-                _reset_request_id(token)
+                reset_request_id(token)
     else:
-        token = _set_new_request_id()
+        token = set_new_request_id()
         try:
-            yield _get_request_id()
+            yield get_request_id()
         finally:
-            _reset_request_id(token)
+            reset_request_id(token)
