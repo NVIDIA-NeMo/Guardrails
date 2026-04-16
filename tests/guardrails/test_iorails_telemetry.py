@@ -590,13 +590,13 @@ class TestSpanHierarchy:
         await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
-        # Find a content_safety LLM span (not the main LLM)
         llm_spans = [s for s in spans if "gen_ai.request.model" in (s.attributes or {})]
-        assert len(llm_spans) >= 1
-
-        # Check one has the expected model attributes
         models_seen = {s.attributes["gen_ai.request.model"] for s in llm_spans}
-        assert "nvidia/llama-3.1-nemoguard-8b-content-safety" in models_seen or len(models_seen) > 0
+
+        # Every LLM span from the NEMOGUARDS_CONFIG pipeline must have its model recorded
+        assert "nvidia/llama-3.1-nemoguard-8b-content-safety" in models_seen
+        assert "nvidia/llama-3.1-nemoguard-8b-topic-control" in models_seen
+        assert "meta/llama-3.3-70b-instruct" in models_seen
 
     @pytest.mark.asyncio
     async def test_no_child_spans_when_tracing_disabled(self, iorails_no_tracing, exporter):
