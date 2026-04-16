@@ -33,7 +33,7 @@ from nemoguardrails.guardrails.guardrails_types import (
     get_request_id,
     truncate,
 )
-from nemoguardrails.guardrails.telemetry import action_span, get_tracer
+from nemoguardrails.guardrails.telemetry import action_span, get_tracer, record_span_error
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
 
@@ -72,7 +72,7 @@ class RailAction(ABC):
     ) -> RailResult:
         """Execute the full rail pipeline and return a safety result."""
         tracer = get_tracer()
-        with action_span(tracer, self.action_name):
+        with action_span(tracer, self.action_name) as span:
             req_id = get_request_id()
             base_flow = _get_flow_name(flow)
             self._validate_flow_name(base_flow)
@@ -93,6 +93,8 @@ class RailAction(ABC):
                 log.debug("[%s] %s response: %s", req_id, base_flow, truncate(response))
                 return self._parse_response(response)
             except Exception as e:
+                # Record an error on the OTEL span
+                record_span_error(span, e)
                 log.error("[%s] %s failed: %s", req_id, base_flow, e)
                 return RailResult(is_safe=False, reason=f"{base_flow} error: {e}")
 

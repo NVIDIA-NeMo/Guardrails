@@ -120,6 +120,19 @@ def trace_id_to_request_id(span: "Span") -> str:
     return format_trace_id(ctx.trace_id)[-REQUEST_ID_HEX_CHARS:]
 
 
+def record_span_error(span: Optional["Span"], exc: BaseException) -> None:
+    """Record an exception on an OTEL span and set its status to ERROR.
+
+    Safe to call with ``None`` (no-op).  Use when a caller catches an
+    exception that would otherwise propagate out of a ``*_span`` context
+    manager, e.g. when converting a raised error into a return value.
+    """
+    if span is None:
+        return
+    span.record_exception(exc)
+    span.set_status(StatusCode.ERROR, str(exc))
+
+
 @contextmanager
 def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
     """Create a live ``guardrails.request`` SERVER span.

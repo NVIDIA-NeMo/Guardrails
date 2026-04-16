@@ -458,6 +458,36 @@ class TestSpanHierarchy:
         assert len(blocked) >= 1
 
     @pytest.mark.asyncio
+    async def test_action_span_records_engine_error(self, iorails_tracing, exporter):
+        """When the engine raises, the action span must record it (not swallow it)."""
+        from nemoguardrails.guardrails.model_engine import ModelEngine
+
+        # Make the content_safety engine fail — RailAction.run will catch and
+        # convert to RailResult(is_safe=False), but the action span must still
+        # reflect the error.
+        for name, engine in iorails_tracing.engine_registry._engines.items():
+            if isinstance(engine, ModelEngine) and name == "content_safety":
+                engine.chat_completion = AsyncMock(side_effect=RuntimeError("LLM down"))
+            elif isinstance(engine, ModelEngine):
+                engine.chat_completion = AsyncMock(return_value=SAFE_INPUT_JSON)
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        spans = exporter.get_finished_spans()
+        action_spans = [s for s in spans if s.name == "guardrails.action"]
+        content_safety_action = next(
+            s for s in action_spans if s.attributes["action.name"] == "content safety check input"
+        )
+
+        # Span has ERROR status and an exception event recording the RuntimeError
+        assert content_safety_action.status.status_code == StatusCode.ERROR
+        exc_events = [e for e in content_safety_action.events if e.name == "exception"]
+        assert len(exc_events) == 1
+        assert exc_events[0].attributes["exception.type"] == "RuntimeError"
+        assert "LLM down" in exc_events[0].attributes["exception.message"]
+
+    @pytest.mark.asyncio
     async def test_span_tree_parent_child_links(self, iorails_tracing, exporter):
         """Verify strict parent-child links across the full safe-path span tree.
 
