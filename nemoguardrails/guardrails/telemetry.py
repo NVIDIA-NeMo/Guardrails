@@ -27,6 +27,7 @@ reachable through ``traced_request`` when a non-``None`` tracer is provided.
 
 import logging
 import secrets
+import warnings
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Generator, Optional, Tuple
 
@@ -150,9 +151,11 @@ def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
     if config_tracing is None or not config_tracing.enabled:
         return False
     if not _OTEL_AVAILABLE:
-        log.warning(
+        warnings.warn(
             "Tracing is enabled in config but the opentelemetry-api package is "
-            "not installed.  Install it with: pip install nemoguardrails[tracing]"
+            "not installed.  Install it with: pip install nemoguardrails[tracing]",
+            UserWarning,
+            stacklevel=2,
         )
         return False
     return True
