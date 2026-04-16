@@ -82,5 +82,3 @@ async def check_anchor_drift(context: Optional[dict] = None, threshold: float = 
         # Fail open to preserve UX, but keep diagnostics.
         log.warning("Anchor drift check failed: %s", e)
         return True
-
-    return True
