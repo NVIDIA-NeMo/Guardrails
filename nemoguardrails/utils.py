@@ -118,8 +118,9 @@ _event_validators = [
     ),
     Validator(
         "***UtteranceUserActionTranscriptUpdated events need to provide 'interim_transcript' of type 'str'",
-        lambda e: e["type"] != "UtteranceUserActionTranscriptUpdated"
-        or _has_property(e, Property("interim_transcript", str)),
+        lambda e: (
+            e["type"] != "UtteranceUserActionTranscriptUpdated" or _has_property(e, Property("interim_transcript", str))
+        ),
     ),
     Validator(
         "***UtteranceUserActionFinished events need to provide 'final_transcript' of type 'str'",
