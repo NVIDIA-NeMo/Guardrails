@@ -28,7 +28,7 @@ reachable through ``traced_request`` when a non-``None`` tracer is provided.
 import logging
 import secrets
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator, Optional, Tuple
 
 from nemoguardrails.guardrails.guardrails_types import (
     get_request_id as _get_request_id,
@@ -54,7 +54,9 @@ log = logging.getLogger(__name__)
 _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import trace
-    from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
+    from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
+
+    from nemoguardrails.rails.llm.config import TracingConfig
 
     _OTEL_AVAILABLE = True
 else:
@@ -69,7 +71,7 @@ else:
 _tracer = None
 
 
-def get_tracer():
+def get_tracer() -> Optional["Tracer"]:
     """Return a cached OpenTelemetry tracer for nemo-guardrails, or ``None``.
 
     The tracer is obtained via the OTEL API (not SDK), following the library
@@ -98,7 +100,7 @@ def get_tracer():
 _INVALID_TRACE_ID = 0
 
 
-def trace_id_to_request_id(span) -> str:
+def trace_id_to_request_id(span: "Span") -> str:
     """Derive a human-readable request ID from the span's OTEL trace ID.
 
     Returns the last 16 hex characters of the 128-bit trace ID (the low
@@ -112,7 +114,7 @@ def trace_id_to_request_id(span) -> str:
 
 
 @contextmanager
-def request_span(tracer):
+def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
     """Create a live ``guardrails.request`` SERVER span.
 
     Yields ``(span, request_id)`` where *request_id* is derived from the
@@ -137,11 +139,13 @@ def request_span(tracer):
             raise
 
 
-def is_tracing_enabled(config_tracing) -> bool:
-    """Return ``True`` when IORails OTEL tracing is active.
+def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
+    """Return ``True`` when inline OTEL tracing should be active.
 
     Requires the ``opentelemetry-api`` package to be installed **and**
-    ``config.tracing.enabled`` to be ``True``.
+    ``config.tracing.enabled`` to be ``True``.  Other ``TracingConfig``
+    fields (``adapters``, ``span_format``) are used by the LLMRails
+    post-hoc tracing path and are ignored here.
     """
     if config_tracing is None or not config_tracing.enabled:
         return False
@@ -155,7 +159,7 @@ def is_tracing_enabled(config_tracing) -> bool:
 
 
 @contextmanager
-def traced_request(tracer):
+def traced_request(tracer: Optional["Tracer"]) -> Generator[str, None, None]:
     """Unified request context: sets request ID, optionally creates a span.
 
     When *tracer* is not ``None``, a live ``guardrails.request`` SERVER span
