@@ -43,7 +43,7 @@ class TestRailSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with rail_span(tracer, "content safety check input $model=content_safety", RailDirection.INPUT) as span:
+        with rail_span(tracer, "content safety check input $model=content_safety", RailDirection.INPUT) as _:
             pass
 
         spans = exporter.get_finished_spans()

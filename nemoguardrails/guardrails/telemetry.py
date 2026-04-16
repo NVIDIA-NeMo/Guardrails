@@ -293,7 +293,7 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[str, None, None]:
     on exit.
     """
     if tracer is not None:
-        with request_span(tracer) as (_span, req_id):
+        with request_span(tracer) as (_, req_id):
             token = _set_request_id(req_id)
             try:
                 yield req_id

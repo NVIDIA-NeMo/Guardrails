@@ -426,6 +426,120 @@ class TestSpanHierarchy:
         assert len(blocked) >= 1
 
     @pytest.mark.asyncio
+    async def test_span_hierarchy_on_unsafe_request(self, iorails_tracing, exporter):
+        """Unsafe request: main LLM and output rails never run, request span still completes cleanly."""
+        _stub_deep_pipeline(iorails_tracing, input_safe=False)
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+        assert result["content"] == REFUSAL_MESSAGE
+
+        spans = exporter.get_finished_spans()
+
+        # Request span still completes without error (blocking is not an exception)
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        assert request_spans[0].status.status_code == StatusCode.UNSET
+
+        # Output rail spans must be absent (pipeline short-circuits before Step 3)
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+        output_rails = [s for s in rail_spans if s.attributes["rail.type"] == "Output"]
+        assert output_rails == []
+
+        # Main LLM span must be absent — the meta/llama main model is never called
+        main_llm_spans = [
+            s
+            for s in spans
+            if s.kind == SpanKind.CLIENT and s.attributes.get("gen_ai.request.model", "").startswith("meta/llama")
+        ]
+        assert main_llm_spans == []
+
+        # The blocking rail's span is marked with rail.stop=True
+        blocked = [s for s in rail_spans if s.attributes.get("rail.stop") is True]
+        assert len(blocked) >= 1
+
+    @pytest.mark.asyncio
+    async def test_span_tree_parent_child_links(self, iorails_tracing, exporter):
+        """Verify strict parent-child links across the full safe-path span tree.
+
+        Uses sequential rail execution (NEMOGUARDS_CONFIG default). Every span
+        must (a) share the same trace_id, (b) have a unique span_id, and
+        (c) point to a valid ancestor per the expected shape:
+
+            guardrails.request (SERVER, parent=None)
+              ├─ guardrails.rail [Input]   → parent=request
+              │   └─ guardrails.action     → parent=its rail
+              │       └─ CLIENT span       → parent=its action
+              ├─ chat <main model>  (CLIENT, parent=request)
+              └─ guardrails.rail [Output]  → parent=request
+                  └─ guardrails.action     → parent=its rail
+                      └─ CLIENT span       → parent=its action
+        """
+        _stub_deep_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+
+        # All spans share a single trace_id
+        trace_ids = {s.context.trace_id for s in spans}
+        assert len(trace_ids) == 1
+
+        # All span_ids are unique
+        span_ids = [s.context.span_id for s in spans]
+        assert len(span_ids) == len(set(span_ids))
+
+        # Index spans by ID for parent lookup
+        by_id = {s.context.span_id: s for s in spans}
+
+        # Exactly one root — the request span — with parent=None
+        roots = [s for s in spans if s.parent is None]
+        assert len(roots) == 1
+        request_span = roots[0]
+        assert request_span.name == "guardrails.request"
+        assert request_span.kind == SpanKind.SERVER
+
+        # Every non-root span's parent resolves to another span in the same trace
+        for span in spans:
+            if span.parent is None:
+                continue
+            assert span.parent.trace_id == request_span.context.trace_id
+            assert span.parent.span_id in by_id, f"{span.name}'s parent not in trace"
+
+        # Each guardrails.rail is a direct child of the request span
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+        assert len(rail_spans) == 4  # 3 input + 1 output
+        for rail in rail_spans:
+            assert rail.parent.span_id == request_span.context.span_id
+
+        # Each guardrails.action is a direct child of exactly one rail
+        action_spans = [s for s in spans if s.name == "guardrails.action"]
+        assert len(action_spans) == 4
+        rail_ids = {r.context.span_id for r in rail_spans}
+        for action in action_spans:
+            assert action.parent.span_id in rail_ids, (
+                f"action '{action.attributes['action.name']}' parent is not a rail span"
+            )
+
+        # Each CLIENT span is either the main LLM (parent=request)
+        # or a rail-LLM/API call (parent=one of the action spans)
+        client_spans = [s for s in spans if s.kind == SpanKind.CLIENT]
+        action_ids = {a.context.span_id for a in action_spans}
+        main_llm_spans = []
+        rail_call_spans = []
+        for client in client_spans:
+            if client.parent.span_id == request_span.context.span_id:
+                main_llm_spans.append(client)
+            elif client.parent.span_id in action_ids:
+                rail_call_spans.append(client)
+            else:
+                raise AssertionError(f"CLIENT span '{client.name}' has unexpected parent")
+
+        # Exactly one main LLM call, and one CLIENT span per action
+        assert len(main_llm_spans) == 1
+        assert main_llm_spans[0].attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
+        assert len(rail_call_spans) == len(action_spans)
+
+    @pytest.mark.asyncio
     async def test_action_span_attributes(self, iorails_tracing, exporter):
         """Action spans have correct action.name attributes."""
         _stub_deep_pipeline(iorails_tracing)
