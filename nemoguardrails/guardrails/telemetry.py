@@ -69,6 +69,13 @@ else:
     except ImportError:  # pragma: no cover
         _OTEL_AVAILABLE = False
 
+# Module-level tracer singleton.  Thread-safe: the OTEL spec requires that
+# ``Tracer`` methods are safe for concurrent use, and ``get_tracer()`` is
+# designed to be called once and cached (see "Get a Tracer" at
+# https://opentelemetry.io/docs/specs/otel/trace/api/#get-a-tracer).
+# A benign race on first access (two threads both see ``None``) is harmless
+# because ``trace.get_tracer()`` returns equivalent instances for the same
+# instrumentation scope.
 _tracer = None
 
 
