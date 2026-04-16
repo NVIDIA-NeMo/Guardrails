@@ -119,7 +119,7 @@ class TestRequestSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with request_span(tracer) as (span, req_id):
+        with request_span(tracer) as _:
             pass
 
         spans = exporter.get_finished_spans()
@@ -131,7 +131,7 @@ class TestRequestSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with request_span(tracer) as (span, req_id):
+        with request_span(tracer) as (_, req_id):
             pass
 
         attrs = dict(spans[0].attributes) if (spans := exporter.get_finished_spans()) else {}
@@ -143,7 +143,7 @@ class TestRequestSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with request_span(tracer) as (span, req_id):
+        with request_span(tracer) as _:
             pass
 
         attrs = dict(exporter.get_finished_spans()[0].attributes)
@@ -159,7 +159,7 @@ class TestRequestSpan:
         provider.add_span_processor(SimpleSpanProcessor(exporter))
         tracer = provider.get_tracer("test")
 
-        with request_span(tracer) as (span, req_id):
+        with request_span(tracer) as _:
             pass
 
         finished = exporter.get_finished_spans()
@@ -169,7 +169,7 @@ class TestRequestSpan:
         provider, _ = otel_provider
         tracer = provider.get_tracer("test")
 
-        with request_span(tracer) as (span, req_id):
+        with request_span(tracer) as (_, req_id):
             assert _is_valid_hex_string(req_id, REQUEST_ID_HEX_CHARS)
 
     def test_records_exception_on_error(self, otel_provider):
@@ -177,7 +177,7 @@ class TestRequestSpan:
         tracer = provider.get_tracer("test")
 
         with pytest.raises(ValueError, match="boom"):
-            with request_span(tracer) as (span, req_id):
+            with request_span(tracer) as _:
                 raise ValueError("boom")
 
         spans = exporter.get_finished_spans()
@@ -192,7 +192,7 @@ class TestRequestSpan:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with request_span(tracer) as (span, req_id):
+        with request_span(tracer) as _:
             pass
 
         spans = exporter.get_finished_spans()
