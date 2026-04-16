@@ -281,6 +281,8 @@ class IORails:
 
         async def _wrapped_iterator():
             """Wrap the base iterator with semaphore-based concurrency control."""
+            # TODO Streaming instrumentation handled in follow-on PR
+
             # Ensure engines are running (idempotent if already started).
             await self.start()
 

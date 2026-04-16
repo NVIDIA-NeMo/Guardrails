@@ -74,10 +74,8 @@ def iorails_tracing(tracer_from_provider):
         iorails = IORails(config)
     iorails._tracer = tracer_from_provider
     iorails._tracing_enabled = True
-    old_tracer = telemetry._tracer
-    telemetry._tracer = tracer_from_provider
-    yield iorails
-    telemetry._tracer = old_tracer
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        yield iorails
 
 
 @pytest.fixture

@@ -153,6 +153,8 @@ class EngineRegistry:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not a ModelEngine.
         """
+        # TODO Streaming instrumentation handled in follow-on PR
+
         req_id = get_request_id()
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
