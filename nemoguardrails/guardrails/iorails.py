@@ -124,6 +124,7 @@ class IORails:
         """Synchronous version of generate_async."""
 
         async def _run_sync_iorails():
+            """Spin up a short-lived IORails engine for one synchronous generate call."""
             async with IORails(self.config) as iorails_engine:
                 return await iorails_engine.generate_async(messages, **kwargs)
 
