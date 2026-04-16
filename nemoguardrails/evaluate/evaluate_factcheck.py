@@ -27,7 +27,6 @@ from nemoguardrails.evaluate.utils import load_dataset
 from nemoguardrails.llm.prompts import Task
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.utils import get_or_create_event_loop
 
 
 class FactCheckEvaluation:
@@ -71,7 +70,7 @@ class FactCheckEvaluation:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-    def create_negative_samples(self, dataset):
+    async def create_negative_samples(self, dataset):
         """
         Create synthetic negative samples for fact checking. The negative samples are created by an LLM that acts
         as an adversary and modifies the answer to make it incorrect.
@@ -89,8 +88,6 @@ class FactCheckEvaluation:
         that it will not be grounded in the evidence passage. change details in the answer to make the answer
         wrong but yet believable.\nevidence: {evidence}\nanswer: {answer}\nincorrect answer:"""
 
-        loop = get_or_create_event_loop()
-
         print("Creating negative samples...")
         for data in tqdm.tqdm(dataset):
             assert "evidence" in data and "question" in data and "answer" in data
@@ -98,9 +95,7 @@ class FactCheckEvaluation:
             answer = data["answer"]
 
             formatted_prompt = create_negatives_template.format(evidence=evidence, answer=answer)
-            response = loop.run_until_complete(
-                self.llm.generate_async(formatted_prompt, temperature=0.8, max_tokens=300)
-            )
+            response = await self.llm.generate_async(formatted_prompt, temperature=0.8, max_tokens=300)
             data["incorrect_answer"] = response.content.strip()
 
         return dataset
@@ -164,7 +159,7 @@ class FactCheckEvaluation:
         Run the fact checking evaluation and print the results.
         """
         if self.create_negatives:
-            self.dataset = self.create_negative_samples(self.dataset)
+            self.dataset = asyncio.run(self.create_negative_samples(self.dataset))
 
         print("Checking facts - positive entailment")
         positive_fact_check_predictions, pos_num_correct, pos_time = self.check_facts(split="positive")
