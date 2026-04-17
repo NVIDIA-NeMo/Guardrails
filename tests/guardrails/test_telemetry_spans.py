@@ -105,6 +105,20 @@ class TestActionSpan:
         with action_span(None, "some action") as span:
             assert span is None
 
+    def test_records_exception(self, otel_provider):
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with pytest.raises(RuntimeError, match="action failed"):
+            with action_span(tracer, "some action"):
+                raise RuntimeError("action failed")
+
+        span = exporter.get_finished_spans()[0]
+        assert span.status.status_code == StatusCode.ERROR
+        exc_events = [e for e in span.events if e.name == "exception"]
+        assert len(exc_events) == 1
+        assert exc_events[0].attributes["exception.type"] == "RuntimeError"
+
 
 class TestLlmCallSpan:
     def test_creates_client_span(self, otel_provider):
