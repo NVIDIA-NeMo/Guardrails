@@ -13,10 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+try:
+    import langchain_core  # noqa: F401
+except ImportError:
+    collect_ignore_glob = ["integrations/langchain/*.py", "integrations/langchain/**/*.py"]
 
 REASONING_TRACE_MOCK_PATH = "nemoguardrails.actions.llm.generation.get_and_clear_reasoning_trace_contextvar"
 
@@ -33,18 +37,3 @@ def reset_reasoning_trace_var():
 
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()
-
-
-def pytest_collection_modifyitems(config, items):
-    try:
-        import langchain_core  # noqa: F401
-
-        return
-    except ImportError:
-        pass
-
-    skip_langchain = pytest.mark.skip(reason="langchain not installed")
-    for item in items:
-        parts = Path(item.fspath).parts
-        if "integrations" in parts and "langchain" in parts:
-            item.add_marker(skip_langchain)
