@@ -19,13 +19,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.llm.frameworks import (
-    _areset_frameworks,
-    _reset_frameworks,
     get_default_framework,
     get_framework,
     register_framework,
     set_default_framework,
 )
+from nemoguardrails.llm.frameworks.registry import _areset_frameworks, _reset_frameworks
 from nemoguardrails.llm.providers import (
     get_chat_provider_names,
     get_llm_provider_names,
@@ -48,6 +47,12 @@ class FakeFramework:
     def create_model(self, model_name, provider_name, model_kwargs=None):
         return MagicMock(spec=LLMModel)
 
+    def register_provider(self, name, provider_cls):
+        pass
+
+    def get_provider_names(self):
+        return []
+
     async def reset(self):
         return
 
@@ -60,11 +65,11 @@ class TestRegistry:
 
     def test_register_duplicate_raises_valueerror(self):
         register_framework("dup", FakeFramework())
-        with pytest.raises(ValueError, match="already registered"):
+        with pytest.raises(ValueError, match="already exists"):
             register_framework("dup", FakeFramework())
 
     def test_get_unregistered_raises_keyerror(self):
-        with pytest.raises(KeyError, match="Unknown framework"):
+        with pytest.raises(KeyError, match="does not exist"):
             get_framework("nonexistent")
 
     def test_langchain_lazy_auto_registration(self):
@@ -104,6 +109,12 @@ class _ResetSpyFramework:
     def create_model(self, model_name, provider_name, model_kwargs=None):
         return MagicMock(spec=LLMModel)
 
+    def register_provider(self, name, provider_cls):
+        pass
+
+    def get_provider_names(self):
+        return []
+
     async def reset(self):
         self.reset_count += 1
 
@@ -130,17 +141,18 @@ class TestAresetFrameworks:
             _reset_frameworks()
 
 
-class _FrameworkWithoutReset:
-    def create_model(self, model_name, provider_name, model_kwargs=None):
-        return MagicMock(spec=LLMModel)
-
-
 class _RaisingFramework:
     def __init__(self, exc=None):
         self._exc = exc or RuntimeError("boom")
 
     def create_model(self, model_name, provider_name, model_kwargs=None):
         return MagicMock(spec=LLMModel)
+
+    def register_provider(self, name, provider_cls):
+        pass
+
+    def get_provider_names(self):
+        return []
 
     async def reset(self):
         raise self._exc
@@ -163,18 +175,52 @@ class TestResetFrameworksErrorIsolation:
             get_framework("bad_only")
 
 
-class TestResetFrameworksMissingResetMethod:
-    def test_framework_without_reset_does_not_crash(self):
-        register_framework("no_reset", _FrameworkWithoutReset())
-        _reset_frameworks()
-        with pytest.raises(KeyError):
-            get_framework("no_reset")
+class TestRegisterFrameworkProtocolEnforcement:
+    """Registry validates the LLMFramework protocol on add().
 
-    def test_framework_without_reset_resets_default(self, monkeypatch):
-        monkeypatch.setenv("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
-        register_framework("no_reset_2", _FrameworkWithoutReset())
-        _reset_frameworks()
-        assert get_default_framework() == "default"
+    Frameworks lacking required methods (create_model / register_provider /
+    get_provider_names / reset) are rejected at registration time, replacing
+    the older silent-skip behaviour of the previous dict-based registry.
+    """
+
+    def test_framework_missing_reset_is_rejected(self):
+        class _NoReset:
+            def create_model(self, model_name, provider_name, model_kwargs=None):
+                return MagicMock(spec=LLMModel)
+
+            def register_provider(self, name, provider_cls):
+                pass
+
+            def get_provider_names(self):
+                return []
+
+        with pytest.raises(TypeError, match="does not implement LLMFramework"):
+            register_framework("no_reset", _NoReset())
+
+    def test_framework_with_sync_reset_is_rejected(self):
+        """A protocol-compliant class with a sync reset() must not be accepted.
+
+        runtime_checkable Protocols only verify attribute existence, not that
+        an attribute is async. Without the explicit coroutine check, a sync
+        reset would pass validation and crash later inside _areset_frameworks
+        when the loop tries to await it.
+        """
+
+        class _SyncReset:
+            def create_model(self, model_name, provider_name, model_kwargs=None):
+                return MagicMock(spec=LLMModel)
+
+            def register_provider(self, name, provider_cls):
+                pass
+
+            def get_provider_names(self):
+                return []
+
+            def reset(self):
+                pass
+
+        with pytest.raises(TypeError, match="reset must be an async coroutine function"):
+            register_framework("sync_reset", _SyncReset())
 
 
 class FakeChatProvider:
