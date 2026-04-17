@@ -1,0 +1,82 @@
+{
+  "id": "chatcmpl-DWenex2088pU07NJc8aCbIKezXmmf",
+  "object": "chat.completion",
+  "created": 1776675702,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_jvy4Xu60oBqgG8zwvPeoFEsk",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\": \"Paris\"}"
+            }
+          },
+          {
+            "id": "call_Z4V8jElV0xJDVTtREr0ymYXp",
+            "type": "function",
+            "function": {
+              "name": "get_time",
+              "arguments": "{\"city\": \"Paris\"}"
+            }
+          }
+        ],
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 75,
+    "completion_tokens": 44,
+    "total_tokens": 119,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_83e2dd34fc",
+  "_response_headers": {
+    "date": "Mon, 20 Apr 2026 09:01:43 GMT",
+    "content-type": "application/json",
+    "transfer-encoding": "chunked",
+    "connection": "keep-alive",
+    "content-encoding": "gzip",
+    "cf-ray": "9ef2f740bda02793-LYS",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "access-control-expose-headers": "X-Request-ID",
+    "openai-organization": "nvidia-entprod",
+    "openai-processing-ms": "1196",
+    "openai-project": "proj_VRYjWHlQq7NynyOMp4WERvtD",
+    "openai-version": "2020-10-01",
+    "x-openai-proxy-wasm": "v0.1",
+    "x-ratelimit-limit-requests": "30000",
+    "x-ratelimit-limit-tokens": "150000000",
+    "x-ratelimit-remaining-requests": "29999",
+    "x-ratelimit-remaining-tokens": "149999987",
+    "x-ratelimit-reset-requests": "2ms",
+    "x-ratelimit-reset-tokens": "0s",
+    "x-request-id": "req_bac1cd4443a94d999e024070cff3715d",
+    "set-cookie": "__cf_bm=BpZ5pGWy1Pyh9XtTU1AueryapQwHwm6ckUgwsLt7GBk-1776675703-1.0.1.1-dOpm4_csUqQQ8PnYGox4WcDHih8hs15rk9nLYD.2sgSfDSuEVke28hK7RYHXanb1mG9Wiz6LjUXA_wwvjnPfJdooNV9ZU.jSGI9dH00y5dU; path=/; expires=Mon, 20-Apr-26 09:31:43 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=50XcnamXKFUmnlHGtBnPQq.X11hn2qWH8bHFJYHBzcc-1776675703363-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None",
+    "vary": "Accept-Encoding",
+    "server": "cloudflare",
+    "alt-svc": "h3=\":443\"; ma=86400"
+  }
+}

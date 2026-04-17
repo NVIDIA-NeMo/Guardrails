@@ -1,0 +1,48 @@
+{
+  "id": "chatcmpl-bd57cedab69e3cdc",
+  "object": "chat.completion",
+  "created": 1776675713,
+  "model": "nvidia/nemotron-3-nano-30b-a3b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "4",
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [],
+        "reasoning": "The user asks a simple math question. Answer: 4.\n",
+        "reasoning_content": "The user asks a simple math question. Answer: 4.\n"
+      },
+      "logprobs": null,
+      "finish_reason": "stop",
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 23,
+    "total_tokens": 40,
+    "completion_tokens": 17,
+    "prompt_tokens_details": null
+  },
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null,
+  "_response_headers": {
+    "date": "Mon, 20 Apr 2026 09:01:54 GMT",
+    "content-type": "application/json",
+    "content-length": "707",
+    "connection": "keep-alive",
+    "access-control-expose-headers": "nvcf-reqid",
+    "nvcf-reqid": "9db34295-fda8-49d1-85fc-911fe4356626",
+    "nvcf-status": "fulfilled",
+    "server": "uvicorn",
+    "vary": "Origin"
+  }
+}

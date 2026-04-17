@@ -1,0 +1,118 @@
+{
+  "user_message": {
+    "role": "user",
+    "content": "What's the weather in Paris?"
+  },
+  "first_response": {
+    "id": "chatcmpl-9e4b2723d41555d3",
+    "object": "chat.completion",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "tool_calls": [
+            {
+              "id": "chatcmpl-tool-9fbbaae95c576357",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\": \"Paris\"}"
+              }
+            }
+          ],
+          "reasoning": null,
+          "reasoning_content": null
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls",
+        "stop_reason": null,
+        "token_ids": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": null,
+    "usage": {
+      "prompt_tokens": 276,
+      "total_tokens": 301,
+      "completion_tokens": 25,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "kv_transfer_params": null,
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:57 GMT",
+      "content-type": "application/json",
+      "content-length": "747",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "e1913350-273a-400f-98dc-f6359b9a8721",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  "tool_results": [
+    {
+      "role": "tool",
+      "tool_call_id": "chatcmpl-tool-9fbbaae95c576357",
+      "content": "{\"temperature\": 18, \"conditions\": \"cloudy\"}"
+    }
+  ],
+  "second_response": {
+    "id": "chatcmpl-b08d32218a2ab964",
+    "object": "chat.completion",
+    "created": 1776675717,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "The current weather in Paris is **18\u00b0C** with **cloudy** conditions. Let me know if you'd like more details!",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "tool_calls": [],
+          "reasoning": null,
+          "reasoning_content": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": null,
+        "token_ids": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": null,
+    "usage": {
+      "prompt_tokens": 331,
+      "total_tokens": 360,
+      "completion_tokens": 29,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "kv_transfer_params": null,
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:57 GMT",
+      "content-type": "application/json",
+      "content-length": "721",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "74911270-eb3c-4ec0-ab77-ce1204e2b5bc",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  }
+}

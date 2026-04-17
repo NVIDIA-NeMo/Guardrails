@@ -1,0 +1,34 @@
+{
+  "status_code": 401,
+  "body": {
+    "error": {
+      "message": "Incorrect API key provided: sk-inval**************ture. You can find your API key at https://platform.openai.com/account/api-keys.",
+      "type": "invalid_request_error",
+      "code": "invalid_api_key",
+      "param": null
+    },
+    "status": 401
+  },
+  "response_headers": {
+    "date": "Mon, 20 Apr 2026 09:01:50 GMT",
+    "content-type": "text/plain",
+    "content-length": "272",
+    "connection": "keep-alive",
+    "set-cookie": "__cf_bm=ySzDIRZE8xXOBLid2IJipjhIvo_ISLGMHgXsPUUw4wY-1776675710.5510492-1.0.1.1-wxySPaHBO1Kk5kAYvTNOTT0OMET0c2WsYm37drsxKpQZpYlVAClTbBlLbAiNfRG_X_dCPmojkvVQ0GsYWT1xll0pQVGsx9cu.W0vGAALwOpyT8WsyUlbkOhL8e7pjxJc; HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Mon, 20 Apr 2026 09:31:50 GMT, _cfuvid=7bYNK8PVwbZNMtXHiBx8TJvDTpiEmMDZkxEFKxKSLks-1776675710.5510492-1.0.1.1-fyNyM4bTaCPawkja5Uk6Ocs9jkVvx04Fhh0VA3cobzg; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com",
+    "cf-ray": "9ef2f776ec4a2795-LYS",
+    "cf-cache-status": "DYNAMIC",
+    "server": "cloudflare",
+    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "x-error-json": "ewogICJlcnJvciI6IHsKICAgICJtZXNzYWdlIjogIkluY29ycmVjdCBBUEkga2V5IHByb3ZpZGVkOiBzay1pbnZhbCoqKioqKioqKioqKioqdHVyZS4gWW91IGNhbiBmaW5kIHlvdXIgQVBJIGtleSBhdCBodHRwczovL3BsYXRmb3JtLm9wZW5haS5jb20vYWNjb3VudC9hcGkta2V5cy4iLAogICAgInR5cGUiOiAiaW52YWxpZF9yZXF1ZXN0X2Vycm9yIiwKICAgICJjb2RlIjogImludmFsaWRfYXBpX2tleSIsCiAgICAicGFyYW0iOiBudWxsCiAgfSwKICAic3RhdHVzIjogNDAxCn0=",
+    "x-openai-authorization-error": "401",
+    "x-openai-ide-error-code": "invalid_api_key",
+    "x-openai-internal-caller": "unknown_through_ide",
+    "x-openai-proxy-wasm": "v0.1",
+    "x-request-id": "req_29a348eec909427f9ef65e0969ffd451",
+    "alt-svc": "h3=\":443\"; ma=86400"
+  },
+  "error_message": "Incorrect API key provided: sk-*** You can find your API key at https://platform.openai.com/account/api-keys.",
+  "error_type": "invalid_request_error",
+  "error_code": "invalid_api_key"
+}
