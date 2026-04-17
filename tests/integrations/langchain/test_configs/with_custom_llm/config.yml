@@ -1,0 +1,5 @@
+models:
+  - type: main
+    engine: custom_llm
+    parameters:
+      model: custom_model
