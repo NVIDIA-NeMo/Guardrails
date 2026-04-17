@@ -276,10 +276,10 @@ class IORails:
                     elapsed_ms,
                     exc_info=True,
                 )
-                # The exception is swallowed so the stream can emit a
-                # structured error payload to the consumer; mark the
-                # enclosing request span ERROR so observability sees it.
-                record_current_span_error(e)
+                # Mark the request span ERROR; guard prevents contaminating
+                # the caller's ambient OTEL span when IORails tracing is off.
+                if self._tracing_enabled:
+                    record_current_span_error(e)
                 error_payload = json.dumps(
                     {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
