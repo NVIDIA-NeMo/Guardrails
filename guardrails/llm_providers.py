@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import inspect
 from typing import (
@@ -253,6 +254,121 @@ class LiteLLMCallable(PromptCallableBase):
             output=output,  # type: ignore
             prompt_token_count=prompt_tokens,  # type: ignore
             response_token_count=completion_tokens,  # type: ignore
+        )
+
+
+class MiniMaxCallable(PromptCallableBase):
+    def _invoke_llm(
+        self,
+        text: Optional[str] = None,
+        model: str = "MiniMax-M2.7",
+        messages: Optional[List[Dict]] = None,
+        api_key: Optional[str] = None,
+        base_url: str = "https://api.minimax.io/v1",
+        *args,
+        **kwargs,
+    ) -> LLMResponse:
+        """Wrapper for MiniMax completions via OpenAI-compatible API.
+
+        To use MiniMax for guardrails, do
+        ```
+        from guardrails.llm_providers import MiniMaxCallable
+
+        raw_llm_response, validated_response = guard(
+            MiniMaxCallable(),
+            model="MiniMax-M2.7",
+            messages=[{"role": "user", "content": "..."}],
+            ...
+        )
+        ```
+
+        Or use without an explicit callable by setting MINIMAX_API_KEY:
+        ```
+        raw_llm_response, validated_response = guard(
+            model="MiniMax-M2.7",
+            messages=[{"role": "user", "content": "..."}],
+            ...
+        )
+        ```
+        """
+        try:
+            import openai
+        except ImportError as e:
+            raise PromptCallableException(
+                "The `openai` package is not installed. "
+                "Install with `pip install openai`"
+            ) from e
+
+        resolved_api_key = api_key or os.environ.get("MINIMAX_API_KEY")
+        if resolved_api_key is None:
+            raise PromptCallableException(
+                "MiniMax API key is required. Set the MINIMAX_API_KEY environment "
+                "variable or pass api_key as a parameter."
+            )
+
+        client = openai.Client(api_key=resolved_api_key, base_url=base_url)
+
+        msgs = messages or chat_prompt(text, kwargs.pop("instructions", None))
+
+        # MiniMax requires temperature in (0.0, 1.0]; default to 1.0
+        if kwargs.get("temperature", 0) == 0:
+            kwargs["temperature"] = 1.0
+
+        # These are guardrails-only params, not to be passed to the LLM
+        kwargs.pop("reask_messages", None)
+
+        trace_operation(
+            input_mime_type="application/json",
+            input_value={**kwargs, "model": model, "messages": msgs},
+        )
+        trace_llm_call(
+            input_messages=msgs,
+            invocation_parameters={**kwargs, "model": model},
+        )
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=msgs,
+            **kwargs,
+        )
+
+        if kwargs.get("stream", False):
+            return LLMResponse(output="", streamOutput=response)
+
+        trace_operation(output_mime_type="application/json", output_value=response)
+
+        if response.choices[0].message.content is not None:
+            output = response.choices[0].message.content
+        else:
+            try:
+                output = response.choices[0].message.function_call.arguments  # type: ignore
+            except AttributeError:
+                try:
+                    output = (
+                        response.choices[0].message.tool_calls[-1].function.arguments  # type: ignore
+                    )
+                except AttributeError as ae:
+                    raise ValueError(
+                        "No message content or function call arguments returned"
+                        " from MiniMax"
+                    ) from ae
+
+        completion_tokens = response.usage.completion_tokens if response.usage else None
+        prompt_tokens = response.usage.prompt_tokens if response.usage else None
+        total_tokens = None
+        if completion_tokens or prompt_tokens:
+            total_tokens = (completion_tokens or 0) + (prompt_tokens or 0)
+
+        trace_llm_call(
+            output_messages=[choice.message for choice in response.choices],
+            token_count_completion=completion_tokens,
+            token_count_prompt=prompt_tokens,
+            token_count_total=total_tokens,
+        )
+        return LLMResponse(
+            output=output,
+            prompt_token_count=prompt_tokens,
+            response_token_count=completion_tokens,
         )
 
 
@@ -511,7 +627,11 @@ def get_llm_ask(
         model = kwargs.get("model", "")
         if not (
             isinstance(model, str)
-            and (model.startswith("gpt-5") or model.startswith("openai/gpt-5"))
+            and (
+                model.startswith("gpt-5")
+                or model.startswith("openai/gpt-5")
+                or model.startswith("MiniMax")
+            )
         ):
             warnings.warn(
                 "The default value of 0 for temperature is deprecated "
@@ -519,6 +639,17 @@ def get_llm_ask(
                 DeprecationWarning,
             )
             kwargs.update({"temperature": 0})
+
+    # If already a PromptCallableBase instance, return it directly
+    from guardrails.classes.llm.prompt_callable import PromptCallableBase as _PCB
+
+    if isinstance(llm_api, _PCB):
+        return llm_api  # type: ignore
+
+    # MiniMax models route to MiniMaxCallable before LiteLLM
+    model = kwargs.get("model", "")
+    if llm_api is None and isinstance(model, str) and model.startswith("MiniMax"):
+        return MiniMaxCallable(*args, **kwargs)
 
     try:
         from litellm import completion
@@ -732,6 +863,98 @@ class AsyncLiteLLMCallable(AsyncPromptCallableBase):
         )
 
 
+class AsyncMiniMaxCallable(AsyncPromptCallableBase):
+    async def invoke_llm(
+        self,
+        text: Optional[str] = None,
+        model: str = "MiniMax-M2.7",
+        messages: Optional[List[Dict]] = None,
+        api_key: Optional[str] = None,
+        base_url: str = "https://api.minimax.io/v1",
+        *args,
+        **kwargs,
+    ) -> LLMResponse:
+        """Async wrapper for MiniMax completions via OpenAI-compatible API."""
+        try:
+            import openai
+        except ImportError as e:
+            raise PromptCallableException(
+                "The `openai` package is not installed. "
+                "Install with `pip install openai`"
+            ) from e
+
+        resolved_api_key = api_key or os.environ.get("MINIMAX_API_KEY")
+        if resolved_api_key is None:
+            raise PromptCallableException(
+                "MiniMax API key is required. Set the MINIMAX_API_KEY environment "
+                "variable or pass api_key as a parameter."
+            )
+
+        client = openai.AsyncClient(api_key=resolved_api_key, base_url=base_url)
+
+        msgs = messages or chat_prompt(text, kwargs.pop("instructions", None))
+
+        # MiniMax requires temperature in (0.0, 1.0]; default to 1.0
+        if kwargs.get("temperature", 0) == 0:
+            kwargs["temperature"] = 1.0
+
+        kwargs.pop("reask_messages", None)
+
+        trace_operation(
+            input_mime_type="application/json",
+            input_value={**kwargs, "model": model, "messages": msgs},
+        )
+        trace_llm_call(
+            input_messages=msgs,
+            invocation_parameters={**kwargs, "model": model},
+        )
+
+        response = await client.chat.completions.create(
+            model=model,
+            messages=msgs,
+            **kwargs,
+        )
+
+        if kwargs.get("stream", False):
+            return LLMResponse(output="", asyncStreamOutput=response)
+
+        trace_operation(output_mime_type="application/json", output_value=response)
+
+        if response.choices[0].message.content is not None:
+            output = response.choices[0].message.content
+        else:
+            try:
+                output = response.choices[0].message.function_call.arguments  # type: ignore
+            except AttributeError:
+                try:
+                    output = (
+                        response.choices[0].message.tool_calls[-1].function.arguments  # type: ignore
+                    )
+                except AttributeError as ae:
+                    raise ValueError(
+                        "No message content or function call arguments returned"
+                        " from MiniMax"
+                    ) from ae
+
+        completion_tokens = response.usage.completion_tokens if response.usage else None
+        prompt_tokens = response.usage.prompt_tokens if response.usage else None
+        total_tokens = None
+        if completion_tokens or prompt_tokens:
+            total_tokens = (completion_tokens or 0) + (prompt_tokens or 0)
+
+        trace_llm_call(
+            output_messages=[choice.message for choice in response.choices],
+            token_count_completion=completion_tokens,
+            token_count_prompt=prompt_tokens,
+            token_count_total=total_tokens,
+        )
+        return LLMResponse(
+            output=output,
+            prompt_token_count=prompt_tokens,
+            response_token_count=completion_tokens,
+        )
+
+
 class AsyncManifestCallable(AsyncPromptCallableBase):
     async def invoke_llm(
         self,
@@ -868,6 +1091,17 @@ class AsyncArbitraryCallable(AsyncPromptCallableBase):
 def get_async_llm_ask(
     llm_api: Callable[..., Awaitable[Any]], *args, **kwargs
 ) -> AsyncPromptCallableBase:
+    # If already a PromptCallableBase instance, return it directly
+    from guardrails.classes.llm.prompt_callable import PromptCallableBase as _PCB
+
+    if isinstance(llm_api, _PCB):
+        return llm_api  # type: ignore
+
+    # MiniMax models route to AsyncMiniMaxCallable before LiteLLM
+    model = kwargs.get("model", "")
+    if llm_api is None and isinstance(model, str) and model.startswith("MiniMax"):
+        return AsyncMiniMaxCallable(*args, **kwargs)
+
     try:
         import litellm
 

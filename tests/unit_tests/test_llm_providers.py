@@ -315,6 +315,172 @@ def test_litellm_callable(mocker):
     assert response.response_token_count == 20
 
 
+def test_minimax_callable(mocker):
+    """Test MiniMaxCallable wraps MiniMax OpenAI-compatible API correctly."""
+    from dataclasses import dataclass as _dc
+
+    @_dc
+    class _Message:
+        content: str
+
+    @_dc
+    class _Choice:
+        message: _Message
+
+    @_dc
+    class _Usage:
+        prompt_tokens: int
+        completion_tokens: int
+
+    @_dc
+    class _MockResponse:
+        choices: List[_Choice]
+        usage: _Usage
+
+    mock_response = _MockResponse(
+        choices=[_Choice(message=_Message(content="MiniMax says hello!"))],
+        usage=_Usage(prompt_tokens=5, completion_tokens=10),
+    )
+
+    mock_client = mocker.MagicMock()
+    mock_client.chat.completions.create.return_value = mock_response
+    mocker.patch("openai.Client", return_value=mock_client)
+
+    mocker.patch.dict("os.environ", {"MINIMAX_API_KEY": "test-minimax-key"})
+
+    from guardrails.llm_providers import MiniMaxCallable
+
+    callable_ = MiniMaxCallable()
+    response = callable_(
+        text="Hello",
+        model="MiniMax-M2.7",
+    )
+
+    assert isinstance(response, LLMResponse)
+    assert response.output == "MiniMax says hello!"
+    assert response.prompt_token_count == 5
+    assert response.response_token_count == 10
+
+    # Verify temperature was set to 1.0 (MiniMax requires > 0)
+    call_kwargs = mock_client.chat.completions.create.call_args[1]
+    assert call_kwargs["temperature"] == 1.0
+
+
+def test_minimax_callable_uses_custom_base_url(mocker):
+    """Test MiniMaxCallable uses custom base_url when provided."""
+    from dataclasses import dataclass as _dc
+
+    @_dc
+    class _Message:
+        content: str
+
+    @_dc
+    class _Choice:
+        message: _Message
+
+    @_dc
+    class _MockResponse:
+        choices: List[_Choice]
+        usage: Any
+
+    mock_response = _MockResponse(
+        choices=[_Choice(message=_Message(content="response"))],
+        usage=None,
+    )
+    mock_client = mocker.MagicMock()
+    mock_client.chat.completions.create.return_value = mock_response
+
+    captured = {}
+
+    def mock_openai_client(api_key=None, base_url=None):
+        captured["api_key"] = api_key
+        captured["base_url"] = base_url
+        return mock_client
+
+    mocker.patch("openai.Client", side_effect=mock_openai_client)
+    mocker.patch.dict("os.environ", {"MINIMAX_API_KEY": "test-key"})
+
+    from guardrails.llm_providers import MiniMaxCallable
+
+    callable_ = MiniMaxCallable()
+    callable_(
+        text="Hello",
+        model="MiniMax-M2.7",
+        base_url="https://custom.minimax.io/v1",
+    )
+
+    assert captured["base_url"] == "https://custom.minimax.io/v1"
+
+
+def test_minimax_callable_raises_without_api_key(mocker):
+    """Test MiniMaxCallable raises when no API key is available."""
+    mocker.patch.dict("os.environ", {}, clear=True)
+    # Make sure MINIMAX_API_KEY is not set
+    mocker.patch.dict("os.environ", {"MINIMAX_API_KEY": ""})
+
+    from guardrails.llm_providers import MiniMaxCallable, PromptCallableException
+
+    callable_ = MiniMaxCallable()
+
+    with pytest.raises(PromptCallableException):
+        callable_(text="Hello", model="MiniMax-M2.7")
+
+
+def test_get_llm_ask_minimax_model():
+    """Test that model names starting with 'MiniMax' route to MiniMaxCallable."""
+    import os
+
+    os.environ["MINIMAX_API_KEY"] = "test-key"
+    try:
+        from guardrails.llm_providers import MiniMaxCallable
+
+        result = get_llm_ask(None, model="MiniMax-M2.7")
+        assert isinstance(result, MiniMaxCallable)
+    finally:
+        del os.environ["MINIMAX_API_KEY"]
+
+
+def test_get_llm_ask_minimax_highspeed_model():
+    """Test that MiniMax-M2.7-highspeed also routes to MiniMaxCallable."""
+    import os
+
+    os.environ["MINIMAX_API_KEY"] = "test-key"
+    try:
+        from guardrails.llm_providers import MiniMaxCallable
+
+        result = get_llm_ask(None, model="MiniMax-M2.7-highspeed")
+        assert isinstance(result, MiniMaxCallable)
+    finally:
+        del os.environ["MINIMAX_API_KEY"]
+
+
+def test_get_llm_ask_minimax_temperature_not_set_to_zero():
+    """Test that MiniMax models skip the default temperature=0 warning."""
+    import warnings as _warnings
+
+    import os
+
+    os.environ["MINIMAX_API_KEY"] = "test-key"
+    try:
+        with _warnings.catch_warnings(record=True) as w:
+            _warnings.simplefilter("always")
+            result = get_llm_ask(None, model="MiniMax-M2.7")
+            # Should not emit the temperature deprecation warning for MiniMax
+            dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(dep_warnings) == 0
+    finally:
+        del os.environ["MINIMAX_API_KEY"]
+
+
+def test_get_llm_ask_returns_prompt_callable_base_directly():
+    """Test that PromptCallableBase instances are returned directly."""
+    from guardrails.llm_providers import MiniMaxCallable
+
+    instance = MiniMaxCallable()
+    result = get_llm_ask(instance, model="MiniMax-M2.7")
+    assert result is instance
+
+
 class ReturnTempCallable(Callable):
     def __call__(self, *args, messages=None, **kwargs) -> Any:
         return ""
