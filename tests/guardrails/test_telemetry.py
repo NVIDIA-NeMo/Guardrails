@@ -30,9 +30,11 @@ from nemoguardrails.guardrails.telemetry import (
     get_tracer,
     is_tracing_enabled,
     mark_rail_stop,
+    record_current_span_error,
     record_span_error,
     request_span,
     trace_id_to_request_id,
+    traced_request,
 )
 
 _HEX_PATTERN = re.compile(r"^[0-9a-f]+$")
@@ -265,3 +267,64 @@ class TestIsTracingEnabled:
         config.enabled = True
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             assert is_tracing_enabled(config) is False
+
+
+class TestRecordCurrentSpanError:
+    def test_noop_without_otel(self):
+        """When OTEL is unavailable, the helper returns cleanly without raising."""
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            record_current_span_error(RuntimeError("boom"))
+
+
+class TestTracedRequestValueErrorTolerance:
+    def test_value_error_on_reset_swallowed_in_tracer_branch(self, otel_provider):
+        """traced_request must tolerate ValueError from reset_request_id — this
+        models async-generator cleanup running in a different task context.
+
+        The ValueError happens in the token-reset after ``yield``, so the span
+        should still close cleanly with UNSET status and a valid req_id
+        derived from the trace ID.
+        """
+        provider, exporter = otel_provider
+        tracer = provider.get_tracer("test")
+
+        with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
+            with traced_request(tracer) as req_id:
+                captured_req_id = req_id
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "guardrails.request"
+        assert span.kind == SpanKind.SERVER
+        assert span.status.status_code == StatusCode.UNSET
+
+        # req_id is a valid hex suffix of the trace ID
+        assert _is_valid_hex_string(captured_req_id, REQUEST_ID_HEX_CHARS)
+        assert format_trace_id(span.context.trace_id).endswith(captured_req_id)
+
+        # The span carries the req_id attribute set by request_span
+        attrs = dict(span.attributes)
+        assert attrs["request.id"] == captured_req_id
+        assert attrs["gen_ai.operation.name"] == "guardrails"
+
+        # The swallowed ValueError must NOT leak into the span: no exception
+        # events, no error.type attribute, no trace of "wrong context" anywhere.
+        assert [e for e in span.events if e.name == "exception"] == []
+        assert "error.type" not in attrs
+        assert not span.status.description
+        for value in attrs.values():
+            assert "wrong context" not in str(value)
+
+    def test_value_error_on_reset_swallowed_in_no_tracer_branch(self):
+        """Same tolerance in the tracer=None branch (random req-id path).
+
+        No span is created; we only verify the yielded req_id is a valid
+        hex string and the ValueError is not propagated.
+        """
+        with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
+            with traced_request(None) as req_id:
+                captured_req_id = req_id
+
+        assert _is_valid_hex_string(captured_req_id, REQUEST_ID_HEX_CHARS)

@@ -148,6 +148,20 @@ def mark_rail_stop(span: Optional["Span"], is_safe: bool) -> None:
     span.set_attribute(GuardrailsAttributes.RAIL_STOP, True)
 
 
+def record_current_span_error(exc: BaseException) -> None:
+    """Record an exception on the currently active OTEL span.
+
+    Use from call sites that swallow an exception (e.g. streaming
+    generation tasks that convert errors into in-band error payloads) to
+    mark the enclosing span ERROR.  Safe when no tracer is configured:
+    ``get_current_span()`` returns a non-recording span whose methods are
+    no-ops.
+    """
+    if not _OTEL_AVAILABLE:
+        return
+    record_span_error(trace.get_current_span(), exc)
+
+
 @contextmanager
 def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
     """Create a live ``guardrails.request`` SERVER span.
@@ -319,7 +333,9 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[str, None, None]:
     *tracer* is ``None``, a random request ID is generated instead.
 
     Yields ``request_id``.  The request-ID ContextVar is always cleaned up
-    on exit.
+    on exit — including from async-generator cleanup, where reset may run
+    in a different task context than the original set (``ValueError`` is
+    swallowed in that case because the ContextVar frame is already gone).
     """
     if tracer is not None:
         with request_span(tracer) as (_, req_id):
@@ -327,10 +343,16 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[str, None, None]:
             try:
                 yield req_id
             finally:
-                reset_request_id(token)
+                try:
+                    reset_request_id(token)
+                except ValueError:
+                    pass
     else:
         token = set_new_request_id()
         try:
             yield get_request_id()
         finally:
-            reset_request_id(token)
+            try:
+                reset_request_id(token)
+            except ValueError:
+                pass

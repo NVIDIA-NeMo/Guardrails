@@ -638,6 +638,257 @@ class TestSpanHierarchy:
         assert exporter.get_finished_spans() == ()
 
 
+_INPUT_ONLY_STREAMING_TRACING_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "output": {"flows": []},
+    },
+    "tracing": {"enabled": True},
+}
+
+_INPUT_ONLY_STREAMING_NO_TRACING_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "output": {"flows": []},
+    },
+}
+
+
+def _make_output_streaming_tracing_config(*, stream_first=True):
+    """Config with output-rail streaming + tracing enabled."""
+    base = copy.deepcopy(NEMOGUARDS_CONFIG)
+    base["rails"]["output"]["streaming"] = {
+        "enabled": True,
+        "chunk_size": 5,
+        "context_size": 2,
+        "stream_first": stream_first,
+    }
+    base["tracing"] = {"enabled": True}
+    return base
+
+
+async def _mock_chunks_stream(model_type, messages, **kwargs):
+    """stream_model_call-level mock yielding three string chunks."""
+    for chunk in ["Hello", " ", "world"]:
+        yield chunk
+
+
+async def _engine_default_stream(messages, **kwargs):
+    """ModelEngine.stream_chat_completion-level mock for the main LLM."""
+    for chunk in ["Hello", " from", " the", " stream"]:
+        yield chunk
+
+
+async def _engine_failing_stream(messages, **kwargs):
+    """ModelEngine.stream_chat_completion-level mock that raises mid-stream."""
+    yield "Hello"
+    raise RuntimeError("stream broke")
+
+
+def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
+    """Engine-level mocks for the streaming path.
+
+    Non-main engines still use ``chat_completion`` (rails are non-streaming);
+    the main engine uses ``stream_chat_completion`` so the LLM span in
+    ``stream_model_call`` sees the real wrapper code.
+    """
+    from nemoguardrails.guardrails.api_engine import APIEngine
+    from nemoguardrails.guardrails.model_engine import ModelEngine
+
+    if main_stream is None:
+        main_stream = _engine_default_stream
+
+    input_json = SAFE_INPUT_JSON if input_safe else UNSAFE_INPUT_JSON
+    for name, engine in iorails.engine_registry._engines.items():
+        if isinstance(engine, ModelEngine):
+            if name == "main":
+                engine.stream_chat_completion = main_stream
+            elif name == "content_safety":
+                engine.chat_completion = AsyncMock(return_value=SAFE_OUTPUT_JSON if input_safe else input_json)
+            else:
+                engine.chat_completion = AsyncMock(return_value=input_json)
+        elif isinstance(engine, APIEngine):
+            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+
+
+@pytest.fixture
+def iorails_streaming_input_only_tracing(tracer_from_provider):
+    """Input-rails only + streaming + tracing enabled."""
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_TRACING_CONFIG)
+            iorails = IORails(config)
+        yield iorails
+
+
+@pytest.fixture
+def iorails_streaming_output_tracing(tracer_from_provider):
+    """Full input+output streaming + tracing enabled."""
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_output_streaming_tracing_config())
+            iorails = IORails(config)
+        yield iorails
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def iorails_streaming_no_tracing():
+    """Input-rails only + streaming + tracing disabled."""
+    return IORails(RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_NO_TRACING_CONFIG))
+
+
+class TestStreamAsyncSpanHierarchy:
+    """Inline OTEL instrumentation for stream_async."""
+
+    @pytest.mark.asyncio
+    async def test_creates_request_span(self, iorails_streaming_input_only_tracing, exporter):
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert chunks == ["Hello", " ", "world"]
+
+        request_spans = [s for s in exporter.get_finished_spans() if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        assert request_spans[0].kind == SpanKind.SERVER
+        assert request_spans[0].status.status_code == StatusCode.UNSET
+
+    @pytest.mark.asyncio
+    async def test_context_propagation_across_create_task(self, iorails_streaming_input_only_tracing, exporter):
+        """Rails run inside _generation_task attach as children of the request span.
+
+        This is the core PR3 correctness property: ``asyncio.create_task`` must
+        snapshot OTEL context from ``_wrapped_iterator`` (where the request span
+        is current) so downstream rail/action/LLM spans parent correctly.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails)
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        spans = exporter.get_finished_spans()
+        root = next(s for s in spans if s.name == "guardrails.request")
+
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+        assert len(rail_spans) == 3  # 3 input rails, no output rails
+
+        for r in rail_spans:
+            assert r.parent.span_id == root.context.span_id, (
+                f"rail span {r.attributes.get('rail.name')} not parented under request span"
+            )
+
+    @pytest.mark.asyncio
+    async def test_streaming_llm_span_has_genai_attributes(self, iorails_streaming_input_only_tracing, exporter):
+        """stream_model_call produces a CLIENT span with GenAI attributes."""
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails)
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        spans = exporter.get_finished_spans()
+        main_llm_spans = [
+            s
+            for s in spans
+            if s.kind == SpanKind.CLIENT and s.attributes.get("gen_ai.request.model") == "meta/llama-3.3-70b-instruct"
+        ]
+        assert len(main_llm_spans) == 1
+        attrs = dict(main_llm_spans[0].attributes)
+        assert attrs["gen_ai.operation.name"] == "chat"
+        assert attrs["gen_ai.provider.name"] == "nim"
+        assert main_llm_spans[0].name == "chat meta/llama-3.3-70b-instruct"
+
+    @pytest.mark.asyncio
+    async def test_llm_stream_error_recorded_on_both_spans(self, iorails_streaming_input_only_tracing, exporter):
+        """Stream failure mid-generation → LLM span and request span both ERROR."""
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # The generation task swallowed the exception and pushed an error payload
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        spans = exporter.get_finished_spans()
+
+        request_span = next(s for s in spans if s.name == "guardrails.request")
+        assert request_span.status.status_code == StatusCode.ERROR
+        assert request_span.attributes["error.type"] == "RuntimeError"
+
+        main_llm_span = next(
+            s
+            for s in spans
+            if s.kind == SpanKind.CLIENT and s.attributes.get("gen_ai.request.model") == "meta/llama-3.3-70b-instruct"
+        )
+        assert main_llm_span.status.status_code == StatusCode.ERROR
+        assert main_llm_span.attributes["error.type"] == "RuntimeError"
+
+    @pytest.mark.asyncio
+    async def test_input_block_leaves_llm_span_absent(self, iorails_streaming_input_only_tracing, exporter):
+        """When input rails block, no main LLM span is created."""
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
+        assert chunks == [REFUSAL_MESSAGE]
+
+        spans = exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        assert request_spans[0].status.status_code == StatusCode.UNSET
+
+        main_llm_spans = [
+            s
+            for s in spans
+            if s.kind == SpanKind.CLIENT and s.attributes.get("gen_ai.request.model") == "meta/llama-3.3-70b-instruct"
+        ]
+        assert main_llm_spans == []
+
+    @pytest.mark.asyncio
+    async def test_output_rails_produce_per_batch_spans(self, iorails_streaming_output_tracing, exporter):
+        """Each output-rail batch produces a rail-span subtree under the request span."""
+        iorails = iorails_streaming_output_tracing
+        _stub_deep_streaming_pipeline(iorails)
+
+        [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        spans = exporter.get_finished_spans()
+        root = next(s for s in spans if s.name == "guardrails.request")
+
+        rail_spans = [s for s in spans if s.name == "guardrails.rail"]
+        output_rails = [s for s in rail_spans if s.attributes["rail.type"] == "Output"]
+        # At least one output-rail batch was checked (likely more given 4-token stream
+        # and chunk_size=5).
+        assert len(output_rails) >= 1
+        for r in output_rails:
+            assert r.parent.span_id == root.context.span_id
+
+    @pytest.mark.asyncio
+    async def test_no_spans_when_tracing_disabled(self, iorails_streaming_no_tracing, exporter):
+        """With tracing off, streaming produces zero spans but still works."""
+        iorails = iorails_streaming_no_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert chunks == ["Hello", " ", "world"]
+        assert exporter.get_finished_spans() == ()
+
+    @pytest.mark.asyncio
+    async def test_queue_full_creates_no_spans(self, iorails_streaming_input_only_tracing, exporter):
+        """Load-shed rejections happen before tracing starts — no spans leak."""
+        iorails = iorails_streaming_input_only_tracing
+        # Force all slots unavailable.
+        iorails._stream_semaphore = asyncio.Semaphore(0)
+
+        with pytest.raises(asyncio.QueueFull):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        assert exporter.get_finished_spans() == ()
+
+
 class TestOtelNotInstalled:
     @pytest.mark.asyncio
     async def test_falls_back_gracefully(self, exporter):
