@@ -13,55 +13,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Any, AsyncIterator, List, Optional, Union
 
-from langchain_core.callbacks.manager import (
-    AsyncCallbackManagerForLLMRun,
-    CallbackManagerForLLMRun,
-)
-from langchain_core.language_models import BaseLLM
-from langchain_core.outputs import Generation, LLMResult
+from nemoguardrails.types import ChatMessage, LLMResponse, LLMResponseChunk
 
 
-class CustomLLM(BaseLLM):
-    def _call(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs,
-    ) -> str:
-        return "Custom LLM response"
-
-    async def _acall(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs,
-    ) -> str:
-        return "Custom LLM response"
-
-    def _generate(
-        self,
-        prompts: List[str],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs,
-    ) -> LLMResult:
-        generations = [[Generation(text=self._call(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
-        return LLMResult(generations=generations)
-
-    async def _agenerate(
-        self,
-        prompts: List[str],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs,
-    ) -> LLMResult:
-        generations = [[Generation(text=await self._acall(prompt, stop, run_manager, **kwargs))] for prompt in prompts]
-        return LLMResult(generations=generations)
+class CustomLLM:
+    def __init__(self, model: str = "custom_llm", **kwargs: Any):
+        self._model = model
 
     @property
-    def _llm_type(self) -> str:
+    def model_name(self) -> str:
+        return self._model
+
+    @property
+    def provider_name(self) -> Optional[str]:
         return "custom_llm"
+
+    @property
+    def provider_url(self) -> Optional[str]:
+        return None
+
+    async def generate_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        return LLMResponse(content="Custom LLM response")
+
+    async def stream_async(
+        self,
+        prompt: Union[str, List[ChatMessage]],
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[LLMResponseChunk]:
+        yield LLMResponseChunk(delta_content="Custom LLM response")

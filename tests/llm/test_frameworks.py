@@ -81,8 +81,8 @@ class TestRegistry:
         with pytest.raises(KeyError, match="Unknown framework"):
             set_default_framework("nonexistent")
 
-    def test_default_is_langchain(self):
-        assert get_default_framework() == "langchain"
+    def test_default_is_default(self):
+        assert get_default_framework() == "default"
 
     def test_default_from_env_var(self, monkeypatch):
         monkeypatch.setenv("NEMOGUARDRAILS_LLM_FRAMEWORK", "litellm")
@@ -118,7 +118,7 @@ def clean_providers():
     _p._llm_providers.update(llm_backup)
 
 
-@pytest.mark.usefixtures("clean_providers")
+@pytest.mark.usefixtures("clean_providers", "langchain_framework")
 class TestProviderRegistration:
     def test_register_provider_appears_in_get_provider_names(self):
         register_provider("test_provider", FakeChatProvider)
