@@ -65,16 +65,14 @@ def tracer_from_provider(exporter):
 def iorails_tracing(tracer_from_provider):
     """IORails instance with tracing enabled, using a test tracer.
 
-    Also injects the tracer into the telemetry module singleton so that
-    child spans created via get_tracer() in RailsManager/RailAction/EngineRegistry
-    go to the same InMemorySpanExporter.
+    Patches the module-level ``_tracer`` before constructing IORails so that
+    ``IORails.__init__`` picks up the test tracer via ``get_tracer()`` and
+    threads it through EngineRegistry/RailsManager/RailAction constructors.
     """
-    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
-        config = RailsConfig.from_content(config=_make_tracing_config())
-        iorails = IORails(config)
-    iorails._tracer = tracer_from_provider
-    iorails._tracing_enabled = True
     with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_tracing_config())
+            iorails = IORails(config)
         yield iorails
 
 
@@ -603,15 +601,41 @@ class TestSpanHierarchy:
         """With tracing disabled, no spans at all are created.
 
         Uses ``_stub_deep_pipeline`` so the full RailsManager → RailAction →
-        EngineRegistry chain executes (including every ``get_tracer()`` call
-        site).  This exercises the code paths that would otherwise create
-        orphaned child spans, not just the top-level IORails entry point.
+        EngineRegistry chain executes.  This exercises the code paths that
+        would otherwise create orphaned child spans, not just the top-level
+        IORails entry point.
         """
         _stub_deep_pipeline(iorails_no_tracing)
 
         await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
 
         assert len(exporter.get_finished_spans()) == 0
+
+    @pytest.mark.asyncio
+    async def test_no_orphaned_child_spans_with_global_provider(self, tracer_from_provider, exporter):
+        """Regression: with a working TracerProvider wired to an exporter but
+        ``config.tracing.enabled=False``, no child spans must leak through.
+
+        Previously ``EngineRegistry``/``RailsManager``/``RailAction`` called
+        ``get_tracer()`` directly, which would return a real tracer whenever
+        the host app had a global provider — producing orphaned rail/action/LLM
+        spans with no parent ``guardrails.request`` span.  Threading the tracer
+        through constructors means every helper uses ``self._tracer``, which
+        is ``None`` when tracing is disabled.
+        """
+        # Install the exporter-backed tracer as the module singleton, so any
+        # accidental get_tracer() call in the pipeline would emit to it.
+        with patch.object(telemetry, "_tracer", tracer_from_provider):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                # tracing NOT enabled in this config
+                iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+
+            _stub_deep_pipeline(iorails)
+
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        # Zero spans of any kind
+        assert exporter.get_finished_spans() == ()
 
 
 class TestOtelNotInstalled:

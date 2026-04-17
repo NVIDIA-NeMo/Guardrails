@@ -24,7 +24,7 @@ unsafe result cancels remaining rails immediately.
 import asyncio
 import logging
 from collections.abc import Coroutine, Mapping
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from nemoguardrails.guardrails.actions.content_safety_action import (
     ContentSafetyInputAction,
@@ -39,10 +39,13 @@ from nemoguardrails.guardrails.guardrails_types import (
     get_request_id,
 )
 from nemoguardrails.guardrails.rail_action import RailAction
-from nemoguardrails.guardrails.telemetry import get_tracer, rail_span
+from nemoguardrails.guardrails.telemetry import rail_span
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_name
 from nemoguardrails.tracing.constants import GuardrailsAttributes
+
+if TYPE_CHECKING:
+    from opentelemetry.trace import Tracer
 
 log = logging.getLogger(__name__)
 
@@ -75,10 +78,16 @@ class RailsManager:
         output_flows: list[str],
         input_parallel: bool = False,
         output_parallel: bool = False,
+        tracer: Optional["Tracer"] = None,
     ) -> None:
-        """Build RailAction instances for each configured input and output flow."""
+        """Build RailAction instances for each configured input and output flow.
+
+        When *tracer* is provided, rail and action executions produce OTEL
+        spans; when ``None`` the span helpers become no-ops.
+        """
         self.engine_registry = engine_registry
         self.task_manager = task_manager
+        self._tracer = tracer
 
         self.input_flows: list[str] = list(input_flows)
         self.output_flows: list[str] = list(output_flows)
@@ -106,7 +115,7 @@ class RailsManager:
         if action_cls is None:
             available = sorted(_ACTION_CLASSES.keys())
             raise RuntimeError(f"Rail flow '{base_name}' not supported. Available: {available}")
-        return action_cls(self.engine_registry, self.task_manager)
+        return action_cls(self.engine_registry, self.task_manager, tracer=self._tracer)
 
     async def is_input_safe(self, messages: list[dict]) -> RailResult:
         """Run all enabled input rails, short-circuiting on the first failure.
@@ -147,8 +156,7 @@ class RailsManager:
         bot_response: Optional[str] = None,
     ) -> RailResult:
         """Dispatch a single rail flow to its RailAction instance."""
-        tracer = get_tracer()
-        with rail_span(tracer, flow, direction) as span:
+        with rail_span(self._tracer, flow, direction) as span:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
             if span is not None and not result.is_safe:
