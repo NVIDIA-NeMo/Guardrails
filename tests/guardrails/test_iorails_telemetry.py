@@ -888,6 +888,46 @@ class TestStreamAsyncSpanHierarchy:
 
         assert exporter.get_finished_spans() == ()
 
+    @pytest.mark.asyncio
+    async def test_stream_failure_does_not_pollute_ambient_span_when_tracing_disabled(
+        self, tracer_from_provider, exporter
+    ):
+        """Regression: when IORails tracing is OFF but the host app has an
+        active OTEL span (e.g. a FastAPI/gRPC service span), a streaming
+        failure must NOT mark that ambient span ERROR.
+
+        Without the ``self._tracing_enabled`` guard in ``_generation_task``,
+        ``trace.get_current_span()`` returns the caller's ambient span
+        (captured by ``asyncio.create_task``'s context snapshot), and the
+        error from the swallowed stream exception would silently corrupt
+        unrelated traces in production.
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            # Tracing NOT enabled in the IORails config.
+            iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_NO_TRACING_CONFIG))
+
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        # Open an ambient span as the host application would.
+        with tracer_from_provider.start_as_current_span("host.ambient") as ambient_span:
+            chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        # Stream failure was still converted to an error payload for the consumer.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        spans = exporter.get_finished_spans()
+
+        # Exactly one span exported — the ambient host span. No guardrails spans
+        # (tracing off) and no orphaned child spans.
+        assert len(spans) == 1
+        assert spans[0].name == "host.ambient"
+        assert spans[0].context.span_id == ambient_span.context.span_id
+
+        # Ambient span was NOT polluted by the streaming failure.
+        assert spans[0].status.status_code == StatusCode.UNSET
+        assert "error.type" not in dict(spans[0].attributes)
+        assert [e for e in spans[0].events if e.name == "exception"] == []
+
 
 class TestOtelNotInstalled:
     @pytest.mark.asyncio
