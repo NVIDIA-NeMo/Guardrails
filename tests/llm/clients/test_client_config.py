@@ -151,6 +151,96 @@ class TestDefaultFramework:
 
         assert m1._client is not m2._client
 
+    def test_different_timeout_different_clients(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk", "timeout": 30.0})
+        m2 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk", "timeout": 5.0})
+
+        assert m1._client is not m2._client
+        assert m1._client._client.timeout.read == 30.0
+        assert m2._client._client.timeout.read == 5.0
+
+    def test_different_headers_different_clients(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk", "default_headers": {"X-A": "1"}})
+        m2 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk", "default_headers": {"X-B": "2"}})
+
+        assert m1._client is not m2._client
+        assert m1._client._custom_headers == {"X-A": "1"}
+        assert m2._client._custom_headers == {"X-B": "2"}
+
+    def test_same_full_config_pooled(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        cfg = {"api_key": "sk", "timeout": 30.0, "default_headers": {"X-A": "1"}}
+        m1 = fw.create_model("gpt-4o", "openai", cfg.copy())
+        m2 = fw.create_model("gpt-4o-mini", "openai", cfg.copy())
+
+        assert m1._client is m2._client
+
+    @pytest.mark.asyncio
+    async def test_reset_closes_all_pooled_clients(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk-a"})
+        m2 = fw.create_model("llama", "nim", {"api_key": "nv-a"})
+        m3 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk-b"})
+
+        clients = [m1._client._client, m2._client._client, m3._client._client]
+        assert all(not c.is_closed for c in clients)
+
+        await fw.reset()
+
+        assert all(c.is_closed for c in clients)
+        assert fw._clients == {}
+
+    @pytest.mark.asyncio
+    async def test_reset_clears_registered_providers(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        fw.register_provider("custom", lambda **kw: object())
+        assert "custom" in fw._providers
+
+        await fw.reset()
+
+        assert fw._providers == {}
+
+    @pytest.mark.asyncio
+    async def test_reset_allows_recreation_with_fresh_clients(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
+        first_client = m1._client._client
+        await fw.reset()
+
+        m2 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
+        assert m2._client._client is not first_client
+        assert not m2._client._client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_reset_does_not_close_injected_clients(self):
+        import httpx
+
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        injected = httpx.AsyncClient()
+        client = OpenAICompatibleClient(base_url="https://api.openai.com/v1", http_client=injected)
+        fw = DefaultFramework()
+        fw._clients[("injected",)] = client
+
+        await fw.reset()
+
+        assert not injected.is_closed
+        await injected.aclose()
+
     def test_unknown_provider_raises(self):
         from nemoguardrails.llm.default_framework import DefaultFramework
 

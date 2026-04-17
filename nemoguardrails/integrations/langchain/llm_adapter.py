@@ -262,6 +262,9 @@ class LangChainFramework:
 
         return _get_llm()
 
+    async def reset(self) -> None:
+        return
+
     def create_model(
         self,
         model_name: str,

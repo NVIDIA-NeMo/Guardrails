@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
 from typing import Dict
 
@@ -56,5 +57,10 @@ def get_default_framework() -> str:
 
 def _reset_frameworks() -> None:
     global _default_framework
+    for fw in list(_frameworks.values()):
+        try:
+            asyncio.run(fw.reset())
+        except RuntimeError:
+            pass
     _frameworks.clear()
     _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "langchain")

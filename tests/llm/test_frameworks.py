@@ -47,6 +47,9 @@ class FakeFramework:
     def create_model(self, model_name, provider_name, model_kwargs=None):
         return MagicMock(spec=LLMModel)
 
+    async def reset(self):
+        return
+
 
 class TestRegistry:
     def test_register_and_get_framework(self):
