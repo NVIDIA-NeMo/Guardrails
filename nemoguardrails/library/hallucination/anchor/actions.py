@@ -44,7 +44,10 @@ async def check_anchor_drift(context: Optional[dict] = None, threshold: float = 
         )
 
     # Coalesce Colang variables defensively
-    threshold = 0.95 if threshold is None else threshold
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        threshold = 0.95
 
     # Get the last bot message and the context/reference
     context = context or {}

@@ -1,7 +1,7 @@
 flow anchor check hallucination
   """Output rail for checking hallucinations using Anchor drift monitoring."""
   if $check_hallucination == True
-    $is_safe = await check_anchor_drift(threshold=($anchor_threshold or 0.95))
+    $is_safe = await check_anchor_drift(threshold=$anchor_threshold)
     global $check_hallucination
     $check_hallucination = False
 
