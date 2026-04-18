@@ -22,12 +22,14 @@ import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from opentelemetry._logs import set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
+from opentelemetry.util._once import Once
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
@@ -967,9 +969,9 @@ class TestOtelNotInstalled:
 def otel_log_provider():
     """Configure a fresh OTEL LoggerProvider globally for this test.
 
-    Bypasses OTEL's ``Once`` guard on ``set_logger_provider`` by writing
-    the internal ``_LOGGER_PROVIDER`` attribute directly.  See the same
-    fixture in test_telemetry.py for the rationale.
+    Resets OTEL's ``_LOGGER_PROVIDER_SET_ONCE`` guard to a fresh
+    ``Once()`` and installs via the public ``set_logger_provider`` API.
+    See the same fixture in test_telemetry.py for the rationale.
     """
     exporter = InMemoryLogRecordExporter()
     provider = LoggerProvider()
@@ -978,11 +980,14 @@ def otel_log_provider():
     import opentelemetry._logs._internal as _logs_internal
 
     previous_provider = _logs_internal._LOGGER_PROVIDER
-    _logs_internal._LOGGER_PROVIDER = provider
+    previous_once = _logs_internal._LOGGER_PROVIDER_SET_ONCE
+    _logs_internal._LOGGER_PROVIDER_SET_ONCE = Once()
+    set_logger_provider(provider)
     try:
         yield provider, exporter
     finally:
         _logs_internal._LOGGER_PROVIDER = previous_provider
+        _logs_internal._LOGGER_PROVIDER_SET_ONCE = previous_once
 
 
 @pytest.fixture

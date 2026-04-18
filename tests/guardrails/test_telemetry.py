@@ -20,12 +20,14 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
+from opentelemetry._logs import set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
+from opentelemetry.util._once import Once
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS
@@ -358,10 +360,10 @@ class TestTracedRequestValueErrorTolerance:
 def otel_log_provider():
     """Configure a fresh LoggerProvider globally for this test.
 
-    OTEL's ``set_logger_provider`` uses a one-shot ``Once`` flag that blocks
-    repeat calls, so we bypass the public API and assign the internal
-    ``_LOGGER_PROVIDER`` directly.  Teardown restores the previous value so
-    adjacent tests aren't affected.
+    OTEL's ``set_logger_provider`` uses a one-shot ``Once`` guard that
+    blocks repeat calls, so we reset the guard to a fresh ``Once()`` and
+    then install via the public API.  Teardown restores the previous
+    provider and Once flag so adjacent tests aren't affected.
     """
     exporter = InMemoryLogRecordExporter()
     provider = LoggerProvider()
@@ -370,14 +372,19 @@ def otel_log_provider():
     import opentelemetry._logs._internal as _logs_internal
 
     previous_provider = _logs_internal._LOGGER_PROVIDER
-    _logs_internal._LOGGER_PROVIDER = provider
+    previous_once = _logs_internal._LOGGER_PROVIDER_SET_ONCE
+    _logs_internal._LOGGER_PROVIDER_SET_ONCE = Once()
+    set_logger_provider(provider)
     try:
         yield provider, exporter
     finally:
         _logs_internal._LOGGER_PROVIDER = previous_provider
+        _logs_internal._LOGGER_PROVIDER_SET_ONCE = previous_once
 
 
 class TestGetLoggerProvider:
+    """Thin wrapper around ``opentelemetry._logs.get_logger_provider``."""
+
     def test_returns_none_without_otel(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             assert get_logger_provider() is None
@@ -388,9 +395,29 @@ class TestGetLoggerProvider:
 
 
 class TestInstallLogHandler:
+    """Installing the OTEL log-bridge handler on the guardrails logger."""
+
     def test_returns_none_without_otel(self):
+        """Graceful no-op when ``opentelemetry-api`` isn't installed."""
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             assert install_log_handler() is None
+
+    def test_returns_none_when_sdk_logs_not_installed(self):
+        """opentelemetry-api present but opentelemetry-sdk absent — gracefully
+        degrade rather than raising ModuleNotFoundError."""
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "opentelemetry.sdk._logs":
+                raise ImportError("opentelemetry-sdk not installed")
+            return real_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", side_effect=fake_import):
+            assert install_log_handler() is None
+            # Handler singleton stays None and nothing attached.
+            assert telemetry._log_handler is None
 
     def test_attaches_handler_at_notset_level(self):
         """Installed handler is attached to the guardrails logger at NOTSET
@@ -401,6 +428,12 @@ class TestInstallLogHandler:
         assert handler.level == logging.NOTSET
 
     def test_idempotent(self):
+        """Repeat calls return the same handler and do not double-attach.
+
+        Important for concurrent IORails construction: the threading.Lock
+        inside install_log_handler serialises racing callers so exactly one
+        handler ever lives on the guardrails logger.
+        """
         first = install_log_handler()
         second = install_log_handler()
         assert first is not None
@@ -410,6 +443,8 @@ class TestInstallLogHandler:
 
 
 class TestUninstallLogHandler:
+    """Removing the OTEL log-bridge handler from the guardrails logger."""
+
     def test_noop_when_not_installed(self):
         uninstall_log_handler()
 
@@ -436,6 +471,8 @@ class TestUninstallLogHandler:
 
 
 class TestLogBridgeEndToEnd:
+    """End-to-end: logs emitted through Python ``logging`` reach OTEL."""
+
     def test_log_record_carries_trace_context(self, otel_provider, otel_log_provider):
         """Log records emitted inside an active span carry trace_id / span_id."""
         provider, _ = otel_provider

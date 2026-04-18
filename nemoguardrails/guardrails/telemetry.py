@@ -141,10 +141,13 @@ def install_log_handler() -> Optional["LoggingHandler"]:
 
     Idempotent and thread-safe: returns the existing handler if already
     installed, even under concurrent construction from multiple threads.
-    Returns ``None`` when OTEL is unavailable.  The handler is level
-    ``NOTSET`` so the Python logger hierarchy (typically configured by
-    the host app) decides what flows through — we do not override the
-    host's log level.
+    Returns ``None`` when OTEL is unavailable — either because
+    ``opentelemetry-api`` isn't installed (``_OTEL_AVAILABLE`` is
+    ``False``) or because ``opentelemetry-sdk`` isn't installed (the
+    ``LoggingHandler`` import fails).  The handler is level ``NOTSET``
+    so the Python logger hierarchy (typically configured by the host
+    app) decides what flows through — we do not override the host's
+    log level.
     """
     global _log_handler
     if not _OTEL_AVAILABLE:
@@ -152,8 +155,10 @@ def install_log_handler() -> Optional["LoggingHandler"]:
     with _log_handler_lock:
         if _log_handler is not None:
             return _log_handler
-        from opentelemetry.sdk._logs import LoggingHandler
-
+        try:
+            from opentelemetry.sdk._logs import LoggingHandler
+        except ImportError:
+            return None
         _log_handler = LoggingHandler(level=logging.NOTSET)
         logging.getLogger(_GUARDRAILS_LOGGER_NAME).addHandler(_log_handler)
         return _log_handler
