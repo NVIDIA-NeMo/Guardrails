@@ -39,6 +39,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     get_tracer,
+    install_log_handler,
     is_tracing_enabled,
     record_span_error,
     traced_request,
@@ -72,6 +73,11 @@ class IORails:
         # Pass to EngineRegistry and RailsManager to keep all spans consistent under parent
         self._tracing_enabled = is_tracing_enabled(config.tracing)
         self._tracer = get_tracer() if self._tracing_enabled else None
+
+        # Bridge Python logging → OTEL log records when tracing is on; records
+        # emitted inside a live span automatically carry trace_id / span_id.
+        if self._tracing_enabled:
+            install_log_handler()
 
         self.engine_registry = EngineRegistry(config.models, config.rails.config, tracer=self._tracer)
         self.rails_manager = RailsManager(

@@ -24,11 +24,20 @@ from nemoguardrails.guardrails import configure_logging
 
 @pytest.fixture(autouse=True)
 def _clean_logger():
-    """Runs before and after each test to revert changes to logging"""
+    """Runs before and after each test to revert changes to logging.
+
+    Resets handlers, level, and propagate — ``configure_logging()`` touches
+    all three, so leaving any of them set leaks into other test modules
+    (e.g. test_iorails_telemetry breaks if propagate is stuck at False).
+    """
     logger = logging.getLogger("nemoguardrails.guardrails")
     logger.handlers.clear()
+    logger.setLevel(logging.NOTSET)
+    logger.propagate = True
     yield
     logger.handlers.clear()
+    logger.setLevel(logging.NOTSET)
+    logger.propagate = True
 
 
 class TestConfigureLogging:

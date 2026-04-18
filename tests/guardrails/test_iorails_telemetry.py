@@ -18,9 +18,12 @@
 import asyncio
 import copy
 import json
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -46,6 +49,18 @@ def _stub_safe_pipeline(iorails, llm_response="Hello"):
     iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
     iorails.engine_registry.model_call = AsyncMock(return_value=llm_response)
     iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+
+@pytest.fixture(autouse=True)
+def reset_log_handler_singleton():
+    """Detach the telemetry module-level log handler between tests.
+
+    IORails.__init__ installs the handler on construction; left attached,
+    it would leak between tests and correlate log records to stale providers.
+    """
+    telemetry.uninstall_log_handler()
+    yield
+    telemetry.uninstall_log_handler()
 
 
 @pytest.fixture
@@ -946,3 +961,85 @@ class TestOtelNotInstalled:
             assert result == {"role": "assistant", "content": "Hello"}
             assert iorails._tracing_enabled is False
             assert len(exporter.get_finished_spans()) == 0
+
+
+@pytest.fixture
+def otel_log_provider():
+    """Configure a fresh OTEL LoggerProvider globally for this test.
+
+    Bypasses OTEL's ``Once`` guard on ``set_logger_provider`` by writing
+    the internal ``_LOGGER_PROVIDER`` attribute directly.  See the same
+    fixture in test_telemetry.py for the rationale.
+    """
+    exporter = InMemoryLogRecordExporter()
+    provider = LoggerProvider()
+    provider.add_log_record_processor(SimpleLogRecordProcessor(exporter))
+
+    import opentelemetry._logs._internal as _logs_internal
+
+    previous_provider = _logs_internal._LOGGER_PROVIDER
+    _logs_internal._LOGGER_PROVIDER = provider
+    try:
+        yield provider, exporter
+    finally:
+        _logs_internal._LOGGER_PROVIDER = previous_provider
+
+
+@pytest.fixture
+def iorails_tracing_with_logs(tracer_from_provider, otel_log_provider):
+    """IORails with tracing enabled, constructed AFTER the log provider is set.
+
+    Ordering matters: OTEL's ``LoggingHandler`` caches the global
+    ``LoggerProvider`` at construction time.  ``IORails.__init__`` calls
+    ``install_log_handler()``, so the provider must already be swapped to
+    our in-memory one before IORails is built — otherwise the handler is
+    bound to the default (NoOp) provider and no records reach our exporter.
+    """
+    with patch.object(telemetry, "_tracer", tracer_from_provider):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_tracing_config())
+            iorails = IORails(config)
+        yield iorails
+
+
+class TestTraceLogCorrelation:
+    """Log records emitted during generate_async / stream_async correlate to the request trace."""
+
+    @pytest.mark.asyncio
+    async def test_generate_async_logs_carry_trace_context(
+        self, iorails_tracing_with_logs, exporter, otel_log_provider
+    ):
+        """Logs emitted anywhere inside generate_async carry the request span's trace_id."""
+        iorails = iorails_tracing_with_logs
+        _, log_exporter = otel_log_provider
+        logging.getLogger("nemoguardrails.guardrails").setLevel(logging.INFO)
+        # Drop IORails __init__ logs emitted before any span is active.
+        log_exporter.clear()
+
+        _stub_safe_pipeline(iorails)
+        await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+        expected_trace_id = next(s for s in spans if s.name == "guardrails.request").context.trace_id
+
+        # OTEL 1.26+ attribute key is ``code.file.path`` (dotted), not ``code.filepath``.
+        guardrails_records = [
+            lr.log_record
+            for lr in log_exporter.get_finished_logs()
+            if lr.log_record.attributes
+            and "/nemoguardrails/" in str(lr.log_record.attributes.get("code.file.path", ""))
+        ]
+        assert guardrails_records, "expected at least one nemoguardrails log record"
+        assert all(rec.trace_id == expected_trace_id for rec in guardrails_records)
+
+    @pytest.mark.asyncio
+    async def test_no_log_records_when_tracing_disabled(self, iorails_no_tracing, otel_log_provider):
+        """With tracing off, IORails does not install the log bridge — no records exported."""
+        _, log_exporter = otel_log_provider
+        logging.getLogger("nemoguardrails.guardrails").setLevel(logging.INFO)
+
+        _stub_safe_pipeline(iorails_no_tracing)
+        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        # The handler was never installed, so nothing reached the OTEL pipeline.
+        assert log_exporter.get_finished_logs() == tuple()

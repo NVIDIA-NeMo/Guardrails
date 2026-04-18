@@ -15,10 +15,13 @@
 
 """Unit tests for nemoguardrails.guardrails.telemetry module."""
 
+import logging
 import re
 from unittest.mock import MagicMock, patch
 
 import pytest
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -27,13 +30,16 @@ from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS
 from nemoguardrails.guardrails.telemetry import (
+    get_logger_provider,
     get_tracer,
+    install_log_handler,
     is_tracing_enabled,
     mark_rail_stop,
     record_span_error,
     request_span,
     trace_id_to_request_id,
     traced_request,
+    uninstall_log_handler,
 )
 
 _HEX_PATTERN = re.compile(r"^[0-9a-f]+$")
@@ -50,6 +56,14 @@ def reset_tracer_singleton():
     telemetry._tracer = None
     yield
     telemetry._tracer = None
+
+
+@pytest.fixture(autouse=True)
+def reset_log_handler_singleton():
+    """Detach the module-level log handler between tests."""
+    telemetry.uninstall_log_handler()
+    yield
+    telemetry.uninstall_log_handler()
 
 
 @pytest.fixture
@@ -338,3 +352,127 @@ class TestTracedRequestValueErrorTolerance:
             with pytest.raises(ValueError, match="unrelated failure"):
                 with traced_request(None):
                     pass
+
+
+@pytest.fixture
+def otel_log_provider():
+    """Configure a fresh LoggerProvider globally for this test.
+
+    OTEL's ``set_logger_provider`` uses a one-shot ``Once`` flag that blocks
+    repeat calls, so we bypass the public API and assign the internal
+    ``_LOGGER_PROVIDER`` directly.  Teardown restores the previous value so
+    adjacent tests aren't affected.
+    """
+    exporter = InMemoryLogRecordExporter()
+    provider = LoggerProvider()
+    provider.add_log_record_processor(SimpleLogRecordProcessor(exporter))
+
+    import opentelemetry._logs._internal as _logs_internal
+
+    previous_provider = _logs_internal._LOGGER_PROVIDER
+    _logs_internal._LOGGER_PROVIDER = provider
+    try:
+        yield provider, exporter
+    finally:
+        _logs_internal._LOGGER_PROVIDER = previous_provider
+
+
+class TestGetLoggerProvider:
+    def test_returns_none_without_otel(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            assert get_logger_provider() is None
+
+    def test_returns_global_provider(self, otel_log_provider):
+        provider, _ = otel_log_provider
+        assert get_logger_provider() is provider
+
+
+class TestInstallLogHandler:
+    def test_returns_none_without_otel(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            assert install_log_handler() is None
+
+    def test_attaches_handler_at_notset_level(self):
+        """Installed handler is attached to the guardrails logger at NOTSET
+        so the logger hierarchy (not the handler) decides filtering."""
+        handler = install_log_handler()
+        assert handler is not None
+        assert handler in logging.getLogger("nemoguardrails.guardrails").handlers
+        assert handler.level == logging.NOTSET
+
+    def test_idempotent(self):
+        first = install_log_handler()
+        second = install_log_handler()
+        assert first is not None
+        assert first is second
+        nemo_logger = logging.getLogger("nemoguardrails.guardrails")
+        assert nemo_logger.handlers.count(first) == 1
+
+
+class TestUninstallLogHandler:
+    def test_noop_when_not_installed(self):
+        uninstall_log_handler()
+
+    def test_detaches_handler(self):
+        handler = install_log_handler()
+        assert handler in logging.getLogger("nemoguardrails.guardrails").handlers
+
+        uninstall_log_handler()
+        assert handler not in logging.getLogger("nemoguardrails.guardrails").handlers
+        assert telemetry._log_handler is None
+
+    def test_does_not_remove_unrelated_handlers(self):
+        """Uninstall must only remove our handler, not others the host added."""
+        nemo_logger = logging.getLogger("nemoguardrails.guardrails")
+        host_handler = logging.NullHandler()
+        nemo_logger.addHandler(host_handler)
+        try:
+            install_log_handler()
+            uninstall_log_handler()
+            # Host's handler must still be attached.
+            assert host_handler in nemo_logger.handlers
+        finally:
+            nemo_logger.removeHandler(host_handler)
+
+
+class TestLogBridgeEndToEnd:
+    def test_log_record_carries_trace_context(self, otel_provider, otel_log_provider):
+        """Log records emitted inside an active span carry trace_id / span_id."""
+        provider, _ = otel_provider
+        _, log_exporter = otel_log_provider
+        install_log_handler()
+        tracer = provider.get_tracer("test")
+
+        nemo_logger = logging.getLogger("nemoguardrails.guardrails.test")
+        nemo_logger.setLevel(logging.INFO)
+
+        with tracer.start_as_current_span("test.parent") as span:
+            nemo_logger.info("hello from inside span")
+            expected_trace_id = span.get_span_context().trace_id
+            expected_span_id = span.get_span_context().span_id
+
+        records = log_exporter.get_finished_logs()
+        assert len(records) == 1
+        record = records[0].log_record
+
+        assert record.body == "hello from inside span"
+        assert record.severity_text == "INFO"
+        assert record.trace_id == expected_trace_id
+        assert record.span_id == expected_span_id
+
+    def test_no_trace_context_outside_span(self, otel_log_provider):
+        """Records emitted with no active span still flow, just without trace ids."""
+        _, log_exporter = otel_log_provider
+        install_log_handler()
+
+        nemo_logger = logging.getLogger("nemoguardrails.guardrails.test")
+        nemo_logger.setLevel(logging.INFO)
+        nemo_logger.info("no parent span")
+
+        records = log_exporter.get_finished_logs()
+        assert len(records) == 1
+        record = records[0].log_record
+        assert record.body == "no parent span"
+        # trace_id is 0 when there's no current span.
+        assert record.trace_id == 0
+        assert record.span_id == 0

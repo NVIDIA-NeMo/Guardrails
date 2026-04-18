@@ -27,6 +27,7 @@ reachable through ``traced_request`` when a non-``None`` tracer is provided.
 
 import logging
 import secrets
+import threading
 import warnings
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Tuple
@@ -53,6 +54,8 @@ log = logging.getLogger(__name__)
 _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import trace
+    from opentelemetry._logs import LoggerProvider
+    from opentelemetry.sdk._logs import LoggingHandler
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
     from nemoguardrails.rails.llm.config import TracingConfig
@@ -101,6 +104,74 @@ def get_tracer() -> Optional["Tracer"]:
             schema_url="https://opentelemetry.io/schemas/1.26.0",
         )
     return _tracer
+
+
+# Logger name that our OTEL log-bridge handler is attached to.  All IORails
+# modules log under this namespace (e.g. ``nemoguardrails.guardrails.iorails``)
+# so records flow through our handler via Python's logger hierarchy.  Chosen
+# narrow (``nemoguardrails.guardrails`` rather than ``nemoguardrails``) so
+# ``configure_logging()`` setting ``propagate=False`` at this level doesn't
+# break correlation, and so we don't bridge unrelated nemoguardrails.* loggers.
+_GUARDRAILS_LOGGER_NAME = "nemoguardrails.guardrails"
+
+# Module-level OTEL logging handler.  Installed once per process by the first
+# IORails instance with tracing enabled; removed by ``uninstall_log_handler``.
+# The lock serialises install/uninstall so concurrent construction of IORails
+# instances from different threads cannot leak orphan handlers or double-attach.
+_log_handler: Optional["LoggingHandler"] = None
+_log_handler_lock = threading.Lock()
+
+
+def get_logger_provider() -> Optional["LoggerProvider"]:
+    """Return the globally-configured OTEL ``LoggerProvider``, or ``None``.
+
+    Thin wrapper over ``opentelemetry._logs.get_logger_provider`` that returns
+    ``None`` when OTEL is not installed.  The application is responsible for
+    setting a ``LoggerProvider`` globally (symmetric with ``TracerProvider``).
+    """
+    if not _OTEL_AVAILABLE:
+        return None
+    from opentelemetry._logs import get_logger_provider as _get
+
+    return _get()
+
+
+def install_log_handler() -> Optional["LoggingHandler"]:
+    """Install an OTEL ``LoggingHandler`` on the ``nemoguardrails`` logger.
+
+    Idempotent and thread-safe: returns the existing handler if already
+    installed, even under concurrent construction from multiple threads.
+    Returns ``None`` when OTEL is unavailable.  The handler is level
+    ``NOTSET`` so the Python logger hierarchy (typically configured by
+    the host app) decides what flows through — we do not override the
+    host's log level.
+    """
+    global _log_handler
+    if not _OTEL_AVAILABLE:
+        return None
+    with _log_handler_lock:
+        if _log_handler is not None:
+            return _log_handler
+        from opentelemetry.sdk._logs import LoggingHandler
+
+        _log_handler = LoggingHandler(level=logging.NOTSET)
+        logging.getLogger(_GUARDRAILS_LOGGER_NAME).addHandler(_log_handler)
+        return _log_handler
+
+
+def uninstall_log_handler() -> None:
+    """Remove the OTEL log-bridge handler from the ``nemoguardrails`` logger.
+
+    Idempotent and thread-safe: no-op if no handler is installed.  Does
+    not flush or shut down the host's ``LoggerProvider`` — that is the
+    host's lifecycle.
+    """
+    global _log_handler
+    with _log_handler_lock:
+        if _log_handler is None:
+            return
+        logging.getLogger(_GUARDRAILS_LOGGER_NAME).removeHandler(_log_handler)
+        _log_handler = None
 
 
 _INVALID_TRACE_ID = 0
