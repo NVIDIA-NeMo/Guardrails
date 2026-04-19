@@ -25,8 +25,8 @@ from nemoguardrails.exceptions import (
     LLMClientError,
     LLMContextWindowError,
 )
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.types import ChatMessage, LLMResponse, Role
 from tests.llm.clients._helpers import (
     LIVE_TEST_MODE,

@@ -18,8 +18,8 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.types import LLMModel
 
 log = logging.getLogger(__name__)

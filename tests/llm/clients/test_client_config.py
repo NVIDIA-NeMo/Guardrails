@@ -23,8 +23,8 @@ from nemoguardrails.llm.clients.constants import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_TIMEOUT,
 )
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 
 
 def _make_client(**kwargs):
@@ -134,7 +134,7 @@ class TestHttpClientInjection:
 class TestPoolKeyAcceptsUnhashableQueryValues:
     @pytest.mark.asyncio
     async def test_list_query_value_does_not_crash(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -149,7 +149,7 @@ class TestPoolKeyAcceptsUnhashableQueryValues:
 
     @pytest.mark.asyncio
     async def test_nested_dict_query_value_does_not_crash(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -164,7 +164,7 @@ class TestPoolKeyAcceptsUnhashableQueryValues:
 
     @pytest.mark.asyncio
     async def test_same_query_pools_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -176,7 +176,7 @@ class TestPoolKeyAcceptsUnhashableQueryValues:
 
     @pytest.mark.asyncio
     async def test_different_query_different_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -222,7 +222,7 @@ class TestPlaintextHttpWarning:
 class TestDefaultFramework:
     @pytest.mark.asyncio
     async def test_creates_chat_model(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -236,7 +236,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_creates_nim(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -249,7 +249,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_pools_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -262,7 +262,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_different_keys_different_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -275,7 +275,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_different_timeout_different_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -290,7 +290,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_different_headers_different_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -305,7 +305,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_same_full_config_pooled(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -319,7 +319,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_reset_closes_all_pooled_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk-a"})
@@ -336,7 +336,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_reset_clears_registered_providers(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         fw.register_provider("custom", lambda **kw: object())
@@ -348,7 +348,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_reset_allows_recreation_with_fresh_clients(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
@@ -363,7 +363,7 @@ class TestDefaultFramework:
     async def test_reset_does_not_close_injected_clients(self):
         import httpx
 
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         injected = httpx.AsyncClient()
         client = OpenAICompatibleClient(base_url="https://api.openai.com/v1", http_client=injected)
@@ -377,7 +377,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_aclose_closes_pools_only_keeps_providers(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk-a"})
@@ -392,7 +392,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_aclose_can_be_called_repeatedly(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         fw.create_model("gpt-4o", "openai", {"api_key": "sk-a"})
@@ -401,7 +401,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_aclose_then_create_model_rebuilds_pool(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -416,7 +416,7 @@ class TestDefaultFramework:
             await fw.aclose()
 
     def test_clear_providers_drops_registry_only(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         fw.register_provider("custom_a", lambda **kw: object())
@@ -430,7 +430,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_clear_providers_does_not_touch_pool(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -447,7 +447,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_reset_calls_both_aclose_and_clear_providers(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
@@ -462,7 +462,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_unknown_provider_raises(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -473,7 +473,7 @@ class TestDefaultFramework:
 
     @pytest.mark.asyncio
     async def test_custom_base_url(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
@@ -484,7 +484,7 @@ class TestDefaultFramework:
             await fw.reset()
 
     def test_get_provider_names(self):
-        from nemoguardrails.llm.default_framework import DefaultFramework
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         names = fw.get_provider_names()

@@ -39,7 +39,7 @@ def get_framework(name: str) -> LLMFramework:
 
             _frameworks["langchain"] = LangChainFramework()
         elif name == "default":
-            from nemoguardrails.llm.default_framework import DefaultFramework
+            from nemoguardrails.llm.frameworks.default import DefaultFramework
 
             _frameworks["default"] = DefaultFramework()
         else:

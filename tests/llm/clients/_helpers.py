@@ -20,8 +20,8 @@ from pathlib import Path
 
 import httpx
 
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

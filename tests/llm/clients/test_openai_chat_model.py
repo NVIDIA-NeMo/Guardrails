@@ -24,8 +24,8 @@ from nemoguardrails.exceptions import (
     LLMResponseValidationError,
 )
 from nemoguardrails.llm.clients.base import HTTPResponse
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.models.openai_chat import OpenAIChatModel
 from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 from nemoguardrails.types import ChatMessage, LLMResponse, Role, ToolCall, ToolCallFunction
 from tests.llm.clients._helpers import make_client, mock_httpx_post, stream_client
