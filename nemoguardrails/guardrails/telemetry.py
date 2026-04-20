@@ -234,6 +234,12 @@ def llm_call_span(
     """Create a CLIENT span for an LLM call following GenAI semantic conventions.
 
     Span name follows the OTEL pattern: ``"{operation_name} {model_name}"``.
+
+    ``operation_name`` defaults to ``"chat"`` because IORails only issues
+    chat completions. In the future if any other non-chat LLM  operations are
+    supported, callers should pass an explicit ``operation_name`` from the
+    OTEL GenAI semantic conventions.
+
     Yields the span (or ``None`` when *tracer* is ``None``).
     """
     if tracer is None:
