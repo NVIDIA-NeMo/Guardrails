@@ -183,7 +183,7 @@ class TestApiCallSpan:
         assert spans[0].kind == SpanKind.CLIENT
         assert spans[0].name == "api jailbreak_detection"
 
-    def test_sets_operation_name(self, otel_provider):
+    def test_sets_api_name(self, otel_provider):
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
@@ -191,7 +191,10 @@ class TestApiCallSpan:
             pass
 
         attrs = dict(exporter.get_finished_spans()[0].attributes)
-        assert attrs["gen_ai.operation.name"] == "api"
+        assert attrs["api.name"] == "jailbreak_detection"
+        # Must NOT appear in the gen_ai.* namespace: this is a plain HTTP
+        # API call, not a GenAI operation.
+        assert "gen_ai.operation.name" not in attrs
 
     def test_records_error_type(self, otel_provider):
         provider, exporter = otel_provider

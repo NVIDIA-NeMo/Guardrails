@@ -121,6 +121,9 @@ class GuardrailsAttributes:
     ACTION_LLM_CALLS_COUNT = "action.llm_calls_count"
     ACTION_PARAM_PREFIX = "action.param."
 
+    # api call attributes (non-LLM HTTP APIs such as jailbreak detection)
+    API_NAME = "api.name"
+
     # llm attributes (application-level, not provider-level)
     LLM_CACHE_HIT = "llm.cache.hit"
 

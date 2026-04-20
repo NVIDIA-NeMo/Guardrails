@@ -245,9 +245,12 @@ def llm_call_span(
 
 @contextmanager
 def api_call_span(tracer: Optional["Tracer"], api_name: str) -> Generator[Optional["Span"], None, None]:
-    """Create a CLIENT span for an API call (e.g., jailbreak detection).
+    """Create a CLIENT span for a non-LLM API call (e.g., jailbreak detection).
 
-    Yields the span (or ``None`` when *tracer* is ``None``).
+    Uses the ``api.name`` attribute rather than ``gen_ai.operation.name``
+    because these APIs are plain HTTP endpoints, not GenAI operations.
+    ``http.*`` transport attributes can be added additively later without
+    conflict.  Yields the span (or ``None`` when *tracer* is ``None``).
     """
     if tracer is None:
         yield None
@@ -259,7 +262,7 @@ def api_call_span(tracer: Optional["Tracer"], api_name: str) -> Generator[Option
         record_exception=False,
         set_status_on_exception=False,
     ) as span:
-        span.set_attribute(GenAIAttributes.GEN_AI_OPERATION_NAME, "api")
+        span.set_attribute(GuardrailsAttributes.API_NAME, api_name)
         try:
             yield span
         except Exception as exc:
