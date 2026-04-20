@@ -509,7 +509,7 @@ class TestSyncMethods:
         async def run_async():
             return await middleware.abefore_model(state, None)
 
-        async_result = asyncio.get_event_loop().run_until_complete(run_async())
+        async_result = asyncio.run(run_async())
 
         assert sync_result == async_result
 
@@ -558,7 +558,7 @@ class TestGuardrailViolationException:
         state = {"messages": [HumanMessage(content="Test")]}
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.abefore_model(state, None))
+            asyncio.run(middleware.abefore_model(state, None))
 
         assert exc_info.value.result is not None
         assert isinstance(exc_info.value.result, RailsResult)
@@ -570,7 +570,7 @@ class TestGuardrailViolationException:
         state = {"messages": [HumanMessage(content="Test")]}
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.abefore_model(state, None))
+            asyncio.run(middleware.abefore_model(state, None))
 
         assert exc_info.value.rail_type is not None
         assert exc_info.value.rail_type in ["input", "output"]
@@ -582,7 +582,7 @@ class TestGuardrailViolationException:
         state = {"messages": [HumanMessage(content="Test")]}
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.abefore_model(state, None))
+            asyncio.run(middleware.abefore_model(state, None))
 
         message = str(exc_info.value)
         assert "Input" in message or "input" in message.lower()
@@ -595,7 +595,7 @@ class TestGuardrailViolationException:
         state = {"messages": [HumanMessage(content="Test")]}
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.abefore_model(state, None))
+            asyncio.run(middleware.abefore_model(state, None))
 
         str_repr = str(exc_info.value)
         assert len(str_repr) > 0
@@ -608,7 +608,7 @@ class TestGuardrailViolationException:
         state = {"messages": [HumanMessage(content="Test")]}
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.abefore_model(state, None))
+            asyncio.run(middleware.abefore_model(state, None))
 
         assert exc_info.value.rail_type == "input"
 
@@ -624,7 +624,7 @@ class TestGuardrailViolationException:
         }
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.aafter_model(state, None))
+            asyncio.run(middleware.aafter_model(state, None))
 
         assert exc_info.value.rail_type == "output"
 
@@ -636,7 +636,7 @@ class TestGuardrailViolationException:
         state = {"messages": [HumanMessage(content="Test")]}
 
         with pytest.raises(GuardrailViolation) as exc_info:
-            asyncio.get_event_loop().run_until_complete(middleware.abefore_model(state, None))
+            asyncio.run(middleware.abefore_model(state, None))
 
         assert exc_info.value.result.rail == rail_name
 

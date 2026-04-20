@@ -453,7 +453,7 @@ class TestGenerate:
             iorails.generate([{"role": "user", "content": "hi"}])
 
         with pytest.raises(RuntimeError):
-            asyncio.get_event_loop().run_until_complete(call_generate())
+            asyncio.run(call_generate())
 
 
 class TestRefusalMessage:
