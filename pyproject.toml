@@ -57,9 +57,6 @@ onnxruntime = [
 ]
 httpx = ">=0.24.1"
 jinja2 = ">=3.1.6"
-langchain = ">=0.2.14,<2.0.0"
-langchain-core = ">=0.2.14,<2.0.0"
-langchain-community = ">=0.2.5,<2.0.0"
 lark = ">=1.1.7"
 nest-asyncio = ">=1.5.6,"
 # NOTE:
@@ -76,14 +73,13 @@ starlette = { version = ">=0.49.1", optional = true }
 typer = ">=0.8"
 uvicorn = { version = ">=0.23", optional = true }
 watchdog = { version = ">=3.0.0", optional = true }
+
+# server (openai SDK types used by server/schemas and server/api)
 openai = { version = ">=1.0.0,<3.0.0", optional = true }
 
 # tracing
 opentelemetry-api = { version = ">=1.27.0,<2.0.0", optional = true }
 aiofiles = { version = ">=24.1.0", optional = true }
-
-# openai
-langchain-openai = { version = ">=0.1.0", optional = true }
 
 # eval
 tqdm = { version = ">=4.65,<5.0", optional = true }
@@ -102,9 +98,6 @@ numpy = [
 presidio-analyzer = { version = ">=2.2", optional = true, python = "<3.13" }
 presidio-anonymizer = { version = ">=2.2", optional = true, python = "<3.13" }
 
-# nim
-langchain-nvidia-ai-endpoints = { version = ">= 0.2.0", optional = true }
-
 # gpc
 google-cloud-language = { version = ">=2.14.0", optional = true }
 
@@ -120,10 +113,8 @@ chainlit = { version = "^2.11.0", optional = true }
 [tool.poetry.extras]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
 eval = ["tqdm", "numpy", "streamlit", "tornado"]
-openai = ["langchain-openai"]
 gcp = ["google-cloud-language"]
 tracing = ["opentelemetry-api", "aiofiles"]
-nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
 multilingual = ["fast-langdetect"]
 server = ["aiofiles", "openai", "fastapi", "starlette", "uvicorn", "watchdog"]
@@ -137,12 +128,10 @@ all = [
   "tqdm",
   "numpy",
   "streamlit",
-  "langchain-openai",
   "openai",
   "google-cloud-language",
   "opentelemetry-api",
   "aiofiles",
-  "langchain-nvidia-ai-endpoints",
   "yara-python",
   "fast-langdetect",
   "fastapi",
@@ -179,6 +168,13 @@ watchdog = ">=3.0.0"
 pyright = "^1.1.405"
 ruff = "0.14.6"
 chainlit = "^2.11.0"
+# LangChain integration is now opt-in at runtime (DefaultFramework replaces it for chat).
+# These dev deps keep the LangChain-specific tests and the NIM embeddings test path working.
+langchain = ">=0.2.14,<2.0.0"
+langchain-core = ">=0.2.14,<2.0.0"
+langchain-community = ">=0.2.5,<2.0.0"
+langchain-openai = ">=0.1.0"
+langchain-nvidia-ai-endpoints = ">=0.2.0"
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]
