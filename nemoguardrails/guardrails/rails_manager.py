@@ -39,10 +39,9 @@ from nemoguardrails.guardrails.guardrails_types import (
     get_request_id,
 )
 from nemoguardrails.guardrails.rail_action import RailAction
-from nemoguardrails.guardrails.telemetry import rail_span
+from nemoguardrails.guardrails.telemetry import mark_rail_stop, rail_span
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_name
-from nemoguardrails.tracing.constants import GuardrailsAttributes
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -159,8 +158,7 @@ class RailsManager:
         with rail_span(self._tracer, flow, direction) as span:
             action = self._actions[flow]
             result = await action.run(flow, messages, bot_response)
-            if span is not None and not result.is_safe:
-                span.set_attribute(GuardrailsAttributes.RAIL_STOP, True)
+            mark_rail_stop(span, result.is_safe)
             return result
 
     async def _run_rails_sequential(

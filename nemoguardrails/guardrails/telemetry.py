@@ -135,6 +135,19 @@ def record_span_error(span: Optional["Span"], exc: BaseException) -> None:
     span.set_status(StatusCode.ERROR, str(exc))
 
 
+def mark_rail_stop(span: Optional["Span"], is_safe: bool) -> None:
+    """Set ``rail.stop=True`` on a rail span when the rail blocked the request.
+
+    Safe to call with ``None`` (no-op) so callers don't have to branch on
+    whether a real span was produced — matches the ``record_span_error``
+    idiom.  Only marks stop when *is_safe* is ``False``; a passing rail
+    leaves the attribute unset.
+    """
+    if span is None or is_safe:
+        return
+    span.set_attribute(GuardrailsAttributes.RAIL_STOP, True)
+
+
 @contextmanager
 def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
     """Create a live ``guardrails.request`` SERVER span.
