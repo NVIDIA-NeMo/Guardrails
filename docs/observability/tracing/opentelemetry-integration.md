@@ -114,3 +114,7 @@ The NeMo Guardrails library works with the entire OpenTelemetry ecosystem includ
 - **Backends**: Any system accepting OpenTelemetry traces
 
 See the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
+
+## Exporting Logs
+
+To also forward guardrails Python log records into your OpenTelemetry backend with trace correlation, see [](opentelemetry-logs.md).

@@ -101,6 +101,7 @@ Existing configurations will continue to work. However, it is strongly recommend
 - [](quick-start.md) - Minimal setup to enable tracing using the OpenTelemetry SDK
 - [](adapter-configurations.md) - Detailed configuration for FileSystem, OpenTelemetry, and Custom adapters
 - [](opentelemetry-integration.md) - Production-ready OpenTelemetry setup and ecosystem compatibility
+- [](opentelemetry-logs.md) - Forward guardrails Python logs to OpenTelemetry with trace correlation
 - [](troubleshooting.md) - Common issues and solutions
 
 ## Jupyter Notebooks
@@ -114,5 +115,6 @@ Existing configurations will continue to work. However, it is strongly recommend
 Quick Start <quick-start>
 Adapters <adapter-configurations>
 OpenTelemetry <opentelemetry-integration>
+OpenTelemetry Logs <opentelemetry-logs>
 Troubleshooting <troubleshooting>
 ```
