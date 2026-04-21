@@ -174,6 +174,7 @@ starlette = ">=0.49.1"
 watchdog = ">=3.0.0"
 pyright = "^1.1.405"
 ruff = "0.14.6"
+chainlit = "^2.11.0"
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]

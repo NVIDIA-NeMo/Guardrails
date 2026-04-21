@@ -26,13 +26,13 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 import httpx
+from chainlit.utils import mount_chainlit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError
-from starlette.responses import StreamingResponse
-from starlette.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.config import Model
@@ -98,10 +98,13 @@ async def lifespan(app: GuardrailsApp):
         with open(challenges_files) as f:
             register_challenges(json.load(f))
 
-    # If there is a `config.yml` in the root `app.rails_config_path`, then
-    # that means we are in single config mode.
-    if os.path.exists(os.path.join(app.rails_config_path, "config.yml")) or os.path.exists(
-        os.path.join(app.rails_config_path, "config.yaml")
+    # If there is a `config.yml` in the root `app.rails_config_path` (or in
+    # a `config/` subdirectory), set the app to single config mode.
+    if (
+        os.path.exists(os.path.join(app.rails_config_path, "config.yml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config.yaml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yaml"))
     ):
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
@@ -122,19 +125,18 @@ async def lifespan(app: GuardrailsApp):
             if config_module is not None and hasattr(config_module, "init"):
                 config_module.init(app)
 
-    # Finally, we register the static frontend UI serving
-
+    # Mount Chainlit chat UI or a basic status endpoint
     if not app.disable_chat_ui:
-        FRONTEND_DIR = utils.get_chat_ui_data_path("frontend")
-
-        app.mount(
-            "/",
-            StaticFiles(
-                directory=FRONTEND_DIR,
-                html=True,
-            ),
-            name="chat",
+        chainlit_app_path = os.path.join(
+            os.path.dirname(__file__),
+            "app.py",
         )
+        mount_chainlit(app=app, target=chainlit_app_path, path="/chat")
+
+        @app.get("/")
+        async def root_redirect():
+            return RedirectResponse(url="/chat")
+
     else:
 
         @app.get("/")
