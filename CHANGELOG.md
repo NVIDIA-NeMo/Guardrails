@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- *(cli)* Fix empty assistant message appended to history on streaming error and replace fragile `startswith` error detection with proper JSON parsing ([#1771](https://github.com/NVIDIA-NeMo/Guardrails/issues/1771))
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features

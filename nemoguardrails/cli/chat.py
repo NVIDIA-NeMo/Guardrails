@@ -76,6 +76,7 @@ async def _run_chat_v1_0(
         user_message = input("> ")
 
         history.append({"role": "user", "content": user_message})
+        streaming_error = False
 
         if not server_url:
             # If we have streaming from a locally loaded config, we initialize the handler.
@@ -83,14 +84,16 @@ async def _run_chat_v1_0(
                 try:
                     bot_message_list = []
                     async for chunk in rails_app.stream_async(messages=history):
-                        if isinstance(chunk, str) and chunk.startswith('{"error"'):
+                        if isinstance(chunk, str) and chunk.strip().startswith("{"):
                             try:
                                 error_data = json.loads(chunk)
+                            except (json.JSONDecodeError, ValueError):
+                                error_data = None
+                            if isinstance(error_data, dict) and isinstance(error_data.get("error"), dict):
                                 error_msg = error_data["error"].get("message", "Unknown error")
                                 console.print(f"\n\n[red]Streaming error: {error_msg}[/]")
-                            except (json.JSONDecodeError, KeyError):
-                                console.print(f"\n\n[red]Streaming error: {chunk}[/]")
-                            break
+                                streaming_error = True
+                                break
 
                         console.print("[green]" + f"{chunk}" + "[/]", end="")
                         bot_message_list.append(chunk)
@@ -170,7 +173,8 @@ async def _run_chat_v1_0(
                         # We print bot messages in green.
                         console.print("[green]" + f"{bot_message['content']}" + "[/]")
 
-        history.append(bot_message)
+        if bot_message.get("content") and not streaming_error:
+            history.append(bot_message)
 
 
 @dataclass
