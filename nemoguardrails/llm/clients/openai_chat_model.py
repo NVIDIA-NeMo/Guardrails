@@ -122,7 +122,7 @@ class OpenAIChatModel:
                     raw_tool_calls = delta.get("tool_calls")
                     if raw_tool_calls:
                         for tc_delta in raw_tool_calls:
-                            idx = tc_delta["index"]
+                            idx = tc_delta.get("index", 0)
                             if idx not in tool_call_acc:
                                 tool_call_acc[idx] = {
                                     "id": tc_delta.get("id", ""),
