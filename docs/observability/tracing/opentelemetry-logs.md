@@ -57,11 +57,15 @@ from opentelemetry.sdk._logs import LoggingHandler
 logging.getLogger("nemoguardrails").addHandler(LoggingHandler())
 ```
 
+```{important}
+These three lines are not independently sufficient. `LoggingHandler()` resolves the active `LoggerProvider` at emit time, and when no provider has been configured via `set_logger_provider(...)` the SDK falls back to a no-op proxy that **silently discards every forwarded record** — no error is raised. You must also configure a `LoggerProvider` with a processor and exporter as shown in the [full example below](#full-example-traces-and-logs-together) before records will actually leave your process.
+```
+
 What each line does:
 
 - `logging.getLogger("nemoguardrails")` — selects the logger namespace that catches every log record emitted by the NeMo Guardrails library (all submodules log under this prefix).
 - `LoggingHandler()` — an OpenTelemetry-provided `logging.Handler` subclass that converts each Python `LogRecord` into an OTEL log record. Resolves the active `LoggerProvider` at emit time and attaches trace context automatically.
-- `.addHandler(...)` — attaches the handler. From this point forward, every record the NeMo Guardrails library emits flows to both the host's existing handlers (console, files, etc.) and the OpenTelemetry pipeline.
+- `.addHandler(...)` — attaches the handler. From this point forward, every record the NeMo Guardrails library emits flows to both the host's existing handlers (console, files, etc.) and the OpenTelemetry pipeline — provided a `LoggerProvider` has been configured.
 
 This is **additive**: your existing Python logging configuration continues to work unchanged. OpenTelemetry export happens alongside, not instead.
 
@@ -125,6 +129,7 @@ Running this script prints both the span tree and the log records to your consol
 The log-record processor in the example above can target any OpenTelemetry log exporter. For an OTLP collector:
 
 ```python
+# Private module — see "Experimental SDK surface" under Considerations
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 
 otlp_log_exporter = OTLPLogExporter(endpoint="http://localhost:4317", insecure=True)
@@ -147,7 +152,7 @@ Log records emitted outside any guardrails request (startup, engine registration
 
 ## Considerations
 
-- **Experimental SDK surface.** The `opentelemetry.sdk._logs` module is still under active development in the OpenTelemetry Python SDK and may change in future releases. The underscore prefix denotes a non-stable API. Pin your `opentelemetry-sdk` version in production and review release notes before upgrading.
+- **Experimental SDK surface.** Both the `opentelemetry.sdk._logs` module and the OTLP log exporter at `opentelemetry.exporter.otlp.proto.grpc._log_exporter` are still under active development in the OpenTelemetry Python ecosystem. The underscore prefix on both paths denotes a non-stable API. Pin your `opentelemetry-sdk` and `opentelemetry-exporter-otlp` versions in production and review release notes before upgrading.
 - **Privacy.** Guardrails log messages include user inputs and rail decisions. Before exporting to a third-party backend, review whether the records may contain PII and whether your retention/redaction policies cover them.
 - **Performance.** At high log volumes or DEBUG level, log export can add measurable overhead. Use `BatchLogRecordProcessor` (as shown) rather than the synchronous `SimpleLogRecordProcessor` in production, and consider filtering at the logger level (`logging.getLogger("nemoguardrails").setLevel(logging.INFO)`) to limit what crosses the bridge.
 - **Interaction with `propagate=False`.** If your application calls `nemoguardrails.guardrails.configure_logging()`, that helper sets `propagate=False` on the `nemoguardrails.guardrails` logger to prevent duplicate console output. Records from submodules under `nemoguardrails.guardrails.*` will then not reach the handler attached to `nemoguardrails`. To capture them, attach the handler to `nemoguardrails.guardrails` instead of (or in addition to) `nemoguardrails`.
