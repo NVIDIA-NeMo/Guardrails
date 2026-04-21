@@ -1476,3 +1476,90 @@ def test_embedding_model_no_backfill_when_no_embeddings_model():
     assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
     assert "embedding_model" not in rails.config.knowledge_base.embedding_search_provider.parameters
     assert "embedding_engine" not in rails.config.knowledge_base.embedding_search_provider.parameters
+
+
+# ---------------------------------------------------------------------------
+# Tests for multi-part (OpenAI spec) content normalization — issue #1741
+# ---------------------------------------------------------------------------
+
+
+def test_extract_text_content_string():
+    """Plain strings should be returned unchanged."""
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    assert rails._extract_text_content("hello") == "hello"
+    assert rails._extract_text_content("") == ""
+    assert rails._extract_text_content(None) == ""
+
+
+def test_extract_text_content_list_single_text_part():
+    """A single-part list with type=text should return the text string."""
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    content = [{"type": "text", "text": "Hello there"}]
+    assert rails._extract_text_content(content) == "Hello there"
+
+
+def test_extract_text_content_list_multiple_text_parts():
+    """Multiple text parts should be joined with a space."""
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    content = [
+        {"type": "text", "text": "First part."},
+        {"type": "text", "text": "Second part."},
+    ]
+    assert rails._extract_text_content(content) == "First part. Second part."
+
+
+def test_extract_text_content_list_skips_image_parts():
+    """Image parts should be silently ignored; only text parts are returned."""
+    config = RailsConfig.from_content(config={"models": []})
+    rails = LLMRails(config=config, llm=FakeLLM(responses=[]))
+
+    content = [
+        {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
+        {"type": "text", "text": "Describe this image."},
+    ]
+    assert rails._extract_text_content(content) == "Describe this image."
+
+
+@pytest.mark.asyncio
+async def test_generate_async_multipart_user_content(rails_config):
+    """generate_async must not crash when content is an OpenAI multi-part list."""
+    llm = FakeLLM(responses=["  express greeting"])
+    llm_rails = LLMRails(config=rails_config, llm=llm)
+
+    messages = [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Hello!"}],
+        }
+    ]
+    # Before the fix this raised TypeError; after the fix it should succeed.
+    result = await llm_rails.generate_async(messages=messages)
+    assert result["role"] == "assistant"
+
+
+@pytest.mark.asyncio
+async def test_generate_async_multipart_multi_turn_no_type_error(rails_config):
+    """Multi-turn conversations with multi-part content must not raise TypeError."""
+    llm = FakeLLM(
+        responses=[
+            "  express greeting",
+            "  express greeting",
+        ]
+    )
+    llm_rails = LLMRails(config=rails_config, llm=llm)
+
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "Hello!"}]},
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": [{"type": "text", "text": "Hello again"}]},
+    ]
+    # Before the fix, get_colang_history() would crash with:
+    #   TypeError: must be str or None, not list
+    result = await llm_rails.generate_async(messages=messages)
+    assert result["role"] == "assistant"
