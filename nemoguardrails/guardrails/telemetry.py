@@ -323,6 +323,25 @@ class TracedRequest(NamedTuple):
     request_id: str
 
 
+def _cleanup_request_id(token) -> None:
+    """Reset the request-ID ContextVar from a cleanup path, tolerating the
+    one expected ``ValueError``.
+
+    ``ContextVar.reset()`` raises ``ValueError("... was created in a
+    different Context")`` when called from a different asyncio Context
+    than where ``.set()`` was called.  That happens during async-generator
+    cleanup (``aclose()`` running in an outer task's context) and is the
+    only ``ValueError`` that ``reset_request_id`` raises today.  Any
+    other ``ValueError`` indicates an unexpected bug in the helper and is
+    re-raised so callers see it.
+    """
+    try:
+        reset_request_id(token)
+    except ValueError as exc:
+        if "different Context" not in str(exc):
+            raise
+
+
 @contextmanager
 def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None, None]:
     """Unified request context: sets request ID, optionally creates a span.
@@ -339,10 +358,9 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None,
     which can return the host app's ambient span when IORails tracing is
     disabled.
 
-    The request-ID ContextVar is always cleaned up on exit — including
-    from async-generator cleanup, where reset may run in a different task
-    context than the original set (``ValueError`` is swallowed in that
-    case because the ContextVar frame is already gone).
+    The request-ID ContextVar is always cleaned up on exit via
+    :func:`_cleanup_request_id`, which tolerates the expected
+    cross-context ``ValueError`` that async-generator cleanup can raise.
     """
     if tracer is not None:
         with request_span(tracer) as (span, req_id):
@@ -350,16 +368,10 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None,
             try:
                 yield TracedRequest(span, req_id)
             finally:
-                try:
-                    reset_request_id(token)
-                except ValueError:
-                    pass
+                _cleanup_request_id(token)
     else:
         token = set_new_request_id()
         try:
             yield TracedRequest(None, get_request_id())
         finally:
-            try:
-                reset_request_id(token)
-            except ValueError:
-                pass
+            _cleanup_request_id(token)

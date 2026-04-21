@@ -280,7 +280,9 @@ class TestTracedRequestValueErrorTolerance:
         provider, exporter = otel_provider
         tracer = provider.get_tracer("test")
 
-        with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
+        with patch.object(
+            telemetry, "reset_request_id", side_effect=ValueError("<Token> was created in a different Context")
+        ):
             with traced_request(tracer) as traced:
                 # With a tracer, traced_request must yield a real span.
                 assert traced.span is not None
@@ -304,12 +306,12 @@ class TestTracedRequestValueErrorTolerance:
         assert attrs["gen_ai.operation.name"] == "guardrails"
 
         # The swallowed ValueError must NOT leak into the span: no exception
-        # events, no error.type attribute, no trace of "wrong context" anywhere.
+        # events, no error.type attribute, no trace of the error anywhere.
         assert [e for e in span.events if e.name == "exception"] == []
         assert "error.type" not in attrs
         assert not span.status.description
         for value in attrs.values():
-            assert "wrong context" not in str(value)
+            assert "different Context" not in str(value)
 
     def test_value_error_on_reset_swallowed_in_no_tracer_branch(self):
         """Same tolerance in the tracer=None branch (random req-id path).
@@ -317,10 +319,22 @@ class TestTracedRequestValueErrorTolerance:
         No span is created; we only verify the yielded request_id is a valid
         hex string and the ValueError is not propagated.
         """
-        with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
+        with patch.object(
+            telemetry, "reset_request_id", side_effect=ValueError("<Token> was created in a different Context")
+        ):
             with traced_request(None) as traced:
                 # Without a tracer, traced_request must yield None for the span.
                 assert traced.span is None
                 captured_req_id = traced.request_id
 
         assert _is_valid_hex_string(captured_req_id, REQUEST_ID_HEX_CHARS)
+
+    def test_unexpected_value_error_is_reraised(self):
+        """Only the cross-context ValueError is swallowed.  Any other
+        ValueError from reset_request_id (e.g. a future refactor bug) must
+        propagate loudly — catching all ValueErrors would hide regressions.
+        """
+        with patch.object(telemetry, "reset_request_id", side_effect=ValueError("unrelated failure")):
+            with pytest.raises(ValueError, match="unrelated failure"):
+                with traced_request(None):
+                    pass
