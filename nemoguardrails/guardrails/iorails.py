@@ -40,7 +40,7 @@ from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     get_tracer,
     is_tracing_enabled,
-    record_current_span_error,
+    record_span_error,
     traced_request,
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -140,7 +140,7 @@ class IORails:
         await self.start()
 
         tracer = self._tracer if self._tracing_enabled else None
-        with traced_request(tracer) as req_id:
+        with traced_request(tracer) as (_, req_id):
             t0 = time.monotonic()
             try:
                 return await self._do_generate(messages, req_id, **kwargs)
@@ -245,8 +245,14 @@ class IORails:
 
         streaming_handler = StreamingHandler(include_metadata=include_metadata)
 
-        async def _generation_task():
+        async def _generation_task(request_span):
             """Background task: input rails → stream LLM chunks → push to handler.
+
+            ``request_span`` is the IORails request span (or ``None`` when
+            tracing is disabled), captured by the caller from
+            ``traced_request`` and passed in explicitly — never fetched via
+            ``trace.get_current_span()`` which could return the host app's
+            ambient span and pollute unrelated traces.
 
             Inherits the request ID from the caller context via create_task().
             """
@@ -276,10 +282,10 @@ class IORails:
                     elapsed_ms,
                     exc_info=True,
                 )
-                # Mark the request span ERROR; guard prevents contaminating
-                # the caller's ambient OTEL span when IORails tracing is off.
-                if self._tracing_enabled:
-                    record_current_span_error(e)
+                # Mark the request span ERROR; record_span_error no-ops when
+                # request_span is None (tracing disabled), so no extra guard
+                # is needed and there's no ambient-context lookup to worry about.
+                record_span_error(request_span, e)
                 error_payload = json.dumps(
                     {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
@@ -308,13 +314,13 @@ class IORails:
                 # request span is the current OTEL context when create_task()
                 # below snapshots contextvars — that's what makes rail / LLM
                 # spans raised inside _generation_task attach as children.
-                with traced_request(tracer) as req_id:
+                with traced_request(tracer) as (request_span, req_id):
                     t0 = time.monotonic()
                     try:
                         log.info("[%s] stream_async called", req_id)
                         log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
 
-                        task = asyncio.create_task(_generation_task())
+                        task = asyncio.create_task(_generation_task(request_span))
                         try:
                             # Determine base iterator: with or without output rails
                             if self._has_streaming_output_rails:

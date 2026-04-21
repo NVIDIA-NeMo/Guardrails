@@ -30,7 +30,6 @@ from nemoguardrails.guardrails.telemetry import (
     get_tracer,
     is_tracing_enabled,
     mark_rail_stop,
-    record_current_span_error,
     record_span_error,
     request_span,
     trace_id_to_request_id,
@@ -269,13 +268,6 @@ class TestIsTracingEnabled:
             assert is_tracing_enabled(config) is False
 
 
-class TestRecordCurrentSpanError:
-    def test_noop_without_otel(self):
-        """When OTEL is unavailable, the helper returns cleanly without raising."""
-        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
-            record_current_span_error(RuntimeError("boom"))
-
-
 class TestTracedRequestValueErrorTolerance:
     def test_value_error_on_reset_swallowed_in_tracer_branch(self, otel_provider):
         """traced_request must tolerate ValueError from reset_request_id — this
@@ -289,7 +281,7 @@ class TestTracedRequestValueErrorTolerance:
         tracer = provider.get_tracer("test")
 
         with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
-            with traced_request(tracer) as req_id:
+            with traced_request(tracer) as (_, req_id):
                 captured_req_id = req_id
 
         spans = exporter.get_finished_spans()
@@ -324,7 +316,8 @@ class TestTracedRequestValueErrorTolerance:
         hex string and the ValueError is not propagated.
         """
         with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
-            with traced_request(None) as req_id:
+            with traced_request(None) as (span, req_id):
                 captured_req_id = req_id
+                assert span is None
 
         assert _is_valid_hex_string(captured_req_id, REQUEST_ID_HEX_CHARS)
