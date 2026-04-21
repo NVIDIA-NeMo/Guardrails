@@ -123,6 +123,12 @@ class DefaultFramework:
         return sorted({*_DEFAULT_BASE_URLS, *self._providers})
 
     async def reset(self) -> None:
+        """Close all pooled HTTP clients and clear registered providers.
+
+        Destructive: clears both the client pool and any providers registered
+        via ``register_provider``. Callers expecting custom providers to
+        survive must re-register them after ``reset``.
+        """
         for client in list(self._clients.values()):
             try:
                 await client.close()

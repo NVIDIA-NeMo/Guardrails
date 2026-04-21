@@ -40,7 +40,11 @@ _STANDARD_RESPONSE_KEYS = frozenset({"model", "choices", "usage", "id", "object"
 
 def _is_reasoning_model(model_name: str) -> bool:
     name = model_name.lower()
-    return name.startswith("o1") or name.startswith("o3") or (name.startswith("gpt-5") and "chat" not in name)
+    if name in ("o1", "o3") or name.startswith(("o1-", "o3-")):
+        return True
+    if name == "gpt-5" or name.startswith("gpt-5-"):
+        return "chat" not in name
+    return False
 
 
 class OpenAIChatModel:
@@ -286,7 +290,7 @@ class OpenAIChatModel:
             args_dict = raw_args
 
         return ToolCall(
-            id=tc["id"],
+            id=tc.get("id", ""),
             type=tc.get("type", "function"),
             function=ToolCallFunction(
                 name=func.get("name", ""),

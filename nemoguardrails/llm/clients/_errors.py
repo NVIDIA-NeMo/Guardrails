@@ -47,7 +47,7 @@ _UNSUPPORTED_PARAMS_KEYWORDS = [
     "unrecognized parameter",
 ]
 
-_SECRET_PATTERN = re.compile(r"(sk-|nvapi-|key-|bearer\s+)\S+", re.IGNORECASE)
+_SECRET_PATTERN = re.compile(r"(sk-|nvapi-|bearer\s+)\S+", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
