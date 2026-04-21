@@ -600,11 +600,50 @@ class TestNetworkExceptionRetry:
         client = make_client()
         client._client = type("MockClient", (), {"stream": stream_then_timeout})()
         chunks = []
-        with pytest.raises(httpx.ReadTimeout):
+        with pytest.raises(LLMTimeoutError) as exc_info:
             async for chunk in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
                 chunks.append(chunk)
         assert call_count == 1
         assert len(chunks) == 1
+        assert isinstance(exc_info.value.__cause__, httpx.ReadTimeout)
+
+    @pytest.mark.asyncio
+    async def test_stream_timeout_before_first_chunk_exhausts_retries_wrapped(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def always_timeout(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise httpx.ConnectTimeout("pre-yield timeout")
+            yield  # pragma: no cover — make this an async generator
+
+        client = make_client(max_retries=2)
+        client._client = type("MockClient", (), {"stream": always_timeout})()
+        with pytest.raises(LLMTimeoutError) as exc_info:
+            async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                pass
+        assert call_count == 3
+        assert isinstance(exc_info.value.__cause__, httpx.ConnectTimeout)
+
+    @pytest.mark.asyncio
+    async def test_stream_network_error_before_first_chunk_exhausts_retries_wrapped(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def always_connect_error(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise httpx.ConnectError("connection refused")
+            yield  # pragma: no cover — make this an async generator
+
+        client = make_client(max_retries=1)
+        client._client = type("MockClient", (), {"stream": always_connect_error})()
+        with pytest.raises(LLMConnectionError) as exc_info:
+            async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                pass
+        assert call_count == 2
+        assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
 
 
 class TestCalculateRetryDelay:

@@ -91,6 +91,15 @@ class LLMCallException(Exception):
 
 
 class LLMClientError(Exception):
+    """Base class for LLM client errors.
+
+    ``status_code`` holds the HTTP response status when one was received,
+    or ``0`` when no response arrived (client-side timeout or network
+    error). Callers should branch on exception class rather than
+    ``status_code`` to distinguish HTTP vs network failures, the type
+    hierarchy is the authoritative discriminator.
+    """
+
     def __init__(
         self,
         status_code: int,
@@ -114,7 +123,7 @@ class LLMClientError(Exception):
         self.model_name = model_name
         self.provider_name = provider_name
         self.base_url = base_url
-        super().__init__(f"[{status_code}] {error_message}")
+        super().__init__(f"[{status_code}] {error_message}" if status_code > 0 else error_message)
 
     def __str__(self) -> str:
         parts = []
@@ -125,7 +134,8 @@ class LLMClientError(Exception):
         if self.base_url:
             parts.append(f"endpoint={self.base_url}")
         context = f" ({', '.join(parts)})" if parts else ""
-        return f"[{self.status_code}]{context} {self.error_message}"
+        prefix = f"[{self.status_code}]" if self.status_code > 0 else ""
+        return f"{prefix}{context} {self.error_message}".strip()
 
 
 class LLMAuthenticationError(LLMClientError):

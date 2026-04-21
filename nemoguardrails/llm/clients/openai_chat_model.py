@@ -151,6 +151,8 @@ class OpenAIChatModel:
         for idx in sorted(acc.keys()):
             entry = acc[idx]
             raw_args = entry["arguments_buffer"]
+            # Graceful degrade: truncated (max_tokens) or malformed args => empty dict.
+            # The tool will surface the real error when invoked with no arguments.
             try:
                 args_dict = json.loads(raw_args) if raw_args else {}
             except json.JSONDecodeError:
@@ -282,6 +284,8 @@ class OpenAIChatModel:
         func = tc.get("function", {})
         raw_args = func.get("arguments", "{}")
         if isinstance(raw_args, str):
+            # Graceful degrade: malformed args from provider => empty dict.
+            # The tool will surface the real error when invoked with no arguments.
             try:
                 args_dict = json.loads(raw_args)
             except json.JSONDecodeError:

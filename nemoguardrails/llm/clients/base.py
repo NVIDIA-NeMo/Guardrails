@@ -217,23 +217,19 @@ class BaseClient:
                         yield parsed
                     return
             except httpx.TimeoutException as err:
-                if first_yielded:
-                    raise
-                if retries_remaining > 0:
-                    await self._sleep_for_retry(retries_attempted)
-                    retries_remaining -= 1
-                    retries_attempted += 1
-                    continue
-                raise LLMTimeoutError(0, f"Request timed out: {err}", **ctx.as_kwargs()) from err
+                if first_yielded or retries_remaining <= 0:
+                    raise LLMTimeoutError(0, f"Request timed out: {err}", **ctx.as_kwargs()) from err
+                await self._sleep_for_retry(retries_attempted)
+                retries_remaining -= 1
+                retries_attempted += 1
+                continue
             except httpx.NetworkError as err:
-                if first_yielded:
-                    raise
-                if retries_remaining > 0:
-                    await self._sleep_for_retry(retries_attempted)
-                    retries_remaining -= 1
-                    retries_attempted += 1
-                    continue
-                raise LLMConnectionError(0, f"Connection error: {err}", **ctx.as_kwargs()) from err
+                if first_yielded or retries_remaining <= 0:
+                    raise LLMConnectionError(0, f"Connection error: {err}", **ctx.as_kwargs()) from err
+                await self._sleep_for_retry(retries_attempted)
+                retries_remaining -= 1
+                retries_attempted += 1
+                continue
 
     def _check_sse_error(self, parsed: Any, headers: Any, ctx: Optional[ErrorContext] = None) -> None:
         if not isinstance(parsed, dict) or "error" not in parsed:

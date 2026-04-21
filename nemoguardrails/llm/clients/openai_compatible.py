@@ -55,7 +55,8 @@ class OpenAICompatibleClient(BaseClient):
             payload["stop"] = stop
         if stream:
             payload["stream"] = True
-            payload["stream_options"] = {"include_usage": True}
+            if self.provider_name in {"openai", "nim", "azure"}:
+                payload["stream_options"] = {"include_usage": True}
         payload.update(kwargs)
         return payload
 
