@@ -281,8 +281,10 @@ class TestTracedRequestValueErrorTolerance:
         tracer = provider.get_tracer("test")
 
         with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
-            with traced_request(tracer) as (_, req_id):
-                captured_req_id = req_id
+            with traced_request(tracer) as traced:
+                # With a tracer, traced_request must yield a real span.
+                assert traced.span is not None
+                captured_req_id = traced.request_id
 
         spans = exporter.get_finished_spans()
         assert len(spans) == 1
@@ -292,11 +294,11 @@ class TestTracedRequestValueErrorTolerance:
         assert span.kind == SpanKind.SERVER
         assert span.status.status_code == StatusCode.UNSET
 
-        # req_id is a valid hex suffix of the trace ID
+        # request_id is a valid hex suffix of the trace ID
         assert _is_valid_hex_string(captured_req_id, REQUEST_ID_HEX_CHARS)
         assert format_trace_id(span.context.trace_id).endswith(captured_req_id)
 
-        # The span carries the req_id attribute set by request_span
+        # The span carries the request_id attribute set by request_span
         attrs = dict(span.attributes)
         assert attrs["request.id"] == captured_req_id
         assert attrs["gen_ai.operation.name"] == "guardrails"
@@ -312,12 +314,13 @@ class TestTracedRequestValueErrorTolerance:
     def test_value_error_on_reset_swallowed_in_no_tracer_branch(self):
         """Same tolerance in the tracer=None branch (random req-id path).
 
-        No span is created; we only verify the yielded req_id is a valid
+        No span is created; we only verify the yielded request_id is a valid
         hex string and the ValueError is not propagated.
         """
         with patch.object(telemetry, "reset_request_id", side_effect=ValueError("wrong context")):
-            with traced_request(None) as (span, req_id):
-                captured_req_id = req_id
-                assert span is None
+            with traced_request(None) as traced:
+                # Without a tracer, traced_request must yield None for the span.
+                assert traced.span is None
+                captured_req_id = traced.request_id
 
         assert _is_valid_hex_string(captured_req_id, REQUEST_ID_HEX_CHARS)
