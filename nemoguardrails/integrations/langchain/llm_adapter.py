@@ -112,7 +112,7 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
 
 def _is_reasoning_model(model_name: str) -> bool:
     name = model_name.lower()
-    if name in ("o1", "o3") or name.startswith(("o1-", "o3-")):
+    if name in ("o1", "o3", "o4") or name.startswith(("o1-", "o3-", "o4-")):
         return True
     if name == "gpt-5" or name.startswith("gpt-5-"):
         return "chat" not in name

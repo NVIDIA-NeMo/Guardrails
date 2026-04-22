@@ -309,7 +309,10 @@ class TestPrepareCallParams:
             ("gpt-5", ["User:"], {"temperature": 0.001}, {}),
             ("gpt-5-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
             ("gpt-5-nano", ["User:"], {}, {}),
-            # no stop, no temperature — unchanged
+            ("o4-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("o4-mini-2025-04-16", ["User:"], {"temperature": 0.5}, {}),
+            ("o4", ["User:"], {"temperature": 0.5}, {}),
+            # no stop, no temperature, unchanged
             ("o1-preview", None, {"max_tokens": 100}, {"max_tokens": 100}),
             ("o1-preview", None, {}, {}),
         ],
