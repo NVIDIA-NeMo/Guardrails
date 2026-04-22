@@ -29,8 +29,8 @@ This page covers the setup. For plain Python logging (verbose mode, explain, gen
 
 The NeMo Guardrails library follows the OpenTelemetry library-instrumentation pattern.
 
-- **The library depends on the OpenTelemetry API only.** It creates spans, emits log records, and otherwise participates in whatever OTEL pipeline the host application provides.
-- **The host application owns the SDK.** Configuring a `TracerProvider`, a `LoggerProvider`, exporters, and attaching handlers to Python's `logging` tree are all the application's responsibility.
+- The library depends on the OpenTelemetry API only. It creates spans, emits log records, and otherwise participates in whatever OTEL pipeline the host application provides.
+- The host application owns the SDK. Configuring a `TracerProvider`, a `LoggerProvider`, exporters, and attaching handlers to Python's `logging` tree are all the application's responsibility.
 
 This split is deliberate. It lets the NeMo Guardrails library stay decoupled from SDK-version churn, avoids the library injecting itself into a host's observability stack without opt-in, and gives applications full control over where their telemetry is exported.
 
@@ -51,7 +51,7 @@ pip install opentelemetry-exporter-otlp
 Configure a `LoggerProvider` first, then attach the handler. The surrounding SDK setup appears in the [full example below](#full-example-with-traces-and-logs). The core of the bridge is three lines.
 
 ```{important}
-Configure the `LoggerProvider` through `set_logger_provider(...)` **before** you call `addHandler(LoggingHandler())`. The handler resolves its `LoggerProvider` on first emit and caches the result. If no provider is set by then, the SDK hands back a no-op logger and **every forwarded record is silently discarded**. No error is raised, and calling `set_logger_provider(...)` later does not recover the handler.
+Configure the `LoggerProvider` through `set_logger_provider(...)` **before** you call `addHandler(LoggingHandler())`. The handler resolves its `LoggerProvider` on first emit and caches the result. If no provider is set by then, the SDK hands back a no-op logger and **every forwarded record is silently discarded**. The SDK raises no error, and calling `set_logger_provider(...)` later does not recover the handler.
 ```
 
 ```python
@@ -61,7 +61,7 @@ from opentelemetry.sdk._logs import LoggingHandler
 logging.getLogger("nemoguardrails").addHandler(LoggingHandler())
 ```
 
-What each line does.
+Each line does the following:
 
 - `logging.getLogger("nemoguardrails")` selects the logger namespace that catches most records emitted by the NeMo Guardrails library. Submodules that use `logging.getLogger(__name__)` inherit this handler. Verbose mode (`nemoguardrails.logging.verbose`) is the known exception. It writes to the root logger, so attach the handler to the root logger as well if you need verbose output forwarded.
 - `LoggingHandler()` is an OpenTelemetry-provided `logging.Handler` subclass that converts each Python `LogRecord` into an OTEL log record. On first emit it resolves the active `LoggerProvider` through `get_logger_provider()`, caches the resulting logger, and attaches trace context automatically.
@@ -142,20 +142,26 @@ The OpenTelemetry Collector then forwards the records to any compatible backend,
 
 Each forwarded `LogRecord` becomes an OTEL log record with the following fields populated automatically.
 
-- **Body** contains the formatted log message.
-- **Severity** records `severity_text` (`INFO`, `DEBUG`, `ERROR`, and so on) and `severity_number`.
-- **Timestamp** records the record's emit time.
-- **Trace context** carries the `trace_id` and `span_id` of the active span when the record was emitted. The values are zero when no span is active.
-- **Code attributes** include `code.file.path`, `code.function.name`, and `code.line.number` derived from the Python `LogRecord`.
+| Field | Description |
+|-------|-------------|
+| Body | Contains the formatted log message. |
+| Severity | Records `severity_text` (`INFO`, `DEBUG`, `ERROR`, and so on) and `severity_number`. |
+| Timestamp | Records the record's emit time. |
+| Trace context | Carries the `trace_id` and `span_id` of the active span when the record was emitted. The values are zero when no span is active. |
+| Code attributes | Include `code.file.path`, `code.function.name`, and `code.line.number` derived from the Python `LogRecord`. |
 
 Log records emitted outside any guardrails request (startup, engine registration, teardown) still flow through, but their `trace_id` / `span_id` are zero because there is no active span.
 
 ## Considerations
 
-- **Experimental SDK surface.** Both the `opentelemetry.sdk._logs` module and the OTLP log exporter at `opentelemetry.exporter.otlp.proto.grpc._log_exporter` are still under active development in the OpenTelemetry Python ecosystem. The underscore prefix on both paths denotes a non-stable API. Pin your `opentelemetry-sdk` and `opentelemetry-exporter-otlp` versions in production and review release notes before upgrading.
-- **Privacy.** Guardrails log messages include user inputs and rail decisions. Before exporting to a third-party backend, review whether the records may contain PII and whether your retention and redaction policies cover them.
-- **Performance.** At high log volumes or DEBUG level, log export can add measurable overhead. Use `BatchLogRecordProcessor` (as shown) rather than the synchronous `SimpleLogRecordProcessor` in production, and consider filtering at the logger level (`logging.getLogger("nemoguardrails").setLevel(logging.INFO)`) to limit what crosses the bridge.
-- **Interaction with `propagate=False`.** If your application calls `nemoguardrails.guardrails.configure_logging()` on a freshly initialized logger, that helper sets `propagate=False` on the `nemoguardrails.guardrails` logger to prevent duplicate console output. The flag is only set on the first call, when no handlers exist yet. Records from submodules under `nemoguardrails.guardrails.*` will then not reach the handler attached to `nemoguardrails`. To capture them, attach the handler to `nemoguardrails.guardrails` instead of (or in addition to) `nemoguardrails`.
+- Experimental SDK surface
+  : Both the `opentelemetry.sdk._logs` module and the OTLP log exporter at `opentelemetry.exporter.otlp.proto.grpc._log_exporter` are still under active development in the OpenTelemetry Python ecosystem. The underscore prefix on both paths denotes a non-stable API. Pin your `opentelemetry-sdk` and `opentelemetry-exporter-otlp` versions in production and review release notes before upgrading.
+- Privacy
+  : Guardrails log messages include user inputs and rail decisions. Before exporting to a third-party backend, review whether the records may contain PII and whether your retention and redaction policies cover them.
+- Performance
+  : At high log volumes or DEBUG level, log export can add measurable overhead. Use `BatchLogRecordProcessor` (as shown) rather than the synchronous `SimpleLogRecordProcessor` in production, and consider filtering at the logger level (`logging.getLogger("nemoguardrails").setLevel(logging.INFO)`) to limit what crosses the bridge.
+- Interaction with `propagate=False`
+  : If your application calls `nemoguardrails.guardrails.configure_logging()` on a freshly initialized logger, that helper sets `propagate=False` on the `nemoguardrails.guardrails` logger to prevent duplicate console output. The flag is only set on the first call, when no handlers exist yet. Records from submodules under `nemoguardrails.guardrails.*` will then not reach the handler attached to `nemoguardrails`. To capture them, attach the handler to `nemoguardrails.guardrails` instead of (or in addition to) `nemoguardrails`.
 
 ## Related Resources
 
