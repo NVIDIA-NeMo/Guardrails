@@ -23,6 +23,8 @@ The NeMo Guardrails library uses the concept of **relevant chunks** (which are s
 
 ```{important}
 The performance of this rail is strongly dependent on the capability of the LLM to follow the instructions in the `self_check_facts` prompt.
+
+If your LLM does not reliably follow this prompt, consider a model purpose-built for hallucination detection instead. See [AlignScore-based Fact-Checking](#alignscore-based-fact-checking) or [Patronus Lynx-based RAG Hallucination Detection](#patronus-lynx-based-rag-hallucination-detection) on this page.
 ```
 
 ### Usage
