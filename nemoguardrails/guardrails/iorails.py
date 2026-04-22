@@ -414,6 +414,8 @@ class IORails:
             output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk)
             if not output_result.is_safe:
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                if self._tracing_enabled:
+                    record_request_blocked(RailDirection.OUTPUT)
                 error_data = {
                     "error": {
                         "message": f"Blocked by output rails: {output_result.reason}",

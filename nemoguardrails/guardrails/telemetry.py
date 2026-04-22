@@ -193,7 +193,6 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
                 description="End-to-end guardrails request duration",
                 unit="s",
                 explicit_bucket_boundaries_advisory=[
-                    0.0,
                     0.005,
                     0.01,
                     0.025,

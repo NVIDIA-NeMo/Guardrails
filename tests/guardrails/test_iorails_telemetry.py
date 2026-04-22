@@ -1106,6 +1106,56 @@ class TestStreamAsyncRequestMetrics:
         assert points["guardrails.request.duration"][0].value == 1
 
     @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_stream_output_block(self, iorails_streaming_output_tracing, metric_reader):
+        """Streaming + output-rail block exercises
+        ``_run_output_rails_in_streaming`` — a separate code path from the
+        non-streaming ``_do_generate`` output-block site.
+        """
+        iorails = iorails_streaming_output_tracing
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # Output block terminates the stream with a JSON error payload chunk.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_on_stream_output_block_when_tracing_disabled(self, metric_reader):
+        """Regression guard for the ``self._tracing_enabled`` gate on the
+        output-rail streaming block path: when tracing is disabled, no
+        metrics emit even though the block still happens.  Catches any
+        future removal of the gate on this emit site — the exact class of
+        bug the P1 review flagged on the other streaming path.
+        """
+        cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+        cfg["rails"]["output"]["streaming"] = {
+            "enabled": True,
+            "chunk_size": 5,
+            "context_size": 2,
+            "stream_first": True,
+        }
+        # No tracing.enabled=True → guardrails tracing/metrics disabled.
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=cfg))
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # Block still works — customer-visible behavior unchanged.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
+    @pytest.mark.asyncio
     async def test_emits_no_metrics_on_stream_failure_when_tracing_disabled(
         self, iorails_streaming_no_tracing, metric_reader
     ):
