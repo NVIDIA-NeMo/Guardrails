@@ -18,7 +18,6 @@
 import asyncio
 import copy
 import json
-from typing import Dict, List, NamedTuple
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -34,6 +33,7 @@ from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, Rai
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
+from tests.guardrails.metric_helpers import collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
 
@@ -952,55 +952,6 @@ class TestOtelNotInstalled:
             assert len(exporter.get_finished_spans()) == 0
 
 
-class MetricPoint(NamedTuple):
-    """One OTEL metric data point flattened from the SDK's nested shape.
-
-    ``value`` is the counter's cumulative sum OR the histogram's recording
-    count, depending on instrument type.  ``attributes`` holds the label
-    key-values for this data point's label-set.
-    """
-
-    value: float
-    attributes: Dict[str, str]
-
-
-def _point_value(data_point) -> float:
-    """Return the counter's cumulative sum OR the histogram's recording count.
-
-    OTEL SDK data points carry ``value`` on counters (monotonic sum) and
-    ``count`` on histograms (number of ``record()`` calls).  The SDK doesn't
-    expose a unified accessor, so we sniff.
-    """
-    value = getattr(data_point, "value", None)
-    if value is not None:
-        return value
-    return getattr(data_point, "count", 0)
-
-
-def _collect_metric_points(reader: InMemoryMetricReader) -> Dict[str, List[MetricPoint]]:
-    """Flatten SDK-collected metric data into ``{metric_name: [MetricPoint, ...]}``.
-
-    The SDK groups points under ``Resource → Scope → Metric``; this walk
-    flattens that and keys on metric name, which is what tests care about.
-    One data point per unique label-set.
-    """
-    out: Dict[str, List[MetricPoint]] = {}
-    data = reader.get_metrics_data()
-    if data is None:
-        return out
-    for resource_metric in data.resource_metrics:
-        for scope_metric in resource_metric.scope_metrics:
-            for metric in scope_metric.metrics:
-                out[metric.name] = [
-                    MetricPoint(
-                        value=_point_value(data_point),
-                        attributes=dict(data_point.attributes or {}),
-                    )
-                    for data_point in metric.data.data_points
-                ]
-    return out
-
-
 @pytest.fixture
 def metric_reader():
     """Install a test-local Meter on the telemetry module and return the reader."""
@@ -1026,7 +977,7 @@ class TestGenerateAsyncRequestMetrics:
 
         await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
 
-        points = _collect_metric_points(metric_reader)
+        points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
         # Histogram value is the recording count, not the duration itself.
         assert points["guardrails.request.duration"][0].value == 1
@@ -1040,7 +991,7 @@ class TestGenerateAsyncRequestMetrics:
         with pytest.raises(RuntimeError, match="LLM failed"):
             await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
 
-        points = _collect_metric_points(metric_reader)
+        points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
@@ -1053,7 +1004,7 @@ class TestGenerateAsyncRequestMetrics:
 
         await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
 
-        points = _collect_metric_points(metric_reader)
+        points = collect_metric_points(metric_reader)
         assert points == {}
 
 
@@ -1070,7 +1021,7 @@ class TestStreamAsyncRequestMetrics:
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         assert chunks == ["Hello", " ", "world"]
 
-        points = _collect_metric_points(metric_reader)
+        points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
         assert "guardrails.requests.errors" not in points
@@ -1089,7 +1040,7 @@ class TestStreamAsyncRequestMetrics:
         # The generation task converts the exception into an error-payload chunk.
         assert any(c.startswith('{"error"') for c in chunks)
 
-        points = _collect_metric_points(metric_reader)
+        points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
@@ -1110,5 +1061,5 @@ class TestStreamAsyncRequestMetrics:
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         assert any(c.startswith('{"error"') for c in chunks)
 
-        points = _collect_metric_points(metric_reader)
+        points = collect_metric_points(metric_reader)
         assert points == {}

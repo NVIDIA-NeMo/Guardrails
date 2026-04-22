@@ -15,7 +15,6 @@
 
 """Unit tests for the OTEL metrics API in nemoguardrails.guardrails.telemetry."""
 
-from typing import Dict, List, NamedTuple
 from unittest.mock import patch
 
 import pytest
@@ -31,6 +30,7 @@ from nemoguardrails.guardrails.telemetry import (
     traced_request,
 )
 from nemoguardrails.tracing.constants import SystemConstants
+from tests.guardrails.metric_helpers import collect_metric_points
 
 
 @pytest.fixture(autouse=True)
@@ -61,55 +61,6 @@ def tracer():
     """Provide a real Tracer (no exporter — tests here care about metrics, not spans)."""
     provider = TracerProvider()
     return provider.get_tracer("test")
-
-
-class MetricPoint(NamedTuple):
-    """One OTEL metric data point flattened from the SDK's nested shape.
-
-    ``value`` is the counter's cumulative sum OR the histogram's recording
-    count, depending on instrument type.  ``attributes`` holds the label
-    key-values for this data point's label-set.
-    """
-
-    value: float
-    attributes: Dict[str, str]
-
-
-def _point_value(data_point) -> float:
-    """Return the counter's cumulative sum OR the histogram's recording count.
-
-    OTEL SDK data points carry ``value`` on counters (monotonic sum) and
-    ``count`` on histograms (number of ``record()`` calls).  The SDK doesn't
-    expose a unified accessor, so we sniff.
-    """
-    value = getattr(data_point, "value", None)
-    if value is not None:
-        return value
-    return getattr(data_point, "count", 0)
-
-
-def _collect_points(reader: InMemoryMetricReader) -> Dict[str, List[MetricPoint]]:
-    """Flatten SDK-collected metric data into ``{metric_name: [MetricPoint, ...]}``.
-
-    The SDK groups points under ``Resource → Scope → Metric``; this walk
-    flattens that and keys on metric name, which is what tests care about.
-    One data point per unique label-set.
-    """
-    out: Dict[str, List[MetricPoint]] = {}
-    data = reader.get_metrics_data()
-    if data is None:
-        return out
-    for resource_metric in data.resource_metrics:
-        for scope_metric in resource_metric.scope_metrics:
-            for metric in scope_metric.metrics:
-                out[metric.name] = [
-                    MetricPoint(
-                        value=_point_value(data_point),
-                        attributes=dict(data_point.attributes or {}),
-                    )
-                    for data_point in metric.data.data_points
-                ]
-    return out
 
 
 class TestGetMeter:
@@ -151,20 +102,20 @@ class TestRequestMetrics:
     def test_requests_counter_increments_on_entry(self, meter_reader):
         with request_metrics():
             pass
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points["guardrails.requests"][0].value == 1
 
     def test_counter_accumulates_across_calls(self, meter_reader):
         for _ in range(3):
             with request_metrics():
                 pass
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points["guardrails.requests"][0].value == 3
 
     def test_duration_histogram_records_on_exit(self, meter_reader):
         with request_metrics():
             pass
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         # Histogram value here is the count of recordings, not the sum.
         assert points["guardrails.request.duration"][0].value == 1
 
@@ -172,7 +123,7 @@ class TestRequestMetrics:
         with pytest.raises(ValueError):
             with request_metrics():
                 raise ValueError("boom")
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
 
@@ -183,7 +134,7 @@ class TestRequestMetrics:
         with pytest.raises(RuntimeError):
             with request_metrics():
                 raise RuntimeError("b")
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         error_types = {point.attributes["error.type"] for point in points["guardrails.requests.errors"]}
         assert error_types == {"ValueError", "RuntimeError"}
 
@@ -191,7 +142,7 @@ class TestRequestMetrics:
         with pytest.raises(ValueError):
             with request_metrics():
                 raise ValueError("boom")
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points["guardrails.request.duration"][0].value == 1
 
     def test_no_metrics_when_otel_unavailable(self):
@@ -206,21 +157,21 @@ class TestTracedRequestMetrics:
     def test_traced_request_emits_metrics_when_tracer_present(self, meter_reader, tracer):
         with traced_request(tracer):
             pass
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
     def test_traced_request_emits_no_metrics_when_tracer_none(self, meter_reader):
         with traced_request(None):
             pass
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points == {}
 
     def test_traced_request_errors_counter_on_exception(self, meter_reader, tracer):
         with pytest.raises(ValueError):
             with traced_request(tracer):
                 raise ValueError("boom")
-        points = _collect_points(meter_reader)
+        points = collect_metric_points(meter_reader)
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
 
