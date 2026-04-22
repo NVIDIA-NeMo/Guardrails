@@ -743,7 +743,7 @@
 
 <span class="c1"># 2. Logs → console</span>
 <span class="n">logger_provider</span> <span class="o">=</span> <span class="n">LoggerProvider</span><span class="p">(</span><span class="n">resource</span><span class="o">=</span><span class="n">resource</span><span class="p">)</span>
-<span class="n">logger_provider</span><span class="o">.</span><span class="n">add_log_record_processor</span><span class="p">(</span><span class="n">BatchLogRecordProcessor</span><span class="p">(</span><span class="n">ConsoleLogExporter</span><span class="p">()))</span>
+<span class="n">logger_provider</span><span class="o">.</span><span class="n">add_log_record_processor</span><span class="p">(</span><span class="n">BatchLogRecordProcessor</span><span class="p">(</span><span class="n">ConsoleLogRecordExporter</span><span class="p">()))</span>
 <span class="n">set_logger_provider</span><span class="p">(</span><span class="n">logger_provider</span><span class="p">)</span>
 
 <span class="c1"># 3. Forward nemoguardrails log records into the OTEL pipeline</span>
