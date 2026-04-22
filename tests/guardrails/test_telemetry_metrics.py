@@ -26,6 +26,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.telemetry import (
     _ensure_request_instruments,
     get_meter,
+    record_request_error,
     request_metrics,
     traced_request,
 )
@@ -202,3 +203,20 @@ class TestNoMeterProviderConfigured:
         assert result.requests is not None
         assert result.errors is not None
         assert result.duration is not None
+
+
+class TestRecordRequestError:
+    """Direct coverage for ``record_request_error``.
+
+    Exercised indirectly by the streaming-failure tests in the integration
+    suite and by ``request_metrics``'s except branch, but the
+    OTEL-unavailable short-circuit is unreachable from either — that path
+    only fires when callers invoke the helper directly with no OTEL.
+    """
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._request_instruments = None
+            # Must not raise; must not crash on attribute access.
+            record_request_error(ValueError("boom"))
