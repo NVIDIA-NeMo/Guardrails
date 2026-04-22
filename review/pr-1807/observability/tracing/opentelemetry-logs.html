@@ -678,10 +678,10 @@
   <section class="tex2jax_ignore mathjax_ignore" id="exporting-guardrails-logs-to-opentelemetry">
 <h1>Exporting Guardrails Logs to OpenTelemetry<a class="headerlink" href="#exporting-guardrails-logs-to-opentelemetry" title="Link to this heading">#</a></h1>
 <p>The NeMo Guardrails library emits operational logs through Python’s standard <code class="docutils literal notranslate"><span class="pre">logging</span></code> module. When you have OpenTelemetry tracing configured, you can forward those log records into the same backend as your traces with a few lines of application code. Records emitted inside an active guardrails span automatically carry the span’s <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and <code class="docutils literal notranslate"><span class="pre">span_id</span></code>, so every log line correlates to the request that produced it.</p>
-<p>This page covers the setup. For plain Python logging (verbose mode, explain, generation options), see <a class="reference internal" href="../logging/index.html"><span class="std std-doc">Logging and Debugging Guardrails Generated Responses</span></a>.</p>
+<p>This page covers the setup. For plain Python logging (verbose mode, explain, generation options), refer to <a class="reference internal" href="../logging/index.html"><span class="std std-doc">Logging and Debugging Guardrails Generated Responses</span></a>.</p>
 <section id="api-and-sdk-responsibilities">
 <h2>API and SDK Responsibilities<a class="headerlink" href="#api-and-sdk-responsibilities" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library follows the OpenTelemetry library-instrumentation pattern:</p>
+<p>The NeMo Guardrails library follows the OpenTelemetry library-instrumentation pattern.</p>
 <ul class="simple">
 <li><p><strong>The library depends on the OpenTelemetry API only.</strong> It creates spans, emits log records, and otherwise participates in whatever OTEL pipeline the host application provides.</p></li>
 <li><p><strong>The host application owns the SDK.</strong> Configuring a <code class="docutils literal notranslate"><span class="pre">TracerProvider</span></code>, a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code>, exporters, and attaching handlers to Python’s <code class="docutils literal notranslate"><span class="pre">logging</span></code> tree are all the application’s responsibility.</p></li>
@@ -691,35 +691,35 @@
 </section>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<p>Before enabling log export, install the OpenTelemetry SDK as described in <a class="reference internal" href="opentelemetry-integration.html#installation"><span class="std std-ref">Installation</span></a>. The OpenTelemetry log components live in the same <code class="docutils literal notranslate"><span class="pre">opentelemetry-sdk</span></code> package that powers trace export — no additional installation is required for in-process log forwarding.</p>
-<p>For exporting logs to an external backend over OTLP, install the OTLP exporter:</p>
+<p>Before enabling log export, install the OpenTelemetry SDK as described in <a class="reference internal" href="opentelemetry-integration.html#installation"><span class="std std-ref">Installation</span></a>. The OpenTelemetry log components live in the same <code class="docutils literal notranslate"><span class="pre">opentelemetry-sdk</span></code> package that powers trace export. No additional installation is required for in-process log forwarding.</p>
+<p>For exporting logs to an external backend over OTLP, install the OTLP exporter.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>opentelemetry-exporter-otlp
 </pre></div>
 </div>
 </section>
-<section id="minimal-setup-attach-the-logging-handler">
-<h2>Minimal Setup: Attach the Logging Handler<a class="headerlink" href="#minimal-setup-attach-the-logging-handler" title="Link to this heading">#</a></h2>
-<p>Add three lines to your application startup to forward <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code> log records into the OpenTelemetry log pipeline:</p>
+<section id="attach-the-logging-handler">
+<h2>Attach the Logging Handler<a class="headerlink" href="#attach-the-logging-handler" title="Link to this heading">#</a></h2>
+<p>Configure a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> first, then attach the handler. The surrounding SDK setup appears in the <a class="reference internal" href="#full-example-with-traces-and-logs">full example below</a>. The core of the bridge is three lines.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Configure the <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> through <code class="docutils literal notranslate"><span class="pre">set_logger_provider(...)</span></code> <strong>before</strong> you call <code class="docutils literal notranslate"><span class="pre">addHandler(LoggingHandler())</span></code>. The handler resolves its <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> on first emit and caches the result. If no provider is set by then, the SDK hands back a no-op logger and <strong>every forwarded record is silently discarded</strong>. No error is raised, and calling <code class="docutils literal notranslate"><span class="pre">set_logger_provider(...)</span></code> later does not recover the handler.</p>
+</div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk._logs</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoggingHandler</span>
 
 <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;nemoguardrails&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">LoggingHandler</span><span class="p">())</span>
 </pre></div>
 </div>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>These three lines are not independently sufficient. <code class="docutils literal notranslate"><span class="pre">LoggingHandler()</span></code> resolves the active <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> at emit time, and when no provider has been configured via <code class="docutils literal notranslate"><span class="pre">set_logger_provider(...)</span></code> the SDK falls back to a no-op proxy that <strong>silently discards every forwarded record</strong> — no error is raised. You must also configure a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> with a processor and exporter as shown in the <a class="reference internal" href="#full-example-traces-and-logs-together">full example below</a> before records will actually leave your process.</p>
-</div>
-<p>What each line does:</p>
+<p>What each line does.</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">logging.getLogger(&quot;nemoguardrails&quot;)</span></code> — selects the logger namespace that catches every log record emitted by the NeMo Guardrails library (all submodules log under this prefix).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LoggingHandler()</span></code> — an OpenTelemetry-provided <code class="docutils literal notranslate"><span class="pre">logging.Handler</span></code> subclass that converts each Python <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code> into an OTEL log record. Resolves the active <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> at emit time and attaches trace context automatically.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">.addHandler(...)</span></code> — attaches the handler. From this point forward, every record the NeMo Guardrails library emits flows to both the host’s existing handlers (console, files, etc.) and the OpenTelemetry pipeline — provided a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> has been configured.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">logging.getLogger(&quot;nemoguardrails&quot;)</span></code> selects the logger namespace that catches most records emitted by the NeMo Guardrails library. Submodules that use <code class="docutils literal notranslate"><span class="pre">logging.getLogger(__name__)</span></code> inherit this handler. Verbose mode (<code class="docutils literal notranslate"><span class="pre">nemoguardrails.logging.verbose</span></code>) is the known exception. It writes to the root logger, so attach the handler to the root logger as well if you need verbose output forwarded.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LoggingHandler()</span></code> is an OpenTelemetry-provided <code class="docutils literal notranslate"><span class="pre">logging.Handler</span></code> subclass that converts each Python <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code> into an OTEL log record. On first emit it resolves the active <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> through <code class="docutils literal notranslate"><span class="pre">get_logger_provider()</span></code>, caches the resulting logger, and attaches trace context automatically.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.addHandler(...)</span></code> attaches the handler. From this point forward, every record the NeMo Guardrails library emits flows to both the host’s existing handlers (console, files, and so on) and the OpenTelemetry pipeline, provided a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code> was configured before this call.</p></li>
 </ul>
-<p>This is <strong>additive</strong>: your existing Python logging configuration continues to work unchanged. OpenTelemetry export happens alongside, not instead.</p>
+<p>This is <strong>additive</strong>. Your existing Python logging configuration continues to work unchanged. OpenTelemetry export happens alongside, not instead.</p>
 </section>
-<section id="full-example-traces-and-logs-together">
-<h2>Full Example: Traces and Logs Together<a class="headerlink" href="#full-example-traces-and-logs-together" title="Link to this heading">#</a></h2>
+<section id="full-example-with-traces-and-logs">
+<h2>Full Example with Traces and Logs<a class="headerlink" href="#full-example-with-traces-and-logs" title="Link to this heading">#</a></h2>
 <p>This program configures a <code class="docutils literal notranslate"><span class="pre">TracerProvider</span></code> and a <code class="docutils literal notranslate"><span class="pre">LoggerProvider</span></code>, both exporting to the console, then runs a guardrails request so you can see correlated spans and log records.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
@@ -773,25 +773,25 @@
 </section>
 <section id="exporting-to-a-backend">
 <h2>Exporting to a Backend<a class="headerlink" href="#exporting-to-a-backend" title="Link to this heading">#</a></h2>
-<p>The log-record processor in the example above can target any OpenTelemetry log exporter. For an OTLP collector:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Private module — see &quot;Experimental SDK surface&quot; under Considerations</span>
+<p>The log-record processor in the example above can target any OpenTelemetry log exporter. The following example uses an OTLP collector.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Private module. Refer to &quot;Experimental SDK surface&quot; under Considerations.</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.exporter.otlp.proto.grpc._log_exporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">OTLPLogExporter</span>
 
 <span class="n">otlp_log_exporter</span> <span class="o">=</span> <span class="n">OTLPLogExporter</span><span class="p">(</span><span class="n">endpoint</span><span class="o">=</span><span class="s2">&quot;http://localhost:4317&quot;</span><span class="p">,</span> <span class="n">insecure</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">logger_provider</span><span class="o">.</span><span class="n">add_log_record_processor</span><span class="p">(</span><span class="n">BatchLogRecordProcessor</span><span class="p">(</span><span class="n">otlp_log_exporter</span><span class="p">))</span>
 </pre></div>
 </div>
-<p>The OpenTelemetry Collector then forwards the records to any compatible backend — Loki, Datadog, New Relic, Elastic, and so on. See the <a class="reference external" href="https://opentelemetry.io/ecosystem/registry/" rel="noreferer noopener" target="_blank">OpenTelemetry Registry</a> for the list.</p>
+<p>The OpenTelemetry Collector then forwards the records to any compatible backend, such as Loki, Datadog, New Relic, or Elastic. Refer to the <a class="reference external" href="https://opentelemetry.io/ecosystem/registry/" rel="noreferer noopener" target="_blank">OpenTelemetry Registry</a> for the list.</p>
 </section>
 <section id="what-the-exported-records-contain">
 <h2>What the Exported Records Contain<a class="headerlink" href="#what-the-exported-records-contain" title="Link to this heading">#</a></h2>
-<p>Each forwarded <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code> becomes an OTEL log record with the following fields populated automatically:</p>
+<p>Each forwarded <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code> becomes an OTEL log record with the following fields populated automatically.</p>
 <ul class="simple">
-<li><p><strong>Body</strong> — the formatted log message.</p></li>
-<li><p><strong>Severity</strong> — <code class="docutils literal notranslate"><span class="pre">severity_text</span></code> (<code class="docutils literal notranslate"><span class="pre">INFO</span></code>, <code class="docutils literal notranslate"><span class="pre">DEBUG</span></code>, <code class="docutils literal notranslate"><span class="pre">ERROR</span></code>, etc.) and <code class="docutils literal notranslate"><span class="pre">severity_number</span></code>.</p></li>
-<li><p><strong>Timestamp</strong> — the record’s emit time.</p></li>
-<li><p><strong>Trace context</strong> — <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and <code class="docutils literal notranslate"><span class="pre">span_id</span></code> of the active span when the record was emitted. Zero when no span is active.</p></li>
-<li><p><strong>Code attributes</strong> — <code class="docutils literal notranslate"><span class="pre">code.file.path</span></code>, <code class="docutils literal notranslate"><span class="pre">code.function.name</span></code>, <code class="docutils literal notranslate"><span class="pre">code.line.number</span></code> derived from the Python <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code>.</p></li>
+<li><p><strong>Body</strong> contains the formatted log message.</p></li>
+<li><p><strong>Severity</strong> records <code class="docutils literal notranslate"><span class="pre">severity_text</span></code> (<code class="docutils literal notranslate"><span class="pre">INFO</span></code>, <code class="docutils literal notranslate"><span class="pre">DEBUG</span></code>, <code class="docutils literal notranslate"><span class="pre">ERROR</span></code>, and so on) and <code class="docutils literal notranslate"><span class="pre">severity_number</span></code>.</p></li>
+<li><p><strong>Timestamp</strong> records the record’s emit time.</p></li>
+<li><p><strong>Trace context</strong> carries the <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> and <code class="docutils literal notranslate"><span class="pre">span_id</span></code> of the active span when the record was emitted. The values are zero when no span is active.</p></li>
+<li><p><strong>Code attributes</strong> include <code class="docutils literal notranslate"><span class="pre">code.file.path</span></code>, <code class="docutils literal notranslate"><span class="pre">code.function.name</span></code>, and <code class="docutils literal notranslate"><span class="pre">code.line.number</span></code> derived from the Python <code class="docutils literal notranslate"><span class="pre">LogRecord</span></code>.</p></li>
 </ul>
 <p>Log records emitted outside any guardrails request (startup, engine registration, teardown) still flow through, but their <code class="docutils literal notranslate"><span class="pre">trace_id</span></code> / <code class="docutils literal notranslate"><span class="pre">span_id</span></code> are zero because there is no active span.</p>
 </section>
@@ -799,17 +799,17 @@
 <h2>Considerations<a class="headerlink" href="#considerations" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p><strong>Experimental SDK surface.</strong> Both the <code class="docutils literal notranslate"><span class="pre">opentelemetry.sdk._logs</span></code> module and the OTLP log exporter at <code class="docutils literal notranslate"><span class="pre">opentelemetry.exporter.otlp.proto.grpc._log_exporter</span></code> are still under active development in the OpenTelemetry Python ecosystem. The underscore prefix on both paths denotes a non-stable API. Pin your <code class="docutils literal notranslate"><span class="pre">opentelemetry-sdk</span></code> and <code class="docutils literal notranslate"><span class="pre">opentelemetry-exporter-otlp</span></code> versions in production and review release notes before upgrading.</p></li>
-<li><p><strong>Privacy.</strong> Guardrails log messages include user inputs and rail decisions. Before exporting to a third-party backend, review whether the records may contain PII and whether your retention/redaction policies cover them.</p></li>
+<li><p><strong>Privacy.</strong> Guardrails log messages include user inputs and rail decisions. Before exporting to a third-party backend, review whether the records may contain PII and whether your retention and redaction policies cover them.</p></li>
 <li><p><strong>Performance.</strong> At high log volumes or DEBUG level, log export can add measurable overhead. Use <code class="docutils literal notranslate"><span class="pre">BatchLogRecordProcessor</span></code> (as shown) rather than the synchronous <code class="docutils literal notranslate"><span class="pre">SimpleLogRecordProcessor</span></code> in production, and consider filtering at the logger level (<code class="docutils literal notranslate"><span class="pre">logging.getLogger(&quot;nemoguardrails&quot;).setLevel(logging.INFO)</span></code>) to limit what crosses the bridge.</p></li>
-<li><p><strong>Interaction with <code class="docutils literal notranslate"><span class="pre">propagate=False</span></code>.</strong> If your application calls <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails.configure_logging()</span></code>, that helper sets <code class="docutils literal notranslate"><span class="pre">propagate=False</span></code> on the <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails</span></code> logger to prevent duplicate console output. Records from submodules under <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails.*</span></code> will then not reach the handler attached to <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code>. To capture them, attach the handler to <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails</span></code> instead of (or in addition to) <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code>.</p></li>
+<li><p><strong>Interaction with <code class="docutils literal notranslate"><span class="pre">propagate=False</span></code>.</strong> If your application calls <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails.configure_logging()</span></code> on a freshly initialized logger, that helper sets <code class="docutils literal notranslate"><span class="pre">propagate=False</span></code> on the <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails</span></code> logger to prevent duplicate console output. The flag is only set on the first call, when no handlers exist yet. Records from submodules under <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails.*</span></code> will then not reach the handler attached to <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code>. To capture them, attach the handler to <code class="docutils literal notranslate"><span class="pre">nemoguardrails.guardrails</span></code> instead of (or in addition to) <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code>.</p></li>
 </ul>
 </section>
 <section id="related-resources">
 <h2>Related Resources<a class="headerlink" href="#related-resources" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><a class="reference internal" href="opentelemetry-integration.html"><span class="std std-doc">OpenTelemetry Integration</span></a> — SDK installation and trace export setup.</p></li>
-<li><p><a class="reference internal" href="quick-start.html"><span class="std std-doc">Quick Start for Tracing Guardrails</span></a> — minimal tracing setup with the OpenTelemetry SDK.</p></li>
-<li><p><a class="reference internal" href="../logging/index.html"><span class="std std-doc">Logging and Debugging Guardrails Generated Responses</span></a> — Python logging, verbose mode, and the <code class="docutils literal notranslate"><span class="pre">log</span></code> generation option for in-process debugging.</p></li>
+<li><p><a class="reference internal" href="opentelemetry-integration.html"><span class="std std-doc">OpenTelemetry Integration</span></a> covers SDK installation and trace export setup.</p></li>
+<li><p><a class="reference internal" href="quick-start.html"><span class="std std-doc">Quick Start for Tracing Guardrails</span></a> provides a minimal tracing setup with the OpenTelemetry SDK.</p></li>
+<li><p><a class="reference internal" href="../logging/index.html"><span class="std std-doc">Logging and Debugging Guardrails Generated Responses</span></a> covers Python logging, verbose mode, and the <code class="docutils literal notranslate"><span class="pre">log</span></code> generation option for in-process debugging.</p></li>
 </ul>
 </section>
 </section>
@@ -865,8 +865,8 @@
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api-and-sdk-responsibilities">API and SDK Responsibilities</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#minimal-setup-attach-the-logging-handler">Minimal Setup: Attach the Logging Handler</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-example-traces-and-logs-together">Full Example: Traces and Logs Together</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#attach-the-logging-handler">Attach the Logging Handler</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-example-with-traces-and-logs">Full Example with Traces and Logs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exporting-to-a-backend">Exporting to a Backend</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-the-exported-records-contain">What the Exported Records Contain</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#considerations">Considerations</a></li>
