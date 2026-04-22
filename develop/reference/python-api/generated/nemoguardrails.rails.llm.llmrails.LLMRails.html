@@ -565,6 +565,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
 </ul>
 </details></li>
@@ -689,7 +690,7 @@
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>config</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="nemoguardrails.rails.llm.config.RailsConfig.html#nemoguardrails.rails.llm.config.RailsConfig" title="nemoguardrails.rails.llm.config.RailsConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">RailsConfig</span></code></a></span>) – A rails configuration.</p></li>
-<li><p><strong>llm</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">BaseChatModel</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLLM</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code>]</span>) – An optional LLM engine to use. If provided, this will be used as the main LLM
+<li><p><strong>llm</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code>]</span>) – An optional LLM engine to use. If provided, this will be used as the main LLM
 and will take precedence over any main LLM specified in the config.</p></li>
 <li><p><strong>verbose</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></span>) – Whether the logging should be verbose or not.</p></li>
 </ul>
@@ -704,7 +705,7 @@ and will take precedence over any main LLM specified in the config.</p></li>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="nemoguardrails.rails.llm.llmrails.LLMRails.llm">
-<span class="sig-name descname"><span class="pre">llm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseChatModel</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLLM</span></code><span class="pre">,</span> <code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code><span class="pre">]</span></em><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">llm</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code><span class="pre">]</span></em><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.llm" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -718,7 +719,7 @@ and will take precedence over any main LLM specified in the config.</p></li>
 <dd><p>Replace the main LLM with the provided one.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>llm</strong> – The new LLM that should be used.</p>
+<dd class="field-odd"><p><strong>llm</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code></span>) – The new LLM that should be used.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -840,13 +841,16 @@ provided handler will be used for streaming.</p></li>
 </div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>events</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – The history of events to be used to generate the next events.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>events</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – The history of events to be used to generate the next events.</p></li>
+<li><p><strong>options</strong> – The options to be used for the generation.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span></p>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The newly generated event(s).</p>
+<dd class="field-odd"><p>The newly generate event(s).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -915,19 +919,17 @@ a clean state will be used.</p></li>
 <em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">check_async</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">messages</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rail_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/nemoguardrails/rails/llm/llmrails.html#LLMRails.check_async"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemoguardrails.rails.llm.llmrails.LLMRails.check_async" title="Link to this definition">#</a></dt>
 <dd><p>Run rails on messages based on their content (asynchronous).</p>
 <p>When <code class="docutils literal notranslate"><span class="pre">rail_types</span></code> is not provided, automatically determines which rails
-to run based on message roles:</p>
-<ul class="simple">
-<li><p>Only user messages: runs input rails</p></li>
-<li><p>Only assistant messages: runs output rails</p></li>
-<li><p>Both user and assistant messages: runs both input and output rails</p></li>
-<li><p>No user/assistant messages: logs warning and returns passing result</p></li>
-</ul>
+to run based on message roles:
+- Only user messages: runs input rails
+- Only assistant messages: runs output rails
+- Both user and assistant messages: runs both input and output rails
+- No user/assistant messages: logs warning and returns passing result</p>
 <p>When <code class="docutils literal notranslate"><span class="pre">rail_types</span></code> is provided, runs exactly the specified rail types,
 skipping the auto-detection logic.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>messages</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – List of message dicts with <code class="docutils literal notranslate"><span class="pre">role</span></code> and <code class="docutils literal notranslate"><span class="pre">content</span></code> fields.
+<li><p><strong>messages</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – List of message dicts with ‘role’ and ‘content’ fields.
 Messages can contain any roles, but only user/assistant roles
 determine which rails execute when <code class="docutils literal notranslate"><span class="pre">rail_types</span></code> is not provided.</p></li>
 <li><p><strong>rail_types</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html#nemoguardrails.rails.llm.options.RailType" title="nemoguardrails.rails.llm.options.RailType"><code class="xref py py-class docutils literal notranslate"><span class="pre">RailType</span></code></a>]]</span>) – Optional list of rail types to run, e.g.
@@ -937,9 +939,9 @@ When provided, overrides automatic detection.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><ul class="simple">
-<li><p><strong>status</strong>: PASSED, MODIFIED, or BLOCKED</p></li>
-<li><p><strong>content</strong>: The final content after rails processing</p></li>
-<li><p><strong>rail</strong>: Name of the rail that blocked (if blocked)</p></li>
+<li><p>status: PASSED, MODIFIED, or BLOCKED</p></li>
+<li><p>content: The final content after rails processing</p></li>
+<li><p>rail: Name of the rail that blocked (if blocked)</p></li>
 </ul>
 </p>
 </dd>
@@ -947,24 +949,22 @@ When provided, overrides automatic detection.</p></li>
 <dd class="field-odd"><p>RailsResult containing</p>
 </dd>
 </dl>
-<p>Examples:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp"># </span>Check<span class="w"> </span>user<span class="w"> </span>input<span class="w"> </span><span class="o">(</span>auto-detected<span class="o">)</span>
-<span class="go">result = await rails.check_async(</span>
-<span class="go">    [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}]</span>
-<span class="go">)</span>
+<p class="rubric">Examples</p>
+<p>Check user input (auto-detected):</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">result = await rails.check_async([{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}])</span>
 <span class="go">if result.status == RailStatus.BLOCKED:</span>
 <span class="go">    print(f&quot;Blocked by: {result.rail}&quot;)</span>
-
-<span class="gp"># </span>Check<span class="w"> </span>bot<span class="w"> </span>output<span class="w"> </span>with<span class="w"> </span>context<span class="w"> </span><span class="o">(</span>auto-detected<span class="o">)</span>
-<span class="go">result = await rails.check_async([</span>
+</pre></div>
+</div>
+<p>Check bot output with context (auto-detected):</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">result = await rails.check_async([</span>
 <span class="go">    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;},</span>
 <span class="go">    {&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: &quot;Hi there!&quot;}</span>
 <span class="go">])</span>
-
-<span class="gp"># </span>Run<span class="w"> </span>only<span class="w"> </span>input<span class="w"> </span>rails<span class="w"> </span>explicitly
-<span class="go">result = await rails.check_async(</span>
-<span class="go">    messages, rail_types=[RailType.INPUT]</span>
-<span class="go">)</span>
+</pre></div>
+</div>
+<p>Run only input rails explicitly:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">result = await rails.check_async(messages, rail_types=[RailType.INPUT])</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -978,8 +978,7 @@ When provided, overrides automatic detection.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>messages</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code>]</span>) – List of message dicts with ‘role’ and ‘content’ fields.</p></li>
-<li><p><strong>rails</strong> – Optional list of rail types to run. See check_async() for details.</p></li>
-<li><p><strong>rail_types</strong> (<em>List</em><em>[</em><a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html#nemoguardrails.rails.llm.options.RailType" title="nemoguardrails.rails.llm.options.RailType"><em>RailType</em></a><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>rail_types</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code>[<code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code>[<a class="reference internal" href="nemoguardrails.rails.llm.options.RailType.html#nemoguardrails.rails.llm.options.RailType" title="nemoguardrails.rails.llm.options.RailType"><code class="xref py py-class docutils literal notranslate"><span class="pre">RailType</span></code></a>]]</span>) – Optional list of rail types to run. See check_async() for details.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>

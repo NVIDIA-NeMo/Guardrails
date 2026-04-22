@@ -565,6 +565,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
 </ul>
 </details></li>
@@ -779,7 +780,7 @@
 <section id="huggingface-pipeline-streaming">
 <h2>HuggingFace Pipeline Streaming<a class="headerlink" href="#huggingface-pipeline-streaming" title="Link to this heading">#</a></h2>
 <p>For LLMs deployed using <code class="docutils literal notranslate"><span class="pre">HuggingFacePipeline</span></code>, additional configuration is required:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.llm.providers.huggingface</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncTextIteratorStreamer</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.integrations.langchain.providers.huggingface</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncTextIteratorStreamer</span>
 
 <span class="c1"># Create streamer with tokenizer</span>
 <span class="n">streamer</span> <span class="o">=</span> <span class="n">AsyncTextIteratorStreamer</span><span class="p">(</span><span class="n">tokenizer</span><span class="p">,</span> <span class="n">skip_prompt</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>

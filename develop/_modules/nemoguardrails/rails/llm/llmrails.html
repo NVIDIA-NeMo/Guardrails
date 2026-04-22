@@ -993,6 +993,7 @@ window.addEventListener("load", load);</script>
 <li class="toctree-l2"><a class="reference internal" href="../../../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
 </ul>
 </details></li>
@@ -1145,7 +1146,6 @@ window.addEventListener("load", load);</script>
     <span class="n">overload</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.language_models</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseChatModel</span><span class="p">,</span> <span class="n">BaseLLM</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing_extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Self</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.actions.llm.generation</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMGenerationActions</span>
@@ -1211,6 +1211,7 @@ window.addEventListener("load", load);</script>
     <span class="n">get_history_cache_key</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.streaming</span><span class="w"> </span><span class="kn">import</span> <span class="n">END_OF_STREAM</span><span class="p">,</span> <span class="n">StreamingHandler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMModel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">extract_error_json</span><span class="p">,</span>
     <span class="n">get_or_create_event_loop</span><span class="p">,</span>
@@ -1223,13 +1224,30 @@ window.addEventListener("load", load);</script>
 <span class="n">process_events_semaphore</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_wrap_legacy_llm</span><span class="p">(</span><span class="n">llm</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.integrations.langchain.llm_adapter</span><span class="w"> </span><span class="kn">import</span> <span class="n">LangChainLLMAdapter</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="s2">&quot;Passing a raw LangChain LLM requires langchain to be installed. &quot;</span>
+            <span class="s2">&quot;Either install langchain or pass an LLMModel instance.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+        <span class="s2">&quot;Passing a raw LangChain LLM is deprecated. &quot;</span>
+        <span class="s2">&quot;Use LangChainLLMAdapter(llm) explicitly or pass an LLMModel instance.&quot;</span><span class="p">,</span>
+        <span class="ne">DeprecationWarning</span><span class="p">,</span>
+        <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">LangChainLLMAdapter</span><span class="p">(</span><span class="n">llm</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="LLMRails">
 <a class="viewcode-back" href="../../../../reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html#nemoguardrails.rails.llm.llmrails.LLMRails">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">LLMRails</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rails based on a given configuration.&quot;&quot;&quot;</span>
 
     <span class="n">config</span><span class="p">:</span> <span class="n">RailsConfig</span>
-    <span class="n">llm</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">BaseLLM</span><span class="p">,</span> <span class="n">BaseChatModel</span><span class="p">]]</span>
+    <span class="n">llm</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LLMModel</span><span class="p">]</span>
     <span class="n">runtime</span><span class="p">:</span> <span class="n">Runtime</span>
 
 <div class="viewcode-block" id="LLMRails.__init__">
@@ -1237,7 +1255,7 @@ window.addEventListener("load", load);</script>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">config</span><span class="p">:</span> <span class="n">RailsConfig</span><span class="p">,</span>
-        <span class="n">llm</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">BaseLLM</span><span class="p">,</span> <span class="n">BaseChatModel</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">llm</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LLMModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the LLMRails instance.</span>
@@ -1249,7 +1267,10 @@ window.addEventListener("load", load);</script>
 <span class="sd">            verbose: Whether the logging should be verbose or not.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
+        <span class="k">if</span> <span class="n">llm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">LLMModel</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">_wrap_legacy_llm</span><span class="p">(</span><span class="n">llm</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
@@ -1429,12 +1450,14 @@ window.addEventListener("load", load);</script>
 
 <div class="viewcode-block" id="LLMRails.update_llm">
 <a class="viewcode-back" href="../../../../reference/python-api/generated/nemoguardrails.rails.llm.llmrails.LLMRails.html#nemoguardrails.rails.llm.llmrails.LLMRails.update_llm">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_llm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">llm</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_llm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">llm</span><span class="p">:</span> <span class="n">LLMModel</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Replace the main LLM with the provided one.</span>
 
 <span class="sd">        Arguments:</span>
 <span class="sd">            llm: The new LLM that should be used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">llm</span><span class="p">,</span> <span class="n">LLMModel</span><span class="p">):</span>
+            <span class="n">llm</span> <span class="o">=</span> <span class="n">_wrap_legacy_llm</span><span class="p">(</span><span class="n">llm</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">llm_generation_actions</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;llm&quot;</span><span class="p">,</span> <span class="n">llm</span><span class="p">)</span></div>
@@ -1883,13 +1906,12 @@ window.addEventListener("load", load);</script>
 <span class="sd">            options: Options specific for the generation.</span>
 <span class="sd">            state: The state object that should be used as the starting point.</span>
 <span class="sd">            streaming_handler: If specified, and the config supports streaming, the</span>
-<span class="sd">                provided handler will be used for streaming.</span>
+<span class="sd">              provided handler will be used for streaming.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The completion (when a prompt is provided) or the next message.</span>
 
-<span class="sd">        System messages are not yet supported.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        System messages are not yet supported.&quot;&quot;&quot;</span>
         <span class="c1"># convert options to gen_options of type GenerationOptions</span>
         <span class="n">gen_options</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">GenerationOptions</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -2096,7 +2118,7 @@ window.addEventListener("load", load);</script>
             <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Conversation history so far: </span><span class="se">\n</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">explain_info</span><span class="o">.</span><span class="n">colang_history</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="n">total_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span>
-        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;--- :: Total processing took </span><span class="si">%.2f</span><span class="s2"> seconds. Stats: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">total_time</span><span class="p">,</span> <span class="n">llm_stats</span><span class="p">))</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;--- :: Total processing took </span><span class="si">%.2f</span><span class="s2"> seconds. LLM Stats: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">total_time</span><span class="p">,</span> <span class="n">llm_stats</span><span class="p">))</span>
 
         <span class="c1"># If there is a streaming handler, we make sure we close it now</span>
         <span class="n">streaming_handler</span> <span class="o">=</span> <span class="n">streaming_handler_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
@@ -2450,9 +2472,11 @@ window.addEventListener("load", load);</script>
 
 <span class="sd">        Args:</span>
 <span class="sd">            events: The history of events to be used to generate the next events.</span>
+<span class="sd">            options: The options to be used for the generation.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            The newly generated event(s).</span>
+<span class="sd">            The newly generate event(s).</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
 
@@ -2565,7 +2589,6 @@ window.addEventListener("load", load);</script>
 
 <span class="sd">        When ``rail_types`` is not provided, automatically determines which rails</span>
 <span class="sd">        to run based on message roles:</span>
-
 <span class="sd">        - Only user messages: runs input rails</span>
 <span class="sd">        - Only assistant messages: runs output rails</span>
 <span class="sd">        - Both user and assistant messages: runs both input and output rails</span>
@@ -2575,39 +2598,36 @@ window.addEventListener("load", load);</script>
 <span class="sd">        skipping the auto-detection logic.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            messages: List of message dicts with ``role`` and ``content`` fields.</span>
-<span class="sd">                Messages can contain any roles, but only user/assistant roles</span>
-<span class="sd">                determine which rails execute when ``rail_types`` is not provided.</span>
+<span class="sd">            messages: List of message dicts with &#39;role&#39; and &#39;content&#39; fields.</span>
+<span class="sd">                     Messages can contain any roles, but only user/assistant roles</span>
+<span class="sd">                     determine which rails execute when ``rail_types`` is not provided.</span>
 <span class="sd">            rail_types: Optional list of rail types to run, e.g.</span>
-<span class="sd">                ``[RailType.INPUT]`` or ``[RailType.OUTPUT]``.</span>
-<span class="sd">                When provided, overrides automatic detection.</span>
+<span class="sd">                  ``[RailType.INPUT]`` or ``[RailType.OUTPUT]``.</span>
+<span class="sd">                  When provided, overrides automatic detection.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            RailsResult containing:</span>
+<span class="sd">            - status: PASSED, MODIFIED, or BLOCKED</span>
+<span class="sd">            - content: The final content after rails processing</span>
+<span class="sd">            - rail: Name of the rail that blocked (if blocked)</span>
 
-<span class="sd">            - **status**: PASSED, MODIFIED, or BLOCKED</span>
-<span class="sd">            - **content**: The final content after rails processing</span>
-<span class="sd">            - **rail**: Name of the rail that blocked (if blocked)</span>
+<span class="sd">        Examples:</span>
+<span class="sd">            Check user input (auto-detected)::</span>
 
-<span class="sd">        Examples::</span>
+<span class="sd">                result = await rails.check_async([{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}])</span>
+<span class="sd">                if result.status == RailStatus.BLOCKED:</span>
+<span class="sd">                    print(f&quot;Blocked by: {result.rail}&quot;)</span>
 
-<span class="sd">            # Check user input (auto-detected)</span>
-<span class="sd">            result = await rails.check_async(</span>
-<span class="sd">                [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;}]</span>
-<span class="sd">            )</span>
-<span class="sd">            if result.status == RailStatus.BLOCKED:</span>
-<span class="sd">                print(f&quot;Blocked by: {result.rail}&quot;)</span>
+<span class="sd">            Check bot output with context (auto-detected)::</span>
 
-<span class="sd">            # Check bot output with context (auto-detected)</span>
-<span class="sd">            result = await rails.check_async([</span>
-<span class="sd">                {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;},</span>
-<span class="sd">                {&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: &quot;Hi there!&quot;}</span>
-<span class="sd">            ])</span>
+<span class="sd">                result = await rails.check_async([</span>
+<span class="sd">                    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello!&quot;},</span>
+<span class="sd">                    {&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: &quot;Hi there!&quot;}</span>
+<span class="sd">                ])</span>
 
-<span class="sd">            # Run only input rails explicitly</span>
-<span class="sd">            result = await rails.check_async(</span>
-<span class="sd">                messages, rail_types=[RailType.INPUT]</span>
-<span class="sd">            )</span>
+<span class="sd">            Run only input rails explicitly::</span>
+
+<span class="sd">                result = await rails.check_async(messages, rail_types=[RailType.INPUT])</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">rail_types</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">options</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;rails&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rail_types</span><span class="p">]}</span>
@@ -2656,7 +2676,7 @@ window.addEventListener("load", load);</script>
 
 <span class="sd">        Args:</span>
 <span class="sd">            messages: List of message dicts with &#39;role&#39; and &#39;content&#39; fields.</span>
-<span class="sd">            rails: Optional list of rail types to run. See check_async() for details.</span>
+<span class="sd">            rail_types: Optional list of rail types to run. See check_async() for details.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            RailsResult containing status, content, and optional blocking rail name.</span>

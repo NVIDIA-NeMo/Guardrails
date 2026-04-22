@@ -565,6 +565,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/quick-start.html">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/adapter-configurations.html">Adapters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/opentelemetry-integration.html">OpenTelemetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/opentelemetry-logs.html">OpenTelemetry Logs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../observability/tracing/troubleshooting.html">Troubleshooting</a></li>
 </ul>
 </details></li>
@@ -861,9 +862,9 @@
 <h3>Streaming for LLMs Deployed Using HuggingFacePipeline<a class="headerlink" href="#streaming-for-llms-deployed-using-huggingfacepipeline" title="Link to this heading">#</a></h3>
 <p>We also support streaming for LLMs deployed using <code class="docutils literal notranslate"><span class="pre">HuggingFacePipeline</span></code>.
 One example is provided in the <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/llm/hf_pipeline_dolly/README.md" rel="noreferer noopener" target="_blank">HF Pipeline Dolly</a> configuration.</p>
-<p>To use streaming for HF Pipeline LLMs, you need to create an <code class="docutils literal notranslate"><span class="pre">nemoguardrails.llm.providers.huggingface.AsyncTextIteratorStreamer</span></code> streamer object,
+<p>To use streaming for HF Pipeline LLMs, you need to create an <code class="docutils literal notranslate"><span class="pre">nemoguardrails.integrations.langchain.providers.huggingface.AsyncTextIteratorStreamer</span></code> streamer object,
 add it to the <code class="docutils literal notranslate"><span class="pre">kwargs</span></code> of the pipeline and to the <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code> of the <code class="docutils literal notranslate"><span class="pre">HuggingFacePipelineCompatible</span></code> object.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.llm.providers.huggingface</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncTextIteratorStreamer</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.integrations.langchain.providers.huggingface</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncTextIteratorStreamer</span>
 
 <span class="c1"># instantiate tokenizer object required by LLM</span>
 <span class="n">streamer</span> <span class="o">=</span> <span class="n">AsyncTextIteratorStreamer</span><span class="p">(</span><span class="n">tokenizer</span><span class="p">,</span> <span class="n">skip_prompt</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
