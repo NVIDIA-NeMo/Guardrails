@@ -729,7 +729,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.trace</span><span class="w"> </span><span class="kn">import</span> <span class="n">TracerProvider</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.trace.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchSpanProcessor</span><span class="p">,</span> <span class="n">ConsoleSpanExporter</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk._logs</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoggerProvider</span><span class="p">,</span> <span class="n">LoggingHandler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk._logs.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchLogRecordProcessor</span><span class="p">,</span> <span class="n">ConsoleLogExporter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk._logs</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoggerProvider</span><span class="p">,</span> <span class="n">LoggingHandler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk._logs.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchLogRecordProcessor</span><span class="p">,</span> <span class="n">ConsoleLogRecordExporter</span>  <span class="c1"># ConsoleLogExporter on versions earlier than 1.39.0</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span><span class="p">,</span> <span class="n">RailsConfig</span>
 
