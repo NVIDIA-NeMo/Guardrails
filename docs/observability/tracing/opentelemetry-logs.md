@@ -96,7 +96,7 @@ trace.set_tracer_provider(tracer_provider)
 
 # 2. Logs → console
 logger_provider = LoggerProvider(resource=resource)
-logger_provider.add_log_record_processor(BatchLogRecordProcessor(ConsoleLogExporter()))
+logger_provider.add_log_record_processor(BatchLogRecordProcessor(ConsoleLogRecordExporter()))
 set_logger_provider(logger_provider)
 
 # 3. Forward nemoguardrails log records into the OTEL pipeline
