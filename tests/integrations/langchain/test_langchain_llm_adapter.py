@@ -312,6 +312,13 @@ class TestPrepareCallParams:
             ("o4-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
             ("o4-mini-2025-04-16", ["User:"], {"temperature": 0.5}, {}),
             ("o4", ["User:"], {"temperature": 0.5}, {}),
+            # gpt-5.1+ and gpt-6: fully reasoning, no chat escape
+            ("gpt-5.1", ["User:"], {"temperature": 0.5}, {}),
+            ("gpt-5.1-chat-latest", ["User:"], {"temperature": 0.5}, {}),
+            ("gpt-5.2-2025-12-11", ["User:"], {}, {}),
+            ("gpt-5.4-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("gpt-6", ["User:"], {"temperature": 0.5}, {}),
+            ("gpt-6-mini", ["User:"], {}, {}),
             # no stop, no temperature, unchanged
             ("o1-preview", None, {"max_tokens": 100}, {"max_tokens": 100}),
             ("o1-preview", None, {}, {}),
