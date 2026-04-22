@@ -18,9 +18,12 @@
 import asyncio
 import copy
 import json
+from typing import Dict, List, NamedTuple
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -30,6 +33,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.tracing.constants import SystemConstants
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
 
@@ -946,3 +950,147 @@ class TestOtelNotInstalled:
             assert result == {"role": "assistant", "content": "Hello"}
             assert iorails._tracing_enabled is False
             assert len(exporter.get_finished_spans()) == 0
+
+
+class MetricPoint(NamedTuple):
+    """One OTEL metric data point flattened from the SDK's nested shape.
+
+    ``value`` is the counter's cumulative sum OR the histogram's recording
+    count, depending on instrument type.  ``attributes`` holds the label
+    key-values for this data point's label-set.
+    """
+
+    value: float
+    attributes: Dict[str, str]
+
+
+def _point_value(data_point) -> float:
+    """Return the counter's cumulative sum OR the histogram's recording count.
+
+    OTEL SDK data points carry ``value`` on counters (monotonic sum) and
+    ``count`` on histograms (number of ``record()`` calls).  The SDK doesn't
+    expose a unified accessor, so we sniff.
+    """
+    value = getattr(data_point, "value", None)
+    if value is not None:
+        return value
+    return getattr(data_point, "count", 0)
+
+
+def _collect_metric_points(reader: InMemoryMetricReader) -> Dict[str, List[MetricPoint]]:
+    """Flatten SDK-collected metric data into ``{metric_name: [MetricPoint, ...]}``.
+
+    The SDK groups points under ``Resource → Scope → Metric``; this walk
+    flattens that and keys on metric name, which is what tests care about.
+    One data point per unique label-set.
+    """
+    out: Dict[str, List[MetricPoint]] = {}
+    data = reader.get_metrics_data()
+    if data is None:
+        return out
+    for resource_metric in data.resource_metrics:
+        for scope_metric in resource_metric.scope_metrics:
+            for metric in scope_metric.metrics:
+                out[metric.name] = [
+                    MetricPoint(
+                        value=_point_value(data_point),
+                        attributes=dict(data_point.attributes or {}),
+                    )
+                    for data_point in metric.data.data_points
+                ]
+    return out
+
+
+@pytest.fixture
+def metric_reader():
+    """Install a test-local Meter on the telemetry module and return the reader."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+    original_meter = telemetry._meter
+    original_instruments = telemetry._request_instruments
+    telemetry._meter = provider.get_meter(
+        SystemConstants.SYSTEM_NAME,
+        version="0.0.0-dev",
+        schema_url="https://opentelemetry.io/schemas/1.26.0",
+    )
+    telemetry._request_instruments = None
+    yield reader
+    telemetry._meter = original_meter
+    telemetry._request_instruments = original_instruments
+
+
+class TestGenerateAsyncRequestMetrics:
+    @pytest.mark.asyncio
+    async def test_emits_counter_and_duration_on_safe_request(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = _collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        # Histogram value is the recording count, not the duration itself.
+        assert points["guardrails.request.duration"][0].value == 1
+        assert "guardrails.requests.errors" not in points
+
+    @pytest.mark.asyncio
+    async def test_emits_errors_counter_on_exception(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("LLM failed"))
+
+        with pytest.raises(RuntimeError, match="LLM failed"):
+            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = _collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        # Duration still recorded for an errored request.
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_no_tracing)
+
+        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = _collect_metric_points(metric_reader)
+        assert points == {}
+
+
+class TestStreamAsyncRequestMetrics:
+    """Streaming path also emits request-level metrics via the shared
+    ``traced_request`` helper — no separate plumbing."""
+
+    @pytest.mark.asyncio
+    async def test_emits_counter_and_duration_on_safe_stream(self, iorails_streaming_input_only_tracing, metric_reader):
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert chunks == ["Hello", " ", "world"]
+
+        points = _collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+        assert "guardrails.requests.errors" not in points
+
+    @pytest.mark.asyncio
+    async def test_emits_errors_counter_on_stream_failure(self, iorails_streaming_input_only_tracing, metric_reader):
+        """Streaming failures don't propagate — the generation task swallows
+        the exception and pushes an error chunk.  The errors counter is
+        bumped explicitly via ``record_request_error`` so dashboards still
+        see the failure.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # The generation task converts the exception into an error-payload chunk.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = _collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        assert points["guardrails.request.duration"][0].value == 1

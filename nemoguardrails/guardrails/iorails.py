@@ -40,6 +40,7 @@ from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     get_tracer,
     is_tracing_enabled,
+    record_request_error,
     record_span_error,
     traced_request,
 )
@@ -286,6 +287,11 @@ class IORails:
                 # request_span is None (tracing disabled), so no extra guard
                 # is needed and there's no ambient-context lookup to worry about.
                 record_span_error(request_span, e)
+                # Bump guardrails.requests.errors explicitly: the exception is
+                # about to be swallowed (converted to an error-payload chunk),
+                # so request_metrics's except branch never fires for the
+                # streaming path.
+                record_request_error(e)
                 error_payload = json.dumps(
                     {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
