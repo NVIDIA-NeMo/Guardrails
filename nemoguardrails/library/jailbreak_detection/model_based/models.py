@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Tuple
 
 
@@ -21,7 +22,10 @@ class SnowflakeEmbed:
         import torch
         from transformers import AutoModel, AutoTokenizer
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if os.getenv("JAILBREAK_CHECK_DEVICE") is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = os.getenv("JAILBREAK_CHECK_DEVICE")
         self.tokenizer = AutoTokenizer.from_pretrained(
             "Snowflake/snowflake-arctic-embed-m-long",
             trust_remote_code=True,
