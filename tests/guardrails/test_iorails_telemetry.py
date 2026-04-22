@@ -1007,6 +1007,48 @@ class TestGenerateAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points == {}
 
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+        # No LLM call, so no errors; duration still recorded.
+        assert "guardrails.requests.errors" not in points
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    @pytest.mark.asyncio
+    async def test_no_blocked_counter_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_no_tracing)
+        iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe")
+        )
+
+        result = await iorails_no_tracing.generate_async([{"role": "user", "content": "bad"}])
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
 
 class TestStreamAsyncRequestMetrics:
     """Streaming path also emits request-level metrics via the shared
@@ -1044,6 +1086,23 @@ class TestStreamAsyncRequestMetrics:
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_stream_input_block(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
+        assert chunks == [REFUSAL_MESSAGE]
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+        # No LLM call / no errors.
+        assert "guardrails.requests.errors" not in points
         assert points["guardrails.request.duration"][0].value == 1
 
     @pytest.mark.asyncio

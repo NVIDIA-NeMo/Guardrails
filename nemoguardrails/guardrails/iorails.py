@@ -33,6 +33,7 @@ from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
+    RailDirection,
     get_request_id,
     truncate,
 )
@@ -40,6 +41,7 @@ from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
     get_tracer,
     is_tracing_enabled,
+    record_request_blocked,
     record_request_error,
     record_span_error,
     traced_request,
@@ -163,6 +165,8 @@ class IORails:
         input_result = await self.rails_manager.is_input_safe(messages)
         if not input_result.is_safe:
             log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+            if self._tracing_enabled:
+                record_request_blocked(RailDirection.INPUT)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # Step 2: Generate response from main LLM
@@ -182,6 +186,8 @@ class IORails:
         output_result = await self.rails_manager.is_output_safe(messages, response_text)
         if not output_result.is_safe:
             log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+            if self._tracing_enabled:
+                record_request_blocked(RailDirection.OUTPUT)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         return {"role": "assistant", "content": response_text}
@@ -265,6 +271,8 @@ class IORails:
                 input_result = await self.rails_manager.is_input_safe(messages)
                 if not input_result.is_safe:
                     log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                    if self._tracing_enabled:
+                        record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(REFUSAL_MESSAGE)
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return

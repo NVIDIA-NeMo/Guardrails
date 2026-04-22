@@ -31,4 +31,5 @@ class MetricNames:
 
     REQUESTS = "guardrails.requests"
     REQUESTS_ERRORS = "guardrails.requests.errors"
+    REQUESTS_BLOCKED = "guardrails.requests.blocked"
     REQUEST_DURATION = "guardrails.request.duration"

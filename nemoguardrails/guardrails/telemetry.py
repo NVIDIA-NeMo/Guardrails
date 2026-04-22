@@ -123,12 +123,14 @@ class RequestInstruments:
 
     Field names mirror the emitted metric names (minus the ``guardrails.``
     prefix): ``requests`` → ``guardrails.requests``, ``errors`` →
-    ``guardrails.requests.errors``, ``duration`` →
+    ``guardrails.requests.errors``, ``blocked`` →
+    ``guardrails.requests.blocked``, ``duration`` →
     ``guardrails.request.duration``.
     """
 
     requests: "Counter"
     errors: "Counter"
+    blocked: "Counter"
     duration: "Histogram"
 
 
@@ -179,6 +181,11 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             errors=meter.create_counter(
                 MetricNames.REQUESTS_ERRORS,
                 description="Guardrails requests that ended in an unhandled error",
+                unit="1",
+            ),
+            blocked=meter.create_counter(
+                MetricNames.REQUESTS_BLOCKED,
+                description="Guardrails requests blocked by an input or output rail",
                 unit="1",
             ),
             duration=meter.create_histogram(
@@ -444,6 +451,24 @@ def _cleanup_request_id(token) -> None:
     except ValueError as exc:
         if "different Context" not in str(exc):
             raise
+
+
+def record_request_blocked(direction: RailDirection) -> None:
+    """Increment ``guardrails.requests.blocked`` with a ``rail.type`` label.
+
+    Fires at the block sites in ``iorails.py`` (``_do_generate`` for the
+    non-streaming path, ``_generation_task`` for streaming) whenever the
+    request returns ``REFUSAL_MESSAGE`` because an input or output rail
+    flagged it.  The counter is cumulative over the process lifetime; a
+    per-rail grain (``rail.name``) will be added in split-2 alongside
+    ``guardrails.rail.blocked``.
+
+    No-op when the OTEL API is unavailable or instruments cannot be created.
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.blocked.add(1, attributes={GuardrailsAttributes.RAIL_TYPE: direction.value})
 
 
 def record_request_error(exc: BaseException) -> None:

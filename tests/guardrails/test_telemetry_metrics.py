@@ -23,9 +23,11 @@ from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 
 from nemoguardrails.guardrails import telemetry
+from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.telemetry import (
     _ensure_request_instruments,
     get_meter,
+    record_request_blocked,
     record_request_error,
     request_metrics,
     traced_request,
@@ -220,3 +222,31 @@ class TestRecordRequestError:
             telemetry._request_instruments = None
             # Must not raise; must not crash on attribute access.
             record_request_error(ValueError("boom"))
+
+
+class TestRecordRequestBlocked:
+    def test_input_block_labels_rail_type_input(self, meter_reader):
+        record_request_blocked(RailDirection.INPUT)
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+
+    def test_output_block_labels_rail_type_output(self, meter_reader):
+        record_request_blocked(RailDirection.OUTPUT)
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    def test_labels_split_points_by_direction(self, meter_reader):
+        record_request_blocked(RailDirection.INPUT)
+        record_request_blocked(RailDirection.OUTPUT)
+        record_request_blocked(RailDirection.INPUT)
+        points = collect_metric_points(meter_reader)
+        by_type = {p.attributes["rail.type"]: p.value for p in points["guardrails.requests.blocked"]}
+        assert by_type == {"Input": 2, "Output": 1}
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._request_instruments = None
+            record_request_blocked(RailDirection.INPUT)  # must not raise
