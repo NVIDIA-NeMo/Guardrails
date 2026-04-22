@@ -177,7 +177,10 @@ class LLMGenerationActions:
             else cast(Dict, spec_op.spec)
         )
 
-        if not spec["name"] or spec["name"] != "UtteranceUserActionFinished" or "script" not in spec["arguments"]:
+        if spec.get("_type") in ("spec_or", "spec_and"):
+            return
+
+        if not spec.get("name") or spec["name"] != "UtteranceBotAction" or "script" not in spec.get("arguments", {}):
             return
 
         # Extract the message and remove the double quotes
