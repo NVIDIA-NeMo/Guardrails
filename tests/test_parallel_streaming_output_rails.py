@@ -25,7 +25,15 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.streaming import decode_stream_error_chunk
 from tests.utils import TestChat
+
+
+def _decode_stream_error(chunk):
+    try:
+        return decode_stream_error_chunk(chunk)
+    except (JSONDecodeError, ValueError, TypeError):
+        return None
 
 
 @pytest.fixture
@@ -295,13 +303,10 @@ async def test_parallel_streaming_output_rails_blocked_by_safety(
 
     error_found = False
     for chunk in chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed and parsed == expected_error:
-                error_found = True
-                break
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed == expected_error["error"]:
+            error_found = True
+            break
 
     assert error_found, f"Expected error not found in chunks: {chunks}"
 
@@ -332,13 +337,10 @@ async def test_parallel_streaming_output_rails_blocked_by_compliance(
 
     error_found = False
     for chunk in chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed and parsed == expected_error:
-                error_found = True
-                break
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed == expected_error["error"]:
+            error_found = True
+            break
 
     assert error_found, f"Expected error not found in chunks: {chunks}"
 
@@ -369,13 +371,10 @@ async def test_parallel_streaming_output_rails_blocked_by_quality(
 
     error_found = False
     for chunk in chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed and parsed == expected_error:
-                error_found = True
-                break
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed == expected_error["error"]:
+            error_found = True
+            break
 
     assert error_found, f"Expected error not found in chunks: {chunks}"
 
@@ -406,7 +405,7 @@ async def test_parallel_streaming_output_rails_blocked_at_start(
 
     # should be blocked immediately with only one error chunk
     assert len(chunks) == 1
-    assert json.loads(chunks[0]) == expected_error
+    assert _decode_stream_error(chunks[0]) == expected_error["error"]
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -427,19 +426,16 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
     # should be blocked by one of the rails (whichever detects first in parallel execution)
     error_chunks = []
     for chunk in chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed:
-                error_chunks.append(parsed)
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed:
+            error_chunks.append(parsed)
 
     assert len(error_chunks) == 1, f"Expected exactly one error chunk, got {len(error_chunks)}"
 
     error = error_chunks[0]
-    assert error["error"]["type"] == "guardrails_violation"
-    assert error["error"]["code"] == "content_blocked"
-    assert "Blocked by" in error["error"]["message"]
+    assert error["type"] == "guardrails_violation"
+    assert error["code"] == "content_blocked"
+    assert "Blocked by" in error["message"]
 
     # should be blocked by one of the three rails
     blocked_by_options = [
@@ -447,7 +443,7 @@ async def test_parallel_streaming_output_rails_multiple_blocking_keywords(
         "self check output compliance",
         "self check output quality",
     ]
-    assert error["error"]["param"] in blocked_by_options
+    assert error["param"] in blocked_by_options
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -664,17 +660,14 @@ async def test_parallel_streaming_output_rails_error_handling():
     # should contain internal error data
     error_chunks = []
     for chunk in chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed and parsed["error"].get("type") == "internal_error":
-                error_chunks.append(parsed)
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed and parsed.get("type") == "internal_error":
+            error_chunks.append(parsed)
 
     assert len(error_chunks) == 1, f"Expected exactly one internal error chunk, got {len(error_chunks)}"
     error = error_chunks[0]
-    assert error["error"]["code"] == "rail_execution_failure"
-    assert "Internal error in failing rail rail:" in error["error"]["message"]
+    assert error["code"] == "rail_execution_failure"
+    assert "Internal error in failing rail rail:" in error["message"]
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -985,20 +978,14 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
     parallel_errors = []
 
     for chunk in sequential_chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed:
-                sequential_errors.append(parsed)
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed:
+            sequential_errors.append(parsed)
 
     for chunk in parallel_chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed:
-                parallel_errors.append(parsed)
-        except JSONDecodeError:
-            continue
+        parsed = _decode_stream_error(chunk)
+        if parsed:
+            parallel_errors.append(parsed)
 
     assert len(sequential_errors) == 1, f"Sequential should have 1 error, got {len(sequential_errors)}"
     assert len(parallel_errors) == 1, f"Parallel should have 1 error, got {len(parallel_errors)}"
@@ -1006,12 +993,12 @@ async def test_sequential_vs_parallel_streaming_blocking_comparison():
     seq_error = sequential_errors[0]
     par_error = parallel_errors[0]
 
-    assert seq_error["error"]["type"] == "guardrails_violation"
-    assert par_error["error"]["type"] == "guardrails_violation"
-    assert seq_error["error"]["code"] == "content_blocked"
-    assert par_error["error"]["code"] == "content_blocked"
-    assert "Blocked by" in seq_error["error"]["message"]
-    assert "Blocked by" in par_error["error"]["message"]
+    assert seq_error["type"] == "guardrails_violation"
+    assert par_error["type"] == "guardrails_violation"
+    assert seq_error["code"] == "content_blocked"
+    assert par_error["code"] == "content_blocked"
+    assert "Blocked by" in seq_error["message"]
+    assert "Blocked by" in par_error["message"]
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 

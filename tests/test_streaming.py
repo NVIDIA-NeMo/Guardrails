@@ -22,7 +22,7 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.exceptions import StreamingNotSupportedError
-from nemoguardrails.streaming import StreamingHandler
+from nemoguardrails.streaming import StreamingHandler, decode_stream_error_chunk
 from tests.utils import TestChat
 
 
@@ -404,15 +404,10 @@ async def test_streaming_output_rails_blocked(output_rails_streaming_config):
 
     # find the error JSON in the chunks
     for chunk in chunks:
-        try:
-            parsed = json.loads(chunk)
-            if "error" in parsed:
-                assert parsed == expected_error
-                break
-        except json.JSONDecodeError:
-            continue
-
-        assert parsed == expected_error
+        parsed = _decode_stream_error(chunk)
+        if parsed:
+            assert parsed == expected_error["error"]
+            break
     else:
         assert False, f"No JSON error found in chunks: {chunks}"
     # Wait for proper cleanup, otherwise we get a Runtime Error
@@ -445,9 +440,9 @@ async def test_streaming_output_rails_blocked_at_first_call(
     # error chunk is the first chunk
     error_chunk = chunks[0]
 
-    parsed_error_chunk = json.loads(error_chunk)
+    parsed_error_chunk = _decode_stream_error(error_chunk)
 
-    assert parsed_error_chunk == expected_error
+    assert parsed_error_chunk == expected_error["error"]
 
     # there should be exactly one chunk with the error
     assert len(chunks) == 1
@@ -586,12 +581,12 @@ async def test_streaming_error_handling():
     error_chunk = chunks[0]
 
     # Verify the error chunk is a valid json
-    error_data = json.loads(error_chunk)
-    assert "error" in error_data
-    assert "message" in error_data["error"]
-    assert "The model `non-existent-model` does not exist" in error_data["error"]["message"]
-    assert error_data["error"]["type"] == "invalid_request_error"
-    assert error_data["error"]["code"] == "model_not_found"
+    error_data = _decode_stream_error(error_chunk)
+    assert error_data is not None
+    assert "message" in error_data
+    assert "The model `non-existent-model` does not exist" in error_data["message"]
+    assert error_data["type"] == "invalid_request_error"
+    assert error_data["code"] == "model_not_found"
 
     # Wait for proper cleanup, otherwise we get a Runtime Error
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
@@ -689,3 +684,9 @@ def custom_streaming_providers():
     _chat_providers.pop("custom_none_streaming", None)
     _llm_providers.pop("custom_streaming_llm", None)
     _llm_providers.pop("custom_none_streaming_llm", None)
+def _decode_stream_error(chunk):
+    try:
+        return decode_stream_error_chunk(chunk)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+

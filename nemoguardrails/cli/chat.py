@@ -16,7 +16,7 @@ import asyncio
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import AsyncIterator, Dict, List, Optional, Tuple, Union, cast
 
 import aiohttp
 from prompt_toolkit import HTML, PromptSession
@@ -34,12 +34,48 @@ from nemoguardrails.logging.verbose import console
 from nemoguardrails.rails.llm.options import (
     GenerationResponse,
 )
+from nemoguardrails.streaming import decode_stream_error_chunk
 from nemoguardrails.utils import get_or_create_event_loop, new_event_dict, new_uuid
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 enable_input = asyncio.Event()
 enable_input.set()
+
+
+def _extract_streaming_error_message(chunk: str) -> Optional[str]:
+    try:
+        error_data = decode_stream_error_chunk(chunk)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise ValueError("Malformed streaming error payload.") from exc
+
+    if error_data is None:
+        return None
+
+    return error_data.get("message", "Unknown error")
+
+
+async def _stream_bot_message(chunks: AsyncIterator[str]) -> Tuple[Dict[str, str], bool]:
+    bot_message_list = []
+    streaming_error = False
+
+    async for chunk in chunks:
+        try:
+            error_message = _extract_streaming_error_message(chunk)
+        except ValueError as exc:
+            console.print(f"\n\n[red]Streaming error: {exc}[/]")
+            streaming_error = True
+            break
+
+        if error_message is not None:
+            console.print(f"\n\n[red]Streaming error: {error_message}[/]")
+            streaming_error = True
+            break
+
+        console.print("[green]" + f"{chunk}" + "[/]", end="")
+        bot_message_list.append(chunk)
+
+    return {"role": "assistant", "content": "".join(bot_message_list)}, streaming_error
 
 
 async def _run_chat_v1_0(
@@ -82,24 +118,9 @@ async def _run_chat_v1_0(
             # If we have streaming from a locally loaded config, we initialize the handler.
             if streaming and not server_url and rails_app:
                 try:
-                    bot_message_list = []
-                    async for chunk in rails_app.stream_async(messages=history):
-                        if isinstance(chunk, str) and chunk.strip().startswith("{"):
-                            try:
-                                error_data = json.loads(chunk)
-                            except (json.JSONDecodeError, ValueError):
-                                error_data = None
-                            if isinstance(error_data, dict) and isinstance(error_data.get("error"), dict):
-                                error_msg = error_data["error"].get("message", "Unknown error")
-                                console.print(f"\n\n[red]Streaming error: {error_msg}[/]")
-                                streaming_error = True
-                                break
-
-                        console.print("[green]" + f"{chunk}" + "[/]", end="")
-                        bot_message_list.append(chunk)
-
-                    bot_message_text = "".join(bot_message_list)
-                    bot_message = {"role": "assistant", "content": bot_message_text}
+                    bot_message, streaming_error = await _stream_bot_message(
+                        rails_app.stream_async(messages=history)
+                    )
                 except StreamingNotSupportedError as e:
                     raise StreamingNotSupportedError(
                         f"Cannot use --streaming with config `{config_path}` because output rails "
@@ -158,14 +179,13 @@ async def _run_chat_v1_0(
                 ) as http_response:
                     # If the response is streaming, we show each chunk as it comes
                     if http_response.headers.get("Transfer-Encoding") == "chunked":
-                        bot_message_text = ""
-                        async for chunk_bytes in http_response.content.iter_any():
-                            chunk = chunk_bytes.decode("utf-8")
-                            console.print("[green]" + f"{chunk}" + "[/]", end="")
-                            bot_message_text += chunk
-                        console.print("")
+                        async def _iter_chunks():
+                            async for chunk_bytes in http_response.content.iter_any():
+                                yield chunk_bytes.decode("utf-8")
 
-                        bot_message = {"role": "assistant", "content": bot_message_text}
+                        bot_message, streaming_error = await _stream_bot_message(_iter_chunks())
+                        if not streaming_error:
+                            console.print("")
                     else:
                         result = await http_response.json()
                         bot_message = result["messages"][0]
@@ -173,7 +193,7 @@ async def _run_chat_v1_0(
                         # We print bot messages in green.
                         console.print("[green]" + f"{bot_message['content']}" + "[/]")
 
-        if bot_message.get("content") and not streaming_error:
+        if not streaming_error and bot_message.get("content") is not None:
             history.append(bot_message)
 
 

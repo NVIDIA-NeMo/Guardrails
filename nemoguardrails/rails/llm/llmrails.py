@@ -105,7 +105,7 @@ from nemoguardrails.rails.llm.utils import (
     get_action_details_from_flow_id,
     get_history_cache_key,
 )
-from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
+from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler, decode_stream_error_chunk, encode_stream_error_chunk
 from nemoguardrails.utils import (
     extract_error_json,
     get_or_create_event_loop,
@@ -877,7 +877,7 @@ class LLMRails:
                     # Push an error chunk instead of None.
                     error_message = str(e)
                     error_dict = extract_error_json(error_message)
-                    error_payload: str = json.dumps(error_dict)
+                    error_payload = encode_stream_error_chunk(error_dict)
                     await streaming_handler.push_chunk(error_payload)
                     # push a termination signal
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
@@ -1245,7 +1245,7 @@ class LLMRails:
                 log.error(f"Error in generation task: {e}", exc_info=True)
                 error_message = str(e)
                 error_dict = extract_error_json(error_message)
-                error_payload = json.dumps(error_dict)
+                error_payload = encode_stream_error_chunk(error_dict)
                 await streaming_handler.push_chunk(error_payload)
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore
 
@@ -1795,7 +1795,7 @@ class LLMRails:
                                     "code": error_code,
                                 }
                             }
-                            yield json.dumps(error_data)
+                            yield encode_stream_error_chunk(error_data)
                             return
 
                 except Exception as e:
@@ -1846,7 +1846,7 @@ class LLMRails:
                         }
 
                         # return as plain JSON: the server should detect this JSON and convert it to an HTTP error
-                        yield json.dumps(error_data)
+                        yield encode_stream_error_chunk(error_data)
                         return
 
             if not stream_first:

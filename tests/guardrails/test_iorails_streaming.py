@@ -26,6 +26,7 @@ from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, STREAM_MAX_CONCURRENCY, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.streaming import decode_stream_error_chunk
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -83,11 +84,17 @@ async def _mid_stream_failure(model_type, messages, **kwargs):
 
 def _assert_error_chunk(chunks, *, code, message_contains):
     """Assert that chunks contain exactly one error JSON with the given code and message substring."""
-    error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+    error_chunks = [error for chunk in chunks if isinstance(chunk, str) for error in [_decode_error(chunk)] if error]
     assert len(error_chunks) >= 1, f"Expected error chunk, got none in {chunks}"
-    error_data = json.loads(error_chunks[0])
-    assert error_data["error"]["code"] == code
-    assert message_contains in error_data["error"]["message"]
+    assert error_chunks[0]["code"] == code
+    assert message_contains in error_chunks[0]["message"]
+
+
+def _decode_error(chunk):
+    try:
+        return decode_stream_error_chunk(chunk)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
 
 
 def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stream):
@@ -243,11 +250,11 @@ class TestStreamAsyncOutputRailsStreamFirst:
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         _assert_error_chunk(chunks, code="content_blocked", message_contains="Blocked by output rails")
 
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        error_chunks = [_decode_error(chunk) for chunk in chunks if isinstance(chunk, str)]
+        error_chunks = [chunk for chunk in error_chunks if chunk]
         assert len(error_chunks) >= 1
-        error_data = json.loads(error_chunks[0])
-        assert error_data["error"]["type"] == "guardrails_violation"
-        assert error_data["error"]["code"] == "content_blocked"
+        assert error_chunks[0]["type"] == "guardrails_violation"
+        assert error_chunks[0]["code"] == "content_blocked"
 
     @pytest.mark.asyncio
     async def test_stream_first_yields_before_rail_check(self, iorails_stream_first):
@@ -289,7 +296,8 @@ class TestStreamAsyncOutputRailsGated:
         chunks = await _collect(iorails_stream_check_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         content_chunks = [c for c in chunks if isinstance(c, str) and not c.startswith("{")]
-        error_chunks = [c for c in chunks if isinstance(c, str) and c.startswith("{")]
+        error_chunks = [_decode_error(chunk) for chunk in chunks if isinstance(chunk, str)]
+        error_chunks = [chunk for chunk in error_chunks if chunk]
         assert len(content_chunks) == 0
         _assert_error_chunk(chunks, code="content_blocked", message_contains="Blocked by output rails")
 

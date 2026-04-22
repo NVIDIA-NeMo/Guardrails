@@ -43,7 +43,7 @@ from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.buffer import get_buffer_strategy
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
-from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler
+from nemoguardrails.streaming import END_OF_STREAM, StreamingHandler, decode_stream_error_chunk, encode_stream_error_chunk
 
 log = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ class IORails:
                     elapsed_ms,
                     exc_info=True,
                 )
-                error_payload = json.dumps(
+                error_payload = encode_stream_error_chunk(
                     {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
                 await streaming_handler.push_chunk(error_payload)
@@ -357,11 +357,11 @@ class IORails:
             # yield it directly and stop — don't feed error JSON through output rails.
             for chunk in user_output_chunks:
                 try:
-                    parsed = json.loads(chunk)
-                    if isinstance(parsed, dict) and parsed.get("error", {}).get("type") == _GENERATION_ERROR_TYPE:
+                    error_data = decode_stream_error_chunk(chunk)
+                    if error_data and error_data.get("type") == _GENERATION_ERROR_TYPE:
                         yield chunk
                         return
-                except (json.JSONDecodeError, TypeError):
+                except (json.JSONDecodeError, TypeError, ValueError):
                     pass
 
             if stream_first:
@@ -382,7 +382,7 @@ class IORails:
                         "code": "content_blocked",
                     }
                 }
-                yield json.dumps(error_data)
+                yield encode_stream_error_chunk(error_data)
                 return
 
             if not stream_first:

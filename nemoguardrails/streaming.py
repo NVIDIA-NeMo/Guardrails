@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import json
 import logging
 import warnings
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
@@ -24,6 +25,33 @@ log = logging.getLogger(__name__)
 
 # sentinel object to indicate end of stream
 END_OF_STREAM = object()
+STREAM_ERROR_MARKER = "_ng_stream_error"
+
+
+def encode_stream_error_chunk(error: Dict[str, Any]) -> str:
+    """Encode a framework-generated streaming error with an explicit sentinel."""
+    error_payload = error.get("error") if isinstance(error.get("error"), dict) else error
+    if not isinstance(error_payload, dict):
+        raise TypeError("Streaming error payload must be a dict.")
+
+    return json.dumps({STREAM_ERROR_MARKER: True, "error": error_payload})
+
+
+def decode_stream_error_chunk(chunk: str) -> Optional[Dict[str, Any]]:
+    """Decode a sentinel-marked streaming error chunk."""
+    stripped_chunk = chunk.strip()
+    if not stripped_chunk.startswith("{") or STREAM_ERROR_MARKER not in stripped_chunk:
+        return None
+
+    payload = json.loads(stripped_chunk)
+    if not isinstance(payload, dict) or not payload.get(STREAM_ERROR_MARKER):
+        return None
+
+    error_payload = payload.get("error")
+    if not isinstance(error_payload, dict):
+        raise ValueError("Malformed streaming error payload.")
+
+    return error_payload
 
 
 class StreamingHandler(AsyncIterator):

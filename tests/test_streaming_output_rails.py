@@ -25,7 +25,7 @@ from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.rails.llm.llmrails import LLMRails
-from nemoguardrails.streaming import StreamingHandler
+from nemoguardrails.streaming import StreamingHandler, decode_stream_error_chunk
 from tests.utils import TestChat
 
 
@@ -154,9 +154,10 @@ async def test_streaming_output_rails_blocked_explicit(output_rails_streaming_co
         }
     }
 
-    error_chunks = [json.loads(chunk) for chunk in chunks if chunk.startswith('{"error":')]
+    error_chunks = [_decode_stream_error(chunk) for chunk in chunks]
+    error_chunks = [chunk for chunk in error_chunks if chunk]
     assert len(error_chunks) > 0
-    assert expected_error in error_chunks
+    assert expected_error["error"] in error_chunks
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -204,7 +205,7 @@ async def test_streaming_output_rails_blocked_at_start(output_rails_streaming_co
     }
 
     assert len(chunks) == 1
-    assert json.loads(chunks[0]) == expected_error
+    assert _decode_stream_error(chunks[0]) == expected_error["error"]
 
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
 
@@ -450,3 +451,9 @@ async def test_external_generator_single_chunk():
         tokens.append(token)
 
     assert "".join(tokens) == "This is a complete response in a single chunk."
+def _decode_stream_error(chunk):
+    try:
+        return decode_stream_error_chunk(chunk)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+

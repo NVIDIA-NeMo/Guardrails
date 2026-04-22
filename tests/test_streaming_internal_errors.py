@@ -24,6 +24,7 @@ import pytest
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
 from nemoguardrails.imports import check_optional_dependency
+from nemoguardrails.streaming import decode_stream_error_chunk
 from tests.utils import TestChat
 
 _has_langchain_openai = check_optional_dependency("langchain_openai")
@@ -44,10 +45,10 @@ def find_internal_error_chunks(chunks):
     error_chunks = []
     for chunk in chunks:
         try:
-            parsed = json.loads(chunk)
-            if "error" in parsed and parsed["error"].get("code") == "rail_execution_failure":
+            parsed = decode_stream_error_chunk(chunk)
+            if parsed and parsed.get("code") == "rail_execution_failure":
                 error_chunks.append(parsed)
-        except JSONDecodeError:
+        except (JSONDecodeError, TypeError, ValueError):
             continue
     return error_chunks
 
@@ -101,12 +102,12 @@ async def test_streaming_action_execution_failure():
     )
 
     error = internal_error_chunks[0]
-    assert error["error"]["type"] == "internal_error"
-    assert error["error"]["code"] == "rail_execution_failure"
-    assert "Internal error" in error["error"]["message"]
-    assert "failing safety check" in error["error"]["message"]
-    assert "Action failing_rail_action failed with status: failed" in error["error"]["message"]
-    assert error["error"]["param"] == "failing safety check"
+    assert error["type"] == "internal_error"
+    assert error["code"] == "rail_execution_failure"
+    assert "Internal error" in error["message"]
+    assert "failing safety check" in error["message"]
+    assert "Action failing_rail_action failed with status: failed" in error["message"]
+    assert error["param"] == "failing safety check"
 
 
 @pytest.mark.asyncio
@@ -157,17 +158,14 @@ async def test_streaming_internal_error_format():
 
     error = internal_error_chunks[0]
 
-    assert "error" in error
-    error_obj = error["error"]
+    assert "type" in error
+    assert error["type"] == "internal_error"
 
-    assert "type" in error_obj
-    assert error_obj["type"] == "internal_error"
+    assert "code" in error
+    assert error["code"] == "rail_execution_failure"
 
-    assert "code" in error_obj
-    assert error_obj["code"] == "rail_execution_failure"
+    assert "message" in error
+    assert "Internal error in test rail rail:" in error["message"]
 
-    assert "message" in error_obj
-    assert "Internal error in test rail rail:" in error_obj["message"]
-
-    assert "param" in error_obj
-    assert error_obj["param"] == "test rail"
+    assert "param" in error
+    assert error["param"] == "test rail"
