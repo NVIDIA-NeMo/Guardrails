@@ -1094,3 +1094,21 @@ class TestStreamAsyncRequestMetrics:
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
         assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_no_metrics_on_stream_failure_when_tracing_disabled(
+        self, iorails_streaming_no_tracing, metric_reader
+    ):
+        """Regression: with tracing disabled, a streaming failure must emit
+        no metrics — including the errors counter.  ``record_request_error``
+        inside ``_generation_task`` is gated on ``request_span`` precisely
+        to keep the errors/requests pair consistent; this locks that in.
+        """
+        iorails = iorails_streaming_no_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = _collect_metric_points(metric_reader)
+        assert points == {}

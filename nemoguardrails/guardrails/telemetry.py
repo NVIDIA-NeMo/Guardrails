@@ -184,7 +184,24 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             duration=meter.create_histogram(
                 MetricNames.REQUEST_DURATION,
                 description="End-to-end guardrails request duration",
-                unit="ms",
+                unit="s",
+                explicit_bucket_boundaries_advisory=[
+                    0.0,
+                    0.005,
+                    0.01,
+                    0.025,
+                    0.05,
+                    0.075,
+                    0.1,
+                    0.25,
+                    0.5,
+                    0.75,
+                    1.0,
+                    2.5,
+                    5.0,
+                    7.5,
+                    10.0,
+                ],
             ),
         )
     return _request_instruments
@@ -453,7 +470,7 @@ def request_metrics() -> Generator[None, None, None]:
     """Emit request-level OTEL metrics around the wrapped block.
 
     Increments ``guardrails.requests`` on entry, records
-    ``guardrails.request.duration`` in ms on exit, and increments
+    ``guardrails.request.duration`` in seconds on exit, and increments
     ``guardrails.requests.errors`` with an ``error.type`` attribute when
     the block raises.  Instruments are created lazily on first use.  No-op
     when the OTEL API is not installed or instruments cannot be created.
@@ -470,8 +487,8 @@ def request_metrics() -> Generator[None, None, None]:
         record_request_error(exc)
         raise
     finally:
-        duration_ms = (time.monotonic() - t0) * 1000
-        instruments.duration.record(duration_ms)
+        duration_s = time.monotonic() - t0
+        instruments.duration.record(duration_s)
 
 
 @contextmanager

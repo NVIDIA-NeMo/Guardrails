@@ -290,8 +290,12 @@ class IORails:
                 # Bump guardrails.requests.errors explicitly: the exception is
                 # about to be swallowed (converted to an error-payload chunk),
                 # so request_metrics's except branch never fires for the
-                # streaming path.
-                record_request_error(e)
+                # streaming path.  Gate on ``request_span`` to match the metrics
+                # gate used elsewhere — when tracing is disabled the requests
+                # counter never increments, so the errors counter must stay at
+                # zero to keep error-rate dashboards consistent.
+                if request_span is not None:
+                    record_request_error(e)
                 error_payload = json.dumps(
                     {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
