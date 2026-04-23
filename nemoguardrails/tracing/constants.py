@@ -154,6 +154,22 @@ class SpanNames:
     GEN_AI_EMBEDDING = "embedding"
 
 
+class MetricNames:
+    """OTEL metric names emitted by the IORails engine.
+
+    These names are part of the library's public API — customers point
+    dashboards and alerts at them.  Tests deliberately assert on the raw
+    strings rather than these constants so the assertions verify the wire
+    contract instead of re-referencing the same symbol the production code
+    uses.
+    """
+
+    REQUESTS = "guardrails.requests"
+    REQUESTS_ERRORS = "guardrails.requests.errors"
+    REQUESTS_BLOCKED = "guardrails.requests.blocked"
+    REQUEST_DURATION = "guardrails.request.duration"
+
+
 class OperationNames:
     """Standard operation names for GenAI semantic conventions.
 

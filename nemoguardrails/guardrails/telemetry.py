@@ -42,10 +42,10 @@ from nemoguardrails.guardrails.guardrails_types import (
     reset_request_id,
     set_new_request_id,
 )
-from nemoguardrails.guardrails.otel_constants import MetricNames
 from nemoguardrails.tracing.constants import (
     GenAIAttributes,
     GuardrailsAttributes,
+    MetricNames,
     OperationNames,
     SpanNames,
     SystemConstants,
