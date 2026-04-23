@@ -427,12 +427,14 @@ def _extract_user_text_from_event(event_text):
         for item in event_text:
             if isinstance(item, dict):
                 if item.get("type") == "text":
-                    text_parts.append(item.get("text", ""))
+                    text = item.get("text")
+                    if isinstance(text, str) and text:
+                        text_parts.append(text)
                 elif item.get("type") == "image_url":
                     has_images = True
         text = " ".join(text_parts)
         if has_images:
-            text += " [+ image]"
+            text = f"{text} [+ image]".strip() if text else "[+ image]"
         return text
     return event_text
 

@@ -46,7 +46,7 @@ class TestGetColangHistoryMultimodal:
         events = [{"type": "UserMessage", "text": _multimodal_content(image_b64=FAKE_BASE64)}]
         result = get_colang_history(events)
         assert FAKE_BASE64 not in result
-        assert "[+ image]" in result
+        assert 'user "[+ image]"' in result
 
     def test_multimodal_multiple_text_parts(self):
         content = [
@@ -98,4 +98,19 @@ class TestGetLastUserUtteranceMultimodal:
         result = get_last_user_utterance(events)
         assert isinstance(result, str)
         assert FAKE_BASE64 not in result
-        assert "[+ image]" in result
+        assert result == "[+ image]"
+
+    def test_multimodal_none_text_part_does_not_crash(self):
+        events = [
+            {
+                "type": "UserMessage",
+                "text": [
+                    {"type": "text", "text": None},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{FAKE_BASE64}"}},
+                ],
+            }
+        ]
+        result = get_last_user_utterance(events)
+        assert isinstance(result, str)
+        assert FAKE_BASE64 not in result
+        assert result == "[+ image]"
