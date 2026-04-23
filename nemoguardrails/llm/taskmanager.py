@@ -52,6 +52,8 @@ from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig
 
+_SINGLE_VAR_PATTERN = re.compile(r"^\{\{\s*(\w+)\s*\}\}$")
+
 
 class LLMTaskManager:
     """Interface for interacting with an LLM in a task-oriented way."""
@@ -184,10 +186,9 @@ class LLMTaskManager:
                     raise ValueError(f"Invalid message template: {message_template}")
                 messages.extend(new_messages)
             else:
-                content = self._render_string(message_template.content, context=context, events=events)
+                content = self._resolve_message_content(message_template.content, context=context, events=events)
 
-                # Don't add empty messages.
-                if content.strip():
+                if isinstance(content, list) or (isinstance(content, str) and content.strip()):
                     messages.append(
                         {
                             "type": message_template.type,
@@ -196,6 +197,26 @@ class LLMTaskManager:
                     )
 
         return messages
+
+    def _resolve_message_content(
+        self,
+        template_str: str,
+        context: Optional[dict] = None,
+        events: Optional[List[dict]] = None,
+    ) -> Union[str, list]:
+        match = _SINGLE_VAR_PATTERN.match(template_str.strip())
+        if match:
+            var_name = match.group(1)
+            value = None
+            if context and var_name in context:
+                value = context[var_name]
+            if self.prompt_context and var_name in self.prompt_context:
+                value = self.prompt_context[var_name]
+                if callable(value):
+                    value = value()
+            if isinstance(value, list):
+                return list(value)
+        return self._render_string(template_str, context=context, events=events)
 
     def _get_messages_text_length(self, messages: List[dict]) -> int:
         """Return the length of the text in the messages for token counting purposes.
