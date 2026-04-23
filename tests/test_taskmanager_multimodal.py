@@ -107,6 +107,34 @@ def test_render_mixed_template_stringifies():
     assert isinstance(user_msg["content"], str)
 
 
+def test_prompt_context_callable_invoked_once():
+    config = RailsConfig.from_content(
+        config={
+            "models": [{"type": "main", "engine": "openai", "model": "gpt-4o"}],
+            "prompts": [
+                {
+                    "task": "test_single_var",
+                    "messages": [
+                        {"type": "user", "content": "{{ user_input }}"},
+                    ],
+                }
+            ],
+        },
+    )
+    tm = LLMTaskManager(config)
+    call_count = {"n": 0}
+
+    def side_effect_callable():
+        call_count["n"] += 1
+        return "hello"
+
+    tm.register_prompt_context("user_input", side_effect_callable)
+
+    tm.render_task_prompt(task="test_single_var", context={})
+
+    assert call_count["n"] == 1
+
+
 def test_render_empty_list_is_dropped():
     config = _make_vision_config()
     tm = LLMTaskManager(config)

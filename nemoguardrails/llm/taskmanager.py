@@ -212,8 +212,6 @@ class LLMTaskManager:
                 value = context[var_name]
             if self.prompt_context and var_name in self.prompt_context:
                 candidate = self.prompt_context[var_name]
-                if callable(candidate):
-                    candidate = candidate()
                 if isinstance(candidate, list):
                     value = candidate
             if isinstance(value, list):
