@@ -188,7 +188,7 @@ class LLMTaskManager:
             else:
                 content = self._resolve_message_content(message_template.content, context=context, events=events)
 
-                if isinstance(content, list) or (isinstance(content, str) and content.strip()):
+                if (isinstance(content, list) and content) or (isinstance(content, str) and content.strip()):
                     messages.append(
                         {
                             "type": message_template.type,
@@ -211,9 +211,11 @@ class LLMTaskManager:
             if context and var_name in context:
                 value = context[var_name]
             if self.prompt_context and var_name in self.prompt_context:
-                value = self.prompt_context[var_name]
-                if callable(value):
-                    value = value()
+                candidate = self.prompt_context[var_name]
+                if callable(candidate):
+                    candidate = candidate()
+                if isinstance(candidate, list):
+                    value = candidate
             if isinstance(value, list):
                 return list(value)
         return self._render_string(template_str, context=context, events=events)

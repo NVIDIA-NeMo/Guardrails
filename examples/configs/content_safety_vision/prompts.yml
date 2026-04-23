@@ -26,7 +26,7 @@ prompts:
           Task: Check if there is unsafe content in "User" messages in conversations according to our safety policy with the below categories.
 
           <BEGIN UNSAFE CONTENT CATEGORIES>
-          {% for key, desc in categories.items() %}
+          {%- for key, desc in categories.items() %}
               {%- if key not in excluded_category_keys %}
           {{ key }}: {{ desc }}
               {%- endif %}

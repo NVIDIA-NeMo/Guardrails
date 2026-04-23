@@ -107,6 +107,19 @@ def test_render_mixed_template_stringifies():
     assert isinstance(user_msg["content"], str)
 
 
+def test_render_empty_list_is_dropped():
+    config = _make_vision_config()
+    tm = LLMTaskManager(config)
+
+    prompt = tm.render_task_prompt(
+        task="content_safety_check_input $model=vision_rails",
+        context={"user_input": [], "reasoning_enabled": False},
+    )
+
+    for msg in prompt:
+        assert msg["content"] != []
+
+
 def test_rendered_prompt_length_reasonable():
     big_base64 = "A" * 100_000
     config = _make_vision_config()
