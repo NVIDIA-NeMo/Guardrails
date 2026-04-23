@@ -114,3 +114,19 @@ class TestGetLastUserUtteranceMultimodal:
         assert isinstance(result, str)
         assert FAKE_BASE64 not in result
         assert result == "[+ image]"
+
+    def test_empty_list_returns_empty_string(self):
+        events = [{"type": "UserMessage", "text": []}]
+        assert get_last_user_utterance(events) == ""
+
+    def test_multiple_images_single_placeholder(self):
+        events = [
+            {
+                "type": "UserMessage",
+                "text": [
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAA"}},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,BBB"}},
+                ],
+            }
+        ]
+        assert get_last_user_utterance(events) == "[+ image]"
