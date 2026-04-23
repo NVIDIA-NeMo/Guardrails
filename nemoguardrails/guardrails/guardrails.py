@@ -25,7 +25,6 @@ import logging
 from typing import AsyncIterator, Optional, Tuple, Union, cast, overload
 
 from nemoguardrails.guardrails import configure_logging
-from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import LLMMessages
 from nemoguardrails.guardrails.iorails import IORails
 from nemoguardrails.logging.explain import ExplainInfo
@@ -33,10 +32,6 @@ from nemoguardrails.rails.llm.config import RailsConfig, _get_flow_name
 from nemoguardrails.rails.llm.llmrails import LLMRails
 from nemoguardrails.rails.llm.options import GenerationResponse
 from nemoguardrails.types import LLMModel
-
-# Queue configuration constants
-MAX_QUEUE_SIZE = 256
-MAX_CONCURRENCY = 256
 
 log = logging.getLogger(__name__)
 
@@ -71,17 +66,6 @@ class Guardrails:
         # Whether to use IORailsEngine for inference requests
         use_iorails_engine = use_iorails and self._has_only_iorails_flows()
         self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
-
-        # Async work queue for managing concurrent generate_async requests
-        self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
-            name="generate_async_queue",
-            max_queue_size=MAX_QUEUE_SIZE,
-            max_concurrency=MAX_CONCURRENCY,
-            reject_on_full=True,
-        )
-
-        # List of all queues for lifecycle management
-        self._queues = [self._generate_async_queue]
 
         # Track whether startup() has been called (supports lazy initialization)
         self._started = False
@@ -171,10 +155,7 @@ class Guardrails:
         await self._ensure_started()
 
         generate_messages = self._convert_to_messages(prompt, messages)
-        response = await self._generate_async_queue.submit(
-            self.rails_engine.generate_async, messages=generate_messages, **kwargs
-        )
-        return response
+        return await self.rails_engine.generate_async(messages=generate_messages, **kwargs)
 
     def stream_async(
         self, prompt: str | None = None, messages: LLMMessages | None = None, **kwargs
@@ -228,29 +209,28 @@ class Guardrails:
         llmrails.update_llm(llm)
 
     async def startup(self) -> None:
-        """Lifecycle method to start async worker tasks and the rails engine.
+        """Lifecycle method to start the rails engine.
 
-        Idempotent: safe to call multiple times. Also called automatically
-        on first generate_async() if not called explicitly, so callers are
-        not required to manage the lifecycle.
+        Idempotent: safe to call multiple times.  Also called automatically
+        on first ``generate_async()`` if not called explicitly, so callers
+        are not required to manage the lifecycle.
+
+        The non-streaming admission queue is owned by ``IORails`` and is
+        started/stopped as part of ``IORails.start()`` / ``stop()``.
         """
         if self._started:
             return
-        for queue in self._queues:
-            await queue.start()
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.start()
         self._started = True
 
     async def shutdown(self) -> None:
-        """Lifecycle method to stop async worker tasks and the rails engine.
+        """Lifecycle method to stop the rails engine.
 
         Idempotent: safe to call multiple times.
         """
         if not self._started:
             return
-        for queue in self._queues:
-            await queue.stop()
         if isinstance(self.rails_engine, IORails):
             await self.rails_engine.stop()
         self._started = False

@@ -29,6 +29,7 @@ from contextlib import suppress
 from typing import Optional, Union
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
+from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
@@ -57,7 +58,15 @@ log = logging.getLogger(__name__)
 
 REFUSAL_MESSAGE = "I'm sorry, I can't respond to that."
 
-# Default concurrency budget for streaming requests (separate from the AsyncWorkQueue for generate_async)
+# Concurrency budgets for the non-streaming AsyncWorkQueue:
+# NONSTREAM_QUEUE_DEPTH      — max pending items before submit raises QueueFull
+# NONSTREAM_MAX_CONCURRENCY  — max concurrent worker tasks draining the queue
+NONSTREAM_QUEUE_DEPTH = 256
+NONSTREAM_MAX_CONCURRENCY = 256
+
+# Concurrency budget for streaming requests (separate from the non-streaming
+# AsyncWorkQueue — streams have no admission buffer, just fail-fast on the
+# semaphore).
 STREAM_MAX_CONCURRENCY = 256
 
 # Error type used by _generation_task when pushing error JSON into the stream
@@ -89,6 +98,17 @@ class IORails:
             tracer=self._tracer,
         )
 
+        # Non-streaming admission queue + worker pool (owned by IORails so
+        # all request-path concurrency controls sit under one roof).  The
+        # queue auto-starts lazily on first submit(); ``start()`` below
+        # starts it explicitly alongside the engine registry.
+        self._generate_async_queue = AsyncWorkQueue(
+            name="iorails_generate_queue",
+            max_queue_size=NONSTREAM_QUEUE_DEPTH,
+            max_concurrency=NONSTREAM_MAX_CONCURRENCY,
+            reject_on_full=True,
+        )
+
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)
 
@@ -107,6 +127,7 @@ class IORails:
         # This allows the stop() method to clean up any state
         try:
             await self.engine_registry.start()
+            await self._generate_async_queue.start()
         finally:
             self._running = True
 
@@ -115,8 +136,10 @@ class IORails:
         if not self._running:
             return
 
-        # If any exceptions are thrown when stopping EngineRegistry, set the _running to False
+        # If exceptions are thrown during stop, set _running=False regardless
+        # so a retry of stop() is a no-op and we don't leak worker tasks.
         try:
+            await self._generate_async_queue.stop()
             await self.engine_registry.stop()
         finally:
             self._running = False
@@ -141,9 +164,22 @@ class IORails:
         return asyncio.run(_run_sync_iorails())
 
     async def generate_async(self, messages: LLMMessages, **kwargs) -> LLMMessage:
-        """Run input rails, generation, and output rails. Return response if safe."""
-        await self.start()
+        """Public entry: submit the request to the internal work queue.
 
+        The queue enforces non-streaming concurrency limits
+        (``NONSTREAM_MAX_CONCURRENCY`` workers draining up to
+        ``NONSTREAM_QUEUE_DEPTH`` pending items).  Callers receive
+        ``asyncio.QueueFull`` when the admission buffer is full.
+        """
+        await self.start()
+        return await self._generate_async_queue.submit(self._run_generate, messages, **kwargs)
+
+    async def _run_generate(self, messages: LLMMessages, **kwargs) -> LLMMessage:
+        """Runs inside a queue worker task.  Wraps the pipeline in
+        ``traced_request`` so each request gets its own span / metrics
+        lifecycle, then delegates to ``_do_generate`` for the actual
+        input rails → LLM → output rails flow.
+        """
         tracer = self._tracer if self._tracing_enabled else None
         with traced_request(tracer, self._metrics_enabled) as (_, req_id):
             t0 = time.monotonic()
