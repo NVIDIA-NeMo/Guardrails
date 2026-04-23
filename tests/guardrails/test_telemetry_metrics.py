@@ -26,12 +26,14 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.telemetry import (
     _ensure_request_instruments,
+    are_metrics_enabled,
     get_meter,
     record_request_blocked,
     record_request_error,
     request_metrics,
     traced_request,
 )
+from nemoguardrails.rails.llm.config import MetricsConfig
 from nemoguardrails.tracing.constants import SystemConstants
 from tests.guardrails.metric_helpers import collect_metric_points
 
@@ -157,26 +159,69 @@ class TestRequestMetrics:
 
 
 class TestTracedRequestMetrics:
-    def test_traced_request_emits_metrics_when_tracer_present(self, meter_reader, tracer):
-        with traced_request(tracer):
+    """``traced_request(tracer, metrics_enabled)`` gates the two signals
+    independently.  All four combinations exercised here.
+    """
+
+    def test_both_enabled_emits_metrics(self, meter_reader, tracer):
+        with traced_request(tracer, metrics_enabled=True):
             pass
         points = collect_metric_points(meter_reader)
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
 
-    def test_traced_request_emits_no_metrics_when_tracer_none(self, meter_reader):
-        with traced_request(None):
+    def test_metrics_only_emits_metrics(self, meter_reader):
+        """tracer=None, metrics_enabled=True — the cost-optimized setup."""
+        with traced_request(None, metrics_enabled=True):
+            pass
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+
+    def test_tracing_only_emits_no_metrics(self, meter_reader, tracer):
+        """tracer!=None, metrics_enabled=False — span emits (not asserted
+        here; see span tests) but no metric data points are recorded.
+        """
+        with traced_request(tracer, metrics_enabled=False):
             pass
         points = collect_metric_points(meter_reader)
         assert points == {}
 
-    def test_traced_request_errors_counter_on_exception(self, meter_reader, tracer):
+    def test_both_disabled_emits_nothing(self, meter_reader):
+        with traced_request(None, metrics_enabled=False):
+            pass
+        points = collect_metric_points(meter_reader)
+        assert points == {}
+
+    def test_errors_counter_on_exception_metrics_only(self, meter_reader):
+        """Exception through a metrics-only traced_request still bumps the
+        errors counter — the errors counter follows metrics_enabled, not
+        tracer presence.
+        """
         with pytest.raises(ValueError):
-            with traced_request(tracer):
+            with traced_request(None, metrics_enabled=True):
                 raise ValueError("boom")
         points = collect_metric_points(meter_reader)
         assert points["guardrails.requests.errors"][0].value == 1
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
+
+    def test_errors_counter_on_exception_both_enabled(self, meter_reader, tracer):
+        with pytest.raises(ValueError):
+            with traced_request(tracer, metrics_enabled=True):
+                raise ValueError("boom")
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
+
+    def test_no_errors_counter_when_metrics_disabled(self, meter_reader, tracer):
+        """Exception through tracing-only traced_request does NOT bump the
+        errors counter — metrics are off.
+        """
+        with pytest.raises(ValueError):
+            with traced_request(tracer, metrics_enabled=False):
+                raise ValueError("boom")
+        points = collect_metric_points(meter_reader)
+        assert points == {}
 
 
 class TestNoMeterProviderConfigured:
@@ -250,3 +295,23 @@ class TestRecordRequestBlocked:
             telemetry._meter = None
             telemetry._request_instruments = None
             record_request_blocked(RailDirection.INPUT)  # must not raise
+
+
+class TestAreMetricsEnabled:
+    """``are_metrics_enabled`` gates purely on ``config.metrics.enabled`` and
+    OTEL availability — it does NOT consult any tracing state.
+    """
+
+    def test_returns_true_when_config_enabled(self):
+        assert are_metrics_enabled(MetricsConfig(enabled=True)) is True
+
+    def test_returns_false_when_config_disabled(self):
+        assert are_metrics_enabled(MetricsConfig(enabled=False)) is False
+
+    def test_returns_false_when_config_none(self):
+        assert are_metrics_enabled(None) is False
+
+    def test_returns_false_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            with pytest.warns(UserWarning, match="opentelemetry-api package is not installed"):
+                assert are_metrics_enabled(MetricsConfig(enabled=True)) is False

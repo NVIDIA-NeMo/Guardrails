@@ -29,7 +29,7 @@ import logging
 import secrets
 import time
 import warnings
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Tuple
 
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
     from opentelemetry.metrics import Counter, Histogram, Meter
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
-    from nemoguardrails.rails.llm.config import TracingConfig
+    from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
 
     _OTEL_AVAILABLE = True
 else:
@@ -420,6 +420,29 @@ def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
     return True
 
 
+def are_metrics_enabled(config_metrics: Optional["MetricsConfig"]) -> bool:
+    """Return ``True`` when inline OTEL metrics should be emitted.
+
+    Requires the ``opentelemetry-api`` package to be installed **and**
+    ``config.metrics.enabled`` to be ``True``.  Independent of
+    :func:`is_tracing_enabled` — OTEL signals (traces, metrics, logs) are
+    designed to be toggled independently so customers can, for example,
+    run metrics-only for cost-optimized SLO dashboards without the
+    overhead of full trace export.
+    """
+    if config_metrics is None or not config_metrics.enabled:
+        return False
+    if not _OTEL_AVAILABLE:
+        warnings.warn(
+            "Metrics are enabled in config but the opentelemetry-api package is "
+            "not installed.  Install it with: pip install nemoguardrails[tracing]",
+            UserWarning,
+            stacklevel=2,
+        )
+        return False
+    return True
+
+
 class TracedRequest(NamedTuple):
     """Handle yielded by ``traced_request``.
 
@@ -516,16 +539,19 @@ def request_metrics() -> Generator[None, None, None]:
 
 
 @contextmanager
-def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None, None]:
+def traced_request(tracer: Optional["Tracer"], metrics_enabled: bool = False) -> Generator[TracedRequest, None, None]:
     """Unified request context: sets request ID, optionally creates a span
-    and emits request-level metrics.
+    and/or emits request-level metrics.
 
-    When *tracer* is not ``None``, a live ``guardrails.request`` SERVER span
-    is created, the request ID is derived from its trace ID, and the
-    request-level OTEL metrics (count, error count, duration) emit around
-    the block.  When *tracer* is ``None``, a random request ID is generated,
-    the yielded span is ``None``, and no metrics are emitted — a single flag
-    gates tracing and metrics together.
+    The two signals are gated **independently**:
+
+    * ``tracer is not None`` → a live ``guardrails.request`` SERVER span
+      is created and the request ID is derived from its trace ID.
+    * ``metrics_enabled=True`` → emit request-level OTEL metrics
+
+    All four combinations are valid.  Metrics-only (``tracer=None,
+    metrics_enabled=True``) is a supported setup for customers running
+    cheap SLO dashboards without full trace export.
 
     Yields a :class:`TracedRequest` (``span``, ``request_id``).  Callers
     that want to mark the request span ERROR from a deeply-nested scope
@@ -538,16 +564,18 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None,
     :func:`_cleanup_request_id`, which tolerates the expected
     cross-context ``ValueError`` that async-generator cleanup can raise.
     """
+    metrics_ctx = request_metrics() if metrics_enabled else nullcontext()
     if tracer is not None:
-        with request_metrics(), request_span(tracer) as (span, req_id):
+        with metrics_ctx, request_span(tracer) as (span, req_id):
             token = _set_request_id(req_id)
             try:
                 yield TracedRequest(span, req_id)
             finally:
                 _cleanup_request_id(token)
     else:
-        token = set_new_request_id()
-        try:
-            yield TracedRequest(None, get_request_id())
-        finally:
-            _cleanup_request_id(token)
+        with metrics_ctx:
+            token = set_new_request_id()
+            try:
+                yield TracedRequest(None, get_request_id())
+            finally:
+                _cleanup_request_id(token)

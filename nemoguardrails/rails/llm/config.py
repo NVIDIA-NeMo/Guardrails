@@ -477,6 +477,17 @@ class TracingConfig(BaseModel):
     )
 
 
+class MetricsConfig(BaseModel):
+    """OpenTelemetry Metrics Configuration.
+    Configures and enables Metrics independent of OTEL Traces.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description=("Emit OTEL metrics for IORails (independent of tracing)"),
+    )
+
+
 class EmbeddingsCacheConfig(BaseModel):
     """Configuration for the caching embeddings."""
 
@@ -1251,6 +1262,7 @@ def _join_config(dest_config: dict, additional_config: dict):
         "raw_llm_call_action",
         "enable_rails_exceptions",
         "tracing",
+        "metrics",
     ]
 
     for field in additional_fields:
@@ -1590,6 +1602,11 @@ class RailsConfig(BaseModel):
     tracing: TracingConfig = Field(
         default_factory=TracingConfig,
         description="Configuration for tracing.",
+    )
+
+    metrics: MetricsConfig = Field(
+        default_factory=MetricsConfig,
+        description="Configuration for OTEL metrics emission (independent of tracing).",
     )
 
     @root_validator(pre=True)

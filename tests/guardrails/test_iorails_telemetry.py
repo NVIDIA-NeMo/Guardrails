@@ -39,7 +39,28 @@ from tests.guardrails.test_telemetry import _is_valid_hex_string
 
 
 def _make_tracing_config():
-    """Return a NEMOGUARDS_CONFIG copy with tracing enabled."""
+    """NEMOGUARDS_CONFIG copy with **both** tracing and metrics enabled.
+
+    Historical name — in the current architecture tracing and metrics are
+    independent OTEL signals, and this helper sets both on so existing span
+    AND metric tests share the same fixture.  For single-signal scenarios
+    use :func:`_make_metrics_only_config` or :func:`_make_tracing_only_config`.
+    """
+    cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+    cfg["tracing"] = {"enabled": True}
+    cfg["metrics"] = {"enabled": True}
+    return cfg
+
+
+def _make_metrics_only_config():
+    """Metrics enabled, tracing disabled (the independent-signals case)."""
+    cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+    cfg["metrics"] = {"enabled": True}
+    return cfg
+
+
+def _make_tracing_only_config():
+    """Tracing enabled, metrics disabled."""
     cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
     cfg["tracing"] = {"enabled": True}
     return cfg
@@ -648,7 +669,11 @@ _INPUT_ONLY_STREAMING_TRACING_CONFIG = {
         **NEMOGUARDS_CONFIG["rails"],
         "output": {"flows": []},
     },
+    # Both signals enabled: streaming-span tests and streaming-metric tests
+    # share this config.  See docstring on ``_make_tracing_config`` for the
+    # tracing-vs-metrics independence rationale.
     "tracing": {"enabled": True},
+    "metrics": {"enabled": True},
 }
 
 _INPUT_ONLY_STREAMING_NO_TRACING_CONFIG = {
@@ -661,7 +686,7 @@ _INPUT_ONLY_STREAMING_NO_TRACING_CONFIG = {
 
 
 def _make_output_streaming_tracing_config(*, stream_first=True):
-    """Config with output-rail streaming + tracing enabled."""
+    """Config with output-rail streaming + both telemetry signals enabled."""
     base = copy.deepcopy(NEMOGUARDS_CONFIG)
     base["rails"]["output"]["streaming"] = {
         "enabled": True,
@@ -670,6 +695,7 @@ def _make_output_streaming_tracing_config(*, stream_first=True):
         "stream_first": stream_first,
     }
     base["tracing"] = {"enabled": True}
+    base["metrics"] = {"enabled": True}
     return base
 
 
@@ -1170,5 +1196,57 @@ class TestStreamAsyncRequestMetrics:
         chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
         assert any(c.startswith('{"error"') for c in chunks)
 
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
+
+class TestIndependentTracingAndMetrics:
+    """Tracing and metrics are independent OTEL signals.
+
+    Exercises the three non-trivial config combinations that the single-flag
+    design did not support:
+
+    * metrics-only (tracing off, metrics on) — the setup Pouyanpi called
+      out on the PR as cost-optimized SLO dashboards
+    * tracing-only (tracing on, metrics off)
+    * both off — already covered elsewhere, included here for completeness
+      of the four-quadrant matrix
+
+    The "both on" quadrant is covered extensively by
+    :class:`TestGenerateAsyncWithTracing` and
+    :class:`TestGenerateAsyncRequestMetrics`.
+    """
+
+    @pytest.mark.asyncio
+    async def test_metrics_only_emits_metrics_but_no_spans(self, metric_reader, exporter):
+        """Metrics enabled, tracing disabled → guardrails counters emit,
+        zero spans exported.  Core regression test for the decoupling.
+        """
+        with patch.object(telemetry, "_tracer", None):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            _stub_safe_pipeline(iorails)
+
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+        assert exporter.get_finished_spans() == ()
+
+    @pytest.mark.asyncio
+    async def test_tracing_only_emits_spans_but_no_metrics(self, tracer_from_provider, metric_reader, exporter):
+        """Tracing enabled, metrics disabled → guardrails.request span
+        emits, zero metric data points.
+        """
+        with patch.object(telemetry, "_tracer", tracer_from_provider):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_tracing_only_config()))
+            _stub_safe_pipeline(iorails)
+
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+        assert any(s.name == "guardrails.request" for s in spans)
         points = collect_metric_points(metric_reader)
         assert points == {}
