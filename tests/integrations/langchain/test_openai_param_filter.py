@@ -64,6 +64,33 @@ NON_CHAT_HINTS = (
     "search",
 )
 
+# Models our classifier flags as reasoning but which are not usable via
+# /v1/chat/completions at all (they route to /v1/responses or /v1/completions,
+# or are codex-style non-chat models). Over-stripping params on them is
+# irrelevant because any actual call would fail upstream. Kept explicit so
+# that unexpected new false positives (ones that would affect real users)
+# fail the test instead of silently piling up.
+KNOWN_FALSE_POSITIVES = frozenset(
+    {
+        "gpt-5-codex",
+        "gpt-5-pro",
+        "gpt-5-pro-2025-10-06",
+        "gpt-5.1-codex",
+        "gpt-5.1-codex-max",
+        "gpt-5.1-codex-mini",
+        "gpt-5.2-codex",
+        "gpt-5.2-pro",
+        "gpt-5.2-pro-2025-12-11",
+        "gpt-5.3-codex",
+        "gpt-5.4-pro",
+        "gpt-5.4-pro-2026-03-05",
+        "o1-pro",
+        "o1-pro-2025-03-19",
+        "o3-pro",
+        "o3-pro-2025-06-10",
+    }
+)
+
 
 def _load_baseline() -> list[dict]:
     return json.loads(BASELINE_PATH.read_text())
@@ -86,17 +113,25 @@ def _evaluate(probe_results: list[dict]) -> tuple[list[dict], list[str]]:
 def test_classifier_matches_baseline():
     results = _load_baseline()
     assert results, "baseline is empty, regenerate via UPDATE_BASELINE=1"
-    false_negatives, _ = _evaluate(results)
+    false_negatives, false_positives = _evaluate(results)
     assert not false_negatives, (
         "Classifier says these models do NOT reject stop/temperature, "
         "but the committed probe baseline shows they DO. Update "
         f"_is_openai_reasoning_model or regenerate baseline: {false_negatives}"
     )
+    unexpected = set(false_positives) - KNOWN_FALSE_POSITIVES
+    assert not unexpected, (
+        "Classifier strips stop/temperature for models that actually accept them: "
+        f"{sorted(unexpected)}. If intentional, add them to KNOWN_FALSE_POSITIVES."
+    )
 
 
 def _is_chat_candidate(model_id: str) -> bool:
+    # Add new family prefixes here as OpenAI releases them (o5, gpt-6, ...).
+    # Probing without a known prefix would pull in embeddings/audio/moderation
+    # models that aren't chat-completions at all.
     mid = model_id.lower()
-    if not any(mid.startswith(p) for p in ("gpt-", "chatgpt-", "o1", "o3", "o4", "o5", "o6")):
+    if not any(mid.startswith(p) for p in ("gpt-", "chatgpt-", "o1", "o3", "o4")):
         return False
     return not any(k in mid for k in NON_CHAT_HINTS)
 
@@ -138,23 +173,30 @@ def _classify(resp: httpx.Response, param: str) -> str:
     # started. Treat as accepted-by-inference.
     if "max_tokens" in message or "output limit" in message:
         return "accepted"
-    return "not_applicable"
+    # Preserve the API's error type + message so baseline diffs surface why a
+    # model is neither accepted nor rejected (eg "only supported in v1/responses").
+    err_type = err.get("type", "error")
+    return f"other: {err_type}: {message}" if message else f"http_{resp.status_code}"
+
+
+async def _probe_model(client: httpx.AsyncClient, api_key: str, model: str) -> dict:
+    # Two independent probes per model run concurrently; models are still
+    # iterated sequentially by the caller to avoid hitting OpenAI rate limits
+    # with ~130 concurrent requests on a large account.
+    stop_resp, temp_resp = await asyncio.gather(
+        _post(client, api_key, model, {"stop": ["User:"]}),
+        _post(client, api_key, model, {"temperature": 0.5}),
+    )
+    return {
+        "model": model,
+        "stop": _classify(stop_resp, "stop"),
+        "temperature": _classify(temp_resp, "temperature"),
+    }
 
 
 async def _probe_all(client: httpx.AsyncClient, api_key: str) -> list[dict]:
     models = await _fetch_models(client, api_key)
-    results = []
-    for model in models:
-        r_stop = await _post(client, api_key, model, {"stop": ["User:"]})
-        r_temp = await _post(client, api_key, model, {"temperature": 0.5})
-        results.append(
-            {
-                "model": model,
-                "stop": _classify(r_stop, "stop"),
-                "temperature": _classify(r_temp, "temperature"),
-            }
-        )
-    return results
+    return [await _probe_model(client, api_key, model) for model in models]
 
 
 @pytest.mark.asyncio
