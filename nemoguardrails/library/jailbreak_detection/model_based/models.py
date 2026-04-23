@@ -22,10 +22,11 @@ class SnowflakeEmbed:
         import torch
         from transformers import AutoModel, AutoTokenizer
 
-        if os.getenv("JAILBREAK_CHECK_DEVICE") is None:
+        device = os.environ.get("JAILBREAK_CHECK_DEVICE")
+        if device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
-            self.device = os.getenv("JAILBREAK_CHECK_DEVICE")
+            self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(
             "Snowflake/snowflake-arctic-embed-m-long",
             trust_remote_code=True,

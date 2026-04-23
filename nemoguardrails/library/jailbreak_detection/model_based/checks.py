@@ -39,8 +39,7 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
         logger.warning("No embedding classifier path set. Server /model endpoint will not work.")
         return None
 
-    if not Path(classifier_path).exists():
-        Path(classifier_path).mkdir(parents=True, exist_ok=True)
+    Path(classifier_path).mkdir(parents=True, exist_ok=True)
 
     # check if model is present. If not, download it.
     if not Path(classifier_path).joinpath("snowflake.onnx").is_file():
@@ -50,7 +49,7 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
             repo_id="nvidia/NemoGuard-JailbreakDetect", filename="snowflake.onnx", local_dir=classifier_path
         )
 
-    from model_based.models import JailbreakClassifier
+    from .models import JailbreakClassifier
 
     jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.onnx")))
 

@@ -24,9 +24,9 @@ import pytest
 
 def test_lazy_import_does_not_require_heavy_deps():
     """
-    Importing the checks module should not require torch, transformers, or sklearn unless model-based classifier is used.
+    Importing the checks module should not require torch, transformers, or onnxruntime unless model-based classifier is used.
     """
-    with mock.patch.dict(sys.modules, {"torch": None, "transformers": None, "sklearn": None}):
+    with mock.patch.dict(sys.modules, {"torch": None, "transformers": None, "onnxruntime": None}):
         import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
 
         # Just importing and calling unrelated functions should not raise ImportError
@@ -76,9 +76,9 @@ def test_model_based_classifier_imports(monkeypatch):
 
 def test_model_based_classifier_missing_deps(monkeypatch):
     """
-    If sklearn is missing, instantiating JailbreakClassifier should raise ImportError.
+    If onnxruntime is missing, instantiating JailbreakClassifier should raise ImportError.
     """
-    monkeypatch.setitem(sys.modules, "sklearn.ensemble", None)
+    monkeypatch.setitem(sys.modules, "onnxruntime", None)
 
     import nemoguardrails.library.jailbreak_detection.model_based.models as models
 
@@ -255,6 +255,57 @@ def test_initialize_model_with_valid_path(monkeypatch):
 
     expected_path = str(Path(test_path).joinpath("snowflake.onnx"))
     mock_jailbreak_classifier_class.assert_called_once_with(expected_path)
+
+
+def test_initialize_model_skips_hf_hub_download_when_snowflake_onnx_exists(monkeypatch, tmp_path):
+    """
+    When snowflake.onnx is already present under EMBEDDING_CLASSIFIER_PATH, do not call hf_hub_download.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    checks.initialize_model.cache_clear()
+
+    (tmp_path / "snowflake.onnx").write_bytes(b"")
+    monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", str(tmp_path))
+
+    mock_classifier = mock.MagicMock()
+    monkeypatch.setattr(
+        "nemoguardrails.library.jailbreak_detection.model_based.models.JailbreakClassifier",
+        mock.MagicMock(return_value=mock_classifier),
+    )
+
+    with mock.patch("huggingface_hub.hf_hub_download") as mock_hf_hub_download:
+        result = checks.initialize_model()
+
+    assert result is mock_classifier
+    mock_hf_hub_download.assert_not_called()
+
+
+def test_initialize_model_calls_hf_hub_download_when_snowflake_onnx_missing(monkeypatch, tmp_path):
+    """
+    When snowflake.onnx is absent, hf_hub_download is invoked once with the NemoGuard repo and paths.
+    """
+    import nemoguardrails.library.jailbreak_detection.model_based.checks as checks
+
+    checks.initialize_model.cache_clear()
+
+    monkeypatch.setenv("EMBEDDING_CLASSIFIER_PATH", str(tmp_path))
+
+    mock_classifier = mock.MagicMock()
+    monkeypatch.setattr(
+        "nemoguardrails.library.jailbreak_detection.model_based.models.JailbreakClassifier",
+        mock.MagicMock(return_value=mock_classifier),
+    )
+
+    with mock.patch("huggingface_hub.hf_hub_download") as mock_hf_hub_download:
+        result = checks.initialize_model()
+
+    assert result is mock_classifier
+    mock_hf_hub_download.assert_called_once_with(
+        repo_id="nvidia/NemoGuard-JailbreakDetect",
+        filename="snowflake.onnx",
+        local_dir=str(tmp_path),
+    )
 
 
 # Test 10: Test that NvEmbedE5 class no longer exists
