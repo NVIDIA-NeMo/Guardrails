@@ -17,7 +17,7 @@ import logging
 from typing import Dict, FrozenSet, Optional
 
 from nemoguardrails.actions.actions import action
-from nemoguardrails.actions.llm.utils import llm_call
+from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.cache import CacheInterface
 from nemoguardrails.llm.cache.utils import (
@@ -47,7 +47,7 @@ async def content_safety_check_input(
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
-    _MAX_TOKENS = 3
+    _MAX_TOKENS = 1024
     user_input: str = ""
 
     if context is not None:
@@ -97,16 +97,14 @@ async def content_safety_check_input(
             log.debug(f"Content safety cache hit for model '{model_name}'")
             return cached_result
 
-    result = (
-        await llm_call(
-            llm,
-            check_input_prompt,
-            stop=stop,
-            llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
-        )
-    ).content
-
-    result = llm_task_manager.parse_task_output(task, output=result)
+    llm_response = await llm_call(
+        llm,
+        check_input_prompt,
+        stop=stop,
+        llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
+    )
+    warn_if_truncated(llm_response, task)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
 
     is_safe, *violated_policies = result
 
@@ -150,7 +148,7 @@ async def content_safety_check_output(
     model_caches: Optional[Dict[str, CacheInterface]] = None,
     **kwargs,
 ) -> dict:
-    _MAX_TOKENS = 3
+    _MAX_TOKENS = 1024
     user_input: str = ""
     bot_response: str = ""
 
@@ -203,16 +201,14 @@ async def content_safety_check_output(
             log.debug(f"Content safety output cache hit for model '{model_name}'")
             return cached_result
 
-    result = (
-        await llm_call(
-            llm,
-            check_output_prompt,
-            stop=stop,
-            llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
-        )
-    ).content
-
-    result = llm_task_manager.parse_task_output(task, output=result)
+    llm_response = await llm_call(
+        llm,
+        check_output_prompt,
+        stop=stop,
+        llm_params={"temperature": 1e-20, "max_tokens": max_tokens},
+    )
+    warn_if_truncated(llm_response, task)
+    result = llm_task_manager.parse_task_output(task, output=llm_response.content)
 
     is_safe, *violated_policies = result
 

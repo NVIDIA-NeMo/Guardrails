@@ -24,6 +24,7 @@ from nemoguardrails.actions.llm.utils import (
     _stream_llm_call,
     _update_token_stats_from_chunk,
     llm_call,
+    warn_if_truncated,
 )
 from nemoguardrails.context import (
     llm_call_info_var,
@@ -640,3 +641,29 @@ class TestStreamLlmCallAccumulation:
         await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
 
         assert llm_response_metadata_var.get() is None
+
+
+class TestWarnIfTruncated:
+    def test_warns_on_empty_content_with_length_finish(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="", finish_reason="length")
+        with caplog.at_level("WARNING"):
+            warn_if_truncated(response, "self_check_input")
+        assert any("self_check_input" in rec.message and "length" in rec.message for rec in caplog.records)
+
+    def test_silent_on_non_empty_content(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="yes", finish_reason="length")
+        with caplog.at_level("WARNING"):
+            warn_if_truncated(response, "self_check_input")
+        assert not caplog.records
+
+    def test_silent_on_non_length_finish_reason(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="", finish_reason="stop")
+        with caplog.at_level("WARNING"):
+            warn_if_truncated(response, "self_check_input")
+        assert not caplog.records
