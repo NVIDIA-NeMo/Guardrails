@@ -36,9 +36,7 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
 
     if classifier_path is None:
         # Log a warning, but do not throw an exception
-        logger.warning(
-            "No embedding classifier path set. Server /model endpoint will not work."
-        )
+        logger.warning("No embedding classifier path set. Server /model endpoint will not work.")
         return None
 
     if not Path(classifier_path).exists():
@@ -49,17 +47,12 @@ def initialize_model() -> Union[None, "JailbreakClassifier"]:
         from huggingface_hub import hf_hub_download
 
         hf_hub_download(
-            repo_id="nvidia/NemoGuard-JailbreakDetect",
-            filename="snowflake.onnx",
-            local_dir=classifier_path
+            repo_id="nvidia/NemoGuard-JailbreakDetect", filename="snowflake.onnx", local_dir=classifier_path
         )
-
 
     from model_based.models import JailbreakClassifier
 
-    jailbreak_classifier = JailbreakClassifier(
-        str(Path(classifier_path).joinpath("snowflake.onnx"))
-    )
+    jailbreak_classifier = JailbreakClassifier(str(Path(classifier_path).joinpath("snowflake.onnx")))
 
     return jailbreak_classifier
 

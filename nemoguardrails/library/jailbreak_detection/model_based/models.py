@@ -40,9 +40,7 @@ class SnowflakeEmbed:
         self.model.eval()
 
     def __call__(self, text: str):
-        tokens = self.tokenizer(
-            [text], padding=True, truncation=True, return_tensors="pt", max_length=2048
-        )
+        tokens = self.tokenizer([text], padding=True, truncation=True, return_tensors="pt", max_length=2048)
         tokens = tokens.to(self.device)
         embeddings = self.model(**tokens)[0][:, 0]
         return embeddings.detach().cpu().squeeze(0).numpy()
@@ -54,9 +52,7 @@ class JailbreakClassifier:
 
         self.embed = SnowflakeEmbed()
         # See https://onnx.ai/sklearn-onnx/auto_examples/plot_convert_decision_function.html
-        self.classifier = InferenceSession(
-            random_forest_path, providers=["CPUExecutionProvider"]
-        )
+        self.classifier = InferenceSession(random_forest_path, providers=["CPUExecutionProvider"])
 
     def __call__(self, text: str) -> Tuple[bool, float]:
         e = self.embed(text)
