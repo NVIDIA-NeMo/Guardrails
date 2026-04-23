@@ -61,6 +61,6 @@ class JailbreakClassifier:
         classification = res[0].item()
         # The second is a list of dicts of probabilities -- the slice res[1][:2] should have only one element.
         # We access the dict entry for the class.
-        prob = res[1][:2][0][classification]
+        prob = res[1][0][classification]
         score = -prob if classification == 0 else prob
         return bool(classification), float(score)
