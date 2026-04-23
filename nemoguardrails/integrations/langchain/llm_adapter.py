@@ -110,7 +110,7 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
     return None
 
 
-def _is_reasoning_model(model_name: str) -> bool:
+def _is_openai_reasoning_model(model_name: str) -> bool:
     name = model_name.lower()
     if name in ("o1", "o3", "o4") or name.startswith(("o1-", "o3-", "o4-")):
         return True
@@ -164,7 +164,7 @@ class LangChainLLMAdapter:
         params = dict(kwargs)
         if stop is not None:
             params["stop"] = stop
-        if _is_reasoning_model(self.model_name):
+        if _is_openai_reasoning_model(self.model_name):
             params.pop("temperature", None)
             params.pop("stop", None)
         return params
