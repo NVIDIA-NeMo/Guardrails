@@ -38,7 +38,7 @@ def test_lazy_import_does_not_require_heavy_deps():
 
 def test_model_based_classifier_imports(monkeypatch):
     """
-    Instantiating JailbreakClassifier should require sklearn and onnxruntime, and use SnowflakeEmbed which requires torch/transformers.
+    Instantiating JailbreakClassifier should require onnxruntime, and use SnowflakeEmbed which requires torch/transformers.
     """
     # Mock dependencies
     fake_rf = mock.MagicMock()
