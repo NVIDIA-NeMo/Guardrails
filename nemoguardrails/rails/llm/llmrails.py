@@ -457,7 +457,7 @@ class LLMRails:
                 self.runtime.register_action_param("llm", self.llm)
 
             else:
-                log.warning("No main LLM specified in the config and no LLM provided via constructor.")
+                log.info("No main LLM specified in the config and no LLM provided via constructor.")
 
         llms = dict()
 
@@ -837,6 +837,10 @@ class LLMRails:
         # Save the generation options in the current async context.
         # At this point, gen_options is either None or GenerationOptions
         generation_options_var.set(gen_options)
+
+        needs_llm = gen_options is None or gen_options.rails.dialog is not False
+        if needs_llm and not self.llm:
+            log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
