@@ -420,6 +420,23 @@ def warn_if_truncated(response: LLMResponse, task: str) -> bool:
     return truncated
 
 
+def _extract_user_text_from_event(event_text):
+    if isinstance(event_text, list):
+        text_parts = []
+        has_images = False
+        for item in event_text:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+                elif item.get("type") == "image_url":
+                    has_images = True
+        text = " ".join(text_parts)
+        if has_images:
+            text += " [+ image]"
+        return text
+    return event_text
+
+
 def get_colang_history(
     events: List[dict],
     include_texts: bool = True,
@@ -463,7 +480,7 @@ def get_colang_history(
 
         for idx, event in enumerate(events):
             if event["type"] == "UserMessage" and include_texts:
-                history += f'user "{event["text"]}"\n'
+                history += f'user "{_extract_user_text_from_event(event["text"])}"\n'
             elif event["type"] == "UserIntent":
                 if include_texts:
                     history += f"  {event['intent']}\n"
@@ -636,7 +653,7 @@ def get_last_user_utterance(events: List[dict]) -> Optional[str]:
     """Returns the last user utterance from the events."""
     for event in reversed(events):
         if event["type"] == "UserMessage":
-            return event["text"]
+            return _extract_user_text_from_event(event["text"])
 
     return None
 
