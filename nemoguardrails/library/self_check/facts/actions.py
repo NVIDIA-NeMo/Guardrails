@@ -76,7 +76,11 @@ async def self_check_facts(
         stop=stop,
         llm_params={"temperature": config.lowest_temperature, "max_tokens": max_tokens},
     )
-    warn_if_truncated(llm_response, task.value)
+    if warn_if_truncated(llm_response, task.value):
+        # is_content_safe returns [False] on empty input, which this action
+        # inverts to "facts are correct". Fail safe instead: treat truncated
+        # content as a failed fact-check so the output gets blocked.
+        return 0.0
     response = llm_response.content
 
     if llm_task_manager.has_output_parser(task):

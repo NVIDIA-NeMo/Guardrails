@@ -649,7 +649,8 @@ class TestWarnIfTruncated:
 
         response = LLMResponse(content="", finish_reason="length")
         with caplog.at_level("WARNING"):
-            warn_if_truncated(response, "self_check_input")
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is True
         assert any("self_check_input" in rec.message and "length" in rec.message for rec in caplog.records)
 
     def test_silent_on_non_empty_content(self, caplog):
@@ -657,7 +658,8 @@ class TestWarnIfTruncated:
 
         response = LLMResponse(content="yes", finish_reason="length")
         with caplog.at_level("WARNING"):
-            warn_if_truncated(response, "self_check_input")
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is False
         assert not caplog.records
 
     def test_silent_on_non_length_finish_reason(self, caplog):
@@ -665,5 +667,15 @@ class TestWarnIfTruncated:
 
         response = LLMResponse(content="", finish_reason="stop")
         with caplog.at_level("WARNING"):
-            warn_if_truncated(response, "self_check_input")
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is False
+        assert not caplog.records
+
+    def test_silent_on_none_finish_reason(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="", finish_reason=None)
+        with caplog.at_level("WARNING"):
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is False
         assert not caplog.records

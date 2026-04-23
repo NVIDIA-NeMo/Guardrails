@@ -396,16 +396,20 @@ def _extract_content(response: LLMResponse) -> str:
     return response.content
 
 
-def warn_if_truncated(response: LLMResponse, task: str) -> None:
-    """Emit a warning if the LLM produced no visible content because it hit the max_tokens budget.
+def warn_if_truncated(response: LLMResponse, task: str) -> bool:
+    """Return True and emit a warning if the LLM produced no visible content because it hit the max_tokens budget.
 
     Reasoning models (OpenAI o-series, gpt-5, DeepSeek-R1, Gemini 2.5, Qwen QwQ, etc.)
     spend output tokens on internal reasoning before emitting visible text. A small
     max_tokens budget can be fully consumed by the reasoning phase, leaving empty
     content and finish_reason="length". The call succeeds silently and callers that
-    only inspect response.content see nothing.
+    only inspect response.content see nothing. Callers whose downstream parser
+    does not fail safely on empty input (e.g. self_check_facts, whose parser
+    inverts the result) should use the return value to take an explicit
+    fail-safe branch.
     """
-    if not response.content and response.finish_reason == "length":
+    truncated = not response.content and response.finish_reason == "length"
+    if truncated:
         logger.warning(
             "Task %s: LLM returned empty content with finish_reason='length'. "
             "The max_tokens budget was likely consumed before any visible output. "
@@ -413,6 +417,7 @@ def warn_if_truncated(response: LLMResponse, task: str) -> None:
             "gemini-2.5, etc.), increase the prompt's max_tokens in your config.",
             task,
         )
+    return truncated
 
 
 def get_colang_history(
