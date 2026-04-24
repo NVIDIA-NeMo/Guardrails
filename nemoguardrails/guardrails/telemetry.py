@@ -652,11 +652,20 @@ def stream_active_metric() -> Generator[None, None, None]:
 def request_metrics() -> Generator[None, None, None]:
     """Emit request-level OTEL metrics around the wrapped block.
 
-    Increments ``guardrails.requests`` on entry, records
-    ``guardrails.request.duration`` in seconds on exit, and increments
-    ``guardrails.requests.errors`` with an ``error.type`` attribute when
-    the block raises.  Instruments are created lazily on first use.  No-op
-    when the OTEL API is not installed or instruments cannot be created.
+    Increments ``guardrails.requests`` on entry, bumps
+    ``guardrails.requests.active`` (UpDownCounter) for the duration of
+    the block, records ``guardrails.request.duration`` in seconds on
+    exit, and increments ``guardrails.requests.errors`` with an
+    ``error.type`` attribute when the block raises.
+
+    ``requests.active`` covers both non-streaming (queue-wait + execution)
+     and streaming (semaphore hold) requests.
+     Summing the per-path saturation metrics
+    (``nonstream.queued``, ``nonstream.active``, ``stream.active``)
+    should approximate this value at any collection instant.
+
+    Instruments are created lazily on first use.  No-op when the OTEL
+    API is not installed or instruments cannot be created.
     """
     instruments = _ensure_request_instruments()
     if instruments is None:
@@ -664,12 +673,14 @@ def request_metrics() -> Generator[None, None, None]:
         return
     t0 = time.monotonic()
     instruments.requests.add(1)
+    instruments.requests_active.add(1)
     try:
         yield
     except Exception as exc:
         record_request_error(exc)
         raise
     finally:
+        instruments.requests_active.add(-1)
         duration_s = time.monotonic() - t0
         instruments.duration.record(duration_s)
 

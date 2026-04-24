@@ -154,6 +154,32 @@ class TestRequestMetrics:
         points = collect_metric_points(meter_reader)
         assert points["guardrails.request.duration"][0].value == 1
 
+    def test_requests_active_nets_to_zero_after_completed_scope(self, meter_reader):
+        """+1 on entry, -1 on exit → net 0 for a completed scope."""
+        with request_metrics():
+            pass
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.requests.active"][0].value == 0
+
+    def test_requests_active_nets_to_zero_after_exception(self, meter_reader):
+        """Exception path still decrements — -1 lives in ``finally``."""
+        with pytest.raises(ValueError):
+            with request_metrics():
+                raise ValueError("boom")
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.requests.active"][0].value == 0
+
+    def test_requests_active_reflects_concurrent_scopes_mid_flight(self, meter_reader):
+        """Two overlapping ``request_metrics()`` scopes → counter reads 2
+        mid-flight.  Simulates mid-flight observation without actually
+        running two real requests."""
+        with request_metrics():
+            with request_metrics():
+                mid = collect_metric_points(meter_reader)
+                assert mid["guardrails.requests.active"][0].value == 2
+        final = collect_metric_points(meter_reader)
+        assert final["guardrails.requests.active"][0].value == 0
+
     def test_no_metrics_when_otel_unavailable(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
