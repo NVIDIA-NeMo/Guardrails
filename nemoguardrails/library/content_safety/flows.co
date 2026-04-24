@@ -1,4 +1,5 @@
 flow content safety check input $model
+  """Check if input is safe according to content safety policy using the specified model."""
   $response = await ContentSafetyCheckInputAction(model_name=$model)
 
   global $allowed
@@ -19,6 +20,7 @@ flow content safety check input $model
     abort
 
 flow content safety check output $model
+  """Check if output is safe according to content safety policy using the specified model."""
   $response = await ContentSafetyCheckOutputAction(model_name=$model)
   global $allowed
   $allowed = $response["allowed"]
