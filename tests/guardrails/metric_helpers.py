@@ -51,6 +51,29 @@ def _point_value(data_point) -> float:
     return getattr(data_point, "count", 0)
 
 
+def collect_histogram_sum(reader: InMemoryMetricReader, metric_name: str) -> float:
+    """Return the aggregated ``sum`` across all data points of a histogram.
+
+    ``collect_metric_points`` flattens histograms to their *count* (number
+    of recordings) — fine for "did it fire?" tests.  When a test also
+    cares about the magnitude (e.g. asserting duration includes queue-
+    wait), it needs ``sum``.  Returns ``0.0`` if the metric hasn't been
+    recorded yet.
+    """
+    data = reader.get_metrics_data()
+    if data is None:
+        return 0.0
+    total = 0.0
+    for resource_metric in data.resource_metrics:
+        for scope_metric in resource_metric.scope_metrics:
+            for metric in scope_metric.metrics:
+                if metric.name != metric_name:
+                    continue
+                for data_point in metric.data.data_points:
+                    total += getattr(data_point, "sum", 0.0) or 0.0
+    return total
+
+
 def collect_metric_points(reader: InMemoryMetricReader) -> Dict[str, List[MetricPoint]]:
     """Flatten SDK-collected metric data into ``{metric_name: [MetricPoint, ...]}``.
 

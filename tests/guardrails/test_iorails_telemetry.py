@@ -35,7 +35,7 @@ from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
 from tests.guardrails.async_helpers import wait_for_queue_state
-from tests.guardrails.metric_helpers import collect_metric_points
+from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
 
@@ -1094,6 +1094,11 @@ class TestGenerateAsyncRequestMetrics:
         ``generate_async`` catches the exception, increments
         ``guardrails.nonstream.rejections``, and re-raises.
 
+        Note: the rejection also propagates through the outer
+        ``request_metrics()`` wrapper, so ``requests.errors`` and
+        ``request.duration`` fire too — covered by the dedicated
+        dual-signal test below.
+
         The queue's overflow semantics are covered in
         ``test_async_work_queue.py``; here we stub ``submit`` to raise
         directly so the test stays fast and focused on the counter wiring.
@@ -1106,6 +1111,77 @@ class TestGenerateAsyncRequestMetrics:
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.nonstream.rejections"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_queuefull_bumps_both_errors_and_nonstream_rejections(self, iorails_tracing, metric_reader):
+        """Dual-signal semantics: a ``QueueFull`` rejection is BOTH a
+        saturation signal (``nonstream.rejections``) AND a request error
+        (``requests.errors{error.type=QueueFull}``).  Dashboards can
+        count either one.  Also bumps the ``requests`` counter and
+        records into the duration histogram — the request ran through
+        the full lifecycle, even if only briefly.
+        """
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
+
+        with pytest.raises(asyncio.QueueFull):
+            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_request_duration_includes_queue_wait(self, metric_reader):
+        """``request.duration`` measures the full ``generate_async``
+        lifecycle (OTEL HTTP semconv), so the time a request spends
+        waiting in the admission queue is included.
+
+        With a single worker and two submitted requests, the second
+        request sits in the queue for the duration of the first.  The
+        histogram's aggregate sum therefore captures at least one
+        queue-wait period — if duration were worker-scope the waiting
+        request would contribute ~0 to the sum.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        block_seconds = 0.05
+
+        with (
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1),
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH", 4),
+        ):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            async with iorails:
+                iorails._do_generate = blocking_generate
+
+                tasks = [
+                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    for i in range(2)
+                ]
+                # Wait until exactly one is executing and one is queued.
+                await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=1)
+                # Hold this state for a measurable duration so the queued
+                # request accumulates queue-wait time.
+                await asyncio.sleep(block_seconds)
+                gate.set()
+                await asyncio.gather(*tasks)
+
+        # The sum of both recorded durations must exceed one block period.
+        # A worker-scope duration would sum to ~block_seconds (the first
+        # request held a worker, the second ran trivially after pickup);
+        # full-lifecycle duration also covers the queued request's wait,
+        # lifting the sum near 2×block.
+        duration_sum = collect_histogram_sum(metric_reader, "guardrails.request.duration")
+        assert duration_sum >= block_seconds * 1.5
 
     @pytest.mark.asyncio
     async def test_no_nonstream_rejections_counter_when_metrics_disabled(self, iorails_no_tracing, metric_reader):
@@ -1176,6 +1252,38 @@ class TestStreamAsyncRequestMetrics:
         # rejected stream, so the UpDownCounter never saw a +1 and emits no
         # data point (UpDownCounters only export points after first ``.add()``).
         assert "guardrails.stream.active" not in points
+
+    @pytest.mark.asyncio
+    async def test_stream_queuefull_bumps_both_errors_and_stream_rejections(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        """Streaming equivalent of the non-streaming dual-signal test: a
+        ``QueueFull`` on the semaphore check is BOTH a saturation signal
+        (``stream.rejections``) AND a request error
+        (``requests.errors{error.type=QueueFull}``)
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        acquired = 0
+        while not iorails._stream_semaphore.locked():
+            await iorails._stream_semaphore.acquire()
+            acquired += 1
+
+        try:
+            with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+                [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        finally:
+            for _ in range(acquired):
+                iorails._stream_semaphore.release()
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.stream.rejections"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
 
     @pytest.mark.asyncio
     async def test_stream_active_is_one_mid_flight(self, iorails_streaming_input_only_tracing, metric_reader):

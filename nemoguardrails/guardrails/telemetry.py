@@ -29,7 +29,7 @@ import logging
 import secrets
 import time
 import warnings
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Generator, Iterable, NamedTuple, Optional, Tuple
 
@@ -675,19 +675,17 @@ def request_metrics() -> Generator[None, None, None]:
 
 
 @contextmanager
-def traced_request(tracer: Optional["Tracer"], metrics_enabled: bool = False) -> Generator[TracedRequest, None, None]:
-    """Unified request context: sets request ID, optionally creates a span
-    and/or emits request-level metrics.
-
-    The two signals are gated **independently**:
+def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None, None]:
+    """Unified request context: sets the request ID and optionally creates
+    a ``guardrails.request`` SERVER span.
 
     * ``tracer is not None`` → a live ``guardrails.request`` SERVER span
       is created and the request ID is derived from its trace ID.
-    * ``metrics_enabled=True`` → emit request-level OTEL metrics
+    * ``tracer is None`` → a fresh request ID is generated locally.
 
-    All four combinations are valid.  Metrics-only (``tracer=None,
-    metrics_enabled=True``) is a supported setup for customers running
-    cheap SLO dashboards without full trace export.
+    Metrics are emitted separately via :func:`request_metrics` at the
+    full-lifecycle scope (around queue submission / stream semaphore
+    acquisition).
 
     Yields a :class:`TracedRequest` (``span``, ``request_id``).  Callers
     that want to mark the request span ERROR from a deeply-nested scope
@@ -700,18 +698,16 @@ def traced_request(tracer: Optional["Tracer"], metrics_enabled: bool = False) ->
     :func:`_cleanup_request_id`, which tolerates the expected
     cross-context ``ValueError`` that async-generator cleanup can raise.
     """
-    metrics_ctx = request_metrics() if metrics_enabled else nullcontext()
     if tracer is not None:
-        with metrics_ctx, request_span(tracer) as (span, req_id):
+        with request_span(tracer) as (span, req_id):
             token = _set_request_id(req_id)
             try:
                 yield TracedRequest(span, req_id)
             finally:
                 _cleanup_request_id(token)
     else:
-        with metrics_ctx:
-            token = set_new_request_id()
-            try:
-                yield TracedRequest(None, get_request_id())
-            finally:
-                _cleanup_request_id(token)
+        token = set_new_request_id()
+        try:
+            yield TracedRequest(None, get_request_id())
+        finally:
+            _cleanup_request_id(token)

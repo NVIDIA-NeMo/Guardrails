@@ -21,7 +21,6 @@ from unittest.mock import patch
 import pytest
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
-from opentelemetry.sdk.trace import TracerProvider
 
 from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -37,7 +36,6 @@ from nemoguardrails.guardrails.telemetry import (
     register_nonstream_saturation_gauges,
     request_metrics,
     stream_active_metric,
-    traced_request,
 )
 from nemoguardrails.rails.llm.config import MetricsConfig
 from nemoguardrails.tracing.constants import SystemConstants
@@ -65,13 +63,6 @@ def meter_reader():
         schema_url="https://opentelemetry.io/schemas/1.26.0",
     )
     yield reader
-
-
-@pytest.fixture
-def tracer():
-    """Provide a real Tracer (no exporter — tests here care about metrics, not spans)."""
-    provider = TracerProvider()
-    return provider.get_tracer("test")
 
 
 class TestGetMeter:
@@ -169,72 +160,6 @@ class TestRequestMetrics:
             with request_metrics():
                 pass
             # Just verify no crash; there's no reader to check against.
-
-
-class TestTracedRequestMetrics:
-    """``traced_request(tracer, metrics_enabled)`` gates the two signals
-    independently.  All four combinations exercised here.
-    """
-
-    def test_both_enabled_emits_metrics(self, meter_reader, tracer):
-        with traced_request(tracer, metrics_enabled=True):
-            pass
-        points = collect_metric_points(meter_reader)
-        assert points["guardrails.requests"][0].value == 1
-        assert points["guardrails.request.duration"][0].value == 1
-
-    def test_metrics_only_emits_metrics(self, meter_reader):
-        """tracer=None, metrics_enabled=True — the cost-optimized setup."""
-        with traced_request(None, metrics_enabled=True):
-            pass
-        points = collect_metric_points(meter_reader)
-        assert points["guardrails.requests"][0].value == 1
-        assert points["guardrails.request.duration"][0].value == 1
-
-    def test_tracing_only_emits_no_metrics(self, meter_reader, tracer):
-        """tracer!=None, metrics_enabled=False — span emits (not asserted
-        here; see span tests) but no metric data points are recorded.
-        """
-        with traced_request(tracer, metrics_enabled=False):
-            pass
-        points = collect_metric_points(meter_reader)
-        assert points == {}
-
-    def test_both_disabled_emits_nothing(self, meter_reader):
-        with traced_request(None, metrics_enabled=False):
-            pass
-        points = collect_metric_points(meter_reader)
-        assert points == {}
-
-    def test_errors_counter_on_exception_metrics_only(self, meter_reader):
-        """Exception through a metrics-only traced_request still bumps the
-        errors counter — the errors counter follows metrics_enabled, not
-        tracer presence.
-        """
-        with pytest.raises(ValueError):
-            with traced_request(None, metrics_enabled=True):
-                raise ValueError("boom")
-        points = collect_metric_points(meter_reader)
-        assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
-
-    def test_errors_counter_on_exception_both_enabled(self, meter_reader, tracer):
-        with pytest.raises(ValueError):
-            with traced_request(tracer, metrics_enabled=True):
-                raise ValueError("boom")
-        points = collect_metric_points(meter_reader)
-        assert points["guardrails.requests.errors"][0].value == 1
-        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
-
-    def test_no_errors_counter_when_metrics_disabled(self, meter_reader, tracer):
-        """Exception through tracing-only traced_request does NOT bump the
-        errors counter — metrics are off.
-        """
-        with pytest.raises(ValueError):
-            with traced_request(tracer, metrics_enabled=False):
-                raise ValueError("boom")
-        points = collect_metric_points(meter_reader)
-        assert points == {}
 
 
 class TestNoMeterProviderConfigured:
