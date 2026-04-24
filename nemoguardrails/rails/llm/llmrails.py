@@ -598,6 +598,23 @@ class LLMRails:
                 kwargs = esp_config.parameters
                 return self.embedding_search_providers[esp_config.name](**kwargs)
 
+    @staticmethod
+    def _extract_text_content(content) -> str:
+        """Normalize an OpenAI message content value to a plain string.
+
+        The OpenAI spec allows ``content`` to be either a plain string or a list
+        of content parts (e.g. ``[{"type": "text", "text": "…"}, …]``).  When a
+        list is received, extract and join all ``text`` parts so the rest of the
+        pipeline always operates on a regular string.
+        """
+        if isinstance(content, list):
+            return " ".join(
+                part.get("text", "")
+                for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+        return content if content is not None else ""
+
     def _get_events_for_messages(self, messages: List[dict], state: Any):
         """Return the list of events corresponding to the provided messages.
 
@@ -635,10 +652,11 @@ class LLMRails:
             for idx in range(p, len(messages)):
                 msg = messages[idx]
                 if msg["role"] == "user":
+                    user_text = self._extract_text_content(msg["content"])
                     events.append(
                         {
                             "type": "UtteranceUserActionFinished",
-                            "final_transcript": msg["content"],
+                            "final_transcript": user_text,
                         }
                     )
 
@@ -647,7 +665,7 @@ class LLMRails:
                         events.append(
                             {
                                 "type": "UserMessage",
-                                "text": msg["content"],
+                                "text": user_text,
                             }
                         )
 
@@ -682,7 +700,7 @@ class LLMRails:
                         user_message = None
                         for prev_msg in reversed(messages[:idx]):
                             if prev_msg["role"] == "user":
-                                user_message = prev_msg["content"]
+                                user_message = self._extract_text_content(prev_msg["content"])
                                 break
 
                         if user_message:
@@ -717,7 +735,7 @@ class LLMRails:
                     events.append(
                         {
                             "type": "UtteranceUserActionFinished",
-                            "final_transcript": msg["content"],
+                            "final_transcript": self._extract_text_content(msg["content"]),
                         }
                     )
 
