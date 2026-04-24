@@ -192,7 +192,7 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
             errors=meter.create_counter(
                 MetricNames.REQUESTS_ERRORS,
-                description="Guardrails requests that ended in an unhandled error",
+                description="Guardrails requests ending in an unhandled error",
                 unit="1",
             ),
             blocked=meter.create_counter(
@@ -223,24 +223,22 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
             requests_active=meter.create_up_down_counter(
                 MetricNames.REQUESTS_ACTIVE,
-                description=(
-                    "Guardrails requests currently in flight (aggregate across admission queue, workers, and streams)"
-                ),
+                description=("Guardrails requests currently in flight"),
                 unit="1",
             ),
             nonstream_rejections=meter.create_counter(
                 MetricNames.NONSTREAM_REJECTIONS,
-                description="Non-streaming requests rejected because the admission queue was full",
+                description="Count of rejected non-streaming requests (because the queue was full)",
                 unit="1",
             ),
             stream_active=meter.create_up_down_counter(
                 MetricNames.STREAM_ACTIVE,
-                description="Streaming requests currently holding a concurrency permit",
+                description="Count of streaming requests currently in-progress",
                 unit="1",
             ),
             stream_rejections=meter.create_counter(
                 MetricNames.STREAM_REJECTIONS,
-                description="Streaming requests rejected because the concurrency limit was reached",
+                description="Count of streaming requests rejected due to concurrency limit",
                 unit="1",
             ),
         )
@@ -294,13 +292,13 @@ def register_nonstream_saturation_gauges(
     meter.create_observable_gauge(
         MetricNames.NONSTREAM_QUEUED,
         callbacks=[_queued_callback],
-        description="Non-streaming requests buffered, not actively executing on a workernot yet picked up by a worker",
+        description="Count of non-streaming requests pending in the queue",
         unit="1",
     )
     meter.create_observable_gauge(
         MetricNames.NONSTREAM_ACTIVE,
         callbacks=[_active_callback],
-        description="Non-streaming requests currently executing on a worker",
+        description="Count of non-streaming requests actively running",
         unit="1",
     )
 
