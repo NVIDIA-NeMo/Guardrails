@@ -309,6 +309,38 @@ To the best of our knowledge, NeMo Guardrails is the only guardrails toolkit tha
 - [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
 - [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
 
+## Telemetry
+
+NeMo Guardrails collects anonymous telemetry to help us understand which deployment patterns and safety features are most used. This is an instance-level census (what was deployed, once at startup). It is **separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html)**: tracing that you configure in your guardrails config goes to your own observability backend, whereas this telemetry is a minimal anonymous ping to NVIDIA.
+
+We collect:
+
+- Installed NeMo Guardrails version, Python version, operating system, and platform string
+- Colang language version in use (1.0 or 2.x)
+- Names of LLM engine providers configured (e.g. `openai`, `nim`, `nvidia_ai_endpoints`), never model names or credentials
+- Counts of configured rail flows and which rail categories are active (input, output, retrieval, tool_input, tool_output, dialog)
+- Names of built-in library features that are active (e.g. `jailbreak_detection`, `content_safety`, `topic_safety`)
+- Count of user-defined Colang flows (count only, never flow names or contents)
+- Whether tracing, streaming, or a knowledge base is configured
+- Which rails engine is in use (`LLMRails` or `IORails`)
+- A random per-process UUID for correlating events from the same instance
+
+**No user content is collected.** This includes no model names, API keys, endpoints, prompts, completions, token counts, per-request metrics, file paths, usernames, or IP addresses. This data is not used to track any individual user. It is used in aggregate to prioritize engineering work and share adoption trends with the community.
+
+Every outgoing payload is also written to a local audit file at `~/.config/nemoguardrails/usage_stats.json` so you can inspect exactly what was sent.
+
+To disable telemetry, any one of the following works:
+
+```bash
+export NEMO_GUARDRAILS_NO_USAGE_STATS=1
+# or
+export DO_NOT_TRACK=1
+# or
+mkdir -p ~/.config/nemoguardrails && touch ~/.config/nemoguardrails/do_not_track
+```
+
+See [docs/telemetry.md](./docs/telemetry.md) for the full schema and field-by-field descriptions.
+
 ## Inviting the community to contribute
 
 The example rails residing in the repository are excellent starting points. We enthusiastically invite the community to contribute towards making the power of trustworthy, safe, and secure LLMs accessible to everyone. For guidance on setting up a development environment and how to contribute to NeMo Guardrails, see the [contributing guidelines](./CONTRIBUTING.md).
