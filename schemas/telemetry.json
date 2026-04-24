@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Anonymous telemetry schema for NeMo Guardrails.",
+  "schemaMeta": {
+    "clientName": "NeMoGuardrails",
+    "schemaVersion": "1.0",
+    "definitionVersion": "1.0",
+    "clientId": "<assigned by SMS>",
+    "personalization": ""
+  },
+  "definitions": {
+    "types": {
+      "ContextEnum": {
+        "enum": [
+          "embedded",
+          "server",
+          "undefined"
+        ],
+        "type": "string"
+      },
+      "EventTypeEnum": {
+        "enum": [
+          "startup",
+          "heartbeat"
+        ],
+        "type": "string"
+      },
+      "RailsEngineEnum": {
+        "enum": [
+          "LLMRails",
+          "IORails",
+          "undefined"
+        ],
+        "type": "string"
+      }
+    },
+    "events": {
+      "guardrails_usage_event": {
+        "description": "Instance-level usage census event emitted at startup and as heartbeats by NeMo Guardrails. Contains no user content, model names, or request-level data.",
+        "eventMeta": {
+          "service": "telemetry",
+          "gdpr": {
+            "category": "functional",
+            "desc": "Technical metadata describing the guardrails deployment (version, platform, active features). No user content or request-level data."
+          }
+        },
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "description": "Random UUID4 per process. Not traceable to any user or machine.",
+            "type": "string"
+          },
+          "nemoguardrailsVersion": {
+            "default": "unknown",
+            "description": "Installed package version (e.g. \"0.21.0\"). \"unknown\" if unavailable.",
+            "type": "string"
+          },
+          "pythonVersion": {
+            "default": "unknown",
+            "description": "Python interpreter version (e.g. \"3.13.7\").",
+            "type": "string"
+          },
+          "platform": {
+            "default": "unknown",
+            "description": "OS and architecture string (e.g. \"Linux-5.15.0-x86_64-with-glibc2.35\").",
+            "type": "string"
+          },
+          "osName": {
+            "default": "unknown",
+            "description": "Operating system name (e.g. \"Darwin\", \"Linux\", \"Windows\").",
+            "type": "string"
+          },
+          "colangVersion": {
+            "default": "unknown",
+            "description": "Colang version in use. Values: \"1.0\", \"2.x\", or \"unknown\" if no config.",
+            "type": "string"
+          },
+          "llmProviders": {
+            "description": "LLM engine names, sorted (e.g. [\"nim\", \"openai\"]). Engine identifiers, not model names.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "numRailsConfigured": {
+            "default": 0,
+            "description": "Total count of configured rail flows across all rail types.",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "railTypesInUse": {
+            "description": "Active rail categories. Possible values: input, output, retrieval, tool_input, tool_output, dialog.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tracingEnabled": {
+            "default": false,
+            "description": "Whether the tracing subsystem is enabled.",
+            "type": "boolean"
+          },
+          "context": {
+            "$ref": "#/definitions/types/ContextEnum",
+            "default": "undefined",
+            "description": "How guardrails was started. \"embedded\" via LLMRails, \"server\" via FastAPI."
+          },
+          "railsEngine": {
+            "$ref": "#/definitions/types/RailsEngineEnum",
+            "default": "undefined",
+            "description": "Which rails engine class is in use. \"LLMRails\" or \"IORails\"."
+          },
+          "hasKnowledgeBase": {
+            "default": false,
+            "description": "Whether a knowledge base (document set) is configured.",
+            "type": "boolean"
+          },
+          "streamingConfigured": {
+            "default": false,
+            "description": "Whether streaming output is enabled.",
+            "type": "boolean"
+          },
+          "builtinFeatures": {
+            "description": "Active built-in library features, sorted. Only our feature names, never user-defined.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "numCustomFlows": {
+            "default": 0,
+            "description": "Count of user-defined Colang flows. Indicates dialog/topical rail usage without exposing names.",
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "timestamp": {
+            "default": 0.0,
+            "description": "Unix timestamp (seconds since epoch) when data was collected.",
+            "type": "number"
+          },
+          "event": {
+            "$ref": "#/definitions/types/EventTypeEnum",
+            "default": "startup",
+            "description": "Event type. startup for initial report, heartbeat for periodic pings."
+          },
+          "nemoSource": {
+            "type": "string",
+            "description": "The NeMo product that created the event. Always \"guardrails\".",
+            "enum": [
+              "guardrails"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "uuid",
+          "nemoguardrailsVersion",
+          "pythonVersion",
+          "platform",
+          "osName",
+          "colangVersion",
+          "llmProviders",
+          "numRailsConfigured",
+          "railTypesInUse",
+          "tracingEnabled",
+          "context",
+          "railsEngine",
+          "hasKnowledgeBase",
+          "streamingConfigured",
+          "builtinFeatures",
+          "numCustomFlows",
+          "timestamp",
+          "event",
+          "nemoSource"
+        ]
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/definitions/events/guardrails_usage_event"
+    }
+  ]
+}
