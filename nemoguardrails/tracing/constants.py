@@ -167,7 +167,17 @@ class MetricNames:
     REQUESTS = "guardrails.requests"
     REQUESTS_ERRORS = "guardrails.requests.errors"
     REQUESTS_BLOCKED = "guardrails.requests.blocked"
+    REQUESTS_ACTIVE = "guardrails.requests.active"
     REQUEST_DURATION = "guardrails.request.duration"
+
+    # Non-streaming (AsyncWorkQueue) saturation signals
+    NONSTREAM_QUEUED = "guardrails.nonstream.queued"
+    NONSTREAM_ACTIVE = "guardrails.nonstream.active"
+    NONSTREAM_REJECTIONS = "guardrails.nonstream.rejections"
+
+    # Streaming (semaphore) saturation signals
+    STREAM_ACTIVE = "guardrails.stream.active"
+    STREAM_REJECTIONS = "guardrails.stream.rejections"
 
 
 class OperationNames:

@@ -57,7 +57,7 @@ _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
-    from opentelemetry.metrics import Counter, Histogram, Meter
+    from opentelemetry.metrics import Counter, Histogram, Meter, UpDownCounter
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
     from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
@@ -122,16 +122,26 @@ class RequestInstruments:
     """Request-level OTEL instruments for the IORails engine.
 
     Field names mirror the emitted metric names (minus the ``guardrails.``
-    prefix): ``requests`` → ``guardrails.requests``, ``errors`` →
-    ``guardrails.requests.errors``, ``blocked`` →
-    ``guardrails.requests.blocked``, ``duration`` →
-    ``guardrails.request.duration``.
+    prefix).  The saturation-metric group covers the full request lifecycle:
+
+    * Aggregate: ``requests_active`` (``guardrails.requests.active``)
+    * Non-streaming path: ``nonstream_rejections``
+      (``guardrails.nonstream.rejections``); the two gauges
+      ``nonstream.queued`` and ``nonstream.active`` are registered
+      separately via ``register_nonstream_saturation_gauges`` because
+      ObservableGauges need a live queue reference.
+    * Streaming path: ``stream_active`` (``guardrails.stream.active``)
+      and ``stream_rejections`` (``guardrails.stream.rejections``).
     """
 
     requests: "Counter"
     errors: "Counter"
     blocked: "Counter"
     duration: "Histogram"
+    requests_active: "UpDownCounter"
+    nonstream_rejections: "Counter"
+    stream_active: "UpDownCounter"
+    stream_rejections: "Counter"
 
 
 def get_meter() -> Optional["Meter"]:
@@ -208,6 +218,28 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
                     7.5,
                     10.0,
                 ],
+            ),
+            requests_active=meter.create_up_down_counter(
+                MetricNames.REQUESTS_ACTIVE,
+                description=(
+                    "Guardrails requests currently in flight (aggregate across admission queue, workers, and streams)"
+                ),
+                unit="1",
+            ),
+            nonstream_rejections=meter.create_counter(
+                MetricNames.NONSTREAM_REJECTIONS,
+                description="Non-streaming requests rejected because the admission queue was full",
+                unit="1",
+            ),
+            stream_active=meter.create_up_down_counter(
+                MetricNames.STREAM_ACTIVE,
+                description="Streaming requests currently holding a concurrency permit",
+                unit="1",
+            ),
+            stream_rejections=meter.create_counter(
+                MetricNames.STREAM_REJECTIONS,
+                description="Streaming requests rejected because the concurrency limit was reached",
+                unit="1",
             ),
         )
     return _request_instruments

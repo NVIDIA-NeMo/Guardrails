@@ -85,12 +85,19 @@ class TestGetMeter:
 
 
 class TestEnsureRequestInstruments:
-    def test_creates_three_instruments(self, meter_reader):
+    def test_creates_all_instruments(self, meter_reader):
         result = _ensure_request_instruments()
         assert result is not None
+        # Core request-level metrics
         assert result.requests is not None
         assert result.errors is not None
+        assert result.blocked is not None
         assert result.duration is not None
+        # Saturation metrics
+        assert result.requests_active is not None
+        assert result.nonstream_rejections is not None
+        assert result.stream_active is not None
+        assert result.stream_rejections is not None
 
     def test_returns_same_instruments_on_second_call(self, meter_reader):
         first = _ensure_request_instruments()
