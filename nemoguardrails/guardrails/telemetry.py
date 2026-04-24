@@ -228,17 +228,17 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
             nonstream_rejections=meter.create_counter(
                 MetricNames.NONSTREAM_REJECTIONS,
-                description="Count of rejected non-streaming requests (because the queue was full)",
+                description="Rejected non-streaming requests",
                 unit="1",
             ),
             stream_active=meter.create_up_down_counter(
                 MetricNames.STREAM_ACTIVE,
-                description="Count of streaming requests currently in-progress",
+                description="In-progress streaming requests",
                 unit="1",
             ),
             stream_rejections=meter.create_counter(
                 MetricNames.STREAM_REJECTIONS,
-                description="Count of streaming requests rejected due to concurrency limit",
+                description="Rejected streaming requests",
                 unit="1",
             ),
         )
@@ -292,13 +292,13 @@ def register_nonstream_saturation_gauges(
     meter.create_observable_gauge(
         MetricNames.NONSTREAM_QUEUED,
         callbacks=[_queued_callback],
-        description="Count of non-streaming requests pending in the queue",
+        description="Non-streaming requests buffered in the admission queue",
         unit="1",
     )
     meter.create_observable_gauge(
         MetricNames.NONSTREAM_ACTIVE,
         callbacks=[_active_callback],
-        description="Count of non-streaming requests actively running",
+        description="Non-streaming requests currently executing on a worker",
         unit="1",
     )
 
