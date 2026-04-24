@@ -141,6 +141,10 @@ async def lifespan(app: GuardrailsApp):
         async def root_handler():
             return {"status": "ok"}
 
+    from nemoguardrails.telemetry import report_usage
+
+    report_usage(None, context="server")
+
     if app.auto_reload:
         app.loop = asyncio.get_running_loop()
         # Store the future directly as task

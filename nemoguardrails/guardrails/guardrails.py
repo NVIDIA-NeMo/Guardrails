@@ -73,6 +73,11 @@ class Guardrails:
         use_iorails_engine = use_iorails and self._has_only_iorails_flows()
         self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
 
+        if use_iorails_engine:
+            from nemoguardrails.telemetry import report_usage
+
+            report_usage(config, context="embedded", rails_engine="IORails")
+
         # Async work queue for managing concurrent generate_async requests
         self._generate_async_queue: AsyncWorkQueue = AsyncWorkQueue(
             name="generate_async_queue",
