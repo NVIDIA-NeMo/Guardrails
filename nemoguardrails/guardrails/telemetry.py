@@ -556,6 +556,19 @@ def record_stream_rejected() -> None:
     instruments.stream_rejections.add(1)
 
 
+def record_nonstream_rejected() -> None:
+    """Increment ``guardrails.nonstream.rejections`` by 1.
+
+    Called from the non-streaming path when the admission queue rejects a
+    submission with ``asyncio.QueueFull`` (the queue's ``reject_on_full``
+    behaviour, triggered when ``NONSTREAM_QUEUE_DEPTH`` is exceeded).
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.nonstream_rejections.add(1)
+
+
 @contextmanager
 def stream_active_metric() -> Generator[None, None, None]:
     """Context manager that tracks a stream as active for its full lifetime.

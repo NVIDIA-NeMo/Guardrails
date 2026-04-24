@@ -28,6 +28,7 @@ from nemoguardrails.guardrails.telemetry import (
     _ensure_request_instruments,
     are_metrics_enabled,
     get_meter,
+    record_nonstream_rejected,
     record_request_blocked,
     record_request_error,
     record_stream_rejected,
@@ -338,6 +339,21 @@ class TestRecordStreamRejected:
             telemetry._meter = None
             telemetry._request_instruments = None
             record_stream_rejected()  # must not raise
+
+
+class TestRecordNonstreamRejected:
+    def test_increments_counter(self, meter_reader):
+        record_nonstream_rejected()
+        record_nonstream_rejected()
+        record_nonstream_rejected()
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 3
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._request_instruments = None
+            record_nonstream_rejected()  # must not raise
 
 
 class TestStreamActiveMetric:

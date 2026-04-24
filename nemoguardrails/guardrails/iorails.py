@@ -43,6 +43,7 @@ from nemoguardrails.guardrails.telemetry import (
     are_metrics_enabled,
     get_tracer,
     is_tracing_enabled,
+    record_nonstream_rejected,
     record_request_blocked,
     record_request_error,
     record_span_error,
@@ -181,10 +182,16 @@ class IORails:
         The queue enforces non-streaming concurrency limits
         (``NONSTREAM_MAX_CONCURRENCY`` workers draining up to
         ``NONSTREAM_QUEUE_DEPTH`` pending items).  Callers receive
-        ``asyncio.QueueFull`` when the admission buffer is full.
+        ``asyncio.QueueFull`` when the admission buffer is full and
+        ``guardrails.nonstream.rejections`` increments if metrics are enabled
         """
         await self.start()
-        return await self._generate_async_queue.submit(self._run_generate, messages, **kwargs)
+        try:
+            return await self._generate_async_queue.submit(self._run_generate, messages, **kwargs)
+        except asyncio.QueueFull:
+            if self._metrics_enabled:
+                record_nonstream_rejected()
+            raise
 
     async def _run_generate(self, messages: LLMMessages, **kwargs) -> LLMMessage:
         """Runs inside a queue worker task.  Wraps the pipeline in

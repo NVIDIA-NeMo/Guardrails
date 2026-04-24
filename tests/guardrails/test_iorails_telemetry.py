@@ -1087,6 +1087,39 @@ class TestGenerateAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points == {}
 
+    @pytest.mark.asyncio
+    async def test_nonstream_rejections_counter_on_queue_full(self, iorails_tracing, metric_reader):
+        """When the admission queue raises ``asyncio.QueueFull``,
+        ``generate_async`` catches the exception, increments
+        ``guardrails.nonstream.rejections``, and re-raises.
+
+        The queue's overflow semantics are covered in
+        ``test_async_work_queue.py``; here we stub ``submit`` to raise
+        directly so the test stays fast and focused on the counter wiring.
+        """
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
+
+        with pytest.raises(asyncio.QueueFull, match="admission queue full"):
+            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_no_nonstream_rejections_counter_when_metrics_disabled(self, iorails_no_tracing, metric_reader):
+        """Metrics disabled → even a QueueFull raise doesn't emit the counter."""
+        _stub_safe_pipeline(iorails_no_tracing)
+        iorails_no_tracing._generate_async_queue.submit = AsyncMock(
+            side_effect=asyncio.QueueFull("admission queue full")
+        )
+
+        with pytest.raises(asyncio.QueueFull):
+            await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert "guardrails.nonstream.rejections" not in points
+
 
 class TestStreamAsyncRequestMetrics:
     """Streaming path also emits request-level metrics via the shared
