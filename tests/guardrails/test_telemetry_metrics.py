@@ -30,7 +30,9 @@ from nemoguardrails.guardrails.telemetry import (
     get_meter,
     record_request_blocked,
     record_request_error,
+    record_stream_rejected,
     request_metrics,
+    stream_active_metric,
     traced_request,
 )
 from nemoguardrails.rails.llm.config import MetricsConfig
@@ -322,3 +324,50 @@ class TestAreMetricsEnabled:
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             with pytest.warns(UserWarning, match="opentelemetry-api package is not installed"):
                 assert are_metrics_enabled(MetricsConfig(enabled=True)) is False
+
+
+class TestRecordStreamRejected:
+    def test_increments_counter(self, meter_reader):
+        record_stream_rejected()
+        record_stream_rejected()
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.stream.rejections"][0].value == 2
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._request_instruments = None
+            record_stream_rejected()  # must not raise
+
+
+class TestStreamActiveMetric:
+    def test_nets_to_zero_after_completed_scope(self, meter_reader):
+        """UpDownCounter +1 on enter, -1 on exit → net 0 for a completed scope."""
+        with stream_active_metric():
+            pass
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.stream.active"][0].value == 0
+
+    def test_nets_to_zero_after_exception(self, meter_reader):
+        """Exception path still decrements — -1 lives in ``finally``."""
+        with pytest.raises(ValueError):
+            with stream_active_metric():
+                raise ValueError("boom")
+        points = collect_metric_points(meter_reader)
+        assert points["guardrails.stream.active"][0].value == 0
+
+    def test_reflects_concurrent_streams_mid_flight(self, meter_reader):
+        """Observe mid-flight: two overlapping streams → counter reads 2."""
+        with stream_active_metric():
+            with stream_active_metric():
+                mid = collect_metric_points(meter_reader)
+                assert mid["guardrails.stream.active"][0].value == 2
+        final = collect_metric_points(meter_reader)
+        assert final["guardrails.stream.active"][0].value == 0
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._request_instruments = None
+            with stream_active_metric():
+                pass  # must not raise

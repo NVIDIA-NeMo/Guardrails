@@ -25,7 +25,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import suppress
+from contextlib import nullcontext, suppress
 from typing import Optional, Union
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
@@ -46,6 +46,8 @@ from nemoguardrails.guardrails.telemetry import (
     record_request_blocked,
     record_request_error,
     record_span_error,
+    record_stream_rejected,
+    stream_active_metric,
     traced_request,
 )
 from nemoguardrails.llm.taskmanager import LLMTaskManager
@@ -368,47 +370,54 @@ class IORails:
             # is no await between the check and acquire(), no other coroutine can
             # interleave in asyncio's cooperative model, so this is race-free.
             if self._stream_semaphore.locked():
+                if self._metrics_enabled:
+                    record_stream_rejected()
                 raise asyncio.QueueFull("Streaming concurrency limit reached")
             await self._stream_semaphore.acquire()
 
             tracer = self._tracer if self._tracing_enabled else None
+            # Track this stream as active while it holds the semaphore
+            # permit; the CM decrements in its finally, just before the
+            # outer ``semaphore.release()`` below.
+            stream_active_ctx = stream_active_metric() if self._metrics_enabled else nullcontext()
             try:
-                # traced_request is entered inside the async generator so the
-                # request span is the current OTEL context when create_task()
-                # below snapshots contextvars — that's what makes rail / LLM
-                # spans raised inside _generation_task attach as children.
-                with traced_request(tracer, self._metrics_enabled) as (request_span, req_id):
-                    t0 = time.monotonic()
-                    try:
-                        log.info("[%s] stream_async called", req_id)
-                        log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
-
-                        task = asyncio.create_task(_generation_task(request_span))
+                with stream_active_ctx:
+                    # traced_request is entered inside the async generator so the
+                    # request span is the current OTEL context when create_task()
+                    # below snapshots contextvars — that's what makes rail / LLM
+                    # spans raised inside _generation_task attach as children.
+                    with traced_request(tracer, self._metrics_enabled) as (request_span, req_id):
+                        t0 = time.monotonic()
                         try:
-                            # Determine base iterator: with or without output rails
-                            if self._has_streaming_output_rails:
-                                base_iterator = self._run_output_rails_in_streaming(
-                                    streaming_handler=streaming_handler,
-                                    messages=messages,
-                                )
-                            else:
-                                base_iterator = streaming_handler
+                            log.info("[%s] stream_async called", req_id)
+                            log.debug("[%s] stream_async messages=%s", req_id, truncate(messages))
 
-                            async for chunk in base_iterator:
-                                if chunk is not None:
-                                    yield chunk
+                            task = asyncio.create_task(_generation_task(request_span))
+                            try:
+                                # Determine base iterator: with or without output rails
+                                if self._has_streaming_output_rails:
+                                    base_iterator = self._run_output_rails_in_streaming(
+                                        streaming_handler=streaming_handler,
+                                        messages=messages,
+                                    )
+                                else:
+                                    base_iterator = streaming_handler
+
+                                async for chunk in base_iterator:
+                                    if chunk is not None:
+                                        yield chunk
+                            finally:
+                                if not task.done():
+                                    task.cancel()
+                                with suppress(asyncio.CancelledError):
+                                    await task
+                        except Exception:
+                            elapsed_ms = (time.monotonic() - t0) * 1000
+                            log.error("[%s] stream_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
+                            raise
                         finally:
-                            if not task.done():
-                                task.cancel()
-                            with suppress(asyncio.CancelledError):
-                                await task
-                    except Exception:
-                        elapsed_ms = (time.monotonic() - t0) * 1000
-                        log.error("[%s] stream_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
-                        raise
-                    finally:
-                        elapsed_ms = (time.monotonic() - t0) * 1000
-                        log.info("[%s] stream_async completed time=%.1fms", req_id, elapsed_ms)
+                            elapsed_ms = (time.monotonic() - t0) * 1000
+                            log.info("[%s] stream_async completed time=%.1fms", req_id, elapsed_ms)
             finally:
                 self._stream_semaphore.release()
 

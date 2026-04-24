@@ -1105,6 +1105,120 @@ class TestStreamAsyncRequestMetrics:
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
         assert "guardrails.requests.errors" not in points
+        # Saturation: stream.active nets to 0 after the stream completes;
+        # stream.rejections never fires on the happy path.
+        assert points["guardrails.stream.active"][0].value == 0
+        assert "guardrails.stream.rejections" not in points
+
+    @pytest.mark.asyncio
+    async def test_stream_rejections_counter_on_semaphore_full(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        """A stream that arrives while the semaphore is fully occupied is
+        rejected with ``asyncio.QueueFull`` and the ``stream.rejections``
+        counter increments.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        # Acquire all the available semaphores (any more requests should be rejected)
+        acquired = 0
+        while not iorails._stream_semaphore.locked():
+            await iorails._stream_semaphore.acquire()
+            acquired += 1
+
+        # Make a `stream_async()` call with no sempohores left to use
+        try:
+            with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+                [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        finally:
+            for _ in range(acquired):
+                iorails._stream_semaphore.release()
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.stream.rejections"][0].value == 1
+        # Active counter untouched — the semaphore was never acquired by the
+        # rejected stream, so the UpDownCounter never saw a +1 and emits no
+        # data point (UpDownCounters only export points after first ``.add()``).
+        assert "guardrails.stream.active" not in points
+
+    @pytest.mark.asyncio
+    async def test_stream_active_is_one_mid_flight(self, iorails_streaming_input_only_tracing, metric_reader):
+        """Observe the UpDownCounter mid-flight: after the first chunk is
+        pulled (semaphore acquired, stream body running), ``stream.active``
+        reads 1; after the iterator is consumed, it reads 0.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
+
+        # Before any chunk is pulled, nothing has touched the UpDownCounter
+        # yet, so no data point is emitted (semantically equivalent to 0).
+        before = collect_metric_points(metric_reader)
+        assert "guardrails.stream.active" not in before
+
+        # During: pull the first chunk → semaphore acquired, counter at +1.
+        first = await iterator.__anext__()
+        assert first == "Hello"
+        mid = collect_metric_points(metric_reader)
+        assert mid["guardrails.stream.active"][0].value == 1
+
+        # Drain the rest.
+        rest = [c async for c in iterator]
+        assert rest == [" ", "world"]
+
+        # After: counter back to 0 (net of +1 / -1).
+        final = collect_metric_points(metric_reader)
+        assert final["guardrails.stream.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_stream_active_nets_to_zero_on_stream_failure(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        """Even when the LLM raises mid-stream, ``stream.active`` decrements
+        on exit — the ``stream_active_metric`` context manager's ``finally``
+        guarantees the -1.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # Stream failure was converted to an error-payload chunk.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.stream.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_no_stream_saturation_metrics_when_metrics_disabled(
+        self, iorails_streaming_no_tracing, metric_reader
+    ):
+        """Tracing + metrics disabled → ``stream.active`` and
+        ``stream.rejections`` don't emit, even on rejection path.
+        """
+        iorails = iorails_streaming_no_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        # Drain permits so the next stream is rejected.
+        acquired = 0
+        while not iorails._stream_semaphore.locked():
+            await iorails._stream_semaphore.acquire()
+            acquired += 1
+
+        try:
+            with pytest.raises(asyncio.QueueFull):
+                [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        finally:
+            for _ in range(acquired):
+                iorails._stream_semaphore.release()
+
+        points = collect_metric_points(metric_reader)
+        assert "guardrails.stream.active" not in points
+        assert "guardrails.stream.rejections" not in points
 
     @pytest.mark.asyncio
     async def test_emits_errors_counter_on_stream_failure(self, iorails_streaming_input_only_tracing, metric_reader):

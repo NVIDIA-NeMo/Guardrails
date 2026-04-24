@@ -544,6 +544,37 @@ def record_request_error(exc: BaseException) -> None:
     instruments.errors.add(1, attributes={"error.type": type(exc).__name__})
 
 
+def record_stream_rejected() -> None:
+    """Increment ``guardrails.stream.rejections`` by 1.
+
+    Called from the streaming path when a request arrives while the stream
+    concurrency semaphore is fully occupied (``_stream_semaphore.locked()``).
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.stream_rejections.add(1)
+
+
+@contextmanager
+def stream_active_metric() -> Generator[None, None, None]:
+    """Context manager that tracks a stream as active for its full lifetime.
+
+    ``+1`` on enter / ``-1`` on exit (``finally``) on
+    ``guardrails.stream.active`` (UpDownCounter).  No-op when metrics are
+    unavailable.  Wrap the block where the stream holds a semaphore permit.
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        yield
+        return
+    instruments.stream_active.add(1)
+    try:
+        yield
+    finally:
+        instruments.stream_active.add(-1)
+
+
 @contextmanager
 def request_metrics() -> Generator[None, None, None]:
     """Emit request-level OTEL metrics around the wrapped block.
