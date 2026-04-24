@@ -826,7 +826,7 @@ class LLMRails:
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate a completion or a next message.
 
-        The format for messages is the following::
+        The format for messages is the following:
 
         .. code-block:: python
 
@@ -1427,7 +1427,7 @@ class LLMRails:
     ) -> List[dict]:
         """Generate the next events based on the provided history.
 
-        The format for events is the following::
+        The format for events is the following:
 
         .. code-block:: python
 
