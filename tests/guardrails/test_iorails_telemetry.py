@@ -21,6 +21,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
@@ -86,26 +87,31 @@ def tracer_from_provider(exporter):
     return provider.get_tracer("test")
 
 
-@pytest.fixture
-def iorails_tracing(tracer_from_provider):
+@pytest_asyncio.fixture
+async def iorails_tracing(tracer_from_provider):
     """IORails instance with tracing enabled, using a test tracer.
 
     Patches the module-level ``_tracer`` before constructing IORails so that
     ``IORails.__init__`` picks up the test tracer via ``get_tracer()`` and
     threads it through EngineRegistry/RailsManager/RailAction constructors.
+    The ``async with`` block starts and stops the IORails-owned worker
+    queue so no asyncio tasks leak past the test's event loop.
     """
     with patch.object(telemetry, "_tracer", tracer_from_provider):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             config = RailsConfig.from_content(config=_make_tracing_config())
             iorails = IORails(config)
-        yield iorails
+        async with iorails:
+            yield iorails
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails_no_tracing():
+@pytest_asyncio.fixture
+async def iorails_no_tracing():
     """IORails instance with default config (tracing disabled)."""
-    return IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+    async with iorails:
+        yield iorails
 
 
 class TestGenerateAsyncWithTracing:
@@ -655,9 +661,9 @@ class TestSpanHierarchy:
                 # tracing NOT enabled in this config
                 iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
 
-            _stub_deep_pipeline(iorails)
-
-            await iorails.generate_async([{"role": "user", "content": "hi"}])
+            async with iorails:
+                _stub_deep_pipeline(iorails)
+                await iorails.generate_async([{"role": "user", "content": "hi"}])
 
         # Zero spans of any kind
         assert exporter.get_finished_spans() == ()
@@ -743,31 +749,35 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
             engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
 
-@pytest.fixture
-def iorails_streaming_input_only_tracing(tracer_from_provider):
+@pytest_asyncio.fixture
+async def iorails_streaming_input_only_tracing(tracer_from_provider):
     """Input-rails only + streaming + tracing enabled."""
     with patch.object(telemetry, "_tracer", tracer_from_provider):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             config = RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_TRACING_CONFIG)
             iorails = IORails(config)
-        yield iorails
+        async with iorails:
+            yield iorails
 
 
-@pytest.fixture
-def iorails_streaming_output_tracing(tracer_from_provider):
+@pytest_asyncio.fixture
+async def iorails_streaming_output_tracing(tracer_from_provider):
     """Full input+output streaming + tracing enabled."""
     with patch.object(telemetry, "_tracer", tracer_from_provider):
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             config = RailsConfig.from_content(config=_make_output_streaming_tracing_config())
             iorails = IORails(config)
-        yield iorails
+        async with iorails:
+            yield iorails
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails_streaming_no_tracing():
+@pytest_asyncio.fixture
+async def iorails_streaming_no_tracing():
     """Input-rails only + streaming + tracing disabled."""
-    return IORails(RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_NO_TRACING_CONFIG))
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_NO_TRACING_CONFIG))
+    async with iorails:
+        yield iorails
 
 
 class TestStreamAsyncSpanHierarchy:
@@ -936,25 +946,26 @@ class TestStreamAsyncSpanHierarchy:
             # Tracing NOT enabled in the IORails config.
             iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_STREAMING_NO_TRACING_CONFIG))
 
-        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+        async with iorails:
+            _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
 
-        # Open an ambient span as the host application would.
-        with tracer_from_provider.start_as_current_span("host.ambient") as ambient_span:
-            chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+            # Open an ambient span as the host application would.
+            with tracer_from_provider.start_as_current_span("host.ambient") as ambient_span:
+                chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
-        # Stream failure was still converted to an error payload for the consumer.
-        assert any(c.startswith('{"error"') for c in chunks)
+            # Stream failure was still converted to an error payload for the consumer.
+            assert any(c.startswith('{"error"') for c in chunks)
 
-        spans = exporter.get_finished_spans()
+            spans = exporter.get_finished_spans()
 
-        # Exactly one span exported — the ambient host span. No guardrails spans
-        # (tracing off) and no orphaned child spans.
-        assert len(spans) == 1
-        assert spans[0].name == "host.ambient"
-        assert spans[0].context.span_id == ambient_span.context.span_id
+            # Exactly one span exported — the ambient host span. No guardrails spans
+            # (tracing off) and no orphaned child spans.
+            assert len(spans) == 1
+            assert spans[0].name == "host.ambient"
+            assert spans[0].context.span_id == ambient_span.context.span_id
 
-        # Ambient span was NOT polluted by the streaming failure.
-        assert spans[0].status.status_code == StatusCode.UNSET
+            # Ambient span was NOT polluted by the streaming failure.
+            assert spans[0].status.status_code == StatusCode.UNSET
         assert "error.type" not in dict(spans[0].attributes)
         assert [e for e in spans[0].events if e.name == "exception"] == []
 
@@ -969,13 +980,14 @@ class TestOtelNotInstalled:
                 config = RailsConfig.from_content(config=_make_tracing_config())
                 iorails = IORails(config)
 
-            _stub_safe_pipeline(iorails)
+            async with iorails:
+                _stub_safe_pipeline(iorails)
 
-            result = await iorails.generate_async([{"role": "user", "content": "hi"}])
+                result = await iorails.generate_async([{"role": "user", "content": "hi"}])
 
-            assert result == {"role": "assistant", "content": "Hello"}
-            assert iorails._tracing_enabled is False
-            assert len(exporter.get_finished_spans()) == 0
+                assert result == {"role": "assistant", "content": "Hello"}
+                assert iorails._tracing_enabled is False
+                assert len(exporter.get_finished_spans()) == 0
 
 
 @pytest.fixture
@@ -1169,17 +1181,18 @@ class TestStreamAsyncRequestMetrics:
         # No tracing.enabled=True → guardrails tracing/metrics disabled.
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             iorails = IORails(RailsConfig.from_content(config=cfg))
-        _stub_deep_streaming_pipeline(iorails)
-        iorails.rails_manager.is_output_safe = AsyncMock(
-            return_value=RailResult(is_safe=False, reason="unsafe response")
-        )
+        async with iorails:
+            _stub_deep_streaming_pipeline(iorails)
+            iorails.rails_manager.is_output_safe = AsyncMock(
+                return_value=RailResult(is_safe=False, reason="unsafe response")
+            )
 
-        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
-        # Block still works — customer-visible behavior unchanged.
-        assert any(c.startswith('{"error"') for c in chunks)
+            chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+            # Block still works — customer-visible behavior unchanged.
+            assert any(c.startswith('{"error"') for c in chunks)
 
-        points = collect_metric_points(metric_reader)
-        assert points == {}
+            points = collect_metric_points(metric_reader)
+            assert points == {}
 
     @pytest.mark.asyncio
     async def test_emits_no_metrics_on_stream_failure_when_tracing_disabled(
@@ -1225,9 +1238,9 @@ class TestIndependentTracingAndMetrics:
         with patch.object(telemetry, "_tracer", None):
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
-            _stub_safe_pipeline(iorails)
-
-            await iorails.generate_async([{"role": "user", "content": "hi"}])
+            async with iorails:
+                _stub_safe_pipeline(iorails)
+                await iorails.generate_async([{"role": "user", "content": "hi"}])
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.requests"][0].value == 1
@@ -1242,9 +1255,9 @@ class TestIndependentTracingAndMetrics:
         with patch.object(telemetry, "_tracer", tracer_from_provider):
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=_make_tracing_only_config()))
-            _stub_safe_pipeline(iorails)
-
-            await iorails.generate_async([{"role": "user", "content": "hi"}])
+            async with iorails:
+                _stub_safe_pipeline(iorails)
+                await iorails.generate_async([{"role": "user", "content": "hi"}])
 
         spans = exporter.get_finished_spans()
         assert any(s.name == "guardrails.request" for s in spans)

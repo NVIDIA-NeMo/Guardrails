@@ -20,6 +20,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.guardrails_types import RailResult
@@ -101,38 +102,47 @@ def _wire_mocks(iorails, *, input_safe=True, output_safe=True, stream=_mock_stre
     iorails.engine_registry.stream_model_call = stream
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails():
+@pytest_asyncio.fixture
+async def iorails():
     """IORails with output rails but streaming NOT enabled."""
-    return IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+    async with iorails:
+        yield iorails
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails_stream_first():
+@pytest_asyncio.fixture
+async def iorails_stream_first():
     """IORails with output rails and streaming enabled (stream_first=True)."""
-    return IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=True)))
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=True)))
+    async with iorails:
+        yield iorails
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails_stream_check_first():
+@pytest_asyncio.fixture
+async def iorails_stream_check_first():
     """IORails with output rails and streaming enabled (stream_first=False)."""
-    return IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=False)))
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=_make_streaming_config(stream_first=False)))
+    async with iorails:
+        yield iorails
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails_input_only():
+@pytest_asyncio.fixture
+async def iorails_input_only():
     """IORails with input rails only, no output rails."""
-    return IORails(RailsConfig.from_content(config=_INPUT_ONLY_CONFIG))
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_CONFIG))
+    async with iorails:
+        yield iorails
 
 
 class TestStreamAsyncValidation:
     """Test that stream_async raises when output rails exist but streaming is disabled."""
 
-    def test_raises_when_output_rails_without_streaming(self, iorails):
+    @pytest.mark.asyncio
+    async def test_raises_when_output_rails_without_streaming(self, iorails):
         """Raises StreamingNotSupportedError when output rails exist but streaming is disabled."""
         with pytest.raises(StreamingNotSupportedError):
             iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
@@ -151,7 +161,8 @@ class TestStreamAsyncValidation:
         chunks = await _collect(iorails_stream_first.stream_async(messages=[{"role": "user", "content": "hi"}]))
         assert len(chunks) > 0
 
-    def test_raises_when_include_metadata_with_output_rails_streaming(self, iorails_stream_first):
+    @pytest.mark.asyncio
+    async def test_raises_when_include_metadata_with_output_rails_streaming(self, iorails_stream_first):
         """include_metadata=True is rejected when output rails streaming is enabled."""
         with pytest.raises(ValueError, match="include_metadata=True is not supported"):
             iorails_stream_first.stream_async(

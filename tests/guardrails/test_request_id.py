@@ -25,6 +25,7 @@ import re
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_HEX_CHARS,
@@ -82,11 +83,13 @@ class TestResetRequestId:
         assert get_request_id() == "no-req-id"
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails():
-    config = RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
-    return IORails(config)
+@pytest_asyncio.fixture
+async def iorails():
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        config = RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
+        iorails = IORails(config)
+    async with iorails:
+        yield iorails
 
 
 def _make_capturing_mock(captured_ids: list, key: str, return_value):
@@ -307,12 +310,13 @@ class TestMultipleConcurrentRequests:
             config = iorails.config
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 engine = IORails(config)
-            engine.rails_manager.is_input_safe = capture_input
-            engine.engine_registry.model_call = capture_llm
-            engine.rails_manager.is_output_safe = capture_output
+            async with engine:
+                engine.rails_manager.is_input_safe = capture_input
+                engine.engine_registry.model_call = capture_llm
+                engine.rails_manager.is_output_safe = capture_output
 
-            await engine.generate_async([{"role": "user", "content": "hi"}])
-            task_ids[task_num] = captured
+                await engine.generate_async([{"role": "user", "content": "hi"}])
+                task_ids[task_num] = captured
 
         await asyncio.gather(
             make_iorails_call(0),
@@ -348,12 +352,14 @@ class TestMultipleConcurrentRequests:
 class TestEndToEndPropagation:
     """Request ID propagates through the full stack: IORails -> RailsManager -> EngineRegistry -> ModelEngine."""
 
-    @pytest.fixture
-    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-    def iorails_content_safety(self):
+    @pytest_asyncio.fixture
+    async def iorails_content_safety(self):
         """IORails with content-safety-only config (input + output, no jailbreak API)."""
-        config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
-        return IORails(config)
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=CONTENT_SAFETY_CONFIG)
+            iorails = IORails(config)
+        async with iorails:
+            yield iorails
 
     @pytest.mark.asyncio
     async def test_same_id_from_iorails_through_model_engine(self, iorails_content_safety):

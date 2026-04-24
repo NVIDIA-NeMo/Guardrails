@@ -19,6 +19,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
@@ -37,6 +38,12 @@ def rails_config():
 @pytest.fixture
 @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
 def iorails(rails_config):
+    # Sync fixture kept for the class-init and sync-generate tests in this
+    # file.  Async tests that invoke ``iorails.generate_async()`` will
+    # start the internal queue's worker pool lazily; those workers may
+    # leave pending asyncio tasks at test teardown (harmless warnings).
+    # The IORails-queue-aware async tests live in ``test_iorails_telemetry.py``
+    # where fixtures use ``@pytest_asyncio.fixture`` + ``await iorails.stop()``.
     return IORails(rails_config)
 
 
@@ -332,15 +339,22 @@ class TestAutoStart:
     inside stream_async()'s _wrapped_iterator.
     """
 
-    @pytest.fixture
-    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-    def iorails_input_only(self):
-        """IORails with no output rails (needed for stream_async without StreamingNotSupportedError)."""
-        input_only_config = {
-            **NEMOGUARDS_CONFIG,
-            "rails": {**NEMOGUARDS_CONFIG["rails"], "output": {"flows": []}},
-        }
-        return IORails(RailsConfig.from_content(config=input_only_config))
+    @pytest_asyncio.fixture
+    async def iorails_input_only(self):
+        """IORails with no output rails (needed for stream_async without StreamingNotSupportedError).
+
+        Yields an *unstarted* IORails (no ``async with``): ``TestAutoStart`` tests
+        assert ``not iorails._running`` before invoking ``stream_async`` to verify
+        the auto-start contract, so the fixture must not pre-call ``start()``.
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            input_only_config = {
+                **NEMOGUARDS_CONFIG,
+                "rails": {**NEMOGUARDS_CONFIG["rails"], "output": {"flows": []}},
+            }
+            iorails = IORails(RailsConfig.from_content(config=input_only_config))
+        yield iorails
+        await iorails.stop()
 
     @pytest.mark.asyncio
     async def test_generate_async_calls_start(self, iorails):
