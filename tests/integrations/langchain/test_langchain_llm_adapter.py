@@ -90,7 +90,7 @@ class TestLangChainLLMAdapter:
 
         assert isinstance(result, LLMResponse)
         assert result.content == "hello world"
-        mock_llm.ainvoke.assert_called_once_with("say hello", stop=None)
+        mock_llm.ainvoke.assert_called_once_with("say hello")
 
     @pytest.mark.asyncio
     async def test_generate_with_chat_message_list(self):
@@ -194,7 +194,7 @@ class TestLangChainLLMAdapter:
         result = await adapter.generate_async("prompt", temperature=0.5, max_tokens=100)
 
         mock_llm.bind.assert_called_once_with(temperature=0.5, max_tokens=100)
-        bound_llm.ainvoke.assert_called_once_with("prompt", stop=None)
+        bound_llm.ainvoke.assert_called_once_with("prompt")
         assert result.content == "bound response"
 
     @pytest.mark.asyncio
@@ -221,6 +221,39 @@ class TestLangChainLLMAdapter:
 
         mock_llm.bind.assert_called_once_with(max_tokens=100)
         assert result.content == "reasoning response"
+
+    @pytest.mark.asyncio
+    async def test_generate_drops_stop_for_reasoning_model(self):
+        mock_llm = AsyncMock()
+        mock_llm.model_name = "gpt-5-mini"
+        mock_llm.ainvoke.return_value = AIMessage(content="ok")
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        await adapter.generate_async("prompt", stop=["User:"])
+
+        mock_llm.bind.assert_not_called()
+        _, kwargs = mock_llm.ainvoke.call_args
+        assert "stop" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_stream_drops_stop_for_reasoning_model(self):
+        mock_llm = MagicMock()
+        mock_llm.model_name = "gpt-5-mini"
+        astream_kwargs = {}
+
+        async def mock_astream(*args, **kwargs):
+            astream_kwargs.update(kwargs)
+            for c in [MagicMock(content="ok", response_metadata=None, usage_metadata=None, generation_info=None)]:
+                yield c
+
+        mock_llm.astream = mock_astream
+        adapter = LangChainLLMAdapter(mock_llm)
+
+        async for _ in adapter.stream_async("prompt", stop=["User:"]):
+            pass
+
+        mock_llm.bind.assert_not_called()
+        assert "stop" not in astream_kwargs
 
     def test_satisfies_llm_model_protocol(self):
         mock_llm = MagicMock()
@@ -254,45 +287,53 @@ class TestLangChainFramework:
         )
 
 
-class TestFilterReasoningModelParams:
+class TestPrepareCallParams:
     def _make_adapter(self, model_name):
         mock_llm = MagicMock()
         mock_llm.model_name = model_name
         return LangChainLLMAdapter(mock_llm)
 
     @pytest.mark.parametrize(
-        "model,params,expected",
+        "model,stop,kwargs,expected",
         [
-            ("gpt-4", {"temperature": 0.5, "max_tokens": 100}, {"temperature": 0.5, "max_tokens": 100}),
-            ("gpt-4o", {"temperature": 0.7}, {"temperature": 0.7}),
-            ("gpt-4o-mini", {"temperature": 0.3, "max_tokens": 50}, {"temperature": 0.3, "max_tokens": 50}),
-            ("gpt-5-chat", {"temperature": 0.5}, {"temperature": 0.5}),
-            ("o1-preview", {"temperature": 0.001, "max_tokens": 100}, {"max_tokens": 100}),
-            ("o1-mini", {"temperature": 0.5}, {}),
-            ("o3", {"temperature": 0.001, "max_tokens": 200}, {"max_tokens": 200}),
-            ("o3-mini", {"temperature": 0.1}, {}),
-            ("gpt-5", {"temperature": 0.001}, {}),
-            ("gpt-5-mini", {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
-            ("gpt-5-nano", {"temperature": 0.001}, {}),
-            ("o1-preview", {"max_tokens": 100}, {"max_tokens": 100}),
-            ("o1-preview", {}, {}),
+            # non-reasoning models: stop and temperature both pass through
+            ("gpt-4", None, {"temperature": 0.5, "max_tokens": 100}, {"temperature": 0.5, "max_tokens": 100}),
+            ("gpt-4o", ["User:"], {"temperature": 0.7}, {"temperature": 0.7, "stop": ["User:"]}),
+            ("gpt-4o-mini", ["User:"], {}, {"stop": ["User:"]}),
+            ("gpt-5-chat", ["User:"], {"temperature": 0.5}, {"temperature": 0.5, "stop": ["User:"]}),
+            # reasoning models: both temperature and stop stripped
+            ("o1-preview", ["User:"], {"temperature": 0.001, "max_tokens": 100}, {"max_tokens": 100}),
+            ("o1-mini", ["User:"], {"temperature": 0.5}, {}),
+            ("o3", None, {"temperature": 0.001, "max_tokens": 200}, {"max_tokens": 200}),
+            ("o3-mini", ["User:"], {"temperature": 0.1}, {}),
+            ("gpt-5", ["User:"], {"temperature": 0.001}, {}),
+            ("gpt-5-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("gpt-5-nano", ["User:"], {}, {}),
+            ("o4-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("o4-mini-2025-04-16", ["User:"], {"temperature": 0.5}, {}),
+            ("o4", ["User:"], {"temperature": 0.5}, {}),
+            # gpt-5.1+ and gpt-6: fully reasoning, no chat escape
+            ("gpt-5.1", ["User:"], {"temperature": 0.5}, {}),
+            ("gpt-5.1-chat-latest", ["User:"], {"temperature": 0.5}, {}),
+            ("gpt-5.2-2025-12-11", ["User:"], {}, {}),
+            ("gpt-5.4-mini", ["User:"], {"temperature": 0.5, "max_tokens": 100}, {"max_tokens": 100}),
+            ("gpt-6", ["User:"], {"temperature": 0.5}, {}),
+            ("gpt-6-mini", ["User:"], {}, {}),
+            # no stop, no temperature, unchanged
+            ("o1-preview", None, {"max_tokens": 100}, {"max_tokens": 100}),
+            ("o1-preview", None, {}, {}),
         ],
     )
-    def test_filter_params(self, model, params, expected):
+    def test_prepare_call_params(self, model, stop, kwargs, expected):
         adapter = self._make_adapter(model)
-        result = adapter._filter_reasoning_model_params(params)
+        result = adapter._prepare_call_params(stop, kwargs)
         assert result == expected
 
-    def test_returns_none_when_params_is_none(self):
-        adapter = self._make_adapter("gpt-4")
-        result = adapter._filter_reasoning_model_params(None)
-        assert result is None
-
-    def test_does_not_modify_original_params(self):
+    def test_does_not_modify_original_kwargs(self):
         adapter = self._make_adapter("o1-preview")
-        params = {"temperature": 0.5, "max_tokens": 100}
-        adapter._filter_reasoning_model_params(params)
-        assert params == {"temperature": 0.5, "max_tokens": 100}
+        kwargs = {"temperature": 0.5, "max_tokens": 100}
+        adapter._prepare_call_params(["User:"], kwargs)
+        assert kwargs == {"temperature": 0.5, "max_tokens": 100}
 
 
 class TestConversionHelpers:

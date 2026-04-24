@@ -273,13 +273,16 @@ async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
 
     from nemoguardrails.actions.llm.utils import llm_call
 
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm = MagicMock()
+    mock_llm.model_name = "gpt-4"
+    bound_llm = AsyncMock()
+    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm.bind.return_value = bound_llm
 
     wrapped = LangChainLLMAdapter(mock_llm)
     await llm_call(wrapped, "prompt", stop=["User:"], llm_params=llm_params)
 
-    assert mock_llm.ainvoke.call_args[1]["stop"] == ["User:"]
+    mock_llm.bind.assert_called_once_with(stop=["User:"])
 
 
 @pytest.mark.asyncio

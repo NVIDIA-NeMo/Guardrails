@@ -21,6 +21,8 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -30,12 +32,35 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.tracing.constants import SystemConstants
+from tests.guardrails.metric_helpers import collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
 
 
 def _make_tracing_config():
-    """Return a NEMOGUARDS_CONFIG copy with tracing enabled."""
+    """NEMOGUARDS_CONFIG copy with **both** tracing and metrics enabled.
+
+    Historical name — in the current architecture tracing and metrics are
+    independent OTEL signals, and this helper sets both on so existing span
+    AND metric tests share the same fixture.  For single-signal scenarios
+    use :func:`_make_metrics_only_config` or :func:`_make_tracing_only_config`.
+    """
+    cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+    cfg["tracing"] = {"enabled": True}
+    cfg["metrics"] = {"enabled": True}
+    return cfg
+
+
+def _make_metrics_only_config():
+    """Metrics enabled, tracing disabled (the independent-signals case)."""
+    cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+    cfg["metrics"] = {"enabled": True}
+    return cfg
+
+
+def _make_tracing_only_config():
+    """Tracing enabled, metrics disabled."""
     cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
     cfg["tracing"] = {"enabled": True}
     return cfg
@@ -644,7 +669,11 @@ _INPUT_ONLY_STREAMING_TRACING_CONFIG = {
         **NEMOGUARDS_CONFIG["rails"],
         "output": {"flows": []},
     },
+    # Both signals enabled: streaming-span tests and streaming-metric tests
+    # share this config.  See docstring on ``_make_tracing_config`` for the
+    # tracing-vs-metrics independence rationale.
     "tracing": {"enabled": True},
+    "metrics": {"enabled": True},
 }
 
 _INPUT_ONLY_STREAMING_NO_TRACING_CONFIG = {
@@ -657,7 +686,7 @@ _INPUT_ONLY_STREAMING_NO_TRACING_CONFIG = {
 
 
 def _make_output_streaming_tracing_config(*, stream_first=True):
-    """Config with output-rail streaming + tracing enabled."""
+    """Config with output-rail streaming + both telemetry signals enabled."""
     base = copy.deepcopy(NEMOGUARDS_CONFIG)
     base["rails"]["output"]["streaming"] = {
         "enabled": True,
@@ -666,6 +695,7 @@ def _make_output_streaming_tracing_config(*, stream_first=True):
         "stream_first": stream_first,
     }
     base["tracing"] = {"enabled": True}
+    base["metrics"] = {"enabled": True}
     return base
 
 
@@ -946,3 +976,277 @@ class TestOtelNotInstalled:
             assert result == {"role": "assistant", "content": "Hello"}
             assert iorails._tracing_enabled is False
             assert len(exporter.get_finished_spans()) == 0
+
+
+@pytest.fixture
+def metric_reader():
+    """Install a test-local Meter on the telemetry module and return the reader."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+    original_meter = telemetry._meter
+    original_instruments = telemetry._request_instruments
+    telemetry._meter = provider.get_meter(
+        SystemConstants.SYSTEM_NAME,
+        version="0.0.0-dev",
+        schema_url="https://opentelemetry.io/schemas/1.26.0",
+    )
+    telemetry._request_instruments = None
+    yield reader
+    telemetry._meter = original_meter
+    telemetry._request_instruments = original_instruments
+
+
+class TestGenerateAsyncRequestMetrics:
+    @pytest.mark.asyncio
+    async def test_emits_counter_and_duration_on_safe_request(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+
+        await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        # Histogram value is the recording count, not the duration itself.
+        assert points["guardrails.request.duration"][0].value == 1
+        assert "guardrails.requests.errors" not in points
+
+    @pytest.mark.asyncio
+    async def test_emits_errors_counter_on_exception(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing.engine_registry.model_call = AsyncMock(side_effect=RuntimeError("LLM failed"))
+
+        with pytest.raises(RuntimeError, match="LLM failed"):
+            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        # Duration still recorded for an errored request.
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_no_tracing)
+
+        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_input_block(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "bad"}])
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+        # No LLM call, so no errors; duration still recorded.
+        assert "guardrails.requests.errors" not in points
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_output_block(self, iorails_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    @pytest.mark.asyncio
+    async def test_no_blocked_counter_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+        _stub_safe_pipeline(iorails_no_tracing)
+        iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe")
+        )
+
+        result = await iorails_no_tracing.generate_async([{"role": "user", "content": "bad"}])
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
+
+class TestStreamAsyncRequestMetrics:
+    """Streaming path also emits request-level metrics via the shared
+    ``traced_request`` helper — no separate plumbing."""
+
+    @pytest.mark.asyncio
+    async def test_emits_counter_and_duration_on_safe_stream(self, iorails_streaming_input_only_tracing, metric_reader):
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert chunks == ["Hello", " ", "world"]
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+        assert "guardrails.requests.errors" not in points
+
+    @pytest.mark.asyncio
+    async def test_emits_errors_counter_on_stream_failure(self, iorails_streaming_input_only_tracing, metric_reader):
+        """Streaming failures don't propagate — the generation task swallows
+        the exception and pushes an error chunk.  The errors counter is
+        bumped explicitly via ``record_request_error`` so dashboards still
+        see the failure.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # The generation task converts the exception into an error-payload chunk.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "RuntimeError"
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_stream_input_block(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="unsafe"))
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "bad"}])]
+        assert chunks == [REFUSAL_MESSAGE]
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Input"
+        # No LLM call / no errors.
+        assert "guardrails.requests.errors" not in points
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_emits_blocked_counter_on_stream_output_block(self, iorails_streaming_output_tracing, metric_reader):
+        """Streaming + output-rail block exercises
+        ``_run_output_rails_in_streaming`` — a separate code path from the
+        non-streaming ``_do_generate`` output-block site.
+        """
+        iorails = iorails_streaming_output_tracing
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # Output block terminates the stream with a JSON error payload chunk.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests.blocked"][0].value == 1
+        assert points["guardrails.requests.blocked"][0].attributes["rail.type"] == "Output"
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_on_stream_output_block_when_tracing_disabled(self, metric_reader):
+        """Regression guard for the ``self._tracing_enabled`` gate on the
+        output-rail streaming block path: when tracing is disabled, no
+        metrics emit even though the block still happens.  Catches any
+        future removal of the gate on this emit site — the exact class of
+        bug the P1 review flagged on the other streaming path.
+        """
+        cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+        cfg["rails"]["output"]["streaming"] = {
+            "enabled": True,
+            "chunk_size": 5,
+            "context_size": 2,
+            "stream_first": True,
+        }
+        # No tracing.enabled=True → guardrails tracing/metrics disabled.
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=cfg))
+        _stub_deep_streaming_pipeline(iorails)
+        iorails.rails_manager.is_output_safe = AsyncMock(
+            return_value=RailResult(is_safe=False, reason="unsafe response")
+        )
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # Block still works — customer-visible behavior unchanged.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
+    @pytest.mark.asyncio
+    async def test_emits_no_metrics_on_stream_failure_when_tracing_disabled(
+        self, iorails_streaming_no_tracing, metric_reader
+    ):
+        """Regression: with tracing disabled, a streaming failure must emit
+        no metrics — including the errors counter.  ``record_request_error``
+        inside ``_generation_task`` is gated on ``request_span`` precisely
+        to keep the errors/requests pair consistent; this locks that in.
+        """
+        iorails = iorails_streaming_no_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points == {}
+
+
+class TestIndependentTracingAndMetrics:
+    """Tracing and metrics are independent OTEL signals.
+
+    Exercises the three non-trivial config combinations that the single-flag
+    design did not support:
+
+    * metrics-only (tracing off, metrics on) — the setup Pouyanpi called
+      out on the PR as cost-optimized SLO dashboards
+    * tracing-only (tracing on, metrics off)
+    * both off — already covered elsewhere, included here for completeness
+      of the four-quadrant matrix
+
+    The "both on" quadrant is covered extensively by
+    :class:`TestGenerateAsyncWithTracing` and
+    :class:`TestGenerateAsyncRequestMetrics`.
+    """
+
+    @pytest.mark.asyncio
+    async def test_metrics_only_emits_metrics_but_no_spans(self, metric_reader, exporter):
+        """Metrics enabled, tracing disabled → guardrails counters emit,
+        zero spans exported.  Core regression test for the decoupling.
+        """
+        with patch.object(telemetry, "_tracer", None):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            _stub_safe_pipeline(iorails)
+
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+        assert exporter.get_finished_spans() == ()
+
+    @pytest.mark.asyncio
+    async def test_tracing_only_emits_spans_but_no_metrics(self, tracer_from_provider, metric_reader, exporter):
+        """Tracing enabled, metrics disabled → guardrails.request span
+        emits, zero metric data points.
+        """
+        with patch.object(telemetry, "_tracer", tracer_from_provider):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_tracing_only_config()))
+            _stub_safe_pipeline(iorails)
+
+            await iorails.generate_async([{"role": "user", "content": "hi"}])
+
+        spans = exporter.get_finished_spans()
+        assert any(s.name == "guardrails.request" for s in spans)
+        points = collect_metric_points(metric_reader)
+        assert points == {}

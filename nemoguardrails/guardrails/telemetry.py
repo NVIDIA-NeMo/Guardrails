@@ -18,17 +18,19 @@
 All OpenTelemetry API imports are isolated in this module so the rest of the
 guardrails package never imports ``opentelemetry`` directly.  When the
 ``opentelemetry-api`` package is not installed, the public entry points
-``is_tracing_enabled``, ``get_tracer``, and ``traced_request`` degrade
-gracefully (returning ``False``, ``None``, or a no-span passthrough
-respectively).  Lower-level helpers like ``request_span`` and
+``is_tracing_enabled``, ``get_tracer``, ``get_meter``, and ``traced_request``
+degrade gracefully (returning ``False``, ``None``, or a no-span / no-metric
+passthrough respectively).  Lower-level helpers like ``request_span`` and
 ``trace_id_to_request_id`` require OTEL to be available and are only
 reachable through ``traced_request`` when a non-``None`` tracer is provided.
 """
 
 import logging
 import secrets
+import time
 import warnings
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Tuple
 
 from nemoguardrails.guardrails.guardrails_types import (
@@ -43,6 +45,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.tracing.constants import (
     GenAIAttributes,
     GuardrailsAttributes,
+    MetricNames,
     OperationNames,
     SpanNames,
     SystemConstants,
@@ -52,14 +55,17 @@ log = logging.getLogger(__name__)
 
 _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
+    from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
+    from opentelemetry.metrics import Counter, Histogram, Meter
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
-    from nemoguardrails.rails.llm.config import TracingConfig
+    from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
 
     _OTEL_AVAILABLE = True
 else:
     try:
+        from opentelemetry import metrics as otel_metrics
         from opentelemetry import trace
         from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
@@ -101,6 +107,110 @@ def get_tracer() -> Optional["Tracer"]:
             schema_url="https://opentelemetry.io/schemas/1.26.0",
         )
     return _tracer
+
+
+# Module-level meter singleton.  Same caching rationale as ``_tracer`` above:
+# ``metrics.get_meter()`` is designed to be called once per instrumentation
+# scope and returns equivalent instances on subsequent calls, so a benign race
+# on first access is harmless.
+_meter = None
+_request_instruments: Optional["RequestInstruments"] = None
+
+
+@dataclass(frozen=True, slots=True)
+class RequestInstruments:
+    """Request-level OTEL instruments for the IORails engine.
+
+    Field names mirror the emitted metric names (minus the ``guardrails.``
+    prefix): ``requests`` → ``guardrails.requests``, ``errors`` →
+    ``guardrails.requests.errors``, ``blocked`` →
+    ``guardrails.requests.blocked``, ``duration`` →
+    ``guardrails.request.duration``.
+    """
+
+    requests: "Counter"
+    errors: "Counter"
+    blocked: "Counter"
+    duration: "Histogram"
+
+
+def get_meter() -> Optional["Meter"]:
+    """Return a cached OpenTelemetry meter for nemo-guardrails, or ``None``.
+
+    The meter is obtained via the OTEL API (not SDK), following the library
+    instrumentation best practice.  The application is responsible for
+    configuring a ``MeterProvider`` before any metrics are recorded; without
+    one, the API returns a no-op meter and all emissions are silently
+    discarded.
+    """
+    global _meter
+    if not _OTEL_AVAILABLE:
+        return None
+    if _meter is None:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            lib_version = version("nemoguardrails")
+        except PackageNotFoundError:  # pragma: no cover
+            lib_version = "0.0.0-dev"
+
+        _meter = otel_metrics.get_meter(
+            SystemConstants.SYSTEM_NAME,
+            version=lib_version,
+            schema_url="https://opentelemetry.io/schemas/1.26.0",
+        )
+    return _meter
+
+
+def _ensure_request_instruments() -> Optional[RequestInstruments]:
+    """Lazily create the request-level instruments and return them as a
+    :class:`RequestInstruments`.  Returns ``None`` when the OTEL API is not
+    installed.
+    """
+    global _request_instruments
+    meter = get_meter()
+    if meter is None:
+        return None
+    if _request_instruments is None:
+        _request_instruments = RequestInstruments(
+            requests=meter.create_counter(
+                MetricNames.REQUESTS,
+                description="Total guardrails requests handled",
+                unit="1",
+            ),
+            errors=meter.create_counter(
+                MetricNames.REQUESTS_ERRORS,
+                description="Guardrails requests that ended in an unhandled error",
+                unit="1",
+            ),
+            blocked=meter.create_counter(
+                MetricNames.REQUESTS_BLOCKED,
+                description="Guardrails requests blocked by an input or output rail",
+                unit="1",
+            ),
+            duration=meter.create_histogram(
+                MetricNames.REQUEST_DURATION,
+                description="End-to-end guardrails request duration",
+                unit="s",
+                explicit_bucket_boundaries_advisory=[
+                    0.005,
+                    0.01,
+                    0.025,
+                    0.05,
+                    0.075,
+                    0.1,
+                    0.25,
+                    0.5,
+                    0.75,
+                    1.0,
+                    2.5,
+                    5.0,
+                    7.5,
+                    10.0,
+                ],
+            ),
+        )
+    return _request_instruments
 
 
 _INVALID_TRACE_ID = 0
@@ -310,6 +420,29 @@ def is_tracing_enabled(config_tracing: Optional["TracingConfig"]) -> bool:
     return True
 
 
+def are_metrics_enabled(config_metrics: Optional["MetricsConfig"]) -> bool:
+    """Return ``True`` when inline OTEL metrics should be emitted.
+
+    Requires the ``opentelemetry-api`` package to be installed **and**
+    ``config.metrics.enabled`` to be ``True``.  Independent of
+    :func:`is_tracing_enabled` — OTEL signals (traces, metrics, logs) are
+    designed to be toggled independently so customers can, for example,
+    run metrics-only for cost-optimized SLO dashboards without the
+    overhead of full trace export.
+    """
+    if config_metrics is None or not config_metrics.enabled:
+        return False
+    if not _OTEL_AVAILABLE:
+        warnings.warn(
+            "Metrics are enabled in config but the opentelemetry-api package is "
+            "not installed.  Install it with: pip install nemoguardrails[tracing]",
+            UserWarning,
+            stacklevel=2,
+        )
+        return False
+    return True
+
+
 class TracedRequest(NamedTuple):
     """Handle yielded by ``traced_request``.
 
@@ -342,14 +475,83 @@ def _cleanup_request_id(token) -> None:
             raise
 
 
-@contextmanager
-def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None, None]:
-    """Unified request context: sets request ID, optionally creates a span.
+def record_request_blocked(direction: RailDirection) -> None:
+    """Increment ``guardrails.requests.blocked`` with a ``rail.type`` label.
 
-    When *tracer* is not ``None``, a live ``guardrails.request`` SERVER span
-    is created and the request ID is derived from its trace ID.  When
-    *tracer* is ``None``, a random request ID is generated and the yielded
-    span is ``None``.
+    Fires at the block sites in ``iorails.py`` (``_do_generate`` for the
+    non-streaming path, ``_generation_task`` for streaming) whenever the
+    request returns ``REFUSAL_MESSAGE`` because an input or output rail
+    flagged it.  The counter is cumulative over the process lifetime; a
+    per-rail grain (``rail.name``) will be added in split-2 alongside
+    ``guardrails.rail.blocked``.
+
+    No-op when the OTEL API is unavailable or instruments cannot be created.
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.blocked.add(1, attributes={GuardrailsAttributes.RAIL_TYPE: direction.value})
+
+
+def record_request_error(exc: BaseException) -> None:
+    """Increment ``guardrails.requests.errors`` with an ``error.type`` label.
+
+    ``request_metrics`` already bumps this counter when an exception
+    propagates through its ``except`` branch (the non-streaming path).
+    Streaming code paths catch-and-swallow exceptions inside
+    ``_generation_task`` — converting them to error-payload chunks —
+    so the counter never sees them via propagation.  Those paths should
+    call this helper explicitly so the errors counter reflects ALL failed
+    requests, not just those whose exceptions bubble up.
+
+    No-op when the OTEL API is unavailable or instruments cannot be created.
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.errors.add(1, attributes={"error.type": type(exc).__name__})
+
+
+@contextmanager
+def request_metrics() -> Generator[None, None, None]:
+    """Emit request-level OTEL metrics around the wrapped block.
+
+    Increments ``guardrails.requests`` on entry, records
+    ``guardrails.request.duration`` in seconds on exit, and increments
+    ``guardrails.requests.errors`` with an ``error.type`` attribute when
+    the block raises.  Instruments are created lazily on first use.  No-op
+    when the OTEL API is not installed or instruments cannot be created.
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        yield
+        return
+    t0 = time.monotonic()
+    instruments.requests.add(1)
+    try:
+        yield
+    except Exception as exc:
+        record_request_error(exc)
+        raise
+    finally:
+        duration_s = time.monotonic() - t0
+        instruments.duration.record(duration_s)
+
+
+@contextmanager
+def traced_request(tracer: Optional["Tracer"], metrics_enabled: bool = False) -> Generator[TracedRequest, None, None]:
+    """Unified request context: sets request ID, optionally creates a span
+    and/or emits request-level metrics.
+
+    The two signals are gated **independently**:
+
+    * ``tracer is not None`` → a live ``guardrails.request`` SERVER span
+      is created and the request ID is derived from its trace ID.
+    * ``metrics_enabled=True`` → emit request-level OTEL metrics
+
+    All four combinations are valid.  Metrics-only (``tracer=None,
+    metrics_enabled=True``) is a supported setup for customers running
+    cheap SLO dashboards without full trace export.
 
     Yields a :class:`TracedRequest` (``span``, ``request_id``).  Callers
     that want to mark the request span ERROR from a deeply-nested scope
@@ -362,16 +564,18 @@ def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None,
     :func:`_cleanup_request_id`, which tolerates the expected
     cross-context ``ValueError`` that async-generator cleanup can raise.
     """
+    metrics_ctx = request_metrics() if metrics_enabled else nullcontext()
     if tracer is not None:
-        with request_span(tracer) as (span, req_id):
+        with metrics_ctx, request_span(tracer) as (span, req_id):
             token = _set_request_id(req_id)
             try:
                 yield TracedRequest(span, req_id)
             finally:
                 _cleanup_request_id(token)
     else:
-        token = set_new_request_id()
-        try:
-            yield TracedRequest(None, get_request_id())
-        finally:
-            _cleanup_request_id(token)
+        with metrics_ctx:
+            token = set_new_request_id()
+            try:
+                yield TracedRequest(None, get_request_id())
+            finally:
+                _cleanup_request_id(token)

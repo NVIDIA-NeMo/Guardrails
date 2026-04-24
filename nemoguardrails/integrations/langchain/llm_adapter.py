@@ -110,6 +110,17 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
     return None
 
 
+def _is_openai_reasoning_model(model_name: str) -> bool:
+    name = model_name.lower()
+    if name in ("o1", "o3", "o4") or name.startswith(("o1-", "o3-", "o4-")):
+        return True
+    if name == "gpt-5" or name.startswith("gpt-5-"):
+        return "chat" not in name
+    if name.startswith(("gpt-5.", "gpt-6")):
+        return True
+    return False
+
+
 _BASE_URL_ATTRIBUTES = [
     "base_url",
     "endpoint_url",
@@ -149,32 +160,14 @@ class LangChainLLMAdapter:
             return str(client.base_url)
         return None
 
-    def _filter_reasoning_model_params(self, params: Optional[dict]) -> Optional[dict]:
-        if not params or "temperature" not in params:
-            return params
-
-        model_name = _infer_model_name(self._llm).lower()
-
-        is_openai_reasoning_model = (
-            model_name.startswith("o1")
-            or model_name.startswith("o3")
-            or (model_name.startswith("gpt-5") and "chat" not in model_name)
-        )
-
-        if is_openai_reasoning_model:
-            filtered = params.copy()
-            filtered.pop("temperature", None)
-            log.debug("Stripped 'temperature' for reasoning model '%s'", model_name)
-            return filtered
-
+    def _prepare_call_params(self, stop: Optional[List[str]], kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        params = dict(kwargs)
+        if stop is not None:
+            params["stop"] = stop
+        if _is_openai_reasoning_model(self.model_name):
+            params.pop("temperature", None)
+            params.pop("stop", None)
         return params
-
-    def _prepare_llm(self, kwargs: dict):
-        kwargs = self._filter_reasoning_model_params(kwargs) or {}
-        llm = self._llm
-        if kwargs:
-            llm = llm.bind(**kwargs)
-        return llm
 
     def _to_langchain_input(self, prompt):
         if isinstance(prompt, list):
@@ -192,9 +185,10 @@ class LangChainLLMAdapter:
         stop: Optional[List[str]] = None,
         **kwargs,
     ) -> LLMResponse:
-        llm = self._prepare_llm(kwargs)
+        params = self._prepare_call_params(stop, kwargs)
+        llm = self._llm.bind(**params) if params else self._llm
         messages = self._to_langchain_input(prompt)
-        response = await llm.ainvoke(messages, stop=stop)
+        response = await llm.ainvoke(messages)
         return _langchain_response_to_llm_response(response)
 
     async def stream_async(
@@ -204,12 +198,13 @@ class LangChainLLMAdapter:
         stop: Optional[List[str]] = None,
         **kwargs,
     ) -> AsyncIterator[LLMResponseChunk]:
-        llm = self._prepare_llm(kwargs)
+        params = self._prepare_call_params(stop, kwargs)
+        llm = self._llm.bind(**params) if params else self._llm
         messages = self._to_langchain_input(prompt)
 
         tool_call_acc: Dict[int, Dict[str, Any]] = {}
 
-        async for chunk in llm.astream(messages, stop=stop):
+        async for chunk in llm.astream(messages):
             for tc_chunk in getattr(chunk, "tool_call_chunks", None) or []:
                 idx = tc_chunk.get("index", 0)
                 if idx not in tool_call_acc:

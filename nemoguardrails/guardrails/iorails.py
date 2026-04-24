@@ -33,13 +33,17 @@ from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import (
     LLMMessage,
     LLMMessages,
+    RailDirection,
     get_request_id,
     truncate,
 )
 from nemoguardrails.guardrails.rails_manager import RailsManager
 from nemoguardrails.guardrails.telemetry import (
+    are_metrics_enabled,
     get_tracer,
     is_tracing_enabled,
+    record_request_blocked,
+    record_request_error,
     record_span_error,
     traced_request,
 )
@@ -72,6 +76,7 @@ class IORails:
         # Pass to EngineRegistry and RailsManager to keep all spans consistent under parent
         self._tracing_enabled = is_tracing_enabled(config.tracing)
         self._tracer = get_tracer() if self._tracing_enabled else None
+        self._metrics_enabled = are_metrics_enabled(config.metrics)
 
         self.engine_registry = EngineRegistry(config.models, config.rails.config, tracer=self._tracer)
         self.rails_manager = RailsManager(
@@ -140,7 +145,7 @@ class IORails:
         await self.start()
 
         tracer = self._tracer if self._tracing_enabled else None
-        with traced_request(tracer) as (_, req_id):
+        with traced_request(tracer, self._metrics_enabled) as (_, req_id):
             t0 = time.monotonic()
             try:
                 return await self._do_generate(messages, req_id, **kwargs)
@@ -162,6 +167,8 @@ class IORails:
         input_result = await self.rails_manager.is_input_safe(messages)
         if not input_result.is_safe:
             log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+            if self._metrics_enabled:
+                record_request_blocked(RailDirection.INPUT)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         # Step 2: Generate response from main LLM
@@ -181,6 +188,8 @@ class IORails:
         output_result = await self.rails_manager.is_output_safe(messages, response_text)
         if not output_result.is_safe:
             log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+            if self._metrics_enabled:
+                record_request_blocked(RailDirection.OUTPUT)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
 
         return {"role": "assistant", "content": response_text}
@@ -264,6 +273,8 @@ class IORails:
                 input_result = await self.rails_manager.is_input_safe(messages)
                 if not input_result.is_safe:
                     log.info("[%s] Input blocked: %s", req_id, input_result.reason)
+                    if self._metrics_enabled:
+                        record_request_blocked(RailDirection.INPUT)
                     await streaming_handler.push_chunk(REFUSAL_MESSAGE)
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
@@ -286,6 +297,12 @@ class IORails:
                 # request_span is None (tracing disabled), so no extra guard
                 # is needed and there's no ambient-context lookup to worry about.
                 record_span_error(request_span, e)
+                # Bump guardrails.requests.errors explicitly: the exception is
+                # about to be swallowed (converted to an error-payload chunk),
+                # so request_metrics's except branch never fires for the
+                # streaming path.
+                if self._metrics_enabled:
+                    record_request_error(e)
                 error_payload = json.dumps(
                     {"error": {"message": str(e), "type": _GENERATION_ERROR_TYPE, "code": "generation_failed"}}
                 )
@@ -314,7 +331,7 @@ class IORails:
                 # request span is the current OTEL context when create_task()
                 # below snapshots contextvars — that's what makes rail / LLM
                 # spans raised inside _generation_task attach as children.
-                with traced_request(tracer) as (request_span, req_id):
+                with traced_request(tracer, self._metrics_enabled) as (request_span, req_id):
                     t0 = time.monotonic()
                     try:
                         log.info("[%s] stream_async called", req_id)
@@ -396,6 +413,8 @@ class IORails:
             output_result = await self.rails_manager.is_output_safe(messages, bot_response_chunk)
             if not output_result.is_safe:
                 log.info("[%s] Output blocked: %s", req_id, output_result.reason)
+                if self._metrics_enabled:
+                    record_request_blocked(RailDirection.OUTPUT)
                 error_data = {
                     "error": {
                         "message": f"Blocked by output rails: {output_result.reason}",
