@@ -1037,7 +1037,7 @@ class TestGenerateAsyncRequestMetrics:
         assert points["guardrails.request.duration"][0].value == 1
 
     @pytest.mark.asyncio
-    async def test_no_metrics_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+    async def test_no_metrics_emitted_when_metrics_disabled(self, iorails_no_tracing, metric_reader):
         _stub_safe_pipeline(iorails_no_tracing)
 
         await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])

@@ -184,14 +184,14 @@ class IORails:
         with traced_request(tracer, self._metrics_enabled) as (_, req_id):
             t0 = time.monotonic()
             try:
-                return await self._do_generate(messages, req_id, **kwargs)
+                result = await self._do_generate(messages, req_id, **kwargs)
             except Exception:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.error("[%s] generate_async failed time=%.1fms", req_id, elapsed_ms, exc_info=True)
                 raise
-            finally:
-                elapsed_ms = (time.monotonic() - t0) * 1000
-                log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            log.info("[%s] generate_async completed time=%.1fms", req_id, elapsed_ms)
+            return result
 
     async def _do_generate(self, messages: LLMMessages, req_id: str, **kwargs) -> LLMMessage:
         """Core pipeline: input rails -> LLM call -> output rails."""
