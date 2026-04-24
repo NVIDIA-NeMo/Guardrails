@@ -15,6 +15,7 @@
 
 """Unit tests for the OTEL metrics API in nemoguardrails.guardrails.telemetry."""
 
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -23,6 +24,7 @@ from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 
 from nemoguardrails.guardrails import telemetry
+from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.telemetry import (
     _ensure_request_instruments,
@@ -32,6 +34,7 @@ from nemoguardrails.guardrails.telemetry import (
     record_request_blocked,
     record_request_error,
     record_stream_rejected,
+    register_nonstream_saturation_gauges,
     request_metrics,
     stream_active_metric,
     traced_request,
@@ -387,3 +390,99 @@ class TestStreamActiveMetric:
             telemetry._request_instruments = None
             with stream_active_metric():
                 pass  # must not raise
+
+
+class _FakeQueue:
+    """Stand-in for AsyncWorkQueue used by gauge-registration unit tests.
+
+    The real ``AsyncWorkQueue`` needs an asyncio event loop to start; the
+    gauge callbacks only need ``num_pending()`` and ``num_busy_workers()``,
+    so a tiny stub keeps these tests synchronous.
+    """
+
+    def __init__(self, queued: int = 0, active: int = 0) -> None:
+        self._queued = queued
+        self._active = active
+
+    def num_pending(self) -> int:
+        return self._queued
+
+    def num_busy_workers(self) -> int:
+        return self._active
+
+
+class TestRegisterNonstreamSaturationGauges:
+    def test_registers_both_gauges(self, meter_reader):
+        fake = _FakeQueue(queued=0, active=0)
+        register_nonstream_saturation_gauges(cast(AsyncWorkQueue, fake), is_running=lambda: True)
+        points = collect_metric_points(meter_reader)
+        assert "guardrails.nonstream.queued" in points
+        assert "guardrails.nonstream.active" in points
+
+    def test_gauges_reflect_live_queue_state(self, meter_reader):
+        """Callbacks re-read the queue on each collection — bumping the
+        fake's counters between collections shows up immediately."""
+        fake = _FakeQueue(queued=3, active=7)
+        register_nonstream_saturation_gauges(cast(AsyncWorkQueue, fake), is_running=lambda: True)
+
+        first = collect_metric_points(meter_reader)
+        assert first["guardrails.nonstream.queued"][0].value == 3
+        assert first["guardrails.nonstream.active"][0].value == 7
+
+        fake._queued = 11
+        fake._active = 2
+        second = collect_metric_points(meter_reader)
+        assert second["guardrails.nonstream.queued"][0].value == 11
+        assert second["guardrails.nonstream.active"][0].value == 2
+
+    def test_disabled_flag_suppresses_observations(self, meter_reader):
+        """When ``is_running()`` returns False the callbacks return [] and
+        no data points are exported (soft-disable behaviour used after
+        ``IORails.stop()``)."""
+        fake = _FakeQueue(queued=5, active=5)
+        enabled = True
+        register_nonstream_saturation_gauges(cast(AsyncWorkQueue, fake), is_running=lambda: enabled)
+
+        enabled_points = collect_metric_points(meter_reader)
+        assert enabled_points["guardrails.nonstream.queued"][0].value == 5
+        assert enabled_points["guardrails.nonstream.active"][0].value == 5
+
+        enabled = False
+        disabled_points = collect_metric_points(meter_reader)
+        # Callback returned [] — the SDK may either omit the metric entirely
+        # or include it with zero data points.  Assert "no observations",
+        # which is what consumers actually care about.
+        assert disabled_points.get("guardrails.nonstream.queued", []) == []
+        assert disabled_points.get("guardrails.nonstream.active", []) == []
+
+    def test_flag_flip_back_on_resumes_observations(self, meter_reader):
+        """After soft-disable, flipping the flag back to True resumes
+        collection on the same callbacks — matches the stop → start cycle."""
+        fake = _FakeQueue(queued=1, active=0)
+        enabled = False
+        register_nonstream_saturation_gauges(cast(AsyncWorkQueue, fake), is_running=lambda: enabled)
+
+        off = collect_metric_points(meter_reader)
+        # SDK omits gauges entirely when callbacks return [] (no data points
+        # → no metric in the export).  Assert "no observations" defensively
+        # so the test doesn't depend on which of the two shapes the SDK picks.
+        assert off.get("guardrails.nonstream.queued", []) == []
+
+        enabled = True
+        on = collect_metric_points(meter_reader)
+        assert on["guardrails.nonstream.queued"][0].value == 1
+
+    def test_no_op_when_meter_is_none(self):
+        """No MeterProvider configured → no registration, no exception."""
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            fake = _FakeQueue()
+            register_nonstream_saturation_gauges(cast(AsyncWorkQueue, fake), is_running=lambda: True)  # must not raise
+
+    def test_accepts_real_async_work_queue(self):
+        """Smoke test: the helper accepts an actual ``AsyncWorkQueue`` — no
+        asyncio loop needed for registration, only for start/stop."""
+        real_queue = AsyncWorkQueue(name="t", max_queue_size=4, max_concurrency=2)
+        # No meter_reader fixture — we only care that registration doesn't
+        # raise on the real class.  Skipped when no meter is configured.
+        register_nonstream_saturation_gauges(real_queue, is_running=lambda: False)

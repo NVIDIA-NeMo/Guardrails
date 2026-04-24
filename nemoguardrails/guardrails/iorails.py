@@ -48,6 +48,7 @@ from nemoguardrails.guardrails.telemetry import (
     record_request_error,
     record_span_error,
     record_stream_rejected,
+    register_nonstream_saturation_gauges,
     stream_active_metric,
     traced_request,
 )
@@ -114,6 +115,10 @@ class IORails:
 
         # Semaphore for streaming concurrency control / load shedding
         self._stream_semaphore = asyncio.Semaphore(STREAM_MAX_CONCURRENCY)
+
+        # ObservableGauges are created lazily on first ``start()`` because
+        # they need a reference to an AsyncWorkQueue which has been started.
+        self._gauges_registered = False
 
     @property
     def _has_streaming_output_rails(self) -> bool:

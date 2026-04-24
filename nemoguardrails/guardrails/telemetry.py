@@ -31,7 +31,7 @@ import time
 import warnings
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Generator, Iterable, NamedTuple, Optional, Tuple
 
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
@@ -57,9 +57,10 @@ _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
-    from opentelemetry.metrics import Counter, Histogram, Meter, UpDownCounter
+    from opentelemetry.metrics import CallbackOptions, Counter, Histogram, Meter, Observation, UpDownCounter
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
+    from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
     from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
 
     _OTEL_AVAILABLE = True
@@ -67,6 +68,7 @@ else:
     try:
         from opentelemetry import metrics as otel_metrics
         from opentelemetry import trace
+        from opentelemetry.metrics import CallbackOptions, Observation
         from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
         _OTEL_AVAILABLE = True
@@ -243,6 +245,64 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
         )
     return _request_instruments
+
+
+def register_nonstream_saturation_gauges(
+    queue: "AsyncWorkQueue",
+    is_running: Callable[[], bool],
+) -> None:
+    """Register ``guardrails.nonstream.queued`` + ``guardrails.nonstream.active``
+    ObservableGauges on the module-level Meter.
+
+    ObservableGauges read live state at collection time, so both metrics
+    reflect the *current* non-streaming queue + worker occupancy with no
+    drift risk vs. an UpDownCounter lineage.
+
+    ``is_running`` is a zero-arg callable returning ``bool``, deferred
+    so each collection re-reads the current state (passing the bool
+    directly would bake its start-time value into the closure).  The
+    callbacks return an empty observation list when it returns ``False``
+    — the state the flag holds after ``IORails.stop()`` flips
+    ``self._running`` back to False.  OTEL Python has no public
+    unregister API for observable instruments, so this "no data points"
+    fallback is the only way to stop a dead IORails instance from
+    polluting collection.
+
+    No-op when the OTEL API is unavailable or no MeterProvider is
+    configured.
+    """
+    meter = get_meter()
+    if meter is None:
+        return
+
+    def _queued_callback(options: "CallbackOptions") -> Iterable["Observation"]:
+        """Observe current backlog: items in the admission queue not yet
+        picked up by a worker.  Returns ``[]`` after ``IORails.stop()``
+        so a dead instance emits no data points."""
+        if not is_running():
+            return []
+        return [Observation(queue.num_pending())]
+
+    def _active_callback(options: "CallbackOptions") -> Iterable["Observation"]:
+        """Observe current occupancy: workers currently executing a
+        WorkItem.  Returns ``[]`` after ``IORails.stop()``, same
+        rationale as :func:`_queued_callback`."""
+        if not is_running():
+            return []
+        return [Observation(queue.num_busy_workers())]
+
+    meter.create_observable_gauge(
+        MetricNames.NONSTREAM_QUEUED,
+        callbacks=[_queued_callback],
+        description="Non-streaming requests buffered, not actively executing on a workernot yet picked up by a worker",
+        unit="1",
+    )
+    meter.create_observable_gauge(
+        MetricNames.NONSTREAM_ACTIVE,
+        callbacks=[_active_callback],
+        description="Non-streaming requests currently executing on a worker",
+        unit="1",
+    )
 
 
 _INVALID_TRACE_ID = 0

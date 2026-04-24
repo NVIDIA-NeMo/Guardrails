@@ -31,6 +31,7 @@ from typing import Any
 import pytest
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
+from tests.guardrails.async_helpers import wait_for_queue_state
 
 
 class TestBasicFunctionality:
@@ -612,7 +613,7 @@ class TestQueueStatusMethods:
 
             # Wait for task to start executing
             await started.wait()
-            await asyncio.sleep(0.01)  # Give time for busy_count to update
+            await wait_for_queue_state(queue, busy=1, pending=0)
 
             # Should have 1 busy worker
             assert queue.num_busy_workers() == 1
@@ -623,7 +624,7 @@ class TestQueueStatusMethods:
             assert result == 1
 
             # Worker should be idle again
-            await asyncio.sleep(0.01)
+            await wait_for_queue_state(queue, busy=0, pending=0)
             assert queue.num_busy_workers() == 0
 
     @pytest.mark.asyncio
@@ -642,7 +643,7 @@ class TestQueueStatusMethods:
             tasks = [asyncio.create_task(queue.submit(concurrent_task, i)) for i in range(3)]
 
             # Wait for all tasks to start
-            await asyncio.sleep(0.1)
+            await wait_for_queue_state(queue, busy=3, pending=0)
 
             # Should have 3 busy workers (up to max_concurrency)
             assert queue.num_busy_workers() == 3
@@ -653,7 +654,7 @@ class TestQueueStatusMethods:
             assert results == [0, 1, 2]
 
             # All workers should be idle
-            await asyncio.sleep(0.01)
+            await wait_for_queue_state(queue, busy=0, pending=0)
             assert queue.num_busy_workers() == 0
 
     @pytest.mark.asyncio

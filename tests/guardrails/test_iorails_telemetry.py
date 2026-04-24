@@ -34,6 +34,7 @@ from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, Rai
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
+from tests.guardrails.async_helpers import wait_for_queue_state
 from tests.guardrails.metric_helpers import collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
@@ -1410,3 +1411,159 @@ class TestIndependentTracingAndMetrics:
         assert any(s.name == "guardrails.request" for s in spans)
         points = collect_metric_points(metric_reader)
         assert points == {}
+
+
+class TestNonstreamStateGauges:
+    """IORails-level integration tests for the ``nonstream.queued`` +
+    ``nonstream.active`` ObservableGauges.
+
+    Each test constructs IORails *after* ``metric_reader`` has installed its
+    test-local Meter — the gauges are registered in ``IORails.start()``,
+    so the Meter in effect at startup time is what the reader sees.  The
+    ``iorails_tracing`` / ``iorails_no_tracing`` fixtures set up the Meter
+    too late for gauges, which is why these tests build IORails inline.
+    """
+
+    @pytest.mark.asyncio
+    async def test_gauges_registered_and_read_zero_at_rest(self, metric_reader):
+        """A freshly-started IORails with no pending work → both gauges read 0."""
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+        async with iorails:
+            points = collect_metric_points(metric_reader)
+            assert points["guardrails.nonstream.queued"][0].value == 0
+            assert points["guardrails.nonstream.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_nonstream_active_reads_one_while_worker_is_busy(self, metric_reader):
+        """A pipeline blocked on an Event → ``nonstream.active == 1`` during
+        the block, 0 after the Event is set and the worker finishes.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+        async with iorails:
+            iorails._do_generate = blocking_generate
+
+            task = asyncio.create_task(iorails.generate_async([{"role": "user", "content": "hi"}]))
+            # Wait for the worker to pick up the item and enter
+            # ``blocking_generate`` (busy_count=1, pending=0).
+            await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=0)
+
+            mid = collect_metric_points(metric_reader)
+            assert mid["guardrails.nonstream.active"][0].value == 1
+            assert mid["guardrails.nonstream.queued"][0].value == 0
+
+            gate.set()
+            await task
+
+            final = collect_metric_points(metric_reader)
+            assert final["guardrails.nonstream.active"][0].value == 0
+            assert final["guardrails.nonstream.queued"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_nonstream_queued_reflects_backlog_past_worker_capacity(self, metric_reader):
+        """With a single worker occupied and extras pending, ``nonstream.queued``
+        reports the backlog size while ``nonstream.active == 1``.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        # Patch module-level budgets so the backlog test doesn't need to
+        # spin up 256 workers.
+        with (
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1),
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH", 8),
+        ):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            async with iorails:
+                iorails._do_generate = blocking_generate
+
+                tasks = [
+                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    for i in range(3)
+                ]
+                # Wait for one worker to pick up an item and the other two
+                # to sit in the queue (busy=1, pending=2).
+                await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=2)
+
+                mid = collect_metric_points(metric_reader)
+                assert mid["guardrails.nonstream.active"][0].value == 1
+                assert mid["guardrails.nonstream.queued"][0].value == 2
+
+                gate.set()
+                await asyncio.gather(*tasks)
+
+                final = collect_metric_points(metric_reader)
+                assert final["guardrails.nonstream.active"][0].value == 0
+                assert final["guardrails.nonstream.queued"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_gauges_not_registered_when_metrics_disabled(self, metric_reader):
+        """Metrics disabled in config → ``start()`` does not register gauges
+        and they never appear in collection output.
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        async with iorails:
+            points = collect_metric_points(metric_reader)
+            assert "guardrails.nonstream.queued" not in points
+            assert "guardrails.nonstream.active" not in points
+
+    @pytest.mark.asyncio
+    async def test_gauges_soft_disabled_after_stop(self, metric_reader):
+        """``stop()`` flips ``self._running`` to False; the gauge callbacks
+        return ``[]`` on subsequent collection (soft-disable).  Needed
+        because OTEL Python has no public unregister API — an always-alive
+        callback would leak dead-IORails state across tests and long-running
+        processes.
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+        await iorails.start()
+        try:
+            alive = collect_metric_points(metric_reader)
+            assert alive["guardrails.nonstream.queued"][0].value == 0
+            assert alive["guardrails.nonstream.active"][0].value == 0
+        finally:
+            await iorails.stop()
+
+        stopped = collect_metric_points(metric_reader)
+        # Either the metric is absent (SDK-dependent when callbacks return [])
+        # or present with no data points — both mean "no observation".
+        assert stopped.get("guardrails.nonstream.queued", []) == []
+        assert stopped.get("guardrails.nonstream.active", []) == []
+
+    @pytest.mark.asyncio
+    async def test_stop_then_start_resumes_gauge_observations(self, metric_reader):
+        """``stop()`` → ``start()`` cycle must re-enable observations without
+        re-registering (the ``_gauges_registered`` flag remains True across
+        the cycle; ``self._running`` flipping back to True is what
+        re-enables the callbacks).
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+
+        await iorails.start()
+        assert iorails._gauges_registered is True
+        await iorails.stop()
+
+        # Restart — must NOT re-register (flag still True) but must resume
+        # reporting because ``self._running`` flips back to True.
+        await iorails.start()
+        try:
+            assert iorails._gauges_registered is True
+            resumed = collect_metric_points(metric_reader)
+            assert resumed["guardrails.nonstream.queued"][0].value == 0
+            assert resumed["guardrails.nonstream.active"][0].value == 0
+        finally:
+            await iorails.stop()
