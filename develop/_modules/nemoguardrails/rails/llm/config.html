@@ -1583,6 +1583,17 @@ window.addEventListener("load", load);</script>
     <span class="p">)</span>
 
 
+<span class="k">class</span><span class="w"> </span><span class="nc">MetricsConfig</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;OpenTelemetry Metrics Configuration.</span>
+<span class="sd">    Configures and enables Metrics independent of OTEL Traces.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;Emit OTEL metrics for IORails (independent of tracing)&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
 <span class="k">class</span><span class="w"> </span><span class="nc">EmbeddingsCacheConfig</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the caching embeddings.&quot;&quot;&quot;</span>
 
@@ -2357,6 +2368,7 @@ window.addEventListener("load", load);</script>
         <span class="s2">&quot;raw_llm_call_action&quot;</span><span class="p">,</span>
         <span class="s2">&quot;enable_rails_exceptions&quot;</span><span class="p">,</span>
         <span class="s2">&quot;tracing&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;metrics&quot;</span><span class="p">,</span>
     <span class="p">]</span>
 
     <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">additional_fields</span><span class="p">:</span>
@@ -2698,6 +2710,11 @@ window.addEventListener("load", load);</script>
     <span class="n">tracing</span><span class="p">:</span> <span class="n">TracingConfig</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">default_factory</span><span class="o">=</span><span class="n">TracingConfig</span><span class="p">,</span>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Configuration for tracing.&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">MetricsConfig</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="n">MetricsConfig</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Configuration for OTEL metrics emission (independent of tracing).&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 
 <div class="viewcode-block" id="RailsConfig.check_model_exists_for_input_rails">
