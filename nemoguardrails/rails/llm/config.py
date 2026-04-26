@@ -328,6 +328,53 @@ class PrivateAIDetection(BaseModel):
     )
 
 
+class PEyeEyeOptions(BaseModel):
+    """Per-source (input/output/retrieval) options for the Peyeeye PII guardrail."""
+
+    entities: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional list of entity IDs to restrict detection to. When unset, peyeeye runs its default entity catalog."
+        ),
+    )
+    locale: str = Field(
+        default="auto",
+        description="BCP-47 locale or `auto` to let peyeeye detect it.",
+    )
+    session_mode: Literal["stateful", "stateless"] = Field(
+        default="stateful",
+        description=(
+            "`stateful` (default): peyeeye stores the token→value mapping under a "
+            "`ses_…` id. `stateless`: peyeeye returns a sealed AEAD blob (`skey_…`) "
+            "and retains nothing server-side."
+        ),
+    )
+
+
+class PEyeEyeConfig(BaseModel):
+    """Configuration for the Peyeeye PII redaction & rehydration guardrail."""
+
+    api_base: str = Field(
+        default="https://api.peyeeye.ai",
+        description=(
+            "Peyeeye API base URL. Override via the `PEYEEYE_API_BASE` env var or "
+            "this field for self-hosted deployments."
+        ),
+    )
+    input: PEyeEyeOptions = Field(
+        default_factory=PEyeEyeOptions,
+        description="Options for redaction of user input.",
+    )
+    output: PEyeEyeOptions = Field(
+        default_factory=PEyeEyeOptions,
+        description="Options for redaction of bot output.",
+    )
+    retrieval: PEyeEyeOptions = Field(
+        default_factory=PEyeEyeOptions,
+        description="Options for redaction of retrieved knowledge-base chunks.",
+    )
+
+
 class GLiNERDetectionOptions(BaseModel):
     """Configuration options for GLiNER."""
 
@@ -1115,6 +1162,11 @@ class RailsConfigData(BaseModel):
     privateai: Optional[PrivateAIDetection] = Field(
         default_factory=PrivateAIDetection,
         description="Configuration for Private AI.",
+    )
+
+    peyeeye: Optional[PEyeEyeConfig] = Field(
+        default_factory=PEyeEyeConfig,
+        description="Configuration for the Peyeeye PII redaction & rehydration guardrail.",
     )
 
     gliner: Optional[GLiNERDetection] = Field(

@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 >
 > The changes related to the Colang language and runtime have moved to [CHANGELOG-Colang](./CHANGELOG-Colang.md) file.
 
+## [Unreleased]
+
+### 🚀 Features
+
+- *(library)* Add Peyeeye PII redaction & rehydration guardrail. New input rail
+  redacts PII from the user message before it reaches the LLM and a paired
+  output rail rehydrates the model's response with the original values via
+  the [peyeeye.ai](https://peyeeye.ai) API. Supports both stateful (`ses_…`)
+  and stateless (`skey_…` AEAD-sealed) session modes.
+
 ## [0.21.0] - 2026-03-12
 
 ### 🚀 Features

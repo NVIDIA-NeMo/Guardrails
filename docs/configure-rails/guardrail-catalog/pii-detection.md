@@ -156,3 +156,33 @@ rails:
 ```
 
 For more details, check out the [Private AI Integration](community/privateai.md) page.
+
+## Peyeeye PII Redaction & Rehydration
+
+The NeMo Guardrails library supports using the [Peyeeye API](https://peyeeye.ai)
+to redact PII from a user's message before it reaches the LLM and then
+rehydrate the model's response so the user sees the original values, while the
+LLM only ever sees stable placeholders. Set the `PEYEEYE_API_KEY` environment
+variable to authenticate.
+
+```yaml
+rails:
+  config:
+    peyeeye:
+      api_base: https://api.peyeeye.ai
+      input:
+        entities:
+          - EMAIL
+          - PHONE
+          - CARD
+        locale: auto
+        session_mode: stateful  # or "stateless" for AEAD-sealed blobs
+  input:
+    flows:
+      - peyeeye redact input
+  output:
+    flows:
+      - peyeeye rehydrate output
+```
+
+For more details, check out the [Peyeeye Integration](community/peyeeye.md) page.

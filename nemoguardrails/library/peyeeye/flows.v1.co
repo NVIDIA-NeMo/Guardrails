@@ -1,0 +1,27 @@
+#### PEYEEYE PII REDACTION & REHYDRATION RAILS ####
+
+# INPUT RAILS
+
+define subflow peyeeye redact input
+  """Redact PII from the user input before it reaches the LLM."""
+  $peyeeye_input_result = execute peyeeye_redact(source="input", text=$user_message)
+  $user_message = $peyeeye_input_result["redacted_text"]
+  $peyeeye_input_session_id = $peyeeye_input_result["session_id"]
+
+
+# RETRIEVAL RAILS
+
+define subflow peyeeye redact retrieval
+  """Redact PII from retrieved chunks before they are fed to the LLM."""
+  $peyeeye_retrieval_result = execute peyeeye_redact(source="retrieval", text=$relevant_chunks)
+  $relevant_chunks = $peyeeye_retrieval_result["redacted_text"]
+  $peyeeye_retrieval_session_id = $peyeeye_retrieval_result["session_id"]
+
+
+# OUTPUT RAILS
+
+define subflow peyeeye rehydrate output
+  """Swap PII placeholders in the bot output back to their original values."""
+  if $peyeeye_input_session_id
+    $peyeeye_output_result = execute peyeeye_rehydrate(text=$bot_message, session_id=$peyeeye_input_session_id)
+    $bot_message = $peyeeye_output_result["text"]
