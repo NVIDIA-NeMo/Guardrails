@@ -289,3 +289,13 @@ NEMOGUARDS_PARALLEL_CONFIG = {
         "input": {**NEMOGUARDS_PARALLEL_OUTPUT_CONFIG["rails"]["input"], "parallel": True},
     },
 }
+
+## SPECULATIVE GENERATION CONFIGS
+
+NEMOGUARDS_SPECULATIVE_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {
+        **NEMOGUARDS_CONFIG["rails"],
+        "input": {**NEMOGUARDS_CONFIG["rails"]["input"], "speculative_generation": True},
+    },
+}

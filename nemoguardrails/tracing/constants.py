@@ -152,6 +152,12 @@ class GuardrailsAttributes:
     # llm attributes (application-level, not provider-level)
     LLM_CACHE_HIT = "llm.cache.hit"
 
+    # speculative generation attributes
+    SPECULATIVE_MODE_ACTIVE = "speculative.mode_active"
+    SPECULATIVE_FIRST_COMPLETED = "speculative.first_completed"
+    SPECULATIVE_FIRST_REJECTOR = "speculative.first_rejector"
+    SPECULATIVE_TIME_SAVED_MS = "speculative.time_saved_ms"
+
 
 class SpanNames:
     """Standard span names following OpenTelemetry GenAI semantic conventions.
