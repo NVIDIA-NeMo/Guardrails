@@ -45,8 +45,11 @@ rails:
         locale: auto
         session_mode: stateful
       output:
-        # Output is rehydrated via the input session, so options here only
-        # apply if you also enable `peyeeye redact retrieval` etc.
+        # Output rehydration uses the session ids stashed by the input
+        # and retrieval rails, so the options here (locale / entities /
+        # session_mode) are only consulted if you call `peyeeye_redact`
+        # with `source="output"` directly from a custom flow. The
+        # built-in `peyeeye rehydrate output` flow does not read them.
         locale: auto
   input:
     flows:

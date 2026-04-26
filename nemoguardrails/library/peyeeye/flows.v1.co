@@ -21,7 +21,15 @@ define subflow peyeeye redact retrieval
 # OUTPUT RAILS
 
 define subflow peyeeye rehydrate output
-  """Swap PII placeholders in the bot output back to their original values."""
+  """Swap PII placeholders in the bot output back to their original values.
+
+  Rehydrates against the retrieval session first (if any) so chunks redacted
+  in the retrieval rail can be restored, then against the input session so
+  PII the user typed is restored.
+  """
+  if $peyeeye_retrieval_session_id
+    $peyeeye_output_result = execute peyeeye_rehydrate(text=$bot_message, session_id=$peyeeye_retrieval_session_id)
+    $bot_message = $peyeeye_output_result["text"]
   if $peyeeye_input_session_id
     $peyeeye_output_result = execute peyeeye_rehydrate(text=$bot_message, session_id=$peyeeye_input_session_id)
     $bot_message = $peyeeye_output_result["text"]

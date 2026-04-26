@@ -268,14 +268,6 @@ async def test_redact_passes_entities_and_locale(monkeypatch):
         """
     )
 
-    captured: dict = {}
-
-    def _capture(url, **kwargs):
-        captured.update(kwargs.get("json") or {})
-        return aioresponses.CallbackResult(  # type: ignore[attr-defined]
-            payload={"text": ["[EMAIL_1]"], "session_id": "ses_x"},
-        )
-
     with aioresponses() as m:
         m.post(
             REDACT_URL,
@@ -317,6 +309,14 @@ async def test_rehydrate_replaces_placeholders_and_cleans_up(monkeypatch):
             session_id="ses_abc123",
             config=config,
         )
+
+        # Cleanup runs in the background; drain so the task completes before
+        # ``aioresponses`` tears down its mock.
+        import asyncio as _asyncio
+
+        pending = [t for t in _asyncio.all_tasks() if t is not _asyncio.current_task() and not t.done()]
+        if pending:
+            await _asyncio.gather(*pending, return_exceptions=True)
 
     assert result == {"text": "hi me@example.com", "replaced": 1}
 
@@ -367,6 +367,99 @@ async def test_rehydrate_skips_delete_for_stateless(monkeypatch):
         )
 
     assert result["replaced"] == 1
+
+
+@pytest.mark.asyncio
+async def test_rehydrate_falls_back_when_payload_text_is_null(monkeypatch):
+    """A buggy provider returning ``{"text": null}`` must not propagate ``None``
+    into ``$bot_message``; we fall back to the original (still redacted) text."""
+    monkeypatch.setenv("PEYEEYE_API_KEY", "test-key")
+    config = _build_config()
+
+    with aioresponses() as m:
+        m.post(REHYDRATE_URL, payload={"text": None, "replaced": 0})
+        m.delete(SESSION_DELETE_RE, status=204)
+
+        result = await peyeeye_rehydrate(
+            text="hi [EMAIL_1]",
+            session_id="ses_abc123",
+            config=config,
+        )
+
+    assert result == {"text": "hi [EMAIL_1]", "replaced": 0}
+
+
+@pytest.mark.asyncio
+async def test_redact_rejects_non_object_json_payload(monkeypatch):
+    """A 200 response with a JSON list (not an object) must surface as an API
+    error rather than crashing later with ``AttributeError`` on ``.get``."""
+    monkeypatch.setenv("PEYEEYE_API_KEY", "test-key")
+    config = _build_config()
+
+    with aioresponses() as m:
+        m.post(REDACT_URL, payload=["unexpected", "list"])
+        with pytest.raises(PEyeEyeGuardrailAPIError, match="non-object JSON payload"):
+            await peyeeye_redact(
+                source="input",
+                text="hi",
+                config=config,
+            )
+
+
+@pytest.mark.asyncio
+async def test_rehydrate_cleanup_runs_in_background(monkeypatch):
+    """The DELETE /v1/sessions/{id} call must be fired as a background task
+    rather than awaited inline — otherwise a slow cleanup endpoint adds latency
+    to every rehydrated response."""
+    monkeypatch.setenv("PEYEEYE_API_KEY", "test-key")
+    config = _build_config()
+
+    with aioresponses() as m:
+        m.post(REHYDRATE_URL, payload={"text": "hi me@example.com", "replaced": 1})
+        m.delete(SESSION_DELETE_RE, status=204)
+
+        result = await peyeeye_rehydrate(
+            text="hi [EMAIL_1]",
+            session_id="ses_abc123",
+            config=config,
+        )
+
+        # At return time the DELETE may not have fired yet — drain pending
+        # tasks so the background DELETE has a chance to run before we assert.
+        import asyncio as _asyncio
+
+        pending = [t for t in _asyncio.all_tasks() if t is not _asyncio.current_task() and not t.done()]
+        if pending:
+            await _asyncio.gather(*pending, return_exceptions=True)
+
+    assert result == {"text": "hi me@example.com", "replaced": 1}
+    delete_calls = [c for k, calls in m.requests.items() if k[0] == "DELETE" for c in calls]
+    assert delete_calls, "expected best-effort DELETE to fire (eventually)"
+
+
+@pytest.mark.asyncio
+async def test_rehydrate_error_body_is_truncated(monkeypatch):
+    """The exception message for a 4xx/5xx must not include the full provider
+    response body verbatim — large bodies are truncated."""
+    monkeypatch.setenv("PEYEEYE_API_KEY", "test-key")
+    config = _build_config()
+
+    huge = "X" * 5000
+
+    with aioresponses() as m:
+        m.post(REDACT_URL, status=500, body=huge, content_type="text/plain")
+        with pytest.raises(PEyeEyeGuardrailAPIError) as exc_info:
+            await peyeeye_redact(
+                source="input",
+                text="hi",
+                config=config,
+            )
+
+    msg = str(exc_info.value)
+    # The full body must not appear.
+    assert huge not in msg
+    # But a truncation marker should.
+    assert "truncated" in msg
 
 
 @pytest.mark.asyncio

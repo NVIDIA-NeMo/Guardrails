@@ -31,11 +31,30 @@ class PEyeEyeGuardrailAPIError(Exception):
     """Raised when the peyeeye API returns an error."""
 
 
+_BODY_SNIPPET_MAX = 200
+
+
 def _auth_headers(api_key: str) -> Dict[str, str]:
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+
+
+def _safe_snippet(body_text: str, limit: int = _BODY_SNIPPET_MAX) -> str:
+    """Return a truncated body snippet safe to embed in an exception message.
+
+    Avoids dumping the full provider response (which may include detail strings
+    a caller would prefer not to see in logs) while keeping enough context for
+    debugging.
+    """
+    if body_text is None:
+        return "<empty body, len=0>"
+    text = body_text.strip()
+    length = len(text)
+    if length <= limit:
+        return text
+    return f"{text[:limit]}… <truncated, total len={length}>"
 
 
 async def peyeeye_redact_request(
@@ -124,7 +143,9 @@ async def peyeeye_rehydrate_request(
     body = {"text": text, "session": session_id}
     payload = await _post_json(url, body, _auth_headers(api_key), timeout=timeout)
 
-    rehydrated = payload.get("text", text)
+    # Use ``or text`` so a JSON ``null`` (key present, value None) falls back to
+    # the original input rather than propagating ``None`` into ``$bot_message``.
+    rehydrated = payload.get("text") or text
     replaced = payload.get("replaced", 0)
     try:
         replaced = int(replaced)
@@ -175,14 +196,22 @@ async def _post_json(
                     raise PEyeEyeGuardrailMissingSecrets(f"Invalid peyeeye API key (401 from {url})")
                 if status >= 400:
                     body_text = await resp.text()
-                    raise PEyeEyeGuardrailAPIError(f"peyeeye request to {url} failed with status {status}: {body_text}")
+                    snippet = _safe_snippet(body_text)
+                    raise PEyeEyeGuardrailAPIError(f"peyeeye request to {url} failed with status {status}: {snippet}")
                 try:
-                    return await resp.json()
+                    payload = await resp.json()
                 except aiohttp.ContentTypeError as e:
                     body_text = await resp.text()
+                    snippet = _safe_snippet(body_text)
                     raise PEyeEyeGuardrailAPIError(
-                        f"peyeeye {url} returned non-JSON response (status={status}): {body_text}"
+                        f"peyeeye {url} returned non-JSON response (status={status}): {snippet}"
                     ) from e
+                if not isinstance(payload, dict):
+                    raise PEyeEyeGuardrailAPIError(
+                        f"peyeeye {url} returned non-object JSON payload (status={status}, "
+                        f"type={type(payload).__name__})"
+                    )
+                return payload
     except (PEyeEyeGuardrailMissingSecrets, PEyeEyeGuardrailAPIError):
         raise
     except aiohttp.ClientError as e:

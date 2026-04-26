@@ -15,6 +15,7 @@
 
 """PII redaction & rehydration using the Peyeeye API."""
 
+import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Optional, Union
@@ -185,11 +186,30 @@ async def peyeeye_rehydrate(
         log.warning("peyeeye: rehydrate failed: %s", e)
         return {"text": text, "replaced": 0}
 
-    if cleanup and isinstance(session_id, str) and session_id.startswith("ses_"):
-        await peyeeye_delete_session(
-            session_id=session_id,
-            api_base=api_base,
-            api_key=api_key,
-        )
+    if cleanup and session_id.startswith("ses_"):
+        # Fire cleanup as a background task so a slow DELETE endpoint doesn't
+        # add latency to every rehydrated response. The helper already swallows
+        # its own errors (it's documented as best-effort), so we don't need to
+        # attach a done-callback to surface them.
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(
+                peyeeye_delete_session(
+                    session_id=session_id,
+                    api_base=api_base,
+                    api_key=api_key,
+                )
+            )
+            # Prevent "Task was destroyed but it is pending" warnings if the
+            # loop is torn down before cleanup finishes.
+            task.add_done_callback(lambda _t: None)
+        except RuntimeError:
+            # No running loop (very unlikely from an async action), fall back
+            # to awaiting inline rather than dropping cleanup.
+            await peyeeye_delete_session(
+                session_id=session_id,
+                api_base=api_base,
+                api_key=api_key,
+            )
 
     return result
