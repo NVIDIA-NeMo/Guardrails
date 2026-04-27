@@ -16,7 +16,6 @@
 import asyncio
 import logging
 import os
-import threading
 from typing import Dict
 
 from nemoguardrails.types import LLMFramework
@@ -63,50 +62,22 @@ def get_default_framework() -> str:
     return _default_framework
 
 
-def _reset_frameworks() -> None:
+async def _areset_frameworks() -> None:
     global _default_framework
-
     frameworks_to_close = list(_frameworks.values())
     try:
-        if frameworks_to_close:
-            _run_async_from_sync(_close_frameworks(frameworks_to_close))
+        for fw in frameworks_to_close:
+            reset = getattr(fw, "reset", None)
+            if reset is None:
+                continue
+            try:
+                await reset()
+            except Exception as exc:
+                log.warning("Error resetting framework %r: %s", fw, exc)
     finally:
         _frameworks.clear()
         _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
 
 
-async def _close_frameworks(frameworks) -> None:
-    for fw in frameworks:
-        reset = getattr(fw, "reset", None)
-        if reset is None:
-            continue
-        try:
-            await reset()
-        except Exception as exc:
-            log.warning("Error resetting framework %r: %s", fw, exc)
-
-
-def _run_async_from_sync(coro) -> None:
-    try:
-        asyncio.get_running_loop()
-        in_loop = True
-    except RuntimeError:
-        in_loop = False
-
-    if not in_loop:
-        asyncio.run(coro)
-        return
-
-    error_holder = []
-
-    def _runner():
-        try:
-            asyncio.run(coro)
-        except BaseException as exc:
-            error_holder.append(exc)
-
-    worker = threading.Thread(target=_runner, daemon=True)
-    worker.start()
-    worker.join()
-    if error_holder:
-        raise error_holder[0]
+def _reset_frameworks() -> None:
+    asyncio.run(_areset_frameworks())

@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.llm.frameworks import (
+    _areset_frameworks,
     _reset_frameworks,
     get_default_framework,
     get_framework,
@@ -107,21 +108,26 @@ class _ResetSpyFramework:
         self.reset_count += 1
 
 
-class TestResetFrameworksFromRunningLoop:
+class TestAresetFrameworks:
     @pytest.mark.asyncio
-    async def test_reset_called_when_invoked_from_running_event_loop(self):
+    async def test_async_reset_calls_framework_reset(self):
         spy = _ResetSpyFramework()
         register_framework("spy_running_loop", spy)
-        _reset_frameworks()
+        await _areset_frameworks()
         assert spy.reset_count == 1
 
     @pytest.mark.asyncio
-    async def test_reset_clears_pool_when_invoked_from_running_event_loop(self):
+    async def test_async_reset_clears_pool(self):
         spy = _ResetSpyFramework()
         register_framework("spy_pool", spy)
-        _reset_frameworks()
+        await _areset_frameworks()
         with pytest.raises(KeyError):
             get_framework("spy_pool")
+
+    @pytest.mark.asyncio
+    async def test_sync_wrapper_raises_in_running_loop(self):
+        with pytest.raises(RuntimeError, match="asyncio.run"):
+            _reset_frameworks()
 
 
 class _FrameworkWithoutReset:
