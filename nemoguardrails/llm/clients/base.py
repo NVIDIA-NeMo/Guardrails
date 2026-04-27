@@ -34,6 +34,7 @@ from nemoguardrails.llm.clients._sse import SSEDecoder
 from nemoguardrails.llm.clients.constants import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_MAX_RETRIES,
+    DEFAULT_STREAM_TIMEOUT,
     DEFAULT_TIMEOUT,
     INITIAL_RETRY_DELAY,
     MAX_RETRY_AFTER,
@@ -209,6 +210,7 @@ class BaseClient:
                     json=payload,
                     headers=self._build_headers(),
                     params=self._custom_query or None,
+                    timeout=DEFAULT_STREAM_TIMEOUT,
                 ) as response:
                     if self._should_retry(response.status_code, response.headers) and retries_remaining > 0:
                         await response.aread()

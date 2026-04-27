@@ -32,7 +32,13 @@ from nemoguardrails.exceptions import (
     LLMUnsupportedParamsError,
 )
 from nemoguardrails.llm.clients.base import BaseClient
-from nemoguardrails.llm.clients.constants import INITIAL_RETRY_DELAY, MAX_RETRY_AFTER, MAX_RETRY_DELAY
+from nemoguardrails.llm.clients.constants import (
+    DEFAULT_STREAM_TIMEOUT,
+    DEFAULT_TIMEOUT,
+    INITIAL_RETRY_DELAY,
+    MAX_RETRY_AFTER,
+    MAX_RETRY_DELAY,
+)
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from tests.llm.clients._helpers import (
     consume,
@@ -638,6 +644,117 @@ class TestNetworkExceptionRetry:
                 pass
         assert call_count == 2
         assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+
+
+class TestStreamTimeout:
+    def test_stream_timeout_constant_tightens_read(self):
+        assert DEFAULT_STREAM_TIMEOUT.read == 120.0
+        assert DEFAULT_STREAM_TIMEOUT.connect == DEFAULT_TIMEOUT.connect
+
+    @pytest.mark.asyncio
+    async def test_stream_call_receives_stream_timeout(self):
+        client = make_client()
+        captured = {}
+
+        @asynccontextmanager
+        async def capturing_stream(*args, **kwargs):
+            captured.update(kwargs)
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        client._client = type("MockClient", (), {"stream": capturing_stream})()
+        async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+            pass
+
+        assert captured["timeout"] is DEFAULT_STREAM_TIMEOUT
+
+    @pytest.mark.asyncio
+    async def test_read_timeout_before_first_chunk_retries(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def first_call_times_out(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise httpx.ReadTimeout("no bytes from server")
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        with mock.patch(
+            "nemoguardrails.llm.clients.base.BaseClient._calculate_retry_delay",
+            staticmethod(low_retry_delay),
+        ):
+            client = make_client(max_retries=2)
+            client._client = type("MockClient", (), {"stream": first_call_times_out})()
+            chunks = []
+            async for chunk in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                chunks.append(chunk)
+            assert call_count == 2
+            assert len(chunks) == 1
+
+    @pytest.mark.asyncio
+    async def test_read_timeout_after_first_chunk_does_not_retry(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def stalls_after_first_chunk(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"}}]}'
+                    yield ""
+                    raise httpx.ReadTimeout("server stalled mid-stream")
+
+            yield FakeResponse()
+
+        with mock.patch(
+            "nemoguardrails.llm.clients.base.BaseClient._calculate_retry_delay",
+            staticmethod(low_retry_delay),
+        ):
+            client = make_client(max_retries=2)
+            client._client = type("MockClient", (), {"stream": stalls_after_first_chunk})()
+            chunks = []
+            with pytest.raises(LLMTimeoutError) as exc_info:
+                async for chunk in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                    chunks.append(chunk)
+            assert call_count == 1
+            assert len(chunks) == 1
+            assert isinstance(exc_info.value.__cause__, httpx.ReadTimeout)
 
 
 class TestCalculateRetryDelay:
