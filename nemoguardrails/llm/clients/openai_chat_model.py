@@ -17,6 +17,7 @@ import json
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
+from nemoguardrails.llm.clients.base import HTTPResponse
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.types import (
     ChatMessage,
@@ -40,7 +41,7 @@ _FINISH_REASON_MAP: Dict[str, FinishReason] = {
     "content_filter": "content_filter",
 }
 
-_STANDARD_RESPONSE_KEYS = frozenset({"model", "choices", "usage", "id", "object", "created", "_response_headers"})
+_STANDARD_RESPONSE_KEYS = frozenset({"model", "choices", "usage", "id", "object", "created"})
 
 
 def _is_openai_reasoning_model(model_name: str) -> bool:
@@ -122,10 +123,10 @@ class OpenAIChatModel:
         messages = self._to_messages(prompt)
         params = self._prepare_params(stop, kwargs)
         try:
-            data = await self._client.chat_completion(self._model, messages, **params)
+            response = await self._client.chat_completion(self._model, messages, **params)
         except LLMClientError as exc:
             raise self._enrich(exc)
-        return self._parse_response(data)
+        return self._parse_response(response)
 
     async def stream_async(
         self,
@@ -141,8 +142,9 @@ class OpenAIChatModel:
 
         gen = self._client.stream_chat_completion(self._model, messages, **params)
         try:
-            async for chunk_data in gen:
-                choices = chunk_data.get("choices", [])
+            async for chunk_response in gen:
+                chunk_body = chunk_response.body
+                choices = chunk_body.get("choices", [])
                 if choices:
                     delta = choices[0].get("delta", {})
                     raw_tool_calls = delta.get("tool_calls")
@@ -160,7 +162,7 @@ class OpenAIChatModel:
                             if arg_fragment:
                                 tool_call_acc[idx]["arguments_buffer"] += arg_fragment
 
-                chunk = self._parse_chunk(chunk_data)
+                chunk = self._parse_chunk(chunk_response)
                 if chunk is None:
                     continue
 
@@ -222,7 +224,8 @@ class OpenAIChatModel:
             raise LLMResponseValidationError("Missing or invalid 'message' in choices[0]", response_data=data, **ctx)
         return message
 
-    def _parse_response(self, data: Dict[str, Any]) -> LLMResponse:
+    def _parse_response(self, response: HTTPResponse) -> LLMResponse:
+        data = response.body
         message = self._validate_response(data)
         choice = data["choices"][0]
 
@@ -252,9 +255,8 @@ class OpenAIChatModel:
 
         provider_metadata = {k: v for k, v in data.items() if k not in _STANDARD_RESPONSE_KEYS and v is not None}
 
-        response_headers = data.get("_response_headers")
-        if response_headers:
-            provider_metadata["response_headers"] = response_headers
+        if response.headers:
+            provider_metadata["response_headers"] = dict(response.headers)
 
         return LLMResponse(
             content=content,
@@ -267,11 +269,11 @@ class OpenAIChatModel:
             provider_metadata=provider_metadata or None,
         )
 
-    def _parse_chunk(self, data: Dict[str, Any]) -> Optional[LLMResponseChunk]:
+    def _parse_chunk(self, response: HTTPResponse) -> Optional[LLMResponseChunk]:
+        data = response.body
         provider_metadata = {k: v for k, v in data.items() if k not in _STANDARD_RESPONSE_KEYS and v is not None}
-        response_headers = data.get("_response_headers")
-        if response_headers:
-            provider_metadata["response_headers"] = response_headers
+        if response.headers:
+            provider_metadata["response_headers"] = dict(response.headers)
 
         choices = data.get("choices", [])
         if not choices:

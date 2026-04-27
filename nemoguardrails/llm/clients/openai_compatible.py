@@ -15,7 +15,7 @@
 
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from nemoguardrails.llm.clients.base import BaseClient
+from nemoguardrails.llm.clients.base import BaseClient, HTTPResponse
 
 
 class OpenAICompatibleClient(BaseClient):
@@ -55,7 +55,7 @@ class OpenAICompatibleClient(BaseClient):
         *,
         stop: Optional[List[str]] = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> HTTPResponse:
         payload = self._build_payload(model, messages, stop=stop, **kwargs)
         return await self._apost(self._ROUTE, payload)
 
@@ -66,7 +66,7 @@ class OpenAICompatibleClient(BaseClient):
         *,
         stop: Optional[List[str]] = None,
         **kwargs: Any,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[HTTPResponse, None]:
         payload = self._build_payload(model, messages, stop=stop, stream=True, **kwargs)
         gen = self._apost_stream(self._ROUTE, payload)
         try:

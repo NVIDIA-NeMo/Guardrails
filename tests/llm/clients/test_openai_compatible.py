@@ -59,13 +59,15 @@ class TestProviderUrl:
 
 class TestChatCompletion:
     @pytest.mark.asyncio
-    async def test_returns_raw_dict(self):
+    async def test_returns_http_response(self):
+        from nemoguardrails.llm.clients.base import HTTPResponse
+
         client = make_client()
         mock_httpx_post(client, [(200, ok_response(), {})])
         result = await client.chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}])
-        assert isinstance(result, dict)
-        assert result["choices"][0]["message"]["content"] == "Hello"
-        assert "_response_headers" in result
+        assert isinstance(result, HTTPResponse)
+        assert result.body["choices"][0]["message"]["content"] == "Hello"
+        assert result.headers is not None
 
     @pytest.mark.asyncio
     async def test_builds_correct_payload(self):
@@ -843,7 +845,7 @@ class TestDoneSentinel:
         )
         chunks = await consume(client)
         assert len(chunks) == 1
-        assert chunks[0]["choices"][0]["delta"]["content"] == "hi"
+        assert chunks[0].body["choices"][0]["delta"]["content"] == "hi"
 
     @pytest.mark.asyncio
     async def test_done_discards_subsequent_data(self):
@@ -859,7 +861,7 @@ class TestDoneSentinel:
         )
         chunks = await consume(client)
         assert len(chunks) == 1
-        assert chunks[0]["choices"][0]["delta"]["content"] == "first"
+        assert chunks[0].body["choices"][0]["delta"]["content"] == "first"
 
     @pytest.mark.asyncio
     async def test_done_with_trailing_whitespace(self):
@@ -1115,8 +1117,8 @@ class TestConcurrency:
         )
 
         for prompt, result in zip(prompts, results):
-            assert result["id"] == f"chatcmpl-{prompt}"
-            assert result["choices"][0]["message"]["content"] == f"reply-{prompt}"
+            assert result.body["id"] == f"chatcmpl-{prompt}"
+            assert result.body["choices"][0]["message"]["content"] == f"reply-{prompt}"
 
     @pytest.mark.asyncio
     async def test_concurrent_streams_independent(self):
@@ -1154,8 +1156,8 @@ class TestConcurrency:
 
         for prompt, chunks in zip(prompts, results):
             assert len(chunks) == 1
-            assert chunks[0]["id"] == f"c-{prompt}"
-            assert chunks[0]["choices"][0]["delta"]["content"] == f"{prompt}-chunk"
+            assert chunks[0].body["id"] == f"c-{prompt}"
+            assert chunks[0].body["choices"][0]["delta"]["content"] == f"{prompt}-chunk"
 
     @pytest.mark.asyncio
     async def test_429_on_one_call_does_not_block_peers(self):
@@ -1199,8 +1201,8 @@ class TestConcurrency:
         )
 
         for prompt, result in zip(prompts, results):
-            assert result["id"] == f"c-{prompt}"
-            assert result["choices"][0]["message"]["content"] == f"ok-{prompt}"
+            assert result.body["id"] == f"c-{prompt}"
+            assert result.body["choices"][0]["message"]["content"] == f"ok-{prompt}"
 
         assert seen_calls["slow"] == 2
         for p in prompts[1:]:

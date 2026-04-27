@@ -18,7 +18,8 @@ import json
 import logging
 import random
 import warnings
-from typing import Any, AsyncGenerator, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Any, AsyncGenerator, Dict, Mapping, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -42,6 +43,13 @@ from nemoguardrails.llm.clients.constants import (
 )
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class HTTPResponse:
+    body: Dict[str, Any]
+    headers: Mapping[str, str] = field(default_factory=dict)
+    status_code: int = 200
 
 
 class BaseClient:
@@ -147,7 +155,7 @@ class BaseClient:
         log.info("Retrying (delay=%.1fs, attempted=%d)", delay, retries_attempted)
         await asyncio.sleep(delay)
 
-    async def _apost(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _apost(self, path: str, payload: Dict[str, Any]) -> HTTPResponse:
         retries_remaining = self._max_retries
         retries_attempted = 0
         ctx = self._error_context()
@@ -192,10 +200,9 @@ class BaseClient:
                     response_data=None,
                     **ctx.as_kwargs(),
                 ) from err
-            data["_response_headers"] = dict(response.headers)
-            return data
+            return HTTPResponse(body=data, headers=dict(response.headers), status_code=response.status_code)
 
-    async def _apost_stream(self, path: str, payload: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _apost_stream(self, path: str, payload: Dict[str, Any]) -> AsyncGenerator[HTTPResponse, None]:
         retries_remaining = self._max_retries
         retries_attempted = 0
         ctx = self._error_context()
@@ -222,6 +229,7 @@ class BaseClient:
                         raise_for_status(response.status_code, response.text, response.headers, ctx)
 
                     response_headers = dict(response.headers)
+                    response_status = response.status_code
                     decoder = SSEDecoder()
                     async for line in response.aiter_lines():
                         sse = decoder.decode(line)
@@ -237,10 +245,9 @@ class BaseClient:
                                 response_data=None,
                                 **ctx.as_kwargs(),
                             ) from err
-                        parsed["_response_headers"] = response_headers
                         self._check_sse_error(parsed, response.headers, ctx)
                         first_yielded = True
-                        yield parsed
+                        yield HTTPResponse(body=parsed, headers=response_headers, status_code=response_status)
 
                     sse = decoder.decode("")
                     if sse is not None and not sse.data.startswith("[DONE]"):
@@ -252,9 +259,8 @@ class BaseClient:
                                 response_data=None,
                                 **ctx.as_kwargs(),
                             ) from err
-                        parsed["_response_headers"] = response_headers
                         self._check_sse_error(parsed, response.headers, ctx)
-                        yield parsed
+                        yield HTTPResponse(body=parsed, headers=response_headers, status_code=response_status)
                     return
             except httpx.TimeoutException as err:
                 if first_yielded or retries_remaining <= 0:
