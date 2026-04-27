@@ -926,17 +926,17 @@ class TestClientErrorMetadata:
     """
 
     @pytest.mark.asyncio
-    async def test_http_error_has_base_url_and_model_name_no_provider(self):
+    async def test_http_error_has_base_url_only(self):
         client = make_client()
         mock_httpx_post(client, [(401, {"error": {"message": "Invalid key"}}, {})])
         with pytest.raises(LLMAuthenticationError) as exc_info:
             await client.chat_completion("gpt-4o", [])
         assert exc_info.value.base_url == "https://api.openai.com/v1"
-        assert exc_info.value.model_name == "gpt-4o"
+        assert exc_info.value.model_name is None
         assert exc_info.value.provider_name is None
 
     @pytest.mark.asyncio
-    async def test_mid_stream_error_has_base_url_and_model_name_no_provider(self):
+    async def test_mid_stream_error_has_base_url_only(self):
         client = stream_client(
             [
                 'data: {"error": {"message": "err", "type": "rate_limit_error"}}',
@@ -946,6 +946,7 @@ class TestClientErrorMetadata:
         with pytest.raises(LLMRateLimitError) as exc_info:
             await consume(client)
         assert exc_info.value.base_url == "https://api.openai.com/v1"
+        assert exc_info.value.model_name is None
         assert exc_info.value.provider_name is None
 
     @pytest.mark.asyncio
@@ -955,7 +956,7 @@ class TestClientErrorMetadata:
         with pytest.raises(LLMAuthenticationError) as exc_info:
             await client.chat_completion("llama", [])
         assert exc_info.value.base_url == "https://integrate.api.nvidia.com/v1"
-        assert exc_info.value.model_name == "llama"
+        assert exc_info.value.model_name is None
         assert exc_info.value.provider_name is None
 
 

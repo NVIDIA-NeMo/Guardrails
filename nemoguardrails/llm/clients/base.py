@@ -89,11 +89,10 @@ class BaseClient:
     def provider_url(self) -> Optional[str]:
         return None
 
-    def _error_context(self, payload: Optional[Dict[str, Any]] = None) -> ErrorContext:
-        model_name = payload.get("model") if isinstance(payload, dict) else None
+    def _error_context(self) -> ErrorContext:
         return ErrorContext(
-            model_name=model_name,
-            provider_name=self.provider_name,
+            model_name=None,
+            provider_name=None,
             base_url=self.provider_url,
         )
 
@@ -140,7 +139,7 @@ class BaseClient:
     async def _apost(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         retries_remaining = self._max_retries
         retries_attempted = 0
-        ctx = self._error_context(payload)
+        ctx = self._error_context()
 
         while True:
             try:
@@ -188,7 +187,7 @@ class BaseClient:
     async def _apost_stream(self, path: str, payload: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
         retries_remaining = self._max_retries
         retries_attempted = 0
-        ctx = self._error_context(payload)
+        ctx = self._error_context()
 
         while True:
             first_yielded = False
