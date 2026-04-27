@@ -126,12 +126,18 @@ class DefaultFramework:
     def get_provider_names(self) -> List[str]:
         return sorted({*_DEFAULT_BASE_URLS, *self._providers})
 
-    async def reset(self) -> None:
-        """Close all pooled HTTP clients and clear registered providers.
+    async def aclose(self) -> None:
+        """Close all pooled HTTP clients and drop them from the pool.
 
-        Destructive: clears both the client pool and any providers registered
-        via ``register_provider``. Callers expecting custom providers to
-        survive must re-register them after ``reset``.
+        Connection-pool teardown only. Registered providers are kept.
+        Mirrors ``httpx.AsyncClient.aclose()`` semantics: an async resource
+        cleanup hook that releases sockets and TLS sessions back to the OS.
+
+        Re-creating models after ``aclose`` works as expected: the next call
+        to ``create_model`` for a given config rebuilds the client.
+
+        If any ``client.close()`` fails, all remaining closes are still
+        attempted; the first error is re-raised after the pool is cleared.
         """
         errors = []
         for client in list(self._clients.values()):
@@ -141,6 +147,26 @@ class DefaultFramework:
                 errors.append(exc)
                 log.warning("Error closing pooled client: %s", exc)
         self._clients.clear()
-        self._providers.clear()
         if errors:
             raise errors[0]
+
+    def clear_providers(self) -> None:
+        """Drop all providers registered via ``register_provider``.
+
+        Registry teardown only. Pooled HTTP clients are not affected; if
+        the registered provider classes constructed clients via the
+        framework, those clients survive in the pool until ``aclose()``.
+        """
+        self._providers.clear()
+
+    async def reset(self) -> None:
+        """Test-only convenience: tear down both pools and providers.
+
+        Equivalent to ``await fw.aclose(); fw.clear_providers()``. In
+        production code, prefer the granular methods so connection refresh
+        doesn't accidentally drop registered providers.
+        """
+        try:
+            await self.aclose()
+        finally:
+            self.clear_providers()

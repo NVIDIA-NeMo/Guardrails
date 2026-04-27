@@ -376,6 +376,91 @@ class TestDefaultFramework:
         await injected.aclose()
 
     @pytest.mark.asyncio
+    async def test_aclose_closes_pools_only_keeps_providers(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk-a"})
+        client = m1._client._client
+        fw.register_provider("custom", lambda **kw: object())
+
+        await fw.aclose()
+
+        assert client.is_closed
+        assert fw._clients == {}
+        assert "custom" in fw._providers
+
+    @pytest.mark.asyncio
+    async def test_aclose_can_be_called_repeatedly(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        fw.create_model("gpt-4o", "openai", {"api_key": "sk-a"})
+        await fw.aclose()
+        await fw.aclose()
+
+    @pytest.mark.asyncio
+    async def test_aclose_then_create_model_rebuilds_pool(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
+            first_client = m1._client._client
+            await fw.aclose()
+
+            m2 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
+            assert m2._client._client is not first_client
+            assert not m2._client._client.is_closed
+        finally:
+            await fw.aclose()
+
+    def test_clear_providers_drops_registry_only(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        fw.register_provider("custom_a", lambda **kw: object())
+        fw.register_provider("custom_b", lambda **kw: object())
+        assert "custom_a" in fw._providers
+        assert "custom_b" in fw._providers
+
+        fw.clear_providers()
+
+        assert fw._providers == {}
+
+    @pytest.mark.asyncio
+    async def test_clear_providers_does_not_touch_pool(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
+            client = m1._client._client
+            fw.register_provider("custom", lambda **kw: object())
+
+            fw.clear_providers()
+
+            assert not client.is_closed
+            assert fw._clients != {}
+        finally:
+            await fw.aclose()
+
+    @pytest.mark.asyncio
+    async def test_reset_calls_both_aclose_and_clear_providers(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
+        client = m1._client._client
+        fw.register_provider("custom", lambda **kw: object())
+
+        await fw.reset()
+
+        assert client.is_closed
+        assert fw._clients == {}
+        assert fw._providers == {}
+
+    @pytest.mark.asyncio
     async def test_unknown_provider_raises(self):
         from nemoguardrails.llm.default_framework import DefaultFramework
 
