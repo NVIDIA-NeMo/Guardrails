@@ -196,7 +196,7 @@ class LLMConnectionError(LLMClientError):
     pass
 
 
-class LLMResponseValidationError(LLMServerError):
+class LLMResponseValidationError(LLMClientError):
     def __init__(
         self,
         message: str,
@@ -207,7 +207,7 @@ class LLMResponseValidationError(LLMServerError):
     ):
         self.response_data = response_data
         super().__init__(
-            status_code=502,
+            status_code=0,
             error_message=message,
             body=response_data,
             model_name=model_name,

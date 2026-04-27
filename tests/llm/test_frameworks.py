@@ -124,6 +124,53 @@ class TestResetFrameworksFromRunningLoop:
             get_framework("spy_pool")
 
 
+class _FrameworkWithoutReset:
+    def create_model(self, model_name, provider_name, model_kwargs=None):
+        return MagicMock(spec=LLMModel)
+
+
+class _RaisingFramework:
+    def __init__(self, exc=None):
+        self._exc = exc or RuntimeError("boom")
+
+    def create_model(self, model_name, provider_name, model_kwargs=None):
+        return MagicMock(spec=LLMModel)
+
+    async def reset(self):
+        raise self._exc
+
+
+class TestResetFrameworksErrorIsolation:
+    def test_failing_framework_does_not_block_subsequent_resets(self):
+        bad = _RaisingFramework()
+        good = _ResetSpyFramework()
+        register_framework("bad", bad)
+        register_framework("good", good)
+        _reset_frameworks()
+        assert good.reset_count == 1
+
+    def test_failing_framework_still_clears_registry(self):
+        bad = _RaisingFramework()
+        register_framework("bad_only", bad)
+        _reset_frameworks()
+        with pytest.raises(KeyError):
+            get_framework("bad_only")
+
+
+class TestResetFrameworksMissingResetMethod:
+    def test_framework_without_reset_does_not_crash(self):
+        register_framework("no_reset", _FrameworkWithoutReset())
+        _reset_frameworks()
+        with pytest.raises(KeyError):
+            get_framework("no_reset")
+
+    def test_framework_without_reset_resets_default(self, monkeypatch):
+        monkeypatch.setenv("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+        register_framework("no_reset_2", _FrameworkWithoutReset())
+        _reset_frameworks()
+        assert get_default_framework() == "default"
+
+
 class FakeChatProvider:
     pass
 

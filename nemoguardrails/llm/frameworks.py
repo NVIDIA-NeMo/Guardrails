@@ -14,11 +14,14 @@
 # limitations under the License.
 
 import asyncio
+import logging
 import os
 import threading
 from typing import Dict
 
 from nemoguardrails.types import LLMFramework
+
+log = logging.getLogger(__name__)
 
 _frameworks: Dict[str, LLMFramework] = {}
 _default_framework: str = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
@@ -64,16 +67,23 @@ def _reset_frameworks() -> None:
     global _default_framework
 
     frameworks_to_close = list(_frameworks.values())
-    if frameworks_to_close:
-        _run_async_from_sync(_close_frameworks(frameworks_to_close))
-
-    _frameworks.clear()
-    _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+    try:
+        if frameworks_to_close:
+            _run_async_from_sync(_close_frameworks(frameworks_to_close))
+    finally:
+        _frameworks.clear()
+        _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
 
 
 async def _close_frameworks(frameworks) -> None:
     for fw in frameworks:
-        await fw.reset()
+        reset = getattr(fw, "reset", None)
+        if reset is None:
+            continue
+        try:
+            await reset()
+        except Exception as exc:
+            log.warning("Error resetting framework %r: %s", fw, exc)
 
 
 def _run_async_from_sync(coro) -> None:

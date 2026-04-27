@@ -667,6 +667,17 @@ class TestErrorEnrichment:
         assert exc_info.value.provider_name == "openai"
         assert exc_info.value.base_url == "https://api.openai.com/v1"
 
+    @pytest.mark.asyncio
+    async def test_validation_error_status_code_is_zero(self):
+        mc = _mock_client()
+        mc.chat_completion = AsyncMock(return_value={"id": "x", "model": "gpt-4o"})
+        m = _model(mc, model="gpt-4o")
+
+        with pytest.raises(LLMResponseValidationError) as exc_info:
+            await m.generate_async("Hi")
+
+        assert exc_info.value.status_code == 0
+
 
 class TestProperties:
     def test_model_name(self):
