@@ -52,11 +52,12 @@ jobs:
 
       # Wait for the container to be ready
       - name: Wait for container to be ready
+        timeout-minutes: 3
         run: |
           echo "Waiting for container to be ready..."
-          until curl --output /dev/null --silent --head --fail http://localhost:8000; do
+          until curl --output /dev/null --silent --fail http://localhost:8000/v1/rails/configs; do
             printf '.'
-            sleep 1
+            sleep 2
           done
           echo "Container is ready!"
 
