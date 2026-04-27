@@ -117,7 +117,7 @@ class DefaultFramework:
             base_url, api_key, timeout, connect_timeout, max_retries, default_headers, default_query
         )
 
-        return OpenAIChatModel(client=client, model=model_name, **kwargs)
+        return OpenAIChatModel(client=client, model=model_name, provider_name=provider_name, **kwargs)
 
     def register_provider(self, name: str, provider_cls: Any) -> None:
         self._providers[name] = provider_cls

@@ -16,7 +16,7 @@
 import json
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
-from nemoguardrails.exceptions import LLMResponseValidationError
+from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.types import (
     ChatMessage,
@@ -27,6 +27,11 @@ from nemoguardrails.types import (
     ToolCallFunction,
     UsageInfo,
 )
+
+_KNOWN_PROVIDER_URLS: Dict[str, str] = {
+    "https://api.openai.com/v1": "openai",
+    "https://integrate.api.nvidia.com/v1": "nim",
+}
 
 _FINISH_REASON_MAP: Dict[str, FinishReason] = {
     "stop": "stop",
@@ -50,9 +55,19 @@ def _is_openai_reasoning_model(model_name: str) -> bool:
 
 
 class OpenAIChatModel:
-    def __init__(self, client: OpenAICompatibleClient, model: str, **kwargs: Any):
+    def __init__(
+        self,
+        client: OpenAICompatibleClient,
+        model: str,
+        *,
+        provider_name: Optional[str] = None,
+        **kwargs: Any,
+    ):
         self._client = client
         self._model = model
+        if provider_name is None:
+            provider_name = _KNOWN_PROVIDER_URLS.get(client.provider_url or "", "openai")
+        self._provider_name = provider_name
         self._default_kwargs = kwargs
 
     @property
@@ -60,12 +75,18 @@ class OpenAIChatModel:
         return self._model
 
     @property
-    def provider_name(self) -> Optional[str]:
-        return self._client.provider_name
+    def provider_name(self) -> str:
+        return self._provider_name
 
     @property
     def provider_url(self) -> Optional[str]:
         return self._client.provider_url
+
+    def _enrich(self, exc: LLMClientError) -> LLMClientError:
+        exc.provider_name = self._provider_name
+        exc.model_name = self._model
+        exc.base_url = self._client.provider_url
+        return exc
 
     def _prepare_params(self, stop: Optional[List[str]], kwargs: Dict[str, Any]) -> Dict[str, Any]:
         merged = {**self._default_kwargs, **kwargs}
@@ -100,7 +121,10 @@ class OpenAIChatModel:
     ) -> LLMResponse:
         messages = self._to_messages(prompt)
         params = self._prepare_params(stop, kwargs)
-        data = await self._client.chat_completion(self._model, messages, **params)
+        try:
+            data = await self._client.chat_completion(self._model, messages, **params)
+        except LLMClientError as exc:
+            raise self._enrich(exc)
         return self._parse_response(data)
 
     async def stream_async(
@@ -144,6 +168,8 @@ class OpenAIChatModel:
                     chunk.delta_tool_calls = self._finalize_tool_calls(tool_call_acc)
 
                 yield chunk
+        except LLMClientError as exc:
+            raise self._enrich(exc)
         finally:
             await gen.aclose()
 

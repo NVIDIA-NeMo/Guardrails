@@ -17,10 +17,16 @@ from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
-from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
+from nemoguardrails.exceptions import (
+    LLMAuthenticationError,
+    LLMClientError,
+    LLMRateLimitError,
+    LLMResponseValidationError,
+)
 from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel, _is_openai_reasoning_model
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.types import ChatMessage, LLMResponse, Role, ToolCall, ToolCallFunction
+from tests.llm.clients._helpers import make_client, mock_httpx_post, stream_client
 
 
 def _mock_client():
@@ -644,7 +650,7 @@ class TestValidation:
 
 class TestErrorEnrichment:
     @pytest.mark.asyncio
-    async def test_model_does_not_mutate_client_errors(self):
+    async def test_model_enriches_client_errors_with_provider_and_model(self):
         mc = _mock_client()
         mc.chat_completion = AsyncMock(side_effect=LLMClientError(401, "Unauthorized"))
         m = _model(mc, model="gpt-4o")
@@ -652,7 +658,27 @@ class TestErrorEnrichment:
         with pytest.raises(LLMClientError) as exc_info:
             await m.generate_async("Hi")
 
-        assert exc_info.value.model_name is None
+        assert exc_info.value.model_name == "gpt-4o"
+        assert exc_info.value.provider_name == "openai"
+        assert exc_info.value.base_url == "https://api.openai.com/v1"
+
+    @pytest.mark.asyncio
+    async def test_model_enriches_stream_errors(self):
+        mc = _mock_client()
+
+        async def _failing_stream(*args, **kwargs):
+            raise LLMClientError(503, "overloaded")
+            yield  # pragma: no cover
+
+        mc.stream_chat_completion = _failing_stream
+        m = _model(mc, model="gpt-4o")
+
+        with pytest.raises(LLMClientError) as exc_info:
+            async for _ in m.stream_async("Hi"):
+                pass
+
+        assert exc_info.value.model_name == "gpt-4o"
+        assert exc_info.value.provider_name == "openai"
 
     @pytest.mark.asyncio
     async def test_validation_error_enriched_with_context(self):
@@ -666,6 +692,53 @@ class TestErrorEnrichment:
         assert exc_info.value.model_name == "gpt-4o"
         assert exc_info.value.provider_name == "openai"
         assert exc_info.value.base_url == "https://api.openai.com/v1"
+
+    @pytest.mark.asyncio
+    async def test_http_error_enriched_through_real_client_path(self):
+        client = make_client()
+        mock_httpx_post(client, [(401, {"error": {"message": "Invalid key"}}, {})])
+        m = OpenAIChatModel(client=client, model="gpt-4o")
+        with pytest.raises(LLMAuthenticationError) as exc_info:
+            await m.generate_async("hi")
+        assert exc_info.value.provider_name == "openai"
+        assert exc_info.value.base_url == "https://api.openai.com/v1"
+        assert exc_info.value.model_name == "gpt-4o"
+
+    @pytest.mark.asyncio
+    async def test_http_error_enriched_with_nim_url_lookup(self):
+        client = OpenAICompatibleClient(base_url="https://integrate.api.nvidia.com/v1", api_key="nvapi-x")
+        mock_httpx_post(client, [(401, {"error": {"message": "Invalid key"}}, {})])
+        m = OpenAIChatModel(client=client, model="llama")
+        with pytest.raises(LLMAuthenticationError) as exc_info:
+            await m.generate_async("hi")
+        assert exc_info.value.provider_name == "nim"
+        assert exc_info.value.base_url == "https://integrate.api.nvidia.com/v1"
+
+    @pytest.mark.asyncio
+    async def test_http_error_explicit_provider_override_wins(self):
+        client = OpenAICompatibleClient(base_url="http://my-internal-nim.corp/v1", api_key="x")
+        mock_httpx_post(client, [(401, {"error": {"message": "Invalid key"}}, {})])
+        m = OpenAIChatModel(client=client, model="llama", provider_name="nim")
+        with pytest.raises(LLMAuthenticationError) as exc_info:
+            await m.generate_async("hi")
+        assert exc_info.value.provider_name == "nim"
+        assert exc_info.value.base_url == "http://my-internal-nim.corp/v1"
+
+    @pytest.mark.asyncio
+    async def test_mid_stream_error_enriched_through_real_client(self):
+        client = stream_client(
+            [
+                'data: {"error": {"message": "err", "type": "rate_limit_error"}}',
+                "",
+            ]
+        )
+        m = OpenAIChatModel(client=client, model="gpt-4o")
+        with pytest.raises(LLMRateLimitError) as exc_info:
+            async for _ in m.stream_async("hi"):
+                pass
+        assert exc_info.value.provider_name == "openai"
+        assert exc_info.value.base_url == "https://api.openai.com/v1"
+        assert exc_info.value.model_name == "gpt-4o"
 
     @pytest.mark.asyncio
     async def test_validation_error_status_code_is_zero(self):
@@ -684,11 +757,29 @@ class TestProperties:
         m = _model(model="gpt-4o-mini")
         assert m.model_name == "gpt-4o-mini"
 
-    def test_provider_name_delegated(self):
+    def test_provider_name_url_lookup_openai(self):
         mc = _mock_client()
-        mc.provider_name = "nim"
+        mc.provider_url = "https://api.openai.com/v1"
+        m = _model(mc)
+        assert m.provider_name == "openai"
+
+    def test_provider_name_url_lookup_nim(self):
+        mc = _mock_client()
+        mc.provider_url = "https://integrate.api.nvidia.com/v1"
         m = _model(mc)
         assert m.provider_name == "nim"
+
+    def test_provider_name_explicit_override_wins(self):
+        mc = _mock_client()
+        mc.provider_url = "http://my-internal-nim.corp/v1"
+        m = OpenAIChatModel(client=mc, model="gpt-4o", provider_name="nim")
+        assert m.provider_name == "nim"
+
+    def test_provider_name_unknown_url_defaults_to_openai(self):
+        mc = _mock_client()
+        mc.provider_url = "https://corp-gateway.example/v1"
+        m = _model(mc)
+        assert m.provider_name == "openai"
 
     def test_provider_url_delegated(self):
         mc = _mock_client()

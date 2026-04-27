@@ -22,19 +22,6 @@ class OpenAICompatibleClient(BaseClient):
     _ROUTE = "/chat/completions"
 
     @property
-    def provider_name(self) -> Optional[str]:
-        url = self._base_url.lower()
-        if "nvidia" in url or "nim" in url:
-            return "nim"
-        if "azure" in url:
-            return "azure"
-        if "openai.com" in url:
-            return "openai"
-        if "localhost" in url or "127.0.0.1" in url:
-            return "local"
-        return None
-
-    @property
     def provider_url(self) -> Optional[str]:
         return self._base_url
 
