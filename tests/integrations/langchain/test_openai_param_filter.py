@@ -39,6 +39,7 @@ import asyncio
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -84,6 +85,8 @@ KNOWN_FALSE_POSITIVES = frozenset(
         "gpt-5.3-codex",
         "gpt-5.4-pro",
         "gpt-5.4-pro-2026-03-05",
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
         "o1-pro",
         "o1-pro-2025-03-19",
         "o3-pro",
@@ -93,7 +96,8 @@ KNOWN_FALSE_POSITIVES = frozenset(
 
 
 def _load_baseline() -> list[dict]:
-    return json.loads(BASELINE_PATH.read_text())
+    payload = json.loads(BASELINE_PATH.read_text())
+    return payload["results"]
 
 
 def _evaluate(probe_results: list[dict]) -> tuple[list[dict], list[str]]:
@@ -228,7 +232,12 @@ async def _regenerate_baseline() -> int:
         print("Fetching model list and probing...")
         results = await _probe_all(client, api_key)
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    BASELINE_PATH.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n")
+    payload = {
+        "captured_at": datetime.now(timezone.utc).date().isoformat(),
+        "openai_chat_completions_url": CHAT_COMPLETIONS_URL,
+        "results": sorted(results, key=lambda r: r["model"]),
+    }
+    BASELINE_PATH.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"Wrote {len(results)} models to {BASELINE_PATH}")
     false_negatives, false_positives = _evaluate(results)
     print(f"FN={len(false_negatives)}  FP (harmless)={len(false_positives)}")
