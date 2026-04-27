@@ -39,6 +39,7 @@ def reset_reasoning_trace_var():
 def langchain_framework():
     from nemoguardrails.llm.frameworks import _reset_frameworks, set_default_framework
 
+    _reset_frameworks()
     set_default_framework("langchain")
     yield
     _reset_frameworks()

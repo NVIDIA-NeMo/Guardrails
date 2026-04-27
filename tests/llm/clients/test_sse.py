@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import pytest
 
 from nemoguardrails.llm.clients._sse import ServerSentEvent, SSEDecoder
@@ -210,7 +212,7 @@ class TestServerSentEvent:
 
     def test_json_raises_on_invalid(self):
         sse = ServerSentEvent(data="not json")
-        with pytest.raises(Exception):
+        with pytest.raises(json.JSONDecodeError):
             sse.json()
 
     def test_repr(self):

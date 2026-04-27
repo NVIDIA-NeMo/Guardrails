@@ -242,8 +242,10 @@ class OpenAIChatModel:
         )
 
     def _parse_chunk(self, data: Dict[str, Any]) -> Optional[LLMResponseChunk]:
+        provider_metadata = {k: v for k, v in data.items() if k not in _STANDARD_RESPONSE_KEYS and v is not None}
         response_headers = data.get("_response_headers")
-        provider_metadata = {"response_headers": response_headers} if response_headers else None
+        if response_headers:
+            provider_metadata["response_headers"] = response_headers
 
         choices = data.get("choices", [])
         if not choices:
@@ -260,7 +262,7 @@ class OpenAIChatModel:
                         reasoning_tokens=(raw_usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
                         cached_tokens=(raw_usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
                     ),
-                    provider_metadata=provider_metadata,
+                    provider_metadata=provider_metadata or None,
                 )
             return None
 
@@ -278,7 +280,7 @@ class OpenAIChatModel:
             model=data.get("model"),
             finish_reason=finish_reason,
             request_id=data.get("id"),
-            provider_metadata=provider_metadata,
+            provider_metadata=provider_metadata or None,
         )
 
     @staticmethod

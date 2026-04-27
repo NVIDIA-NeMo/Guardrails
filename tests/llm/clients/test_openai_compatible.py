@@ -46,21 +46,25 @@ from tests.llm.clients._helpers import (
 
 
 class TestProviderName:
-    def test_openai(self):
-        c = OpenAICompatibleClient(base_url="https://api.openai.com/v1")
-        assert c.provider_name == "openai"
+    @pytest.mark.asyncio
+    async def test_openai(self):
+        async with OpenAICompatibleClient(base_url="https://api.openai.com/v1") as c:
+            assert c.provider_name == "openai"
 
-    def test_nim(self):
-        c = OpenAICompatibleClient(base_url="https://integrate.api.nvidia.com/v1")
-        assert c.provider_name == "nim"
+    @pytest.mark.asyncio
+    async def test_nim(self):
+        async with OpenAICompatibleClient(base_url="https://integrate.api.nvidia.com/v1") as c:
+            assert c.provider_name == "nim"
 
-    def test_local(self):
-        c = OpenAICompatibleClient(base_url="http://localhost:11434/v1")
-        assert c.provider_name == "local"
+    @pytest.mark.asyncio
+    async def test_local(self):
+        async with OpenAICompatibleClient(base_url="http://localhost:11434/v1") as c:
+            assert c.provider_name == "local"
 
-    def test_azure(self):
-        c = OpenAICompatibleClient(base_url="https://mycompany.openai.azure.com/v1")
-        assert c.provider_name == "azure"
+    @pytest.mark.asyncio
+    async def test_azure(self):
+        async with OpenAICompatibleClient(base_url="https://mycompany.openai.azure.com/v1") as c:
+            assert c.provider_name == "azure"
 
 
 class TestChatCompletion:

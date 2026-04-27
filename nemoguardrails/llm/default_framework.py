@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from typing import Any, Dict, List, Optional
 
 from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.types import LLMModel
+
+log = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URLS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
@@ -129,10 +132,14 @@ class DefaultFramework:
         via ``register_provider``. Callers expecting custom providers to
         survive must re-register them after ``reset``.
         """
+        errors = []
         for client in list(self._clients.values()):
             try:
                 await client.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(exc)
+                log.warning("Error closing pooled client: %s", exc)
         self._clients.clear()
         self._providers.clear()
+        if errors:
+            raise errors[0]

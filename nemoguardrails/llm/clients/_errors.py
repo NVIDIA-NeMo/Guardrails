@@ -16,6 +16,8 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Optional, Tuple
 
 from nemoguardrails.exceptions import (
@@ -71,14 +73,25 @@ def _redact_secrets(text: str) -> str:
     return _SECRET_PATTERN.sub(lambda m: m.group(1) + "***", text)
 
 
+def _parse_retry_after_value(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        pass
+    try:
+        parsed = parsedate_to_datetime(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (parsed - datetime.now(tz=timezone.utc)).total_seconds()
+
+
 def _parse_retry_after(headers: Any) -> Optional[float]:
     raw = headers.get("retry-after") if headers else None
     if not raw:
         return None
-    try:
-        return float(raw)
-    except (ValueError, TypeError):
-        return None
+    return _parse_retry_after_value(raw)
 
 
 def _extract_from_parsed_body(parsed_body: Any) -> Tuple[str, Optional[str], Optional[str], Optional[str]]:

@@ -24,6 +24,28 @@ from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 FIXTURES_DIR.mkdir(exist_ok=True)
 
+_SENSITIVE_HEADERS = {
+    "openai-organization": "REDACTED_ORG",
+    "openai-project": "REDACTED_PROJECT",
+    "set-cookie": "REDACTED_COOKIE",
+    "x-request-id": "req_REDACTED",
+    "cf-ray": "REDACTED_CF_RAY",
+}
+
+
+def _sanitize(obj):
+    if isinstance(obj, dict):
+        for key in list(obj.keys()):
+            if key in _SENSITIVE_HEADERS:
+                obj[key] = _SENSITIVE_HEADERS[key]
+            else:
+                _sanitize(obj[key])
+    elif isinstance(obj, list):
+        for item in obj:
+            _sanitize(item)
+    return obj
+
+
 TOOLS = [
     {
         "type": "function",
@@ -54,6 +76,7 @@ TOOLS = [
 
 def save(name, data):
     path = FIXTURES_DIR / name
+    _sanitize(data)
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
     print(f"  saved {path}")

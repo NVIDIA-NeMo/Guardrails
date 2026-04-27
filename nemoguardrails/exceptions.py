@@ -196,7 +196,7 @@ class LLMConnectionError(LLMClientError):
     pass
 
 
-class LLMResponseValidationError(LLMClientError):
+class LLMResponseValidationError(LLMServerError):
     def __init__(
         self,
         message: str,

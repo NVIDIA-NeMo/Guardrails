@@ -22,7 +22,12 @@ from typing import Any, AsyncGenerator, Dict, Optional
 import httpx
 
 from nemoguardrails.exceptions import LLMConnectionError, LLMResponseValidationError, LLMTimeoutError
-from nemoguardrails.llm.clients._errors import ErrorContext, raise_for_sse_error, raise_for_status
+from nemoguardrails.llm.clients._errors import (
+    ErrorContext,
+    _parse_retry_after_value,
+    raise_for_sse_error,
+    raise_for_status,
+)
 from nemoguardrails.llm.clients._sse import SSEDecoder
 from nemoguardrails.llm.clients.constants import (
     DEFAULT_CONNECTION_LIMITS,
@@ -96,7 +101,11 @@ class BaseClient:
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
-        headers.update(self._custom_headers)
+        for name, value in self._custom_headers.items():
+            existing = next((k for k in headers if k.lower() == name.lower()), None)
+            if existing is not None:
+                del headers[existing]
+            headers[name] = value
         return headers
 
     @staticmethod
@@ -112,13 +121,13 @@ class BaseClient:
     def _calculate_retry_delay(headers: Any, retries_attempted: int) -> float:
         retry_after = headers.get("retry-after")
         if retry_after:
-            try:
-                delay = float(retry_after)
-                if 0 < delay <= MAX_RETRY_AFTER:
-                    return delay
-                log.debug("Ignoring Retry-After=%r (out of range, max=%s)", retry_after, MAX_RETRY_AFTER)
-            except ValueError:
+            delay = _parse_retry_after_value(retry_after)
+            if delay is not None and 0 < delay <= MAX_RETRY_AFTER:
+                return delay
+            if delay is None:
                 log.debug("Ignoring unparseable Retry-After=%r", retry_after)
+            else:
+                log.debug("Ignoring Retry-After=%r (out of range, max=%s)", retry_after, MAX_RETRY_AFTER)
 
         sleep_cap = min(INITIAL_RETRY_DELAY * (2.0**retries_attempted), MAX_RETRY_DELAY)
         return random.uniform(0, sleep_cap)
