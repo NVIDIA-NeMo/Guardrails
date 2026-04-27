@@ -18,7 +18,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock
 import pytest
 
 from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel, _is_reasoning_model
+from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel, _is_openai_reasoning_model
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
 from nemoguardrails.types import ChatMessage, LLMResponse, Role, ToolCall, ToolCallFunction
 
@@ -501,15 +501,23 @@ class TestIsReasoningModel:
             "o3",
             "o3-mini",
             "o3-mini-2025-01-31",
+            "o4",
+            "o4-mini",
             "gpt-5",
             "gpt-5-mini",
             "gpt-5-nano",
+            "gpt-5.1",
+            "gpt-5.4",
+            "gpt-5.5",
+            "gpt-6",
+            "gpt-6-mini",
+            "gpt-6.1",
             "O3-MINI",
             "GPT-5",
         ],
     )
     def test_reasoning_models(self, model_name):
-        assert _is_reasoning_model(model_name) is True
+        assert _is_openai_reasoning_model(model_name) is True
 
     @pytest.mark.parametrize(
         "model_name",
@@ -525,7 +533,6 @@ class TestIsReasoningModel:
             "o11",
             "o100",
             "o2",
-            "o4",
             "oxford",
             "gpt-50",
             "gpt-5x",
@@ -535,7 +542,7 @@ class TestIsReasoningModel:
         ],
     )
     def test_non_reasoning_models(self, model_name):
-        assert _is_reasoning_model(model_name) is False
+        assert _is_openai_reasoning_model(model_name) is False
 
 
 class TestMessageSerialization:

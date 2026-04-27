@@ -96,6 +96,34 @@ class TestRegistry:
             get_framework("temp")
 
 
+class _ResetSpyFramework:
+    def __init__(self):
+        self.reset_count = 0
+
+    def create_model(self, model_name, provider_name, model_kwargs=None):
+        return MagicMock(spec=LLMModel)
+
+    async def reset(self):
+        self.reset_count += 1
+
+
+class TestResetFrameworksFromRunningLoop:
+    @pytest.mark.asyncio
+    async def test_reset_called_when_invoked_from_running_event_loop(self):
+        spy = _ResetSpyFramework()
+        register_framework("spy_running_loop", spy)
+        _reset_frameworks()
+        assert spy.reset_count == 1
+
+    @pytest.mark.asyncio
+    async def test_reset_clears_pool_when_invoked_from_running_event_loop(self):
+        spy = _ResetSpyFramework()
+        register_framework("spy_pool", spy)
+        _reset_frameworks()
+        with pytest.raises(KeyError):
+            get_framework("spy_pool")
+
+
 class FakeChatProvider:
     pass
 

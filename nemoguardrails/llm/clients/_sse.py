@@ -75,7 +75,7 @@ class SSEDecoder:
 
     def decode(self, line: str) -> Optional[ServerSentEvent]:
         if not line:
-            if not self._event and not self._data and not self._last_event_id and self._retry is None:
+            if not self._event and not self._data and self._retry is None:
                 return None
 
             sse = ServerSentEvent(

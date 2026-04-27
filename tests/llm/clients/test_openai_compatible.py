@@ -666,8 +666,7 @@ class TestCalculateRetryDelay:
             assert delay == expected
         else:
             upper = min(INITIAL_RETRY_DELAY * (2.0**attempt), MAX_RETRY_DELAY)
-            lower = upper * 0.75
-            assert lower <= delay <= upper
+            assert 0 <= delay <= upper
 
     @pytest.mark.parametrize(
         "attempt,expected_base",
@@ -683,22 +682,158 @@ class TestCalculateRetryDelay:
     def test_exponential_backoff_with_jitter(self, attempt, expected_base):
         delay = BaseClient._calculate_retry_delay({}, attempt)
         upper = min(expected_base, MAX_RETRY_DELAY)
-        lower = upper * 0.75
-        assert lower <= delay <= upper
+        assert 0 <= delay <= upper
 
     def test_delay_cap_at_max(self):
         delay = BaseClient._calculate_retry_delay({}, 100)
-        assert delay <= MAX_RETRY_DELAY
-        assert delay >= MAX_RETRY_DELAY * 0.75
+        assert 0 <= delay <= MAX_RETRY_DELAY
 
     def test_retry_after_above_cap_falls_back(self):
         delay = BaseClient._calculate_retry_delay({"retry-after": str(MAX_RETRY_AFTER + 1)}, 0)
         upper = INITIAL_RETRY_DELAY
-        assert upper * 0.75 <= delay <= upper
+        assert 0 <= delay <= upper
 
     def test_no_headers_defaults_to_exponential(self):
         delay = BaseClient._calculate_retry_delay({}, 0)
-        assert INITIAL_RETRY_DELAY * 0.75 <= delay <= INITIAL_RETRY_DELAY
+        assert 0 <= delay <= INITIAL_RETRY_DELAY
+
+    def test_full_jitter_distribution_spans_full_range(self):
+        attempt = 3
+        cap = min(INITIAL_RETRY_DELAY * (2.0**attempt), MAX_RETRY_DELAY)
+        delays = [BaseClient._calculate_retry_delay({}, attempt) for _ in range(500)]
+        assert all(0 <= delay <= cap for delay in delays)
+        below_quarter = sum(1 for delay in delays if delay < cap * 0.25)
+        below_half = sum(1 for delay in delays if delay < cap * 0.5)
+        assert below_quarter > 50
+        assert below_half > 150
+
+
+class TestShouldRetryCaseInsensitive:
+    @pytest.mark.parametrize("value", ["false", "FALSE", "False", "fAlSe"])
+    def test_false_value_recognized_case_insensitively(self, value):
+        assert BaseClient._should_retry(500, {"x-should-retry": value}) is False
+
+    @pytest.mark.parametrize("value", ["true", "TRUE", "True", "tRuE"])
+    def test_true_value_recognized_case_insensitively(self, value):
+        assert BaseClient._should_retry(400, {"x-should-retry": value}) is True
+
+    def test_missing_header_falls_back_to_status_code(self):
+        assert BaseClient._should_retry(500, {}) is True
+        assert BaseClient._should_retry(400, {}) is False
+
+
+class TestNonJsonResponseRaises:
+    @pytest.mark.asyncio
+    async def test_non_json_200_raises_validation_error(self):
+        from nemoguardrails.exceptions import LLMResponseValidationError
+
+        client = make_client()
+        mock_httpx_post(
+            client,
+            [(200, "<html>captive portal</html>", {"content-type": "text/html"})],
+        )
+        with pytest.raises(LLMResponseValidationError, match="non-JSON"):
+            await client.chat_completion("gpt-4o", [])
+
+    @pytest.mark.asyncio
+    async def test_malformed_sse_chunk_raises_validation_error(self):
+        from nemoguardrails.exceptions import LLMResponseValidationError
+
+        client = stream_client(
+            [
+                "data: {not valid json",
+                "",
+            ]
+        )
+        with pytest.raises(LLMResponseValidationError, match="Malformed SSE"):
+            async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                pass
+
+
+class TestStreamOptionsHint:
+    @pytest.mark.asyncio
+    async def test_stream_options_400_message_includes_kwarg_hint(self):
+        client = make_client()
+        mock_httpx_post(
+            client,
+            [
+                (
+                    400,
+                    {"error": {"message": "Unknown parameter: stream_options"}},
+                    {},
+                )
+            ],
+        )
+        with pytest.raises(LLMUnsupportedParamsError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert "include_usage_in_stream=False" in str(exc_info.value)
+
+
+class TestStreamOptionsDefaultOn:
+    @pytest.mark.asyncio
+    async def test_include_usage_default_on_for_unknown_provider(self):
+        client = OpenAICompatibleClient(base_url="https://my-self-hosted-endpoint.example/v1", api_key="x")
+        assert client.provider_name is None
+        captured = {}
+
+        @asynccontextmanager
+        async def capturing_stream(*args, **kwargs):
+            captured.update(kwargs)
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        client._client = type("MockClient", (), {"stream": capturing_stream})()
+        async for _ in client.stream_chat_completion("custom-model", [{"role": "user", "content": "Hi"}]):
+            pass
+
+        assert captured["json"]["stream_options"] == {"include_usage": True}
+
+    @pytest.mark.asyncio
+    async def test_include_usage_opt_out_via_kwarg(self):
+        client = make_client()
+        captured = {}
+
+        @asynccontextmanager
+        async def capturing_stream(*args, **kwargs):
+            captured.update(kwargs)
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        client._client = type("MockClient", (), {"stream": capturing_stream})()
+        async for _ in client.stream_chat_completion(
+            "gpt-4o",
+            [{"role": "user", "content": "Hi"}],
+            include_usage_in_stream=False,
+        ):
+            pass
+
+        assert "stream_options" not in captured["json"]
 
 
 class TestDoneSentinel:

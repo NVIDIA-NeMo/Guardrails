@@ -21,7 +21,7 @@ from typing import Any, AsyncGenerator, Dict, Optional
 
 import httpx
 
-from nemoguardrails.exceptions import LLMConnectionError, LLMTimeoutError
+from nemoguardrails.exceptions import LLMConnectionError, LLMResponseValidationError, LLMTimeoutError
 from nemoguardrails.llm.clients._errors import ErrorContext, raise_for_sse_error, raise_for_status
 from nemoguardrails.llm.clients._sse import SSEDecoder
 from nemoguardrails.llm.clients.constants import (
@@ -51,6 +51,14 @@ class BaseClient:
         custom_query: Optional[Dict[str, Any]] = None,
         http_client: Optional[httpx.AsyncClient] = None,
     ):
+        """Initialize the HTTP-backed LLM client.
+
+        custom_headers takes precedence over api_key-derived headers.
+        Passing custom_headers={"Authorization": "..."} overrides the
+        Bearer token built from api_key, allowing custom auth schemes
+        (Basic, raw JWT, pre-signed tokens, multi-scheme) to be used
+        alongside the env-var-driven api_key default.
+        """
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._max_retries = max_retries
@@ -93,7 +101,7 @@ class BaseClient:
 
     @staticmethod
     def _should_retry(status_code: int, headers: Any) -> bool:
-        should = headers.get("x-should-retry")
+        should = (headers.get("x-should-retry") or "").lower()
         if should == "false":
             return False
         if should == "true":
@@ -112,9 +120,8 @@ class BaseClient:
             except ValueError:
                 log.debug("Ignoring unparseable Retry-After=%r", retry_after)
 
-        sleep = min(INITIAL_RETRY_DELAY * (2.0**retries_attempted), MAX_RETRY_DELAY)
-        jitter = 1 - 0.25 * random.random()
-        return sleep * jitter
+        sleep_cap = min(INITIAL_RETRY_DELAY * (2.0**retries_attempted), MAX_RETRY_DELAY)
+        return random.uniform(0, sleep_cap)
 
     async def _sleep_for_retry(self, retries_attempted: int, headers: Any = None) -> None:
         delay = self._calculate_retry_delay(headers or {}, retries_attempted)
@@ -157,7 +164,15 @@ class BaseClient:
 
             if response.status_code >= 400:
                 raise_for_status(response.status_code, response.text, response.headers, ctx)
-            data = response.json()
+            try:
+                data = response.json()
+            except json.JSONDecodeError as err:
+                raise LLMResponseValidationError(
+                    f"Provider returned non-JSON response (status={response.status_code}, "
+                    f"content-type={response.headers.get('content-type')!r}): {err}",
+                    response_data=None,
+                    **ctx.as_kwargs(),
+                ) from err
             data["_response_headers"] = dict(response.headers)
             return data
 
@@ -197,9 +212,12 @@ class BaseClient:
                             return
                         try:
                             parsed = sse.json()
-                        except json.JSONDecodeError:
-                            log.warning("Dropping malformed SSE chunk: %r", sse.data[:200])
-                            continue
+                        except json.JSONDecodeError as err:
+                            raise LLMResponseValidationError(
+                                f"Malformed SSE chunk: {sse.data[:200]!r}: {err}",
+                                response_data=None,
+                                **ctx.as_kwargs(),
+                            ) from err
                         parsed["_response_headers"] = response_headers
                         self._check_sse_error(parsed, response.headers, ctx)
                         first_yielded = True
@@ -209,9 +227,12 @@ class BaseClient:
                     if sse is not None and not sse.data.startswith("[DONE]"):
                         try:
                             parsed = sse.json()
-                        except json.JSONDecodeError:
-                            log.warning("Dropping malformed trailing SSE chunk: %r", sse.data[:200])
-                            return
+                        except json.JSONDecodeError as err:
+                            raise LLMResponseValidationError(
+                                f"Malformed trailing SSE chunk: {sse.data[:200]!r}: {err}",
+                                response_data=None,
+                                **ctx.as_kwargs(),
+                            ) from err
                         parsed["_response_headers"] = response_headers
                         self._check_sse_error(parsed, response.headers, ctx)
                         yield parsed

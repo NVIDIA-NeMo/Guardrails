@@ -47,7 +47,7 @@ _UNSUPPORTED_PARAMS_KEYWORDS = [
     "unrecognized parameter",
 ]
 
-_SECRET_PATTERN = re.compile(r"(sk-|nvapi-|bearer\s+)\S+", re.IGNORECASE)
+_SECRET_PATTERN = re.compile(r"(sk-|nvapi-|AIza|bearer\s+)\S+", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -121,6 +121,11 @@ def _classify_bad_request(status_code: int, error_message: str, kwargs: Dict[str
     if any(kw in msg_lower for kw in _CONTEXT_WINDOW_KEYWORDS):
         return LLMContextWindowError(status_code, error_message, **kwargs)
     if any(kw in msg_lower for kw in _UNSUPPORTED_PARAMS_KEYWORDS):
+        if "stream_options" in msg_lower:
+            error_message = (
+                f"{error_message} (set include_usage_in_stream=False on the model "
+                "or in config.yml parameters to remove this field from streaming requests)"
+            )
         return LLMUnsupportedParamsError(status_code, error_message, **kwargs)
     return LLMBadRequestError(status_code, error_message, **kwargs)
 

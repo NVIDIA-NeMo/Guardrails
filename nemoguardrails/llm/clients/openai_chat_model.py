@@ -38,12 +38,14 @@ _FINISH_REASON_MAP: Dict[str, FinishReason] = {
 _STANDARD_RESPONSE_KEYS = frozenset({"model", "choices", "usage", "id", "object", "created", "_response_headers"})
 
 
-def _is_reasoning_model(model_name: str) -> bool:
+def _is_openai_reasoning_model(model_name: str) -> bool:
     name = model_name.lower()
-    if name in ("o1", "o3") or name.startswith(("o1-", "o3-")):
+    if name in ("o1", "o3", "o4") or name.startswith(("o1-", "o3-", "o4-")):
         return True
     if name == "gpt-5" or name.startswith("gpt-5-"):
         return "chat" not in name
+    if name.startswith(("gpt-5.", "gpt-6")):
+        return True
     return False
 
 
@@ -69,7 +71,7 @@ class OpenAIChatModel:
         merged = {**self._default_kwargs, **kwargs}
         if stop is not None:
             merged["stop"] = stop
-        if _is_reasoning_model(self._model):
+        if _is_openai_reasoning_model(self._model):
             merged.pop("temperature", None)
             merged.pop("stop", None)
         return merged

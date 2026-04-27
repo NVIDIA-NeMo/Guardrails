@@ -15,6 +15,7 @@
 
 import asyncio
 import os
+import threading
 from typing import Dict
 
 from nemoguardrails.types import LLMFramework
@@ -61,10 +62,41 @@ def get_default_framework() -> str:
 
 def _reset_frameworks() -> None:
     global _default_framework
-    for fw in list(_frameworks.values()):
-        try:
-            asyncio.run(fw.reset())
-        except RuntimeError:
-            pass
+
+    frameworks_to_close = list(_frameworks.values())
+    if frameworks_to_close:
+        _run_async_from_sync(_close_frameworks(frameworks_to_close))
+
     _frameworks.clear()
     _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+
+
+async def _close_frameworks(frameworks) -> None:
+    for fw in frameworks:
+        await fw.reset()
+
+
+def _run_async_from_sync(coro) -> None:
+    try:
+        asyncio.get_running_loop()
+        in_loop = True
+    except RuntimeError:
+        in_loop = False
+
+    if not in_loop:
+        asyncio.run(coro)
+        return
+
+    error_holder = []
+
+    def _runner():
+        try:
+            asyncio.run(coro)
+        except BaseException as exc:
+            error_holder.append(exc)
+
+    worker = threading.Thread(target=_runner, daemon=True)
+    worker.start()
+    worker.join()
+    if error_holder:
+        raise error_holder[0]

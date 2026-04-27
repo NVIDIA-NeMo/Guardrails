@@ -45,6 +45,7 @@ class OpenAICompatibleClient(BaseClient):
         *,
         stop: Optional[List[str]] = None,
         stream: bool = False,
+        include_usage_in_stream: Optional[bool] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -55,7 +56,7 @@ class OpenAICompatibleClient(BaseClient):
             payload["stop"] = stop
         if stream:
             payload["stream"] = True
-            if self.provider_name in {"openai", "nim", "azure"}:
+            if include_usage_in_stream is not False:
                 payload["stream_options"] = {"include_usage": True}
         payload.update(kwargs)
         return payload

@@ -179,6 +179,22 @@ class TestEdgeCases:
         assert len(events) == 1
         assert events[0].data == ""
 
+    def test_id_only_does_not_dispatch(self):
+        events = _decode_lines(["id: foo", "", "", ""])
+        assert events == []
+
+    def test_id_only_then_data_dispatches_once(self):
+        events = _decode_lines(["id: foo", "", "", "data: real", ""])
+        assert len(events) == 1
+        assert events[0].data == "real"
+        assert events[0].id == "foo"
+
+    def test_id_after_dispatch_does_not_re_dispatch(self):
+        events = _decode_lines(["id: persistent", "data: first", "", "", ""])
+        assert len(events) == 1
+        assert events[0].data == "first"
+        assert events[0].id == "persistent"
+
 
 class TestServerSentEvent:
     def test_defaults(self):
