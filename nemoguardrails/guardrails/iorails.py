@@ -145,6 +145,17 @@ class IORails:
             except BaseException:
                 log.exception("engine_registry rollback failed during IORails.start()")
             raise
+
+        # Queue is now live; register the state-observing ObservableGauges.
+        # ``lambda: self._running`` is checked at collect time so the gauges
+        # report empty lists once the engine has been stopped.
+        if self._metrics_enabled and not self._gauges_registered:
+            register_nonstream_saturation_gauges(
+                self._generate_async_queue,
+                is_running=lambda: self._running,
+            )
+            self._gauges_registered = True
+
         self._running = True
 
     async def stop(self) -> None:
