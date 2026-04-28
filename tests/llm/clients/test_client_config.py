@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 import httpx
 import pytest
 
@@ -127,6 +129,38 @@ class TestHttpClientInjection:
     def test_invalid_type_raises(self):
         with pytest.raises(TypeError, match="httpx.AsyncClient"):
             OpenAICompatibleClient(base_url="https://api.openai.com/v1", http_client="not a client")
+
+
+class TestPlaintextHttpWarning:
+    def test_warns_on_http_with_api_key(self):
+        with pytest.warns(UserWarning, match="plaintext HTTP"):
+            client = OpenAICompatibleClient(base_url="http://api.example.com/v1", api_key="sk-test")
+        assert client._api_key == "sk-test"
+
+    def test_no_warning_on_https_with_api_key(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            OpenAICompatibleClient(base_url="https://api.example.com/v1", api_key="sk-test")
+
+    def test_no_warning_on_http_without_api_key(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            OpenAICompatibleClient(base_url="http://api.example.com/v1")
+
+    @pytest.mark.parametrize(
+        "base_url",
+        [
+            "http://localhost:11434/v1",
+            "http://127.0.0.1:8000/v1",
+            "http://[::1]:8000/v1",
+            "http://my-server.local/v1",
+            "http://nemo.local:11434/v1",
+        ],
+    )
+    def test_no_warning_for_local_hosts(self, base_url):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            OpenAICompatibleClient(base_url=base_url, api_key="sk-test")
 
 
 class TestDefaultFramework:

@@ -17,7 +17,9 @@ import asyncio
 import json
 import logging
 import random
+import warnings
 from typing import Any, AsyncGenerator, Dict, Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -69,6 +71,15 @@ class BaseClient:
         self._max_retries = max_retries
         self._custom_headers = custom_headers or {}
         self._custom_query = custom_query or {}
+
+        if api_key and base_url.startswith("http://"):
+            host = (urlparse(base_url).hostname or "").lower()
+            if host not in ("localhost", "127.0.0.1", "::1") and not host.endswith(".local"):
+                warnings.warn(
+                    f"API key will be sent over plaintext HTTP to {base_url}; use https:// for production deployments.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         if http_client is not None and not isinstance(http_client, httpx.AsyncClient):
             raise TypeError(f"Invalid http_client argument; expected httpx.AsyncClient but got {type(http_client)}")
