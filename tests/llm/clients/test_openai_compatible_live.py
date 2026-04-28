@@ -83,8 +83,12 @@ def _load_fixture(name):
 def _to_http_response(data):
     from nemoguardrails.llm.clients.base import HTTPResponse
 
-    headers = data.pop("_response_headers", {}) if isinstance(data, dict) else {}
-    return HTTPResponse(body=data, headers=headers, status_code=200)
+    if isinstance(data, dict):
+        headers = data.get("_response_headers", {})
+        body = {key: value for key, value in data.items() if key != "_response_headers"}
+    else:
+        headers, body = {}, data
+    return HTTPResponse(body=body, headers=headers, status_code=200)
 
 
 def _load_response_fixture(name):
