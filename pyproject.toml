@@ -114,6 +114,9 @@ yara-python = { version = "^4.5.1", optional = true }
 # multilingual content safety - language detection
 fast-langdetect = { version = ">=1.0.0", optional = true }
 
+# chat UI
+chainlit = { version = "^2.11.0", optional = true }
+
 [tool.poetry.extras]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
 eval = ["tqdm", "numpy", "streamlit", "tornado"]
@@ -124,6 +127,7 @@ nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
 multilingual = ["fast-langdetect"]
 server = ["aiofiles", "openai", "fastapi", "starlette", "uvicorn", "watchdog"]
+chat-ui = ["chainlit"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
@@ -145,6 +149,7 @@ all = [
   "starlette",
   "uvicorn",
   "watchdog",
+  "chainlit",
 ]
 
 [tool.poetry.group.dev]
