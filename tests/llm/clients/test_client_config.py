@@ -131,6 +131,62 @@ class TestHttpClientInjection:
             OpenAICompatibleClient(base_url="https://api.openai.com/v1", http_client="not a client")
 
 
+class TestPoolKeyAcceptsUnhashableQueryValues:
+    @pytest.mark.asyncio
+    async def test_list_query_value_does_not_crash(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o",
+                "openai",
+                {"api_key": "sk", "default_query": {"tags": ["a", "b"]}},
+            )
+            assert model.model_name == "gpt-4o"
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_nested_dict_query_value_does_not_crash(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o",
+                "openai",
+                {"api_key": "sk", "default_query": {"meta": {"region": "us"}}},
+            )
+            assert model.model_name == "gpt-4o"
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_same_query_pools_clients(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk", "default_query": {"tags": ["a", "b"]}})
+            m2 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk", "default_query": {"tags": ["a", "b"]}})
+            assert m1._client is m2._client
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_different_query_different_clients(self):
+        from nemoguardrails.llm.default_framework import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk", "default_query": {"tags": ["a", "b"]}})
+            m2 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk", "default_query": {"tags": ["a", "c"]}})
+            assert m1._client is not m2._client
+        finally:
+            await fw.reset()
+
+
 class TestPlaintextHttpWarning:
     def test_warns_on_http_with_api_key(self):
         with pytest.warns(UserWarning, match="plaintext HTTP"):

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -75,8 +76,8 @@ class DefaultFramework:
             timeout,
             connect_timeout,
             max_retries,
-            tuple(sorted((default_headers or {}).items())),
-            tuple(sorted((default_query or {}).items())),
+            json.dumps(default_headers or {}, sort_keys=True, default=str),
+            json.dumps(default_query or {}, sort_keys=True, default=str),
         )
         if key not in self._clients:
             client_kwargs: Dict[str, Any] = {}
