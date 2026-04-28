@@ -393,11 +393,13 @@ class IORails:
             ``requests.errors{error.type=QueueFull}`` — dual-signal
             semantics matching the non-streaming path.
             """
+            # Ensure engines are running (idempotent if already started).
+            # Kept outside ``request_metrics`` so duration matches the
+            # non-streaming path (excludes one-time engine startup cost).
+            await self.start()
+
             metrics_ctx = request_metrics() if self._metrics_enabled else nullcontext()
             with metrics_ctx:
-                # Ensure engines are running (idempotent if already started).
-                await self.start()
-
                 # Non-blocking acquire; raises immediately if all slots are taken.
                 # locked() returns True when the semaphore value is 0.  Because there
                 # is no await between the check and acquire(), no other coroutine can

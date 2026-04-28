@@ -34,7 +34,7 @@ from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, Rai
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
-from tests.guardrails.async_helpers import wait_for_queue_state
+from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
@@ -1234,19 +1234,9 @@ class TestStreamAsyncRequestMetrics:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
-        # Acquire all the available semaphores (any more requests should be rejected)
-        acquired = 0
-        while not iorails._stream_semaphore.locked():
-            await iorails._stream_semaphore.acquire()
-            acquired += 1
-
-        # Make a `stream_async()` call with no sempohores left to use
-        try:
-            with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
-                [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
-        finally:
-            for _ in range(acquired):
-                iorails._stream_semaphore.release()
+        saturate_stream_semaphore(iorails)
+        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.stream.rejections"][0].value == 1
@@ -1268,17 +1258,9 @@ class TestStreamAsyncRequestMetrics:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
-        acquired = 0
-        while not iorails._stream_semaphore.locked():
-            await iorails._stream_semaphore.acquire()
-            acquired += 1
-
-        try:
-            with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
-                [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
-        finally:
-            for _ in range(acquired):
-                iorails._stream_semaphore.release()
+        saturate_stream_semaphore(iorails)
+        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
         assert points["guardrails.stream.rejections"][0].value == 1
@@ -1347,18 +1329,9 @@ class TestStreamAsyncRequestMetrics:
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
-        # Drain permits so the next stream is rejected.
-        acquired = 0
-        while not iorails._stream_semaphore.locked():
-            await iorails._stream_semaphore.acquire()
-            acquired += 1
-
-        try:
-            with pytest.raises(asyncio.QueueFull):
-                [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
-        finally:
-            for _ in range(acquired):
-                iorails._stream_semaphore.release()
+        saturate_stream_semaphore(iorails)
+        with pytest.raises(asyncio.QueueFull):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
 
         points = collect_metric_points(metric_reader)
         assert "guardrails.stream.active" not in points

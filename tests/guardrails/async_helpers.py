@@ -24,6 +24,7 @@ tests that need to observe state transitions mid-flight.
 import asyncio
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
+from nemoguardrails.guardrails.iorails import IORails
 
 
 async def wait_for_queue_state(
@@ -52,3 +53,16 @@ async def wait_for_queue_state(
                 f"last seen busy={queue.num_busy_workers()} pending={queue.num_pending()}"
             )
         await asyncio.sleep(0)
+
+
+def saturate_stream_semaphore(iorails: IORails) -> None:
+    """Force ``iorails._stream_semaphore`` into a fully-occupied state by
+    swapping in a zero-permit semaphore.  Any subsequent
+    ``stream_async()`` call trips ``Semaphore.locked() == True`` and is
+    rejected with ``asyncio.QueueFull``.
+
+    Cheaper and more future-proof than draining all
+    ``STREAM_MAX_CONCURRENCY`` permits one-by-one — the test no longer
+    breaks silently if that constant grows.
+    """
+    iorails._stream_semaphore = asyncio.Semaphore(0)
