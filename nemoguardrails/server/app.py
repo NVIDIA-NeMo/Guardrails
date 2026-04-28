@@ -115,8 +115,10 @@ async def on_message(message: cl.Message):
 
     try:
         llm_rails = await _get_rails([config_id])
-    except ValueError:
+    except Exception:
         log.exception("Failed to load rails config '%s'", config_id)
+        messages.pop()
+        cl.user_session.set("messages", messages)
         await cl.Message(content=f"Error loading guardrails configuration '{config_id}'. Check server logs.").send()
         return
 
@@ -124,6 +126,7 @@ async def on_message(message: cl.Message):
     await response_msg.send()
 
     full_response = ""
+    streaming_unsupported = False
     try:
         try:
             async for chunk in llm_rails.stream_async(messages=messages):
@@ -131,9 +134,9 @@ async def on_message(message: cl.Message):
                     full_response += chunk
                     await response_msg.stream_token(chunk)
         except StreamingNotSupportedError:
-            full_response = ""
+            streaming_unsupported = True
 
-        if not full_response:
+        if streaming_unsupported:
             result = await llm_rails.generate_async(messages=messages)
             full_response = result.get("content", str(result)) if isinstance(result, dict) else str(result)
             response_msg.content = full_response
@@ -144,5 +147,7 @@ async def on_message(message: cl.Message):
 
     except Exception:
         log.exception("Error generating response for config '%s'", config_id)
+        messages.pop()
+        cl.user_session.set("messages", messages)
         response_msg.content = f"An error occurred for configuration '{config_id}'. Check server logs."
         await response_msg.update()

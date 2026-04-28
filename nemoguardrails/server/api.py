@@ -67,7 +67,7 @@ class GuardrailsApp(FastAPI):
         # Initialize custom attributes
         self.default_config_id: Optional[str] = None
         self.rails_config_path: str = ""
-        self.disable_chat_ui: bool = False
+        self.disable_chat_ui: bool = os.getenv("NEMO_GUARDRAILS_DISABLE_CHAT_UI", "false").lower() == "true"
         self.auto_reload: bool = False
         self.stop_signal: bool = False
         self.single_config_mode: bool = False
@@ -185,8 +185,6 @@ app.stop_signal = False
 # Whether the server is pointed to a directory containing a single config.
 app.single_config_mode = False
 app.single_config_id = None
-
-app.disable_chat_ui = os.getenv("NEMO_GUARDRAILS_DISABLE_CHAT_UI", "false").lower() == "true"
 
 
 @app.get(
@@ -725,7 +723,7 @@ if not app.disable_chat_ui and mount_chainlit is not None:
 
     @app.get("/")
     async def root_redirect():
-        return RedirectResponse(url="/chat")
+        return RedirectResponse(url="chat")
 
 else:
     if not app.disable_chat_ui and mount_chainlit is None:
