@@ -147,7 +147,7 @@ def server(
 
     try:
         import uvicorn
-        from fastapi import FastAPI as _FastAPI
+        from fastapi import FastAPI
     except ImportError:
         typer.secho(
             "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
@@ -190,7 +190,7 @@ def server(
         setattr(api.app, "auto_reload", True)
 
     if prefix:
-        server_app = _FastAPI()
+        server_app = FastAPI()
         server_app.mount(prefix, api.app)
     else:
         server_app = api.app
