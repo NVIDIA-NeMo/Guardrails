@@ -966,8 +966,8 @@ class TestStreamAsyncSpanHierarchy:
 
             # Ambient span was NOT polluted by the streaming failure.
             assert spans[0].status.status_code == StatusCode.UNSET
-        assert "error.type" not in dict(spans[0].attributes)
-        assert [e for e in spans[0].events if e.name == "exception"] == []
+            assert "error.type" not in dict(spans[0].attributes)
+            assert [e for e in spans[0].events if e.name == "exception"] == []
 
 
 class TestOtelNotInstalled:
