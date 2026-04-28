@@ -647,9 +647,11 @@ class TestNetworkExceptionRetry:
 
 
 class TestStreamTimeout:
-    def test_stream_timeout_constant_tightens_read(self):
-        assert DEFAULT_STREAM_TIMEOUT.read == 120.0
+    def test_stream_timeout_constant_axes(self):
         assert DEFAULT_STREAM_TIMEOUT.connect == DEFAULT_TIMEOUT.connect
+        assert DEFAULT_STREAM_TIMEOUT.read == 120.0
+        assert DEFAULT_STREAM_TIMEOUT.write == 600.0
+        assert DEFAULT_STREAM_TIMEOUT.pool == 600.0
 
     @pytest.mark.asyncio
     async def test_stream_call_receives_stream_timeout(self):
@@ -680,6 +682,70 @@ class TestStreamTimeout:
             pass
 
         assert captured["timeout"] is DEFAULT_STREAM_TIMEOUT
+
+    @pytest.mark.asyncio
+    async def test_stream_respects_user_configured_timeout(self):
+        client = make_client(timeout=30.0)
+        captured = {}
+
+        @asynccontextmanager
+        async def capturing_stream(*args, **kwargs):
+            captured.update(kwargs)
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        client._client = type("MockClient", (), {"stream": capturing_stream})()
+        async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+            pass
+
+        assert "timeout" not in captured
+
+    @pytest.mark.asyncio
+    async def test_stream_respects_user_provided_http_client(self):
+        captured = {}
+
+        @asynccontextmanager
+        async def capturing_stream(*args, **kwargs):
+            captured.update(kwargs)
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        user_http_client = httpx.AsyncClient()
+        client = make_client(http_client=user_http_client)
+        client._client = type("MockClient", (), {"stream": capturing_stream})()
+        try:
+            async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                pass
+        finally:
+            await user_http_client.aclose()
+
+        assert "timeout" not in captured
 
     @pytest.mark.asyncio
     async def test_read_timeout_before_first_chunk_retries(self):

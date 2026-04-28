@@ -92,6 +92,9 @@ class BaseClient:
             timeout=httpx.Timeout(_timeout, connect=_connect_timeout),
             limits=DEFAULT_CONNECTION_LIMITS,
         )
+        self._stream_timeout: Optional[httpx.Timeout] = (
+            DEFAULT_STREAM_TIMEOUT if (timeout is None and connect_timeout is None and http_client is None) else None
+        )
 
     @property
     def provider_name(self) -> Optional[str]:
@@ -201,6 +204,10 @@ class BaseClient:
         retries_attempted = 0
         ctx = self._error_context()
 
+        stream_kwargs: Dict[str, Any] = {}
+        if self._stream_timeout is not None:
+            stream_kwargs["timeout"] = self._stream_timeout
+
         while True:
             first_yielded = False
             try:
@@ -210,7 +217,7 @@ class BaseClient:
                     json=payload,
                     headers=self._build_headers(),
                     params=self._custom_query or None,
-                    timeout=DEFAULT_STREAM_TIMEOUT,
+                    **stream_kwargs,
                 ) as response:
                     if self._should_retry(response.status_code, response.headers) and retries_remaining > 0:
                         await response.aread()
