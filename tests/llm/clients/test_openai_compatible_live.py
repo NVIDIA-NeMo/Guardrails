@@ -1128,18 +1128,19 @@ class TestOpenAIProviderContract:
             base_url="https://api.openai.com/v1",
             api_key=os.environ.get("OPENAI_API_KEY"),
         ) as client:
-            data = await client.chat_completion(
+            response = await client.chat_completion(
                 "gpt-4o-mini",
                 [{"role": "user", "content": "Say hello in one word"}],
             )
-        assert "id" in data
-        assert "model" in data
-        choices = data.get("choices")
+        body = response.body
+        assert "id" in body
+        assert "model" in body
+        choices = body.get("choices")
         assert isinstance(choices, list) and len(choices) > 0
         message = choices[0].get("message")
         assert isinstance(message, dict) and "content" in message
         assert "finish_reason" in choices[0]
-        usage = data.get("usage")
+        usage = body.get("usage")
         assert isinstance(usage, dict)
         assert "prompt_tokens" in usage and "completion_tokens" in usage
 
@@ -1184,8 +1185,8 @@ class TestOpenAIProviderContract:
             ):
                 chunks.append(chunk)
         assert len(chunks) > 0
-        assert any(c.get("choices") for c in chunks)
-        assert any(c.get("usage") for c in chunks)
+        assert any(chunk.body.get("choices") for chunk in chunks)
+        assert any(chunk.body.get("usage") for chunk in chunks)
 
     @pytest.mark.asyncio
     async def test_401_body_does_not_echo_bad_key(self):
