@@ -1054,6 +1054,13 @@ class TestParseChatCompletionChunk:
         assert result.delta_content is None
         assert result.delta_reasoning == "thinking"
 
+    def test_empty_reasoning_alongside_content_normalized_to_none(self):
+        """Empty-string reasoning_content is normalized to None, matching _parse_chat_completion."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {"content": "hi", "reasoning_content": ""}}]})
+        assert result is not None
+        assert result.delta_content == "hi"
+        assert result.delta_reasoning is None
+
     def test_role_only_delta_returns_none(self):
         """Role-only deltas (typical first event) are skipped."""
         assert _parse_chat_completion_chunk({"choices": [{"delta": {"role": "assistant"}}]}) is None

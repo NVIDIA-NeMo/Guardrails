@@ -123,7 +123,7 @@ def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
     choice = choices[0]
     delta = choice.get("delta") or {}
     delta_content = delta.get("content")
-    delta_reasoning = delta.get("reasoning_content")
+    delta_reasoning = delta.get("reasoning_content") or None
 
     if not delta_content and not delta_reasoning:
         return None
