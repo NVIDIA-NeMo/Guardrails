@@ -540,6 +540,31 @@ class TestModelEngineStreamCall:
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
+    async def test_stream_call_yields_combined_content_and_reasoning_in_one_chunk(self):
+        """A single SSE delta with both content and reasoning_content populates both fields."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"content": "answer", "reasoning_content": "thought"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert len(chunks) == 1
+        assert chunks[0].delta_content == "answer"
+        assert chunks[0].delta_reasoning == "thought"
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
     async def test_stream_call_sends_stream_true(self):
         """stream_call() includes stream=True in the request body."""
         engine = ModelEngine(_make_model())
@@ -1110,6 +1135,19 @@ class TestParseChatCompletionChunk:
         assert result is not None
         assert result.delta_content == "hi"
         assert result.delta_reasoning is None
+
+    def test_combined_content_and_reasoning_in_one_delta(self):
+        """A single delta carrying both content and reasoning_content populates both fields.
+
+        LLMResponseChunk is parallel-optional, not a discriminated union — providers
+        may emit both fields on the same SSE chunk.
+        """
+        result = _parse_chat_completion_chunk(
+            {"choices": [{"delta": {"content": "answer", "reasoning_content": "thought"}}]}
+        )
+        assert result is not None
+        assert result.delta_content == "answer"
+        assert result.delta_reasoning == "thought"
 
     def test_role_only_delta_returns_none(self):
         """Role-only deltas (typical first event) are skipped."""
