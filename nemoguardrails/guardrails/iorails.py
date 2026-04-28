@@ -123,13 +123,20 @@ class IORails:
         if self._running:
             return
 
-        # When starting up, make sure self._running is always set to True even on exceptions.
-        # This allows the stop() method to clean up any state
+        #  The EngineRegistry cleans up all its Engines if there's an exception on startup
+        #  so no need to catch exceptions and clean up here
+        await self.engine_registry.start()
         try:
-            await self.engine_registry.start()
             await self._generate_async_queue.start()
-        finally:
-            self._running = True
+        except BaseException:
+            # Log but suppress rollback failures so we propagate the original
+            # queue-start error as the actionable root cause.
+            try:
+                await self.engine_registry.stop()
+            except BaseException:
+                log.exception("engine_registry rollback failed during IORails.start()")
+            raise
+        self._running = True
 
     async def stop(self) -> None:
         """Stop the IORails engine. Call this during service shutdown."""

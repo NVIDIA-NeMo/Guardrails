@@ -238,13 +238,13 @@ class TestIORailsStartErrors:
 
     @pytest.mark.asyncio
     async def test_start_propagates_engine_registry_error(self, iorails):
-        """start() re-raises when engine_registry.start() fails."""
+        """start() re-raises when engine_registry.start() fails and leaves _running=False."""
         iorails.engine_registry.start = AsyncMock(side_effect=RuntimeError("engine failed"))
 
         with pytest.raises(RuntimeError, match="engine failed"):
             await iorails.start()
 
-        assert iorails._running
+        assert not iorails._running
 
     @pytest.mark.asyncio
     async def test_start_propagates_model_engine_error(self, iorails):
@@ -262,7 +262,7 @@ class TestIORailsStartErrors:
         with pytest.raises(RuntimeError, match="Failed to start engine"):
             await iorails.start()
 
-        assert iorails._running
+        assert not iorails._running
         assert not iorails.engine_registry._running
 
         # With fail-fast, only engines that started before the failing one are rolled back.
@@ -283,16 +283,54 @@ class TestIORailsStartErrors:
 
         with pytest.raises(RuntimeError):
             await iorails.start()
-        assert iorails._running
-
-        # Stop IORails (and underlying EngineRegistry)
-        await iorails.stop()
+        assert not iorails._running
 
         # Call start() without an exception being thrown, now this will work
         iorails.engine_registry.start = AsyncMock()
         await iorails.start()
         assert iorails._running
         iorails.engine_registry.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_rolls_back_engine_registry_when_queue_start_raises(self, iorails):
+        """If _generate_async_queue.start() raises, engine_registry is rolled back and _running stays False."""
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
+        iorails._generate_async_queue.start = AsyncMock(side_effect=RuntimeError("queue start failed"))
+
+        with pytest.raises(RuntimeError, match="queue start failed"):
+            await iorails.start()
+
+        iorails.engine_registry.start.assert_called_once()
+        iorails.engine_registry.stop.assert_called_once()
+        assert not iorails._running
+
+    @pytest.mark.asyncio
+    async def test_start_failed_queue_start_invokes_rollback_in_order(self, iorails):
+        """After registry.start succeeds and queue.start fails, registry.stop is the next call."""
+        call_order: list[str] = []
+
+        async def registry_start():
+            call_order.append("registry.start")
+
+        async def registry_stop():
+            call_order.append("registry.stop")
+
+        async def queue_start():
+            call_order.append("queue.start")
+            raise RuntimeError("queue failed")
+
+        iorails.engine_registry.start = registry_start
+        iorails.engine_registry.stop = registry_stop
+        iorails._generate_async_queue.start = queue_start
+
+        with pytest.raises(RuntimeError, match="queue failed"):
+            await iorails.start()
+
+        # Pre-fix: ["registry.start", "queue.start"] — no rollback, _running=True.
+        # Post-fix: rollback runs after the failed queue start, _running=False.
+        assert call_order == ["registry.start", "queue.start", "registry.stop"]
+        assert not iorails._running
 
 
 class TestIORailsStopErrors:
