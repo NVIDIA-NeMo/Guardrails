@@ -32,6 +32,10 @@ from pydantic import BaseModel, ValidationError
 from starlette.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
+from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.guardrails.api_engine import APIEngineError
+from nemoguardrails.guardrails.model_engine import ModelEngineError
+from nemoguardrails.llm.clients._errors import _redact_secrets
 from nemoguardrails.rails.llm.config import Model
 from nemoguardrails.rails.llm.options import GenerationResponse, RailStatus
 from nemoguardrails.server.datastore.datastore import DataStore
@@ -423,7 +427,7 @@ class ChunkErrorMetadata(BaseModel):
     message: str
     type: Optional[str] = None
     param: Optional[str] = None
-    code: Optional[str] = None
+    code: Union[str, int, None] = None
 
 
 class ChunkError(BaseModel):
@@ -673,12 +677,26 @@ async def chat_completion(body: GuardrailsChatCompletionRequest, request: Reques
 
     except HTTPException:
         raise
+    except (LLMCallException, ModelEngineError, APIEngineError) as ex:
+        log.exception(ex)
+        status = getattr(ex, "status", None) or 500
+        return JSONResponse(
+            status_code=status,
+            content=create_error_chat_completion(
+                model=body.model,
+                error_message=_redact_secrets(str(ex)),
+                config_id=config_ids[0] if config_ids else None,
+            ).model_dump(),
+        )
     except Exception as ex:
         log.exception(ex)
-        return create_error_chat_completion(
-            model=body.model,
-            error_message="Internal server error",
-            config_id=config_ids[0] if config_ids else None,
+        return JSONResponse(
+            status_code=500,
+            content=create_error_chat_completion(
+                model=body.model,
+                error_message="Internal server error",
+                config_id=config_ids[0] if config_ids else None,
+            ).model_dump(),
         )
 
 

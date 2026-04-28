@@ -26,7 +26,7 @@ from nemoguardrails.context import (
     reasoning_trace_var,
     tool_calls_var,
 )
-from nemoguardrails.exceptions import LLMCallException
+from nemoguardrails.exceptions import LLMCallException, LLMClientError
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.logging.llm_tracker import track_llm_call
 from nemoguardrails.types import ChatMessage, LLMModel, LLMResponse, LLMResponseChunk, UsageInfo
@@ -311,6 +311,34 @@ def _update_token_stats_from_chunk(chunk: LLMResponseChunk) -> None:
             llm_stats.inc("total_completion_tokens", chunk.usage.output_tokens)
 
 
+def _extract_http_status(exception: BaseException) -> Optional[int]:
+    """Extract an HTTP status code from a provider exception, if present.
+
+    Checks, in order:
+    1. ``LLMClientError.status_code`` (NeMo Guardrails client layer).
+    2. ``exception.status_code`` (OpenAI SDK, httpx).
+    3. ``exception.response.status_code`` (requests-style wrappers).
+
+    Returns ``None`` when no status can be determined or when the status
+    is ``0`` (used by ``LLMTimeoutError`` / ``LLMConnectionError`` for
+    client-side failures where no HTTP response was received).
+    """
+    if isinstance(exception, LLMClientError):
+        return exception.status_code if exception.status_code > 0 else None
+
+    status = getattr(exception, "status_code", None)
+    if isinstance(status, int) and status > 0:
+        return status
+
+    response = getattr(exception, "response", None)
+    if response is not None:
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int) and status > 0:
+            return status
+
+    return None
+
+
 def _raise_llm_call_exception(
     exception: Exception,
     model: LLMModel,
@@ -328,11 +356,13 @@ def _raise_llm_call_exception(
     if endpoint_url:
         context_parts.append(f"endpoint={endpoint_url}")
 
+    status = _extract_http_status(exception)
+
     if context_parts:
         detail = f"Error invoking LLM ({', '.join(context_parts)})"
-        raise LLMCallException(exception, detail=detail) from exception
+        raise LLMCallException(exception, detail=detail, status=status) from exception
     else:
-        raise LLMCallException(exception) from exception
+        raise LLMCallException(exception, status=status) from exception
 
 
 def _store_reasoning_traces(response: LLMResponse) -> None:

@@ -82,25 +82,28 @@ class InvalidStateError(ValueError):
 class LLMCallException(Exception):
     """A wrapper around the LLM call invocation exception.
 
-    This is used to propagate the exception out of the `generate_async` call. The default behavior is to
-    catch it and return an "Internal server error." message.
+    This is used to propagate the exception out of the ``generate_async`` call.
+    When the inner exception carries an HTTP status code (e.g. a
+    :class:`LLMClientError`), callers can inspect :attr:`status` to decide
+    which HTTP response code to return to the upstream client.
     """
 
     inner_exception: Union[BaseException, str]
     detail: Optional[str]
+    status: Optional[int]
 
-    def __init__(self, inner_exception: Union[BaseException, str], detail: Optional[str] = None):
-        """Initialize LLMCallException.
-
-        Args:
-            inner_exception: The original exception that occurred
-            detail: Optional context to prepend (for example, the model name or endpoint)
-        """
+    def __init__(
+        self,
+        inner_exception: Union[BaseException, str],
+        detail: Optional[str] = None,
+        status: Optional[int] = None,
+    ):
         message = f"{detail or 'LLM Call Exception'}: {str(inner_exception)}"
         super().__init__(message)
 
         self.inner_exception = inner_exception
         self.detail = detail
+        self.status = status
 
 
 class LLMClientError(Exception):
