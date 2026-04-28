@@ -313,6 +313,22 @@ class TestIORailsStopErrors:
         # _running should be False due to the finally clause
         assert not iorails._running
 
+    @pytest.mark.asyncio
+    async def test_stop_runs_engine_registry_when_queue_stop_raises(self, iorails):
+        """engine_registry.stop() must run even if _generate_async_queue.stop() raises."""
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
+        iorails._generate_async_queue.stop = AsyncMock(side_effect=RuntimeError("queue stop failed"))
+
+        await iorails.start()
+        assert iorails._running
+
+        with pytest.raises(RuntimeError, match="queue stop failed"):
+            await iorails.stop()
+
+        iorails.engine_registry.stop.assert_called_once()
+        assert not iorails._running
+
 
 class TestIORailsContextManager:
     """Test IORails async context manager."""

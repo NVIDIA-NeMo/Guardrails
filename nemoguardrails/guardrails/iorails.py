@@ -136,11 +136,14 @@ class IORails:
         if not self._running:
             return
 
-        # If exceptions are thrown during stop, set _running=False regardless
-        # so a retry of stop() is a no-op and we don't leak worker tasks.
+        # Each shutdown step runs independently so a failure in one does not
+        # leak the other. _running is cleared regardless so a retry of stop()
+        # is a no-op and we don't leak worker tasks.
         try:
-            await self._generate_async_queue.stop()
-            await self.engine_registry.stop()
+            try:
+                await self._generate_async_queue.stop()
+            finally:
+                await self.engine_registry.stop()
         finally:
             self._running = False
 
