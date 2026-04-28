@@ -153,14 +153,14 @@ def server(
     try:
         import uvicorn
         from fastapi import FastAPI
+
+        from nemoguardrails.server import api
     except ImportError:
         typer.secho(
             "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
-
-    from nemoguardrails.server import api
 
     if config:
         # We make sure there is no trailing separator, as that might break things in

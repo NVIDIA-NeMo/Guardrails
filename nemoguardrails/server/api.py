@@ -208,11 +208,7 @@ async def get_rails_configs():
         if os.path.isdir(os.path.join(app.rails_config_path, f))
         and f[0] != "."
         and f[0] != "_"
-        # We filter out all the configs for which there is no `config.yml` file.
-        and (
-            os.path.exists(os.path.join(app.rails_config_path, f, "config.yml"))
-            or os.path.exists(os.path.join(app.rails_config_path, f, "config.yaml"))
-        )
+        and _has_config_file(os.path.join(app.rails_config_path, f))
     ]
 
     return [{"id": config_id} for config_id in config_ids]
@@ -256,6 +252,16 @@ async def list_models(request: Request):
 # One instance of LLMRails per config id
 llm_rails_instances: dict[str, LLMRails] = {}
 llm_rails_events_history_cache: dict[str, dict] = {}
+
+
+def _has_config_file(path: str) -> bool:
+    """Check if a directory (or its 'config' subdirectory) contains a config.yml/yaml."""
+    for candidate in [path, os.path.join(path, "config")]:
+        if os.path.exists(os.path.join(candidate, "config.yml")) or os.path.exists(
+            os.path.join(candidate, "config.yaml")
+        ):
+            return True
+    return False
 
 
 def _generate_cache_key(config_ids: List[str], model_name: Optional[str] = None) -> str:

@@ -22,7 +22,7 @@ from typing import List, Optional
 import chainlit as cl
 
 from nemoguardrails.exceptions import StreamingNotSupportedError
-from nemoguardrails.server.api import _get_rails, app, challenges
+from nemoguardrails.server.api import _get_rails, _has_config_file, app, challenges
 
 log = logging.getLogger(__name__)
 
@@ -41,16 +41,6 @@ async def set_starters(user: Optional[cl.User] = None) -> List[cl.Starter]:
         )
         for challenge in challenges
     ]
-
-
-def _has_config_file(path: str) -> bool:
-    """Check if a directory (or its 'config' subdirectory) contains a config.yml/yaml."""
-    for candidate in [path, os.path.join(path, "config")]:
-        if os.path.exists(os.path.join(candidate, "config.yml")) or os.path.exists(
-            os.path.join(candidate, "config.yaml")
-        ):
-            return True
-    return False
 
 
 def _discover_configs() -> List[str]:
