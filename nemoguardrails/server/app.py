@@ -21,6 +21,7 @@ from typing import List, Optional
 
 import chainlit as cl
 
+from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.server.api import _get_rails, app, challenges
 
 log = logging.getLogger(__name__)
@@ -124,40 +125,36 @@ async def on_message(message: cl.Message):
 
     try:
         llm_rails = await _get_rails([config_id])
-    except ValueError as ex:
-        log.exception("Failed to load rails config: %s", ex)
-        await cl.Message(content=f"Error loading guardrails configuration '{config_id}': {ex}").send()
+    except ValueError:
+        log.exception("Failed to load rails config '%s'", config_id)
+        await cl.Message(
+            content=f"Error loading guardrails configuration '{config_id}'. Check server logs."
+        ).send()
         return
 
     response_msg = cl.Message(content="")
     await response_msg.send()
 
+    full_response = ""
     try:
-        full_response = ""
-        async for chunk in llm_rails.stream_async(messages=messages):
-            if isinstance(chunk, str) and chunk:
-                full_response += chunk
-                await response_msg.stream_token(chunk)
+        try:
+            async for chunk in llm_rails.stream_async(messages=messages):
+                if isinstance(chunk, str) and chunk:
+                    full_response += chunk
+                    await response_msg.stream_token(chunk)
+        except StreamingNotSupportedError:
+            full_response = ""
 
         if not full_response:
-            res = await llm_rails.generate_async(messages=messages)
-            if isinstance(res, str):
-                bot_content = res
-            elif isinstance(res, dict):
-                bot_content = res.get("content", str(res))
-            elif hasattr(res, "response"):
-                bot_content = str(res.response)  # type: ignore[union-attr]
-            else:
-                bot_content = str(res)
-
-            response_msg.content = bot_content
+            result = await llm_rails.generate_async(messages=messages)
+            full_response = result.get("content", str(result)) if isinstance(result, dict) else str(result)
+            response_msg.content = full_response
             await response_msg.update()
-            full_response = bot_content
 
         messages.append({"role": "assistant", "content": full_response})
         cl.user_session.set("messages", messages)
 
-    except Exception as ex:
-        log.exception("Error generating response: %s", ex)
-        response_msg.content = f"An error occurred while processing your message: {ex}"
+    except Exception:
+        log.exception("Error generating response for config '%s'", config_id)
+        response_msg.content = f"An error occurred for configuration '{config_id}'. Check server logs."
         await response_msg.update()
