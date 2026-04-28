@@ -19,6 +19,22 @@ This category of rails relies on prompting the LLM to perform various tasks like
 You should only use the example self-check prompts as a starting point. For production use cases, you should perform additional evaluations and customizations.
 ```
 
+### Reasoning Models as Self-Check LLMs
+
+The `self_check_input`, `self_check_output`, and `self_check_facts` tasks all log a warning if the LLM hits `max_tokens` before producing visible output (`finish_reason="length"` with empty content). With the default parser, `self_check_input` and `self_check_output` treat empty output as unsafe and block. `self_check_facts` explicitly fail-closes by returning a score of `0.0`, because its scoring logic would otherwise accept empty output.
+
+If you use a reasoning model (OpenAI o-series, `gpt-5` and similar) for self-check, set an explicit `max_tokens` on the prompt task in `prompts.yml` large enough to cover both the reasoning trace and the final yes/no verdict:
+
+```yaml
+prompts:
+  - task: self_check_input
+    content: |-
+      ...
+    max_tokens: 2048
+```
+
+If `max_tokens` is not set, the action falls back to a default of `1024` tokens. Adjust this value for the model's expected reasoning trace length.
+
 ## Self Check Input
 
 The goal of the input self-checking rail is to determine if the input from the user should be allowed for further processing. This rail will prompt the LLM using a custom prompt. Common reasons for rejecting the input from the user include jailbreak attempts, harmful or abusive content, or other inappropriate instructions.

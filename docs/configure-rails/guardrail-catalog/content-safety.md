@@ -114,6 +114,23 @@ The above is an example prompt that you can use with the *content safety check i
 
 The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](../../../nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](../../../nemoguardrails/library/content_safety/actions.py) actions respectively.
 
+### Reasoning Models as Content Safety Guards
+
+Reasoning guard models such as [Nemotron Content Safety Reasoning](../../getting-started/tutorials/nemotron-content-safety-reasoning-deployment.md), and OpenAI `gpt-oss-safeguard` spend output tokens on internal reasoning before emitting the safety verdict. If the configured `max_tokens` is too small, the budget can be exhausted by the reasoning phase and the model returns empty content with `finish_reason="length"`. The content safety actions log a warning in that case and continue with empty output, which the parser typically treats as unsafe.
+
+To use a reasoning guard, set `max_tokens` on the corresponding prompt task in `prompts.yml` to a value that fits both the reasoning trace and the verdict:
+
+```yaml
+prompts:
+  - task: content_safety_check_input $model=content_safety_reasoning
+    content: |
+      ...
+    output_parser: nemotron_reasoning_parse_prompt_safety
+    max_tokens: 2048
+```
+
+If `max_tokens` is not set on the prompt task, the action falls back to a default of `1024` tokens. Adjust this value for the model's expected reasoning trace length.
+
 ## Multilingual Refusal Messages
 
 <!-- TODO: should we mention nvidia/llama-3.1-nemotron-safety-guard-8b-v3  -->

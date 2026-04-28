@@ -59,6 +59,10 @@ The above is an example prompt that you can use with the *self check facts rail*
 
 The self-check fact-checking rail executes the [`self_check_facts` action](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/self_check/output_check/actions.py), which returns a score between `0.0` (response is not accurate) and `1.0` (response is accurate). The reason a number is returned, instead of a boolean, is to keep a consistent API with other methods that return a score, e.g., the AlignScore method below.
 
+```{note}
+If the LLM hits its `max_tokens` budget before producing a verdict (`finish_reason="length"` with empty content), the action fail-closes and returns `0.0` so the response is blocked. This typically happens with reasoning models that consume output tokens on internal reasoning. Set `max_tokens` on the `self_check_facts` prompt task to fit both the reasoning trace and the yes/no verdict; if unset, the action falls back to `1024` tokens. See [Reasoning Models as Self-Check LLMs](self-check.md#reasoning-models-as-self-check-llms).
+```
+
 ```text
 define subflow self check facts
   if $check_facts == True

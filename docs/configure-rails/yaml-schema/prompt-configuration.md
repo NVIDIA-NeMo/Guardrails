@@ -165,7 +165,7 @@ The `mode` in the prompt definition must match the `prompting_mode` in the top-l
 | `max_length` | `int` | `16000` | Maximum prompt length in characters. |
 | `mode` | `str` | `"standard"` | Prompting mode this prompt applies to. |
 | `stop` | `list[str]` | — | Stop tokens for models that support them. |
-| `max_tokens` | `int` | — | Maximum number of tokens for the completion. |
+| `max_tokens` | `int` | — | Maximum number of tokens for the completion. The self-check (`self_check_input`, `self_check_output`, `self_check_facts`) and content safety (`content_safety_check_input`, `content_safety_check_output`) actions fall back to `1024` if unset. Reasoning models that spend output tokens on internal reasoning need this set explicitly to fit both the reasoning trace and the verdict. |
 
 ## Template Variables
 
