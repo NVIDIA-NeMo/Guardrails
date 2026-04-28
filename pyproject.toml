@@ -12,7 +12,6 @@ include = [
   "LICENSE.md",
   "LICENSE-Apache-2.0.txt",
   "LICENCES-3rd-party.txt",
-  "chat-ui/**/*",
   "examples/**/*",
   "eval/data/**/*",
   "**/*.yml",
