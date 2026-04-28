@@ -127,9 +127,7 @@ async def on_message(message: cl.Message):
         llm_rails = await _get_rails([config_id])
     except ValueError:
         log.exception("Failed to load rails config '%s'", config_id)
-        await cl.Message(
-            content=f"Error loading guardrails configuration '{config_id}'. Check server logs."
-        ).send()
+        await cl.Message(content=f"Error loading guardrails configuration '{config_id}'. Check server logs.").send()
         return
 
     response_msg = cl.Message(content="")
