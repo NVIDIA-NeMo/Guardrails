@@ -93,6 +93,10 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
         raise ValueError(f"Unexpected /v1/chat/completions response shape: {exc}") from exc
 
     if not isinstance(content, str):
+        if content is None and message.get("tool_calls"):
+            raise ValueError(
+                "Tool-call-only responses are not yet supported by IORails (message contains tool_calls but no content)"
+            )
         raise ValueError(f"Expected string content, got {type(content).__name__}")
 
     reasoning = message.get("reasoning_content") or None

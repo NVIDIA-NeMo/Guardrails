@@ -990,11 +990,39 @@ class TestModelEngineChatCompletion:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_raises_on_null_content(self):
-        """chat_completion() raises ModelEngineError when content is None (e.g. tool_calls response)."""
+        """chat_completion() raises ModelEngineError for unsupported tool-calls"""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"content": None}}]})
 
         with pytest.raises(ModelEngineError, match="Expected string content"):
+            await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_raises_clearer_error_for_tool_call_only_response(self):
+        """Tool-call-only responses (content=None, tool_calls set) get a scope-specific error."""
+        engine = ModelEngine(_make_model())
+        engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_abc",
+                                    "type": "function",
+                                    "function": {"name": "calculate", "arguments": '{"expr":"2+2"}'},
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+        with pytest.raises(ModelEngineError, match="Tool-call-only responses are not yet supported"):
             await engine.chat_completion([{"role": "user", "content": "Hi"}])
 
 
@@ -1035,6 +1063,28 @@ class TestParseChatCompletion:
         """Non-string content raises ValueError."""
         with pytest.raises(ValueError, match="Expected string content"):
             _parse_chat_completion({"choices": [{"message": {"content": None}}]})
+
+    def test_raises_specific_error_for_tool_call_only_response(self):
+        """When content is None and tool_calls is set, raise a scope-specific error.
+
+        OpenAI returns this shape for tool_choice='required'. Tool-call support is out of
+        scope for this PR series; the error message should make that clear rather than
+        suggesting malformed data.
+        """
+        with pytest.raises(ValueError, match="Tool-call-only responses are not yet supported"):
+            _parse_chat_completion(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [{"id": "x", "type": "function", "function": {"name": "f"}}],
+                            }
+                        }
+                    ]
+                }
+            )
 
 
 class TestParseChatCompletionChunk:
