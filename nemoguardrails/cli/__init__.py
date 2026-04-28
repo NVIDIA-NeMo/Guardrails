@@ -159,7 +159,7 @@ def server(
         from nemoguardrails.server import api
     except ImportError:
         typer.secho(
-            "The 'openai' package is required to run the server. Install it with: pip install nemoguardrails[server]",
+            "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
@@ -251,16 +251,15 @@ def action_server(
     """Start a NeMo Guardrails actions server."""
 
     try:
-        import fastapi  # noqa: F401
         import uvicorn
+
+        from nemoguardrails.actions_server import actions_server
     except ImportError:
         typer.secho(
             "Server dependencies are missing. Install them with: pip install nemoguardrails[server]",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
-
-    from nemoguardrails.actions_server import actions_server
 
     uvicorn.run(actions_server.app, port=port, log_level="info", host="0.0.0.0")
 
