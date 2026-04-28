@@ -1010,8 +1010,14 @@ def metric_reader():
 
 
 class TestGenerateAsyncRequestMetrics:
+    """Non-streaming path emits ``guardrails.requests`` /
+    ``guardrails.request.duration`` / ``guardrails.requests.errors`` and
+    nets ``guardrails.requests.active`` to zero on completion."""
+
     @pytest.mark.asyncio
     async def test_emits_counter_and_duration_on_safe_request(self, iorails_tracing, metric_reader):
+        """Happy-path generate_async → counter +1, duration recorded once,
+        no errors, requests.active back to 0."""
         _stub_safe_pipeline(iorails_tracing)
 
         await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
@@ -1079,6 +1085,8 @@ class TestGenerateAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_no_blocked_counter_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+        """With metrics disabled, a blocked-by-input-rail request emits no
+        ``requests.blocked`` data point."""
         _stub_safe_pipeline(iorails_no_tracing)
         iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(
             return_value=RailResult(is_safe=False, reason="unsafe")
@@ -1151,6 +1159,8 @@ class TestGenerateAsyncRequestMetrics:
         gate = asyncio.Event()
 
         async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
             await gate.wait()
             return {"role": "assistant", "content": "done"}
 
@@ -1206,6 +1216,8 @@ class TestStreamAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_emits_counter_and_duration_on_safe_stream(self, iorails_streaming_input_only_tracing, metric_reader):
+        """Happy-path stream_async → counter +1, duration recorded once,
+        no errors, stream.active back to 0, no rejections."""
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
@@ -1525,6 +1537,8 @@ class TestNonstreamStateGauges:
         gate = asyncio.Event()
 
         async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
             await gate.wait()
             return {"role": "assistant", "content": "done"}
 
@@ -1557,6 +1571,8 @@ class TestNonstreamStateGauges:
         gate = asyncio.Event()
 
         async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
             await gate.wait()
             return {"role": "assistant", "content": "done"}
 
@@ -1676,6 +1692,8 @@ class TestRequestsActiveAggregate:
         gate = asyncio.Event()
 
         async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
             await gate.wait()
             return {"role": "assistant", "content": "done"}
 
@@ -1740,6 +1758,8 @@ class TestRequestsActiveAggregate:
         nonstream_gate = asyncio.Event()
 
         async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``nonstream_gate`` is set, so the
+            test can observe queue/worker state mid-flight."""
             await nonstream_gate.wait()
             return {"role": "assistant", "content": "done"}
 

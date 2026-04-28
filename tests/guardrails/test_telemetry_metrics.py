@@ -82,7 +82,12 @@ class TestGetMeter:
 
 
 class TestEnsureRequestInstruments:
+    """``_ensure_request_instruments()`` lazily creates and caches the full
+    set of OTEL instruments used by the request lifecycle."""
+
     def test_creates_all_instruments(self, meter_reader):
+        """First call returns a populated ``RequestInstruments`` with every
+        core + saturation instrument set."""
         result = _ensure_request_instruments()
         assert result is not None
         # Core request-level metrics
@@ -108,6 +113,10 @@ class TestEnsureRequestInstruments:
 
 
 class TestRequestMetrics:
+    """``request_metrics()`` context manager increments the requests
+    counter on entry, records duration on exit, and bumps the errors
+    counter (split by ``error.type``) on exception."""
+
     def test_requests_counter_increments_on_entry(self, meter_reader):
         with request_metrics():
             pass
@@ -137,6 +146,8 @@ class TestRequestMetrics:
         assert points["guardrails.requests.errors"][0].attributes["error.type"] == "ValueError"
 
     def test_errors_counter_labels_split_by_error_type(self, meter_reader):
+        """Errors counter splits into separate series keyed by
+        ``error.type`` attribute."""
         with pytest.raises(ValueError):
             with request_metrics():
                 raise ValueError("a")
@@ -148,6 +159,8 @@ class TestRequestMetrics:
         assert error_types == {"ValueError", "RuntimeError"}
 
     def test_duration_still_recorded_on_exception(self, meter_reader):
+        """Duration histogram fires from ``finally``, so a raising scope
+        still produces a recording."""
         with pytest.raises(ValueError):
             with request_metrics():
                 raise ValueError("boom")
@@ -181,6 +194,8 @@ class TestRequestMetrics:
         assert final["guardrails.requests.active"][0].value == 0
 
     def test_no_metrics_when_otel_unavailable(self):
+        """``request_metrics()`` is a silent no-op when OTEL isn't installed —
+        the context manager must not raise."""
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
             with request_metrics():
@@ -267,28 +282,37 @@ class TestAreMetricsEnabled:
     """
 
     def test_returns_true_when_config_enabled(self):
+        """``MetricsConfig(enabled=True)`` with OTEL available → metrics on."""
         assert are_metrics_enabled(MetricsConfig(enabled=True)) is True
 
     def test_returns_false_when_config_disabled(self):
+        """``MetricsConfig(enabled=False)`` → metrics off."""
         assert are_metrics_enabled(MetricsConfig(enabled=False)) is False
 
     def test_returns_false_when_config_none(self):
+        """Missing ``MetricsConfig`` → metrics off."""
         assert are_metrics_enabled(None) is False
 
     def test_returns_false_when_otel_unavailable(self):
+        """Even with ``enabled=True``, metrics stay off and a UserWarning
+        fires when the OTEL API package isn't installed."""
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             with pytest.warns(UserWarning, match="opentelemetry-api package is not installed"):
                 assert are_metrics_enabled(MetricsConfig(enabled=True)) is False
 
 
 class TestRecordStreamRejected:
+    """``record_stream_rejected()`` bumps the stream-rejections counter."""
+
     def test_increments_counter(self, meter_reader):
+        """Each call increments ``guardrails.stream.rejections`` by 1."""
         record_stream_rejected()
         record_stream_rejected()
         points = collect_metric_points(meter_reader)
         assert points["guardrails.stream.rejections"][0].value == 2
 
     def test_no_op_when_otel_unavailable(self):
+        """Silent no-op when OTEL isn't installed — must not raise."""
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
             telemetry._request_instruments = None
@@ -296,7 +320,10 @@ class TestRecordStreamRejected:
 
 
 class TestRecordNonstreamRejected:
+    """``record_nonstream_rejected()`` bumps the nonstream-rejections counter."""
+
     def test_increments_counter(self, meter_reader):
+        """Each call increments ``guardrails.nonstream.rejections`` by 1."""
         record_nonstream_rejected()
         record_nonstream_rejected()
         record_nonstream_rejected()
@@ -304,6 +331,7 @@ class TestRecordNonstreamRejected:
         assert points["guardrails.nonstream.rejections"][0].value == 3
 
     def test_no_op_when_otel_unavailable(self):
+        """Silent no-op when OTEL isn't installed — must not raise."""
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
             telemetry._request_instruments = None
@@ -311,6 +339,9 @@ class TestRecordNonstreamRejected:
 
 
 class TestStreamActiveMetric:
+    """``stream_active_metric()`` context manager nets to zero across
+    completed and failed scopes and reflects concurrent streams."""
+
     def test_nets_to_zero_after_completed_scope(self, meter_reader):
         """UpDownCounter +1 on enter, -1 on exit → net 0 for a completed scope."""
         with stream_active_metric():
@@ -336,6 +367,7 @@ class TestStreamActiveMetric:
         assert final["guardrails.stream.active"][0].value == 0
 
     def test_no_op_when_otel_unavailable(self):
+        """Silent no-op when OTEL isn't installed — must not raise."""
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
             telemetry._request_instruments = None
@@ -352,18 +384,27 @@ class _FakeQueue:
     """
 
     def __init__(self, queued: int = 0, active: int = 0) -> None:
+        """Initialize with fixed counts the gauge callbacks will read back."""
         self._queued = queued
         self._active = active
 
     def num_pending(self) -> int:
+        """Return the configured queued-item count."""
         return self._queued
 
     def num_busy_workers(self) -> int:
+        """Return the configured busy-worker count."""
         return self._active
 
 
 class TestRegisterNonstreamSaturationGauges:
+    """``register_nonstream_saturation_gauges()`` wires the
+    ``nonstream.queued`` / ``nonstream.active`` ObservableGauges to a
+    queue and an ``is_running`` flag."""
+
     def test_registers_both_gauges(self, meter_reader):
+        """After registration, both gauge series exist in the collected
+        metric points."""
         fake = _FakeQueue(queued=0, active=0)
         register_nonstream_saturation_gauges(cast(AsyncWorkQueue, fake), is_running=lambda: True)
         points = collect_metric_points(meter_reader)
