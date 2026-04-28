@@ -385,7 +385,10 @@ class IORails:
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
 
-                # Step 2: Stream main LLM content from structured response
+                # Step 2: Stream main LLM content from structured response.
+                # TODO: Only delta_content is forwarded.
+                #  Reasoning-only chunks (delta_reasoning set but delta_content is None)
+                #  and tool-call deltas will be routed through in a follow-up PR
                 log.info("[%s] Streaming main LLM", req_id)
                 async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
                     if chunk.delta_content:
