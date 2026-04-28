@@ -44,7 +44,7 @@ _CONTEXT_WINDOW_KEYWORDS = [
 _UNSUPPORTED_PARAMS_KEYWORDS = [
     "unsupported parameter",
     "is not supported",
-    "not allowed",
+    "parameter not allowed",
     "unknown parameter",
     "unrecognized parameter",
 ]
