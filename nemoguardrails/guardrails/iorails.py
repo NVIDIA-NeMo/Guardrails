@@ -173,11 +173,24 @@ class IORails:
         await self.stop()
 
     def generate(self, messages: LLMMessages, **kwargs) -> LLMMessage:
-        """Synchronous version of generate_async."""
+        """Synchronous version of generate_async.
+
+        Telemetry is disabled for the ephemeral IORails object used for
+        the ``generate()`` call. For production use, use the asynchronous
+        `generate_async()` and `stream_async()` methods for non-streaming
+        and streaming requests respectively.
+        """
+
+        # Disable tracing and metrics for synchronous generation calls
+        sync_config = self.config.model_copy(deep=True)
+        if sync_config.tracing is not None:
+            sync_config.tracing.enabled = False
+        if sync_config.metrics is not None:
+            sync_config.metrics.enabled = False
 
         async def _run_sync_iorails():
             """Spin up a short-lived IORails engine for one synchronous generate call."""
-            async with IORails(self.config) as iorails_engine:
+            async with IORails(sync_config) as iorails_engine:
                 return await iorails_engine.generate_async(messages, **kwargs)
 
         return asyncio.run(_run_sync_iorails())
