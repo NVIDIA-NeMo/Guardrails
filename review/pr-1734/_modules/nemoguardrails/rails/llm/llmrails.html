@@ -1571,7 +1571,7 @@ window.addEventListener("load", load);</script>
                 <span class="bp">self</span><span class="o">.</span><span class="n">runtime</span><span class="o">.</span><span class="n">register_action_param</span><span class="p">(</span><span class="s2">&quot;llm&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm</span><span class="p">)</span>
 
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No main LLM specified in the config and no LLM provided via constructor.&quot;</span><span class="p">)</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No main LLM specified in the config and no LLM provided via constructor.&quot;</span><span class="p">)</span>
 
         <span class="n">llms</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
@@ -1953,6 +1953,10 @@ window.addEventListener("load", load);</script>
         <span class="c1"># Save the generation options in the current async context.</span>
         <span class="c1"># At this point, gen_options is either None or GenerationOptions</span>
         <span class="n">generation_options_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">gen_options</span><span class="p">)</span>
+
+        <span class="n">needs_llm</span> <span class="o">=</span> <span class="n">gen_options</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">gen_options</span><span class="o">.</span><span class="n">rails</span><span class="o">.</span><span class="n">dialog</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">needs_llm</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No main LLM specified in the config and no LLM provided via constructor.&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">streaming_handler</span><span class="p">:</span>
             <span class="n">streaming_handler_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">streaming_handler</span><span class="p">)</span>
