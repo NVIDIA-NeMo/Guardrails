@@ -145,6 +145,11 @@ def server(
 ):
     """Start a NeMo Guardrails server."""
 
+    # Forward the disable-chat-ui flag via env var so api.py can read it at
+    # module-load time, before the chainlit mount happens.
+    if disable_chat_ui:
+        os.environ["NEMO_GUARDRAILS_DISABLE_CHAT_UI"] = "true"
+
     try:
         import uvicorn
         from fastapi import FastAPI

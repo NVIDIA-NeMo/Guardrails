@@ -26,7 +26,6 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, List, Optional, Union
 
 import httpx
-from chainlit.utils import mount_chainlit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
@@ -50,6 +49,11 @@ from nemoguardrails.server.schemas.utils import (
     format_streaming_chunk_as_sse,
     generation_response_to_chat_completion,
 )
+
+try:
+    from chainlit.utils import mount_chainlit
+except ImportError:
+    mount_chainlit = None
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -125,24 +129,6 @@ async def lifespan(app: GuardrailsApp):
             if config_module is not None and hasattr(config_module, "init"):
                 config_module.init(app)
 
-    # Mount Chainlit chat UI or a basic status endpoint
-    if not app.disable_chat_ui:
-        chainlit_app_path = os.path.join(
-            os.path.dirname(__file__),
-            "app.py",
-        )
-        mount_chainlit(app=app, target=chainlit_app_path, path="/chat")
-
-        @app.get("/")
-        async def root_redirect():
-            return RedirectResponse(url="/chat")
-
-    else:
-
-        @app.get("/")
-        async def root_handler():
-            return {"status": "ok"}
-
     if app.auto_reload:
         app.loop = asyncio.get_running_loop()
         # Store the future directly as task
@@ -190,9 +176,6 @@ app.default_config_id = None
 # By default, we use the rails in the examples folder
 app.rails_config_path = utils.get_examples_data_path("bots")
 
-# Weather the chat UI is enabled or not.
-app.disable_chat_ui = False
-
 # auto reload flag
 app.auto_reload = False
 
@@ -202,6 +185,8 @@ app.stop_signal = False
 # Whether the server is pointed to a directory containing a single config.
 app.single_config_mode = False
 app.single_config_id = None
+
+app.disable_chat_ui = os.getenv("NEMO_GUARDRAILS_DISABLE_CHAT_UI", "false").lower() == "true"
 
 
 @app.get(
@@ -726,3 +711,20 @@ class GuardrailsConfigurationError(Exception):
 #
 #
 # register_exception(app)
+
+
+if not app.disable_chat_ui and mount_chainlit is not None:
+    chainlit_app_path = os.path.join(os.path.dirname(__file__), "app.py")
+    mount_chainlit(app=app, target=chainlit_app_path, path="/chat")
+
+    @app.get("/")
+    async def root_redirect():
+        return RedirectResponse(url="/chat")
+
+else:
+    if not app.disable_chat_ui and mount_chainlit is None:
+        log.warning("Chainlit is not installed; chat UI disabled. Install with: pip install nemoguardrails[chat-ui]")
+
+    @app.get("/")
+    async def root_handler():
+        return {"status": "ok"}
