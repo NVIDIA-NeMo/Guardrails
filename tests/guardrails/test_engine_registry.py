@@ -23,6 +23,7 @@ from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -184,13 +185,14 @@ class TestEngineRegistryGenerateAsync:
 
     @pytest.mark.asyncio
     async def test_generate_from_correct_engine(self, manager):
-        """Calls the named engine's chat_completion() and returns its result."""
+        """Calls the named engine's chat_completion() and returns its LLMResponse."""
         messages = [{"role": "user", "content": "Hi"}]
         engine = manager._get_engine("main", ModelEngine)
-        engine.chat_completion = AsyncMock(return_value="Hello world")
+        expected = LLMResponse(content="Hello world")
+        engine.chat_completion = AsyncMock(return_value=expected)
 
         result = await manager.model_call("main", messages)
-        assert result == "Hello world"
+        assert result is expected
         engine.chat_completion.assert_called_once_with(messages)
 
     @pytest.mark.asyncio
@@ -198,7 +200,7 @@ class TestEngineRegistryGenerateAsync:
         """Extra kwargs (temperature, max_tokens) are forwarded to engine.chat_completion()."""
         messages = [{"role": "user", "content": "Hi"}]
         engine = manager._get_engine("main", ModelEngine)
-        engine.chat_completion = AsyncMock(return_value="ok")
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="ok"))
 
         await manager.model_call("main", messages, temperature=0.5, max_tokens=100)
 
@@ -489,17 +491,16 @@ class TestEngineRegistryApiEngineStopErrors:
 
 
 class TestEngineRegistryStreamModelCall:
-    """Test stream_model_call routes to the correct engine and yields chunks."""
+    """Test stream_model_call routes to the correct engine and yields LLMResponseChunk objects."""
 
     @pytest.mark.asyncio
     async def test_streams_chunks_from_correct_engine(self, manager):
-        """Calls the named engine's stream_chat_completion and yields all chunks."""
+        """Calls the named engine's stream_chat_completion and forwards LLMResponseChunk objects."""
         messages = [{"role": "user", "content": "Hi"}]
 
         async def mock_stream_chat_completion(msgs, **kwargs):
-            """Mock stream yielding two chunks."""
-            for chunk in ["Hello", " world"]:
-                yield chunk
+            for text in ["Hello", " world"]:
+                yield LLMResponseChunk(delta_content=text)
 
         engine = manager._get_engine("main", ModelEngine)
         engine.stream_chat_completion = mock_stream_chat_completion
@@ -508,7 +509,31 @@ class TestEngineRegistryStreamModelCall:
         async for chunk in manager.stream_model_call("main", messages):
             chunks.append(chunk)
 
-        assert chunks == ["Hello", " world"]
+        assert all(isinstance(c, LLMResponseChunk) for c in chunks)
+        assert [c.delta_content for c in chunks] == ["Hello", " world"]
+
+    @pytest.mark.asyncio
+    async def test_streams_reasoning_and_content_chunks(self, manager):
+        """Reasoning deltas flow through alongside content deltas."""
+        messages = [{"role": "user", "content": "Hi"}]
+
+        async def mock_stream_chat_completion(msgs, **kwargs):
+            yield LLMResponseChunk(delta_reasoning="thinking")
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_reasoning=" more")
+
+        engine = manager._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream_chat_completion
+
+        chunks = []
+        async for chunk in manager.stream_model_call("main", messages):
+            chunks.append(chunk)
+
+        assert [(c.delta_content, c.delta_reasoning) for c in chunks] == [
+            (None, "thinking"),
+            ("Hello", None),
+            (None, " more"),
+        ]
 
     @pytest.mark.asyncio
     async def test_forwards_kwargs_to_engine(self, manager):
@@ -517,9 +542,8 @@ class TestEngineRegistryStreamModelCall:
         captured_kwargs = {}
 
         async def mock_stream_chat_completion(msgs, **kwargs):
-            """Mock stream that records kwargs."""
             captured_kwargs.update(kwargs)
-            yield "ok"
+            yield LLMResponseChunk(delta_content="ok")
 
         engine = manager._get_engine("main", ModelEngine)
         engine.stream_chat_completion = mock_stream_chat_completion

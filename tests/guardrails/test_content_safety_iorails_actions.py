@@ -27,8 +27,10 @@ from nemoguardrails.guardrails.actions.content_safety_action import (
 )
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.guardrails_types import RailResult
+from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, CONTENT_SAFETY_INPUT_PROMPT, CONTENT_SAFETY_OUTPUT_PROMPT
 
 FLOW_INPUT = "content safety check input $model=content_safety"
@@ -195,14 +197,14 @@ class TestContentSafetyInputRun:
 
     @pytest.mark.asyncio
     async def test_safe_input(self, input_action):
-        input_action.engine_registry.model_call = AsyncMock(return_value=SAFE_JSON)
+        input_action.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=SAFE_JSON))
         result = await input_action.run(FLOW_INPUT, MESSAGES)
         assert result.is_safe
         input_action.engine_registry.model_call.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_unsafe_input(self, input_action):
-        input_action.engine_registry.model_call = AsyncMock(return_value=UNSAFE_JSON)
+        input_action.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=UNSAFE_JSON))
         result = await input_action.run(FLOW_INPUT, MESSAGES)
         assert not result.is_safe
         assert "S1: Violence" in result.reason
@@ -220,13 +222,13 @@ class TestContentSafetyOutputRun:
 
     @pytest.mark.asyncio
     async def test_safe_output(self, output_action):
-        output_action.engine_registry.model_call = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        output_action.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=SAFE_OUTPUT_JSON))
         result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
         assert result.is_safe
 
     @pytest.mark.asyncio
     async def test_unsafe_output(self, output_action):
-        output_action.engine_registry.model_call = AsyncMock(return_value=UNSAFE_OUTPUT_JSON)
+        output_action.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=UNSAFE_OUTPUT_JSON))
         result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
         assert not result.is_safe
         assert "S17: Malware" in result.reason
@@ -282,7 +284,7 @@ class TestContentSafetyStopTokens:
         task_manager = LLMTaskManager(config)
         engine_registry = EngineRegistry(config.models, config.rails.config)
         action = ContentSafetyInputAction(engine_registry, task_manager)
-        action.engine_registry.model_call = AsyncMock(return_value=SAFE_JSON)
+        action.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=SAFE_JSON))
 
         await action.run(FLOW_INPUT, MESSAGES)
 
@@ -309,9 +311,77 @@ class TestContentSafetyStopTokens:
         task_manager = LLMTaskManager(config)
         engine_registry = EngineRegistry(config.models, config.rails.config)
         action = ContentSafetyOutputAction(engine_registry, task_manager)
-        action.engine_registry.model_call = AsyncMock(return_value=SAFE_OUTPUT_JSON)
+        action.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=SAFE_OUTPUT_JSON))
 
         await action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
 
         call_kwargs = action.engine_registry.model_call.call_args.kwargs
         assert call_kwargs["stop"] == ["</s>"]
+
+
+class TestContentSafetyEndToEnd:
+    """Full chain: raw HTTP response dict -> ModelEngine._parse_chat_completion -> LLMResponse
+    -> EngineRegistry.model_call -> RailAction._get_llm_response -> .content -> nemoguard parser
+    -> _parse_response -> RailResult. Mocks at the HTTP boundary so the dict-parsing path is
+    exercised on the way through.
+    """
+
+    @pytest.mark.asyncio
+    async def test_safe_input_full_chain(self, input_action):
+        engine = input_action.engine_registry._get_engine(MODEL_TYPE, ModelEngine)
+        engine.call = AsyncMock(
+            return_value={
+                "id": "chatcmpl-1",
+                "model": "content-safety-model",
+                "choices": [{"message": {"role": "assistant", "content": SAFE_JSON}, "finish_reason": "stop"}],
+            }
+        )
+
+        result = await input_action.run(FLOW_INPUT, MESSAGES)
+
+        assert result.is_safe
+        engine.call.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unsafe_input_full_chain(self, input_action):
+        engine = input_action.engine_registry._get_engine(MODEL_TYPE, ModelEngine)
+        engine.call = AsyncMock(return_value={"choices": [{"message": {"role": "assistant", "content": UNSAFE_JSON}}]})
+
+        result = await input_action.run(FLOW_INPUT, MESSAGES)
+
+        assert not result.is_safe
+        assert "S1: Violence" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_unsafe_output_full_chain(self, output_action):
+        engine = output_action.engine_registry._get_engine(MODEL_TYPE, ModelEngine)
+        engine.call = AsyncMock(
+            return_value={"choices": [{"message": {"role": "assistant", "content": UNSAFE_OUTPUT_JSON}}]}
+        )
+
+        result = await output_action.run(FLOW_OUTPUT, MESSAGES, bot_response=BOT_RESPONSE)
+
+        assert not result.is_safe
+        assert "S17: Malware" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_reasoning_field_does_not_affect_classification(self, input_action):
+        """Reasoning content is ignored by the content-safety classifier — only `.content` is parsed."""
+        engine = input_action.engine_registry._get_engine(MODEL_TYPE, ModelEngine)
+        engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": SAFE_JSON,
+                            "reasoning_content": "the prompt looks fine to me",
+                        }
+                    }
+                ]
+            }
+        )
+
+        result = await input_action.run(FLOW_INPUT, MESSAGES)
+
+        assert result.is_safe

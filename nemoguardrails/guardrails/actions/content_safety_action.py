@@ -55,7 +55,9 @@ class ContentSafetyInputAction(RailAction):
         if stop:
             kwargs["stop"] = stop
 
-        response_text = await self._get_llm_response(model_type, prompt, **kwargs)
+        # Extract content string from structured LLMResponse
+        llm_response = await self._get_llm_response(model_type, prompt, **kwargs)
+        response_text = llm_response.content
 
         # Parse via LLMTaskManager's registered output parser
         return self.task_manager.parse_task_output(task=prompt_task_key, output=response_text)  # type: ignore[arg-type]
@@ -103,7 +105,7 @@ class ContentSafetyOutputAction(RailAction):
         if stop:
             kwargs["stop"] = stop
 
-        response_text = await self._get_llm_response(model_type, prompt, **kwargs)
+        response_text = (await self._get_llm_response(model_type, prompt, **kwargs)).content
         return self.task_manager.parse_task_output(task=prompt_task_key, output=response_text)  # type: ignore[arg-type]
 
     def _parse_response(self, response: Any) -> RailResult:

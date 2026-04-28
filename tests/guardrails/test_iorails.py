@@ -26,6 +26,7 @@ from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -73,7 +74,7 @@ class TestGenerateAsync:
         llm_response = "Hello from LLM"
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value=llm_response)
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=llm_response))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         result = await iorails.generate_async(messages)
@@ -93,7 +94,7 @@ class TestGenerateAsync:
         options = GenerationOptions(llm_params=llm_params)
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value=llm_response)
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=llm_response))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         result = await iorails.generate_async(messages, options=options)
@@ -114,7 +115,7 @@ class TestGenerateAsync:
 
         async def mock_generate(model_type, messages):
             call_order.append("generate")
-            return "response"
+            return LLMResponse(content="response")
 
         async def mock_output_safe(messages, response):
             call_order.append("output")
@@ -149,7 +150,7 @@ class TestGenerateAsync:
         llm_response = "Unsafe response from the LLM!"
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value=llm_response)
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=llm_response))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=False, reason="blocked"))
 
         result = await iorails.generate_async(messages)
@@ -166,7 +167,7 @@ class TestGenerateAsync:
         llm_params = {"temperature": 0.01, "max_completion_tokens": 1000}
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value="ok")
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         await iorails.generate_async(messages, options={"llm_params": llm_params})
@@ -564,7 +565,7 @@ class TestAutoStart:
         """generate_async() calls start() automatically before running the pipeline."""
         iorails.engine_registry.start = AsyncMock()
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value="ok")
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         assert not iorails._running
@@ -578,7 +579,7 @@ class TestAutoStart:
         """Two generate_async() calls only trigger start() once."""
         iorails.engine_registry.start = AsyncMock()
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value="ok")
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="ok"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         await iorails.generate_async([{"role": "user", "content": "hi"}])
@@ -591,7 +592,7 @@ class TestAutoStart:
         """stream_async() calls start() automatically before streaming."""
 
         async def mock_stream(model_type, messages, **kwargs):
-            yield "hello"
+            yield LLMResponseChunk(delta_content="hello")
 
         iorails_input_only.engine_registry.start = AsyncMock()
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
@@ -611,7 +612,7 @@ class TestAutoStart:
         """Two stream_async() calls only trigger start() once."""
 
         async def mock_stream(model_type, messages, **kwargs):
-            yield "hi"
+            yield LLMResponseChunk(delta_content="hi")
 
         iorails_input_only.engine_registry.start = AsyncMock()
         iorails_input_only.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
@@ -640,7 +641,7 @@ class TestGenerate:
         expected = {"role": "assistant", "content": "Hello from LLM"}
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value="Hello from LLM")
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="Hello from LLM"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         # Patch IORails so the temp instance inside generate() uses our mocked iorails
@@ -655,7 +656,7 @@ class TestGenerate:
         options = GenerationOptions(llm_params={"temperature": 0.5})
 
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-        iorails.engine_registry.model_call = AsyncMock(return_value="response")
+        iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="response"))
         iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
         with patch("nemoguardrails.guardrails.iorails.IORails", return_value=iorails):

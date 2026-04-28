@@ -39,6 +39,7 @@ from nemoguardrails.guardrails._http import (
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import LLMMessages, get_request_id, truncate
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,82 @@ class _RequestParams(NamedTuple):
     url: str
     headers: dict[str, str]
     body: dict[str, Any]
+
+
+def _parse_usage(usage_dict: dict) -> UsageInfo:
+    """Build UsageInfo from an OpenAI-format usage dict.
+
+    Picks up reasoning_tokens from completion_tokens_details (OpenAI reasoning
+    models) and cached_tokens from prompt_tokens_details when present.
+    """
+    completion_details = usage_dict.get("completion_tokens_details") or {}
+    prompt_details = usage_dict.get("prompt_tokens_details") or {}
+    return UsageInfo(
+        input_tokens=usage_dict.get("prompt_tokens", 0),
+        output_tokens=usage_dict.get("completion_tokens", 0),
+        total_tokens=usage_dict.get("total_tokens", 0),
+        reasoning_tokens=completion_details.get("reasoning_tokens"),
+        cached_tokens=prompt_details.get("cached_tokens"),
+    )
+
+
+def _parse_chat_completion(response: dict) -> LLMResponse:
+    """Convert a /v1/chat/completions response dict into an LLMResponse.
+
+    Reasoning is read from ``message.reasoning_content`` when the provider
+    exposes it (NIM, DeepSeek-style). Tool calls are out of scope for this
+    PR series and are not currently surfaced.
+    """
+    try:
+        choice = response["choices"][0]
+        message = choice["message"]
+        content = message["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError(f"Unexpected /v1/chat/completions response shape: {exc}") from exc
+
+    if not isinstance(content, str):
+        raise ValueError(f"Expected string content, got {type(content).__name__}")
+
+    reasoning = message.get("reasoning_content") or None
+
+    usage = _parse_usage(response["usage"]) if response.get("usage") else None
+
+    return LLMResponse(
+        content=content,
+        reasoning=reasoning,
+        model=response.get("model"),
+        finish_reason=choice.get("finish_reason"),
+        request_id=response.get("id"),
+        usage=usage,
+    )
+
+
+def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
+    """Build an LLMResponseChunk from an SSE chunk dict.
+
+    Returns None for chunks that carry no content or reasoning delta —
+    role-only first events, finish-only events, or empty-choices events
+    are skipped, preserving current stream_call behavior.
+    """
+    choices = chunk.get("choices") or []
+    if not choices:
+        return None
+
+    choice = choices[0]
+    delta = choice.get("delta") or {}
+    delta_content = delta.get("content")
+    delta_reasoning = delta.get("reasoning_content")
+
+    if not delta_content and not delta_reasoning:
+        return None
+
+    return LLMResponseChunk(
+        delta_content=delta_content,
+        delta_reasoning=delta_reasoning,
+        model=chunk.get("model"),
+        finish_reason=choice.get("finish_reason"),
+        request_id=chunk.get("id"),
+    )
 
 
 class ModelEngineError(Exception):
@@ -230,18 +307,21 @@ class ModelEngine(BaseEngine):
         self,
         messages: LLMMessages,
         **kwargs: Any,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[LLMResponseChunk, None]:
         """Make a streaming POST request to the /v1/chat/completions endpoint.
 
-        Sends ``stream=True`` and yields content-delta strings as they arrive
-        via SSE.  Retries are handled by the RetryClient (same as ``call()``).
+        Sends ``stream=True`` and yields one ``LLMResponseChunk`` per SSE
+        event that carries a content or reasoning delta. Role-only,
+        finish-only, and empty-choices events are skipped. Retries are
+        handled by the RetryClient (same as ``call()``).
 
         Args:
             messages: List of message dicts in OpenAI format.
             **kwargs: Additional parameters for the request body (temperature, max_tokens, etc.)
 
         Yields:
-            Content-delta strings from each streamed chunk.
+            ``LLMResponseChunk`` objects with ``delta_content`` and/or
+            ``delta_reasoning`` populated.
 
         Raises:
             ModelEngineError: If the request fails after all retries.
@@ -287,18 +367,14 @@ class ModelEngine(BaseEngine):
                         break
 
                     try:
-                        chunk = json.loads(payload)
+                        raw_chunk = json.loads(payload)
                     except json.JSONDecodeError:
                         log.warning("[%s] Unparseable SSE chunk: %s", req_id, payload[:200])
                         continue
 
-                    choices = chunk.get("choices") or []
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta") or {}
-                    content = delta.get("content")
-                    if content:
-                        yield content
+                    parsed_chunk = _parse_chat_completion_chunk(raw_chunk)
+                    if parsed_chunk is not None:
+                        yield parsed_chunk
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 log.debug("[%s] Stream completed time=%.1fms", req_id, elapsed_ms)
@@ -308,35 +384,32 @@ class ModelEngine(BaseEngine):
         except Exception as exc:
             raise self._wrap_exception(exc, req_id, t0, label="Stream request") from exc
 
-    async def chat_completion(self, messages: LLMMessages, **kwargs: Any) -> str:
-        """Generate a chat completion and return the response content string.
+    async def chat_completion(self, messages: LLMMessages, **kwargs: Any) -> LLMResponse:
+        """Generate a chat completion and return a structured ``LLMResponse``.
 
-        Calls the /v1/chat/completions endpoint and extracts the assistant
-        message content from the OpenAI-format response.
+        Calls the /v1/chat/completions endpoint and parses the OpenAI-format
+        response into an ``LLMResponse`` carrying content, reasoning (when the
+        provider exposes ``reasoning_content``), usage, finish reason, and
+        request id.
 
         Raises:
             ModelEngineError: If the request fails or the response format is unexpected.
         """
         response = await self.call(messages, **kwargs)
         try:
-            content = response["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
+            return _parse_chat_completion(response)
+        except ValueError as exc:
             raise ModelEngineError(
                 f"Unexpected response format from model '{self.model_name}': {exc}",
                 model_name=self.model_name,
             ) from exc
-        if not isinstance(content, str):
-            raise ModelEngineError(
-                f"Expected string content from model '{self.model_name}', got {type(content).__name__}",
-                model_name=self.model_name,
-            )
-        return content
 
-    async def stream_chat_completion(self, messages: LLMMessages, **kwargs: Any) -> AsyncGenerator[str, None]:
-        """Stream a chat completion and yield content-delta strings.
+    async def stream_chat_completion(
+        self, messages: LLMMessages, **kwargs: Any
+    ) -> AsyncGenerator[LLMResponseChunk, None]:
+        """Stream a chat completion and yield ``LLMResponseChunk`` objects.
 
-        Calls the /v1/chat/completions endpoint with streaming enabled and
-        yields content strings as they arrive.
+        Thin pass-through over ``stream_call``.
 
         Raises:
             ModelEngineError: If the request fails after all retries.

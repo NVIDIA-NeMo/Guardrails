@@ -32,8 +32,11 @@ from nemoguardrails.guardrails.model_engine import (
     _ENGINE_BASE_URLS,
     ModelEngine,
     ModelEngineError,
+    _parse_chat_completion,
+    _parse_chat_completion_chunk,
 )
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 
 
 def _make_model(
@@ -487,7 +490,7 @@ class TestModelEngineStreamCall:
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
     async def test_stream_call_yields_content_chunks(self):
-        """stream_call() yields content deltas from SSE lines."""
+        """stream_call() yields LLMResponseChunk objects with delta_content set."""
         engine = ModelEngine(_make_model())
 
         raw_lines = self._make_sse_content(["Hello", " world", "!"])
@@ -502,7 +505,38 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["Hello", " world", "!"]
+        assert all(isinstance(c, LLMResponseChunk) for c in chunks)
+        assert [c.delta_content for c in chunks] == ["Hello", " world", "!"]
+        assert all(c.delta_reasoning is None for c in chunks)
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_stream_call_yields_reasoning_deltas(self):
+        """stream_call() surfaces delta.reasoning_content as LLMResponseChunk.delta_reasoning."""
+        engine = ModelEngine(_make_model())
+
+        raw_lines = [
+            b'data: {"choices": [{"delta": {"reasoning_content": "let me think"}}]}\n\n',
+            b'data: {"choices": [{"delta": {"content": "Hello"}}]}\n\n',
+            b'data: {"choices": [{"delta": {"reasoning_content": " more"}}]}\n\n',
+            b"data: [DONE]\n\n",
+        ]
+        mock_response = self._mock_streaming_response(raw_lines)
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        engine._client = mock_client
+        engine._running = True
+
+        chunks = []
+        async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+
+        assert [(c.delta_content, c.delta_reasoning) for c in chunks] == [
+            (None, "let me think"),
+            ("Hello", None),
+            (None, " more"),
+        ]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -621,7 +655,7 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["Hello"]
+        assert [c.delta_content for c in chunks] == ["Hello"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -647,7 +681,7 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["ok"]
+        assert [c.delta_content for c in chunks] == ["ok"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -671,7 +705,7 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["ok"]
+        assert [c.delta_content for c in chunks] == ["ok"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -709,7 +743,7 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["ok"]
+        assert [c.delta_content for c in chunks] == ["ok"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -732,7 +766,7 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["Hi"]
+        assert [c.delta_content for c in chunks] == ["Hi"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -769,7 +803,7 @@ class TestModelEngineStreamCall:
         async for chunk in engine.stream_call([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["Hi", "!"]
+        assert [c.delta_content for c in chunks] == ["Hi", "!"]
 
 
 class TestModelEngineConstants:
@@ -794,17 +828,17 @@ class TestModelEngineStreamChatCompletion:
         """stream_chat_completion() yields all chunks from stream_call()."""
         engine = ModelEngine(_make_model())
 
-        async def mock_stream_call(msgs, **kwargs):
-            for chunk in ["Hello", " world"]:
-                yield chunk
+        async def mock_stream_call(messages, **kwargs):
+            for text in ["Hello", " world"]:
+                yield LLMResponseChunk(delta_content=text)
 
-        engine.stream_call = mock_stream_call
+        engine.stream_call = mock_stream_call  # type: ignore[method-assign]
 
         chunks = []
         async for chunk in engine.stream_chat_completion([{"role": "user", "content": "Hi"}]):
             chunks.append(chunk)
 
-        assert chunks == ["Hello", " world"]
+        assert [c.delta_content for c in chunks] == ["Hello", " world"]
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -813,11 +847,11 @@ class TestModelEngineStreamChatCompletion:
         engine = ModelEngine(_make_model())
         captured_kwargs = {}
 
-        async def mock_stream_call(msgs, **kwargs):
+        async def mock_stream_call(messages, **kwargs):
             captured_kwargs.update(kwargs)
-            yield "ok"
+            yield LLMResponseChunk(delta_content="ok")
 
-        engine.stream_call = mock_stream_call
+        engine.stream_call = mock_stream_call  # type: ignore[method-assign]
 
         async for _ in engine.stream_chat_completion(
             [{"role": "user", "content": "Hi"}], temperature=0.7, max_tokens=50
@@ -829,17 +863,77 @@ class TestModelEngineStreamChatCompletion:
 
 
 class TestModelEngineChatCompletion:
-    """Test ModelEngine.chat_completion() extracts content from OpenAI-format response."""
+    """Test ModelEngine.chat_completion() parses OpenAI-format responses into LLMResponse."""
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
-    async def test_returns_content_string(self):
-        """chat_completion() returns the assistant message content from the response."""
+    async def test_returns_llm_response_with_content(self):
+        """chat_completion() returns an LLMResponse carrying the assistant message content."""
         engine = ModelEngine(_make_model())
         engine.call = AsyncMock(return_value={"choices": [{"message": {"role": "assistant", "content": "Hello!"}}]})
 
         result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
-        assert result == "Hello!"
+
+        assert isinstance(result, LLMResponse)
+        assert result.content == "Hello!"
+        assert result.reasoning is None
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_returns_reasoning_when_present(self):
+        """chat_completion() forwards message.reasoning_content to LLMResponse.reasoning."""
+        engine = ModelEngine(_make_model())
+        engine.call = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "The answer is 42.",
+                            "reasoning_content": "Let me think step by step...",
+                        }
+                    }
+                ]
+            }
+        )
+
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.content == "The answer is 42."
+        assert result.reasoning == "Let me think step by step..."
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_returns_usage_with_reasoning_tokens(self):
+        """chat_completion() forwards usage incl. reasoning_tokens from completion_tokens_details."""
+        engine = ModelEngine(_make_model())
+        engine.call = AsyncMock(
+            return_value={
+                "id": "chatcmpl-abc",
+                "model": "gpt-5",
+                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 25,
+                    "total_tokens": 35,
+                    "completion_tokens_details": {"reasoning_tokens": 12},
+                    "prompt_tokens_details": {"cached_tokens": 4},
+                },
+            }
+        )
+
+        result = await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+        assert result.model == "gpt-5"
+        assert result.finish_reason == "stop"
+        assert result.request_id == "chatcmpl-abc"
+        assert result.usage == UsageInfo(
+            input_tokens=10,
+            output_tokens=25,
+            total_tokens=35,
+            reasoning_tokens=12,
+            cached_tokens=4,
+        )
 
     @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
     @pytest.mark.asyncio
@@ -902,3 +996,86 @@ class TestModelEngineChatCompletion:
 
         with pytest.raises(ModelEngineError, match="Expected string content"):
             await engine.chat_completion([{"role": "user", "content": "Hi"}])
+
+
+class TestParseChatCompletion:
+    """Direct tests for the _parse_chat_completion helper."""
+
+    def test_minimal_response(self):
+        """Parses content; leaves optional fields as None."""
+        result = _parse_chat_completion({"choices": [{"message": {"content": "hi"}}]})
+        assert isinstance(result, LLMResponse)
+        assert result.content == "hi"
+        assert result.reasoning is None
+        assert result.usage is None
+        assert result.model is None
+        assert result.finish_reason is None
+
+    def test_empty_reasoning_is_normalized_to_none(self):
+        """Empty-string reasoning_content is treated as no reasoning."""
+        result = _parse_chat_completion({"choices": [{"message": {"content": "hi", "reasoning_content": ""}}]})
+        assert result.reasoning is None
+
+    def test_usage_without_details(self):
+        """Usage without completion/prompt details still parses base counts."""
+        result = _parse_chat_completion(
+            {
+                "choices": [{"message": {"content": "hi"}}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 7, "total_tokens": 12},
+            }
+        )
+        assert result.usage == UsageInfo(input_tokens=5, output_tokens=7, total_tokens=12)
+
+    def test_raises_on_malformed_response(self):
+        """Missing choices/message/content raises ValueError."""
+        with pytest.raises(ValueError, match="Unexpected /v1/chat/completions response shape"):
+            _parse_chat_completion({})
+
+    def test_raises_on_non_string_content(self):
+        """Non-string content raises ValueError."""
+        with pytest.raises(ValueError, match="Expected string content"):
+            _parse_chat_completion({"choices": [{"message": {"content": None}}]})
+
+
+class TestParseChatCompletionChunk:
+    """Direct tests for the _parse_chat_completion_chunk helper."""
+
+    def test_content_only_delta(self):
+        """delta.content populates delta_content."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {"content": "hi"}}]})
+        assert isinstance(result, LLMResponseChunk)
+        assert result.delta_content == "hi"
+        assert result.delta_reasoning is None
+
+    def test_reasoning_only_delta(self):
+        """delta.reasoning_content populates delta_reasoning."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {"reasoning_content": "thinking"}}]})
+        assert result is not None
+        assert result.delta_content is None
+        assert result.delta_reasoning == "thinking"
+
+    def test_role_only_delta_returns_none(self):
+        """Role-only deltas (typical first event) are skipped."""
+        assert _parse_chat_completion_chunk({"choices": [{"delta": {"role": "assistant"}}]}) is None
+
+    def test_empty_choices_returns_none(self):
+        """Empty-choices events (e.g. include_usage usage chunk) are skipped."""
+        assert _parse_chat_completion_chunk({"choices": []}) is None
+
+    def test_finish_only_delta_returns_none(self):
+        """Finish-only deltas (no content/reasoning) are skipped, matching prior behavior."""
+        assert _parse_chat_completion_chunk({"choices": [{"delta": {}, "finish_reason": "stop"}]}) is None
+
+    def test_passes_through_metadata(self):
+        """model, request id, and finish_reason flow into the chunk when content is present."""
+        result = _parse_chat_completion_chunk(
+            {
+                "id": "chunk-1",
+                "model": "gpt-5",
+                "choices": [{"delta": {"content": "hi"}, "finish_reason": "stop"}],
+            }
+        )
+        assert result is not None
+        assert result.model == "gpt-5"
+        assert result.request_id == "chunk-1"
+        assert result.finish_reason == "stop"

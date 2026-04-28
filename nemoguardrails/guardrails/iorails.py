@@ -285,7 +285,8 @@ class IORails:
         if isinstance(options, GenerationOptions) and options.llm_params:
             llm_kwargs = options.llm_params
 
-        response_text = await self.engine_registry.model_call("main", messages, **llm_kwargs)
+        # Extract content string from structured LLMResponse.
+        response_text = (await self.engine_registry.model_call("main", messages, **llm_kwargs)).content
         log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
         # Step 3: Check output rails
@@ -384,10 +385,11 @@ class IORails:
                     await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
                     return
 
-                # Step 2: Stream main LLM
+                # Step 2: Stream main LLM content from structured response
                 log.info("[%s] Streaming main LLM", req_id)
                 async for chunk in self.engine_registry.stream_model_call("main", messages, **llm_kwargs):
-                    await streaming_handler.push_chunk(chunk)
+                    if chunk.delta_content:
+                        await streaming_handler.push_chunk(chunk.delta_content)
 
                 await streaming_handler.push_chunk(END_OF_STREAM)  # type: ignore[arg-type]
             except Exception as e:

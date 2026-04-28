@@ -36,6 +36,7 @@ from nemoguardrails.guardrails.guardrails_types import (
 from nemoguardrails.guardrails.telemetry import action_span, record_span_error
 from nemoguardrails.llm.taskmanager import LLMTaskManager
 from nemoguardrails.rails.llm.config import _get_flow_model, _get_flow_name
+from nemoguardrails.types import LLMResponse
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -151,8 +152,8 @@ class RailAction(ABC):
         model_type: Optional[str],
         messages: list[dict],
         **kwargs: Any,
-    ) -> str:
-        """Call an LLM via EngineRegistry and return the response text."""
+    ) -> LLMResponse:
+        """Call an LLM via EngineRegistry and return the structured response."""
         if not model_type:
             raise RuntimeError("model_type is required for LLM calls")
         return await self.engine_registry.model_call(model_type, messages, **kwargs)

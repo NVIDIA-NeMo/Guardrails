@@ -27,6 +27,7 @@ from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, STREAM_MAX_CONCURRENCY, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
+from nemoguardrails.types import LLMResponseChunk
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -60,8 +61,8 @@ _INPUT_ONLY_CONFIG = {
 
 async def _mock_stream(model_type, messages, **kwargs):
     """Async generator simulating streaming chunks from the main LLM."""
-    for chunk in ["Hello", " from", " the", " streaming", " LLM", "!", " Have", " a", " nice", " day"]:
-        yield chunk
+    for text in ["Hello", " from", " the", " streaming", " LLM", "!", " Have", " a", " nice", " day"]:
+        yield LLMResponseChunk(delta_content=text)
 
 
 async def _collect(async_iter):
@@ -77,8 +78,8 @@ async def _failing_stream(model_type, messages, **kwargs):
 
 async def _mid_stream_failure(model_type, messages, **kwargs):
     """Mock stream that yields some chunks then raises."""
-    yield "Hello"
-    yield " world"
+    yield LLMResponseChunk(delta_content="Hello")
+    yield LLMResponseChunk(delta_content=" world")
     raise RuntimeError("connection lost")
 
 
@@ -205,7 +206,7 @@ class TestStreamAsyncNoOutputRails:
         async def capturing_stream(model_type, messages, **kwargs):
             """Mock stream that records kwargs."""
             captured_kwargs.update(kwargs)
-            yield "ok"
+            yield LLMResponseChunk(delta_content="ok")
 
         _wire_mocks(iorails_input_only, stream=capturing_stream)
         options = GenerationOptions(llm_params={"temperature": 0.42})
@@ -223,7 +224,7 @@ class TestStreamAsyncNoOutputRails:
         async def capturing_stream(model_type, messages, **kwargs):
             """Mock stream that records kwargs."""
             captured_kwargs.update(kwargs)
-            yield "ok"
+            yield LLMResponseChunk(delta_content="ok")
 
         _wire_mocks(iorails_input_only, stream=capturing_stream)
         chunks = await _collect(
@@ -424,7 +425,7 @@ class TestStreamAsyncConcurrency:
             """Mock stream that yields many chunks to allow early exit testing."""
             task_started.set()
             for i in range(1000):
-                yield f"chunk{i}"
+                yield LLMResponseChunk(delta_content=f"chunk{i}")
                 await asyncio.sleep(0)  # yield control so cancellation can propagate
 
         _wire_mocks(iorails_input_only, stream=slow_stream)

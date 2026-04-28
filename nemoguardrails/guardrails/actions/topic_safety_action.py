@@ -57,7 +57,9 @@ class TopicSafetyInputAction(RailAction):
         if stop:
             kwargs["stop"] = stop
 
-        return await self._get_llm_response(model_type, prompt, **kwargs)
+        # Extract content string from structured LLMResponse
+        llm_response = await self._get_llm_response(model_type, prompt, **kwargs)
+        return llm_response.content
 
     def _parse_response(self, response: Any) -> RailResult:
         if response.lower().strip() == "off-topic":

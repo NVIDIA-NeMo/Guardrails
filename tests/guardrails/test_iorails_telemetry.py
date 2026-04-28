@@ -34,6 +34,7 @@ from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, Rai
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -71,7 +72,7 @@ def _make_tracing_only_config():
 def _stub_safe_pipeline(iorails, llm_response="Hello"):
     """Mock input/output rails as safe and the LLM to return *llm_response*."""
     iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-    iorails.engine_registry.model_call = AsyncMock(return_value=llm_response)
+    iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content=llm_response))
     iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
 
@@ -232,7 +233,7 @@ class TestEndToEndTracing:
         async def capturing_model_call(model_name, messages, **kwargs):
             captured["llm_req_id"] = get_request_id()
             captured["llm_model"] = model_name
-            return "Generated response"
+            return LLMResponse(content="Generated response")
 
         async def capturing_output_check(messages, response):
             captured["output_req_id"] = get_request_id()
@@ -372,12 +373,14 @@ def _stub_deep_pipeline(iorails, main_llm_response="Hello", input_safe=True):
     for name, engine in iorails.engine_registry._engines.items():
         if isinstance(engine, ModelEngine):
             if name == "main":
-                engine.chat_completion = AsyncMock(return_value=main_llm_response)
+                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=main_llm_response))
             elif name == "content_safety":
                 # Content safety output parser needs Response Safety field
-                engine.chat_completion = AsyncMock(return_value=SAFE_OUTPUT_JSON if input_safe else input_json)
+                engine.chat_completion = AsyncMock(
+                    return_value=LLMResponse(content=SAFE_OUTPUT_JSON if input_safe else input_json)
+                )
             else:
-                engine.chat_completion = AsyncMock(return_value=input_json)
+                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
         elif isinstance(engine, APIEngine):
             engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 
@@ -497,7 +500,7 @@ class TestSpanHierarchy:
             if isinstance(engine, ModelEngine) and name == "content_safety":
                 engine.chat_completion = AsyncMock(side_effect=RuntimeError("LLM down"))
             elif isinstance(engine, ModelEngine):
-                engine.chat_completion = AsyncMock(return_value=SAFE_INPUT_JSON)
+                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=SAFE_INPUT_JSON))
 
         result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
         assert result["content"] == REFUSAL_MESSAGE
@@ -707,20 +710,20 @@ def _make_output_streaming_tracing_config(*, stream_first=True):
 
 
 async def _mock_chunks_stream(model_type, messages, **kwargs):
-    """stream_model_call-level mock yielding three string chunks."""
-    for chunk in ["Hello", " ", "world"]:
-        yield chunk
+    """stream_model_call-level mock yielding three LLMResponseChunk objects."""
+    for text in ["Hello", " ", "world"]:
+        yield LLMResponseChunk(delta_content=text)
 
 
 async def _engine_default_stream(messages, **kwargs):
     """ModelEngine.stream_chat_completion-level mock for the main LLM."""
-    for chunk in ["Hello", " from", " the", " stream"]:
-        yield chunk
+    for text in ["Hello", " from", " the", " stream"]:
+        yield LLMResponseChunk(delta_content=text)
 
 
 async def _engine_failing_stream(messages, **kwargs):
     """ModelEngine.stream_chat_completion-level mock that raises mid-stream."""
-    yield "Hello"
+    yield LLMResponseChunk(delta_content="Hello")
     raise RuntimeError("stream broke")
 
 
@@ -743,9 +746,11 @@ def _stub_deep_streaming_pipeline(iorails, main_stream=None, input_safe=True):
             if name == "main":
                 engine.stream_chat_completion = main_stream
             elif name == "content_safety":
-                engine.chat_completion = AsyncMock(return_value=SAFE_OUTPUT_JSON if input_safe else input_json)
+                engine.chat_completion = AsyncMock(
+                    return_value=LLMResponse(content=SAFE_OUTPUT_JSON if input_safe else input_json)
+                )
             else:
-                engine.chat_completion = AsyncMock(return_value=input_json)
+                engine.chat_completion = AsyncMock(return_value=LLMResponse(content=input_json))
         elif isinstance(engine, APIEngine):
             engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
 

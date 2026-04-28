@@ -22,6 +22,7 @@ import pytest
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.rail_action import RailAction
+from nemoguardrails.types import LLMResponse
 
 
 class DummyRailAction(RailAction):
@@ -96,11 +97,12 @@ class TestResponseHelpers:
 
     @pytest.mark.asyncio
     async def test_get_llm_response_delegates_to_engine_registry(self, dummy_action):
-        dummy_action.engine_registry.model_call = AsyncMock(return_value="llm output")
+        expected = LLMResponse(content="llm output")
+        dummy_action.engine_registry.model_call = AsyncMock(return_value=expected)
         result = await dummy_action._get_llm_response(
             "content_safety", [{"role": "user", "content": "test"}], temperature=0.01
         )
-        assert result == "llm output"
+        assert result is expected
         dummy_action.engine_registry.model_call.assert_awaited_once_with(
             "content_safety", [{"role": "user", "content": "test"}], temperature=0.01
         )

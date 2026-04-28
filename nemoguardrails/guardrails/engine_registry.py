@@ -29,6 +29,7 @@ from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.telemetry import api_call_span, llm_call_span
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -139,8 +140,12 @@ class EngineRegistry:
             raise TypeError(f"Engine '{name}' is {type(engine).__name__}, expected {expected_type.__name__}")
         return engine
 
-    async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> str:
+    async def model_call(self, model_type: str, messages: list[dict], **kwargs: Any) -> LLMResponse:
         """Route a chat completion request to the named model engine.
+
+        Returns the structured ``LLMResponse`` from the engine — content,
+        reasoning (when the provider exposes it), usage, finish reason.
+        Callers that only want the assistant text should access ``.content``.
 
         Raises:
             KeyError: If no engine is registered with the given name.
@@ -158,12 +163,13 @@ class EngineRegistry:
 
     async def stream_model_call(
         self, model_type: str, messages: list[dict], **kwargs: Any
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[LLMResponseChunk, None]:
         """Stream chat completion chunks from the named model engine.
 
-        The surrounding ``llm_call_span`` wraps the full generator lifetime:
-        it opens before the first chunk and closes when the generator
-        exhausts or raises.
+        Yields ``LLMResponseChunk`` objects. The surrounding
+        ``llm_call_span`` wraps the full generator lifetime: it opens
+        before the first chunk and closes when the generator exhausts or
+        raises.
 
         Raises:
             KeyError: If no engine is registered with the given name.
