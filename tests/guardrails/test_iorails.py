@@ -332,6 +332,155 @@ class TestIORailsStartErrors:
         assert call_order == ["registry.start", "queue.start", "registry.stop"]
         assert not iorails._running
 
+    @pytest.mark.asyncio
+    async def test_start_propagates_queue_error_when_registry_rollback_also_raises(self, iorails):
+        """Original queue.start error propagates even if the registry.stop rollback raises.
+        Cleanup-path failures must not mask the actionable root cause.
+        """
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock(side_effect=RuntimeError("registry rollback boom"))
+        iorails._generate_async_queue.start = AsyncMock(side_effect=RuntimeError("queue failed"))
+
+        # The QUEUE failure (the root cause) is what propagates, not the rollback failure.
+        with pytest.raises(RuntimeError, match="queue failed"):
+            await iorails.start()
+
+        iorails.engine_registry.stop.assert_called_once()
+        assert not iorails._running
+
+    @pytest.mark.asyncio
+    async def test_start_rolls_back_queue_and_registry_when_gauge_registration_raises(self, iorails):
+        """If register_nonstream_saturation_gauges raises after the queue is up, BOTH the queue
+        and the registry are rolled back so a retry of start() comes from a clean state.
+        Without this, _running stays False while the queue is alive — stop() then no-ops and
+        leaks worker tasks (the gap Greptile flagged).
+        """
+        iorails._metrics_enabled = True
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
+        iorails._generate_async_queue.start = AsyncMock()
+        iorails._generate_async_queue.stop = AsyncMock()
+
+        with patch(
+            "nemoguardrails.guardrails.iorails.register_nonstream_saturation_gauges",
+            side_effect=RuntimeError("gauge registration failed"),
+        ):
+            with pytest.raises(RuntimeError, match="gauge registration failed"):
+                await iorails.start()
+
+        iorails.engine_registry.start.assert_called_once()
+        iorails._generate_async_queue.start.assert_called_once()
+        iorails._generate_async_queue.stop.assert_called_once()
+        iorails.engine_registry.stop.assert_called_once()
+        assert not iorails._running
+        assert not iorails._gauges_registered
+
+    @pytest.mark.asyncio
+    async def test_start_failed_gauge_registration_invokes_rollback_in_order(self, iorails):
+        """Gauge-registration failure rolls back queue first, then registry."""
+        iorails._metrics_enabled = True
+        call_order: list[str] = []
+
+        async def registry_start():
+            call_order.append("registry.start")
+
+        async def registry_stop():
+            call_order.append("registry.stop")
+
+        async def queue_start():
+            call_order.append("queue.start")
+
+        async def queue_stop():
+            call_order.append("queue.stop")
+
+        def gauge_register(*args, **kwargs):
+            call_order.append("gauge.register")
+            raise RuntimeError("gauge failed")
+
+        iorails.engine_registry.start = registry_start
+        iorails.engine_registry.stop = registry_stop
+        iorails._generate_async_queue.start = queue_start
+        iorails._generate_async_queue.stop = queue_stop
+
+        with patch(
+            "nemoguardrails.guardrails.iorails.register_nonstream_saturation_gauges",
+            side_effect=gauge_register,
+        ):
+            with pytest.raises(RuntimeError, match="gauge failed"):
+                await iorails.start()
+
+        # Queue is rolled back before registry — reverse-order shutdown of resources
+        # acquired in ``registry.start → queue.start → gauge.register`` order.
+        assert call_order == ["registry.start", "queue.start", "gauge.register", "queue.stop", "registry.stop"]
+        assert not iorails._running
+
+    @pytest.mark.asyncio
+    async def test_start_propagates_gauge_error_when_queue_rollback_raises(self, iorails):
+        """Original gauge error propagates even if queue.stop rollback raises.
+        Cleanup-path failures must not mask the actionable root cause.
+        """
+        iorails._metrics_enabled = True
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
+        iorails._generate_async_queue.start = AsyncMock()
+        iorails._generate_async_queue.stop = AsyncMock(side_effect=RuntimeError("queue rollback boom"))
+
+        with patch(
+            "nemoguardrails.guardrails.iorails.register_nonstream_saturation_gauges",
+            side_effect=RuntimeError("gauge failed"),
+        ):
+            # The GAUGE failure (the root cause) is what propagates, not the rollback failure.
+            with pytest.raises(RuntimeError, match="gauge failed"):
+                await iorails.start()
+
+        # Both rollback steps were attempted even though queue.stop raised.
+        iorails._generate_async_queue.stop.assert_called_once()
+        iorails.engine_registry.stop.assert_called_once()
+        assert not iorails._running
+
+    @pytest.mark.asyncio
+    async def test_start_skips_gauge_registration_when_metrics_disabled(self, iorails):
+        """With metrics disabled, register_nonstream_saturation_gauges is never called —
+        so a hypothetical bug in that helper can't break IORails.start().
+        """
+        iorails._metrics_enabled = False
+        iorails.engine_registry.start = AsyncMock()
+        iorails._generate_async_queue.start = AsyncMock()
+
+        with patch(
+            "nemoguardrails.guardrails.iorails.register_nonstream_saturation_gauges",
+            side_effect=AssertionError("must not be called when metrics disabled"),
+        ) as gauge_mock:
+            await iorails.start()
+
+        gauge_mock.assert_not_called()
+        assert iorails._running
+        assert not iorails._gauges_registered
+
+    @pytest.mark.asyncio
+    async def test_gauges_registered_only_once_across_restarts(self, iorails):
+        """``_gauges_registered`` is sticky across stop/start cycles — gauges register once
+        for the lifetime of the IORails instance.  OTEL has no public unregister API for
+        observable instruments; the soft-disable via ``is_running=lambda: self._running``
+        is what makes a stopped IORails emit no observations on the same gauges.
+        """
+        iorails._metrics_enabled = True
+        iorails.engine_registry.start = AsyncMock()
+        iorails.engine_registry.stop = AsyncMock()
+        iorails._generate_async_queue.start = AsyncMock()
+        iorails._generate_async_queue.stop = AsyncMock()
+
+        with patch(
+            "nemoguardrails.guardrails.iorails.register_nonstream_saturation_gauges",
+        ) as gauge_mock:
+            await iorails.start()
+            assert iorails._gauges_registered
+            await iorails.stop()
+            await iorails.start()
+
+        gauge_mock.assert_called_once()
+        assert iorails._running
+
 
 class TestIORailsStopErrors:
     """Test IORails stop() error propagation."""

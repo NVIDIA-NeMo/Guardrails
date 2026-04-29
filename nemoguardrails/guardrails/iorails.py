@@ -137,24 +137,34 @@ class IORails:
         await self.engine_registry.start()
         try:
             await self._generate_async_queue.start()
+            try:
+                # Queue is now live; register the state-observing ObservableGauges.
+                # ``lambda: self._running`` is checked at collect time so the gauges
+                # report empty lists once the engine has been stopped.
+                if self._metrics_enabled and not self._gauges_registered:
+                    register_nonstream_saturation_gauges(
+                        self._generate_async_queue,
+                        is_running=lambda: self._running,
+                    )
+                    self._gauges_registered = True
+            except BaseException:
+                # Gauge registration failed after the queue was started — roll
+                # the queue back so a retry of start() comes from a clean state
+                # rather than leaving the queue running with ``_running=False``
+                # (which would make stop() a no-op and leak worker tasks).
+                try:
+                    await self._generate_async_queue.stop()
+                except BaseException:
+                    log.exception("queue rollback failed during IORails.start()")
+                raise
         except BaseException:
             # Log but suppress rollback failures so we propagate the original
-            # queue-start error as the actionable root cause.
+            # queue-start (or gauge-registration) error as the actionable root cause.
             try:
                 await self.engine_registry.stop()
             except BaseException:
                 log.exception("engine_registry rollback failed during IORails.start()")
             raise
-
-        # Queue is now live; register the state-observing ObservableGauges.
-        # ``lambda: self._running`` is checked at collect time so the gauges
-        # report empty lists once the engine has been stopped.
-        if self._metrics_enabled and not self._gauges_registered:
-            register_nonstream_saturation_gauges(
-                self._generate_async_queue,
-                is_running=lambda: self._running,
-            )
-            self._gauges_registered = True
 
         self._running = True
 
