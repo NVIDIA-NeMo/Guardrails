@@ -213,6 +213,15 @@ def _classify(resp: httpx.Response, param: str) -> str:
         "not allowed" in msg_lower or "not supported" in msg_lower
     ):
         return "rejected"
+    # Guard: the accepted-by-inference fallback below treats any mention of
+    # max_tokens as a generation-limit error, which only makes sense for
+    # probes that send max_completion_tokens=1 in the body. For the
+    # max_tokens probe itself, a message naming max_tokens that did not
+    # match the earlier rejection patterns is safer to flag as rejected
+    # than to silently accept (e.g. "Please specify max_completion_tokens
+    # rather than max_tokens").
+    if param == "max_tokens" and re.search(r"\bmax_tokens\b", msg_lower):
+        return "rejected"
     # OpenAI validates params before generation, so a max_completion_tokens /
     # max_tokens / output-limit error on a 1-token probe means the param was
     # accepted and generation started. Treat as accepted-by-inference.
