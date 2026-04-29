@@ -17,10 +17,14 @@ This "Hello World" guardrails configuration uses the OpenAI `gpt-4o-mini` model.
 pip install openai
 ```
 
-1. Set the `OPENAI_API_KEY` environment variable:
+1. Obtain an OpenAI API key from the [OpenAI API keys page](https://platform.openai.com/api-keys). The key has the form `sk-...`.
+
+   > **Note:** Calls to the OpenAI API require a paid OpenAI account with available credits. If your account has no credits, requests fail with an `insufficient_quota` (HTTP 429) error. Add billing details and credits at [platform.openai.com/account/billing](https://platform.openai.com/account/billing) before running the example.
+
+1. Set the `OPENAI_API_KEY` environment variable to your key:
 
 ```bash
-export OPENAI_API_KEY=$OPENAI_API_KEY    # Replace with your own key
+export OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 ```
 
 1. If you're running this inside a notebook, patch the AsyncIO loop.
@@ -45,9 +49,9 @@ Every guardrails configuration must be stored in a folder. The standard folder s
 │   ├── ...
 ```
 
-See the [Configuration Reference](../../../../configuration-reference.md) for information about the contents of these files.
+See the [Configuration Reference](../../../../configuration-reference.md) for information about the contents of these files as well as the components of NeMo Guardrails (rail kinds, supported model providers, and how user and bot intents are matched).
 
-1. Create a folder, such as *config*, for your configuration:
+1. From the root directory of your project, create a folder, such as *config*, for your configuration:
 
 ```bash
 mkdir config
@@ -66,7 +70,21 @@ The `models` key in the *config.yml* file configures the LLM model. For a comple
 
 ## Step 2: load the guardrails configuration
 
-To load a guardrails configuration from a path, you must create a `RailsConfig` instance using the `from_path` method in your Python code:
+To load a guardrails configuration from a path, you must create a `RailsConfig` instance using the `from_path` method in your Python code.
+
+Create a new Python file (for example, *main.py*) in the **root directory of your project**, alongside the *config* folder you created in Step 1. Do not place this file inside the *config* folder, because the path `./config` is resolved relative to the working directory from which you run the script. If you run the script from inside *config*, you will see a `ValueError: Invalid config path ./config.`.
+
+Your project layout should look like this:
+
+```
+.
+├── main.py
+└── config
+    ├── config.yml
+    └── ...
+```
+
+Add the following to *main.py*:
 
 ```python
 from nemoguardrails import RailsConfig
@@ -197,10 +215,10 @@ According to the latest estimates, the population of Paris is around 2.2 million
 
 You can also test a guardrails configuration using the NeMo Guardrails server and the Chat UI.
 
-To start the server:
+To start the server, run the following command from the root directory of your project (the parent of the *config* folder):
 
 ```bash
-$ nemoguardrails server --config=.
+$ nemoguardrails server --config=./config
 
 INFO:     Started server process [27509]
 INFO:     Waiting for application startup.
@@ -214,4 +232,5 @@ The Chat UI interface is now available at `http://localhost:8000`:
 
 ## Next
 
-The next guide, [Core Colang Concepts](../2-core-colang-concepts/README.md), explains the Colang concepts *messages* and *flows*.
+- [Core Colang Concepts](../2-core-colang-concepts/README.md) explains the Colang concepts *messages* and *flows*.
+- [Configuration Reference](../../../../configuration-reference.md) covers the full set of configuration options, supported model providers, and the available rail types. Reading it next will give you the foundation you need before adding more complex rails.
