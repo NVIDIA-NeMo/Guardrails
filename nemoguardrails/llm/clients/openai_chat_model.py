@@ -19,7 +19,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
 from nemoguardrails.llm.clients.base import HTTPResponse
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
-from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
+from nemoguardrails.llm.openai_reasoning import apply_openai_reasoning_overrides, is_openai_reasoning_model
 from nemoguardrails.types import (
     ChatMessage,
     FinishReason,
@@ -84,8 +84,7 @@ class OpenAIChatModel:
         if stop is not None:
             merged["stop"] = stop
         if is_openai_reasoning_model(self._model):
-            merged.pop("temperature", None)
-            merged.pop("stop", None)
+            merged = apply_openai_reasoning_overrides(merged)
         return merged
 
     def _to_messages(self, prompt: Union[str, List[ChatMessage]]) -> List[Dict[str, Any]]:

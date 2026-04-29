@@ -14,6 +14,11 @@
 # limitations under the License.
 
 
+from typing import Any, Dict
+
+_REASONING_DROP_PARAMS = frozenset({"temperature", "stop"})
+
+
 def is_openai_reasoning_model(model_name: str) -> bool:
     """True for OpenAI reasoning models (o1/o3/o4 series, gpt-5+).
 
@@ -30,3 +35,34 @@ def is_openai_reasoning_model(model_name: str) -> bool:
     if name.startswith(("gpt-5.", "gpt-6")):
         return True
     return False
+
+
+def apply_openai_reasoning_overrides(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop unsupported params and remap max_tokens for OpenAI reasoning models.
+
+    OpenAI reasoning models (o-series, gpt-5+) require ``max_completion_tokens``
+    instead of ``max_tokens`` and reject ``temperature`` / ``stop`` on most
+    members of the family. This helper applies the rename and the drop list
+    in one place so the DefaultFramework OpenAI client and the LangChain
+    adapter cannot drift on what they strip.
+
+    The drop list is deliberately limited to the params OpenAI's API itself
+    is documented to reject (verified by the live probe in
+    tests/integrations/langchain/test_openai_param_filter.py); other
+    sometimes-rejected params (top_p, presence_penalty, etc.) are accepted
+    by some reasoning models in the family and are left to the caller.
+
+    Returns a new dict; does not mutate the input.
+
+    Drops: ``temperature``, ``stop``.
+
+    Renames: ``max_tokens`` -> ``max_completion_tokens`` (only if
+    ``max_tokens`` is present and ``max_completion_tokens`` is not, so an
+    explicit ``max_completion_tokens`` always wins).
+    """
+    out = {key: value for key, value in params.items() if key not in _REASONING_DROP_PARAMS}
+    if "max_tokens" in out and "max_completion_tokens" not in out:
+        out["max_completion_tokens"] = out.pop("max_tokens")
+    else:
+        out.pop("max_tokens", None)
+    return out

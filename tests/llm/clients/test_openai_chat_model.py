@@ -438,7 +438,9 @@ class TestParams:
 
         call = mc.chat_completion.call_args
         assert "temperature" not in call.kwargs
-        assert call.kwargs["max_tokens"] == 100
+        # max_tokens is renamed to max_completion_tokens on reasoning models.
+        assert "max_tokens" not in call.kwargs
+        assert call.kwargs["max_completion_tokens"] == 100
 
     @pytest.mark.asyncio
     async def test_non_reasoning_keeps_temperature(self):
@@ -501,6 +503,55 @@ class TestParams:
         await m.generate_async("Hi", temperature=0.9)
 
         assert mc.chat_completion.call_args.kwargs["temperature"] == 0.9
+
+    @pytest.mark.asyncio
+    async def test_reasoning_model_renames_max_tokens(self):
+        mc = _mock_client()
+        mc.chat_completion = AsyncMock(return_value=_response())
+        m = _model(mc, model="gpt-5-mini")
+
+        await m.generate_async("Hi", max_tokens=1024)
+
+        call = mc.chat_completion.call_args
+        assert "max_tokens" not in call.kwargs
+        assert call.kwargs["max_completion_tokens"] == 1024
+
+    @pytest.mark.asyncio
+    async def test_non_reasoning_keeps_max_tokens(self):
+        mc = _mock_client()
+        mc.chat_completion = AsyncMock(return_value=_response())
+        m = _model(mc, model="gpt-4o")
+
+        await m.generate_async("Hi", max_tokens=1024)
+
+        call = mc.chat_completion.call_args
+        assert call.kwargs["max_tokens"] == 1024
+        assert "max_completion_tokens" not in call.kwargs
+
+    @pytest.mark.asyncio
+    async def test_reasoning_model_keeps_explicit_max_completion_tokens(self):
+        mc = _mock_client()
+        mc.chat_completion = AsyncMock(return_value=_response())
+        m = _model(mc, model="o3-mini")
+
+        await m.generate_async("Hi", max_tokens=1024, max_completion_tokens=512)
+
+        call = mc.chat_completion.call_args
+        # Explicit max_completion_tokens wins; max_tokens dropped.
+        assert call.kwargs["max_completion_tokens"] == 512
+        assert "max_tokens" not in call.kwargs
+
+    @pytest.mark.asyncio
+    async def test_reasoning_model_renames_default_max_tokens(self):
+        mc = _mock_client()
+        mc.chat_completion = AsyncMock(return_value=_response())
+        m = _model(mc, model="o3-mini", max_tokens=256)
+
+        await m.generate_async("Hi")
+
+        call = mc.chat_completion.call_args
+        assert "max_tokens" not in call.kwargs
+        assert call.kwargs["max_completion_tokens"] == 256
 
 
 class TestIsReasoningModel:
