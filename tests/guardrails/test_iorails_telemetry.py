@@ -34,7 +34,8 @@ from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, Rai
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
-from tests.guardrails.metric_helpers import collect_metric_points
+from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
+from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 from tests.guardrails.test_telemetry import _is_valid_hex_string
 
@@ -1009,8 +1010,14 @@ def metric_reader():
 
 
 class TestGenerateAsyncRequestMetrics:
+    """Non-streaming path emits ``guardrails.requests`` /
+    ``guardrails.request.duration`` / ``guardrails.requests.errors`` and
+    nets ``guardrails.requests.active`` to zero on completion."""
+
     @pytest.mark.asyncio
     async def test_emits_counter_and_duration_on_safe_request(self, iorails_tracing, metric_reader):
+        """Happy-path generate_async → counter +1, duration recorded once,
+        no errors, requests.active back to 0."""
         _stub_safe_pipeline(iorails_tracing)
 
         await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
@@ -1020,6 +1027,8 @@ class TestGenerateAsyncRequestMetrics:
         # Histogram value is the recording count, not the duration itself.
         assert points["guardrails.request.duration"][0].value == 1
         assert "guardrails.requests.errors" not in points
+        # Aggregate saturation counter nets to 0 after a completed request.
+        assert points["guardrails.requests.active"][0].value == 0
 
     @pytest.mark.asyncio
     async def test_emits_errors_counter_on_exception(self, iorails_tracing, metric_reader):
@@ -1076,6 +1085,8 @@ class TestGenerateAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_no_blocked_counter_emitted_when_tracing_disabled(self, iorails_no_tracing, metric_reader):
+        """With metrics disabled, a blocked-by-input-rail request emits no
+        ``requests.blocked`` data point."""
         _stub_safe_pipeline(iorails_no_tracing)
         iorails_no_tracing.rails_manager.is_input_safe = AsyncMock(
             return_value=RailResult(is_safe=False, reason="unsafe")
@@ -1087,6 +1098,117 @@ class TestGenerateAsyncRequestMetrics:
         points = collect_metric_points(metric_reader)
         assert points == {}
 
+    @pytest.mark.asyncio
+    async def test_nonstream_rejections_counter_on_queue_full(self, iorails_tracing, metric_reader):
+        """When the admission queue raises ``asyncio.QueueFull``,
+        ``generate_async`` catches the exception, increments
+        ``guardrails.nonstream.rejections``, and re-raises.
+
+        Note: the rejection also propagates through the outer
+        ``request_metrics()`` wrapper, so ``requests.errors`` and
+        ``request.duration`` fire too — covered by the dedicated
+        dual-signal test below.
+
+        The queue's overflow semantics are covered in
+        ``test_async_work_queue.py``; here we stub ``submit`` to raise
+        directly so the test stays fast and focused on the counter wiring.
+        """
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
+
+        with pytest.raises(asyncio.QueueFull, match="admission queue full"):
+            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_queuefull_bumps_both_errors_and_nonstream_rejections(self, iorails_tracing, metric_reader):
+        """Dual-signal semantics: a ``QueueFull`` rejection is BOTH a
+        saturation signal (``nonstream.rejections``) AND a request error
+        (``requests.errors{error.type=QueueFull}``).  Dashboards can
+        count either one.  Also bumps the ``requests`` counter and
+        records into the duration histogram — the request ran through
+        the full lifecycle, even if only briefly.
+        """
+        _stub_safe_pipeline(iorails_tracing)
+        iorails_tracing._generate_async_queue.submit = AsyncMock(side_effect=asyncio.QueueFull("admission queue full"))
+
+        with pytest.raises(asyncio.QueueFull):
+            await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.nonstream.rejections"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_request_duration_includes_queue_wait(self, metric_reader):
+        """``request.duration`` measures the full ``generate_async``
+        lifecycle (OTEL HTTP semconv), so the time a request spends
+        waiting in the admission queue is included.
+
+        With a single worker and two submitted requests, the second
+        request sits in the queue for the duration of the first.  The
+        histogram's aggregate sum therefore captures at least one
+        queue-wait period — if duration were worker-scope the waiting
+        request would contribute ~0 to the sum.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        block_seconds = 0.05
+
+        with (
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1),
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH", 4),
+        ):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            async with iorails:
+                iorails._do_generate = blocking_generate
+
+                tasks = [
+                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    for i in range(2)
+                ]
+                # Wait until exactly one is executing and one is queued.
+                await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=1)
+                # Hold this state for a measurable duration so the queued
+                # request accumulates queue-wait time.
+                await asyncio.sleep(block_seconds)
+                gate.set()
+                await asyncio.gather(*tasks)
+
+        # The sum of both recorded durations must exceed one block period.
+        # A worker-scope duration would sum to ~block_seconds (the first
+        # request held a worker, the second ran trivially after pickup);
+        # full-lifecycle duration also covers the queued request's wait,
+        # lifting the sum near 2×block.
+        duration_sum = collect_histogram_sum(metric_reader, "guardrails.request.duration")
+        assert duration_sum >= block_seconds * 1.5
+
+    @pytest.mark.asyncio
+    async def test_no_nonstream_rejections_counter_when_metrics_disabled(self, iorails_no_tracing, metric_reader):
+        """Metrics disabled → even a QueueFull raise doesn't emit the counter."""
+        _stub_safe_pipeline(iorails_no_tracing)
+        iorails_no_tracing._generate_async_queue.submit = AsyncMock(
+            side_effect=asyncio.QueueFull("admission queue full")
+        )
+
+        with pytest.raises(asyncio.QueueFull):
+            await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert "guardrails.nonstream.rejections" not in points
+
 
 class TestStreamAsyncRequestMetrics:
     """Streaming path also emits request-level metrics via the shared
@@ -1094,6 +1216,8 @@ class TestStreamAsyncRequestMetrics:
 
     @pytest.mark.asyncio
     async def test_emits_counter_and_duration_on_safe_stream(self, iorails_streaming_input_only_tracing, metric_reader):
+        """Happy-path stream_async → counter +1, duration recorded once,
+        no errors, stream.active back to 0, no rejections."""
         iorails = iorails_streaming_input_only_tracing
         iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
         iorails.engine_registry.stream_model_call = _mock_chunks_stream
@@ -1105,6 +1229,125 @@ class TestStreamAsyncRequestMetrics:
         assert points["guardrails.requests"][0].value == 1
         assert points["guardrails.request.duration"][0].value == 1
         assert "guardrails.requests.errors" not in points
+        # Saturation: stream.active nets to 0 after the stream completes;
+        # stream.rejections never fires on the happy path.
+        assert points["guardrails.stream.active"][0].value == 0
+        assert "guardrails.stream.rejections" not in points
+
+    @pytest.mark.asyncio
+    async def test_stream_rejections_counter_on_semaphore_full(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        """A stream that arrives while the semaphore is fully occupied is
+        rejected with ``asyncio.QueueFull`` and the ``stream.rejections``
+        counter increments.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        saturate_stream_semaphore(iorails)
+        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.stream.rejections"][0].value == 1
+        # Active counter untouched — the semaphore was never acquired by the
+        # rejected stream, so the UpDownCounter never saw a +1 and emits no
+        # data point (UpDownCounters only export points after first ``.add()``).
+        assert "guardrails.stream.active" not in points
+
+    @pytest.mark.asyncio
+    async def test_stream_queuefull_bumps_both_errors_and_stream_rejections(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        """Streaming equivalent of the non-streaming dual-signal test: a
+        ``QueueFull`` on the semaphore check is BOTH a saturation signal
+        (``stream.rejections``) AND a request error
+        (``requests.errors{error.type=QueueFull}``)
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        saturate_stream_semaphore(iorails)
+        with pytest.raises(asyncio.QueueFull, match="Streaming concurrency limit reached"):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.stream.rejections"][0].value == 1
+        assert points["guardrails.requests.errors"][0].value == 1
+        assert points["guardrails.requests.errors"][0].attributes["error.type"] == "QueueFull"
+        assert points["guardrails.requests"][0].value == 1
+        assert points["guardrails.request.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_stream_active_is_one_mid_flight(self, iorails_streaming_input_only_tracing, metric_reader):
+        """Observe the UpDownCounter mid-flight: after the first chunk is
+        pulled (semaphore acquired, stream body running), ``stream.active``
+        reads 1; after the iterator is consumed, it reads 0.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
+
+        # Before any chunk is pulled, nothing has touched the UpDownCounter
+        # yet, so no data point is emitted (semantically equivalent to 0).
+        before = collect_metric_points(metric_reader)
+        assert "guardrails.stream.active" not in before
+
+        # During: pull the first chunk → semaphore acquired, counter at +1.
+        first = await iterator.__anext__()
+        assert first == "Hello"
+        mid = collect_metric_points(metric_reader)
+        assert mid["guardrails.stream.active"][0].value == 1
+
+        # Drain the rest.
+        rest = [c async for c in iterator]
+        assert rest == [" ", "world"]
+
+        # After: counter back to 0 (net of +1 / -1).
+        final = collect_metric_points(metric_reader)
+        assert final["guardrails.stream.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_stream_active_nets_to_zero_on_stream_failure(
+        self, iorails_streaming_input_only_tracing, metric_reader
+    ):
+        """Even when the LLM raises mid-stream, ``stream.active`` decrements
+        on exit — the ``stream_active_metric`` context manager's ``finally``
+        guarantees the -1.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        _stub_deep_streaming_pipeline(iorails, main_stream=_engine_failing_stream)
+
+        chunks = [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+        # Stream failure was converted to an error-payload chunk.
+        assert any(c.startswith('{"error"') for c in chunks)
+
+        points = collect_metric_points(metric_reader)
+        assert points["guardrails.stream.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_no_stream_saturation_metrics_when_metrics_disabled(
+        self, iorails_streaming_no_tracing, metric_reader
+    ):
+        """Tracing + metrics disabled → ``stream.active`` and
+        ``stream.rejections`` don't emit, even on rejection path.
+        """
+        iorails = iorails_streaming_no_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        saturate_stream_semaphore(iorails)
+        with pytest.raises(asyncio.QueueFull):
+            [c async for c in iorails.stream_async([{"role": "user", "content": "hi"}])]
+
+        points = collect_metric_points(metric_reader)
+        assert "guardrails.stream.active" not in points
+        assert "guardrails.stream.rejections" not in points
 
     @pytest.mark.asyncio
     async def test_emits_errors_counter_on_stream_failure(self, iorails_streaming_input_only_tracing, metric_reader):
@@ -1263,3 +1506,308 @@ class TestIndependentTracingAndMetrics:
         assert any(s.name == "guardrails.request" for s in spans)
         points = collect_metric_points(metric_reader)
         assert points == {}
+
+
+class TestNonstreamStateGauges:
+    """IORails-level integration tests for the ``nonstream.queued`` +
+    ``nonstream.active`` ObservableGauges.
+
+    Each test constructs IORails *after* ``metric_reader`` has installed its
+    test-local Meter — the gauges are registered in ``IORails.start()``,
+    so the Meter in effect at startup time is what the reader sees.  The
+    ``iorails_tracing`` / ``iorails_no_tracing`` fixtures set up the Meter
+    too late for gauges, which is why these tests build IORails inline.
+    """
+
+    @pytest.mark.asyncio
+    async def test_gauges_registered_and_read_zero_at_rest(self, metric_reader):
+        """A freshly-started IORails with no pending work → both gauges read 0."""
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+        async with iorails:
+            points = collect_metric_points(metric_reader)
+            assert points["guardrails.nonstream.queued"][0].value == 0
+            assert points["guardrails.nonstream.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_nonstream_active_reads_one_while_worker_is_busy(self, metric_reader):
+        """A pipeline blocked on an Event → ``nonstream.active == 1`` during
+        the block, 0 after the Event is set and the worker finishes.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+        async with iorails:
+            iorails._do_generate = blocking_generate
+
+            task = asyncio.create_task(iorails.generate_async([{"role": "user", "content": "hi"}]))
+            # Wait for the worker to pick up the item and enter
+            # ``blocking_generate`` (busy_count=1, pending=0).
+            await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=0)
+
+            mid = collect_metric_points(metric_reader)
+            assert mid["guardrails.nonstream.active"][0].value == 1
+            assert mid["guardrails.nonstream.queued"][0].value == 0
+
+            gate.set()
+            await task
+
+            final = collect_metric_points(metric_reader)
+            assert final["guardrails.nonstream.active"][0].value == 0
+            assert final["guardrails.nonstream.queued"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_nonstream_queued_reflects_backlog_past_worker_capacity(self, metric_reader):
+        """With a single worker occupied and extras pending, ``nonstream.queued``
+        reports the backlog size while ``nonstream.active == 1``.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        # Patch module-level budgets so the backlog test doesn't need to
+        # spin up 256 workers.
+        with (
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1),
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH", 8),
+        ):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            async with iorails:
+                iorails._do_generate = blocking_generate
+
+                tasks = [
+                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    for i in range(3)
+                ]
+                # Wait for one worker to pick up an item and the other two
+                # to sit in the queue (busy=1, pending=2).
+                await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=2)
+
+                mid = collect_metric_points(metric_reader)
+                assert mid["guardrails.nonstream.active"][0].value == 1
+                assert mid["guardrails.nonstream.queued"][0].value == 2
+
+                gate.set()
+                await asyncio.gather(*tasks)
+
+                final = collect_metric_points(metric_reader)
+                assert final["guardrails.nonstream.active"][0].value == 0
+                assert final["guardrails.nonstream.queued"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_gauges_not_registered_when_metrics_disabled(self, metric_reader):
+        """Metrics disabled in config → ``start()`` does not register gauges
+        and they never appear in collection output.
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+        async with iorails:
+            points = collect_metric_points(metric_reader)
+            assert "guardrails.nonstream.queued" not in points
+            assert "guardrails.nonstream.active" not in points
+
+    @pytest.mark.asyncio
+    async def test_gauges_soft_disabled_after_stop(self, metric_reader):
+        """``stop()`` flips ``self._running`` to False; the gauge callbacks
+        return ``[]`` on subsequent collection (soft-disable).  Needed
+        because OTEL Python has no public unregister API — an always-alive
+        callback would leak dead-IORails state across tests and long-running
+        processes.
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+        await iorails.start()
+        try:
+            alive = collect_metric_points(metric_reader)
+            assert alive["guardrails.nonstream.queued"][0].value == 0
+            assert alive["guardrails.nonstream.active"][0].value == 0
+        finally:
+            await iorails.stop()
+
+        stopped = collect_metric_points(metric_reader)
+        # Either the metric is absent (SDK-dependent when callbacks return [])
+        # or present with no data points — both mean "no observation".
+        assert stopped.get("guardrails.nonstream.queued", []) == []
+        assert stopped.get("guardrails.nonstream.active", []) == []
+
+    @pytest.mark.asyncio
+    async def test_stop_then_start_resumes_gauge_observations(self, metric_reader):
+        """``stop()`` → ``start()`` cycle must re-enable observations without
+        re-registering (the ``_gauges_registered`` flag remains True across
+        the cycle; ``self._running`` flipping back to True is what
+        re-enables the callbacks).
+        """
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+
+        await iorails.start()
+        assert iorails._gauges_registered is True
+        await iorails.stop()
+
+        # Restart — must NOT re-register (flag still True) but must resume
+        # reporting because ``self._running`` flips back to True.
+        await iorails.start()
+        try:
+            assert iorails._gauges_registered is True
+            resumed = collect_metric_points(metric_reader)
+            assert resumed["guardrails.nonstream.queued"][0].value == 0
+            assert resumed["guardrails.nonstream.active"][0].value == 0
+        finally:
+            await iorails.stop()
+
+
+class TestRequestsActiveAggregate:
+    """End-to-end coverage for ``guardrails.requests.active`` — the path-
+    agnostic aggregate that counts both non-streaming and streaming
+    in-flight requests.
+
+    The invariant this metric set satisfies at any collection instant:
+
+        requests.active  ≈  nonstream.queued + nonstream.active + stream.active
+
+    IORails is built inline so ``metric_reader`` installs its test Meter
+    before ``start()`` registers the saturation ObservableGauges (same
+    rationale as :class:`TestNonstreamStateGauges`).
+    """
+
+    @pytest.mark.asyncio
+    async def test_captures_queued_nonstream_request_mid_flight(self, metric_reader):
+        """A request stuck in the admission queue contributes to
+        ``requests.active`` — the full-lifecycle scope means queue-wait
+        counts, not just worker time.  With one worker busy and one
+        queued, ``requests.active`` reads 2.
+        """
+        gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``gate`` is set, so the test can
+            observe queue/worker state mid-flight."""
+            await gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        with (
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1),
+            patch("nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH", 4),
+        ):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
+            async with iorails:
+                iorails._do_generate = blocking_generate
+                tasks = [
+                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
+                    for i in range(2)
+                ]
+                await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=1)
+
+                mid = collect_metric_points(metric_reader)
+                assert mid["guardrails.requests.active"][0].value == 2
+
+                gate.set()
+                await asyncio.gather(*tasks)
+
+                final = collect_metric_points(metric_reader)
+                assert final["guardrails.requests.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_captures_streaming_request_mid_flight(self, iorails_streaming_input_only_tracing, metric_reader):
+        """A streaming request holding a semaphore permit contributes to
+        ``requests.active``.  Mid-stream, the counter reads 1; after the
+        iterator drains, it nets to 0.
+        """
+        iorails = iorails_streaming_input_only_tracing
+        iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+        iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+        iterator = iorails.stream_async([{"role": "user", "content": "hi"}]).__aiter__()
+
+        # Pull the first chunk → semaphore acquired, stream body running.
+        first = await iterator.__anext__()
+        assert first == "Hello"
+        mid = collect_metric_points(metric_reader)
+        assert mid["guardrails.requests.active"][0].value == 1
+
+        # Drain and check net-to-zero.
+        rest = [c async for c in iterator]
+        assert rest == [" ", "world"]
+        final = collect_metric_points(metric_reader)
+        assert final["guardrails.requests.active"][0].value == 0
+
+    @pytest.mark.asyncio
+    async def test_invariant_aggregate_equals_component_sum(self, metric_reader):
+        """Core payoff check: with M non-streaming executing, N queued,
+        and S streaming simultaneously, the aggregate counter matches
+        the component-wise sum.
+
+        Uses a single IORails instance: M=1 executing + N=1 queued +
+        S=1 streaming → ``requests.active == 3``, each of the per-path
+        metrics reads its own value, and the sum of the three equals
+        the aggregate.
+        """
+        nonstream_gate = asyncio.Event()
+
+        async def blocking_generate(messages, req_id, **kwargs):
+            """Stub pipeline that blocks until ``nonstream_gate`` is set, so the
+            test can observe queue/worker state mid-flight."""
+            await nonstream_gate.wait()
+            return {"role": "assistant", "content": "done"}
+
+        # Drop output rails so ``stream_async`` doesn't trip the
+        # StreamingNotSupportedError path (matches the ``_INPUT_ONLY_*``
+        # configs used by the streaming-path fixtures above).
+        invariant_config = copy.deepcopy(NEMOGUARDS_CONFIG)
+        invariant_config["rails"]["output"] = {"flows": []}
+        invariant_config["metrics"] = {"enabled": True}
+
+        with patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=invariant_config))
+            async with iorails:
+                iorails._do_generate = blocking_generate
+                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+                iorails.engine_registry.stream_model_call = _mock_chunks_stream
+
+                # Launch one executing + one queued non-streaming request.
+                nonstream_tasks = [
+                    asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"n{i}"}]))
+                    for i in range(2)
+                ]
+                await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=1)
+
+                # Launch one streaming request and pull the first chunk
+                # to force semaphore acquisition + stream-body execution.
+                stream_iter = iorails.stream_async([{"role": "user", "content": "s0"}]).__aiter__()
+                first = await stream_iter.__anext__()
+                assert first == "Hello"
+
+                mid = collect_metric_points(metric_reader)
+                aggregate = mid["guardrails.requests.active"][0].value
+                nonstream_active = mid["guardrails.nonstream.active"][0].value
+                nonstream_queued = mid["guardrails.nonstream.queued"][0].value
+                stream_active = mid["guardrails.stream.active"][0].value
+
+                assert nonstream_active == 1
+                assert nonstream_queued == 1
+                assert stream_active == 1
+                assert aggregate == 3
+                # The invariant itself.
+                assert aggregate == nonstream_active + nonstream_queued + stream_active
+
+                # Drain everything so the fixture teardown is clean.
+                nonstream_gate.set()
+                [_ async for _ in stream_iter]
+                await asyncio.gather(*nonstream_tasks)
+
+                final = collect_metric_points(metric_reader)
+                assert final["guardrails.requests.active"][0].value == 0

@@ -29,9 +29,9 @@ import logging
 import secrets
 import time
 import warnings
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Generator, Iterable, NamedTuple, Optional, Tuple
 
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
@@ -57,9 +57,10 @@ _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
-    from opentelemetry.metrics import Counter, Histogram, Meter
+    from opentelemetry.metrics import CallbackOptions, Counter, Histogram, Meter, Observation, UpDownCounter
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
+    from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
     from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
 
     _OTEL_AVAILABLE = True
@@ -67,6 +68,7 @@ else:
     try:
         from opentelemetry import metrics as otel_metrics
         from opentelemetry import trace
+        from opentelemetry.metrics import CallbackOptions, Observation
         from opentelemetry.trace import SpanKind, StatusCode, format_trace_id
 
         _OTEL_AVAILABLE = True
@@ -122,16 +124,26 @@ class RequestInstruments:
     """Request-level OTEL instruments for the IORails engine.
 
     Field names mirror the emitted metric names (minus the ``guardrails.``
-    prefix): ``requests`` → ``guardrails.requests``, ``errors`` →
-    ``guardrails.requests.errors``, ``blocked`` →
-    ``guardrails.requests.blocked``, ``duration`` →
-    ``guardrails.request.duration``.
+    prefix).  The saturation-metric group covers the full request lifecycle:
+
+    * Aggregate: ``requests_active`` (``guardrails.requests.active``)
+    * Non-streaming path: ``nonstream_rejections``
+      (``guardrails.nonstream.rejections``); the two gauges
+      ``nonstream.queued`` and ``nonstream.active`` are registered
+      separately via ``register_nonstream_saturation_gauges`` because
+      ObservableGauges need a live queue reference.
+    * Streaming path: ``stream_active`` (``guardrails.stream.active``)
+      and ``stream_rejections`` (``guardrails.stream.rejections``).
     """
 
     requests: "Counter"
     errors: "Counter"
     blocked: "Counter"
     duration: "Histogram"
+    requests_active: "UpDownCounter"
+    nonstream_rejections: "Counter"
+    stream_active: "UpDownCounter"
+    stream_rejections: "Counter"
 
 
 def get_meter() -> Optional["Meter"]:
@@ -180,7 +192,7 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
             errors=meter.create_counter(
                 MetricNames.REQUESTS_ERRORS,
-                description="Guardrails requests that ended in an unhandled error",
+                description="Guardrails requests ending in an unhandled error",
                 unit="1",
             ),
             blocked=meter.create_counter(
@@ -209,8 +221,86 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
                     10.0,
                 ],
             ),
+            requests_active=meter.create_up_down_counter(
+                MetricNames.REQUESTS_ACTIVE,
+                description=("Guardrails requests currently in flight"),
+                unit="1",
+            ),
+            nonstream_rejections=meter.create_counter(
+                MetricNames.NONSTREAM_REJECTIONS,
+                description="Rejected non-streaming requests",
+                unit="1",
+            ),
+            stream_active=meter.create_up_down_counter(
+                MetricNames.STREAM_ACTIVE,
+                description="In-progress streaming requests",
+                unit="1",
+            ),
+            stream_rejections=meter.create_counter(
+                MetricNames.STREAM_REJECTIONS,
+                description="Rejected streaming requests",
+                unit="1",
+            ),
         )
     return _request_instruments
+
+
+def register_nonstream_saturation_gauges(
+    queue: "AsyncWorkQueue",
+    is_running: Callable[[], bool],
+) -> None:
+    """Register ``guardrails.nonstream.queued`` + ``guardrails.nonstream.active``
+    ObservableGauges on the module-level Meter.
+
+    ObservableGauges read live state at collection time, so both metrics
+    reflect the *current* non-streaming queue + worker occupancy with no
+    drift risk vs. an UpDownCounter lineage.
+
+    ``is_running`` is a zero-arg callable returning ``bool``, deferred
+    so each collection re-reads the current state (passing the bool
+    directly would bake its start-time value into the closure).  The
+    callbacks return an empty observation list when it returns ``False``
+    — the state the flag holds after ``IORails.stop()`` flips
+    ``self._running`` back to False.  OTEL Python has no public
+    unregister API for observable instruments, so this "no data points"
+    fallback is the only way to stop a dead IORails instance from
+    polluting collection.
+
+    No-op when the OTEL API is unavailable or no MeterProvider is
+    configured.
+    """
+    meter = get_meter()
+    if meter is None:
+        return
+
+    def _queued_callback(options: "CallbackOptions") -> Iterable["Observation"]:
+        """Observe current backlog: items in the admission queue not yet
+        picked up by a worker.  Returns ``[]`` after ``IORails.stop()``
+        so a dead instance emits no data points."""
+        if not is_running():
+            return []
+        return [Observation(queue.num_pending())]
+
+    def _active_callback(options: "CallbackOptions") -> Iterable["Observation"]:
+        """Observe current occupancy: workers currently executing a
+        WorkItem.  Returns ``[]`` after ``IORails.stop()``, same
+        rationale as :func:`_queued_callback`."""
+        if not is_running():
+            return []
+        return [Observation(queue.num_busy_workers())]
+
+    meter.create_observable_gauge(
+        MetricNames.NONSTREAM_QUEUED,
+        callbacks=[_queued_callback],
+        description="Non-streaming requests buffered in the admission queue",
+        unit="1",
+    )
+    meter.create_observable_gauge(
+        MetricNames.NONSTREAM_ACTIVE,
+        callbacks=[_active_callback],
+        description="Non-streaming requests currently executing on a worker",
+        unit="1",
+    )
 
 
 _INVALID_TRACE_ID = 0
@@ -512,15 +602,68 @@ def record_request_error(exc: BaseException) -> None:
     instruments.errors.add(1, attributes={"error.type": type(exc).__name__})
 
 
+def record_stream_rejected() -> None:
+    """Increment ``guardrails.stream.rejections`` by 1.
+
+    Called from the streaming path when a request arrives while the stream
+    concurrency semaphore is fully occupied (``_stream_semaphore.locked()``).
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.stream_rejections.add(1)
+
+
+def record_nonstream_rejected() -> None:
+    """Increment ``guardrails.nonstream.rejections`` by 1.
+
+    Called from the non-streaming path when the admission queue rejects a
+    submission with ``asyncio.QueueFull`` (the queue's ``reject_on_full``
+    behaviour, triggered when ``NONSTREAM_QUEUE_DEPTH`` is exceeded).
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        return
+    instruments.nonstream_rejections.add(1)
+
+
+@contextmanager
+def stream_active_metric() -> Generator[None, None, None]:
+    """Context manager that tracks a stream as active for its full lifetime.
+
+    ``+1`` on enter / ``-1`` on exit (``finally``) on
+    ``guardrails.stream.active`` (UpDownCounter).  No-op when metrics are
+    unavailable.  Wrap the block where the stream holds a semaphore permit.
+    """
+    instruments = _ensure_request_instruments()
+    if instruments is None:
+        yield
+        return
+    instruments.stream_active.add(1)
+    try:
+        yield
+    finally:
+        instruments.stream_active.add(-1)
+
+
 @contextmanager
 def request_metrics() -> Generator[None, None, None]:
     """Emit request-level OTEL metrics around the wrapped block.
 
-    Increments ``guardrails.requests`` on entry, records
-    ``guardrails.request.duration`` in seconds on exit, and increments
-    ``guardrails.requests.errors`` with an ``error.type`` attribute when
-    the block raises.  Instruments are created lazily on first use.  No-op
-    when the OTEL API is not installed or instruments cannot be created.
+    Increments ``guardrails.requests`` on entry, bumps
+    ``guardrails.requests.active`` (UpDownCounter) for the duration of
+    the block, records ``guardrails.request.duration`` in seconds on
+    exit, and increments ``guardrails.requests.errors`` with an
+    ``error.type`` attribute when the block raises.
+
+    ``requests.active`` covers both non-streaming (queue-wait + execution)
+     and streaming (semaphore hold) requests.
+     Summing the per-path saturation metrics
+    (``nonstream.queued``, ``nonstream.active``, ``stream.active``)
+    should approximate this value at any collection instant.
+
+    Instruments are created lazily on first use.  No-op when the OTEL
+    API is not installed or instruments cannot be created.
     """
     instruments = _ensure_request_instruments()
     if instruments is None:
@@ -528,30 +671,30 @@ def request_metrics() -> Generator[None, None, None]:
         return
     t0 = time.monotonic()
     instruments.requests.add(1)
+    instruments.requests_active.add(1)
     try:
         yield
     except Exception as exc:
         record_request_error(exc)
         raise
     finally:
+        instruments.requests_active.add(-1)
         duration_s = time.monotonic() - t0
         instruments.duration.record(duration_s)
 
 
 @contextmanager
-def traced_request(tracer: Optional["Tracer"], metrics_enabled: bool = False) -> Generator[TracedRequest, None, None]:
-    """Unified request context: sets request ID, optionally creates a span
-    and/or emits request-level metrics.
-
-    The two signals are gated **independently**:
+def traced_request(tracer: Optional["Tracer"]) -> Generator[TracedRequest, None, None]:
+    """Unified request context: sets the request ID and optionally creates
+    a ``guardrails.request`` SERVER span.
 
     * ``tracer is not None`` → a live ``guardrails.request`` SERVER span
       is created and the request ID is derived from its trace ID.
-    * ``metrics_enabled=True`` → emit request-level OTEL metrics
+    * ``tracer is None`` → a fresh request ID is generated locally.
 
-    All four combinations are valid.  Metrics-only (``tracer=None,
-    metrics_enabled=True``) is a supported setup for customers running
-    cheap SLO dashboards without full trace export.
+    Metrics are emitted separately via :func:`request_metrics` at the
+    full-lifecycle scope (around queue submission / stream semaphore
+    acquisition).
 
     Yields a :class:`TracedRequest` (``span``, ``request_id``).  Callers
     that want to mark the request span ERROR from a deeply-nested scope
@@ -564,18 +707,16 @@ def traced_request(tracer: Optional["Tracer"], metrics_enabled: bool = False) ->
     :func:`_cleanup_request_id`, which tolerates the expected
     cross-context ``ValueError`` that async-generator cleanup can raise.
     """
-    metrics_ctx = request_metrics() if metrics_enabled else nullcontext()
     if tracer is not None:
-        with metrics_ctx, request_span(tracer) as (span, req_id):
+        with request_span(tracer) as (span, req_id):
             token = _set_request_id(req_id)
             try:
                 yield TracedRequest(span, req_id)
             finally:
                 _cleanup_request_id(token)
     else:
-        with metrics_ctx:
-            token = set_new_request_id()
-            try:
-                yield TracedRequest(None, get_request_id())
-            finally:
-                _cleanup_request_id(token)
+        token = set_new_request_id()
+        try:
+            yield TracedRequest(None, get_request_id())
+        finally:
+            _cleanup_request_id(token)

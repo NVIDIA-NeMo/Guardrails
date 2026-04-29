@@ -57,6 +57,12 @@ class AsyncWorkQueue(Generic[T]):
         """Returns the number of workers currently executing a task."""
         return self._busy_count
 
+    def num_pending(self) -> int:
+        """Number of items buffered in the queue, waiting for a worker.
+        Pairs with :meth:`num_busy_workers` — together they cover the two states a
+        WorkItem can be in."""
+        return self._queue.qsize()
+
     def is_queue_full(self) -> bool:
         """Returns True if the queue is currently full."""
         return self._queue.full()
