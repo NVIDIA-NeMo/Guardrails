@@ -18,6 +18,7 @@ import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, NamedTuple, Optional, Union
 
+from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 from nemoguardrails.types import (
     ChatMessage,
     FinishReason,
@@ -110,17 +111,6 @@ def _infer_provider_from_module(llm: Any) -> Optional[str]:
     return None
 
 
-def _is_openai_reasoning_model(model_name: str) -> bool:
-    name = model_name.lower()
-    if name in ("o1", "o3", "o4") or name.startswith(("o1-", "o3-", "o4-")):
-        return True
-    if name == "gpt-5" or name.startswith("gpt-5-"):
-        return "chat" not in name
-    if name.startswith(("gpt-5.", "gpt-6")):
-        return True
-    return False
-
-
 _BASE_URL_ATTRIBUTES = [
     "base_url",
     "endpoint_url",
@@ -164,7 +154,7 @@ class LangChainLLMAdapter:
         params = dict(kwargs)
         if stop is not None:
             params["stop"] = stop
-        if _is_openai_reasoning_model(self.model_name):
+        if is_openai_reasoning_model(self.model_name):
             params.pop("temperature", None)
             params.pop("stop", None)
         return params

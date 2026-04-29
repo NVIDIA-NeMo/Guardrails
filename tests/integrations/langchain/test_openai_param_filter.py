@@ -18,7 +18,7 @@
 Two layers of coverage:
 
 - test_classifier_matches_baseline: fast, no-network. Reads the committed
-  baseline JSON of probe results and asserts _is_openai_reasoning_model has zero
+  baseline JSON of probe results and asserts is_openai_reasoning_model has zero
   false negatives against it. Runs in normal CI. Catches accidental
   classifier regressions.
 
@@ -45,7 +45,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from nemoguardrails.integrations.langchain.llm_adapter import _is_openai_reasoning_model
+from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 
 BASELINE_PATH = Path(__file__).parent / "data" / "openai_reasoning_probe_baseline.json"
 
@@ -105,7 +105,7 @@ def _evaluate(probe_results: list[dict]) -> tuple[list[dict], list[str]]:
     false_negatives = []
     false_positives = []
     for result in probe_results:
-        predicted = _is_openai_reasoning_model(result["model"])
+        predicted = is_openai_reasoning_model(result["model"])
         rejects = result["stop"] == "rejected" or result["temperature"] == "rejected"
         if rejects and not predicted:
             false_negatives.append(result)
@@ -121,7 +121,7 @@ def test_classifier_matches_baseline():
     assert not false_negatives, (
         "Classifier says these models do NOT reject stop/temperature, "
         "but the committed probe baseline shows they DO. Update "
-        f"_is_openai_reasoning_model or regenerate baseline: {false_negatives}"
+        f"is_openai_reasoning_model or regenerate baseline: {false_negatives}"
     )
     unexpected = set(false_positives) - KNOWN_FALSE_POSITIVES
     assert not unexpected, (
@@ -219,7 +219,7 @@ async def test_probe_openai_live():
     assert results, "probe returned no models"
     false_negatives, _ = _evaluate(results)
     assert not false_negatives, (
-        f"Live OpenAI probe found models the classifier misses. Update _is_openai_reasoning_model: {false_negatives}"
+        f"Live OpenAI probe found models the classifier misses. Update is_openai_reasoning_model: {false_negatives}"
     )
 
 

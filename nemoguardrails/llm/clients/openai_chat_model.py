@@ -19,6 +19,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 from nemoguardrails.exceptions import LLMClientError, LLMResponseValidationError
 from nemoguardrails.llm.clients.base import HTTPResponse
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 from nemoguardrails.types import (
     ChatMessage,
     FinishReason,
@@ -42,17 +43,6 @@ _FINISH_REASON_MAP: Dict[str, FinishReason] = {
 }
 
 _STANDARD_RESPONSE_KEYS = frozenset({"model", "choices", "usage", "id", "object", "created"})
-
-
-def _is_openai_reasoning_model(model_name: str) -> bool:
-    name = model_name.lower()
-    if name in ("o1", "o3", "o4") or name.startswith(("o1-", "o3-", "o4-")):
-        return True
-    if name == "gpt-5" or name.startswith("gpt-5-"):
-        return "chat" not in name
-    if name.startswith(("gpt-5.", "gpt-6")):
-        return True
-    return False
 
 
 class OpenAIChatModel:
@@ -93,7 +83,7 @@ class OpenAIChatModel:
         merged = {**self._default_kwargs, **kwargs}
         if stop is not None:
             merged["stop"] = stop
-        if _is_openai_reasoning_model(self._model):
+        if is_openai_reasoning_model(self._model):
             merged.pop("temperature", None)
             merged.pop("stop", None)
         return merged

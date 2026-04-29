@@ -24,8 +24,9 @@ from nemoguardrails.exceptions import (
     LLMResponseValidationError,
 )
 from nemoguardrails.llm.clients.base import HTTPResponse
-from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel, _is_openai_reasoning_model
+from nemoguardrails.llm.clients.openai_chat_model import OpenAIChatModel
 from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient
+from nemoguardrails.llm.openai_reasoning import is_openai_reasoning_model
 from nemoguardrails.types import ChatMessage, LLMResponse, Role, ToolCall, ToolCallFunction
 from tests.llm.clients._helpers import make_client, mock_httpx_post, stream_client
 
@@ -529,7 +530,7 @@ class TestIsReasoningModel:
         ],
     )
     def test_reasoning_models(self, model_name):
-        assert _is_openai_reasoning_model(model_name) is True
+        assert is_openai_reasoning_model(model_name) is True
 
     @pytest.mark.parametrize(
         "model_name",
@@ -554,7 +555,7 @@ class TestIsReasoningModel:
         ],
     )
     def test_non_reasoning_models(self, model_name):
-        assert _is_openai_reasoning_model(model_name) is False
+        assert is_openai_reasoning_model(model_name) is False
 
 
 class TestMessageSerialization:
