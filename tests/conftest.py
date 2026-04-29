@@ -35,5 +35,15 @@ def reset_reasoning_trace_var():
     reasoning_trace_var.set(None)
 
 
+@pytest.fixture
+def langchain_framework():
+    from nemoguardrails.llm.frameworks import _reset_frameworks, set_default_framework
+
+    _reset_frameworks()
+    set_default_framework("langchain")
+    yield
+    _reset_frameworks()
+
+
 def pytest_configure(config):
     patch("prompt_toolkit.PromptSession", autospec=True).start()

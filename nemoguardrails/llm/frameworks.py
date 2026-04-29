@@ -13,13 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import logging
 import os
 from typing import Dict
 
 from nemoguardrails.types import LLMFramework
 
+log = logging.getLogger(__name__)
+
 _frameworks: Dict[str, LLMFramework] = {}
-_default_framework: str = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "langchain")
+_default_framework: str = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
 
 
 def register_framework(name: str, framework: LLMFramework) -> None:
@@ -34,13 +38,17 @@ def get_framework(name: str) -> LLMFramework:
             from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework
 
             _frameworks["langchain"] = LangChainFramework()
+        elif name == "default":
+            from nemoguardrails.llm.default_framework import DefaultFramework
+
+            _frameworks["default"] = DefaultFramework()
         else:
             available = list(_frameworks.keys())
             raise KeyError(f"Unknown framework '{name}'. Available frameworks: {available}")
     return _frameworks[name]
 
 
-_LAZY_FRAMEWORKS = {"langchain"}
+_LAZY_FRAMEWORKS = {"langchain", "default"}
 
 
 def set_default_framework(name: str) -> None:
@@ -54,7 +62,22 @@ def get_default_framework() -> str:
     return _default_framework
 
 
-def _reset_frameworks() -> None:
+async def _areset_frameworks() -> None:
     global _default_framework
-    _frameworks.clear()
-    _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "langchain")
+    frameworks_to_close = list(_frameworks.values())
+    try:
+        for fw in frameworks_to_close:
+            reset = getattr(fw, "reset", None)
+            if reset is None:
+                continue
+            try:
+                await reset()
+            except Exception as exc:
+                log.warning("Error resetting framework %r: %s", fw, exc)
+    finally:
+        _frameworks.clear()
+        _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+
+
+def _reset_frameworks() -> None:
+    asyncio.run(_areset_frameworks())

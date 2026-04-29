@@ -22,7 +22,7 @@ tests = ["hypothesis", "pytest"]
 name = "aiofiles"
 version = "25.1.0"
 description = "File support for asyncio."
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "aiofiles-25.1.0-py3-none-any.whl", hash = "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695"},
@@ -325,6 +325,22 @@ files = [
 ]
 
 [[package]]
+name = "asyncer"
+version = "0.0.17"
+description = "Asyncer, async and await, focused on developer experience."
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "asyncer-0.0.17-py3-none-any.whl", hash = "sha256:b0055950e094fb84fd8d21611c7e7b6f5715ddcb57c522c058f64c20badd1438"},
+    {file = "asyncer-0.0.17.tar.gz", hash = "sha256:8a41e185e7ec2ecd583c269d72907a0f9f832e744b6c7474aeb21e349c4becf4"},
+]
+
+[package.dependencies]
+anyio = ">=3.4.0,<5.0"
+sniffio = ">=1.1"
+typing_extensions = {version = ">=4.12.0", markers = "python_version < \"3.15\""}
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 description = "Classes Without Boilerplate"
@@ -333,6 +349,64 @@ python-versions = ">=3.9"
 files = [
     {file = "attrs-25.4.0-py3-none-any.whl", hash = "sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373"},
     {file = "attrs-25.4.0.tar.gz", hash = "sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11"},
+]
+
+[[package]]
+name = "audioop-lts"
+version = "0.2.2"
+description = "LTS Port of Python audioop"
+optional = false
+python-versions = ">=3.13"
+files = [
+    {file = "audioop_lts-0.2.2-cp313-abi3-macosx_10_13_universal2.whl", hash = "sha256:fd3d4602dc64914d462924a08c1a9816435a2155d74f325853c1f1ac3b2d9800"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-macosx_10_13_x86_64.whl", hash = "sha256:550c114a8df0aafe9a05442a1162dfc8fec37e9af1d625ae6060fed6e756f303"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-macosx_11_0_arm64.whl", hash = "sha256:9a13dc409f2564de15dd68be65b462ba0dde01b19663720c68c1140c782d1d75"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:51c916108c56aa6e426ce611946f901badac950ee2ddaf302b7ed35d9958970d"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:47eba38322370347b1c47024defbd36374a211e8dd5b0dcbce7b34fdb6f8847b"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:ba7c3a7e5f23e215cb271516197030c32aef2e754252c4c70a50aaff7031a2c8"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:def246fe9e180626731b26e89816e79aae2276f825420a07b4a647abaa84becc"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:e160bf9df356d841bb6c180eeeea1834085464626dc1b68fa4e1d59070affdc3"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:4b4cd51a57b698b2d06cb9993b7ac8dfe89a3b2878e96bc7948e9f19ff51dba6"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_ppc64le.whl", hash = "sha256:4a53aa7c16a60a6857e6b0b165261436396ef7293f8b5c9c828a3a203147ed4a"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_riscv64.whl", hash = "sha256:3fc38008969796f0f689f1453722a0f463da1b8a6fbee11987830bfbb664f623"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_s390x.whl", hash = "sha256:15ab25dd3e620790f40e9ead897f91e79c0d3ce65fe193c8ed6c26cffdd24be7"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:03f061a1915538fd96272bac9551841859dbb2e3bf73ebe4a23ef043766f5449"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-win32.whl", hash = "sha256:3bcddaaf6cc5935a300a8387c99f7a7fbbe212a11568ec6cf6e4bc458c048636"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-win_amd64.whl", hash = "sha256:a2c2a947fae7d1062ef08c4e369e0ba2086049a5e598fda41122535557012e9e"},
+    {file = "audioop_lts-0.2.2-cp313-abi3-win_arm64.whl", hash = "sha256:5f93a5db13927a37d2d09637ccca4b2b6b48c19cd9eda7b17a2e9f77edee6a6f"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:73f80bf4cd5d2ca7814da30a120de1f9408ee0619cc75da87d0641273d202a09"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:106753a83a25ee4d6f473f2be6b0966fc1c9af7e0017192f5531a3e7463dce58"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:fbdd522624141e40948ab3e8cdae6e04c748d78710e9f0f8d4dae2750831de19"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:143fad0311e8209ece30a8dbddab3b65ab419cbe8c0dde6e8828da25999be911"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:dfbbc74ec68a0fd08cfec1f4b5e8cca3d3cd7de5501b01c4b5d209995033cde9"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:cfcac6aa6f42397471e4943e0feb2244549db5c5d01efcd02725b96af417f3fe"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:752d76472d9804ac60f0078c79cdae8b956f293177acd2316cd1e15149aee132"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:83c381767e2cc10e93e40281a04852facc4cd9334550e0f392f72d1c0a9c5753"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:c0022283e9556e0f3643b7c3c03f05063ca72b3063291834cca43234f20c60bb"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_ppc64le.whl", hash = "sha256:a2d4f1513d63c795e82948e1305f31a6d530626e5f9f2605408b300ae6095093"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_riscv64.whl", hash = "sha256:c9c8e68d8b4a56fda8c025e538e639f8c5953f5073886b596c93ec9b620055e7"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_s390x.whl", hash = "sha256:96f19de485a2925314f5020e85911fb447ff5fbef56e8c7c6927851b95533a1c"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:e541c3ef484852ef36545f66209444c48b28661e864ccadb29daddb6a4b8e5f5"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-win32.whl", hash = "sha256:d5e73fa573e273e4f2e5ff96f9043858a5e9311e94ffefd88a3186a910c70917"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-win_amd64.whl", hash = "sha256:9191d68659eda01e448188f60364c7763a7ca6653ed3f87ebb165822153a8547"},
+    {file = "audioop_lts-0.2.2-cp313-cp313t-win_arm64.whl", hash = "sha256:c174e322bb5783c099aaf87faeb240c8d210686b04bd61dfd05a8e5a83d88969"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-macosx_10_13_universal2.whl", hash = "sha256:f9ee9b52f5f857fbaf9d605a360884f034c92c1c23021fb90b2e39b8e64bede6"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-macosx_10_13_x86_64.whl", hash = "sha256:49ee1a41738a23e98d98b937a0638357a2477bc99e61b0f768a8f654f45d9b7a"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:5b00be98ccd0fc123dcfad31d50030d25fcf31488cde9e61692029cd7394733b"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:a6d2e0f9f7a69403e388894d4ca5ada5c47230716a03f2847cfc7bd1ecb589d6"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f9b0b8a03ef474f56d1a842af1a2e01398b8f7654009823c6d9e0ecff4d5cfbf"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:2b267b70747d82125f1a021506565bdc5609a2b24bcb4773c16d79d2bb260bbd"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:0337d658f9b81f4cd0fdb1f47635070cc084871a3d4646d9de74fdf4e7c3d24a"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:167d3b62586faef8b6b2275c3218796b12621a60e43f7e9d5845d627b9c9b80e"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:0d9385e96f9f6da847f4d571ce3cb15b5091140edf3db97276872647ce37efd7"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_ppc64le.whl", hash = "sha256:48159d96962674eccdca9a3df280e864e8ac75e40a577cc97c5c42667ffabfc5"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_riscv64.whl", hash = "sha256:8fefe5868cd082db1186f2837d64cfbfa78b548ea0d0543e9b28935ccce81ce9"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_s390x.whl", hash = "sha256:58cf54380c3884fb49fdd37dfb7a772632b6701d28edd3e2904743c5e1773602"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:088327f00488cdeed296edd9215ca159f3a5a5034741465789cad403fcf4bec0"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-win32.whl", hash = "sha256:068aa17a38b4e0e7de771c62c60bbca2455924b67a8814f3b0dee92b5820c0b3"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-win_amd64.whl", hash = "sha256:a5bf613e96f49712073de86f20dbdd4014ca18efd4d34ed18c75bd808337851b"},
+    {file = "audioop_lts-0.2.2-cp314-cp314t-win_arm64.whl", hash = "sha256:b492c3b040153e68b9fdaff5913305aaaba5bb433d8a7f73d5cf6a64ed3cc1dd"},
+    {file = "audioop_lts-0.2.2.tar.gz", hash = "sha256:64d0c62d88e67b98a1a5e71987b7aa7b5bcffc7dcee65b635823dbdd0a8dbbd0"},
 ]
 
 [[package]]
@@ -370,6 +444,17 @@ chardet = ["chardet"]
 charset-normalizer = ["charset-normalizer"]
 html5lib = ["html5lib"]
 lxml = ["lxml"]
+
+[[package]]
+name = "bidict"
+version = "0.23.1"
+description = "The bidirectional mapping library for Python."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "bidict-0.23.1-py3-none-any.whl", hash = "sha256:5dae8d4d79b552a71cbabc7deb25dfe8ce710b17ff41711e13010ead2abfc3e5"},
+    {file = "bidict-0.23.1.tar.gz", hash = "sha256:03069d763bc387bbd20e7d49914e75fc4132a41937fa3405417e1a5a2d006d71"},
+]
 
 [[package]]
 name = "blinker"
@@ -467,7 +552,7 @@ files = [
 name = "cffi"
 version = "2.0.0"
 description = "Foreign Function Interface for Python calling C code."
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "cffi-2.0.0-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:0cf2d91ecc3fcc0625c2c530fe004f82c110405f101548512cce44322fa8ac44"},
@@ -569,6 +654,49 @@ files = [
     {file = "cfgv-3.5.0-py2.py3-none-any.whl", hash = "sha256:a8dc6b26ad22ff227d2634a65cb388215ce6cc96bbcc5cfde7641ae87e8dacc0"},
     {file = "cfgv-3.5.0.tar.gz", hash = "sha256:d5b1034354820651caa73ede66a6294d6e95c1b00acc5e9b098e917404669132"},
 ]
+
+[[package]]
+name = "chainlit"
+version = "2.11.0"
+description = "Build Conversational AI."
+optional = false
+python-versions = "<4.0.0,>=3.10"
+files = [
+    {file = "chainlit-2.11.0-py3-none-any.whl", hash = "sha256:d7e882e9094f5847c67404e1dfd93b1825c16544d9536eed4d553c862497d078"},
+    {file = "chainlit-2.11.0.tar.gz", hash = "sha256:130a0500cb94ac1eb98d27bda9eba1bf5f8094068359a151cb03644ab8a1e8bc"},
+]
+
+[package.dependencies]
+aiofiles = ">=23.1.0"
+asyncer = ">=0.0.8,<0.1.0"
+audioop-lts = {version = ">=0.2.1,<0.3.0", markers = "python_version >= \"3.13\""}
+click = ">=8.1.3,<9.0.0"
+dataclasses-json = ">=0.6.7,<0.7.0"
+fastapi = ">=0.116.1"
+filetype = ">=1.2.0,<2.0.0"
+httpx = ">=0.23.0"
+lazify = ">=0.4.0,<0.5.0"
+literalai = "0.1.201"
+mcp = ">=1.11.0,<2.0.0"
+nest-asyncio = ">=1.6.0,<2.0.0"
+packaging = ">=23.1"
+pydantic = ">=2.7.2,<3"
+pydantic-settings = ">=2.10.1"
+pyjwt = ">=2.8.0,<3.0.0"
+python-dotenv = ">=1.0.0,<2.0.0"
+python-multipart = ">=0.0.18,<1.0.0"
+python-socketio = ">=5.11.0,<6.0.0"
+starlette = ">=0.47.2"
+syncer = ">=2.0.3,<3.0.0"
+tomli = ">=2.0.1,<3.0.0"
+uvicorn = ">=0.35.0"
+watchfiles = ">=1.1.1,<2.0.0"
+
+[package.extras]
+custom-data = ["asyncpg (>=0.30.0,<1.0.0)", "azure-identity (>=1.14.1,<2.0.0)", "azure-storage-blob (>=12.24.0,<13.0.0)", "azure-storage-file-datalake (>=12.14.0,<13.0.0)", "boto3 (>=1.34.73,<2.0.0)", "google-cloud-storage (>=2.19.0,<4.0.0)", "sqlalchemy (>=2.0.28,<3.0.0)"]
+dev = ["ruff (>=0.9.0,<1.0.0)"]
+mypy = ["mypy (>=1.13,<2.0.0)", "mypy-boto3-dynamodb (>=1.34.113,<2.0.0)", "pandas-stubs (>=2.2.2,<4.0.0)", "types-aiofiles (>=23.1.0.5,<26.0.0)", "types-requests (>=2.31.0.2,<3.0.0)"]
+tests = ["aiosqlite (>=0.20.0,<1.0.0)", "botbuilder-core (>=4.15.0,<5.0.0)", "discord (>=2.3.2,<3.0.0)", "langchain (>=1.0.0)", "llama-index (>=0.13.0,<1.0.0)", "matplotlib (>=3.7.1,<4.0.0)", "moto (>=5.0.14,<6.0.0)", "openai (>=2.0.0,<3.0.0)", "pandas (>=2.2.2,<4.0.0)", "plotly (>=5.3.0,<7.0.0)", "polars (>=1.0.0,<2.0.0)", "pytest (>=8.3.2,<10.0.0)", "pytest-asyncio (>=1.0.0,<2.0.0)", "pytest-cov (>=6.0.0,<7.0.0)", "semantic-kernel (>=1.24.0,<2.0.0)", "slack-bolt (>=1.18.1,<2.0.0)", "tenacity (>=9.0.0,<10.0.0)", "transformers (>=5.0,<6.0)"]
 
 [[package]]
 name = "charset-normalizer"
@@ -690,6 +818,17 @@ files = [
     {file = "charset_normalizer-3.4.4-cp39-cp39-win_arm64.whl", hash = "sha256:b5d84d37db046c5ca74ee7bb47dd6cbc13f80665fdde3e8040bdd3fb015ecb50"},
     {file = "charset_normalizer-3.4.4-py3-none-any.whl", hash = "sha256:7a32c560861a02ff789ad905a2fe94e3f840803362c84fecf1851cb4cf3dc37f"},
     {file = "charset_normalizer-3.4.4.tar.gz", hash = "sha256:94537985111c35f28720e43603b8e7b43a6ecfb2ce1d3058bbe955b73404e21a"},
+]
+
+[[package]]
+name = "chevron"
+version = "0.14.0"
+description = "Mustache templating language renderer"
+optional = false
+python-versions = "*"
+files = [
+    {file = "chevron-0.14.0-py3-none-any.whl", hash = "sha256:fbf996a709f8da2e745ef763f482ce2d311aa817d287593a5b990d6d6e4f0443"},
+    {file = "chevron-0.14.0.tar.gz", hash = "sha256:87613aafdf6d77b6a90ff073165a61ae5086e21ad49057aa0e53681601800ebf"},
 ]
 
 [[package]]
@@ -911,7 +1050,7 @@ toml = ["tomli"]
 name = "cryptography"
 version = "46.0.5"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
-optional = true
+optional = false
 python-versions = "!=3.9.0,!=3.9.1,>=3.8"
 files = [
     {file = "cryptography-46.0.5-cp311-abi3-macosx_10_9_universal2.whl", hash = "sha256:351695ada9ea9618b3500b490ad54c739860883df6c1f555e088eaf25b1bbaad"},
@@ -978,6 +1117,16 @@ sdist = ["build (>=1.0.0)"]
 ssh = ["bcrypt (>=3.1.5)"]
 test = ["certifi (>=2024)", "cryptography-vectors (==46.0.5)", "pretend (>=0.7)", "pytest (>=7.4.0)", "pytest-benchmark (>=4.0)", "pytest-cov (>=2.10.1)", "pytest-xdist (>=3.5.0)"]
 test-randomorder = ["pytest-randomly"]
+
+[[package]]
+name = "cuid"
+version = "0.4"
+description = "Fast, scalable unique ID generation"
+optional = false
+python-versions = "*"
+files = [
+    {file = "cuid-0.4.tar.gz", hash = "sha256:74eaba154916a2240405c3631acee708c263ef8fa05a86820b87d0f59f84e978"},
+]
 
 [[package]]
 name = "cymem"
@@ -1067,6 +1216,23 @@ files = [
 [package.dependencies]
 marshmallow = ">=3.18.0,<4.0.0"
 typing-inspect = ">=0.4.0,<1"
+
+[[package]]
+name = "deprecated"
+version = "1.3.1"
+description = "Python @deprecated decorator to deprecate old python classes, functions or methods."
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,>=2.7"
+files = [
+    {file = "deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f"},
+    {file = "deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223"},
+]
+
+[package.dependencies]
+wrapt = ">=1.10,<3"
+
+[package.extras]
+dev = ["PyTest", "PyTest-Cov", "bump2version (<1)", "setuptools", "tox"]
 
 [[package]]
 name = "distlib"
@@ -1292,7 +1458,7 @@ files = [
 name = "filetype"
 version = "1.2.0"
 description = "Infer file type and MIME type of any file/buffer. No external dependencies."
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "filetype-1.2.0-py2.py3-none-any.whl", hash = "sha256:7ce71b6880181241cf7ac8697a2f1eb6a8bd9b429f7ad6d27b8db9ba5f1c2d25"},
@@ -1604,7 +1770,7 @@ protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4
 name = "googleapis-common-protos"
 version = "1.72.0"
 description = "Common protobufs used in Google APIs"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "googleapis_common_protos-1.72.0-py3-none-any.whl", hash = "sha256:4299c5a82d5ae1a9702ada957347726b167f9f8d1fc352477702a1e851ff4038"},
@@ -1698,7 +1864,7 @@ test = ["objgraph", "psutil", "setuptools"]
 name = "grpcio"
 version = "1.78.0"
 description = "HTTP/2-based RPC framework"
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "grpcio-1.78.0-cp310-cp310-linux_armv7l.whl", hash = "sha256:7cc47943d524ee0096f973e1081cb8f4f17a4615f2116882a5f1416e4cfe92b5"},
@@ -1999,6 +2165,17 @@ enabler = ["pytest-enabler (>=3.4)"]
 perf = ["ipython"]
 test = ["flufl.flake8", "jaraco.test (>=5.4)", "packaging", "pyfakefs", "pytest (>=6,!=8.1.*)", "pytest-perf (>=0.9.2)"]
 type = ["mypy (<1.19)", "pytest-mypy (>=1.0.1)"]
+
+[[package]]
+name = "inflection"
+version = "0.5.1"
+description = "A port of Ruby on Rails inflector to Python"
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "inflection-0.5.1-py2.py3-none-any.whl", hash = "sha256:f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2"},
+    {file = "inflection-0.5.1.tar.gz", hash = "sha256:1a29730d366e996aaacffb2f1f1cb9593dc38e2ddd30c91250c6dde09ea9b417"},
+]
 
 [[package]]
 name = "iniconfig"
@@ -2479,6 +2656,34 @@ nearley = ["js2py"]
 regex = ["regex"]
 
 [[package]]
+name = "lazify"
+version = "0.4.0"
+description = "Lazify all the things!"
+optional = false
+python-versions = "*"
+files = [
+    {file = "Lazify-0.4.0-py2.py3-none-any.whl", hash = "sha256:c2c17a7a33e9406897e3f66fde4cd3f84716218d580330e5af10cfe5a0cd195a"},
+    {file = "Lazify-0.4.0.tar.gz", hash = "sha256:7102bfe63e56de2ab62b3bc661a7190c4056771a8624f04a8b785275c3dd1f9b"},
+]
+
+[[package]]
+name = "literalai"
+version = "0.1.201"
+description = "An SDK for observability in Python applications"
+optional = false
+python-versions = "*"
+files = [
+    {file = "literalai-0.1.201.tar.gz", hash = "sha256:29e4ccadd9d68bfea319a7f0b4fc32611b081990d9195f98e5e97a14d24d3713"},
+]
+
+[package.dependencies]
+chevron = ">=0.14.0"
+httpx = ">=0.23.0"
+packaging = ">=23.0"
+pydantic = ">=1,<3"
+traceloop-sdk = ">=0.33.12"
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 description = "Python logging made (stupidly) simple"
@@ -2636,6 +2841,38 @@ packaging = ">=17.0"
 dev = ["marshmallow[tests]", "pre-commit (>=3.5,<5.0)", "tox"]
 docs = ["autodocsumm (==0.2.14)", "furo (==2024.8.6)", "sphinx (==8.1.3)", "sphinx-copybutton (==0.5.2)", "sphinx-issues (==5.0.0)", "sphinxext-opengraph (==0.9.1)"]
 tests = ["pytest", "simplejson"]
+
+[[package]]
+name = "mcp"
+version = "1.27.0"
+description = "Model Context Protocol SDK"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "mcp-1.27.0-py3-none-any.whl", hash = "sha256:5ce1fa81614958e267b21fb2aa34e0aea8e2c6ede60d52aba45fd47246b4d741"},
+    {file = "mcp-1.27.0.tar.gz", hash = "sha256:d3dc35a7eec0d458c1da4976a48f982097ddaab87e278c5511d5a4a56e852b83"},
+]
+
+[package.dependencies]
+anyio = ">=4.5"
+httpx = ">=0.27.1"
+httpx-sse = ">=0.4"
+jsonschema = ">=4.20.0"
+pydantic = ">=2.11.0,<3.0.0"
+pydantic-settings = ">=2.5.2"
+pyjwt = {version = ">=2.10.1", extras = ["crypto"]}
+python-multipart = ">=0.0.9"
+pywin32 = {version = ">=310", markers = "sys_platform == \"win32\""}
+sse-starlette = ">=1.6.1"
+starlette = ">=0.27"
+typing-extensions = ">=4.9.0"
+typing-inspection = ">=0.4.1"
+uvicorn = {version = ">=0.31.1", markers = "sys_platform != \"emscripten\""}
+
+[package.extras]
+cli = ["python-dotenv (>=1.0.0)", "typer (>=0.16.0)"]
+rich = ["rich (>=13.9.4)"]
+ws = ["websockets (>=15.0.1)"]
 
 [[package]]
 name = "mdit-py-plugins"
@@ -3419,6 +3656,836 @@ importlib-metadata = ">=6.0,<8.8.0"
 typing-extensions = ">=4.5.0"
 
 [[package]]
+name = "opentelemetry-exporter-otlp-proto-common"
+version = "1.40.0"
+description = "OpenTelemetry Protobuf encoding"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl", hash = "sha256:7081ff453835a82417bf38dccf122c827c3cbc94f2079b03bba02a3165f25149"},
+    {file = "opentelemetry_exporter_otlp_proto_common-1.40.0.tar.gz", hash = "sha256:1cbee86a4064790b362a86601ee7934f368b81cd4cc2f2e163902a6e7818a0fa"},
+]
+
+[package.dependencies]
+opentelemetry-proto = "1.40.0"
+
+[[package]]
+name = "opentelemetry-exporter-otlp-proto-grpc"
+version = "1.40.0"
+description = "OpenTelemetry Collector Protobuf over gRPC Exporter"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_exporter_otlp_proto_grpc-1.40.0-py3-none-any.whl", hash = "sha256:2aa0ca53483fe0cf6405087a7491472b70335bc5c7944378a0a8e72e86995c52"},
+    {file = "opentelemetry_exporter_otlp_proto_grpc-1.40.0.tar.gz", hash = "sha256:bd4015183e40b635b3dab8da528b27161ba83bf4ef545776b196f0fb4ec47740"},
+]
+
+[package.dependencies]
+googleapis-common-protos = ">=1.57,<2.0"
+grpcio = [
+    {version = ">=1.63.2,<2.0.0", markers = "python_version < \"3.13\""},
+    {version = ">=1.66.2,<2.0.0", markers = "python_version == \"3.13\""},
+]
+opentelemetry-api = ">=1.15,<2.0"
+opentelemetry-exporter-otlp-proto-common = "1.40.0"
+opentelemetry-proto = "1.40.0"
+opentelemetry-sdk = ">=1.40.0,<1.41.0"
+typing-extensions = ">=4.6.0"
+
+[package.extras]
+gcp-auth = ["opentelemetry-exporter-credential-provider-gcp (>=0.59b0)"]
+
+[[package]]
+name = "opentelemetry-exporter-otlp-proto-http"
+version = "1.40.0"
+description = "OpenTelemetry Collector Protobuf over HTTP Exporter"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl", hash = "sha256:a8d1dab28f504c5d96577d6509f80a8150e44e8f45f82cdbe0e34c99ab040069"},
+    {file = "opentelemetry_exporter_otlp_proto_http-1.40.0.tar.gz", hash = "sha256:db48f5e0f33217588bbc00274a31517ba830da576e59503507c839b38fa0869c"},
+]
+
+[package.dependencies]
+googleapis-common-protos = ">=1.52,<2.0"
+opentelemetry-api = ">=1.15,<2.0"
+opentelemetry-exporter-otlp-proto-common = "1.40.0"
+opentelemetry-proto = "1.40.0"
+opentelemetry-sdk = ">=1.40.0,<1.41.0"
+requests = ">=2.7,<3.0"
+typing-extensions = ">=4.5.0"
+
+[package.extras]
+gcp-auth = ["opentelemetry-exporter-credential-provider-gcp (>=0.59b0)"]
+
+[[package]]
+name = "opentelemetry-instrumentation"
+version = "0.61b0"
+description = "Instrumentation Tools & Auto Instrumentation for OpenTelemetry Python"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation-0.61b0-py3-none-any.whl", hash = "sha256:92a93a280e69788e8f88391247cc530fd81f16f2b011979d4d6398f805cfbc63"},
+    {file = "opentelemetry_instrumentation-0.61b0.tar.gz", hash = "sha256:cb21b48db738c9de196eba6b805b4ff9de3b7f187e4bbf9a466fa170514f1fc7"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.4,<2.0"
+opentelemetry-semantic-conventions = "0.61b0"
+packaging = ">=18.0"
+wrapt = ">=1.0.0,<2.0.0"
+
+[[package]]
+name = "opentelemetry-instrumentation-agno"
+version = "0.59.2"
+description = "OpenTelemetry Agno instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_agno-0.59.2-py3-none-any.whl", hash = "sha256:3a3cf08acff84d5f7252b3898ca1f67b2575cf273b8237f66bbe6bb51aa30750"},
+    {file = "opentelemetry_instrumentation_agno-0.59.2.tar.gz", hash = "sha256:cdbabb1d94b3332a0cfa28c96f761ffea8fa00757174775b0d6a8e5a15769ab5"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.28.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["agno"]
+
+[[package]]
+name = "opentelemetry-instrumentation-alephalpha"
+version = "0.59.2"
+description = "OpenTelemetry Aleph Alpha instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_alephalpha-0.59.2-py3-none-any.whl", hash = "sha256:6968cb511affbe3ed91672c3c26f788ec2745e7e96db2e5dc44d7dbd608f17fa"},
+    {file = "opentelemetry_instrumentation_alephalpha-0.59.2.tar.gz", hash = "sha256:d1d25aac75019439d02b9d7b5bc3ecf62a3268962fa45b35cb564b4fd0b154cd"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["aleph-alpha-client"]
+
+[[package]]
+name = "opentelemetry-instrumentation-anthropic"
+version = "0.59.2"
+description = "OpenTelemetry Anthropic instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_anthropic-0.59.2-py3-none-any.whl", hash = "sha256:a6cb918fc68fc5d94796a178aa2196f80a2ae372b8e8fce638c4d1363824c9ce"},
+    {file = "opentelemetry_instrumentation_anthropic-0.59.2.tar.gz", hash = "sha256:5a6f8cf9c7968080d6bb17a72216a23d5f0e6b07671d36aba51325cfb5472b8f"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["anthropic"]
+
+[[package]]
+name = "opentelemetry-instrumentation-bedrock"
+version = "0.59.2"
+description = "OpenTelemetry Bedrock instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_bedrock-0.59.2-py3-none-any.whl", hash = "sha256:059c757d596e7923f24bc365854ce831fd0612d53d0a45401a5d94b410cc810b"},
+    {file = "opentelemetry_instrumentation_bedrock-0.59.2.tar.gz", hash = "sha256:1cb94333e19213a446d424d78ab92eb939d81a9c60d5efab427542acfe68f92b"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+enrichment = ["anthropic (>=0.17.0)"]
+instruments = ["boto3"]
+
+[[package]]
+name = "opentelemetry-instrumentation-chromadb"
+version = "0.59.2"
+description = "OpenTelemetry Chroma DB instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_chromadb-0.59.2-py3-none-any.whl", hash = "sha256:79fb61b062b7dd6fadae890c2d9c14ef68d043166e4491e46d99780620132781"},
+    {file = "opentelemetry_instrumentation_chromadb-0.59.2.tar.gz", hash = "sha256:9b95982ecca0ce341a1239eee08a31ccafe8b8c76309862682b4fd56bf54d098"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["chromadb"]
+
+[[package]]
+name = "opentelemetry-instrumentation-cohere"
+version = "0.59.2"
+description = "OpenTelemetry Cohere instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_cohere-0.59.2-py3-none-any.whl", hash = "sha256:b7585d0fdc71fcce65bbb5f2b2dc7c62ae443a7fcf09827345b0134c4cc99212"},
+    {file = "opentelemetry_instrumentation_cohere-0.59.2.tar.gz", hash = "sha256:68bfdbcac04262d012709173a53be3014cb2f925502291037649084211afdb82"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["cohere"]
+
+[[package]]
+name = "opentelemetry-instrumentation-crewai"
+version = "0.59.2"
+description = "OpenTelemetry crewAI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_crewai-0.59.2-py3-none-any.whl", hash = "sha256:5c1767f425a43f13b051538a13555561d02cde970a478cde15b5151fc9aac0fb"},
+    {file = "opentelemetry_instrumentation_crewai-0.59.2.tar.gz", hash = "sha256:36880718bcf1f3cd861f1ce3a6c37616a0bdda91f529ec46d824a4aba58d70c3"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["crewai (>=1.0.0,<2)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-google-generativeai"
+version = "0.59.2"
+description = "OpenTelemetry Google Generative AI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_google_generativeai-0.59.2-py3-none-any.whl", hash = "sha256:48f8ee2e3ac23c83d4b56c88b195ad30310bd2ae15cd6a070d4a7c717fb21b3b"},
+    {file = "opentelemetry_instrumentation_google_generativeai-0.59.2.tar.gz", hash = "sha256:4983545c5cc677f3ac70c049a3e4258f02f0bbb1b1c4011f5ad24b292a80d2c9"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["google-genai"]
+
+[[package]]
+name = "opentelemetry-instrumentation-groq"
+version = "0.59.2"
+description = "OpenTelemetry Groq instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_groq-0.59.2-py3-none-any.whl", hash = "sha256:f6bfd16fdb43b71e8bc11d704178f5e5522555ac5b9f8d8a5260c33d9f34109b"},
+    {file = "opentelemetry_instrumentation_groq-0.59.2.tar.gz", hash = "sha256:9f3d2d5bacad4b7d9c399b239f4af57453c0a7304bb7532229f2569cf339abdd"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["groq"]
+
+[[package]]
+name = "opentelemetry-instrumentation-haystack"
+version = "0.59.2"
+description = "OpenTelemetry Haystack instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_haystack-0.59.2-py3-none-any.whl", hash = "sha256:87cefb70506feebb87d86ef0ea14c45c52279901af8eda8f96d2800d8dca62e9"},
+    {file = "opentelemetry_instrumentation_haystack-0.59.2.tar.gz", hash = "sha256:f734fec4a184f50375eea4dacc8f081d3035eb1e1a9eb8b3737306ccbf27ff63"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["haystack-ai"]
+
+[[package]]
+name = "opentelemetry-instrumentation-lancedb"
+version = "0.59.2"
+description = "OpenTelemetry Lancedb instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_lancedb-0.59.2-py3-none-any.whl", hash = "sha256:672446b19903b3b41fece28bb945e6d2999888a02ce3c38b4da88faf1bf601ef"},
+    {file = "opentelemetry_instrumentation_lancedb-0.59.2.tar.gz", hash = "sha256:d3455cdd6213dd1e401fb3f1f9337e6f5a397907bc602f0fc339986ba6857df2"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["lancedb"]
+
+[[package]]
+name = "opentelemetry-instrumentation-langchain"
+version = "0.59.2"
+description = "OpenTelemetry Langchain instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_langchain-0.59.2-py3-none-any.whl", hash = "sha256:4959266ebfca16aa6a8cfec6229fbceb079ccadf19b50f54e5163bcc805a183a"},
+    {file = "opentelemetry_instrumentation_langchain-0.59.2.tar.gz", hash = "sha256:d83269a6f004ddbe3d3ad4bc5d0636393d3b35ece703cc58d80cc56e04743026"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["langchain"]
+
+[[package]]
+name = "opentelemetry-instrumentation-llamaindex"
+version = "0.59.2"
+description = "OpenTelemetry LlamaIndex instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_llamaindex-0.59.2-py3-none-any.whl", hash = "sha256:0015187ef49a98ecd40c55cc47632cc9c11727da6a2428fabad8d492d5905ae4"},
+    {file = "opentelemetry_instrumentation_llamaindex-0.59.2.tar.gz", hash = "sha256:c3a837bada8fb249beaec87bd020dbbf7ae3df1ba7815c2ae40573df18487131"},
+]
+
+[package.dependencies]
+inflection = ">=0.5.1,<0.6.0"
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["llama-index"]
+llamaparse = ["llama-parse"]
+
+[[package]]
+name = "opentelemetry-instrumentation-logging"
+version = "0.61b0"
+description = "OpenTelemetry Logging instrumentation"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_logging-0.61b0-py3-none-any.whl", hash = "sha256:6d87e5ded6a0128d775d41511f8380910a1b610671081d16efb05ac3711c0074"},
+    {file = "opentelemetry_instrumentation_logging-0.61b0.tar.gz", hash = "sha256:feaa30b700acd2a37cc81db5f562ab0c3a5b6cc2453595e98b72c01dcf649584"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+
+[[package]]
+name = "opentelemetry-instrumentation-marqo"
+version = "0.59.2"
+description = "OpenTelemetry Marqo instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_marqo-0.59.2-py3-none-any.whl", hash = "sha256:ac2f5d711f1e4ad8e441c90d4fdec19fa589ce665ac4b9ffa5abecb407864028"},
+    {file = "opentelemetry_instrumentation_marqo-0.59.2.tar.gz", hash = "sha256:79b58baa32190f80b562a1074bee3f78c306de1ded5a7f8aeacb4490a8fcc321"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["marqo"]
+
+[[package]]
+name = "opentelemetry-instrumentation-mcp"
+version = "0.59.2"
+description = "OpenTelemetry mcp instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_mcp-0.59.2-py3-none-any.whl", hash = "sha256:da345cb1e9047ea59e4ace26df745f32a2b90bd49bf2e0d542f7838b97c0f992"},
+    {file = "opentelemetry_instrumentation_mcp-0.59.2.tar.gz", hash = "sha256:172cae33c7849e398e580526485388b599befdc8d56fa01ff86b46d10c673a93"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["mcp"]
+
+[[package]]
+name = "opentelemetry-instrumentation-milvus"
+version = "0.59.2"
+description = "OpenTelemetry Milvus instrumentation"
+optional = false
+python-versions = "<4,>=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_milvus-0.59.2-py3-none-any.whl", hash = "sha256:434f4a37c405422ea2abc5ade9ab555888ce9c1a6377a9912a3a5b3dfa8bd496"},
+    {file = "opentelemetry_instrumentation_milvus-0.59.2.tar.gz", hash = "sha256:5ef8c29316f3011993ca61d3c3d8e36929d52ff21b9bca1596aa3458179b8ce4"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["pymilvus"]
+
+[[package]]
+name = "opentelemetry-instrumentation-mistralai"
+version = "0.59.2"
+description = "OpenTelemetry Mistral AI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_mistralai-0.59.2-py3-none-any.whl", hash = "sha256:d27fc52f28d43aa9e715013c9af276fe065949450c388764957ca1f554b1c25e"},
+    {file = "opentelemetry_instrumentation_mistralai-0.59.2.tar.gz", hash = "sha256:ee8ad0209437c1e368c04ca130c6cb3d5e3bb8461f881f71b8ebf806b60170cc"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["mistralai"]
+
+[[package]]
+name = "opentelemetry-instrumentation-ollama"
+version = "0.59.2"
+description = "OpenTelemetry Ollama instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_ollama-0.59.2-py3-none-any.whl", hash = "sha256:590343a6c0febbbd8449e2de0896cda28f68b2457815b3d2be6e4df0e3565fea"},
+    {file = "opentelemetry_instrumentation_ollama-0.59.2.tar.gz", hash = "sha256:38c4483416712f541c35e0184fb412859582a3049034d7813f3b55e8e7ee27f2"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["ollama"]
+
+[[package]]
+name = "opentelemetry-instrumentation-openai"
+version = "0.59.2"
+description = "OpenTelemetry OpenAI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_openai-0.59.2-py3-none-any.whl", hash = "sha256:22bc4bc3fa0feb69b7eed217028c9e1dbb6aaec8eca92aa48e6ec704d8443987"},
+    {file = "opentelemetry_instrumentation_openai-0.59.2.tar.gz", hash = "sha256:b3a1e17882240c2e1c58b9620b81597d352e79729eb9ed57d0d38535de6bc8f3"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["openai"]
+
+[[package]]
+name = "opentelemetry-instrumentation-openai-agents"
+version = "0.59.2"
+description = "OpenTelemetry OpenAI Agents instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_openai_agents-0.59.2-py3-none-any.whl", hash = "sha256:931dd486e2e510b9f436a7fffd6016d45f810c01c017c340d7e62205f2e98c48"},
+    {file = "opentelemetry_instrumentation_openai_agents-0.59.2.tar.gz", hash = "sha256:25626e0633b791b06ffa7f36ef5476bb4d935a6c502f58942b5a2b90b8a6e0f1"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["openai-agents"]
+
+[[package]]
+name = "opentelemetry-instrumentation-pinecone"
+version = "0.59.2"
+description = "OpenTelemetry Pinecone instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_pinecone-0.59.2-py3-none-any.whl", hash = "sha256:f5ce5b680134e31023c676103fa0cf802e77e7d0749f605357502b46b05acc13"},
+    {file = "opentelemetry_instrumentation_pinecone-0.59.2.tar.gz", hash = "sha256:1b76f0489d3918adec4cbe3bbd2edd3906f6941b347740a43a3f3837317a9487"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["pinecone (>=5.1.0,<9)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-qdrant"
+version = "0.59.2"
+description = "OpenTelemetry Qdrant instrumentation"
+optional = false
+python-versions = "<4,>=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_qdrant-0.59.2-py3-none-any.whl", hash = "sha256:36dc564e452d31fdd26d1ba59d75f087cd784922bf165f4ca0ad67a990abd078"},
+    {file = "opentelemetry_instrumentation_qdrant-0.59.2.tar.gz", hash = "sha256:0d5c0328875f2714d17b3876fe55edf87bfd1e17e785be557c80777a52f94525"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["qdrant-client"]
+
+[[package]]
+name = "opentelemetry-instrumentation-redis"
+version = "0.61b0"
+description = "OpenTelemetry Redis instrumentation"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_redis-0.61b0-py3-none-any.whl", hash = "sha256:8d4e850bbb5f8eeafa44c0eac3a007990c7125de187bc9c3659e29ff7e091172"},
+    {file = "opentelemetry_instrumentation_redis-0.61b0.tar.gz", hash = "sha256:ae0fbb56be9a641e621d55b02a7d62977a2c77c5ee760addd79b9b266e46e523"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+opentelemetry-semantic-conventions = "0.61b0"
+wrapt = ">=1.12.1"
+
+[package.extras]
+instruments = ["redis (>=2.6)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-replicate"
+version = "0.59.2"
+description = "OpenTelemetry Replicate instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_replicate-0.59.2-py3-none-any.whl", hash = "sha256:340f829fc98c239572447a4f55b0d3a82dc9f45a124999fd4b7d7e041ce78a74"},
+    {file = "opentelemetry_instrumentation_replicate-0.59.2.tar.gz", hash = "sha256:b74c9fcdabdfae6f86c8b69b5bba9dc91067645dd08ccfad837127254038fe6a"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["replicate"]
+
+[[package]]
+name = "opentelemetry-instrumentation-requests"
+version = "0.61b0"
+description = "OpenTelemetry requests instrumentation"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_requests-0.61b0-py3-none-any.whl", hash = "sha256:cce19b379949fe637eb73ba39b02c57d2d0805447ca6d86534aa33fcb141f683"},
+    {file = "opentelemetry_instrumentation_requests-0.61b0.tar.gz", hash = "sha256:15f879ce8fb206bd7e6fdc61663ea63481040a845218c0cf42902ce70bd7e9d9"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+opentelemetry-semantic-conventions = "0.61b0"
+opentelemetry-util-http = "0.61b0"
+
+[package.extras]
+instruments = ["requests (>=2.0,<3.0)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-sagemaker"
+version = "0.59.2"
+description = "OpenTelemetry SageMaker instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_sagemaker-0.59.2-py3-none-any.whl", hash = "sha256:2d0f16934cfd25c05b715b134df3b414c426ae699111496d8192286c9cb03182"},
+    {file = "opentelemetry_instrumentation_sagemaker-0.59.2.tar.gz", hash = "sha256:8d709545068bba20ab37706ba29809f55ce66107688b95913834748f81664eb1"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["boto3"]
+
+[[package]]
+name = "opentelemetry-instrumentation-sqlalchemy"
+version = "0.61b0"
+description = "OpenTelemetry SQLAlchemy instrumentation"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_sqlalchemy-0.61b0-py3-none-any.whl", hash = "sha256:f115e0be54116ba4c327b8d7b68db4045ee18d44439d888ab8130a549c50d1c1"},
+    {file = "opentelemetry_instrumentation_sqlalchemy-0.61b0.tar.gz", hash = "sha256:13a3a159a2043a52f0180b3757fbaa26741b0e08abb50deddce4394c118956e6"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+opentelemetry-semantic-conventions = "0.61b0"
+packaging = ">=21.0"
+wrapt = ">=1.11.2"
+
+[package.extras]
+instruments = ["sqlalchemy (>=1.0.0,<2.1.0)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-threading"
+version = "0.61b0"
+description = "Thread context propagation support for OpenTelemetry"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_threading-0.61b0-py3-none-any.whl", hash = "sha256:735f4a1dc964202fc8aff475efc12bb64e6566f22dff52d5cb5de864b3fe1a70"},
+    {file = "opentelemetry_instrumentation_threading-0.61b0.tar.gz", hash = "sha256:38e0263c692d15a7a458b3fa0286d29290448fa4ac4c63045edac438c6113433"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+wrapt = ">=1.0.0,<2.0.0"
+
+[[package]]
+name = "opentelemetry-instrumentation-together"
+version = "0.59.2"
+description = "OpenTelemetry Together AI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_together-0.59.2-py3-none-any.whl", hash = "sha256:7f5c74603f6eb54cdf6b82b07d66920d0ed6b2a9d34004d2cae88e42cce0edc7"},
+    {file = "opentelemetry_instrumentation_together-0.59.2.tar.gz", hash = "sha256:6fc65de59d6eee96a68caa05681c641976fc45b007cdbd550d820db32d685262"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["together"]
+
+[[package]]
+name = "opentelemetry-instrumentation-transformers"
+version = "0.59.2"
+description = "OpenTelemetry transformers instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_transformers-0.59.2-py3-none-any.whl", hash = "sha256:d37cbde096fa43863476ed89d3b55581a6a59104d0ca840e65904559abd395d0"},
+    {file = "opentelemetry_instrumentation_transformers-0.59.2.tar.gz", hash = "sha256:ed0af074f90fed0e3afc5debe56d3891a4d231f62dcda8672353a8fbeb95e0d2"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["transformers"]
+
+[[package]]
+name = "opentelemetry-instrumentation-urllib3"
+version = "0.61b0"
+description = "OpenTelemetry urllib3 instrumentation"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_instrumentation_urllib3-0.61b0-py3-none-any.whl", hash = "sha256:9644f8c07870266e52f129e6226859ff3a35192555abe46fa0ef9bbbf5b6b46d"},
+    {file = "opentelemetry_instrumentation_urllib3-0.61b0.tar.gz", hash = "sha256:f00037bc8ff813153c4b79306f55a14618c40469a69c6c03a3add29dc7e8b928"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+opentelemetry-semantic-conventions = "0.61b0"
+opentelemetry-util-http = "0.61b0"
+wrapt = ">=1.0.0,<2.0.0"
+
+[package.extras]
+instruments = ["urllib3 (>=1.0.0,<3.0.0)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-vertexai"
+version = "0.59.2"
+description = "OpenTelemetry Vertex AI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_vertexai-0.59.2-py3-none-any.whl", hash = "sha256:2500868febe296889f8e43d5312bf25a17e606659b39b6d2d89805c695518fb6"},
+    {file = "opentelemetry_instrumentation_vertexai-0.59.2.tar.gz", hash = "sha256:f9cb789e94bd4829d16cf138b8eacaa25c64c2760ac557d1f7020b03e5cddb85"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["google-cloud-aiplatform"]
+
+[[package]]
+name = "opentelemetry-instrumentation-voyageai"
+version = "0.59.2"
+description = "OpenTelemetry Voyage AI instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_voyageai-0.59.2-py3-none-any.whl", hash = "sha256:e18f8ede19e260472689aaa5e74f999d5018af6cdea16279082fb4c296540c2b"},
+    {file = "opentelemetry_instrumentation_voyageai-0.59.2.tar.gz", hash = "sha256:ea4614a7f1f9129258abeed8a365d76d5ca3723c509e8b5de1977f9b2efbb176"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["voyageai"]
+
+[[package]]
+name = "opentelemetry-instrumentation-watsonx"
+version = "0.59.2"
+description = "OpenTelemetry IBM Watsonx Instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_watsonx-0.59.2-py3-none-any.whl", hash = "sha256:06c59088b8eb1966b8ba1fa61a5da92a94df682aec44876910fc388699206bda"},
+    {file = "opentelemetry_instrumentation_watsonx-0.59.2.tar.gz", hash = "sha256:c9ab2785c2857e15f9ac12d4c17c4b320f5cd540a4b3f4b3e516516a42b8d564"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["ibm-watson-machine-learning"]
+
+[[package]]
+name = "opentelemetry-instrumentation-weaviate"
+version = "0.59.2"
+description = "OpenTelemetry Weaviate instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_weaviate-0.59.2-py3-none-any.whl", hash = "sha256:9cab2d04813b3de4eb71ff5ed9ef00ccf40ce4abf2fecf2298916777c5582cfc"},
+    {file = "opentelemetry_instrumentation_weaviate-0.59.2.tar.gz", hash = "sha256:ee475318f04e532b7151f37683b7b030235510d3a85c13bbd6bac4183a847c34"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["weaviate-client"]
+
+[[package]]
+name = "opentelemetry-instrumentation-writer"
+version = "0.59.2"
+description = "OpenTelemetry Writer instrumentation"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "opentelemetry_instrumentation_writer-0.59.2-py3-none-any.whl", hash = "sha256:b7e2ab144655d6b89254fe8f472a9b66d64bc8005bbab5c500ca71d46883f218"},
+    {file = "opentelemetry_instrumentation_writer-0.59.2.tar.gz", hash = "sha256:60591a1b5276c2c5de87d58ee1e0388333bc9b0709678c61302dffb5966b2a1c"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+
+[package.extras]
+instruments = ["writer"]
+
+[[package]]
+name = "opentelemetry-proto"
+version = "1.40.0"
+description = "OpenTelemetry Python Proto"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_proto-1.40.0-py3-none-any.whl", hash = "sha256:266c4385d88923a23d63e353e9761af0f47a6ed0d486979777fe4de59dc9b25f"},
+    {file = "opentelemetry_proto-1.40.0.tar.gz", hash = "sha256:03f639ca129ba513f5819810f5b1f42bcb371391405d99c168fe6937c62febcd"},
+]
+
+[package.dependencies]
+protobuf = ">=5.0,<7.0"
+
+[[package]]
 name = "opentelemetry-sdk"
 version = "1.40.0"
 description = "OpenTelemetry Python SDK"
@@ -3448,6 +4515,32 @@ files = [
 [package.dependencies]
 opentelemetry-api = "1.40.0"
 typing-extensions = ">=4.5.0"
+
+[[package]]
+name = "opentelemetry-semantic-conventions-ai"
+version = "0.5.1"
+description = "OpenTelemetry Semantic Conventions Extension for Large Language Models"
+optional = false
+python-versions = "<4,>=3.9"
+files = [
+    {file = "opentelemetry_semantic_conventions_ai-0.5.1-py3-none-any.whl", hash = "sha256:25aeb22bd261543b4898a73824026d96770e5351209c7d07a0b1314762b1f6e4"},
+    {file = "opentelemetry_semantic_conventions_ai-0.5.1.tar.gz", hash = "sha256:153906200d8c1d2f8e09bd78dbef526916023de85ac3dab35912bfafb69ff04c"},
+]
+
+[package.dependencies]
+opentelemetry-sdk = ">=1.38.0,<2"
+opentelemetry-semantic-conventions = ">=0.59b0"
+
+[[package]]
+name = "opentelemetry-util-http"
+version = "0.61b0"
+description = "Web util for OpenTelemetry"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "opentelemetry_util_http-0.61b0-py3-none-any.whl", hash = "sha256:8e715e848233e9527ea47e275659ea60a57a75edf5206a3b937e236a6da5fc33"},
+    {file = "opentelemetry_util_http-0.61b0.tar.gz", hash = "sha256:1039cb891334ad2731affdf034d8fb8b48c239af9b6dd295e5fabd07f1c95572"},
+]
 
 [[package]]
 name = "orjson"
@@ -4336,7 +5429,7 @@ pyasn1 = ">=0.6.1,<0.7.0"
 name = "pycparser"
 version = "3.0"
 description = "C parser in Python"
-optional = true
+optional = false
 python-versions = ">=3.10"
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
@@ -4581,6 +5674,27 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pyjwt"
+version = "2.12.1"
+description = "JSON Web Token implementation in Python"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c"},
+    {file = "pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b"},
+]
+
+[package.dependencies]
+cryptography = {version = ">=3.4.0", optional = true, markers = "extra == \"crypto\""}
+typing_extensions = {version = ">=4.0", markers = "python_version < \"3.11\""}
+
+[package.extras]
+crypto = ["cryptography (>=3.4.0)"]
+dev = ["coverage[toml] (==7.10.7)", "cryptography (>=3.4.0)", "pre-commit", "pytest (>=8.4.2,<9.0.0)", "sphinx", "sphinx-rtd-theme", "zope.interface"]
+docs = ["sphinx", "sphinx-rtd-theme", "zope.interface"]
+tests = ["coverage[toml] (==7.10.7)", "pytest (>=8.4.2,<9.0.0)"]
+
+[[package]]
 name = "pyproject-api"
 version = "1.10.0"
 description = "API to interact with the python pyproject.toml based projects"
@@ -4775,6 +5889,58 @@ files = [
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "python-engineio"
+version = "4.13.1"
+description = "Engine.IO server and client for Python"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "python_engineio-4.13.1-py3-none-any.whl", hash = "sha256:f32ad10589859c11053ad7d9bb3c9695cdf862113bfb0d20bc4d890198287399"},
+    {file = "python_engineio-4.13.1.tar.gz", hash = "sha256:0a853fcef52f5b345425d8c2b921ac85023a04dfcf75d7b74696c61e940fd066"},
+]
+
+[package.dependencies]
+simple-websocket = ">=0.10.0"
+
+[package.extras]
+asyncio-client = ["aiohttp (>=3.11)"]
+client = ["requests (>=2.21.0)", "websocket-client (>=0.54.0)"]
+dev = ["tox"]
+docs = ["furo", "sphinx"]
+
+[[package]]
+name = "python-multipart"
+version = "0.0.26"
+description = "A streaming multipart parser for Python"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "python_multipart-0.0.26-py3-none-any.whl", hash = "sha256:c0b169f8c4484c13b0dcf2ef0ec3a4adb255c4b7d18d8e420477d2b1dd03f185"},
+    {file = "python_multipart-0.0.26.tar.gz", hash = "sha256:08fadc45918cd615e26846437f50c5d6d23304da32c341f289a617127b081f17"},
+]
+
+[[package]]
+name = "python-socketio"
+version = "5.16.1"
+description = "Socket.IO server and client for Python"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "python_socketio-5.16.1-py3-none-any.whl", hash = "sha256:a3eb1702e92aa2f2b5d3ba00261b61f062cce51f1cfb6900bf3ab4d1934d2d35"},
+    {file = "python_socketio-5.16.1.tar.gz", hash = "sha256:f863f98eacce81ceea2e742f6388e10ca3cdd0764be21d30d5196470edf5ea89"},
+]
+
+[package.dependencies]
+bidict = ">=0.21.0"
+python-engineio = ">=4.11.0"
+
+[package.extras]
+asyncio-client = ["aiohttp (>=3.4)"]
+client = ["requests (>=2.21.0)", "websocket-client (>=0.54.0)"]
+dev = ["tox"]
+docs = ["furo", "sphinx"]
+
+[[package]]
 name = "pytz"
 version = "2026.1.post1"
 description = "World timezone definitions, modern and historical"
@@ -4783,6 +5949,35 @@ python-versions = "*"
 files = [
     {file = "pytz-2026.1.post1-py2.py3-none-any.whl", hash = "sha256:f2fd16142fda348286a75e1a524be810bb05d444e5a081f37f7affc635035f7a"},
     {file = "pytz-2026.1.post1.tar.gz", hash = "sha256:3378dde6a0c3d26719182142c56e60c7f9af7e968076f31aae569d72a0358ee1"},
+]
+
+[[package]]
+name = "pywin32"
+version = "311"
+description = "Python for Window Extensions"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pywin32-311-cp310-cp310-win32.whl", hash = "sha256:d03ff496d2a0cd4a5893504789d4a15399133fe82517455e78bad62efbb7f0a3"},
+    {file = "pywin32-311-cp310-cp310-win_amd64.whl", hash = "sha256:797c2772017851984b97180b0bebe4b620bb86328e8a884bb626156295a63b3b"},
+    {file = "pywin32-311-cp310-cp310-win_arm64.whl", hash = "sha256:0502d1facf1fed4839a9a51ccbcc63d952cf318f78ffc00a7e78528ac27d7a2b"},
+    {file = "pywin32-311-cp311-cp311-win32.whl", hash = "sha256:184eb5e436dea364dcd3d2316d577d625c0351bf237c4e9a5fabbcfa5a58b151"},
+    {file = "pywin32-311-cp311-cp311-win_amd64.whl", hash = "sha256:3ce80b34b22b17ccbd937a6e78e7225d80c52f5ab9940fe0506a1a16f3dab503"},
+    {file = "pywin32-311-cp311-cp311-win_arm64.whl", hash = "sha256:a733f1388e1a842abb67ffa8e7aad0e70ac519e09b0f6a784e65a136ec7cefd2"},
+    {file = "pywin32-311-cp312-cp312-win32.whl", hash = "sha256:750ec6e621af2b948540032557b10a2d43b0cee2ae9758c54154d711cc852d31"},
+    {file = "pywin32-311-cp312-cp312-win_amd64.whl", hash = "sha256:b8c095edad5c211ff31c05223658e71bf7116daa0ecf3ad85f3201ea3190d067"},
+    {file = "pywin32-311-cp312-cp312-win_arm64.whl", hash = "sha256:e286f46a9a39c4a18b319c28f59b61de793654af2f395c102b4f819e584b5852"},
+    {file = "pywin32-311-cp313-cp313-win32.whl", hash = "sha256:f95ba5a847cba10dd8c4d8fefa9f2a6cf283b8b88ed6178fa8a6c1ab16054d0d"},
+    {file = "pywin32-311-cp313-cp313-win_amd64.whl", hash = "sha256:718a38f7e5b058e76aee1c56ddd06908116d35147e133427e59a3983f703a20d"},
+    {file = "pywin32-311-cp313-cp313-win_arm64.whl", hash = "sha256:7b4075d959648406202d92a2310cb990fea19b535c7f4a78d3f5e10b926eeb8a"},
+    {file = "pywin32-311-cp314-cp314-win32.whl", hash = "sha256:b7a2c10b93f8986666d0c803ee19b5990885872a7de910fc460f9b0c2fbf92ee"},
+    {file = "pywin32-311-cp314-cp314-win_amd64.whl", hash = "sha256:3aca44c046bd2ed8c90de9cb8427f581c479e594e99b5c0bb19b29c10fd6cb87"},
+    {file = "pywin32-311-cp314-cp314-win_arm64.whl", hash = "sha256:a508e2d9025764a8270f93111a970e1d0fbfc33f4153b388bb649b7eec4f9b42"},
+    {file = "pywin32-311-cp38-cp38-win32.whl", hash = "sha256:6c6f2969607b5023b0d9ce2541f8d2cbb01c4f46bc87456017cf63b73f1e2d8c"},
+    {file = "pywin32-311-cp38-cp38-win_amd64.whl", hash = "sha256:c8015b09fb9a5e188f83b7b04de91ddca4658cee2ae6f3bc483f0b21a77ef6cd"},
+    {file = "pywin32-311-cp39-cp39-win32.whl", hash = "sha256:aba8f82d551a942cb20d4a83413ccbac30790b50efb89a75e4f586ac0bb8056b"},
+    {file = "pywin32-311-cp39-cp39-win_amd64.whl", hash = "sha256:e0c4cfb0621281fe40387df582097fd796e80430597cb9944f0ae70447bacd91"},
+    {file = "pywin32-311-cp39-cp39-win_arm64.whl", hash = "sha256:62ea666235135fee79bb154e695f3ff67370afefd71bd7fea7512fc70ef31e3d"},
 ]
 
 [[package]]
@@ -5288,6 +6483,24 @@ files = [
     {file = "shellingham-1.5.4-py2.py3-none-any.whl", hash = "sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"},
     {file = "shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de"},
 ]
+
+[[package]]
+name = "simple-websocket"
+version = "1.1.0"
+description = "Simple WebSocket server and client for Python"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "simple_websocket-1.1.0-py3-none-any.whl", hash = "sha256:4af6069630a38ed6c561010f0e11a5bc0d4ca569b36306eb257cd9a192497c8c"},
+    {file = "simple_websocket-1.1.0.tar.gz", hash = "sha256:7939234e7aa067c534abdab3a9ed933ec9ce4691b0713c78acb195560aa52ae4"},
+]
+
+[package.dependencies]
+wsproto = "*"
+
+[package.extras]
+dev = ["flake8", "pytest", "pytest-cov", "tox"]
+docs = ["sphinx"]
 
 [[package]]
 name = "simpleeval"
@@ -5908,6 +7121,27 @@ files = [
 catalogue = ">=2.0.3,<2.1.0"
 
 [[package]]
+name = "sse-starlette"
+version = "3.3.4"
+description = "SSE plugin for Starlette"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "sse_starlette-3.3.4-py3-none-any.whl", hash = "sha256:84bb06e58939a8b38d8341f1bc9792f06c2b53f48c608dd207582b664fc8f3c1"},
+    {file = "sse_starlette-3.3.4.tar.gz", hash = "sha256:aaf92fc067af8a5427192895ac028e947b484ac01edbc3caf00e7e7137c7bef1"},
+]
+
+[package.dependencies]
+anyio = ">=4.7.0"
+starlette = ">=0.49.1"
+
+[package.extras]
+daphne = ["daphne (>=4.2.0)"]
+examples = ["aiosqlite (>=0.21.0)", "fastapi (>=0.115.12)", "sqlalchemy[asyncio] (>=2.0.41)", "uvicorn (>=0.34.0)"]
+granian = ["granian (>=2.3.1)"]
+uvicorn = ["uvicorn (>=0.34.0)"]
+
+[[package]]
 name = "starlette"
 version = "0.52.1"
 description = "The little ASGI library that shines."
@@ -5982,6 +7216,16 @@ mpmath = ">=1.1.0,<1.4"
 
 [package.extras]
 dev = ["hypothesis (>=6.70.0)", "pytest (>=7.1.0)"]
+
+[[package]]
+name = "syncer"
+version = "2.0.3"
+description = "Async to sync converter"
+optional = false
+python-versions = "*"
+files = [
+    {file = "syncer-2.0.3.tar.gz", hash = "sha256:4340eb54b54368724a78c5c0763824470201804fe9180129daf3635cb500550f"},
+]
 
 [[package]]
 name = "tenacity"
@@ -6356,6 +7600,71 @@ discord = ["requests"]
 notebook = ["ipywidgets (>=6)"]
 slack = ["slack-sdk"]
 telegram = ["requests"]
+
+[[package]]
+name = "traceloop-sdk"
+version = "0.59.2"
+description = "Traceloop Software Development Kit (SDK) for Python"
+optional = false
+python-versions = "<4,>=3.10"
+files = [
+    {file = "traceloop_sdk-0.59.2-py3-none-any.whl", hash = "sha256:0d741ba705c62510e2ce065229b2509b6a169ccca761ce9b3e2436362bb14f87"},
+    {file = "traceloop_sdk-0.59.2.tar.gz", hash = "sha256:da7181902ca23a1e78b55cc2ba543cbe7e97aff41d27ad843b32429ef3146837"},
+]
+
+[package.dependencies]
+aiohttp = ">=3.11.11,<4"
+colorama = ">=0.4.6,<0.5.0"
+cuid = ">=0.4,<0.5"
+deprecated = ">=1.2.14,<2"
+jinja2 = ">=3.1.5,<4"
+opentelemetry-api = ">=1.38.0,<2"
+opentelemetry-exporter-otlp-proto-grpc = ">=1.38.0,<2"
+opentelemetry-exporter-otlp-proto-http = ">=1.38.0,<2"
+opentelemetry-instrumentation-agno = "*"
+opentelemetry-instrumentation-alephalpha = "*"
+opentelemetry-instrumentation-anthropic = "*"
+opentelemetry-instrumentation-bedrock = "*"
+opentelemetry-instrumentation-chromadb = "*"
+opentelemetry-instrumentation-cohere = "*"
+opentelemetry-instrumentation-crewai = "*"
+opentelemetry-instrumentation-google-generativeai = "*"
+opentelemetry-instrumentation-groq = "*"
+opentelemetry-instrumentation-haystack = "*"
+opentelemetry-instrumentation-lancedb = "*"
+opentelemetry-instrumentation-langchain = "*"
+opentelemetry-instrumentation-llamaindex = "*"
+opentelemetry-instrumentation-logging = ">=0.59b0"
+opentelemetry-instrumentation-marqo = "*"
+opentelemetry-instrumentation-mcp = "*"
+opentelemetry-instrumentation-milvus = "*"
+opentelemetry-instrumentation-mistralai = "*"
+opentelemetry-instrumentation-ollama = "*"
+opentelemetry-instrumentation-openai = "*"
+opentelemetry-instrumentation-openai-agents = "*"
+opentelemetry-instrumentation-pinecone = "*"
+opentelemetry-instrumentation-qdrant = "*"
+opentelemetry-instrumentation-redis = ">=0.59b0"
+opentelemetry-instrumentation-replicate = "*"
+opentelemetry-instrumentation-requests = ">=0.59b0"
+opentelemetry-instrumentation-sagemaker = "*"
+opentelemetry-instrumentation-sqlalchemy = ">=0.59b0"
+opentelemetry-instrumentation-threading = ">=0.59b0"
+opentelemetry-instrumentation-together = "*"
+opentelemetry-instrumentation-transformers = "*"
+opentelemetry-instrumentation-urllib3 = ">=0.59b0"
+opentelemetry-instrumentation-vertexai = "*"
+opentelemetry-instrumentation-voyageai = "*"
+opentelemetry-instrumentation-watsonx = "*"
+opentelemetry-instrumentation-weaviate = "*"
+opentelemetry-instrumentation-writer = "*"
+opentelemetry-sdk = ">=1.38.0,<2"
+opentelemetry-semantic-conventions-ai = ">=0.5.1,<0.6.0"
+pydantic = ">=1"
+tenacity = ">=8.2.3,<10.0"
+
+[package.extras]
+datasets = ["pandas"]
 
 [[package]]
 name = "typer"
@@ -6820,89 +8129,107 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 
 [[package]]
 name = "wrapt"
-version = "2.1.1"
+version = "1.17.3"
 description = "Module for decorators, wrappers and monkey patching."
-optional = true
-python-versions = ">=3.9"
+optional = false
+python-versions = ">=3.8"
 files = [
-    {file = "wrapt-2.1.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:7e927375e43fd5a985b27a8992327c22541b6dede1362fc79df337d26e23604f"},
-    {file = "wrapt-2.1.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e1c99544b6a7d40ca22195563b6d8bc3986ee8bb82f272f31f0670fe9440c869"},
-    {file = "wrapt-2.1.1-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:b2be3fa5f4efaf16ee7c77d0556abca35f5a18ad4ac06f0ef3904c3399010ce9"},
-    {file = "wrapt-2.1.1-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:67c90c1ae6489a6cb1a82058902caa8006706f7b4e8ff766f943e9d2c8e608d0"},
-    {file = "wrapt-2.1.1-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:05c0db35ccffd7480143e62df1e829d101c7b86944ae3be7e4869a7efa621f53"},
-    {file = "wrapt-2.1.1-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:0c2ec9f616755b2e1e0bf4d0961f59bb5c2e7a77407e7e2c38ef4f7d2fdde12c"},
-    {file = "wrapt-2.1.1-cp310-cp310-win32.whl", hash = "sha256:203ba6b3f89e410e27dbd30ff7dccaf54dcf30fda0b22aa1b82d560c7f9fe9a1"},
-    {file = "wrapt-2.1.1-cp310-cp310-win_amd64.whl", hash = "sha256:6f9426d9cfc2f8732922fc96198052e55c09bb9db3ddaa4323a18e055807410e"},
-    {file = "wrapt-2.1.1-cp310-cp310-win_arm64.whl", hash = "sha256:69c26f51b67076b40714cff81bdd5826c0b10c077fb6b0678393a6a2f952a5fc"},
-    {file = "wrapt-2.1.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:6c366434a7fb914c7a5de508ed735ef9c133367114e1a7cb91dfb5cd806a1549"},
-    {file = "wrapt-2.1.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:5d6a2068bd2e1e19e5a317c8c0b288267eec4e7347c36bc68a6e378a39f19ee7"},
-    {file = "wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:891ab4713419217b2aed7dd106c9200f64e6a82226775a0d2ebd6bef2ebd1747"},
-    {file = "wrapt-2.1.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c8ef36a0df38d2dc9d907f6617f89e113c5892e0a35f58f45f75901af0ce7d81"},
-    {file = "wrapt-2.1.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:76e9af3ebd86f19973143d4d592cbf3e970cf3f66ddee30b16278c26ae34b8ab"},
-    {file = "wrapt-2.1.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:ff562067485ebdeaef2fa3fe9b1876bc4e7b73762e0a01406ad81e2076edcebf"},
-    {file = "wrapt-2.1.1-cp311-cp311-win32.whl", hash = "sha256:9e60a30aa0909435ec4ea2a3c53e8e1b50ac9f640c0e9fe3f21fd248a22f06c5"},
-    {file = "wrapt-2.1.1-cp311-cp311-win_amd64.whl", hash = "sha256:7d79954f51fcf84e5ec4878ab4aea32610d70145c5bbc84b3370eabfb1e096c2"},
-    {file = "wrapt-2.1.1-cp311-cp311-win_arm64.whl", hash = "sha256:d3ffc6b0efe79e08fd947605fd598515aebefe45e50432dc3b5cd437df8b1ada"},
-    {file = "wrapt-2.1.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:ab8e3793b239db021a18782a5823fcdea63b9fe75d0e340957f5828ef55fcc02"},
-    {file = "wrapt-2.1.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:7c0300007836373d1c2df105b40777986accb738053a92fe09b615a7a4547e9f"},
-    {file = "wrapt-2.1.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:2b27c070fd1132ab23957bcd4ee3ba707a91e653a9268dc1afbd39b77b2799f7"},
-    {file = "wrapt-2.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8b0e36d845e8b6f50949b6b65fc6cd279f47a1944582ed4ec8258cd136d89a64"},
-    {file = "wrapt-2.1.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:4aeea04a9889370fcfb1ef828c4cc583f36a875061505cd6cd9ba24d8b43cc36"},
-    {file = "wrapt-2.1.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:d88b46bb0dce9f74b6817bc1758ff2125e1ca9e1377d62ea35b6896142ab6825"},
-    {file = "wrapt-2.1.1-cp312-cp312-win32.whl", hash = "sha256:63decff76ca685b5c557082dfbea865f3f5f6d45766a89bff8dc61d336348833"},
-    {file = "wrapt-2.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:b828235d26c1e35aca4107039802ae4b1411be0fe0367dd5b7e4d90e562fcbcd"},
-    {file = "wrapt-2.1.1-cp312-cp312-win_arm64.whl", hash = "sha256:75128507413a9f1bcbe2db88fd18fbdbf80f264b82fa33a6996cdeaf01c52352"},
-    {file = "wrapt-2.1.1-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:ce9646e17fa7c3e2e7a87e696c7de66512c2b4f789a8db95c613588985a2e139"},
-    {file = "wrapt-2.1.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:428cfc801925454395aa468ba7ddb3ed63dc0d881df7b81626cdd433b4e2b11b"},
-    {file = "wrapt-2.1.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:5797f65e4d58065a49088c3b32af5410751cd485e83ba89e5a45e2aa8905af98"},
-    {file = "wrapt-2.1.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5a2db44a71202c5ae4bb5f27c6d3afbc5b23053f2e7e78aa29704541b5dad789"},
-    {file = "wrapt-2.1.1-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:8d5350c3590af09c1703dd60ec78a7370c0186e11eaafb9dda025a30eee6492d"},
-    {file = "wrapt-2.1.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:2d9b076411bed964e752c01b49fd224cc385f3a96f520c797d38412d70d08359"},
-    {file = "wrapt-2.1.1-cp313-cp313-win32.whl", hash = "sha256:0bb7207130ce6486727baa85373503bf3334cc28016f6928a0fa7e19d7ecdc06"},
-    {file = "wrapt-2.1.1-cp313-cp313-win_amd64.whl", hash = "sha256:cbfee35c711046b15147b0ae7db9b976f01c9520e6636d992cd9e69e5e2b03b1"},
-    {file = "wrapt-2.1.1-cp313-cp313-win_arm64.whl", hash = "sha256:7d2756061022aebbf57ba14af9c16e8044e055c22d38de7bf40d92b565ecd2b0"},
-    {file = "wrapt-2.1.1-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:4814a3e58bc6971e46baa910ecee69699110a2bf06c201e24277c65115a20c20"},
-    {file = "wrapt-2.1.1-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:106c5123232ab9b9f4903692e1fa0bdc231510098f04c13c3081f8ad71c3d612"},
-    {file = "wrapt-2.1.1-cp313-cp313t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:1a40b83ff2535e6e56f190aff123821eea89a24c589f7af33413b9c19eb2c738"},
-    {file = "wrapt-2.1.1-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:789cea26e740d71cf1882e3a42bb29052bc4ada15770c90072cb47bf73fb3dbf"},
-    {file = "wrapt-2.1.1-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:ba49c14222d5e5c0ee394495a8655e991dc06cbca5398153aefa5ac08cd6ccd7"},
-    {file = "wrapt-2.1.1-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:ac8cda531fe55be838a17c62c806824472bb962b3afa47ecbd59b27b78496f4e"},
-    {file = "wrapt-2.1.1-cp313-cp313t-win32.whl", hash = "sha256:b8af75fe20d381dd5bcc9db2e86a86d7fcfbf615383a7147b85da97c1182225b"},
-    {file = "wrapt-2.1.1-cp313-cp313t-win_amd64.whl", hash = "sha256:45c5631c9b6c792b78be2d7352129f776dd72c605be2c3a4e9be346be8376d83"},
-    {file = "wrapt-2.1.1-cp313-cp313t-win_arm64.whl", hash = "sha256:da815b9263947ac98d088b6414ac83507809a1d385e4632d9489867228d6d81c"},
-    {file = "wrapt-2.1.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:9aa1765054245bb01a37f615503290d4e207e3fd59226e78341afb587e9c1236"},
-    {file = "wrapt-2.1.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:feff14b63a6d86c1eee33a57f77573649f2550935981625be7ff3cb7342efe05"},
-    {file = "wrapt-2.1.1-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:81fc5f22d5fcfdbabde96bb3f5379b9f4476d05c6d524d7259dc5dfb501d3281"},
-    {file = "wrapt-2.1.1-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:951b228ecf66def855d22e006ab9a1fc12535111ae7db2ec576c728f8ddb39e8"},
-    {file = "wrapt-2.1.1-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:0ddf582a95641b9a8c8bd643e83f34ecbbfe1b68bc3850093605e469ab680ae3"},
-    {file = "wrapt-2.1.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:fc5c500966bf48913f795f1984704e6d452ba2414207b15e1f8c339a059d5b16"},
-    {file = "wrapt-2.1.1-cp314-cp314-win32.whl", hash = "sha256:4aa4baadb1f94b71151b8e44a0c044f6af37396c3b8bcd474b78b49e2130a23b"},
-    {file = "wrapt-2.1.1-cp314-cp314-win_amd64.whl", hash = "sha256:860e9d3fd81816a9f4e40812f28be4439ab01f260603c749d14be3c0a1170d19"},
-    {file = "wrapt-2.1.1-cp314-cp314-win_arm64.whl", hash = "sha256:3c59e103017a2c1ea0ddf589cbefd63f91081d7ce9d491d69ff2512bb1157e23"},
-    {file = "wrapt-2.1.1-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:9fa7c7e1bee9278fc4f5dd8275bc8d25493281a8ec6c61959e37cc46acf02007"},
-    {file = "wrapt-2.1.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:39c35e12e8215628984248bd9c8897ce0a474be2a773db207eb93414219d8469"},
-    {file = "wrapt-2.1.1-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:94ded4540cac9125eaa8ddf5f651a7ec0da6f5b9f248fe0347b597098f8ec14c"},
-    {file = "wrapt-2.1.1-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:da0af328373f97ed9bdfea24549ac1b944096a5a71b30e41c9b8b53ab3eec04a"},
-    {file = "wrapt-2.1.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:4ad839b55f0bf235f8e337ce060572d7a06592592f600f3a3029168e838469d3"},
-    {file = "wrapt-2.1.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:0d89c49356e5e2a50fa86b40e0510082abcd0530f926cbd71cf25bee6b9d82d7"},
-    {file = "wrapt-2.1.1-cp314-cp314t-win32.whl", hash = "sha256:f4c7dd22cf7f36aafe772f3d88656559205c3af1b7900adfccb70edeb0d2abc4"},
-    {file = "wrapt-2.1.1-cp314-cp314t-win_amd64.whl", hash = "sha256:f76bc12c583ab01e73ba0ea585465a41e48d968f6d1311b4daec4f8654e356e3"},
-    {file = "wrapt-2.1.1-cp314-cp314t-win_arm64.whl", hash = "sha256:7ea74fc0bec172f1ae5f3505b6655c541786a5cabe4bbc0d9723a56ac32eb9b9"},
-    {file = "wrapt-2.1.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:9e03b3d486eb39f5d3f562839f59094dcee30c4039359ea15768dc2214d9e07c"},
-    {file = "wrapt-2.1.1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:0fdf3073f488ce4d929929b7799e3b8c52b220c9eb3f4a5a51e2dc0e8ff07881"},
-    {file = "wrapt-2.1.1-cp39-cp39-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:0cb4f59238c6625fae2eeb72278da31c9cfba0ff4d9cbe37446b73caa0e9bcf7"},
-    {file = "wrapt-2.1.1-cp39-cp39-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:7f794a1c148871b714cb566f5466ec8288e0148a1c417550983864b3981737cd"},
-    {file = "wrapt-2.1.1-cp39-cp39-musllinux_1_2_aarch64.whl", hash = "sha256:95ef3866631c6da9ce1fc0f1e17b90c4c0aa6d041fc70a11bc90733aee122e1a"},
-    {file = "wrapt-2.1.1-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:66bc1b2446f01cbbd3c56b79a3a8435bcd4178ac4e06b091913f7751a7f528b8"},
-    {file = "wrapt-2.1.1-cp39-cp39-win32.whl", hash = "sha256:1b9e08e57cabc32972f7c956d10e85093c5da9019faa24faf411e7dd258e528c"},
-    {file = "wrapt-2.1.1-cp39-cp39-win_amd64.whl", hash = "sha256:e75ad48c3cca739f580b5e14c052993eb644c7fa5b4c90aa51193280b30875ae"},
-    {file = "wrapt-2.1.1-cp39-cp39-win_arm64.whl", hash = "sha256:9ccd657873b7f964711447d004563a2bc08d1476d7a1afcad310f3713e6f50f4"},
-    {file = "wrapt-2.1.1-py3-none-any.whl", hash = "sha256:3b0f4629eb954394a3d7c7a1c8cca25f0b07cefe6aa8545e862e9778152de5b7"},
-    {file = "wrapt-2.1.1.tar.gz", hash = "sha256:5fdcb09bf6db023d88f312bd0767594b414655d58090fc1c46b3414415f67fac"},
+    {file = "wrapt-1.17.3-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:88bbae4d40d5a46142e70d58bf664a89b6b4befaea7b2ecc14e03cedb8e06c04"},
+    {file = "wrapt-1.17.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:e6b13af258d6a9ad602d57d889f83b9d5543acd471eee12eb51f5b01f8eb1bc2"},
+    {file = "wrapt-1.17.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:fd341868a4b6714a5962c1af0bd44f7c404ef78720c7de4892901e540417111c"},
+    {file = "wrapt-1.17.3-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:f9b2601381be482f70e5d1051a5965c25fb3625455a2bf520b5a077b22afb775"},
+    {file = "wrapt-1.17.3-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:343e44b2a8e60e06a7e0d29c1671a0d9951f59174f3709962b5143f60a2a98bd"},
+    {file = "wrapt-1.17.3-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:33486899acd2d7d3066156b03465b949da3fd41a5da6e394ec49d271baefcf05"},
+    {file = "wrapt-1.17.3-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:e6f40a8aa5a92f150bdb3e1c44b7e98fb7113955b2e5394122fa5532fec4b418"},
+    {file = "wrapt-1.17.3-cp310-cp310-win32.whl", hash = "sha256:a36692b8491d30a8c75f1dfee65bef119d6f39ea84ee04d9f9311f83c5ad9390"},
+    {file = "wrapt-1.17.3-cp310-cp310-win_amd64.whl", hash = "sha256:afd964fd43b10c12213574db492cb8f73b2f0826c8df07a68288f8f19af2ebe6"},
+    {file = "wrapt-1.17.3-cp310-cp310-win_arm64.whl", hash = "sha256:af338aa93554be859173c39c85243970dc6a289fa907402289eeae7543e1ae18"},
+    {file = "wrapt-1.17.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:273a736c4645e63ac582c60a56b0acb529ef07f78e08dc6bfadf6a46b19c0da7"},
+    {file = "wrapt-1.17.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5531d911795e3f935a9c23eb1c8c03c211661a5060aab167065896bbf62a5f85"},
+    {file = "wrapt-1.17.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:0610b46293c59a3adbae3dee552b648b984176f8562ee0dba099a56cfbe4df1f"},
+    {file = "wrapt-1.17.3-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:b32888aad8b6e68f83a8fdccbf3165f5469702a7544472bdf41f582970ed3311"},
+    {file = "wrapt-1.17.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8cccf4f81371f257440c88faed6b74f1053eef90807b77e31ca057b2db74edb1"},
+    {file = "wrapt-1.17.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:d8a210b158a34164de8bb68b0e7780041a903d7b00c87e906fb69928bf7890d5"},
+    {file = "wrapt-1.17.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:79573c24a46ce11aab457b472efd8d125e5a51da2d1d24387666cd85f54c05b2"},
+    {file = "wrapt-1.17.3-cp311-cp311-win32.whl", hash = "sha256:c31eebe420a9a5d2887b13000b043ff6ca27c452a9a22fa71f35f118e8d4bf89"},
+    {file = "wrapt-1.17.3-cp311-cp311-win_amd64.whl", hash = "sha256:0b1831115c97f0663cb77aa27d381237e73ad4f721391a9bfb2fe8bc25fa6e77"},
+    {file = "wrapt-1.17.3-cp311-cp311-win_arm64.whl", hash = "sha256:5a7b3c1ee8265eb4c8f1b7d29943f195c00673f5ab60c192eba2d4a7eae5f46a"},
+    {file = "wrapt-1.17.3-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:ab232e7fdb44cdfbf55fc3afa31bcdb0d8980b9b95c38b6405df2acb672af0e0"},
+    {file = "wrapt-1.17.3-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:9baa544e6acc91130e926e8c802a17f3b16fbea0fd441b5a60f5cf2cc5c3deba"},
+    {file = "wrapt-1.17.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6b538e31eca1a7ea4605e44f81a48aa24c4632a277431a6ed3f328835901f4fd"},
+    {file = "wrapt-1.17.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:042ec3bb8f319c147b1301f2393bc19dba6e176b7da446853406d041c36c7828"},
+    {file = "wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3af60380ba0b7b5aeb329bc4e402acd25bd877e98b3727b0135cb5c2efdaefe9"},
+    {file = "wrapt-1.17.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:0b02e424deef65c9f7326d8c19220a2c9040c51dc165cddb732f16198c168396"},
+    {file = "wrapt-1.17.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:74afa28374a3c3a11b3b5e5fca0ae03bef8450d6aa3ab3a1e2c30e3a75d023dc"},
+    {file = "wrapt-1.17.3-cp312-cp312-win32.whl", hash = "sha256:4da9f45279fff3543c371d5ababc57a0384f70be244de7759c85a7f989cb4ebe"},
+    {file = "wrapt-1.17.3-cp312-cp312-win_amd64.whl", hash = "sha256:e71d5c6ebac14875668a1e90baf2ea0ef5b7ac7918355850c0908ae82bcb297c"},
+    {file = "wrapt-1.17.3-cp312-cp312-win_arm64.whl", hash = "sha256:604d076c55e2fdd4c1c03d06dc1a31b95130010517b5019db15365ec4a405fc6"},
+    {file = "wrapt-1.17.3-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:a47681378a0439215912ef542c45a783484d4dd82bac412b71e59cf9c0e1cea0"},
+    {file = "wrapt-1.17.3-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:54a30837587c6ee3cd1a4d1c2ec5d24e77984d44e2f34547e2323ddb4e22eb77"},
+    {file = "wrapt-1.17.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:16ecf15d6af39246fe33e507105d67e4b81d8f8d2c6598ff7e3ca1b8a37213f7"},
+    {file = "wrapt-1.17.3-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:6fd1ad24dc235e4ab88cda009e19bf347aabb975e44fd5c2fb22a3f6e4141277"},
+    {file = "wrapt-1.17.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:0ed61b7c2d49cee3c027372df5809a59d60cf1b6c2f81ee980a091f3afed6a2d"},
+    {file = "wrapt-1.17.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:423ed5420ad5f5529db9ce89eac09c8a2f97da18eb1c870237e84c5a5c2d60aa"},
+    {file = "wrapt-1.17.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e01375f275f010fcbf7f643b4279896d04e571889b8a5b3f848423d91bf07050"},
+    {file = "wrapt-1.17.3-cp313-cp313-win32.whl", hash = "sha256:53e5e39ff71b3fc484df8a522c933ea2b7cdd0d5d15ae82e5b23fde87d44cbd8"},
+    {file = "wrapt-1.17.3-cp313-cp313-win_amd64.whl", hash = "sha256:1f0b2f40cf341ee8cc1a97d51ff50dddb9fcc73241b9143ec74b30fc4f44f6cb"},
+    {file = "wrapt-1.17.3-cp313-cp313-win_arm64.whl", hash = "sha256:7425ac3c54430f5fc5e7b6f41d41e704db073309acfc09305816bc6a0b26bb16"},
+    {file = "wrapt-1.17.3-cp314-cp314-macosx_10_13_universal2.whl", hash = "sha256:cf30f6e3c077c8e6a9a7809c94551203c8843e74ba0c960f4a98cd80d4665d39"},
+    {file = "wrapt-1.17.3-cp314-cp314-macosx_10_13_x86_64.whl", hash = "sha256:e228514a06843cae89621384cfe3a80418f3c04aadf8a3b14e46a7be704e4235"},
+    {file = "wrapt-1.17.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:5ea5eb3c0c071862997d6f3e02af1d055f381b1d25b286b9d6644b79db77657c"},
+    {file = "wrapt-1.17.3-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:281262213373b6d5e4bb4353bc36d1ba4084e6d6b5d242863721ef2bf2c2930b"},
+    {file = "wrapt-1.17.3-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:dc4a8d2b25efb6681ecacad42fca8859f88092d8732b170de6a5dddd80a1c8fa"},
+    {file = "wrapt-1.17.3-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:373342dd05b1d07d752cecbec0c41817231f29f3a89aa8b8843f7b95992ed0c7"},
+    {file = "wrapt-1.17.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:d40770d7c0fd5cbed9d84b2c3f2e156431a12c9a37dc6284060fb4bec0b7ffd4"},
+    {file = "wrapt-1.17.3-cp314-cp314-win32.whl", hash = "sha256:fbd3c8319de8e1dc79d346929cd71d523622da527cca14e0c1d257e31c2b8b10"},
+    {file = "wrapt-1.17.3-cp314-cp314-win_amd64.whl", hash = "sha256:e1a4120ae5705f673727d3253de3ed0e016f7cd78dc463db1b31e2463e1f3cf6"},
+    {file = "wrapt-1.17.3-cp314-cp314-win_arm64.whl", hash = "sha256:507553480670cab08a800b9463bdb881b2edeed77dc677b0a5915e6106e91a58"},
+    {file = "wrapt-1.17.3-cp314-cp314t-macosx_10_13_universal2.whl", hash = "sha256:ed7c635ae45cfbc1a7371f708727bf74690daedc49b4dba310590ca0bd28aa8a"},
+    {file = "wrapt-1.17.3-cp314-cp314t-macosx_10_13_x86_64.whl", hash = "sha256:249f88ed15503f6492a71f01442abddd73856a0032ae860de6d75ca62eed8067"},
+    {file = "wrapt-1.17.3-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:5a03a38adec8066d5a37bea22f2ba6bbf39fcdefbe2d91419ab864c3fb515454"},
+    {file = "wrapt-1.17.3-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:5d4478d72eb61c36e5b446e375bbc49ed002430d17cdec3cecb36993398e1a9e"},
+    {file = "wrapt-1.17.3-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:223db574bb38637e8230eb14b185565023ab624474df94d2af18f1cdb625216f"},
+    {file = "wrapt-1.17.3-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:e405adefb53a435f01efa7ccdec012c016b5a1d3f35459990afc39b6be4d5056"},
+    {file = "wrapt-1.17.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:88547535b787a6c9ce4086917b6e1d291aa8ed914fdd3a838b3539dc95c12804"},
+    {file = "wrapt-1.17.3-cp314-cp314t-win32.whl", hash = "sha256:41b1d2bc74c2cac6f9074df52b2efbef2b30bdfe5f40cb78f8ca22963bc62977"},
+    {file = "wrapt-1.17.3-cp314-cp314t-win_amd64.whl", hash = "sha256:73d496de46cd2cdbdbcce4ae4bcdb4afb6a11234a1df9c085249d55166b95116"},
+    {file = "wrapt-1.17.3-cp314-cp314t-win_arm64.whl", hash = "sha256:f38e60678850c42461d4202739f9bf1e3a737c7ad283638251e79cc49effb6b6"},
+    {file = "wrapt-1.17.3-cp38-cp38-macosx_10_9_universal2.whl", hash = "sha256:70d86fa5197b8947a2fa70260b48e400bf2ccacdcab97bb7de47e3d1e6312225"},
+    {file = "wrapt-1.17.3-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:df7d30371a2accfe4013e90445f6388c570f103d61019b6b7c57e0265250072a"},
+    {file = "wrapt-1.17.3-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:caea3e9c79d5f0d2c6d9ab96111601797ea5da8e6d0723f77eabb0d4068d2b2f"},
+    {file = "wrapt-1.17.3-cp38-cp38-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:758895b01d546812d1f42204bd443b8c433c44d090248bf22689df673ccafe00"},
+    {file = "wrapt-1.17.3-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:02b551d101f31694fc785e58e0720ef7d9a10c4e62c1c9358ce6f63f23e30a56"},
+    {file = "wrapt-1.17.3-cp38-cp38-musllinux_1_2_aarch64.whl", hash = "sha256:656873859b3b50eeebe6db8b1455e99d90c26ab058db8e427046dbc35c3140a5"},
+    {file = "wrapt-1.17.3-cp38-cp38-musllinux_1_2_x86_64.whl", hash = "sha256:a9a2203361a6e6404f80b99234fe7fb37d1fc73487b5a78dc1aa5b97201e0f22"},
+    {file = "wrapt-1.17.3-cp38-cp38-win32.whl", hash = "sha256:55cbbc356c2842f39bcc553cf695932e8b30e30e797f961860afb308e6b1bb7c"},
+    {file = "wrapt-1.17.3-cp38-cp38-win_amd64.whl", hash = "sha256:ad85e269fe54d506b240d2d7b9f5f2057c2aa9a2ea5b32c66f8902f768117ed2"},
+    {file = "wrapt-1.17.3-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:30ce38e66630599e1193798285706903110d4f057aab3168a34b7fdc85569afc"},
+    {file = "wrapt-1.17.3-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:65d1d00fbfb3ea5f20add88bbc0f815150dbbde3b026e6c24759466c8b5a9ef9"},
+    {file = "wrapt-1.17.3-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:a7c06742645f914f26c7f1fa47b8bc4c91d222f76ee20116c43d5ef0912bba2d"},
+    {file = "wrapt-1.17.3-cp39-cp39-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:7e18f01b0c3e4a07fe6dfdb00e29049ba17eadbc5e7609a2a3a4af83ab7d710a"},
+    {file = "wrapt-1.17.3-cp39-cp39-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:0f5f51a6466667a5a356e6381d362d259125b57f059103dd9fdc8c0cf1d14139"},
+    {file = "wrapt-1.17.3-cp39-cp39-musllinux_1_2_aarch64.whl", hash = "sha256:59923aa12d0157f6b82d686c3fd8e1166fa8cdfb3e17b42ce3b6147ff81528df"},
+    {file = "wrapt-1.17.3-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:46acc57b331e0b3bcb3e1ca3b421d65637915cfcd65eb783cb2f78a511193f9b"},
+    {file = "wrapt-1.17.3-cp39-cp39-win32.whl", hash = "sha256:3e62d15d3cfa26e3d0788094de7b64efa75f3a53875cdbccdf78547aed547a81"},
+    {file = "wrapt-1.17.3-cp39-cp39-win_amd64.whl", hash = "sha256:1f23fa283f51c890eda8e34e4937079114c74b4c81d2b2f1f1d94948f5cc3d7f"},
+    {file = "wrapt-1.17.3-cp39-cp39-win_arm64.whl", hash = "sha256:24c2ed34dc222ed754247a2702b1e1e89fdbaa4016f324b4b8f1a802d4ffe87f"},
+    {file = "wrapt-1.17.3-py3-none-any.whl", hash = "sha256:7171ae35d2c33d326ac19dd8facb1e82e5fd04ef8c6c0e394d7af55a55051c22"},
+    {file = "wrapt-1.17.3.tar.gz", hash = "sha256:f66eb08feaa410fe4eebd17f2a2c8e2e46d3476e9f8c783daa8e09e0faa666d0"},
 ]
 
-[package.extras]
-dev = ["pytest", "setuptools"]
+[[package]]
+name = "wsproto"
+version = "1.3.2"
+description = "Pure-Python WebSocket protocol implementation"
+optional = false
+python-versions = ">=3.10"
+files = [
+    {file = "wsproto-1.3.2-py3-none-any.whl", hash = "sha256:61eea322cdf56e8cc904bd3ad7573359a242ba65688716b0710a5eb12beab584"},
+    {file = "wsproto-1.3.2.tar.gz", hash = "sha256:b86885dcf294e15204919950f666e06ffc6c7c114ca900b060d6e16293528294"},
+]
+
+[package.dependencies]
+h11 = ">=0.16.0,<1"
 
 [[package]]
 name = "xxhash"
@@ -7396,7 +8723,8 @@ files = [
 cffi = ["cffi (>=1.17,<2.0)", "cffi (>=2.0.0b)"]
 
 [extras]
-all = ["aiofiles", "fast-langdetect", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "openai", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "streamlit", "tqdm", "yara-python"]
+all = ["aiofiles", "chainlit", "fast-langdetect", "fastapi", "google-cloud-language", "langchain-nvidia-ai-endpoints", "langchain-openai", "numpy", "numpy", "numpy", "numpy", "openai", "opentelemetry-api", "presidio-analyzer", "presidio-anonymizer", "starlette", "streamlit", "tqdm", "uvicorn", "watchdog", "yara-python"]
+chat-ui = ["chainlit"]
 eval = ["numpy", "numpy", "numpy", "numpy", "streamlit", "tornado", "tqdm"]
 gcp = ["google-cloud-language"]
 jailbreak = ["yara-python"]
@@ -7404,10 +8732,10 @@ multilingual = ["fast-langdetect"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 openai = ["langchain-openai"]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
-server = ["aiofiles", "openai"]
+server = ["aiofiles", "fastapi", "openai", "starlette", "uvicorn", "watchdog"]
 tracing = ["aiofiles", "opentelemetry-api"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.14"
-content-hash = "066d34fb2e969dc7f2ff1d132afae3aa59ecd021122776c7579ad21764de8750"
+content-hash = "99d0d4fc6517548db12f0a17f2a454fd03d3d34b96e660e83f575ce9d455e4da"

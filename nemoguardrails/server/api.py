@@ -31,8 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from pydantic import BaseModel, ValidationError
-from starlette.responses import StreamingResponse
-from starlette.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse, StreamingResponse
 
 from nemoguardrails import LLMRails, RailsConfig, utils
 from nemoguardrails.rails.llm.config import Model
@@ -51,6 +50,11 @@ from nemoguardrails.server.schemas.utils import (
     generation_response_to_chat_completion,
 )
 
+try:
+    from chainlit.utils import mount_chainlit
+except ImportError:
+    mount_chainlit = None
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
@@ -63,7 +67,7 @@ class GuardrailsApp(FastAPI):
         # Initialize custom attributes
         self.default_config_id: Optional[str] = None
         self.rails_config_path: str = ""
-        self.disable_chat_ui: bool = False
+        self.disable_chat_ui: bool = os.getenv("NEMO_GUARDRAILS_DISABLE_CHAT_UI", "false").lower() == "true"
         self.auto_reload: bool = False
         self.stop_signal: bool = False
         self.single_config_mode: bool = False
@@ -98,10 +102,13 @@ async def lifespan(app: GuardrailsApp):
         with open(challenges_files) as f:
             register_challenges(json.load(f))
 
-    # If there is a `config.yml` in the root `app.rails_config_path`, then
-    # that means we are in single config mode.
-    if os.path.exists(os.path.join(app.rails_config_path, "config.yml")) or os.path.exists(
-        os.path.join(app.rails_config_path, "config.yaml")
+    # If there is a `config.yml` in the root `app.rails_config_path` (or in
+    # a `config/` subdirectory), set the app to single config mode.
+    if (
+        os.path.exists(os.path.join(app.rails_config_path, "config.yml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config.yaml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yml"))
+        or os.path.exists(os.path.join(app.rails_config_path, "config", "config.yaml"))
     ):
         app.single_config_mode = True
         app.single_config_id = os.path.basename(app.rails_config_path)
@@ -121,25 +128,6 @@ async def lifespan(app: GuardrailsApp):
             # If there is an `init` function, we call it with the reference to the app.
             if config_module is not None and hasattr(config_module, "init"):
                 config_module.init(app)
-
-    # Finally, we register the static frontend UI serving
-
-    if not app.disable_chat_ui:
-        FRONTEND_DIR = utils.get_chat_ui_data_path("frontend")
-
-        app.mount(
-            "/",
-            StaticFiles(
-                directory=FRONTEND_DIR,
-                html=True,
-            ),
-            name="chat",
-        )
-    else:
-
-        @app.get("/")
-        async def root_handler():
-            return {"status": "ok"}
 
     if app.auto_reload:
         app.loop = asyncio.get_running_loop()
@@ -188,9 +176,6 @@ app.default_config_id = None
 # By default, we use the rails in the examples folder
 app.rails_config_path = utils.get_examples_data_path("bots")
 
-# Weather the chat UI is enabled or not.
-app.disable_chat_ui = False
-
 # auto reload flag
 app.auto_reload = False
 
@@ -221,11 +206,7 @@ async def get_rails_configs():
         if os.path.isdir(os.path.join(app.rails_config_path, f))
         and f[0] != "."
         and f[0] != "_"
-        # We filter out all the configs for which there is no `config.yml` file.
-        and (
-            os.path.exists(os.path.join(app.rails_config_path, f, "config.yml"))
-            or os.path.exists(os.path.join(app.rails_config_path, f, "config.yaml"))
-        )
+        and _has_config_file(os.path.join(app.rails_config_path, f))
     ]
 
     return [{"id": config_id} for config_id in config_ids]
@@ -269,6 +250,16 @@ async def list_models(request: Request):
 # One instance of LLMRails per config id
 llm_rails_instances: dict[str, LLMRails] = {}
 llm_rails_events_history_cache: dict[str, dict] = {}
+
+
+def _has_config_file(path: str) -> bool:
+    """Check if a directory (or its 'config' subdirectory) contains a config.yml/yaml."""
+    for candidate in [path, os.path.join(path, "config")]:
+        if os.path.exists(os.path.join(candidate, "config.yml")) or os.path.exists(
+            os.path.join(candidate, "config.yaml")
+        ):
+            return True
+    return False
 
 
 def _generate_cache_key(config_ids: List[str], model_name: Optional[str] = None) -> str:
@@ -724,3 +715,20 @@ class GuardrailsConfigurationError(Exception):
 #
 #
 # register_exception(app)
+
+
+if not app.disable_chat_ui and mount_chainlit is not None:
+    chainlit_app_path = os.path.join(os.path.dirname(__file__), "app.py")
+    mount_chainlit(app=app, target=chainlit_app_path, path="/chat")
+
+    @app.get("/")
+    async def root_redirect():
+        return RedirectResponse(url="chat")
+
+else:
+    if not app.disable_chat_ui and mount_chainlit is None:
+        log.warning("Chainlit is not installed; chat UI disabled. Install with: pip install nemoguardrails[chat-ui]")
+
+    @app.get("/")
+    async def root_handler():
+        return {"status": "ok"}

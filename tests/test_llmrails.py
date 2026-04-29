@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from typing import Optional
 from unittest.mock import patch
@@ -22,6 +23,7 @@ import pytest
 from nemoguardrails import LLMRails, RailsConfig
 from nemoguardrails.logging.explain import ExplainInfo
 from nemoguardrails.rails.llm.config import Model
+from nemoguardrails.rails.llm.options import GenerationOptions
 from tests.conftest import REASONING_TRACE_MOCK_PATH
 from tests.utils import FakeLLMModel, clean_events, event_sequence_conforms
 
@@ -1475,3 +1477,71 @@ def test_embedding_model_no_backfill_when_no_embeddings_model():
     assert "embedding_engine" not in rails.config.core.embedding_search_provider.parameters
     assert "embedding_model" not in rails.config.knowledge_base.embedding_search_provider.parameters
     assert "embedding_engine" not in rails.config.knowledge_base.embedding_search_provider.parameters
+
+
+@pytest.fixture
+def no_main_llm_config():
+    return RailsConfig.from_content(
+        """
+        define flow input rail
+          if $user_message == "block"
+            bot refuse to respond
+            stop
+
+        define flow output rail
+          if $bot_message == "block output"
+            bot refuse to respond
+            stop
+        """,
+        """
+        rails:
+            input:
+                flows:
+                    - input rail
+            output:
+                flows:
+                    - output rail
+        """,
+    )
+
+
+def _count_no_llm_warnings(caplog):
+    return sum(
+        1 for record in caplog.records if record.levelno == logging.WARNING and NO_MAIN_LLM_WARNING in record.message
+    )
+
+
+USER_MSG = [{"role": "user", "content": "hello"}]
+USER_ASSISTANT_MSG = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
+
+NO_MAIN_LLM_WARNING = "No main LLM specified in the config and no LLM provided via constructor."
+
+
+class TestGenerateAsyncNoMainLLMWarning:
+    @pytest.mark.parametrize(
+        "options, has_llm, messages, expected_warnings",
+        [
+            pytest.param(None, False, USER_MSG, 1, id="no-options-warns"),
+            pytest.param(GenerationOptions(), False, USER_MSG, 1, id="default-options-warns"),
+            pytest.param({"rails": ["input", "dialog"]}, False, USER_MSG, 1, id="dialog-in-list-warns"),
+            pytest.param(
+                {"rails": ["input", "output", "retrieval", "dialog"]}, False, USER_MSG, 1, id="all-rails-warns"
+            ),
+            pytest.param({"rails": ["input"]}, False, USER_MSG, 0, id="input-only-no-warn"),
+            pytest.param({"rails": ["output"]}, False, USER_ASSISTANT_MSG, 0, id="output-only-no-warn"),
+            pytest.param({"rails": ["input", "output"]}, False, USER_ASSISTANT_MSG, 0, id="input-output-no-warn"),
+            pytest.param(None, True, USER_MSG, 0, id="llm-no-options-no-warn"),
+            pytest.param({"rails": ["input", "dialog"]}, True, USER_MSG, 0, id="llm-dialog-enabled-no-warn"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_warning_behavior(self, no_main_llm_config, caplog, options, has_llm, messages, expected_warnings):
+        llm = FakeLLMModel(responses=["Hello!"]) if has_llm else None
+        rails = LLMRails(no_main_llm_config, llm=llm)
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.rails.llm.llmrails"):
+            if expected_warnings > 0:
+                with pytest.raises(Exception):
+                    await rails.generate_async(messages=messages, options=options)
+            else:
+                await rails.generate_async(messages=messages, options=options)
+        assert _count_no_llm_warnings(caplog) == expected_warnings

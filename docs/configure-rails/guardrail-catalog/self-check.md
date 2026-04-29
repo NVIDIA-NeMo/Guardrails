@@ -25,6 +25,8 @@ The goal of the input self-checking rail is to determine if the input from the u
 
 ```{important}
 The performance of this rail is strongly dependent on the capability of the LLM to follow the instructions in the `self_check_input` prompt.
+
+If your LLM does not reliably follow this prompt, consider a purpose-built input safety model instead. See [Content Safety](content-safety.md) for Nemotron Content Safety, Llama Guard 3, and ShieldGemma alternatives.
 ```
 
 ### Usage
@@ -131,6 +133,8 @@ The goal of the output self-checking rail is to determine if the output from the
 
 ```{important}
 The performance of this rail is strongly dependent on the capability of the LLM to follow the instructions in the `self_check_output` prompt.
+
+If your LLM does not reliably follow this prompt, consider a purpose-built output safety model instead. See [Content Safety](content-safety.md) for Nemotron Content Safety, Llama Guard 3, and ShieldGemma alternatives.
 ```
 
 ### Usage

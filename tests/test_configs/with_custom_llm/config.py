@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.llm.providers import register_llm_provider
+from nemoguardrails.llm.providers import register_provider
 from tests.test_configs.with_custom_llm.custom_llm import CustomLLM
 
-register_llm_provider("custom_llm", CustomLLM)
+register_provider("custom_llm", CustomLLM)

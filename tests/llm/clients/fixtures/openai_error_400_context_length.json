@@ -1,0 +1,40 @@
+{
+  "status_code": 400,
+  "body": {
+    "error": {
+      "message": "This model's maximum context length is 16385 tokens. However, your messages resulted in 40008 tokens. Please reduce the length of the messages.",
+      "type": "invalid_request_error",
+      "param": "messages",
+      "code": "context_length_exceeded"
+    }
+  },
+  "response_headers": {
+    "date": "Mon, 20 Apr 2026 09:01:51 GMT",
+    "content-type": "application/json",
+    "content-length": "282",
+    "connection": "keep-alive",
+    "cf-ray": "REDACTED_CF_RAY",
+    "cf-cache-status": "DYNAMIC",
+    "server": "cloudflare",
+    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "access-control-expose-headers": "X-Request-ID",
+    "openai-organization": "REDACTED_ORG",
+    "openai-processing-ms": "41",
+    "openai-project": "REDACTED_PROJECT",
+    "openai-version": "2020-10-01",
+    "x-openai-proxy-wasm": "v0.1",
+    "x-ratelimit-limit-requests": "10000",
+    "x-ratelimit-limit-tokens": "50000000",
+    "x-ratelimit-remaining-requests": "9999",
+    "x-ratelimit-remaining-tokens": "49949997",
+    "x-ratelimit-reset-requests": "6ms",
+    "x-ratelimit-reset-tokens": "60ms",
+    "x-request-id": "req_REDACTED",
+    "set-cookie": "REDACTED_COOKIE",
+    "alt-svc": "h3=\":443\"; ma=86400"
+  },
+  "error_message": "This model's maximum context length is 16385 tokens. However, your messages resulted in 40008 tokens. Please reduce the length of the messages.",
+  "error_type": "invalid_request_error",
+  "error_code": "context_length_exceeded"
+}

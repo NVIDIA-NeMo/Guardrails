@@ -24,6 +24,7 @@ from nemoguardrails.actions.llm.utils import (
     _stream_llm_call,
     _update_token_stats_from_chunk,
     llm_call,
+    warn_if_truncated,
 )
 from nemoguardrails.context import (
     llm_call_info_var,
@@ -273,13 +274,16 @@ async def test_llm_call_stop_tokens_passed_without_llm_params(llm_params):
 
     from nemoguardrails.actions.llm.utils import llm_call
 
-    mock_llm = AsyncMock()
-    mock_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm = MagicMock()
+    mock_llm.model_name = "gpt-4"
+    bound_llm = AsyncMock()
+    bound_llm.ainvoke.return_value = MagicMock(content="response")
+    mock_llm.bind.return_value = bound_llm
 
     wrapped = LangChainLLMAdapter(mock_llm)
     await llm_call(wrapped, "prompt", stop=["User:"], llm_params=llm_params)
 
-    assert mock_llm.ainvoke.call_args[1]["stop"] == ["User:"]
+    mock_llm.bind.assert_called_once_with(stop=["User:"])
 
 
 @pytest.mark.asyncio
@@ -637,3 +641,41 @@ class TestStreamLlmCallAccumulation:
         await _stream_llm_call(model, "test", StreamingHandler(), stop=None)
 
         assert llm_response_metadata_var.get() is None
+
+
+class TestWarnIfTruncated:
+    def test_warns_on_empty_content_with_length_finish(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="", finish_reason="length")
+        with caplog.at_level("WARNING"):
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is True
+        assert any("self_check_input" in rec.message and "length" in rec.message for rec in caplog.records)
+
+    def test_silent_on_non_empty_content(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="yes", finish_reason="length")
+        with caplog.at_level("WARNING"):
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is False
+        assert not caplog.records
+
+    def test_silent_on_non_length_finish_reason(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="", finish_reason="stop")
+        with caplog.at_level("WARNING"):
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is False
+        assert not caplog.records
+
+    def test_silent_on_none_finish_reason(self, caplog):
+        from nemoguardrails.types import LLMResponse
+
+        response = LLMResponse(content="", finish_reason=None)
+        with caplog.at_level("WARNING"):
+            result = warn_if_truncated(response, "self_check_input")
+        assert result is False
+        assert not caplog.records

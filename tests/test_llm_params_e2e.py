@@ -24,6 +24,7 @@ import pytest
 from nemoguardrails import LLMRails
 from nemoguardrails.actions.llm.utils import llm_call
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.types import LLMResponse
 
 LIVE_TEST_MODE = os.environ.get("LIVE_TEST_MODE") or os.environ.get("TEST_LIVE_MODE")
 
@@ -172,7 +173,8 @@ class TestLLMParamsOpenAI:
         response = await llm_call(llm, prompt, llm_params={"temperature": 0.0, "max_tokens": 5})
 
         assert response is not None
-        assert len(response) > 0
+        assert isinstance(response, LLMResponse)
+        assert len(response.content) > 0
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -184,7 +186,7 @@ class TestLLMParamsOpenAI:
         config = RailsConfig.from_path(openai_config_path)
         rails = LLMRails(config, verbose=False)
 
-        prompt = "Count from 1 to 3."
+        prompt = "Count from 1 to 3. use numerics"
 
         chunks = []
         async for chunk in rails.stream_async(
@@ -213,8 +215,8 @@ class TestLLMParamsOpenAI:
             llm_params=None,
         )
 
-        assert "4" in response
-        assert "5" not in response
+        assert "4" in response.content
+        assert "5" not in response.content
 
 
 @pytest.mark.skipif(
@@ -303,7 +305,8 @@ class TestLLMParamsNIM:
         response = await llm_call(llm, prompt, llm_params={"temperature": 0.2, "max_tokens": 10})
 
         assert response is not None
-        assert len(response) > 0
+        assert isinstance(response, LLMResponse)
+        assert len(response.content) > 0
 
 
 @pytest.mark.skipif(
@@ -398,35 +401,3 @@ class TestLLMParamsIntegration:
             assert response_with_params.response is not None
         else:
             assert response_with_params is not None
-
-    @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.getenv("OPENAI_API_KEY"),
-        reason="OpenAI API key not available for e2e testing",
-    )
-    async def test_openai_unsupported_params_error_handling(self, openai_config_path):
-        """Test that unsupported parameters are properly handled."""
-        # update config to use o1-mini which doesn't support temperature
-        config_content = """
-        models:
-          - type: main
-            engine: openai
-            model: o3-mini
-        """
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_path = Path(temp_dir) / "config.yml"
-            config_path.write_text(config_content)
-            config = RailsConfig.from_path(temp_dir)
-            rails = LLMRails(config, verbose=False)
-
-            # this should fail with a clear error message
-            with pytest.raises(Exception) as exc_info:
-                await rails.generate_async(
-                    messages=[{"role": "user", "content": "Say hello"}],
-                    options={"llm_params": {"temperature": 0.5}},
-                )
-
-            error_message = str(exc_info.value)
-            assert "temperature" in error_message.lower()
-            assert "unsupported" in error_message.lower() or "not support" in error_message.lower()

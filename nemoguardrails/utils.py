@@ -272,11 +272,6 @@ def get_examples_data_path(file_path: str) -> str:
     return get_data_path("nemoguardrails", f"examples/{file_path}")
 
 
-def get_chat_ui_data_path(file_path: str) -> str:
-    """Helper to get the path to the chat-ui data directory."""
-    return get_data_path("nemoguardrails", f"chat-ui/{file_path}")
-
-
 def camelcase_to_snakecase(name: str) -> str:
     """Converts a CamelCase string to snake_case.
 

@@ -1,0 +1,172 @@
+[
+  {
+    "id": "chatcmpl-9c1f3fe4737b4d2c",
+    "object": "chat.completion.chunk",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": ""
+        },
+        "logprobs": null,
+        "finish_reason": null
+      }
+    ],
+    "prompt_token_ids": null,
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:56 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "a26be7f3-a30d-407e-b883-86da3e7caf84",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-9c1f3fe4737b4d2c",
+    "object": "chat.completion.chunk",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": "The",
+          "reasoning_content": "The"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:56 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "a26be7f3-a30d-407e-b883-86da3e7caf84",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-9c1f3fe4737b4d2c",
+    "object": "chat.completion.chunk",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " user asks a simple math question: \"What is",
+          "reasoning_content": " user asks a simple math question: \"What is"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:56 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "a26be7f3-a30d-407e-b883-86da3e7caf84",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-9c1f3fe4737b4d2c",
+    "object": "chat.completion.chunk",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning": " 2+2?\" The answer is 4",
+          "reasoning_content": " 2+2?\" The answer is 4"
+        },
+        "logprobs": null,
+        "finish_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:56 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "a26be7f3-a30d-407e-b883-86da3e7caf84",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-9c1f3fe4737b4d2c",
+    "object": "chat.completion.chunk",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "4",
+          "reasoning": ". We can respond simply.\n",
+          "reasoning_content": ". We can respond simply.\n"
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": null,
+        "token_ids": null
+      }
+    ],
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:56 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "a26be7f3-a30d-407e-b883-86da3e7caf84",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  },
+  {
+    "id": "chatcmpl-9c1f3fe4737b4d2c",
+    "object": "chat.completion.chunk",
+    "created": 1776675716,
+    "model": "nvidia/nemotron-3-nano-30b-a3b",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 23,
+      "total_tokens": 54,
+      "completion_tokens": 31
+    },
+    "_response_headers": {
+      "date": "Mon, 20 Apr 2026 09:01:56 GMT",
+      "content-type": "text/event-stream; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-expose-headers": "nvcf-reqid",
+      "nvcf-reqid": "a26be7f3-a30d-407e-b883-86da3e7caf84",
+      "nvcf-status": "fulfilled",
+      "server": "uvicorn",
+      "vary": "Origin"
+    }
+  }
+]

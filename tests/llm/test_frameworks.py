@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemoguardrails.llm.frameworks import (
+    _areset_frameworks,
     _reset_frameworks,
     get_default_framework,
     get_framework,
@@ -46,6 +47,9 @@ def clean_registry():
 class FakeFramework:
     def create_model(self, model_name, provider_name, model_kwargs=None):
         return MagicMock(spec=LLMModel)
+
+    async def reset(self):
+        return
 
 
 class TestRegistry:
@@ -78,8 +82,8 @@ class TestRegistry:
         with pytest.raises(KeyError, match="Unknown framework"):
             set_default_framework("nonexistent")
 
-    def test_default_is_langchain(self):
-        assert get_default_framework() == "langchain"
+    def test_default_is_default(self):
+        assert get_default_framework() == "default"
 
     def test_default_from_env_var(self, monkeypatch):
         monkeypatch.setenv("NEMOGUARDRAILS_LLM_FRAMEWORK", "litellm")
@@ -91,6 +95,86 @@ class TestRegistry:
         _reset_frameworks()
         with pytest.raises(KeyError):
             get_framework("temp")
+
+
+class _ResetSpyFramework:
+    def __init__(self):
+        self.reset_count = 0
+
+    def create_model(self, model_name, provider_name, model_kwargs=None):
+        return MagicMock(spec=LLMModel)
+
+    async def reset(self):
+        self.reset_count += 1
+
+
+class TestAresetFrameworks:
+    @pytest.mark.asyncio
+    async def test_async_reset_calls_framework_reset(self):
+        spy = _ResetSpyFramework()
+        register_framework("spy_running_loop", spy)
+        await _areset_frameworks()
+        assert spy.reset_count == 1
+
+    @pytest.mark.asyncio
+    async def test_async_reset_clears_pool(self):
+        spy = _ResetSpyFramework()
+        register_framework("spy_pool", spy)
+        await _areset_frameworks()
+        with pytest.raises(KeyError):
+            get_framework("spy_pool")
+
+    @pytest.mark.asyncio
+    async def test_sync_wrapper_raises_in_running_loop(self):
+        with pytest.raises(RuntimeError, match="asyncio.run"):
+            _reset_frameworks()
+
+
+class _FrameworkWithoutReset:
+    def create_model(self, model_name, provider_name, model_kwargs=None):
+        return MagicMock(spec=LLMModel)
+
+
+class _RaisingFramework:
+    def __init__(self, exc=None):
+        self._exc = exc or RuntimeError("boom")
+
+    def create_model(self, model_name, provider_name, model_kwargs=None):
+        return MagicMock(spec=LLMModel)
+
+    async def reset(self):
+        raise self._exc
+
+
+class TestResetFrameworksErrorIsolation:
+    def test_failing_framework_does_not_block_subsequent_resets(self):
+        bad = _RaisingFramework()
+        good = _ResetSpyFramework()
+        register_framework("bad", bad)
+        register_framework("good", good)
+        _reset_frameworks()
+        assert good.reset_count == 1
+
+    def test_failing_framework_still_clears_registry(self):
+        bad = _RaisingFramework()
+        register_framework("bad_only", bad)
+        _reset_frameworks()
+        with pytest.raises(KeyError):
+            get_framework("bad_only")
+
+
+class TestResetFrameworksMissingResetMethod:
+    def test_framework_without_reset_does_not_crash(self):
+        register_framework("no_reset", _FrameworkWithoutReset())
+        _reset_frameworks()
+        with pytest.raises(KeyError):
+            get_framework("no_reset")
+
+    def test_framework_without_reset_resets_default(self, monkeypatch):
+        monkeypatch.setenv("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+        register_framework("no_reset_2", _FrameworkWithoutReset())
+        _reset_frameworks()
+        assert get_default_framework() == "default"
 
 
 class FakeChatProvider:
@@ -115,7 +199,7 @@ def clean_providers():
     _p._llm_providers.update(llm_backup)
 
 
-@pytest.mark.usefixtures("clean_providers")
+@pytest.mark.usefixtures("clean_providers", "langchain_framework")
 class TestProviderRegistration:
     def test_register_provider_appears_in_get_provider_names(self):
         register_provider("test_provider", FakeChatProvider)

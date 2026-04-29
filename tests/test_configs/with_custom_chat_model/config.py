@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemoguardrails.llm.providers import register_chat_provider
+from nemoguardrails.llm.providers import register_provider
 from tests.test_configs.with_custom_chat_model.custom_chat_model import CustomChatModel
 
-register_chat_provider("custom_chat_model", CustomChatModel)
+register_provider("custom_chat_model", CustomChatModel)

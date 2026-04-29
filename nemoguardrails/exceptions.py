@@ -19,6 +19,16 @@ __all__ = [
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
     "LLMCallException",
+    "LLMClientError",
+    "LLMAuthenticationError",
+    "LLMRateLimitError",
+    "LLMBadRequestError",
+    "LLMContextWindowError",
+    "LLMUnsupportedParamsError",
+    "LLMServerError",
+    "LLMTimeoutError",
+    "LLMConnectionError",
+    "LLMResponseValidationError",
     "StreamingNotSupportedError",
 ]
 
@@ -78,3 +88,129 @@ class LLMCallException(Exception):
 
         self.inner_exception = inner_exception
         self.detail = detail
+
+
+class LLMClientError(Exception):
+    """Base class for LLM client errors.
+
+    ``status_code`` holds the HTTP response status when one was received,
+    or ``0`` when no response arrived (client-side timeout or network
+    error). Callers should branch on exception class rather than
+    ``status_code`` to distinguish HTTP vs network failures, the type
+    hierarchy is the authoritative discriminator.
+    """
+
+    def __init__(
+        self,
+        status_code: int,
+        error_message: str,
+        error_type: Optional[str] = None,
+        error_code: Optional[str] = None,
+        param: Optional[str] = None,
+        body: Optional[dict] = None,
+        response_headers: Optional[dict] = None,
+        model_name: Optional[str] = None,
+        provider_name: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        self.status_code = status_code
+        self.error_message = error_message
+        self.error_type = error_type
+        self.error_code = error_code
+        self.param = param
+        self.body = body
+        self.response_headers = response_headers
+        self.model_name = model_name
+        self.provider_name = provider_name
+        self.base_url = base_url
+        super().__init__(f"[{status_code}] {error_message}" if status_code > 0 else error_message)
+
+    def __str__(self) -> str:
+        parts = []
+        if self.model_name:
+            parts.append(f"model={self.model_name}")
+        if self.provider_name:
+            parts.append(f"provider={self.provider_name}")
+        if self.base_url:
+            parts.append(f"endpoint={self.base_url}")
+        context = f" ({', '.join(parts)})" if parts else ""
+        prefix = f"[{self.status_code}]" if self.status_code > 0 else ""
+        return f"{prefix}{context} {self.error_message}".strip()
+
+
+class LLMAuthenticationError(LLMClientError):
+    pass
+
+
+class LLMRateLimitError(LLMClientError):
+    def __init__(
+        self,
+        status_code: int,
+        error_message: str,
+        error_type: Optional[str] = None,
+        error_code: Optional[str] = None,
+        param: Optional[str] = None,
+        body: Optional[dict] = None,
+        response_headers: Optional[dict] = None,
+        model_name: Optional[str] = None,
+        provider_name: Optional[str] = None,
+        base_url: Optional[str] = None,
+        retry_after_seconds: Optional[float] = None,
+    ):
+        super().__init__(
+            status_code,
+            error_message,
+            error_type,
+            error_code,
+            param,
+            body,
+            response_headers,
+            model_name,
+            provider_name,
+            base_url,
+        )
+        self.retry_after_seconds = retry_after_seconds
+
+
+class LLMBadRequestError(LLMClientError):
+    pass
+
+
+class LLMContextWindowError(LLMBadRequestError):
+    pass
+
+
+class LLMUnsupportedParamsError(LLMBadRequestError):
+    pass
+
+
+class LLMServerError(LLMClientError):
+    pass
+
+
+class LLMTimeoutError(LLMClientError):
+    pass
+
+
+class LLMConnectionError(LLMClientError):
+    pass
+
+
+class LLMResponseValidationError(LLMClientError):
+    def __init__(
+        self,
+        message: str,
+        response_data: Optional[dict] = None,
+        model_name: Optional[str] = None,
+        provider_name: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        self.response_data = response_data
+        super().__init__(
+            status_code=0,
+            error_message=message,
+            body=response_data,
+            model_name=model_name,
+            provider_name=provider_name,
+            base_url=base_url,
+        )

@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
 import pytest
 
 from nemoguardrails import LLMRails, RailsConfig
@@ -533,3 +535,63 @@ class TestCheckAsyncExplicitRails:
         ]
         result = mock_rails.check(messages, rail_types=None)
         assert result.status == RailStatus.BLOCKED
+
+
+@pytest.fixture
+def no_main_llm_config():
+    return RailsConfig.from_content(
+        """
+        define flow input rail
+          if $user_message == "block"
+            bot refuse to respond
+            stop
+
+        define flow output rail
+          if $bot_message == "block output"
+            bot refuse to respond
+            stop
+        """,
+        """
+        rails:
+            input:
+                flows:
+                    - input rail
+            output:
+                flows:
+                    - output rail
+        """,
+    )
+
+
+USER_MSG = [{"role": "user", "content": "hello"}]
+ASSISTANT_MSG = [{"role": "assistant", "content": "hello"}]
+USER_ASSISTANT_MSG = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
+
+NO_MAIN_LLM_WARNING = "No main LLM specified in the config and no LLM provided via constructor."
+
+
+class TestNoMainLLMWarning:
+    def test_init_logs_info_not_warning(self, no_main_llm_config, caplog):
+        with caplog.at_level(logging.INFO, logger="nemoguardrails.rails.llm.llmrails"):
+            LLMRails(no_main_llm_config)
+        matches = [r for r in caplog.records if NO_MAIN_LLM_WARNING in r.message]
+        assert len(matches) == 1
+        assert matches[0].levelno == logging.INFO
+
+    @pytest.mark.parametrize(
+        "messages, rail_types",
+        [
+            pytest.param(USER_MSG, None, id="auto-input"),
+            pytest.param(ASSISTANT_MSG, None, id="auto-output"),
+            pytest.param(USER_ASSISTANT_MSG, None, id="auto-both"),
+            pytest.param(USER_MSG, [RailType.INPUT], id="explicit-input"),
+            pytest.param(ASSISTANT_MSG, [RailType.OUTPUT], id="explicit-output"),
+            pytest.param(USER_ASSISTANT_MSG, [RailType.INPUT, RailType.OUTPUT], id="explicit-both"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_check_async_does_not_warn(self, no_main_llm_config, caplog, messages, rail_types):
+        rails = LLMRails(no_main_llm_config)
+        with caplog.at_level(logging.WARNING, logger="nemoguardrails.rails.llm.llmrails"):
+            await rails.check_async(messages, rail_types=rail_types)
+        assert NO_MAIN_LLM_WARNING not in caplog.text

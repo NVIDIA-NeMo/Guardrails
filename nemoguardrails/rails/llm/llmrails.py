@@ -457,7 +457,7 @@ class LLMRails:
                 self.runtime.register_action_param("llm", self.llm)
 
             else:
-                log.warning("No main LLM specified in the config and no LLM provided via constructor.")
+                log.info("No main LLM specified in the config and no LLM provided via constructor.")
 
         llms = dict()
 
@@ -774,9 +774,8 @@ class LLMRails:
     ) -> Union[str, dict, GenerationResponse, Tuple[dict, dict]]:
         """Generate a completion or a next message.
 
-        The format for messages is the following:
+        The format for messages is the following::
 
-        ```python
             [
                 {"role": "context", "content": {"user_name": "John"}},
                 {"role": "user", "content": "Hello! How are you?"},
@@ -784,7 +783,6 @@ class LLMRails:
                 {"role": "event", "event": {"type": "UserSilent"}},
                 ...
             ]
-        ```
 
         Args:
             prompt: The prompt to be used for completion.
@@ -839,6 +837,10 @@ class LLMRails:
         # Save the generation options in the current async context.
         # At this point, gen_options is either None or GenerationOptions
         generation_options_var.set(gen_options)
+
+        needs_llm = gen_options is None or gen_options.rails.dialog is not False
+        if needs_llm and not self.llm:
+            log.warning("No main LLM specified in the config and no LLM provided via constructor.")
 
         if streaming_handler:
             streaming_handler_var.set(streaming_handler)
@@ -1340,14 +1342,12 @@ class LLMRails:
     ) -> List[dict]:
         """Generate the next events based on the provided history.
 
-        The format for events is the following:
+        The format for events is the following::
 
-        ```python
             [
                 {"type": "...", ...},
                 ...
             ]
-        ```
 
         Args:
             events: The history of events to be used to generate the next events.
@@ -1479,18 +1479,21 @@ class LLMRails:
             - rail: Name of the rail that blocked (if blocked)
 
         Examples:
-            Check user input (auto-detected):
+            Check user input (auto-detected)::
+
                 result = await rails.check_async([{"role": "user", "content": "Hello!"}])
                 if result.status == RailStatus.BLOCKED:
                     print(f"Blocked by: {result.rail}")
 
-            Check bot output with context (auto-detected):
+            Check bot output with context (auto-detected)::
+
                 result = await rails.check_async([
                     {"role": "user", "content": "Hello!"},
                     {"role": "assistant", "content": "Hi there!"}
                 ])
 
-            Run only input rails explicitly:
+            Run only input rails explicitly::
+
                 result = await rails.check_async(messages, rail_types=[RailType.INPUT])
         """
         if rail_types is not None:

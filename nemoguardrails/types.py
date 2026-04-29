@@ -279,3 +279,13 @@ class LLMFramework(Protocol):
     def register_provider(self, name: str, provider_cls: Any) -> None: ...
 
     def get_provider_names(self) -> List[str]: ...
+
+    async def reset(self) -> None:
+        """Release all framework-owned resources and clear all registered state.
+
+        Implementations should close any pooled connections, clear registered
+        providers, and return the framework to its initial state. Callers can
+        continue using the instance after reset; new resources will be created
+        on demand.
+        """
+        ...

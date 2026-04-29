@@ -12,7 +12,6 @@ include = [
   "LICENSE.md",
   "LICENSE-Apache-2.0.txt",
   "LICENCES-3rd-party.txt",
-  "chat-ui/**/*",
   "examples/**/*",
   "eval/data/**/*",
   "**/*.yml",
@@ -49,7 +48,7 @@ python = ">=3.10,<3.14"
 aiohttp = ">=3.10.11"
 aiohttp-retry = ">=2.9.0"
 annoy = ">=1.17.3"
-fastapi = ">=0.103.0,"
+fastapi = { version = ">=0.103.0", optional = true }
 fastembed = [{ version = ">=0.2.2", python = ">=3.10,<3.14" }]
 # onnxruntime 1.24+ dropped Python 3.10 wheels; cap it for that version
 onnxruntime = [
@@ -73,10 +72,10 @@ pydantic = ">=1.10"
 pyyaml = ">=6.0"
 rich = ">=13.5.2"
 simpleeval = ">=0.9.13,"
-starlette = ">=0.49.1"
+starlette = { version = ">=0.49.1", optional = true }
 typer = ">=0.8"
-uvicorn = ">=0.23"
-watchdog = ">=3.0.0,"
+uvicorn = { version = ">=0.23", optional = true }
+watchdog = { version = ">=3.0.0", optional = true }
 openai = { version = ">=1.0.0,<3.0.0", optional = true }
 
 # tracing
@@ -115,6 +114,9 @@ yara-python = { version = "^4.5.1", optional = true }
 # multilingual content safety - language detection
 fast-langdetect = { version = ">=1.0.0", optional = true }
 
+# chat UI
+chainlit = { version = "^2.11.0", optional = true }
+
 [tool.poetry.extras]
 sdd = ["presidio-analyzer", "presidio-anonymizer"]
 eval = ["tqdm", "numpy", "streamlit", "tornado"]
@@ -124,7 +126,8 @@ tracing = ["opentelemetry-api", "aiofiles"]
 nvidia = ["langchain-nvidia-ai-endpoints"]
 jailbreak = ["yara-python"]
 multilingual = ["fast-langdetect"]
-server = ["aiofiles", "openai"]
+server = ["aiofiles", "openai", "fastapi", "starlette", "uvicorn", "watchdog"]
+chat-ui = ["chainlit"]
 # Poetry does not support recursive dependencies, so we need to add all the dependencies here.
 # I also support their decision. There is no PEP for recursive dependencies, but it has been supported in pip since version 21.2.
 # It is here for backward compatibility.
@@ -142,6 +145,11 @@ all = [
   "langchain-nvidia-ai-endpoints",
   "yara-python",
   "fast-langdetect",
+  "fastapi",
+  "starlette",
+  "uvicorn",
+  "watchdog",
+  "chainlit",
 ]
 
 [tool.poetry.group.dev]
@@ -163,8 +171,14 @@ opentelemetry-api = "^1.34.1"
 opentelemetry-sdk = "^1.34.1"
 fast-langdetect = ">=1.0.0"
 openai = ">=1.0.0,<3.0.0"
+# server (optional at runtime, required for tests/server/)
+fastapi = ">=0.103.0"
+uvicorn = ">=0.23"
+starlette = ">=0.49.1"
+watchdog = ">=3.0.0"
 pyright = "^1.1.405"
 ruff = "0.14.6"
+chainlit = "^2.11.0"
 
 # Directories in which to run Pyright type-checking
 [tool.pyright]

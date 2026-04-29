@@ -479,6 +479,9 @@ class TestLLMFrameworkProtocol:
             def get_provider_names(self):
                 return []
 
+            async def reset(self):
+                return
+
         assert isinstance(MockFramework(), LLMFramework)
 
     def test_incomplete_class_fails_protocol(self):
