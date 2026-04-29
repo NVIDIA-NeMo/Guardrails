@@ -90,6 +90,7 @@ jobs:
         run: |
           echo "CFLAGS=-march=x86-64" >> $GITHUB_ENV
           echo "CXXFLAGS=-march=x86-64" >> $GITHUB_ENV
+          echo "ANNOY_COMPILER_ARGS=-D_CRT_SECURE_NO_WARNINGS,-fpermissive,-march=x86-64,-O3,-ffast-math,-fno-associative-math,-DANNOYLIB_MULTITHREADED_BUILD,-std=c++14" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: |

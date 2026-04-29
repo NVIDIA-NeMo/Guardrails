@@ -13,6 +13,7 @@ env:
   PYTHON_VERSION: "3.11"
   CFLAGS: "-march=x86-64"
   CXXFLAGS: "-march=x86-64"
+  ANNOY_COMPILER_ARGS: "-D_CRT_SECURE_NO_WARNINGS,-fpermissive,-march=x86-64,-O3,-ffast-math,-fno-associative-math,-DANNOYLIB_MULTITHREADED_BUILD,-std=c++14"
 
 jobs:
   lint:
