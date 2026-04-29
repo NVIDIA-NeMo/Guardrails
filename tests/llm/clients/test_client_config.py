@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import warnings
 
 import httpx
@@ -35,14 +36,16 @@ class TestTimeout:
     @pytest.mark.asyncio
     async def test_defaults(self):
         async with _make_client() as client:
-            assert client._client.timeout.read == DEFAULT_TIMEOUT.read
-            assert client._client.timeout.connect == DEFAULT_TIMEOUT.connect
+            httpx_client = client._get_client()
+            assert httpx_client.timeout.read == DEFAULT_TIMEOUT.read
+            assert httpx_client.timeout.connect == DEFAULT_TIMEOUT.connect
 
     @pytest.mark.asyncio
     async def test_custom(self):
         async with _make_client(timeout=120.0, connect_timeout=10.0) as client:
-            assert client._client.timeout.read == 120.0
-            assert client._client.timeout.connect == 10.0
+            httpx_client = client._get_client()
+            assert httpx_client.timeout.read == 120.0
+            assert httpx_client.timeout.connect == 10.0
 
     @pytest.mark.asyncio
     async def test_http_client_timeout_inferred(self):
@@ -58,7 +61,7 @@ class TestConnectionPool:
     @pytest.mark.asyncio
     async def test_limits(self):
         async with _make_client() as client:
-            pool = client._client._transport._pool
+            pool = client._get_client()._transport._pool
             assert pool._max_connections == DEFAULT_CONNECTION_LIMITS.max_connections
             assert pool._max_keepalive_connections == DEFAULT_CONNECTION_LIMITS.max_keepalive_connections
 
@@ -122,7 +125,7 @@ class TestHttpClientInjection:
     @pytest.mark.asyncio
     async def test_close_closes_owned_client(self):
         client = OpenAICompatibleClient(base_url="https://api.openai.com/v1", api_key="sk")
-        owned = client._client
+        owned = client._get_client()
         await client.close()
         assert owned.is_closed
 
@@ -283,8 +286,8 @@ class TestDefaultFramework:
             m2 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk", "timeout": 5.0})
 
             assert m1._client is not m2._client
-            assert m1._client._client.timeout.read == 30.0
-            assert m2._client._client.timeout.read == 5.0
+            assert m1._client._get_client().timeout.read == 30.0
+            assert m2._client._get_client().timeout.read == 5.0
         finally:
             await fw.reset()
 
@@ -326,7 +329,7 @@ class TestDefaultFramework:
         m2 = fw.create_model("llama", "nim", {"api_key": "nv-a"})
         m3 = fw.create_model("gpt-4o-mini", "openai", {"api_key": "sk-b"})
 
-        clients = [m1._client._client, m2._client._client, m3._client._client]
+        clients = [m1._client._get_client(), m2._client._get_client(), m3._client._get_client()]
         assert all(not c.is_closed for c in clients)
 
         await fw.reset()
@@ -352,12 +355,12 @@ class TestDefaultFramework:
 
         fw = DefaultFramework()
         m1 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
-        first_client = m1._client._client
+        first_client = m1._client._get_client()
         await fw.reset()
 
         m2 = fw.create_model("gpt-4o", "openai", {"api_key": "sk"})
-        assert m2._client._client is not first_client
-        assert not m2._client._client.is_closed
+        assert m2._client._get_client() is not first_client
+        assert not m2._client._get_client().is_closed
 
     @pytest.mark.asyncio
     async def test_reset_does_not_close_injected_clients(self):
@@ -406,3 +409,213 @@ class TestDefaultFramework:
         assert "openai" in names
         assert "nim" in names
         assert "ollama" in names
+
+
+class TestLoopScopedHttpxClient:
+    """Regression coverage for the 'Event loop is closed' bug.
+
+    The framework cached one OpenAICompatibleClient per provider URL, and
+    that client held a single httpx.AsyncClient that bound to the first
+    event loop on which it issued a request. Reusing the same rails across
+    asyncio.run() boundaries (or pytest-asyncio function-scoped loops) then
+    raised RuntimeError: Event loop is closed.
+
+    With per-loop lazy httpx clients in BaseClient, each loop gets its own
+    httpx.AsyncClient on first use; the WeakKeyDictionary purges entries
+    when their loop is garbage collected.
+    """
+
+    def test_reused_client_across_two_asyncio_runs(self):
+        client = _make_client()
+
+        async def fetch_underlying():
+            return client._get_client()
+
+        first = asyncio.run(fetch_underlying())
+        second = asyncio.run(fetch_underlying())
+
+        assert first is not second, "different loops must yield different httpx clients"
+        assert isinstance(first, httpx.AsyncClient)
+        assert isinstance(second, httpx.AsyncClient)
+
+    def test_reused_client_across_function_scope_loops(self):
+        client = _make_client()
+        seen = []
+
+        async def fetch_underlying():
+            return client._get_client()
+
+        for _ in range(3):
+            loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(loop)
+                seen.append(loop.run_until_complete(fetch_underlying()))
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+
+        assert len(set(id(c) for c in seen)) == 3, "each loop must get its own httpx client"
+
+    def test_loop_gc_drops_client_entry(self):
+        import gc
+
+        client = _make_client()
+
+        async def fetch_underlying():
+            return client._get_client()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(fetch_underlying())
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+        assert len(client._clients_by_loop) == 1
+
+        del loop
+        gc.collect()
+        assert len(client._clients_by_loop) == 0, "WeakKeyDictionary must drop entry after loop GC"
+
+    def test_injected_client_not_per_loop(self):
+        injected = httpx.AsyncClient()
+        try:
+            client = OpenAICompatibleClient(base_url="https://api.openai.com/v1", http_client=injected)
+
+            async def fetch_underlying():
+                return client._get_client()
+
+            first = asyncio.run(fetch_underlying())
+            second = asyncio.run(fetch_underlying())
+
+            assert first is injected
+            assert second is injected
+            assert len(client._clients_by_loop) == 0
+        finally:
+            asyncio.run(injected.aclose())
+
+    @pytest.mark.asyncio
+    async def test_close_only_targets_current_loop_client(self):
+        client = _make_client()
+        current = client._get_client()
+        assert client._clients_by_loop[asyncio.get_running_loop()] is current
+
+        await client.close()
+
+        assert current.is_closed
+        assert asyncio.get_running_loop() not in client._clients_by_loop
+
+    def test_close_in_loop_with_no_client_is_noop(self):
+        """close() popping must not raise when the running loop has no entry.
+
+        After the setup loop ends and is GC'd, the WeakKeyDictionary is empty.
+        Calling close() on a fresh loop must be a clean no-op: no exception,
+        no spurious creation of a client just to close it.
+        """
+
+        async def setup():
+            client = _make_client()
+            client._get_client()
+            return client
+
+        client = asyncio.run(setup())
+
+        async def close_in_new_loop():
+            await client.close()
+            return len(client._clients_by_loop)
+
+        remaining = asyncio.run(close_in_new_loop())
+        assert remaining == 0
+
+    def test_full_chat_completion_across_two_asyncio_runs(self):
+        """End-to-end: same client survives `asyncio.run` -> close loop -> `asyncio.run` again.
+
+        Mirrors scenario A of the bug repro. Without the per-loop client this
+        raises RuntimeError: Event loop is closed on the second call.
+        """
+
+        def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "id": "chatcmpl-test",
+                    "model": "gpt-4o-mini",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"content": "ok", "role": "assistant"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                },
+                request=request,
+            )
+
+        from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient as _Client
+
+        client = _Client(base_url="https://api.openai.com/v1", api_key="sk-test")
+
+        original_factory = client._client_factory
+
+        def factory_with_mock_transport():
+            real = original_factory()
+            real._transport = httpx.MockTransport(handler)
+            return real
+
+        client._client_factory = factory_with_mock_transport
+
+        async def call_once():
+            return await client.chat_completion("gpt-4o-mini", [{"role": "user", "content": "hi"}])
+
+        first = asyncio.run(call_once())
+        second = asyncio.run(call_once())
+
+        assert first["choices"][0]["message"]["content"] == "ok"
+        assert second["choices"][0]["message"]["content"] == "ok"
+
+    def test_streaming_chat_completion_across_two_asyncio_runs(self):
+        """Streaming path also rebuilds the httpx client per loop.
+
+        _apost_stream uses _get_client() the same way as _apost, but only
+        end-to-end coverage proves the SSE pipeline survives a loop teardown.
+        """
+
+        def handler(request):
+            body = (
+                'data: {"id":"s","model":"x","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}\n\n'
+                'data: {"id":"s","model":"x","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+                "data: [DONE]\n\n"
+            )
+            return httpx.Response(
+                200,
+                content=body.encode("utf-8"),
+                headers={"content-type": "text/event-stream"},
+                request=request,
+            )
+
+        from nemoguardrails.llm.clients.openai_compatible import OpenAICompatibleClient as _Client
+
+        client = _Client(base_url="https://api.openai.com/v1", api_key="sk-test")
+
+        original_factory = client._client_factory
+
+        def factory_with_mock_transport():
+            real = original_factory()
+            real._transport = httpx.MockTransport(handler)
+            return real
+
+        client._client_factory = factory_with_mock_transport
+
+        async def stream_once():
+            chunks = []
+            async for chunk in client.stream_chat_completion("gpt-4o-mini", [{"role": "user", "content": "hi"}]):
+                chunks.append(chunk)
+            return chunks
+
+        first = asyncio.run(stream_once())
+        second = asyncio.run(stream_once())
+
+        assert len(first) >= 1
+        assert len(second) >= 1
+        assert any(chunk["choices"][0]["delta"].get("content") == "hi" for chunk in first)
+        assert any(chunk["choices"][0]["delta"].get("content") == "hi" for chunk in second)

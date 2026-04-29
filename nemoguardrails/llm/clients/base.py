@@ -14,11 +14,13 @@
 # limitations under the License.
 
 import asyncio
+import functools
 import json
 import logging
 import random
 import warnings
-from typing import Any, AsyncGenerator, Dict, Optional
+import weakref
+from typing import Any, AsyncGenerator, Dict, MutableMapping, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -45,8 +47,6 @@ log = logging.getLogger(__name__)
 
 
 class BaseClient:
-    _client: httpx.AsyncClient
-
     def __init__(
         self,
         base_url: str,
@@ -65,6 +65,14 @@ class BaseClient:
         Bearer token built from api_key, allowing custom auth schemes
         (Basic, raw JWT, pre-signed tokens, multi-scheme) to be used
         alongside the env-var-driven api_key default.
+
+        When ``http_client`` is omitted the underlying ``httpx.AsyncClient`` is
+        created lazily and is keyed on the running event loop. ``httpx`` binds
+        its transport to the loop on first I/O, so a single eager client cannot
+        be reused after that loop closes (e.g. across ``asyncio.run`` calls or
+        pytest-asyncio function-scope tests). Lazy per-loop creation makes the
+        client safe to reuse across loops while preserving connection pooling
+        within any one loop.
         """
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
@@ -87,10 +95,33 @@ class BaseClient:
         _timeout = timeout if timeout is not None else DEFAULT_TIMEOUT.read
         _connect_timeout = connect_timeout if connect_timeout is not None else DEFAULT_TIMEOUT.connect
         self._owns_client = http_client is None
-        self._client = http_client or httpx.AsyncClient(
+        self._client: Optional[httpx.AsyncClient] = http_client
+        self._clients_by_loop: MutableMapping[asyncio.AbstractEventLoop, httpx.AsyncClient] = (
+            weakref.WeakKeyDictionary()
+        )
+        self._client_factory = functools.partial(
+            httpx.AsyncClient,
             timeout=httpx.Timeout(_timeout, connect=_connect_timeout),
             limits=DEFAULT_CONNECTION_LIMITS,
         )
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Return the httpx client to use for I/O on the running event loop.
+
+        ``self._client`` takes precedence when set: it covers user-injected
+        clients (passed via ``http_client=...``) and tests that assign a fake
+        directly. When ``self._client`` is None, lazily constructs an
+        ``httpx.AsyncClient`` per running loop. WeakKeyDictionary drops each
+        entry when its loop is garbage collected.
+        """
+        if self._client is not None:
+            return self._client
+        loop = asyncio.get_running_loop()
+        client = self._clients_by_loop.get(loop)
+        if client is None:
+            client = self._client_factory()
+            self._clients_by_loop[loop] = client
+        return client
 
     @property
     def provider_name(self) -> Optional[str]:
@@ -154,7 +185,7 @@ class BaseClient:
 
         while True:
             try:
-                response = await self._client.post(
+                response = await self._get_client().post(
                     f"{self._base_url}{path}",
                     json=payload,
                     headers=self._build_headers(),
@@ -203,7 +234,7 @@ class BaseClient:
         while True:
             first_yielded = False
             try:
-                async with self._client.stream(
+                async with self._get_client().stream(
                     "POST",
                     f"{self._base_url}{path}",
                     json=payload,
@@ -277,11 +308,40 @@ class BaseClient:
         raise_for_sse_error(parsed, headers, ctx)
 
     def is_closed(self) -> bool:
-        return self._client.is_closed
+        """Whether this client is unusable.
+
+        ``self._client`` takes precedence when set. Otherwise the answer is
+        about the lazily-built per-loop client: closed (or not yet created)
+        on the running loop. Outside an event loop the answer is conservative
+        (True) because no I/O is reachable.
+        """
+        if self._client is not None:
+            return self._client.is_closed
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return True
+        client = self._clients_by_loop.get(loop)
+        return client is None or client.is_closed
 
     async def close(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
+        """Close the owned httpx client bound to the running loop.
+
+        Clients pinned to other loops cannot be ``aclose()``d from here (their
+        loops may have been closed already). Their entries vanish when the
+        loop is garbage collected; httpx may emit a ResourceWarning at that
+        point because no graceful shutdown was performed. The warning is
+        harmless because the loop's selectors and sockets are already gone.
+        """
+        if not self._owns_client:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        client = self._clients_by_loop.pop(loop, None)
+        if client is not None:
+            await client.aclose()
 
     async def __aenter__(self):
         return self
