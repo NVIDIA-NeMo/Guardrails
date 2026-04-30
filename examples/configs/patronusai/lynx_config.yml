@@ -4,10 +4,11 @@ models:
     model: gpt-3.5-turbo-instruct
 
   - type: patronus_lynx
-    engine: vllm_openai
+    engine: openai
+    model: PatronusAI/Patronus-Lynx-70B-Instruct
     parameters:
-      openai_api_base: "http://localhost:5000/v1"
-      model_name: "PatronusAI/Patronus-Lynx-70B-Instruct" # "PatronusAI/Patronus-Lynx-8B-Instruct"
+      base_url: "http://localhost:5000/v1"
+      api_key: EMPTY
 
 rails:
   output:
