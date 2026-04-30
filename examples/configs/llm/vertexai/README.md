@@ -1,5 +1,8 @@
 # Vertex AI Example
 
+> **Framework requirement.** This example uses `engine: vertexai`, which is served by the LangChain framework only.
+> Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `pip install langchain langchain-google-vertexai` before running.
+
 This guardrails configuration is a basic example using the Vertex AI API, and it can be adapted as needed.
 
 Note that to call Vertex AI APIs, you need to perform [some initial setup](../../../../docs/user-guides/advanced/vertexai-setup.md), and to use Vertex AI with NeMo Guardrails, you additionally need to install the following:

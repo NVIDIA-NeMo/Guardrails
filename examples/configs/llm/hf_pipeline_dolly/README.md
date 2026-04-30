@@ -1,5 +1,8 @@
 # HuggingFace Pipeline with Dolly models
 
+> **Framework requirement.** This example registers a custom LangChain LLM provider through `nemoguardrails.integrations.langchain` and uses LangChain-only constructs such as `HuggingFacePipelineCompatible(..., model_kwargs=...)` and `AsyncTextIteratorStreamer`.
+> Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `pip install langchain langchain-community transformers torch` before running.
+
 This configuration uses the HuggingFace Pipeline LLM with the [dolly-v2-3b](https://huggingface.co/databricks/dolly-v2-3b) model.
 It also shows how to support streaming in NeMo Guardrails for LLMs deployed using HuggingFacePipeline.
 

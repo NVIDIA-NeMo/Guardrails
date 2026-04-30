@@ -1,5 +1,8 @@
 # HuggingFace Pipeline with Vicuna models
 
+> **Framework requirement.** This example registers a custom LangChain LLM provider through `nemoguardrails.integrations.langchain` and uses LangChain-only constructs such as `HuggingFacePipelineCompatible(..., model_kwargs=...)`.
+> Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `pip install langchain langchain-community transformers torch` before running.
+
 This configuration uses the HuggingFace Pipeline LLM with various Vicuna models, including LMSYS and Bloke variants, 7B and 13B, e.g. [vicuna-7b-v1.3](https://huggingface.co/lmsys/vicuna-7b-v1.3).
 
 The `vicuna-7b-v1.3` LLM model has been tested on the topical rails evaluation sets, results are available [here](../../../../nemoguardrails/evaluate/README.md).
