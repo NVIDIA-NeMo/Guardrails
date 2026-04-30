@@ -16,6 +16,15 @@ You can obtain an API key at [build.nvidia.com](https://build.nvidia.com).
 
 Create a `config` directory and add a `config.yml` file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.
 
+`nvidia/gliner-pii` does not appear in the configs below because it is the default value of `rails.config.gliner.model`. You only need to set that field explicitly if you want to use a different model:
+
+```yaml
+rails:
+  config:
+    gliner:
+      model: nvidia/gliner-pii  # default — omit or change as needed
+```
+
 ### PII Detection
 
 The detection flow blocks any input or output that contains PII.

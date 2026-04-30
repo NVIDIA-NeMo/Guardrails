@@ -21,7 +21,16 @@ The NeMo Guardrails library supports PII detection and masking via the [NVIDIA G
 
 ### NVIDIA-hosted endpoint
 
-Use the NVIDIA-hosted NIM by setting `api_key_env_var` in both the `models` block and the `gliner` config block:
+Use the NVIDIA-hosted NIM by setting `api_key_env_var` in both the `models` block and the `gliner` config block.
+
+`nvidia/gliner-pii` does not appear in the configs below because it is the default value of `rails.config.gliner.model`. You only need to set that field explicitly if you want to use a different model:
+
+```yaml
+rails:
+  config:
+    gliner:
+      model: nvidia/gliner-pii  # default — omit or change as needed
+```
 
 **PII detection** — blocks input or output that contains PII:
 
