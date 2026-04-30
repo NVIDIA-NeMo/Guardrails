@@ -24,6 +24,8 @@ content:
 
 The NeMo Guardrails library includes a set of tools that you can use to evaluate the different types of rails. In the current version, these tools test the performance of each type of rail individually. You can use the evaluation tools through the `nemoguardrails` CLI. Examples will be provided for each type of rail.
 
+> **Note.** Evaluation uses whichever LLM framework is active. The default framework serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, and any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url`. Engines whose API is not OpenAI-compatible (`vertexai`, `anthropic`, `cohere`, `azure`, the in-process `huggingface_pipeline`, `huggingface_endpoint` with the default text-generation schema, `trt_llm`, and the legacy `vllm_openai` LangChain wrapper) require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` plus the matching `langchain-*` package.
+
 At the same time, we provide preliminary results on the performance of the rails on a set of public datasets that are relevant to each task at hand.
 
 ## Dialog Rails

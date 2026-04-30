@@ -27,6 +27,20 @@ This guide provides step-by-step instructions for running the NeMo Guardrails li
 
 Ensure Docker is installed on your machine. If not, follow the [official Docker installation guide](https://docs.docker.com/get-docker/) for your respective platform.
 
+## LLM Framework Selection
+
+By default, NeMo Guardrails uses the lightweight default framework (httpx-based, no LangChain). It serves engines such as `openai`, `nim`, `nvidia_ai_endpoints`, and `ollama`, plus any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url` (for example self-hosted vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp).
+
+To use LangChain-only engines whose API is not OpenAI-compatible (`vertexai`, `anthropic`, `cohere`, `azure`, `huggingface_pipeline`, `huggingface_endpoint` with the default text-generation schema, `trt_llm`, `self_hosted`, and the legacy `vllm_openai` LangChain wrapper), set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` in the container environment and add `langchain` plus the relevant provider packages to your image. For example:
+
+```bash
+docker run \
+  -p 8000:8000 \
+  -e NEMOGUARDRAILS_LLM_FRAMEWORK=langchain \
+  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  nemoguardrails
+```
+
 ## Build the Docker Images
 
 ### 1. Clone the repository
