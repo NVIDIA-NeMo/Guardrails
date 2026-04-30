@@ -266,6 +266,35 @@ class TestGuardrailsInit:
         assert guardrails.verbose is True
         assert guardrails.rails_engine == mock_llmrails_instance
 
+    @patch.object(IORails, "__init__", return_value=None)
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_init_with_llm_forces_llmrails(
+        self, mock_llmrails_class, mock_iorails_init, _content_safety_rails_config, mock_llm
+    ):
+        """Passing `llm` forces LLMRails even with use_iorails=True and an IORails-compatible config."""
+        mock_llmrails_class.return_value = MagicMock()
+        Guardrails(config=_content_safety_rails_config, llm=mock_llm, use_iorails=True)
+        mock_llmrails_class.assert_called_once_with(_content_safety_rails_config, mock_llm, False)
+        mock_iorails_init.assert_not_called()
+
+    @patch.object(IORails, "__init__", return_value=None)
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_init_with_llm_use_iorails_false_uses_llmrails(
+        self, mock_llmrails_class, mock_iorails_init, _content_safety_rails_config, mock_llm
+    ):
+        """Passing `llm` with use_iorails=False routes to LLMRails even on an IORails-compatible config."""
+        mock_llmrails_class.return_value = MagicMock()
+        Guardrails(config=_content_safety_rails_config, llm=mock_llm, use_iorails=False)
+        mock_llmrails_class.assert_called_once_with(_content_safety_rails_config, mock_llm, False)
+        mock_iorails_init.assert_not_called()
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_init_without_llm_uses_iorails(self, mock_iorails_init, _content_safety_rails_config):
+        """Omitting `llm` (the default) selects IORails on an IORails-compatible config."""
+        guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+        mock_iorails_init.assert_called_once_with(_content_safety_rails_config)
+
 
 class TestConvertToMessages:
     """Tests for the _convert_to_messages static method."""

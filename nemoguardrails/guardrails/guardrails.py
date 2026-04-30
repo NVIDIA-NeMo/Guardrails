@@ -64,7 +64,7 @@ class Guardrails:
             configure_logging(logging.INFO)
 
         # Whether to use IORailsEngine for inference requests
-        use_iorails_engine = use_iorails and self._has_only_iorails_flows()
+        use_iorails_engine = use_iorails and not llm and self._has_only_iorails_flows()
         self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
 
         # Track whether startup() has been called (supports lazy initialization)
