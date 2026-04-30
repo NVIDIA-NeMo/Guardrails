@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Reasoning-model support for IORails (non-streaming).
+"""Reasoning-model support for IORails.
 
-Mirrors LLMRails behavior (``actions/llm/utils.py:_store_reasoning_traces``
+Non-streaming path mirrors LLMRails behavior (``actions/llm/utils.py:_store_reasoning_traces``
 and ``rails/llm/llmrails.py:1173-1175``):
 - Prefer the provider-native ``LLMResponse.reasoning`` field.
 - Fall back to inline ``<think>...</think>`` tags in content (the helper
@@ -23,6 +23,14 @@ and ``rails/llm/llmrails.py:1173-1175``):
   see reasoning).
 - Surface reasoning to the caller via a ``<think>{reasoning}</think>\\n``
   prefix on the returned content (LLMRails legacy delivery shape).
+
+Streaming path holds strict LLMRails parity:
+- ``delta_reasoning`` is dropped on the floor (LLMRails captures it server-side
+  but never delivers it to streaming callers, so neither do we).
+- Inline ``<think>`` tags arriving via ``delta_content`` (rather than
+  ``delta_reasoning``) pass through verbatim — output rails see them
+  unstripped, matching LLMRails' silent leak. We log a single heads-up
+  warning per request so operators can spot the leak.
 """
 
 from unittest.mock import AsyncMock
@@ -32,9 +40,23 @@ import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.types import LLMResponse
+from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+
+# Streaming tests need a config without output rails so stream_async() doesn't
+# raise StreamingNotSupportedError. The warning under test fires before
+# END_OF_STREAM regardless of output-rail wiring, so input-only is sufficient.
+_INPUT_ONLY_CONFIG = {
+    **NEMOGUARDS_CONFIG,
+    "rails": {**NEMOGUARDS_CONFIG["rails"], "output": {"flows": []}},
+}
+
+
+# Substring identifying the streaming inline-<think> leak warning emitted by
+# IORails._generation_task. Kept as a constant so assertions stay in sync if
+# the wording shifts.
+_INLINE_THINK_WARNING_SUBSTR = "Streamed content contains <think>"
 
 
 @pytest_asyncio.fixture
@@ -44,10 +66,41 @@ async def iorails():
         yield iorails
 
 
+@pytest_asyncio.fixture
+async def iorails_input_only():
+    """Started IORails with input rails only — required for stream_async()."""
+    async with started_iorails(_INPUT_ONLY_CONFIG) as iorails:
+        yield iorails
+
+
 def _stub_safe_rails(iorails: IORails) -> None:
     """Default-safe input + output rails so each test focuses on the LLM call."""
     iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
     iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+
+def _stub_safe_input(iorails: IORails) -> None:
+    """Stub only the input rail (streaming tests on input-only config)."""
+    iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+
+def _make_stream(*chunks: LLMResponseChunk):
+    """Drop-in for engine_registry.stream_model_call yielding fixed chunks."""
+
+    async def _stream(_model_type, _messages, **_kwargs):
+        for c in chunks:
+            yield c
+
+    return _stream
+
+
+async def _collect_stream(async_iter):
+    return [c async for c in async_iter]
+
+
+def _count_inline_think_warnings(caplog) -> int:
+    """Number of IORails streaming inline-<think> warnings in caplog."""
+    return sum(1 for r in caplog.records if r.levelname == "WARNING" and _INLINE_THINK_WARNING_SUBSTR in r.getMessage())
 
 
 class TestReasoningContent:
@@ -190,3 +243,102 @@ class TestReasoningContent:
 
         assert result == {"role": "assistant", "content": "plain answer"}
         iorails.rails_manager.is_output_safe.assert_called_once_with(messages, "plain answer")
+
+
+class TestStreamingReasoningWarning:
+    """One-shot warning when streamed delta_content leaks <think> reasoning tokens.
+
+    Strict LLMRails parity: reasoning is dropped on the streaming path (LLMRails
+    captures it server-side but discards it before reaching the streaming caller),
+    and inline ``<think>`` tags arriving via ``delta_content`` pass through
+    verbatim. The warning is the only deliberate divergence from LLMRails — it
+    gives operators visibility into the leak path without changing chunk content.
+    """
+
+    @pytest.mark.asyncio
+    async def test_inline_think_warning_fires_once_per_request(self, iorails_input_only, caplog):
+        """Two consecutive streams, both leaking <think> via delta_content → one warning per request.
+
+        A single-inference test can't distinguish the intended "once per request"
+        behavior from a buggy "once ever" behavior (e.g. a module-level flag
+        suppressing subsequent warnings). Running two leaky requests and asserting
+        the warning count climbs 0 → 1 → 2 proves the warning is correctly
+        scoped to each request and yielded chunks stay unchanged each time.
+        """
+        _stub_safe_input(iorails_input_only)
+        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+            LLMResponseChunk(delta_content="<think>"),
+            LLMResponseChunk(delta_content="reasoning step"),
+            LLMResponseChunk(delta_content="</think>"),
+            LLMResponseChunk(delta_content="Hello"),
+        )
+
+        # First request — warning fires.
+        chunks_first = await _collect_stream(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])
+        )
+        assert "".join(chunks_first) == "<think>reasoning step</think>Hello"
+        assert _count_inline_think_warnings(caplog) == 1
+
+        # Second request through the same leaky stream — warning fires again,
+        # not deduplicated. Yielded content is unchanged on both requests.
+        chunks_second = await _collect_stream(
+            iorails_input_only.stream_async(messages=[{"role": "user", "content": "again"}])
+        )
+        assert "".join(chunks_second) == "<think>reasoning step</think>Hello"
+        assert _count_inline_think_warnings(caplog) == 2
+
+    @pytest.mark.asyncio
+    async def test_structured_delta_reasoning_no_warning(self, iorails_input_only, caplog):
+        """Structured delta_reasoning channel → no warning, no <think> tokens leaked into chunks."""
+        _stub_safe_input(iorails_input_only)
+        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+            LLMResponseChunk(delta_reasoning="thinking step"),
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+        )
+
+        chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert "".join(chunks) == "Hello world"
+        assert _count_inline_think_warnings(caplog) == 0
+
+    @pytest.mark.asyncio
+    async def test_clean_content_no_warning(self, iorails_input_only, caplog):
+        """Plain content with no reasoning anywhere → no warning."""
+        _stub_safe_input(iorails_input_only)
+        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+        )
+
+        chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert "".join(chunks) == "Hello world"
+        assert _count_inline_think_warnings(caplog) == 0
+
+    @pytest.mark.asyncio
+    async def test_malformed_opener_only_still_warns(self, iorails_input_only, caplog):
+        """Only an opening <think> tag (no closer) → still warns; the leak is the same."""
+        _stub_safe_input(iorails_input_only)
+        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+            LLMResponseChunk(delta_content="<think>incomplete reasoning"),
+        )
+
+        chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert "".join(chunks) == "<think>incomplete reasoning"
+        assert _count_inline_think_warnings(caplog) == 1
+
+    @pytest.mark.asyncio
+    async def test_malformed_closer_only_still_warns(self, iorails_input_only, caplog):
+        """Only a closing </think> tag (no opener) → still warns; the leak is the same."""
+        _stub_safe_input(iorails_input_only)
+        iorails_input_only.engine_registry.stream_model_call = _make_stream(
+            LLMResponseChunk(delta_content="orphan</think> reply"),
+        )
+
+        chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
+
+        assert "".join(chunks) == "orphan</think> reply"
+        assert _count_inline_think_warnings(caplog) == 1
