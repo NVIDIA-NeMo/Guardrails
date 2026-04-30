@@ -145,11 +145,11 @@ def import_optional_dependency(
 
 # Commonly used optional dependencies with their extra groups
 OPTIONAL_DEPENDENCIES = {
-    "openai": "openai",
-    "langchain": None,  # Not in extras
-    "langchain_openai": "openai",
+    "openai": "server",
+    "langchain": None,
+    "langchain_openai": None,
     "langchain_community": None,
-    "langchain_nvidia_ai_endpoints": "nvidia",
+    "langchain_nvidia_ai_endpoints": None,
     "torch": None,
     "transformers": None,
     "presidio_analyzer": None,
