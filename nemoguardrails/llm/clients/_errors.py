@@ -49,6 +49,21 @@ _UNSUPPORTED_PARAMS_KEYWORDS = [
     "unrecognized parameter",
 ]
 
+_UNKNOWN_PARAM_HINT_TOKENS = (
+    "unknown parameter",
+    "unrecognized",
+    "extra fields",
+    "additional properties",
+    "is not allowed",
+)
+
+_MIGRATION_HINT_021 = (
+    "(If you upgraded from 0.21: the default framework forwards `parameters` "
+    "verbatim to the OpenAI-compatible endpoint, which rejected the field above. "
+    "LangChain-only flags must be removed for the default framework. To keep "
+    "0.21 LangChain behavior, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain.)"
+)
+
 _SECRET_PATTERN = re.compile(r"(sk-|nvapi-|AIza|bearer\s+)\S+", re.IGNORECASE)
 
 
@@ -129,6 +144,21 @@ def _build_error_fields(parsed_body: Any, raw_body: str, headers: Any, ctx: Erro
     return error_message, kwargs
 
 
+def _looks_like_unknown_param_400(error_message: str) -> bool:
+    msg_lower = error_message.lower()
+    return any(token in msg_lower for token in _UNKNOWN_PARAM_HINT_TOKENS)
+
+
+def _maybe_append_migration_hint(status_code: int, error_message: str) -> str:
+    if status_code != 400:
+        return error_message
+    if not _looks_like_unknown_param_400(error_message):
+        return error_message
+    if _MIGRATION_HINT_021 in error_message:
+        return error_message
+    return f"{error_message}\n\n{_MIGRATION_HINT_021}"
+
+
 def _classify_bad_request(status_code: int, error_message: str, kwargs: Dict[str, Any]) -> LLMClientError:
     msg_lower = error_message.lower()
     if any(kw in msg_lower for kw in _CONTEXT_WINDOW_KEYWORDS):
@@ -139,7 +169,9 @@ def _classify_bad_request(status_code: int, error_message: str, kwargs: Dict[str
                 f"{error_message} (set include_usage_in_stream=False on the model "
                 "or in config.yml parameters to remove this field from streaming requests)"
             )
+        error_message = _maybe_append_migration_hint(status_code, error_message)
         return LLMUnsupportedParamsError(status_code, error_message, **kwargs)
+    error_message = _maybe_append_migration_hint(status_code, error_message)
     return LLMBadRequestError(status_code, error_message, **kwargs)
 
 
