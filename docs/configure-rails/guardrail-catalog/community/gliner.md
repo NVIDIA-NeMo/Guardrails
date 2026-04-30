@@ -1,53 +1,50 @@
 # GLiNER Integration
 
-[GLiNER](https://github.com/urchade/GLiNER) is a generalist and lightweight model for named entity recognition. [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) is an adaptation of this base model that can detect a wide range of entity types, including comprehensive PII (Personally Identifiable Information) categories.
-This integration enables the NeMo Guardrails library to use a GLiNER-compatible server for PII detection and masking in input, output, and retrieval flows.
+[GLiNER](https://github.com/urchade/GLiNER) is a generalist and lightweight model for named entity recognition. [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) is an adaptation that detects a wide range of PII categories. This integration enables NeMo Guardrails to use GLiNER-PII for PII detection and masking in input, output, and retrieval flows.
 
-## Server Setup
+## Prerequisites
 
-Deploy a GLiNER-compatible server.
-Refer to the example implementation at [GLiNER Server Deployment](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md).
+To use the NVIDIA-hosted NIMs in Steps 1–3, set your NVIDIA API key:
 
 ```bash
-cd examples/deployment/gliner_server
-
-# Install with uv (recommended)
-uv sync
-
-# Start the server (uses nvidia/gliner-PII model by default)
-uv run gliner-server --host 0.0.0.0 --port 1235
-
-# Or install with pip
-pip install -e .
-gliner-server --host 0.0.0.0 --port 1235
+export NVIDIA_API_KEY="nvapi-..."
 ```
 
-## Guardrails Configuration
+You can obtain an API key at [build.nvidia.com](https://build.nvidia.com).
 
-Update your `config.yml` file to include the GLiNER settings:
+## 1. Configure Guardrails
 
-**PII detection config**
+Create a `config` directory and add a `config.yml` file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.
 
-The detection flow blocks the input, output, and retrieval text if it detects PII.
+### PII Detection
+
+The detection flow blocks any input or output that contains PII.
 
 ```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    api_key_env_var: NVIDIA_API_KEY
+
 rails:
   config:
     gliner:
-      server_endpoint: http://localhost:1235/v1/extract
-      threshold: 0.5  # Confidence threshold (0.0 to 1.0)
+      server_endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+      api_key_env_var: NVIDIA_API_KEY
+      threshold: 0.5
       input:
-        entities:  # If no entity is specified, all default PII categories are detected
-          - email
-          - phone_number
-          - ssn
+        entities:
           - first_name
           - last_name
-      output:
-        entities:
           - email
           - phone_number
-          - credit_debit_card
+      output:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
   input:
     flows:
       - gliner detect pii on input
@@ -56,26 +53,35 @@ rails:
       - gliner detect pii on output
 ```
 
-**PII masking config**
+### PII Masking
 
-The masking flow replaces detected PII with labels.
-For example, `Hi John, my email is john@example.com` becomes `Hi [FIRST_NAME], my email is [EMAIL]`.
+The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I'm John — john@example.com` becomes `Hi, I'm [FIRST_NAME] — [EMAIL]`.
 
 ```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    api_key_env_var: NVIDIA_API_KEY
+
 rails:
   config:
     gliner:
-      server_endpoint: http://localhost:1235/v1/extract
+      server_endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+      api_key_env_var: NVIDIA_API_KEY
+      threshold: 0.5
       input:
         entities:
-          - email
           - first_name
           - last_name
+          - email
+          - phone_number
       output:
         entities:
-          - email
           - first_name
           - last_name
+          - email
+          - phone_number
   input:
     flows:
       - gliner mask pii on input
@@ -84,11 +90,161 @@ rails:
       - gliner mask pii on output
 ```
 
+## 2. Run the Guardrails Chat CLI
+
+Start an interactive chat session using your config directory:
+
+```bash
+nemoguardrails chat --config ./config
+```
+
+With **PII detection** enabled, any message containing PII is blocked before reaching the LLM:
+
+```
+> Hello! My name is John and my email is john@example.com.
+I'm sorry, I can't respond to that.
+```
+
+With **PII masking** enabled, PII is replaced in-place before the LLM sees the message:
+
+```
+> Hello! My name is John and my email is john@example.com.
+Nice to meet you, [FIRST_NAME]! How can I help you today?
+```
+
+## 3. Use the Python SDK
+
+```python
+import nest_asyncio
+nest_asyncio.apply()
+
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("./config")
+rails = LLMRails(config)
+
+response = rails.generate(
+    messages=[{"role": "user", "content": "Hello! My name is John and my email is john@example.com."}]
+)
+print(response["content"])
+
+# Inspect the guardrail execution trace
+info = rails.explain()
+print(info.colang_history)
+```
+
+## 4. Deploy NIMs Locally
+
+Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images — obtain one at [ngc.nvidia.com](https://ngc.nvidia.com).
+
+### Start the containers
+
+**GLiNER-PII NIM** — runs on port 8000:
+
+```bash
+# Authenticate with NGC (username: $oauthtoken, password: your NGC API key)
+docker login nvcr.io
+
+docker run --rm -it --gpus all \
+  -p 8000:8000 \
+  nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
+```
+
+**Llama 3.1 8B Instruct NIM** — mapped to port 8001 to avoid conflict with GLiNER:
+
+```bash
+docker run --rm -it --gpus all \
+  -p 8001:8000 \
+  nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
+```
+
+Wait until both containers log `Application startup complete` before proceeding.
+
+### Update config.yml
+
+Replace the remote endpoints with local ones and remove both `api_key_env_var` fields:
+
+**PII detection:**
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8001/v1
+
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:8000/v1/chat/completions
+      threshold: 0.5
+      input:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
+      output:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
+  input:
+    flows:
+      - gliner detect pii on input
+  output:
+    flows:
+      - gliner detect pii on output
+```
+
+**PII masking:**
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8001/v1
+
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:8000/v1/chat/completions
+      threshold: 0.5
+      input:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
+      output:
+        entities:
+          - first_name
+          - last_name
+          - email
+          - phone_number
+  input:
+    flows:
+      - gliner mask pii on input
+  output:
+    flows:
+      - gliner mask pii on output
+```
+
+### Repeat Steps 2 and 3
+
+With the containers running and config updated, rerun the CLI and SDK commands from [Step 2](#2-run-the-guardrails-chat-cli) and [Step 3](#3-use-the-python-sdk). No other changes are required.
+
+---
+
 ## API Specification
 
-The GLiNER integration expects a server that implements the following API:
+The GLiNER-PII NIM exposes an OpenAI-compatible chat completions endpoint.
 
-### `POST /v1/extract`
+### `POST /v1/chat/completions`
 
 Extract entities from text.
 
@@ -96,7 +252,8 @@ Extract entities from text.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `text` | string | Yes | - | The text to analyze for entities |
+| `model` | string | Yes | - | Must be `"nvidia/gliner-pii"` |
+| `messages` | array | Yes | - | Array with a single user message containing the text to analyze |
 | `labels` | array[string] | No | Server default | List of entity labels to detect |
 | `threshold` | float | No | 0.5 | Confidence threshold (0.0 to 1.0) |
 | `chunk_length` | int | No | 384 | Length of text chunks for processing |
@@ -107,13 +264,18 @@ Extract entities from text.
 
 ```json
 {
-  "text": "Hello, my name is John and my email is john@example.com",
+  "model": "nvidia/gliner-pii",
+  "messages": [{"role": "user", "content": "Hello, my name is John and my email is john@example.com"}],
   "labels": ["email", "first_name"],
   "threshold": 0.5
 }
 ```
 
 **Response Body:**
+
+The response follows the OpenAI chat completions format. The `choices[0].message.content` field contains a JSON string with the detected entities.
+
+**Parsed Content Fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -125,29 +287,29 @@ Extract entities from text.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `value` | string | The detected entity text |
-| `suggested_label` | string | The entity label/type |
-| `start_position` | int | Start character index (inclusive) |
-| `end_position` | int | End character index (exclusive) |
+| `text` | string | The detected entity text |
+| `label` | string | The entity label/type |
+| `start` | int | Start character index (inclusive) |
+| `end` | int | End character index (exclusive) |
 | `score` | float | Confidence score |
 
-**Example Response:**
+**Example Parsed Content:**
 
 ```json
 {
   "entities": [
     {
-      "value": "John",
-      "suggested_label": "first_name",
-      "start_position": 18,
-      "end_position": 22,
+      "text": "John",
+      "label": "first_name",
+      "start": 18,
+      "end": 22,
       "score": 0.95
     },
     {
-      "value": "john@example.com",
-      "suggested_label": "email",
-      "start_position": 40,
-      "end_position": 56,
+      "text": "john@example.com",
+      "label": "email",
+      "start": 40,
+      "end": 56,
       "score": 0.98
     }
   ],
@@ -158,7 +320,7 @@ Extract entities from text.
 
 ## Supported Entity Types
 
-The example GLiNER server (using the `nvidia/gliner-PII` model) supports a comprehensive list of PII categories:
+The NVIDIA GLiNER-PII NIM supports these PII categories:
 
 | Category | Entity Types |
 |----------|-------------|
@@ -173,35 +335,12 @@ The example GLiNER server (using the `nvidia/gliner-PII` model) supports a compr
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `server_endpoint` | `http://localhost:1235/v1/extract` | GLiNER server endpoint |
+| `server_endpoint` | `http://localhost:8000/v1/chat/completions` | GLiNER-PII NIM endpoint |
+| `api_key_env_var` | None | Environment variable containing the API key (required for hosted endpoint) |
 | `threshold` | `0.5` | Confidence threshold for entity detection (0.0 to 1.0) |
 | `chunk_length` | `384` | Length of text chunks for processing |
 | `overlap` | `128` | Overlap between chunks |
 | `flat_ner` | `false` | Whether to use flat NER mode |
-
-## Usage
-
-Once configured, the GLiNER integration can automatically:
-
-1. Detect or mask PII in user inputs before the LLM processes them.
-2. Detect or mask PII in LLM outputs before sending them back to the user.
-3. Detect or mask PII in retrieved chunks before sending them to the LLM.
-
-## Example Deployment
-
-The [`examples/deployment/gliner_server/`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/) directory provides an example GLiNER server implementation.
-This implementation:
-
-- Uses the [NVIDIA GLiNER-PII](https://huggingface.co/nvidia/gliner-PII) model for comprehensive PII detection.
-- Supports GPU acceleration (CUDA, MPS on Apple Silicon).
-- Implements text chunking with overlap for long documents.
-- Provides entity deduplication.
-- Structured as a proper Python package with `src/` layout.
-- CLI entry point (`gliner-server`) for easy startup.
-- Unit tests for PII utility functions (no server required).
-- Integration test script for end-to-end validation.
-
-Refer to the [deployment README](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md) for detailed instructions.
 
 ## Testing
 
@@ -212,24 +351,6 @@ To run them:
 pytest tests/test_gliner.py -v
 ```
 
-The example server package also includes unit tests for the PII utility functions:
-
-```bash
-cd examples/deployment/gliner_server
-uv run pytest tests/ -v
-```
-
-For integration testing with a running server, use the provided script:
-
-```bash
-cd examples/deployment/gliner_server
-./test_integration.sh
-```
-
-## Summary
-
-- Ensure a GLiNER-compatible server is running and accessible from your NeMo Guardrails application environment.
-- You can use the provided [example server](#example-deployment) or implement your own server following the [API specification](#api-specification).
-- For production deployments, consider containerizing the server.
+For a self-hosted alternative using the `nvidia/gliner-PII` model directly, the [`examples/deployment/gliner_server/`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/) directory provides a reference implementation. It exposes a `POST /v1/extract` endpoint — if you use it, set `server_endpoint` to `http://localhost:1235/v1/extract`. Refer to the [deployment README](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md) for setup instructions.
 
 For more information on GLiNER, refer to the [GLiNER GitHub repository](https://github.com/urchade/GLiNER).

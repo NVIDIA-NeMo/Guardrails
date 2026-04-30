@@ -16,6 +16,7 @@
 """PII detection using GLiNER."""
 
 import logging
+import os
 from typing import List
 
 from nemoguardrails import RailsConfig
@@ -97,6 +98,10 @@ async def gliner_detect_pii(
 
     enabled_entities = source_config.entities if source_config.entities else None
 
+    api_key = None
+    if gliner_config.api_key_env_var:
+        api_key = os.getenv(gliner_config.api_key_env_var)
+
     gliner_response = await gliner_request(
         text=text,
         server_endpoint=server_endpoint,
@@ -105,6 +110,8 @@ async def gliner_detect_pii(
         chunk_length=gliner_config.chunk_length,
         overlap=gliner_config.overlap,
         flat_ner=gliner_config.flat_ner,
+        api_key=api_key,
+        model=gliner_config.model,
     )
 
     try:
@@ -142,6 +149,10 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
 
     enabled_entities = source_config.entities if source_config.entities else None
 
+    api_key = None
+    if gliner_config.api_key_env_var:
+        api_key = os.getenv(gliner_config.api_key_env_var)
+
     gliner_response = await gliner_request(
         text=text,
         server_endpoint=server_endpoint,
@@ -150,6 +161,8 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
         chunk_length=gliner_config.chunk_length,
         overlap=gliner_config.overlap,
         flat_ner=gliner_config.flat_ner,
+        api_key=api_key,
+        model=gliner_config.model,
     )
 
     if not gliner_response or not isinstance(gliner_response, dict):

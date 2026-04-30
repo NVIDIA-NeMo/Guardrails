@@ -344,6 +344,14 @@ class GLiNERDetection(BaseModel):
         default="http://localhost:1235/v1/extract",
         description="The endpoint for the GLiNER detection server.",
     )
+    model: str = Field(
+        default="nvidia/gliner-pii",
+        description="Model identifier sent in NIM API requests (only used when server_endpoint ends with /v1/chat/completions).",
+    )
+    api_key_env_var: Optional[str] = Field(
+        default=None,
+        description="Name of the environment variable containing the API key for authenticated endpoints (e.g., NVIDIA_API_KEY).",
+    )
     threshold: float = Field(
         default=0.5,
         description="Confidence threshold for entity detection (0.0 to 1.0).",

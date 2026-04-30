@@ -17,19 +17,26 @@ Personally Identifiable Information (PII) detection helps protect user privacy b
 
 ## GLiNER-based PII Detection
 
-The NeMo Guardrails library supports various PII detection models.
+The NeMo Guardrails library supports PII detection and masking via the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough — including CLI and Python SDK usage and local deployment — see the [GLiNER Integration](community/gliner.md) page.
 
-To activate the PII detection, you need to set up the server endpoint of the PII detection model in your `config.yml` and specify the entities that you want to detect and mask. For example, the following configuration uses the [GLiNER](https://github.com/NVIDIA/GLiNER) PII detection model, where the GLiNER server endpoint is `http://localhost:1235/v1/extract`:
+### NVIDIA-hosted endpoint
 
-### PII detection config
+Use the NVIDIA-hosted NIM by setting `api_key_env_var` in both the `models` block and the `gliner` config block:
 
-The detection flow blocks the input, output, and retrieval text if it detects PII.
+**PII detection** — blocks input or output that contains PII:
 
 ```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    api_key_env_var: NVIDIA_API_KEY
+
 rails:
   config:
     gliner:
-      server_endpoint: http://localhost:1235/v1/extract
+      server_endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+      api_key_env_var: NVIDIA_API_KEY
       threshold: 0.5  # Confidence threshold (0.0 to 1.0)
       input:
         entities:  # If no entity is specified, all default PII categories are detected
@@ -51,16 +58,20 @@ rails:
       - gliner detect pii on output
 ```
 
-### PII masking config
-
-The masking flow replaces detected PII with labels.
-For example, `Hi John, my email is john@example.com` becomes `Hi [FIRST_NAME], my email is [EMAIL]`.
+**PII masking** — replaces detected PII with label placeholders (e.g., `Hi John` → `Hi [FIRST_NAME]`):
 
 ```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    api_key_env_var: NVIDIA_API_KEY
+
 rails:
   config:
     gliner:
-      server_endpoint: http://localhost:1235/v1/extract
+      server_endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+      api_key_env_var: NVIDIA_API_KEY
       input:
         entities:
           - email
@@ -79,7 +90,78 @@ rails:
       - gliner mask pii on output
 ```
 
-For a detailed example, please refer to the [GLiNER Integration](community/gliner.md) page.
+### Locally hosted NIMs
+
+To run both NIMs locally, pull the Docker containers and point each endpoint to localhost. No `api_key_env_var` is needed for local inference.
+
+**PII detection:**
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8001/v1
+
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:8000/v1/chat/completions
+      threshold: 0.5
+      input:
+        entities:
+          - email
+          - phone_number
+          - ssn
+          - first_name
+          - last_name
+      output:
+        entities:
+          - email
+          - phone_number
+          - credit_debit_card
+  input:
+    flows:
+      - gliner detect pii on input
+  output:
+    flows:
+      - gliner detect pii on output
+```
+
+**PII masking:**
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-8b-instruct
+    parameters:
+      base_url: http://localhost:8001/v1
+
+rails:
+  config:
+    gliner:
+      server_endpoint: http://localhost:8000/v1/chat/completions
+      input:
+        entities:
+          - email
+          - first_name
+          - last_name
+      output:
+        entities:
+          - email
+          - first_name
+          - last_name
+  input:
+    flows:
+      - gliner mask pii on input
+  output:
+    flows:
+      - gliner mask pii on output
+```
+
+See the [GLiNER Integration](community/gliner.md) page for Docker pull and run instructions.
 
 ## Presidio-based Sensitive Data Detection
 
