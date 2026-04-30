@@ -26,7 +26,6 @@ def _model(model_type="main", engine="openai", parameters=None):
 
 class TestNoOpOnNonDefaultFramework:
     def test_langchain_framework_skips_check(self):
-        # On the langchain framework, these flags are valid; we must not raise.
         models = [_model(parameters={"streaming": True, "verbose": True, "model_kwargs": {"x": 1}})]
         check_langchain_kwargs(models, active_framework="langchain")
 
@@ -51,26 +50,67 @@ class TestBaseFlagsRaise:
             check_langchain_kwargs([_model(parameters={"model_kwargs": {"top_k": 50}})], active_framework="default")
 
 
-class TestProviderAliases:
-    def test_nim_alias_raises(self):
+class TestProviderAliasPatternDetection:
+    def test_nim_alias_still_detected_via_pattern(self):
         with pytest.raises(ValueError, match=r"nvidia_api_key.*to.*api_key"):
             check_langchain_kwargs(
                 [_model(engine="nim", parameters={"nvidia_api_key": "nvapi-..."})],
                 active_framework="default",
             )
 
-    def test_nvidia_ai_endpoints_alias_raises(self):
-        with pytest.raises(ValueError, match=r"nvidia_base_url"):
+    def test_nvidia_ai_endpoints_alias_still_detected_via_pattern(self):
+        with pytest.raises(ValueError, match=r"nvidia_base_url.*to.*base_url"):
             check_langchain_kwargs(
                 [_model(engine="nvidia_ai_endpoints", parameters={"nvidia_base_url": "https://..."})],
                 active_framework="default",
             )
 
-    def test_alias_only_for_matching_engine(self):
-        # nvidia_api_key is not a known LangChain alias for openai engine; the
-        # validator should not flag it (the wire will reject it as unknown).
+    def test_openai_api_key_detected(self):
+        with pytest.raises(ValueError, match=r"openai_api_key.*to.*api_key"):
+            check_langchain_kwargs(
+                [_model(engine="openai", parameters={"openai_api_key": "sk-..."})],
+                active_framework="default",
+            )
+
+    def test_cohere_api_key_detected(self):
+        with pytest.raises(ValueError, match=r"cohere_api_key.*to.*api_key"):
+            check_langchain_kwargs(
+                [_model(engine="cohere", parameters={"cohere_api_key": "co-..."})],
+                active_framework="default",
+            )
+
+    def test_azure_endpoint_detected_and_collapsed_to_base_url(self):
+        with pytest.raises(ValueError, match=r"azure_endpoint.*to.*base_url"):
+            check_langchain_kwargs(
+                [_model(engine="azure", parameters={"azure_endpoint": "https://..."})],
+                active_framework="default",
+            )
+
+    def test_xyz_base_url_detected(self):
+        with pytest.raises(ValueError, match=r"xyz_base_url.*to.*base_url"):
+            check_langchain_kwargs(
+                [_model(engine="xyz", parameters={"xyz_base_url": "https://..."})],
+                active_framework="default",
+            )
+
+    def test_huggingfacehub_api_base_collapsed_to_base_url(self):
+        with pytest.raises(ValueError, match=r"huggingfacehub_api_base.*to.*base_url"):
+            check_langchain_kwargs(
+                [_model(engine="huggingface", parameters={"huggingfacehub_api_base": "https://..."})],
+                active_framework="default",
+            )
+
+
+class TestCanonicalNamesNotFalseFlagged:
+    def test_api_key_does_not_trigger(self):
         check_langchain_kwargs(
-            [_model(engine="openai", parameters={"nvidia_api_key": "nvapi-..."})],
+            [_model(parameters={"api_key": "sk-test"})],
+            active_framework="default",
+        )
+
+    def test_base_url_does_not_trigger(self):
+        check_langchain_kwargs(
+            [_model(parameters={"base_url": "https://api.openai.com/v1"})],
             active_framework="default",
         )
 
@@ -96,13 +136,13 @@ class TestValidParameters:
         check_langchain_kwargs([_model(parameters=params)], active_framework="default")
 
     def test_provider_extensions_pass(self):
-        # NIM nvext, vLLM min_p/top_k/guided_*, Ollama keep_alive — all forwarded verbatim.
         params = {
             "nvext": {"foo": "bar"},
             "min_p": 0.05,
             "top_k": 40,
             "guided_json": {"type": "object"},
             "keep_alive": "10m",
+            "temperature": 0.7,
         }
         check_langchain_kwargs([_model(engine="nim", parameters=params)], active_framework="default")
 
@@ -132,3 +172,19 @@ class TestMultipleViolations:
     def test_message_includes_sunset_note(self):
         with pytest.raises(ValueError, match=r"removed in 0\.23\.0"):
             check_langchain_kwargs([_model(parameters={"streaming": True})], active_framework="default")
+
+
+class TestErrorMessageBothPaths:
+    def test_message_contains_both_remediation_paths_and_sunset(self):
+        with pytest.raises(ValueError) as excinfo:
+            check_langchain_kwargs(
+                [_model(engine="nim", parameters={"streaming": True, "nvidia_api_key": "nvapi-..."})],
+                active_framework="default",
+            )
+        message = str(excinfo.value)
+        assert "Adapt to the default framework" in message
+        assert "Keep 0.21 LangChain behavior" in message
+        assert "NEMOGUARDRAILS_LLM_FRAMEWORK=langchain" in message
+        assert "removed in 0.23.0" in message
+        assert "remove `streaming`" in message
+        assert "rename `nvidia_api_key` to `api_key`" in message

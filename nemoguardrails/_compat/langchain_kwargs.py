@@ -28,11 +28,9 @@ the user's signal to clean up.
 # TODO(0.23): delete this module along with its call site in
 #   nemoguardrails.rails.llm.llmrails.LLMRails._init_llms.
 
-from typing import Dict, Iterable, List, Tuple
+import re
+from typing import Iterable, List, Optional, Tuple
 
-# Python-side flags inherited by every LangChain BaseChatModel
-# (ChatOpenAI / ChatNVIDIA / ChatAnthropic / ChatVertexAI / etc.). Sourced
-# from langchain-core BaseChatModel and langchain-openai 1.1.x.
 _LANGCHAIN_BASE_FLAGS = frozenset(
     {
         "streaming",
@@ -47,27 +45,37 @@ _LANGCHAIN_BASE_FLAGS = frozenset(
     }
 )
 
-# Per-engine Python-side aliases: keys that LangChain's provider package
-# accepts under one name but that the default framework expects under
-# another. Only providers DefaultFramework actually serves over OpenAI-
-# compatible HTTP need entries here.
-_LANGCHAIN_PROVIDER_ALIASES: Dict[str, Dict[str, str]] = {
-    "nim": {"nvidia_api_key": "api_key", "nvidia_base_url": "base_url"},
-    "nvidia_ai_endpoints": {"nvidia_api_key": "api_key", "nvidia_base_url": "base_url"},
-}
+_PROVIDER_PREFIXED_ALIAS = re.compile(r"^(?P<prefix>[a-zA-Z]\w*?)_(?P<canonical>api_key|base_url|api_base|endpoint)$")
+
+
+def _canonical_name_for(matched_canonical: str) -> str:
+    if matched_canonical == "api_key":
+        return "api_key"
+    return "base_url"
+
+
+def _detect_provider_alias(name: str) -> Optional[str]:
+    match = _PROVIDER_PREFIXED_ALIAS.fullmatch(name)
+    if match is None:
+        return None
+    return _canonical_name_for(match.group("canonical"))
 
 
 def _violations_for(model_type: str, model_engine: str, parameters: dict) -> List[Tuple[str, str]]:
     """Return a list of (model_type, action) tuples for one model."""
     out: List[Tuple[str, str]] = []
-    aliases = _LANGCHAIN_PROVIDER_ALIASES.get(model_engine, {})
     for flag in sorted(_LANGCHAIN_BASE_FLAGS & set(parameters)):
         if flag == "model_kwargs":
             out.append((model_type, "unpack `model_kwargs` contents directly into `parameters`"))
         else:
             out.append((model_type, f"remove `{flag}`"))
-    for old in sorted(aliases.keys() & set(parameters)):
-        out.append((model_type, f"rename `{old}` to `{aliases[old]}`"))
+    for name in sorted(parameters):
+        if name in _LANGCHAIN_BASE_FLAGS:
+            continue
+        canonical = _detect_provider_alias(name)
+        if canonical is None:
+            continue
+        out.append((model_type, f"rename `{name}` to `{canonical}`"))
     return out
 
 
@@ -89,15 +97,14 @@ def check_langchain_kwargs(models: Iterable, active_framework: str) -> None:
         )
     if not violations:
         return
-    header = (
-        "Your config has a LangChain-only flag in `parameters` that the default\nframework doesn't forward:"
-        if len(violations) == 1
-        else "Your config has LangChain-only flags in `parameters` that the default\nframework doesn't forward:"
-    )
     body = "\n".join(f"  models[{model_type}]: {action}" for model_type, action in violations)
     raise ValueError(
-        f"{header}\n\n"
+        "Your config uses 0.21-style LangChain conventions that the default framework\n"
+        "doesn't forward:\n\n"
         f"{body}\n\n"
-        "To keep 0.21 LangChain behavior instead, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain.\n"
+        "Two paths:\n"
+        "  - Adapt to the default framework: apply the renames/removals above.\n"
+        "    Only do this if your endpoint is OpenAI-compatible.\n"
+        "  - Keep 0.21 LangChain behavior: set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain.\n\n"
         "(Migration check; removed in 0.23.0.)"
     )
