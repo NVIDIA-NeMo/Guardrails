@@ -9,3 +9,14 @@ NeMo Guardrails is an async-first toolkit, i.e., the core functionality is imple
 Meanwhile, NeMo Guardrails makes use of [nest_asyncio](https://github.com/erdewit/nest_asyncio). The patching is applied when the `nemoguardrails` package is loaded the first time.
 
 If the blocking API is not needed, or the `nest_asyncio` patching causes unexpected problems, you can disable it by setting the `DISABLE_NEST_ASYNCIO=True` environment variable.
+
+## Selecting the LLM Framework
+
+NeMo Guardrails 0.21 introduces a framework registry that decides whether an engine is handled by the new `DefaultFramework` (httpx-based, no LangChain) or by `LangChainFramework`. Two controls select the active framework:
+
+- `NEMOGUARDRAILS_LLM_FRAMEWORK` environment variable. Read once when the registry initializes. Default value `default`. Accepted values: `default`, `langchain`, or any name you register with `register_framework(name, instance)` before initialization.
+- `nemoguardrails.set_default_framework(name)`. Mutates the active framework at runtime. Raises `KeyError` if the name is unknown and is not one of the lazy built-ins (`default`, `langchain`).
+
+Use the environment variable when every model in a deployment should be resolved through the same framework. Use `set_default_framework` from Python when you switch frameworks dynamically (for example in tests or when bootstrapping a custom framework).
+
+For a full walkthrough, including which engines route to each framework and the install command for LangChain providers, see [Upgrading to 0.21: LLM Framework Transition](upgrade/0.21-framework-transition.md).
