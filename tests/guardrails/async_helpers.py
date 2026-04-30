@@ -22,9 +22,36 @@ tests that need to observe state transitions mid-flight.
 """
 
 import asyncio
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+from unittest.mock import patch
 
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.iorails import IORails
+from nemoguardrails.rails.llm.config import RailsConfig
+
+
+@asynccontextmanager
+async def started_iorails(config_dict: dict) -> AsyncIterator[IORails]:
+    """Build, start, yield, then stop an IORails instance for tests.
+
+    Centralises the ``async with iorails`` lifecycle pattern duplicated across
+    ``test_iorails_streaming.py``, ``test_iorails_telemetry.py``, and
+    ``test_iorails_reasoning.py``.  Each fixture becomes a one-liner::
+
+        @pytest_asyncio.fixture
+        async def iorails():
+            async with started_iorails(NEMOGUARDS_CONFIG) as iorails:
+                yield iorails
+
+    The ``NVIDIA_API_KEY`` env patch covers config loading; the ``async with``
+    on the IORails instance starts the worker queue and stops it on teardown
+    so no asyncio tasks leak past the test's event loop.
+    """
+    with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+        iorails = IORails(RailsConfig.from_content(config=config_dict))
+    async with iorails:
+        yield iorails
 
 
 async def wait_for_queue_state(

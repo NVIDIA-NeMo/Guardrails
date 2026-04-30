@@ -25,27 +25,23 @@ and ``rails/llm/llmrails.py:1173-1175``):
   prefix on the returned content (LLMRails legacy delivery shape).
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
+import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
-from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import LLMResponse
+from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def rails_config():
-    return RailsConfig.from_content(config=NEMOGUARDS_CONFIG)
-
-
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails(rails_config):
-    return IORails(rails_config)
+@pytest_asyncio.fixture
+async def iorails():
+    """Started IORails instance with worker-queue teardown after each test."""
+    async with started_iorails(NEMOGUARDS_CONFIG) as iorails:
+        yield iorails
 
 
 def _stub_safe_rails(iorails: IORails) -> None:
