@@ -206,21 +206,22 @@ def _classify(resp: httpx.Response, param: str) -> str:
     message = err.get("message", "") or ""
     if err.get("param") == param or f"'{param}'" in message:
         return "rejected"
-    # 403 / param=None case: rejection mentions the param by bare name with no
-    # quotes, e.g. "You are not allowed to request logprobs from this model".
+    # Bare-keyword case: rejection mentions the param without single quotes
+    # and ``err.param`` is None, e.g. 403 "You are not allowed to request
+    # logprobs from this model" or 400 "specify max_completion_tokens rather
+    # than max_tokens". We require both the keyword and a rejection-shaped
+    # phrase so requirement-shaped messages ("max_tokens parameter is
+    # required") fall through to accepted-by-inference instead.
     msg_lower = message.lower()
-    if re.search(rf"\b{re.escape(param)}\b", msg_lower) and (
-        "not allowed" in msg_lower or "not supported" in msg_lower
-    ):
-        return "rejected"
-    # Guard: the accepted-by-inference fallback below treats any mention of
-    # max_tokens as a generation-limit error, which only makes sense for
-    # probes that send max_completion_tokens=1 in the body. For the
-    # max_tokens probe itself, a message naming max_tokens that did not
-    # match the earlier rejection patterns is safer to flag as rejected
-    # than to silently accept (e.g. "Please specify max_completion_tokens
-    # rather than max_tokens").
-    if param == "max_tokens" and re.search(r"\bmax_tokens\b", msg_lower):
+    rejection_indicators = (
+        "not allowed",
+        "not supported",
+        "rather than",
+        "instead",
+        "unsupported",
+        "deprecated",
+    )
+    if re.search(rf"\b{re.escape(param)}\b", msg_lower) and any(p in msg_lower for p in rejection_indicators):
         return "rejected"
     # OpenAI validates params before generation, so a max_completion_tokens /
     # max_tokens / output-limit error on a 1-token probe means the param was
