@@ -57,11 +57,13 @@ def apply_openai_reasoning_overrides(params: Dict[str, Any]) -> Dict[str, Any]:
     Drops: ``temperature``, ``stop``.
 
     Renames: ``max_tokens`` -> ``max_completion_tokens`` (only if
-    ``max_tokens`` is present and ``max_completion_tokens`` is not, so an
-    explicit ``max_completion_tokens`` always wins).
+    ``max_tokens`` carries a non-None value and ``max_completion_tokens``
+    is not already present, so an explicit ``max_completion_tokens``
+    always wins and an unset ``max_tokens`` is not promoted to a null
+    wire field).
     """
     out = {key: value for key, value in params.items() if key not in _REASONING_DROP_PARAMS}
-    if "max_tokens" in out and "max_completion_tokens" not in out:
+    if out.get("max_tokens") is not None and "max_completion_tokens" not in out:
         out["max_completion_tokens"] = out.pop("max_tokens")
     else:
         out.pop("max_tokens", None)

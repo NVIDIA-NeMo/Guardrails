@@ -64,6 +64,12 @@ class TestMaxTokensRename:
         result = apply_openai_reasoning_overrides({"model": "gpt-5-mini"})
         assert result == {"model": "gpt-5-mini"}
 
+    def test_max_tokens_none_does_not_promote(self):
+        # `None` is the Python idiom for "value not set"; renaming it would
+        # send a useless null to the wire. Drop it instead.
+        result = apply_openai_reasoning_overrides({"max_tokens": None})
+        assert result == {}
+
 
 class TestPurity:
     def test_does_not_mutate_input(self):
