@@ -25,13 +25,14 @@ and ``rails/llm/llmrails.py:1173-1175``):
   prefix on the returned content (LLMRails legacy delivery shape).
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
 
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
+from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import LLMResponse
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
