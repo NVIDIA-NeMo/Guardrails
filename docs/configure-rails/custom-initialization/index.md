@@ -67,6 +67,15 @@ Implement the LLMModel protocol to plug a non-OpenAI-compatible backend into NeM
 {bdg-secondary}`How To`
 :::
 
+:::{grid-item-card} Custom LLM Framework
+:link: custom-llm-framework
+:link-type: doc
+
+Replace the LLM framework layer to plug NeMo Guardrails into LiteLLM, an in-house orchestrator, or any non-default LLM stack.
++++
+{bdg-secondary}`How To`
+:::
+
 :::{grid-item-card} Embedding Providers
 :link: custom-embedding-providers
 :link-type: doc
@@ -99,6 +108,7 @@ Pass and access custom data from config.yml in your initialization code and acti
 Init Function <init-function>
 LLM Providers <custom-llm-providers>
 Custom LLM Model <custom-llm-model>
+Custom LLM Framework <custom-llm-framework>
 Embedding Providers <custom-embedding-providers>
 Custom Data <custom-data>
 ```

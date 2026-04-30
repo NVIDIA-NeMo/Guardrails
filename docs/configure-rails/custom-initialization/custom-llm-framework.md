@@ -1,0 +1,324 @@
+---
+title:
+  page: Custom LLM Frameworks for NeMo Guardrails
+  nav: Custom LLM Framework
+description: Replace the LLM framework layer to plug NeMo Guardrails into LiteLLM, an in-house orchestrator, or any non-default LLM stack.
+topics:
+- Configuration
+- Customization
+- LLM
+tags:
+- LLM
+- LLMFramework
+- DefaultFramework
+- Registry
+- Python
+content:
+  type: how_to
+  difficulty: technical_advanced
+  audience:
+  - engineer
+  - AI Engineer
+---
+
+# Custom LLM Frameworks
+
+NeMo Guardrails has two layers of LLM extensibility: providers and frameworks. Most users only ever touch the provider layer. This guide is for the smaller set of cases where you need to swap the framework layer itself.
+
+## The Two-Layer Model
+
+```
+Framework Layer (system-wide, swappable)
+|-- DefaultFramework (built-in)
+|     |-- openai (provider)
+|     |-- nim (provider)
+|     |-- ollama (provider)
+|     '-- <your custom provider>
+|-- LangChainFramework (built-in, opt-in)
+|     '-- LangChain providers
+'-- <YourCustomFramework>
+      '-- <your providers>
+```
+
+A **provider** is an engine name inside a framework. `openai`, `nim`, and `ollama` are providers inside `DefaultFramework`. Adding a provider is the right move when you want to add or replace one engine and the surrounding framework's behavior is fine. See [Custom LLM Providers](custom-llm-providers.md) and [Custom LLM Model](custom-llm-model.md).
+
+A **framework** owns the entire LLM stack: how models are constructed, how providers are looked up, and how resources are released at shutdown. Adding a framework is the right move when you want to replace the entire stack (for example, route everything through LiteLLM, a proprietary in-house orchestrator, or a service mesh).
+
+| Decision | Pick a provider | Pick a framework |
+|---|---|---|
+| You need one new engine alongside the existing ones | Yes | No |
+| You have one new HTTP backend with custom auth | Yes (subclass `OpenAICompatibleClient` if it is OpenAI-shaped) | No |
+| You want all engines to flow through your own gateway | No | Yes |
+| You want to disable LangChain entirely and replace it with LiteLLM | No | Yes |
+| You want per-call observability hooks across every model | Maybe | Yes if you also need to control construction and shutdown |
+
+In practice almost every customization is a provider. A custom framework is reserved for the cases where you are replacing more than one engine and you need shared lifecycle management across them.
+
+## The LLMFramework Contract
+
+The protocol is defined in `nemoguardrails/types.py` (lines 259 to 291). It is `@runtime_checkable`. The registry validates two invariants:
+
+1. The registered object must be an instance of `LLMFramework` (the protocol).
+2. Its `reset` attribute must be an `async` coroutine function (`asyncio.iscoroutinefunction(reset)` must return `True`).
+
+A custom framework must implement four methods.
+
+```python
+from typing import Any, Dict, List, Optional
+
+from nemoguardrails.types import LLMFramework, LLMModel
+
+
+class LLMFramework:
+    def create_model(
+        self,
+        model_name: str,
+        provider_name: str,
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> LLMModel: ...
+
+    def register_provider(self, name: str, provider_cls: Any) -> None: ...
+
+    def get_provider_names(self) -> List[str]: ...
+
+    async def reset(self) -> None: ...
+```
+
+### `create_model`
+
+Called once per `models:` entry in `config.yml` when `LLMRails` builds its task models. `model_name` is the user-supplied model identifier, `provider_name` is the `engine` field, and `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Return any object that implements `LLMModel` (see [Custom LLM Model](custom-llm-model.md)).
+
+The framework owns construction. It is free to:
+
+- Cache and reuse expensive resources (HTTP clients, gRPC channels, auth tokens).
+- Translate `provider_name` into its own internal taxonomy.
+- Inject defaults for headers, timeouts, retries.
+
+`DefaultFramework._get_or_create_client` is a worked example of pooled HTTP-client construction.
+
+### `register_provider`
+
+Called by user code (usually from a `config.py`) to add a new engine to this framework. Implementations typically just record the class in an in-memory dict. The framework's `create_model` then dispatches to that class when `provider_name` matches.
+
+`DefaultFramework.register_provider` and `LangChainFramework.register_provider` are both one-line implementations.
+
+### `get_provider_names`
+
+Returns the list of engine names this framework knows about, including built-ins and anything registered at runtime. Used by tooling (`nemoguardrails find_providers`) and for debugging.
+
+### `reset`
+
+```{important}
+`reset` MUST be `async`. The registry's `validate()` rejects frameworks whose `reset` is a regular synchronous function with `TypeError: '<name>'.reset must be an async coroutine function`.
+```
+
+`reset` is called at process or test boundaries to release framework-owned resources. It must:
+
+- Close any pooled HTTP clients, gRPC channels, file handles, or database connections.
+- Clear any registered-provider state if you want a clean slate (some frameworks like `DefaultFramework` separate `aclose` from `clear_providers` and call both from `reset`; others may want to keep registrations).
+- Be idempotent: calling `reset` twice in a row must not raise.
+- Be safe to call from a running event loop. The registry awaits it directly via `_areset_frameworks`.
+
+After `reset`, the instance must remain usable. New resources are constructed lazily on the next `create_model` call.
+
+## Minimal Worked Example
+
+Below is a small `MyFramework` that exposes a single provider, builds custom `LLMModel` instances, and properly closes a shared HTTP client on reset.
+
+```python
+from typing import Any, Dict, List, Optional
+
+import httpx
+
+from nemoguardrails.llm.frameworks import register_framework, set_default_framework
+from nemoguardrails.types import LLMModel
+
+
+class MyLLMModel:
+    def __init__(self, model: str, client: httpx.AsyncClient, **kwargs: Any):
+        self._model = model
+        self._client = client
+        self._default_kwargs = kwargs
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    @property
+    def provider_name(self) -> Optional[str]:
+        return "my_engine"
+
+    @property
+    def provider_url(self) -> Optional[str]:
+        return str(self._client.base_url)
+
+    async def generate_async(self, prompt, *, stop=None, **kwargs):
+        ...
+
+    async def stream_async(self, prompt, *, stop=None, **kwargs):
+        ...
+        yield
+
+
+class MyFramework:
+    def __init__(self, base_url: str = "https://my-gateway.example.com"):
+        self._base_url = base_url
+        self._client: Optional[httpx.AsyncClient] = None
+        self._providers: Dict[str, Any] = {}
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(base_url=self._base_url, timeout=30.0)
+        return self._client
+
+    def create_model(
+        self,
+        model_name: str,
+        provider_name: str,
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> LLMModel:
+        kwargs = dict(model_kwargs) if model_kwargs else {}
+        kwargs.pop("mode", None)
+        if provider_name in self._providers:
+            return self._providers[provider_name](model=model_name, **kwargs)
+        return MyLLMModel(model=model_name, client=self._get_client(), **kwargs)
+
+    def register_provider(self, name: str, provider_cls: Any) -> None:
+        self._providers[name] = provider_cls
+
+    def get_provider_names(self) -> List[str]:
+        return sorted({"my_engine", *self._providers})
+
+    async def reset(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
+        self._providers.clear()
+
+
+register_framework("my", MyFramework())
+set_default_framework("my")
+```
+
+After `register_framework("my", MyFramework())`, the framework is selectable in three ways:
+
+1. **Process-wide default at import time.** Set the environment variable before importing NeMo Guardrails:
+   ```bash
+   export NEMOGUARDRAILS_LLM_FRAMEWORK=my
+   ```
+   The registry reads `NEMOGUARDRAILS_LLM_FRAMEWORK` at module load and uses it as the active framework name.
+2. **Programmatic flip in `config.py`.** Call `set_default_framework("my")` after registering. All subsequent `LLMRails` constructions use it.
+3. **Targeted dispatch.** If you want different frameworks for different model entries, route via `framework.create_model` directly in your own initialization code (advanced; not the standard path).
+
+`config.yml` entries do not name the framework; they name a provider. The framework is implicit in whichever one is active.
+
+```yaml
+models:
+  - type: main
+    engine: my_engine
+    model: my-flagship-model
+    parameters:
+      temperature: 0.2
+```
+
+## Reference Implementations
+
+Read these to see production-grade frameworks:
+
+- `nemoguardrails/llm/frameworks/default.py`: `DefaultFramework`. Pools `OpenAICompatibleClient` instances keyed on `(base_url, api_key, timeouts, headers, query)`. Splits lifecycle into `aclose` (HTTP teardown), `clear_providers` (registry teardown), and `reset` (both, used in tests).
+- `nemoguardrails/integrations/langchain/llm_adapter.py`: `LangChainFramework`. Defers to `nemoguardrails.integrations.langchain.providers` for registration, calls `init_langchain_model` for construction, wraps the result in `LangChainLLMAdapter`. Has a no-op `reset` because the LangChain side has no pooled state of its own.
+- `nemoguardrails/llm/frameworks/registry.py`: `LLMFrameworkRegistry`, `register_framework`, `get_framework`, `set_default_framework`, `get_default_framework`, `_areset_frameworks`. Read this to understand the env var, lazy lookup, and validation behavior.
+
+## Lifecycle and Threading
+
+### When `reset` is called
+
+- **Test teardown.** The pytest fixture in `tests/conftest.py` calls `_reset_frameworks()` between tests when isolation is required. This is also how the test suite avoids leaking pooled HTTP connections across tests.
+- **Server shutdown.** `nemoguardrails server` does not currently call `_reset_frameworks` automatically; production-style cleanup is the application's responsibility. If you embed `LLMRails` in your own service, call `await _areset_frameworks()` from your shutdown hook (FastAPI `lifespan`, `atexit`, ...).
+- **Manual reset.** From a Jupyter notebook or REPL session you can call `_reset_frameworks()` (sync) or `await _areset_frameworks()` (async) to drop pooled state.
+
+### What `reset` must close
+
+Anything the framework opened: HTTP clients (`httpx.AsyncClient.aclose()`), gRPC channels, websocket connections, async file handles, cache databases. If you stash a global event-loop-bound resource on the framework instance, close it here.
+
+Things `reset` typically does **not** close:
+
+- Provider classes registered by user code. `DefaultFramework.aclose` deliberately leaves these alone; only `reset` (the test-oriented superset) clears them.
+- LLM-instance state owned by `LLMModel` objects. Each model owns its own lifecycle. The framework should not reach into them.
+
+### Threading and event loops
+
+NeMo Guardrails currently runs on a single asyncio event loop per process. The framework registry is module-global mutable state and is not thread-safe; if you call `register_framework` from multiple threads you must serialize the calls yourself.
+
+`reset` and `create_model` are called from the same event loop that runs `LLMRails.generate_async`. Do not block that loop with synchronous I/O. If you must run blocking code, dispatch it via `asyncio.to_thread` or `loop.run_in_executor`.
+
+## Failure Modes
+
+The registry's `validate()` is your friend. It catches the two most common authoring mistakes at registration time, before any model is constructed.
+
+### Sync `reset` raises `TypeError`
+
+```python
+class BadFramework:
+    def reset(self):  # missing async
+        ...
+
+register_framework("bad", BadFramework())
+# TypeError: 'bad'.reset must be an async coroutine function
+```
+
+The check uses `asyncio.iscoroutinefunction(getattr(item, "reset", None))`. A regular `def reset(self): ...` fails it. So does an `async def` method that has been wrapped by a non-coroutine decorator (rare, but worth knowing).
+
+### Object does not implement the protocol
+
+```python
+class NotAFramework:
+    pass
+
+register_framework("nope", NotAFramework())
+# TypeError: 'nope' does not implement LLMFramework
+```
+
+`@runtime_checkable` Protocols verify by attribute name and signature compatibility. Missing `create_model`, `register_provider`, `get_provider_names`, or `reset` triggers this.
+
+### Registering a provider before any framework is active
+
+`register_provider` from `nemoguardrails.llm.providers` resolves the active framework via `get_default_framework()` and calls `framework.register_provider` on it. The registry has a built-in `default` framework that is constructed lazily on first access, so this almost always works without explicit setup. The failure mode appears only when the user sets `NEMOGUARDRAILS_LLM_FRAMEWORK` to a name that has not been registered yet:
+
+```bash
+export NEMOGUARDRAILS_LLM_FRAMEWORK=my
+```
+
+```python
+# config.py runs BEFORE `register_framework("my", ...)`
+from nemoguardrails.llm.providers import register_provider
+
+register_provider("echo", EchoLLMModel)
+# KeyError: Unknown framework 'my'. Available: ['default', 'langchain']
+```
+
+The fix is simple: register the framework before any provider, or keep `NEMOGUARDRAILS_LLM_FRAMEWORK` unset until after `register_framework` has run.
+
+### Unknown framework on activation
+
+```python
+set_default_framework("typo")
+# KeyError: Unknown framework 'typo'. Available: ['default', 'langchain']
+```
+
+The error lists the framework names that the registry currently knows about. Both built-in names appear because they are constructed lazily by factory; if you are working with only your own framework, register it first then call `set_default_framework`.
+
+## Best Practices
+
+1. **Treat `reset` as a hard contract, not a hint.** Test it. Pooled HTTP connections that survive across tests cause surprising flakes elsewhere.
+2. **Prefer composition over inheritance.** `MyFramework` does not need to subclass `DefaultFramework`. The protocol is small enough to implement from scratch.
+3. **Cache HTTP clients on the framework, not on the model.** Models are constructed per task; clients should be reused. `DefaultFramework._get_or_create_client` shows the keying strategy.
+4. **Do not import LangChain in a default-framework-style implementation.** The whole point of swapping the framework layer is to avoid pulling in dependencies you do not need. Keep your imports tight.
+5. **Document your framework's provider taxonomy.** `get_provider_names` is what `nemoguardrails find_providers` shows users.
+
+## Related Topics
+
+- [Custom LLM Model](custom-llm-model.md) - Implement the `LLMModel` protocol that your framework constructs.
+- [Custom LLM Providers](custom-llm-providers.md) - LangChain `BaseLLM`/`BaseChatModel` providers (uses `engine: langchain`).
+- [Init Function](init-function.md) - Where `register_framework` and `set_default_framework` calls usually go.
+- [Configuration Reference](../configuration-reference.md) - `config.yml` schema and the `engine`, `model`, and `parameters` fields.
