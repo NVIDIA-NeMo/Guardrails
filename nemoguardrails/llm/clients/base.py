@@ -45,6 +45,33 @@ from nemoguardrails.llm.clients.constants import (
 log = logging.getLogger(__name__)
 
 
+_STALE_LOOP_MARKERS = (
+    "event loop is closed",
+    "different loop",
+    "different event loop",
+)
+
+
+def _is_stale_loop_error(err: BaseException) -> bool:
+    """Return True if ``err`` is a RuntimeError caused by a stale loop binding.
+
+    CPython raises one of several messages when an httpx transport (or any
+    asyncio primitive it owns) is reused on a loop other than the one it
+    was created on:
+      * 'Event loop is closed' (BaseEventLoop._check_closed) when the
+        original loop has been closed.
+      * '<asyncio.X object> is bound to a different event loop' (Lock /
+        Event / Semaphore / Queue) when the original loop is still alive.
+      * 'got Future attached to a different loop' / 'Task got Future ...'
+        when a Future created in another loop is awaited.
+
+    All three are transient: httpx invalidates the stale primitive on retry
+    and rebuilds it in the running loop.
+    """
+    text = str(err).lower()
+    return any(marker in text for marker in _STALE_LOOP_MARKERS)
+
+
 @dataclass(frozen=True)
 class HTTPResponse:
     body: Dict[str, Any]
@@ -182,6 +209,16 @@ class BaseClient:
                     retries_attempted += 1
                     continue
                 raise LLMConnectionError(0, f"Connection error: {err}", **ctx.as_kwargs()) from err
+            except RuntimeError as err:
+                if not _is_stale_loop_error(err):
+                    raise
+                if retries_remaining > 0:
+                    log.warning("Retrying after stale event loop binding: %s", err)
+                    await self._sleep_for_retry(retries_attempted)
+                    retries_remaining -= 1
+                    retries_attempted += 1
+                    continue
+                raise LLMConnectionError(0, f"Stale event loop: {err}", **ctx.as_kwargs()) from err
 
             if self._should_retry(response.status_code, response.headers) and retries_remaining > 0:
                 await self._sleep_for_retry(retries_attempted, response.headers)
@@ -272,6 +309,16 @@ class BaseClient:
             except httpx.NetworkError as err:
                 if first_yielded or retries_remaining <= 0:
                     raise LLMConnectionError(0, f"Connection error: {err}", **ctx.as_kwargs()) from err
+                await self._sleep_for_retry(retries_attempted)
+                retries_remaining -= 1
+                retries_attempted += 1
+                continue
+            except RuntimeError as err:
+                if not _is_stale_loop_error(err):
+                    raise
+                if first_yielded or retries_remaining <= 0:
+                    raise LLMConnectionError(0, f"Stale event loop: {err}", **ctx.as_kwargs()) from err
+                log.warning("Retrying stream after stale event loop binding: %s", err)
                 await self._sleep_for_retry(retries_attempted)
                 retries_remaining -= 1
                 retries_attempted += 1

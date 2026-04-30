@@ -641,6 +641,277 @@ class TestNetworkExceptionRetry:
         assert call_count == 2
         assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
 
+    @pytest.mark.asyncio
+    async def test_runtime_error_retries_then_succeeds(self):
+        """RuntimeError (e.g. 'Event loop is closed') is treated as transient.
+
+        When a cached httpx.AsyncClient is reused on a new event loop, the first
+        send raises RuntimeError because the underlying transport is bound to
+        the dead loop. httpx's connection pool invalidates the stale connection
+        and the retry opens a fresh one in the running loop. The retry path
+        only works if RuntimeError is caught by the loop in _apost.
+        """
+        client = make_client()
+        call_count = 0
+
+        async def flaky_post(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise RuntimeError("Event loop is closed")
+            return httpx.Response(
+                200,
+                json=ok_response(),
+                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+            )
+
+        client._client = type("MockClient", (), {"post": flaky_post})()
+        await client.chat_completion("gpt-4o", [])
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_runtime_error_exhausts_retries_raises_connection(self):
+        client = make_client(max_retries=1)
+        call_count = 0
+
+        async def always_runtime_error(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("Event loop is closed")
+
+        client._client = type("MockClient", (), {"post": always_runtime_error})()
+        with pytest.raises(LLMConnectionError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert call_count == 2
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+    @pytest.mark.asyncio
+    async def test_stream_runtime_error_before_first_chunk_retries(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def flaky_stream(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise RuntimeError("Event loop is closed")
+
+            class FakeResponse:
+                status_code = 200
+                headers = {}
+
+                async def aread(self):
+                    pass
+
+                async def aiter_lines(self):
+                    yield 'data: {"id":"c","choices":[{"index":0,"delta":{"content":"hi"}}]}'
+                    yield ""
+                    yield "data: [DONE]"
+                    yield ""
+
+            yield FakeResponse()
+
+        client = make_client()
+        client._client = type("MockClient", (), {"stream": flaky_stream})()
+        chunks = []
+        async for chunk in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+            chunks.append(chunk)
+        assert call_count == 2
+        assert len(chunks) == 1
+
+    @pytest.mark.asyncio
+    async def test_stream_runtime_error_before_first_chunk_exhausts_retries_wrapped(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def always_runtime_error(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("Event loop is closed")
+            yield  # pragma: no cover — make this an async generator
+
+        client = make_client(max_retries=1)
+        client._client = type("MockClient", (), {"stream": always_runtime_error})()
+        with pytest.raises(LLMConnectionError) as exc_info:
+            async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                pass
+        assert call_count == 2
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+    @pytest.mark.asyncio
+    async def test_unrelated_runtime_error_propagates_without_retry(self):
+        """Only stale-event-loop RuntimeErrors are treated as transient.
+
+        A RuntimeError with any other message must propagate untouched so
+        programmer bugs are not silently retried and re-wrapped as a
+        connection error.
+        """
+        client = make_client()
+        call_count = 0
+
+        async def raise_unrelated(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("dictionary changed size during iteration")
+
+        client._client = type("MockClient", (), {"post": raise_unrelated})()
+        with pytest.raises(RuntimeError, match="dictionary changed"):
+            await client.chat_completion("gpt-4o", [])
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_runtime_error_with_max_retries_zero_raises_immediately(self):
+        """With retries disabled, a stale-event-loop error surfaces clearly.
+
+        The error is wrapped in LLMConnectionError so callers see a typed
+        exception with the original RuntimeError as __cause__.
+        """
+        client = make_client(max_retries=0)
+        call_count = 0
+
+        async def stale_loop(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("Event loop is closed")
+
+        client._client = type("MockClient", (), {"post": stale_loop})()
+        with pytest.raises(LLMConnectionError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert call_count == 1
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+        assert "event loop" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_stream_unrelated_runtime_error_propagates_without_retry(self):
+        call_count = 0
+
+        @asynccontextmanager
+        async def raise_unrelated(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("dictionary changed size during iteration")
+            yield  # pragma: no cover
+
+        client = make_client()
+        client._client = type("MockClient", (), {"stream": raise_unrelated})()
+        with pytest.raises(RuntimeError, match="dictionary changed"):
+            async for _ in client.stream_chat_completion("gpt-4o", [{"role": "user", "content": "Hi"}]):
+                pass
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Event loop is closed",
+            "got Future attached to a different loop",
+            "Task got Future <Future pending> attached to a different loop",
+            "<asyncio.locks.Event object at 0x10731c8a0 [unset]> is bound to a different event loop",
+        ],
+    )
+    async def test_stale_loop_messages_all_retry(self, message):
+        """All known stale-loop RuntimeError variants are retried.
+
+        These are flavors of the same defect (a transport bound to one
+        loop being reused on another). Verified empirically:
+          * 'Event loop is closed' fires after asyncio.run closes its loop.
+          * 'is bound to a different event loop' fires when an asyncio
+            primitive (Lock/Event/Semaphore/Queue) is reused across loops.
+          * 'got Future attached to a different loop' fires when a Future
+            created in another loop is awaited.
+        The retry path must absorb all of them.
+        """
+        client = make_client()
+        call_count = 0
+
+        async def flaky_post(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise RuntimeError(message)
+            return httpx.Response(
+                200,
+                json=ok_response(),
+                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+            )
+
+        client._client = type("MockClient", (), {"post": flaky_post})()
+        await client.chat_completion("gpt-4o", [])
+        assert call_count == 2
+
+    @pytest.mark.parametrize("runs", [2, 5, 10])
+    def test_recovers_when_same_client_used_across_asyncio_run_calls(self, runs):
+        """Same client reused across N asyncio.run() boundaries.
+
+        Each fresh loop sees one stale-transport RuntimeError on its first
+        request and recovers via the retry path. Without the fix, the second
+        asyncio.run raises 'Event loop is closed'.
+        """
+        client = make_client()
+        first_call_per_loop = {"is_first": True}
+        post_calls = 0
+
+        async def post_simulating_loop_binding(*args, **kwargs):
+            nonlocal post_calls
+            post_calls += 1
+            if first_call_per_loop["is_first"]:
+                first_call_per_loop["is_first"] = False
+                raise RuntimeError("Event loop is closed")
+            return httpx.Response(
+                200,
+                json=ok_response(),
+                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+            )
+
+        client._client = type("MockClient", (), {"post": post_simulating_loop_binding})()
+
+        for _ in range(runs):
+            first_call_per_loop["is_first"] = True
+            result = asyncio.run(client.chat_completion("gpt-4o", [{"role": "user", "content": "hi"}]))
+            assert result.body["choices"][0]["message"]["content"] == "Hello"
+
+        assert post_calls == runs * 2
+
+    @pytest.mark.parametrize("loops", [2, 5, 10])
+    def test_recovers_when_same_client_used_across_function_scope_loops(self, loops):
+        """Same client called from N freshly-created event loops.
+
+        Mirrors the pytest-asyncio function-scope pattern (session-scoped
+        client, function-scoped loops). Each new loop's first request sees
+        a stale-transport RuntimeError and recovers via the retry. Verified
+        across a range of loop counts to catch any per-loop accumulation.
+        """
+        client = make_client()
+        first_call_per_loop = {"is_first": True}
+        post_calls = 0
+
+        async def post_simulating_loop_binding(*args, **kwargs):
+            nonlocal post_calls
+            post_calls += 1
+            if first_call_per_loop["is_first"]:
+                first_call_per_loop["is_first"] = False
+                raise RuntimeError("Event loop is closed")
+            return httpx.Response(
+                200,
+                json=ok_response(),
+                request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+            )
+
+        client._client = type("MockClient", (), {"post": post_simulating_loop_binding})()
+
+        for _ in range(loops):
+            first_call_per_loop["is_first"] = True
+            loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(client.chat_completion("gpt-4o", [{"role": "user", "content": "hi"}]))
+                assert result.body["choices"][0]["message"]["content"] == "Hello"
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+
+        assert post_calls == loops * 2
+
 
 class TestCalculateRetryDelay:
     @pytest.mark.parametrize(
