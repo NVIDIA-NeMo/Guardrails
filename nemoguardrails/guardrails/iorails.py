@@ -28,6 +28,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
 from typing import Optional, Union
 
+from nemoguardrails.actions.llm.utils import _extract_and_remove_think_tags
 from nemoguardrails.exceptions import StreamingNotSupportedError
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
@@ -285,8 +286,13 @@ class IORails:
         if isinstance(options, GenerationOptions) and options.llm_params:
             llm_kwargs = options.llm_params
 
-        # Extract content string from structured LLMResponse.
-        response_text = (await self.engine_registry.model_call("main", messages, **llm_kwargs)).content
+        response = await self.engine_registry.model_call("main", messages, **llm_kwargs)
+
+        # Reasoning extraction prefers LLMResponse `reasoning` field if the provider
+        # supports it, falling back to extracting <think>...</think> tags otherwise.
+        # The fallback mutates response.content to remove reasoning content.
+        reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
+        response_text = response.content
         log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
         # Step 3: Check output rails
@@ -297,6 +303,11 @@ class IORails:
             if self._metrics_enabled:
                 record_request_blocked(RailDirection.OUTPUT)
             return {"role": "assistant", "content": REFUSAL_MESSAGE}
+
+        # TODO: Support returning GenerationResponse `reasoning_content` to match LLMRails
+        # For now, embed the reasoning on the content with think-tags
+        if reasoning_content:
+            response_text = f"<think>{reasoning_content}</think>\n" + response_text
 
         return {"role": "assistant", "content": response_text}
 
