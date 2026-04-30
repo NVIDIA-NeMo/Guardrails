@@ -58,6 +58,15 @@ Register custom text completion (BaseLLM) and chat models (BaseChatModel) for us
 {bdg-secondary}`How To`
 :::
 
+:::{grid-item-card} Custom LLM Model
+:link: custom-llm-model
+:link-type: doc
+
+Implement the LLMModel protocol to plug a non-OpenAI-compatible backend into NeMo Guardrails without depending on LangChain.
++++
+{bdg-secondary}`How To`
+:::
+
 :::{grid-item-card} Embedding Providers
 :link: custom-embedding-providers
 :link-type: doc
@@ -89,6 +98,7 @@ Pass and access custom data from config.yml in your initialization code and acti
 
 Init Function <init-function>
 LLM Providers <custom-llm-providers>
+Custom LLM Model <custom-llm-model>
 Embedding Providers <custom-embedding-providers>
 Custom Data <custom-data>
 ```
