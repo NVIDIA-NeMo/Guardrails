@@ -15,8 +15,7 @@
 
 """Reasoning-model support for IORails.
 
-Non-streaming path mirrors LLMRails behavior (``actions/llm/utils.py:_store_reasoning_traces``
-and ``rails/llm/llmrails.py:1173-1175``):
+Non-streaming path mirrors LLMRails behavior
 - Prefer the provider-native ``LLMResponse.reasoning`` field.
 - Fall back to inline ``<think>...</think>`` tags in content (the helper
   strips the tags from ``response.content`` in place so output rails never
@@ -33,6 +32,7 @@ Streaming path holds strict LLMRails parity:
   warning per request so operators can spot the leak.
 """
 
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -71,6 +71,28 @@ async def iorails_input_only():
     """Started IORails with input rails only — required for stream_async()."""
     async with started_iorails(_INPUT_ONLY_CONFIG) as iorails:
         yield iorails
+
+
+@pytest.fixture
+def caplog_iorails(caplog):
+    """Capture records from ``nemoguardrails.guardrails.iorails`` reliably.
+
+    Attach ``caplog.handler`` directly to the iorails logger and set
+    ``propagate=False`` for the duration of the test. The direct attach
+    captures regardless of upstream propagation state; the local
+    ``propagate=False`` prevents double-capture when propagation IS still
+    intact (otherwise we'd record the same warning twice — once via the
+    direct handler, once via the propagated chain).
+    """
+    iorails_logger = logging.getLogger("nemoguardrails.guardrails.iorails")
+    original_propagate = iorails_logger.propagate
+    iorails_logger.addHandler(caplog.handler)
+    iorails_logger.propagate = False
+    try:
+        yield caplog
+    finally:
+        iorails_logger.removeHandler(caplog.handler)
+        iorails_logger.propagate = original_propagate
 
 
 def _stub_safe_rails(iorails: IORails) -> None:
@@ -256,7 +278,7 @@ class TestStreamingReasoningWarning:
     """
 
     @pytest.mark.asyncio
-    async def test_inline_think_warning_fires_once_per_request(self, iorails_input_only, caplog):
+    async def test_inline_think_warning_fires_once_per_request(self, iorails_input_only, caplog_iorails):
         """Two consecutive streams, both leaking <think> via delta_content → one warning per request.
 
         A single-inference test can't distinguish the intended "once per request"
@@ -278,7 +300,7 @@ class TestStreamingReasoningWarning:
             iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}])
         )
         assert "".join(chunks_first) == "<think>reasoning step</think>Hello"
-        assert _count_inline_think_warnings(caplog) == 1
+        assert _count_inline_think_warnings(caplog_iorails) == 1
 
         # Second request through the same leaky stream — warning fires again,
         # not deduplicated. Yielded content is unchanged on both requests.
@@ -286,10 +308,10 @@ class TestStreamingReasoningWarning:
             iorails_input_only.stream_async(messages=[{"role": "user", "content": "again"}])
         )
         assert "".join(chunks_second) == "<think>reasoning step</think>Hello"
-        assert _count_inline_think_warnings(caplog) == 2
+        assert _count_inline_think_warnings(caplog_iorails) == 2
 
     @pytest.mark.asyncio
-    async def test_structured_delta_reasoning_no_warning(self, iorails_input_only, caplog):
+    async def test_structured_delta_reasoning_no_warning(self, iorails_input_only, caplog_iorails):
         """Structured delta_reasoning channel → no warning, no <think> tokens leaked into chunks."""
         _stub_safe_input(iorails_input_only)
         iorails_input_only.engine_registry.stream_model_call = _make_stream(
@@ -301,10 +323,10 @@ class TestStreamingReasoningWarning:
         chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert "".join(chunks) == "Hello world"
-        assert _count_inline_think_warnings(caplog) == 0
+        assert _count_inline_think_warnings(caplog_iorails) == 0
 
     @pytest.mark.asyncio
-    async def test_clean_content_no_warning(self, iorails_input_only, caplog):
+    async def test_clean_content_no_warning(self, iorails_input_only, caplog_iorails):
         """Plain content with no reasoning anywhere → no warning."""
         _stub_safe_input(iorails_input_only)
         iorails_input_only.engine_registry.stream_model_call = _make_stream(
@@ -315,10 +337,10 @@ class TestStreamingReasoningWarning:
         chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert "".join(chunks) == "Hello world"
-        assert _count_inline_think_warnings(caplog) == 0
+        assert _count_inline_think_warnings(caplog_iorails) == 0
 
     @pytest.mark.asyncio
-    async def test_malformed_opener_only_still_warns(self, iorails_input_only, caplog):
+    async def test_malformed_opener_only_still_warns(self, iorails_input_only, caplog_iorails):
         """Only an opening <think> tag (no closer) → still warns; the leak is the same."""
         _stub_safe_input(iorails_input_only)
         iorails_input_only.engine_registry.stream_model_call = _make_stream(
@@ -328,10 +350,10 @@ class TestStreamingReasoningWarning:
         chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert "".join(chunks) == "<think>incomplete reasoning"
-        assert _count_inline_think_warnings(caplog) == 1
+        assert _count_inline_think_warnings(caplog_iorails) == 1
 
     @pytest.mark.asyncio
-    async def test_malformed_closer_only_still_warns(self, iorails_input_only, caplog):
+    async def test_malformed_closer_only_still_warns(self, iorails_input_only, caplog_iorails):
         """Only a closing </think> tag (no opener) → still warns; the leak is the same."""
         _stub_safe_input(iorails_input_only)
         iorails_input_only.engine_registry.stream_model_call = _make_stream(
@@ -341,4 +363,4 @@ class TestStreamingReasoningWarning:
         chunks = await _collect_stream(iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}]))
 
         assert "".join(chunks) == "orphan</think> reply"
-        assert _count_inline_think_warnings(caplog) == 1
+        assert _count_inline_think_warnings(caplog_iorails) == 1
