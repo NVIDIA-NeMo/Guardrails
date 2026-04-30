@@ -287,13 +287,14 @@ class IORails:
             llm_kwargs = options.llm_params
 
         response = await self.engine_registry.model_call("main", messages, **llm_kwargs)
+        # Log raw content before reasoning extraction and think-token removal
+        log.debug("[%s] Raw LLM response: %s", req_id, truncate(response.content))
 
         # Reasoning extraction prefers LLMResponse `reasoning` field if the provider
         # supports it, falling back to extracting <think>...</think> tags otherwise.
         # The fallback mutates response.content to remove reasoning content.
         reasoning_content = response.reasoning or _extract_and_remove_think_tags(response)
         response_text = response.content
-        log.debug("[%s] Main LLM response: %s", req_id, truncate(response_text))
 
         # Step 3: Check output rails
         log.info("[%s] Running output rails", req_id)
