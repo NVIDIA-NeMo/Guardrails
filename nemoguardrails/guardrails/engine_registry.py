@@ -20,6 +20,7 @@ model type. Each engine owns its own RetryClient with per-model settings.
 """
 
 import logging
+import time
 from collections.abc import AsyncGenerator
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
@@ -32,6 +33,8 @@ from nemoguardrails.guardrails.telemetry import (
     api_call_span,
     llm_call_span,
     llm_operation_duration,
+    record_time_per_output_chunk,
+    record_time_to_first_chunk,
     record_token_usage,
 )
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
@@ -242,7 +245,23 @@ class EngineRegistry:
         )
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name):
             with duration_ctx:
+                t0 = time.monotonic()
+                last_chunk_time: Optional[float] = None
                 async for chunk in engine.stream_chat_completion(messages, **kwargs):
+                    # Per OTEL semconv, "first chunk" / "output chunk" mean
+                    # content-bearing chunks — gate on ``delta_content`` /
+                    # ``delta_reasoning`` to skip the terminal usage frame
+                    # and any other cosmetic SSE events that the parser
+                    # leaves in place.
+                    if self._metrics_enabled and (chunk.delta_content or chunk.delta_reasoning):
+                        now = time.monotonic()
+                        if last_chunk_time is None:
+                            record_time_to_first_chunk(engine.model_name, provider_name, operation_name, now - t0)
+                        else:
+                            record_time_per_output_chunk(
+                                engine.model_name, provider_name, operation_name, now - last_chunk_time
+                            )
+                        last_chunk_time = now
                     if chunk.usage is not None:
                         captured_usage = chunk.usage
                     yield chunk

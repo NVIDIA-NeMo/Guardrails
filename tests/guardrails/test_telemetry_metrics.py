@@ -36,6 +36,8 @@ from nemoguardrails.guardrails.telemetry import (
     record_request_blocked,
     record_request_error,
     record_stream_rejected,
+    record_time_per_output_chunk,
+    record_time_to_first_chunk,
     record_token_usage,
     register_nonstream_saturation_gauges,
     request_metrics,
@@ -305,6 +307,61 @@ class TestLLMOperationDuration:
             telemetry._llm_instruments = None
             with llm_operation_duration("m", "p", "chat"):
                 pass  # must not raise
+
+
+class TestRecordTimeToFirstChunk:
+    """``record_time_to_first_chunk`` records a single observation onto
+    ``gen_ai.client.operation.time_to_first_chunk`` with the standard
+    label set."""
+
+    def test_records_observation(self, meter_reader):
+        record_time_to_first_chunk("model-x", "openai", "chat", 0.123)
+        points = collect_metric_points(meter_reader)
+        # Histogram value here is the recording count.
+        assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
+
+    def test_label_set(self, meter_reader):
+        record_time_to_first_chunk("model-x", "openai", "chat", 0.05)
+        points = collect_metric_points(meter_reader)
+        attrs = points["gen_ai.client.operation.time_to_first_chunk"][0].attributes
+        assert attrs["gen_ai.request.model"] == "model-x"
+        assert attrs["gen_ai.provider.name"] == "openai"
+        assert attrs["gen_ai.operation.name"] == "chat"
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._llm_instruments = None
+            record_time_to_first_chunk("m", "p", "chat", 0.01)
+            # No exception, no meter to assert against.
+
+
+class TestRecordTimePerOutputChunk:
+    """``record_time_per_output_chunk`` records the inter-chunk
+    interval onto ``gen_ai.client.operation.time_per_output_chunk``.
+    Caller is responsible for skipping the first chunk and any
+    non-content frames; the helper itself just records."""
+
+    def test_each_call_records_one_observation(self, meter_reader):
+        for interval in (0.02, 0.04, 0.03):
+            record_time_per_output_chunk("model-x", "openai", "chat", interval)
+        points = collect_metric_points(meter_reader)
+        # Three calls → three recordings on the same data point.
+        assert points["gen_ai.client.operation.time_per_output_chunk"][0].value == 3
+
+    def test_label_set(self, meter_reader):
+        record_time_per_output_chunk("model-x", "openai", "chat", 0.05)
+        points = collect_metric_points(meter_reader)
+        attrs = points["gen_ai.client.operation.time_per_output_chunk"][0].attributes
+        assert attrs["gen_ai.request.model"] == "model-x"
+        assert attrs["gen_ai.provider.name"] == "openai"
+        assert attrs["gen_ai.operation.name"] == "chat"
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._llm_instruments = None
+            record_time_per_output_chunk("m", "p", "chat", 0.01)
 
 
 class TestRequestMetrics:

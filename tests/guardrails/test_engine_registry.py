@@ -28,7 +28,7 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
-from tests.guardrails.metric_helpers import collect_metric_points
+from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -836,3 +836,200 @@ class TestEngineRegistryStreamModelCallMetrics:
             assert point.attributes["gen_ai.operation.name"] == "chat"
             assert point.attributes["gen_ai.provider.name"] == "nim"
             assert point.attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
+
+
+class TestEngineRegistryStreamModelCallChunkTiming:
+    """``stream_model_call`` emits ``gen_ai.client.operation.time_to_first_chunk``
+    and ``gen_ai.client.operation.time_per_output_chunk`` for each
+    content-bearing chunk yielded.  Cosmetic SSE frames (terminal usage
+    chunk, role-only frames already filtered by the parser) do NOT
+    contribute timing observations."""
+
+    @pytest.mark.asyncio
+    async def test_records_ttfc_and_per_chunk_for_content_stream(self, manager_with_metrics, metric_reader):
+        """N content chunks → 1 TTFC observation + (N-1) per-chunk
+        observations.  Terminal usage chunk does NOT add a per-chunk
+        observation (its ``delta_content``/``delta_reasoning`` are
+        both None)."""
+
+        async def mock_stream(msgs, **kwargs):
+            for text in ["Hello", " ", "world"]:
+                yield LLMResponseChunk(delta_content=text)
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=3))
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        # Exactly one TTFC observation per stream.
+        assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
+        # Three content chunks → 2 per-chunk intervals (1→2, 2→3).
+        assert points["gen_ai.client.operation.time_per_output_chunk"][0].value == 2
+
+    @pytest.mark.asyncio
+    async def test_reasoning_chunks_count_as_content_for_chunk_timing(self, manager_with_metrics, metric_reader):
+        """``delta_reasoning`` chunks are content-bearing for OTEL's
+        purposes — they're real output that the consumer will display.
+        TTFC fires on the first reasoning OR content chunk; per-chunk
+        intervals are recorded between any combination."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_reasoning="thinking")
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_reasoning=" more")
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
+        assert points["gen_ai.client.operation.time_per_output_chunk"][0].value == 2
+
+    @pytest.mark.asyncio
+    async def test_single_content_chunk_records_ttfc_only(self, manager_with_metrics, metric_reader):
+        """One content chunk → 1 TTFC, 0 per-chunk intervals (no
+        "between" gaps with only one chunk)."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="just one")
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
+        assert "gen_ai.client.operation.time_per_output_chunk" not in points
+
+    @pytest.mark.asyncio
+    async def test_no_chunk_timing_when_no_content_chunks(self, manager_with_metrics, metric_reader):
+        """Stream that yields only the terminal usage chunk (no
+        content/reasoning) → neither chunk-timing metric fires.
+        Operation duration still records.  Models a degenerate
+        provider response."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=0))
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.operation.time_to_first_chunk" not in points
+        assert "gen_ai.client.operation.time_per_output_chunk" not in points
+        # Sanity: duration still emits.
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_no_chunk_timing_when_metrics_disabled(self, manager, metric_reader):
+        """``metrics_enabled=False`` → chunk-timing metrics do not fire
+        even on a content-bearing stream."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content=" world")
+
+        engine = manager._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.operation.time_to_first_chunk" not in points
+        assert "gen_ai.client.operation.time_per_output_chunk" not in points
+
+    @pytest.mark.asyncio
+    async def test_chunk_timing_intervals_match_mocked_clock(self, manager_with_metrics, metric_reader):
+        """Mock ``time.monotonic`` with a known sequence and verify the
+        recorded TTFC and per-chunk values match the expected intervals
+        exactly.
+
+        Mirrors a real OpenAI-shape stream after the parser:
+          - role-only first SSE chunk is dropped at the parser layer (so
+            ``engine.stream_chat_completion`` doesn't yield it here)
+          - three content-bearing chunks
+          - terminal usage chunk (no content delta) — must NOT contribute
+            a per-chunk interval
+
+        ``time.monotonic`` is consulted six times in this code path:
+          1. ``llm_operation_duration`` __enter__
+          2. ``stream_model_call`` t0 (just inside ``with duration_ctx``)
+          3-5. once per content-bearing chunk in the loop
+          6. ``llm_operation_duration`` __exit__ finally
+        """
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content=" ")
+            yield LLMResponseChunk(delta_content="world")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=3))
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        clock = [
+            100.000,  # llm_operation_duration t0
+            100.001,  # stream_model_call t0 (essentially same instant)
+            100.050,  # content chunk 1 → TTFC = 100.050 - 100.001 = 0.049
+            100.080,  # content chunk 2 → per-chunk = 100.080 - 100.050 = 0.030
+            100.120,  # content chunk 3 → per-chunk = 100.120 - 100.080 = 0.040
+            100.130,  # llm_operation_duration end → duration = 100.130 - 100.000 = 0.130
+        ]
+
+        with patch("time.monotonic", side_effect=clock):
+            async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+                pass
+
+        # TTFC: from stream_model_call's t0 to first content chunk arrival.
+        ttfc_sum = collect_histogram_sum(metric_reader, "gen_ai.client.operation.time_to_first_chunk")
+        assert ttfc_sum == pytest.approx(0.049, abs=1e-9)
+
+        # Per-chunk: two intervals between three content chunks.  Terminal
+        # usage chunk does NOT contribute since the gating predicate
+        # (``chunk.delta_content or chunk.delta_reasoning``) is false for it.
+        per_chunk_sum = collect_histogram_sum(metric_reader, "gen_ai.client.operation.time_per_output_chunk")
+        assert per_chunk_sum == pytest.approx(0.030 + 0.040, abs=1e-9)
+
+        # Sanity check: duration spans the whole operation including the
+        # terminal usage chunk's parser pass.
+        duration_sum = collect_histogram_sum(metric_reader, "gen_ai.client.operation.duration")
+        assert duration_sum == pytest.approx(0.130, abs=1e-9)
+
+        # Per-chunk count = number of intervals = (content chunks - 1) = 2.
+        per_chunk_points = collect_metric_points(metric_reader)["gen_ai.client.operation.time_per_output_chunk"]
+        assert per_chunk_points[0].value == 2
+
+    @pytest.mark.asyncio
+    async def test_provider_error_after_first_chunk_records_partial_timing(self, manager_with_metrics, metric_reader):
+        """Provider errors after yielding one content chunk → TTFC
+        recorded (the first chunk arrived), no per-chunk interval
+        (would have needed a second), duration emits with
+        ``error.type``, exception propagates."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            raise RuntimeError("provider died")
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        with pytest.raises(RuntimeError, match="provider died"):
+            async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+                pass
+
+        points = collect_metric_points(metric_reader)
+        assert points["gen_ai.client.operation.time_to_first_chunk"][0].value == 1
+        assert "gen_ai.client.operation.time_per_output_chunk" not in points
+        assert points["gen_ai.client.operation.duration"][0].attributes["error.type"] == "RuntimeError"

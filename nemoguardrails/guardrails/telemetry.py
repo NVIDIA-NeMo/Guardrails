@@ -451,6 +451,62 @@ def llm_operation_duration(
         instruments.operation_duration.record(elapsed, attributes=attrs)
 
 
+def record_time_to_first_chunk(
+    model_name: str,
+    provider_name: str,
+    operation_name: str,
+    duration_s: float,
+) -> None:
+    """Emit a ``gen_ai.client.operation.time_to_first_chunk`` observation.
+
+    Records the elapsed seconds from request issue to the first
+    content-bearing chunk yielded by the streaming response.  Caller
+    is responsible for the timing — this helper just records the value
+    onto the histogram with the standard label set.
+
+    Per OTEL semconv, "first chunk" is the first chunk carrying actual
+    output (content or reasoning delta) — not the role-only or other
+    cosmetic SSE frames that don't carry data.
+
+    No-op when the OTEL API is unavailable.
+    """
+    instruments = _ensure_llm_instruments()
+    if instruments is None:
+        return
+    instruments.time_to_first_chunk.record(
+        duration_s,
+        attributes=_llm_call_attributes(model_name, provider_name, operation_name),
+    )
+
+
+def record_time_per_output_chunk(
+    model_name: str,
+    provider_name: str,
+    operation_name: str,
+    duration_s: float,
+) -> None:
+    """Emit a ``gen_ai.client.operation.time_per_output_chunk`` observation.
+
+    Records the inter-chunk interval for one content-bearing chunk
+    after the first.  Each chunk produces one observation; aggregates
+    show p50/p95/p99 for chunk-arrival pacing across the stream.
+
+    Caller is responsible for skipping the first chunk (covered by
+    ``record_time_to_first_chunk`` instead) and for skipping
+    non-content frames (terminal usage chunk, role-only frames) that
+    would skew the distribution.
+
+    No-op when the OTEL API is unavailable.
+    """
+    instruments = _ensure_llm_instruments()
+    if instruments is None:
+        return
+    instruments.time_per_output_chunk.record(
+        duration_s,
+        attributes=_llm_call_attributes(model_name, provider_name, operation_name),
+    )
+
+
 def register_nonstream_saturation_gauges(
     queue: "AsyncWorkQueue",
     is_running: Callable[[], bool],
