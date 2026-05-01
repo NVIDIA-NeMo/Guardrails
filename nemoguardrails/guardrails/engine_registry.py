@@ -35,7 +35,7 @@ from nemoguardrails.guardrails.telemetry import (
     record_token_usage,
 )
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
-from nemoguardrails.types import LLMResponse, LLMResponseChunk
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -209,6 +209,15 @@ class EngineRegistry:
         before the first chunk and closes when the generator exhausts or
         raises.
 
+        When metrics are enabled, emits ``gen_ai.client.operation.duration``
+        for the full stream lifetime (with ``error.type`` on exception)
+        and ``gen_ai.client.token.usage`` after stream completion using
+        the ``UsageInfo`` carried on the terminal SSE chunk (when the
+        provider returns one — controlled by ``include_usage_in_stream``,
+        defaults to True for OpenAI-compatible engines).  No token
+        observation is emitted on early consumer cancellation or on
+        provider error mid-stream.
+
         Raises:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not a ModelEngine.
@@ -217,9 +226,31 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' stream messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        with llm_call_span(self._tracer, engine.model_name, engine.model_config.engine or "unknown"):
-            async for chunk in engine.stream_chat_completion(messages, **kwargs):
-                yield chunk
+        # TODO: Change to LLMModel.provider_name after refactor
+        provider_name = engine.model_config.engine or "unknown"
+        operation_name = "chat"
+
+        # Capture the most recent chunk's ``usage`` field so we can emit
+        # token metrics after the stream completes — providers (e.g.
+        # OpenAI-compatible) only populate ``usage`` on the terminal
+        # chunk when ``stream_options.include_usage=true``.
+        captured_usage: Optional["UsageInfo"] = None
+        duration_ctx = (
+            llm_operation_duration(engine.model_name, provider_name, operation_name)
+            if self._metrics_enabled
+            else nullcontext()
+        )
+        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name):
+            with duration_ctx:
+                async for chunk in engine.stream_chat_completion(messages, **kwargs):
+                    if chunk.usage is not None:
+                        captured_usage = chunk.usage
+                    yield chunk
+
+        # Reached only on natural exhaustion (not on consumer cancellation
+        # or provider error — those raise out of the ``with`` blocks above).
+        if self._metrics_enabled:
+            record_token_usage(engine.model_name, provider_name, operation_name, captured_usage)
 
     async def api_call(self, api_name: str, message: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         """Route an API request to the named API engine.

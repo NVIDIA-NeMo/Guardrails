@@ -692,3 +692,147 @@ class TestEngineRegistryStreamModelCall:
         """Raises KeyError when the model type doesn't exist."""
         with pytest.raises(KeyError):
             await anext(manager.stream_model_call("nonexistent", [{"role": "user", "content": "Hi"}]))
+
+
+class TestEngineRegistryStreamModelCallMetrics:
+    """``stream_model_call`` emits the OTEL GenAI client metrics over
+    the full stream lifetime when ``metrics_enabled=True``.
+
+    Token usage is captured from the terminal SSE chunk (which carries
+    ``usage`` only when the upstream payload had
+    ``stream_options.include_usage=true`` — on by default in the
+    OpenAI-compatible client).  Duration is recorded around the whole
+    iteration."""
+
+    @pytest.mark.asyncio
+    async def test_emits_token_usage_and_duration_on_safe_stream(self, manager_with_metrics, metric_reader):
+        """Final chunk carries ``usage`` → both metrics emit.  Token
+        usage produces input + output observations once the stream
+        completes."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content=" world")
+            # Terminal chunk: no content delta, just usage.
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=12, output_tokens=2))
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        chunks = [c async for c in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}])]
+        assert len(chunks) == 3
+
+        points = collect_metric_points(metric_reader)
+        assert len(points["gen_ai.client.token.usage"]) == 2
+        token_types = {p.attributes["gen_ai.token.type"] for p in points["gen_ai.client.token.usage"]}
+        assert token_types == {"input", "output"}
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+        assert "error.type" not in points["gen_ai.client.operation.duration"][0].attributes
+
+    @pytest.mark.asyncio
+    async def test_skips_token_usage_when_no_chunk_carries_usage(self, manager_with_metrics, metric_reader):
+        """No chunk has ``usage`` populated (e.g. provider doesn't
+        support ``stream_options.include_usage`` or it was suppressed
+        with ``include_usage_in_stream=False``) → token metric absent,
+        duration still emits."""
+
+        async def mock_stream(msgs, **kwargs):
+            for text in ["Hello", " world"]:
+                yield LLMResponseChunk(delta_content=text)
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_records_duration_with_error_type_on_provider_error(self, manager_with_metrics, metric_reader):
+        """Provider raises mid-stream → duration emits with
+        ``error.type=ExceptionClass``, token usage absent (no terminal
+        chunk arrived), exception propagates to consumer."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            raise RuntimeError("provider died")
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        with pytest.raises(RuntimeError, match="provider died"):
+            async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+                pass
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].attributes["error.type"] == "RuntimeError"
+
+    @pytest.mark.asyncio
+    async def test_no_token_usage_on_consumer_early_break(self, manager_with_metrics, metric_reader):
+        """Consumer breaks out of the iteration before the terminal
+        chunk arrives → captured_usage is None at that point, and the
+        ``record_token_usage`` line after the ``with`` block doesn't
+        run (GeneratorExit unwinds the with-stack but skips trailing
+        code).  Duration still records via the ``finally`` in
+        ``llm_operation_duration``."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(delta_content=" world")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=2))
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        # Consume only the first chunk and abandon the iterator.
+        agen = manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}])
+        first = await anext(agen)
+        assert first.delta_content == "Hello"
+        await agen.aclose()
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_emitted_when_metrics_disabled(self, manager, metric_reader):
+        """Default config (metrics disabled) → no metrics fire even
+        when usage info is present on the final chunk."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hello")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=2))
+
+        engine = manager._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert "gen_ai.client.operation.duration" not in points
+
+    @pytest.mark.asyncio
+    async def test_label_set_includes_provider_model_operation(self, manager_with_metrics, metric_reader):
+        """Standard OTEL labels on every observation."""
+
+        async def mock_stream(msgs, **kwargs):
+            yield LLMResponseChunk(delta_content="Hi")
+            yield LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=1))
+
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.stream_chat_completion = mock_stream
+
+        async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
+            pass
+
+        points = collect_metric_points(metric_reader)
+        for point in points["gen_ai.client.token.usage"] + points["gen_ai.client.operation.duration"]:
+            assert point.attributes["gen_ai.operation.name"] == "chat"
+            assert point.attributes["gen_ai.provider.name"] == "nim"
+            assert point.attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"

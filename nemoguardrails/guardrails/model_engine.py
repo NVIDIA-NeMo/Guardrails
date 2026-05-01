@@ -116,28 +116,38 @@ def _parse_chat_completion(response: dict) -> LLMResponse:
 def _parse_chat_completion_chunk(chunk: dict) -> Optional[LLMResponseChunk]:
     """Build an LLMResponseChunk from an SSE chunk dict.
 
-    Returns None for chunks that carry no content or reasoning delta —
-    role-only first events, finish-only events, or empty-choices events
-    are skipped, preserving current stream_call behavior.
+    Returns None for chunks without one of: content delta, reasoning delta,
+    or a usage payload.
+    Role-only first events and finish-only events with empty deltas
+    map to None.
+
+    Last chunk from OpenAI-compatible providers when has a ``usage``
+    field when ``stream_options.include_usage=true``. This is passed through
+    to use the token usage metadata.
     """
     choices = chunk.get("choices") or []
-    if not choices:
-        return None
+    usage_dict = chunk.get("usage")
 
-    choice = choices[0]
-    delta = choice.get("delta") or {}
-    delta_content = delta.get("content")
-    delta_reasoning = delta.get("reasoning_content") or None
+    delta_content: Optional[str] = None
+    delta_reasoning: Optional[str] = None
+    finish_reason = None
+    if choices:
+        choice = choices[0]
+        delta = choice.get("delta") or {}
+        delta_content = delta.get("content")
+        delta_reasoning = delta.get("reasoning_content") or None
+        finish_reason = choice.get("finish_reason")
 
-    if not delta_content and not delta_reasoning:
+    if not delta_content and not delta_reasoning and not usage_dict:
         return None
 
     return LLMResponseChunk(
         delta_content=delta_content,
         delta_reasoning=delta_reasoning,
         model=chunk.get("model"),
-        finish_reason=choice.get("finish_reason"),
+        finish_reason=finish_reason,
         request_id=chunk.get("id"),
+        usage=_parse_usage(usage_dict) if usage_dict else None,
     )
 
 

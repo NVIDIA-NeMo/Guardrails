@@ -1153,9 +1153,36 @@ class TestParseChatCompletionChunk:
         """Role-only deltas (typical first event) are skipped."""
         assert _parse_chat_completion_chunk({"choices": [{"delta": {"role": "assistant"}}]}) is None
 
-    def test_empty_choices_returns_none(self):
-        """Empty-choices events (e.g. include_usage usage chunk) are skipped."""
+    def test_empty_choices_with_no_usage_returns_none(self):
+        """Empty-choices events with no usage info are skipped (e.g.
+        provider-specific keepalive frames)."""
         assert _parse_chat_completion_chunk({"choices": []}) is None
+
+    def test_empty_choices_with_usage_returns_chunk_with_usage(self):
+        """Empty-choices events that carry a ``usage`` payload pass
+        through — the OpenAI-compatible terminal chunk emitted with
+        ``stream_options.include_usage=true``.  ``delta_content`` and
+        ``delta_reasoning`` stay ``None``; ``usage`` is populated."""
+        result = _parse_chat_completion_chunk(
+            {
+                "choices": [],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            }
+        )
+        assert result is not None
+        assert result.delta_content is None
+        assert result.delta_reasoning is None
+        assert result.usage is not None
+        assert result.usage.input_tokens == 10
+        assert result.usage.output_tokens == 5
+        assert result.usage.total_tokens == 15
+
+    def test_content_chunk_with_no_usage_has_usage_none(self):
+        """A normal content-bearing chunk still reports ``usage=None``
+        — usage flows only on the terminal frame."""
+        result = _parse_chat_completion_chunk({"choices": [{"delta": {"content": "hi"}}]})
+        assert result is not None
+        assert result.usage is None
 
     def test_finish_only_delta_returns_none(self):
         """Finish-only deltas (no content/reasoning) are skipped, matching prior behavior."""
