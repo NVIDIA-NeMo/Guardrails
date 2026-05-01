@@ -15,6 +15,7 @@
 
 """Unit tests for engine_registry module."""
 
+from typing import Optional
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -79,6 +80,22 @@ def metric_reader():
 def manager_with_metrics(rails_config):
     """Create an EngineRegistry with metrics emission enabled."""
     return EngineRegistry(rails_config.models, rails_config.rails.config, metrics_enabled=True)
+
+
+def _mock_stream(*chunks: LLMResponseChunk, error: Optional[Exception] = None):
+    """Build an async generator that yields ``chunks`` in order, then
+    optionally raises ``error``.  Drop-in replacement for inline
+    ``async def mock_stream(msgs, **kwargs): yield ...`` definitions,
+    cutting two lines of boilerplate per call site.
+    """
+
+    async def _gen(msgs, **kwargs):  # noqa: ARG001 (signature dictated by ModelEngine)
+        for chunk in chunks:
+            yield chunk
+        if error is not None:
+            raise error
+
+    return _gen
 
 
 class TestEngineRegistryInit:
@@ -709,15 +726,13 @@ class TestEngineRegistryStreamModelCallMetrics:
         """Final chunk carries ``usage`` → both metrics emit.  Token
         usage produces input + output observations once the stream
         completes."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            yield LLMResponseChunk(delta_content=" world")
-            # Terminal chunk: no content delta, just usage.
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=12, output_tokens=2))
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+            # Terminal chunk: no content delta, just usage.
+            LLMResponseChunk(usage=UsageInfo(input_tokens=12, output_tokens=2)),
+        )
 
         chunks = [c async for c in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}])]
         assert len(chunks) == 3
@@ -735,13 +750,11 @@ class TestEngineRegistryStreamModelCallMetrics:
         support ``stream_options.include_usage`` or it was suppressed
         with ``include_usage_in_stream=False``) → token metric absent,
         duration still emits."""
-
-        async def mock_stream(msgs, **kwargs):
-            for text in ["Hello", " world"]:
-                yield LLMResponseChunk(delta_content=text)
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+        )
 
         async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -755,13 +768,11 @@ class TestEngineRegistryStreamModelCallMetrics:
         """Provider raises mid-stream → duration emits with
         ``error.type=ExceptionClass``, token usage absent (no terminal
         chunk arrived), exception propagates to consumer."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            raise RuntimeError("provider died")
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            error=RuntimeError("provider died"),
+        )
 
         with pytest.raises(RuntimeError, match="provider died"):
             async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
@@ -779,14 +790,12 @@ class TestEngineRegistryStreamModelCallMetrics:
         run (GeneratorExit unwinds the with-stack but skips trailing
         code).  Duration still records via the ``finally`` in
         ``llm_operation_duration``."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            yield LLMResponseChunk(delta_content=" world")
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=2))
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+            LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=2)),
+        )
 
         # Consume only the first chunk and abandon the iterator.
         agen = manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}])
@@ -802,13 +811,11 @@ class TestEngineRegistryStreamModelCallMetrics:
     async def test_no_metrics_emitted_when_metrics_disabled(self, manager, metric_reader):
         """Default config (metrics disabled) → no metrics fire even
         when usage info is present on the final chunk."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=2))
-
         engine = manager._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=2)),
+        )
 
         async for _ in manager.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -820,13 +827,11 @@ class TestEngineRegistryStreamModelCallMetrics:
     @pytest.mark.asyncio
     async def test_label_set_includes_provider_model_operation(self, manager_with_metrics, metric_reader):
         """Standard OTEL labels on every observation."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hi")
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=1))
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hi"),
+            LLMResponseChunk(usage=UsageInfo(input_tokens=1, output_tokens=1)),
+        )
 
         async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -851,14 +856,13 @@ class TestEngineRegistryStreamModelCallChunkTiming:
         observations.  Terminal usage chunk does NOT add a per-chunk
         observation (its ``delta_content``/``delta_reasoning`` are
         both None)."""
-
-        async def mock_stream(msgs, **kwargs):
-            for text in ["Hello", " ", "world"]:
-                yield LLMResponseChunk(delta_content=text)
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=3))
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" "),
+            LLMResponseChunk(delta_content="world"),
+            LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=3)),
+        )
 
         async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -875,14 +879,12 @@ class TestEngineRegistryStreamModelCallChunkTiming:
         purposes — they're real output that the consumer will display.
         TTFC fires on the first reasoning OR content chunk; per-chunk
         intervals are recorded between any combination."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_reasoning="thinking")
-            yield LLMResponseChunk(delta_content="Hello")
-            yield LLMResponseChunk(delta_reasoning=" more")
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_reasoning="thinking"),
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_reasoning=" more"),
+        )
 
         async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -895,12 +897,8 @@ class TestEngineRegistryStreamModelCallChunkTiming:
     async def test_single_content_chunk_records_ttfc_only(self, manager_with_metrics, metric_reader):
         """One content chunk → 1 TTFC, 0 per-chunk intervals (no
         "between" gaps with only one chunk)."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="just one")
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(LLMResponseChunk(delta_content="just one"))
 
         async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -915,12 +913,10 @@ class TestEngineRegistryStreamModelCallChunkTiming:
         content/reasoning) → neither chunk-timing metric fires.
         Operation duration still records.  Models a degenerate
         provider response."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=0))
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=0))
+        )
 
         async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -935,13 +931,11 @@ class TestEngineRegistryStreamModelCallChunkTiming:
     async def test_no_chunk_timing_when_metrics_disabled(self, manager, metric_reader):
         """``metrics_enabled=False`` → chunk-timing metrics do not fire
         even on a content-bearing stream."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            yield LLMResponseChunk(delta_content=" world")
-
         engine = manager._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" world"),
+        )
 
         async for _ in manager.stream_model_call("main", [{"role": "user", "content": "hi"}]):
             pass
@@ -970,14 +964,13 @@ class TestEngineRegistryStreamModelCallChunkTiming:
           6. ``llm_operation_duration`` __exit__ finally
         """
 
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            yield LLMResponseChunk(delta_content=" ")
-            yield LLMResponseChunk(delta_content="world")
-            yield LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=3))
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            LLMResponseChunk(delta_content=" "),
+            LLMResponseChunk(delta_content="world"),
+            LLMResponseChunk(usage=UsageInfo(input_tokens=10, output_tokens=3)),
+        )
 
         clock = [
             100.000,  # llm_operation_duration t0
@@ -1017,13 +1010,11 @@ class TestEngineRegistryStreamModelCallChunkTiming:
         recorded (the first chunk arrived), no per-chunk interval
         (would have needed a second), duration emits with
         ``error.type``, exception propagates."""
-
-        async def mock_stream(msgs, **kwargs):
-            yield LLMResponseChunk(delta_content="Hello")
-            raise RuntimeError("provider died")
-
         engine = manager_with_metrics._get_engine("main", ModelEngine)
-        engine.stream_chat_completion = mock_stream
+        engine.stream_chat_completion = _mock_stream(
+            LLMResponseChunk(delta_content="Hello"),
+            error=RuntimeError("provider died"),
+        )
 
         with pytest.raises(RuntimeError, match="provider died"):
             async for _ in manager_with_metrics.stream_model_call("main", [{"role": "user", "content": "hi"}]):

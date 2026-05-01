@@ -89,6 +89,18 @@ def tracer_from_provider(exporter):
     return provider.get_tracer("test")
 
 
+def _gated_generate(gate: asyncio.Event):
+    """Build a stubbed ``IORails._do_generate`` that blocks on
+    ``gate.wait()`` and returns a fixed response.  Used by tests that
+    observe queue / worker state while a request is mid-pipeline."""
+
+    async def _gen(messages, req_id, **kwargs):
+        await gate.wait()
+        return {"role": "assistant", "content": "done"}
+
+    return _gen
+
+
 @pytest_asyncio.fixture
 async def iorails_tracing(tracer_from_provider):
     """IORails instance with tracing enabled, using a test tracer.
@@ -1185,12 +1197,6 @@ class TestGenerateAsyncRequestMetrics:
         """
         gate = asyncio.Event()
 
-        async def blocking_generate(messages, req_id, **kwargs):
-            """Stub pipeline that blocks until ``gate`` is set, so the test can
-            observe queue/worker state mid-flight."""
-            await gate.wait()
-            return {"role": "assistant", "content": "done"}
-
         block_seconds = 0.05
 
         with (
@@ -1200,7 +1206,7 @@ class TestGenerateAsyncRequestMetrics:
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
             async with iorails:
-                iorails._do_generate = blocking_generate
+                iorails._do_generate = _gated_generate(gate)
 
                 tasks = [
                     asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
@@ -1563,20 +1569,14 @@ class TestNonstreamStateGauges:
         """
         gate = asyncio.Event()
 
-        async def blocking_generate(messages, req_id, **kwargs):
-            """Stub pipeline that blocks until ``gate`` is set, so the test can
-            observe queue/worker state mid-flight."""
-            await gate.wait()
-            return {"role": "assistant", "content": "done"}
-
         with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
             iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
         async with iorails:
-            iorails._do_generate = blocking_generate
+            iorails._do_generate = _gated_generate(gate)
 
             task = asyncio.create_task(iorails.generate_async([{"role": "user", "content": "hi"}]))
             # Wait for the worker to pick up the item and enter
-            # ``blocking_generate`` (busy_count=1, pending=0).
+            # the gated generate (busy_count=1, pending=0).
             await wait_for_queue_state(iorails._generate_async_queue, busy=1, pending=0)
 
             mid = collect_metric_points(metric_reader)
@@ -1597,12 +1597,6 @@ class TestNonstreamStateGauges:
         """
         gate = asyncio.Event()
 
-        async def blocking_generate(messages, req_id, **kwargs):
-            """Stub pipeline that blocks until ``gate`` is set, so the test can
-            observe queue/worker state mid-flight."""
-            await gate.wait()
-            return {"role": "assistant", "content": "done"}
-
         # Patch module-level budgets so the backlog test doesn't need to
         # spin up 256 workers.
         with (
@@ -1612,7 +1606,7 @@ class TestNonstreamStateGauges:
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
             async with iorails:
-                iorails._do_generate = blocking_generate
+                iorails._do_generate = _gated_generate(gate)
 
                 tasks = [
                     asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
@@ -1718,12 +1712,6 @@ class TestRequestsActiveAggregate:
         """
         gate = asyncio.Event()
 
-        async def blocking_generate(messages, req_id, **kwargs):
-            """Stub pipeline that blocks until ``gate`` is set, so the test can
-            observe queue/worker state mid-flight."""
-            await gate.wait()
-            return {"role": "assistant", "content": "done"}
-
         with (
             patch("nemoguardrails.guardrails.iorails.NONSTREAM_MAX_CONCURRENCY", 1),
             patch("nemoguardrails.guardrails.iorails.NONSTREAM_QUEUE_DEPTH", 4),
@@ -1731,7 +1719,7 @@ class TestRequestsActiveAggregate:
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=_make_metrics_only_config()))
             async with iorails:
-                iorails._do_generate = blocking_generate
+                iorails._do_generate = _gated_generate(gate)
                 tasks = [
                     asyncio.create_task(iorails.generate_async([{"role": "user", "content": f"m{i}"}]))
                     for i in range(2)
@@ -1784,12 +1772,6 @@ class TestRequestsActiveAggregate:
         """
         nonstream_gate = asyncio.Event()
 
-        async def blocking_generate(messages, req_id, **kwargs):
-            """Stub pipeline that blocks until ``nonstream_gate`` is set, so the
-            test can observe queue/worker state mid-flight."""
-            await nonstream_gate.wait()
-            return {"role": "assistant", "content": "done"}
-
         # Drop output rails so ``stream_async`` doesn't trip the
         # StreamingNotSupportedError path (matches the ``_INPUT_ONLY_*``
         # configs used by the streaming-path fixtures above).
@@ -1801,7 +1783,7 @@ class TestRequestsActiveAggregate:
             with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
                 iorails = IORails(RailsConfig.from_content(config=invariant_config))
             async with iorails:
-                iorails._do_generate = blocking_generate
+                iorails._do_generate = _gated_generate(nonstream_gate)
                 iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
                 iorails.engine_registry.stream_model_call = _mock_chunks_stream
 
