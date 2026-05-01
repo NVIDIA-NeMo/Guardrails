@@ -109,14 +109,14 @@ nemoguardrails chat --config ./config
 
 With **PII detection** enabled, any message containing PII is blocked before reaching the LLM:
 
-```
+```text
 > Hello! My name is John and my email is john@example.com.
 I'm sorry, I can't respond to that.
 ```
 
 With **PII masking** enabled, PII is replaced in-place before the LLM sees the message:
 
-```
+```text
 > Hello! My name is John and my email is john@example.com.
 Nice to meet you, [FIRST_NAME]! How can I help you today?
 ```
