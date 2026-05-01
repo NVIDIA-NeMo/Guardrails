@@ -31,10 +31,12 @@ from nemoguardrails.guardrails.telemetry import (
     _ensure_request_instruments,
     are_metrics_enabled,
     get_meter,
+    llm_operation_duration,
     record_nonstream_rejected,
     record_request_blocked,
     record_request_error,
     record_stream_rejected,
+    record_token_usage,
     register_nonstream_saturation_gauges,
     request_metrics,
     stream_active_metric,
@@ -42,6 +44,7 @@ from nemoguardrails.guardrails.telemetry import (
 )
 from nemoguardrails.rails.llm.config import MetricsConfig
 from nemoguardrails.tracing.constants import SystemConstants
+from nemoguardrails.types import UsageInfo
 from tests.guardrails.metric_helpers import collect_metric_points
 
 
@@ -160,6 +163,148 @@ class TestEnsureLLMInstruments:
         assert telemetry._request_instruments is None
         _ensure_request_instruments()
         assert telemetry._request_instruments is not None
+
+
+class TestRecordTokenUsage:
+    """``record_token_usage`` emits two ``gen_ai.client.token.usage``
+    Histogram observations distinguished by ``gen_ai.token.type``."""
+
+    def test_emits_one_input_and_one_output_observation(self, meter_reader):
+        usage = UsageInfo(input_tokens=42, output_tokens=17, total_tokens=59)
+        record_token_usage("model-x", "openai", "chat", usage)
+        points = collect_metric_points(meter_reader)
+        observations = points["gen_ai.client.token.usage"]
+        assert len(observations) == 2
+        # Both observations carry the same model/provider/operation labels;
+        # they're distinguished by gen_ai.token.type only.
+        types = {obs.attributes["gen_ai.token.type"] for obs in observations}
+        assert types == {"input", "output"}
+
+    def test_label_set_includes_model_provider_operation(self, meter_reader):
+        record_token_usage("model-x", "openai", "chat", UsageInfo(input_tokens=1, output_tokens=1))
+        points = collect_metric_points(meter_reader)
+        attrs = points["gen_ai.client.token.usage"][0].attributes
+        assert attrs["gen_ai.request.model"] == "model-x"
+        assert attrs["gen_ai.provider.name"] == "openai"
+        assert attrs["gen_ai.operation.name"] == "chat"
+
+    def test_no_op_when_usage_is_none(self, meter_reader):
+        """Skipping when usage is None preserves the "no observation"
+        vs "0 tokens" distinction — operators can tell the difference
+        between a successful zero-token call and a call where the
+        provider didn't return usage info."""
+        record_token_usage("model-x", "openai", "chat", None)
+        points = collect_metric_points(meter_reader)
+        assert "gen_ai.client.token.usage" not in points
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._llm_instruments = None
+            record_token_usage("m", "p", "chat", UsageInfo(input_tokens=1, output_tokens=1))
+            # No meter to assert against; just verify no exception.
+
+    def test_records_zero_tokens_when_provider_returns_zeros(self, meter_reader):
+        """A ``UsageInfo(0, 0, 0)`` is real data (provider explicitly
+        reported zero) — distinct from ``usage=None``.  We record the
+        zeros."""
+        record_token_usage("model-x", "openai", "chat", UsageInfo(input_tokens=0, output_tokens=0))
+        points = collect_metric_points(meter_reader)
+        assert len(points["gen_ai.client.token.usage"]) == 2
+
+    def test_input_tokens_only_emits_both_observations(self, meter_reader):
+        """``UsageInfo(input_tokens=10, output_tokens=0)`` — typical of
+        an LLM call that errored after consuming prompt tokens but
+        before generating any output.  Both observations are recorded
+        (with output=0) so the operator sees the prompt cost without a
+        gap in the output series."""
+        record_token_usage("model-x", "openai", "chat", UsageInfo(input_tokens=10, output_tokens=0))
+        sums_by_type = _histogram_sums_by_token_type(meter_reader)
+        assert sums_by_type == {"input": 10, "output": 0}
+
+    def test_output_tokens_only_emits_both_observations(self, meter_reader):
+        """``UsageInfo(input_tokens=0, output_tokens=10)`` — pathological
+        but possible (e.g. cached prompt that the provider counts as 0
+        input).  Both observations are recorded for symmetry with the
+        input-only case."""
+        record_token_usage("model-x", "openai", "chat", UsageInfo(input_tokens=0, output_tokens=10))
+        sums_by_type = _histogram_sums_by_token_type(meter_reader)
+        assert sums_by_type == {"input": 0, "output": 10}
+
+
+def _histogram_sums_by_token_type(reader):
+    """Walk the SDK's collected metrics for ``gen_ai.client.token.usage``
+    and return ``{token_type: sum}`` so callers can assert that input
+    and output observations carried the correct values.
+
+    ``collect_metric_points`` only exposes the histogram *count*, not
+    *sum* per data point — so we read the SDK's data points directly
+    here.  Kept local to this test class because no other test needs
+    per-label histogram sums.
+    """
+    data = reader.get_metrics_data()
+    out = {}
+    for rm in data.resource_metrics:
+        for sm in rm.scope_metrics:
+            for metric in sm.metrics:
+                if metric.name != "gen_ai.client.token.usage":
+                    continue
+                for dp in metric.data.data_points:
+                    out[dp.attributes["gen_ai.token.type"]] = dp.sum
+    return out
+
+
+class TestLLMOperationDuration:
+    """``llm_operation_duration`` context manager records the wrapped
+    block's duration into ``gen_ai.client.operation.duration``,
+    adding ``error.type`` only on exception."""
+
+    def test_records_one_observation_on_success(self, meter_reader):
+        with llm_operation_duration("model-x", "openai", "chat"):
+            pass
+        points = collect_metric_points(meter_reader)
+        # Histogram count, not sum.
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+
+    def test_label_set_on_success_has_no_error_type(self, meter_reader):
+        with llm_operation_duration("model-x", "openai", "chat"):
+            pass
+        points = collect_metric_points(meter_reader)
+        attrs = points["gen_ai.client.operation.duration"][0].attributes
+        assert attrs["gen_ai.request.model"] == "model-x"
+        assert attrs["gen_ai.provider.name"] == "openai"
+        assert attrs["gen_ai.operation.name"] == "chat"
+        assert "error.type" not in attrs
+
+    def test_records_observation_on_exception_with_error_type(self, meter_reader):
+        with pytest.raises(RuntimeError):
+            with llm_operation_duration("model-x", "openai", "chat"):
+                raise RuntimeError("boom")
+        points = collect_metric_points(meter_reader)
+        assert len(points["gen_ai.client.operation.duration"]) == 1
+        attrs = points["gen_ai.client.operation.duration"][0].attributes
+        assert attrs["error.type"] == "RuntimeError"
+
+    def test_success_and_failure_split_by_error_type_label(self, meter_reader):
+        """Two calls — one ok, one raising — produce two distinct
+        data points distinguished by presence/value of ``error.type``."""
+        with llm_operation_duration("model-x", "openai", "chat"):
+            pass
+        with pytest.raises(ValueError):
+            with llm_operation_duration("model-x", "openai", "chat"):
+                raise ValueError("nope")
+        points = collect_metric_points(meter_reader)
+        observations = points["gen_ai.client.operation.duration"]
+        assert len(observations) == 2
+        error_types = {obs.attributes.get("error.type") for obs in observations}
+        assert error_types == {None, "ValueError"}
+
+    def test_no_op_when_otel_unavailable(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            telemetry._llm_instruments = None
+            with llm_operation_duration("m", "p", "chat"):
+                pass  # must not raise
 
 
 class TestRequestMetrics:

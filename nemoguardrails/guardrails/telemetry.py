@@ -49,6 +49,7 @@ from nemoguardrails.tracing.constants import (
     OperationNames,
     SpanNames,
     SystemConstants,
+    TokenType,
 )
 
 log = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ if TYPE_CHECKING:
 
     from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
     from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
+    from nemoguardrails.types import UsageInfo
 
     _OTEL_AVAILABLE = True
 else:
@@ -360,6 +362,93 @@ def _ensure_llm_instruments() -> Optional[LLMInstruments]:
             ),
         )
     return _llm_instruments
+
+
+def _llm_call_attributes(
+    model_name: str,
+    provider_name: str,
+    operation_name: str,
+) -> dict:
+    """Return the standard OTEL GenAI label set shared by every
+    ``gen_ai.client.*`` Histogram emission.
+
+    These three are the lowest-cardinality labels the spec mandates as
+    Required (``operation.name``, ``provider.name``) or Conditionally
+    Required (``request.model``).  Per-metric labels (``token.type``,
+    ``error.type``) are added by individual emission helpers.
+    """
+    return {
+        GenAIAttributes.GEN_AI_OPERATION_NAME: operation_name,
+        GenAIAttributes.GEN_AI_PROVIDER_NAME: provider_name,
+        GenAIAttributes.GEN_AI_REQUEST_MODEL: model_name,
+    }
+
+
+def record_token_usage(
+    model_name: str,
+    provider_name: str,
+    operation_name: str,
+    usage: Optional["UsageInfo"],
+) -> None:
+    """Emit two ``gen_ai.client.token.usage`` observations (one input,
+    one output) for a completed LLM call.
+
+    Per spec only ``input`` and ``output`` are valid
+    ``gen_ai.token.type`` values — reasoning and cached tokens are
+    span-only attributes, not metric labels.
+
+    No-op when ``usage`` is ``None`` (the upstream provider didn't
+    return a ``usage`` field — common for streaming when
+    ``stream_options.include_usage`` is suppressed) or the OTEL API is
+    unavailable.  Skipping emission rather than recording zeros keeps
+    the histogram honest: "no observation" is distinct from "0 tokens".
+    """
+    if usage is None:
+        return
+    instruments = _ensure_llm_instruments()
+    if instruments is None:
+        return
+    base = _llm_call_attributes(model_name, provider_name, operation_name)
+    instruments.token_usage.record(
+        usage.input_tokens,
+        attributes={**base, GenAIAttributes.GEN_AI_TOKEN_TYPE: TokenType.INPUT},
+    )
+    instruments.token_usage.record(
+        usage.output_tokens,
+        attributes={**base, GenAIAttributes.GEN_AI_TOKEN_TYPE: TokenType.OUTPUT},
+    )
+
+
+@contextmanager
+def llm_operation_duration(
+    model_name: str,
+    provider_name: str,
+    operation_name: str,
+) -> Generator[None, None, None]:
+    """Context manager that records the wrapped block's wall-clock
+    duration into ``gen_ai.client.operation.duration``.
+
+    On exception, adds the ``error.type`` label (per spec, conditionally
+    required on the duration metric only — token usage carries no
+    error.type even on failed calls) and re-raises.  No-op when the
+    OTEL API is unavailable.
+    """
+    instruments = _ensure_llm_instruments()
+    if instruments is None:
+        yield
+        return
+    base = _llm_call_attributes(model_name, provider_name, operation_name)
+    t0 = time.monotonic()
+    exc_type: Optional[str] = None
+    try:
+        yield
+    except Exception as exc:
+        exc_type = type(exc).__name__
+        raise
+    finally:
+        elapsed = time.monotonic() - t0
+        attrs = base if exc_type is None else {**base, "error.type": exc_type}
+        instruments.operation_duration.record(elapsed, attributes=attrs)
 
 
 def register_nonstream_saturation_gauges(
