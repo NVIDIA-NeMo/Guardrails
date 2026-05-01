@@ -361,10 +361,6 @@ class TestOpenTelemetryAdapter(unittest.TestCase):
 
                 _adapter = OpenTelemetryAdapter()
 
-                # TEMP DEBUG: print so we can see the second warning's source
-                for warn in w:
-                    print(f"\n[{warn.category.__name__}] {warn.filename}:{warn.lineno}\n  {warn.message}")
-
                 self.assertEqual(len(w), 1)
                 self.assertTrue(issubclass(w[0].category, UserWarning))
                 self.assertIn("No OpenTelemetry TracerProvider configured", str(w[0].message))
