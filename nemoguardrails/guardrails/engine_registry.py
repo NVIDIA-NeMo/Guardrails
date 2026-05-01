@@ -245,25 +245,31 @@ class EngineRegistry:
         )
         with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name):
             with duration_ctx:
-                t0 = time.monotonic()
+                # Gate timing-state setup on ``_metrics_enabled`` so the
+                # cold path skips ``time.monotonic()`` and the per-chunk
+                # bookkeeping entirely.  ``t0`` defaults to ``0.0`` in
+                # the disabled path so the type stays a plain ``float``
+                # — it's never read in that branch.
+                t0 = time.monotonic() if self._metrics_enabled else 0.0
                 last_chunk_time: Optional[float] = None
                 async for chunk in engine.stream_chat_completion(messages, **kwargs):
-                    # Per OTEL semconv, "first chunk" / "output chunk" mean
-                    # content-bearing chunks — gate on ``delta_content`` /
-                    # ``delta_reasoning`` to skip the terminal usage frame
-                    # and any other cosmetic SSE events that the parser
-                    # leaves in place.
-                    if self._metrics_enabled and (chunk.delta_content or chunk.delta_reasoning):
-                        now = time.monotonic()
-                        if last_chunk_time is None:
-                            record_time_to_first_chunk(engine.model_name, provider_name, operation_name, now - t0)
-                        else:
-                            record_time_per_output_chunk(
-                                engine.model_name, provider_name, operation_name, now - last_chunk_time
-                            )
-                        last_chunk_time = now
-                    if chunk.usage is not None:
-                        captured_usage = chunk.usage
+                    if self._metrics_enabled:
+                        # Per OTEL semconv, "first chunk" / "output chunk"
+                        # mean content-bearing chunks — gate on
+                        # ``delta_content`` / ``delta_reasoning`` to skip
+                        # the terminal usage frame and any other cosmetic
+                        # SSE events that the parser leaves in place.
+                        if chunk.delta_content or chunk.delta_reasoning:
+                            now = time.monotonic()
+                            if last_chunk_time is None:
+                                record_time_to_first_chunk(engine.model_name, provider_name, operation_name, now - t0)
+                            else:
+                                record_time_per_output_chunk(
+                                    engine.model_name, provider_name, operation_name, now - last_chunk_time
+                                )
+                            last_chunk_time = now
+                        if chunk.usage is not None:
+                            captured_usage = chunk.usage
                     yield chunk
 
         # Reached only on natural exhaustion (not on consumer cancellation
