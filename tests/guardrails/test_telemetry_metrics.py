@@ -129,12 +129,14 @@ class TestEnsureLLMInstruments:
     OTEL GenAI standard LLM-call-scope instruments."""
 
     def test_creates_all_instruments(self, meter_reader):
-        """First call returns a populated ``LLMInstruments`` with both
-        OTEL GenAI standard metrics."""
+        """First call returns a populated ``LLMInstruments`` with all
+        four OTEL GenAI standard client-side metrics."""
         result = _ensure_llm_instruments()
         assert result is not None
         assert result.token_usage is not None
         assert result.operation_duration is not None
+        assert result.time_to_first_chunk is not None
+        assert result.time_per_output_chunk is not None
 
     def test_returns_same_instruments_on_second_call(self, meter_reader):
         """Caching: second call returns the same struct as the first.

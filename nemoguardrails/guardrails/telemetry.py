@@ -163,6 +163,12 @@ class LLMInstruments:
     * ``operation_duration`` — ``gen_ai.client.operation.duration``
       Histogram, unit ``s``.  Records the wall-clock time of each
       LLM call from request issue to response completion.
+    * ``time_to_first_chunk`` — ``gen_ai.client.operation.time_to_first_chunk``
+      Histogram, unit ``s``.  Streaming-only.  Time from request
+      issue to the first content-bearing chunk yielded.
+    * ``time_per_output_chunk`` — ``gen_ai.client.operation.time_per_output_chunk``
+      Histogram, unit ``s``.  Streaming-only.  Inter-chunk gap; one
+      observation per content-bearing chunk after the first.
 
     Kept separate from :class:`RequestInstruments` because these are
     LLM-call-scope (one IORails request can fire several LLM calls
@@ -171,6 +177,8 @@ class LLMInstruments:
 
     token_usage: "Histogram"
     operation_duration: "Histogram"
+    time_to_first_chunk: "Histogram"
+    time_per_output_chunk: "Histogram"
 
 
 def get_meter() -> Optional["Meter"]:
@@ -272,15 +280,53 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
     return _request_instruments
 
 
+# Bucket boundaries recommended in the OTEL GenAI semantic-conventions
+# spec page:
+# https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#generative-ai-client-metrics
+_LLM_DURATION_BUCKETS = [
+    0.01,
+    0.02,
+    0.04,
+    0.08,
+    0.16,
+    0.32,
+    0.64,
+    1.28,
+    2.56,
+    5.12,
+    10.24,
+    20.48,
+    40.96,
+    81.92,
+]
+_LLM_TOKEN_BUCKETS = [
+    1,
+    4,
+    16,
+    64,
+    256,
+    1024,
+    4096,
+    16384,
+    65536,
+    262144,
+    1048576,
+    4194304,
+    16777216,
+    67108864,
+]
+
+
 def _ensure_llm_instruments() -> Optional[LLMInstruments]:
     """Lazily create the LLM-call-scope instruments and return them as
     an :class:`LLMInstruments`.  Returns ``None`` when the OTEL API is
     not installed.
 
-    Bucket boundaries on both histograms are the exact values
-    recommended in the OTEL GenAI semantic-conventions spec pages
-    https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage
-    https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclientoperationduration
+    Bucket boundaries on every histogram are exact matches to the OTEL
+    GenAI semantic-conventions spec recommendations:
+      https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/
+    See :data:`_LLM_DURATION_BUCKETS` and :data:`_LLM_TOKEN_BUCKETS`
+    above.
     """
     global _llm_instruments
     meter = get_meter()
@@ -292,43 +338,25 @@ def _ensure_llm_instruments() -> Optional[LLMInstruments]:
                 MetricNames.GEN_AI_CLIENT_TOKEN_USAGE,
                 description="Number of input or output tokens used by an LLM call",
                 unit="{token}",
-                explicit_bucket_boundaries_advisory=[
-                    1,
-                    4,
-                    16,
-                    64,
-                    256,
-                    1024,
-                    4096,
-                    16384,
-                    65536,
-                    262144,
-                    1048576,
-                    4194304,
-                    16777216,
-                    67108864,
-                ],
+                explicit_bucket_boundaries_advisory=_LLM_TOKEN_BUCKETS,
             ),
             operation_duration=meter.create_histogram(
                 MetricNames.GEN_AI_CLIENT_OPERATION_DURATION,
                 description="End-to-end duration of an LLM call",
                 unit="s",
-                explicit_bucket_boundaries_advisory=[
-                    0.01,
-                    0.02,
-                    0.04,
-                    0.08,
-                    0.16,
-                    0.32,
-                    0.64,
-                    1.28,
-                    2.56,
-                    5.12,
-                    10.24,
-                    20.48,
-                    40.96,
-                    81.92,
-                ],
+                explicit_bucket_boundaries_advisory=_LLM_DURATION_BUCKETS,
+            ),
+            time_to_first_chunk=meter.create_histogram(
+                MetricNames.GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK,
+                description="Time from a streaming LLM request to its first content chunk",
+                unit="s",
+                explicit_bucket_boundaries_advisory=_LLM_DURATION_BUCKETS,
+            ),
+            time_per_output_chunk=meter.create_histogram(
+                MetricNames.GEN_AI_CLIENT_OPERATION_TIME_PER_OUTPUT_CHUNK,
+                description="Inter-chunk interval during a streaming LLM response",
+                unit="s",
+                explicit_bucket_boundaries_advisory=_LLM_DURATION_BUCKETS,
             ),
         )
     return _llm_instruments
