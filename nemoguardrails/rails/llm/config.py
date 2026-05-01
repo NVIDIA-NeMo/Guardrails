@@ -341,7 +341,7 @@ class GLiNERDetection(BaseModel):
     """Configuration for GLiNER PII detection."""
 
     server_endpoint: str = Field(
-        default="http://localhost:1235/v1/extract",
+        default="http://localhost:8000/v1/chat/completions",
         description="The endpoint for the GLiNER detection server.",
     )
     model: str = Field(

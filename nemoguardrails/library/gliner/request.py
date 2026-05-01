@@ -80,7 +80,7 @@ async def gliner_request(
     # Create GLiNERRequest to apply defaults
     request = GLiNERRequest(**request_data)
 
-    use_nim_format = server_endpoint.endswith("/v1/chat/completions")
+    use_nim_format = server_endpoint.rstrip("/").endswith("/v1/chat/completions")
 
     headers: Dict[str, str] = {"Content-Type": "application/json"}
     if api_key:

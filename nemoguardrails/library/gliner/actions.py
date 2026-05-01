@@ -101,6 +101,12 @@ async def gliner_detect_pii(
     api_key = None
     if gliner_config.api_key_env_var:
         api_key = os.getenv(gliner_config.api_key_env_var)
+        if api_key is None:
+            log.warning(
+                "GLiNER: api_key_env_var is set to %r but the environment variable is not set. "
+                "Requests to authenticated endpoints will fail with HTTP 401.",
+                gliner_config.api_key_env_var,
+            )
 
     gliner_response = await gliner_request(
         text=text,
@@ -152,6 +158,12 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
     api_key = None
     if gliner_config.api_key_env_var:
         api_key = os.getenv(gliner_config.api_key_env_var)
+        if api_key is None:
+            log.warning(
+                "GLiNER: api_key_env_var is set to %r but the environment variable is not set. "
+                "Requests to authenticated endpoints will fail with HTTP 401.",
+                gliner_config.api_key_env_var,
+            )
 
     gliner_response = await gliner_request(
         text=text,
