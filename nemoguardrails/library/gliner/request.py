@@ -114,10 +114,10 @@ async def gliner_request(
 
             try:
                 raw = await resp.json()
-            except aiohttp.ContentTypeError:
+            except aiohttp.ContentTypeError as err:
                 raise ValueError(
                     f"Failed to parse GLiNER response as JSON. Status: {resp.status}, Content: {await resp.text()}"
-                )
+                ) from err
 
             if not use_nim_format:
                 return raw
@@ -128,7 +128,7 @@ async def gliner_request(
             try:
                 nim_data = json.loads(raw["choices"][0]["message"]["content"])
             except (KeyError, IndexError, json.JSONDecodeError) as e:
-                raise ValueError(f"Failed to parse NIM response content: {e}")
+                raise ValueError(f"Failed to parse NIM response content: {e}") from e
 
             normalized_entities = [
                 {
