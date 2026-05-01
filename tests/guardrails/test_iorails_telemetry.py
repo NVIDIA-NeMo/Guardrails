@@ -996,25 +996,44 @@ class TestOtelNotInstalled:
                 assert len(exporter.get_finished_spans()) == 0
 
 
+@pytest.fixture(autouse=True)
+def reset_telemetry_singletons():
+    """Reset telemetry's module-level singletons before and after every
+    test in this file.
+
+    Without this, tests that exercise the OTEL emission paths (e.g.
+    anything that constructs IORails from a metrics-enabled config and
+    triggers an LLM call) leave ``_meter`` / ``_request_instruments`` /
+    ``_llm_instruments`` populated.  That state would otherwise survive
+    into later tests and produce ghost data points or stale-meter
+    bindings — a class of bug that's painful to chase because it only
+    manifests when test ordering changes.
+
+    Cheap (three ``None`` assignments per test) and matches the
+    pattern used in ``test_telemetry_metrics.py`` and
+    ``test_engine_registry.py``.
+    """
+    telemetry._meter = None
+    telemetry._request_instruments = None
+    telemetry._llm_instruments = None
+    yield
+    telemetry._meter = None
+    telemetry._request_instruments = None
+    telemetry._llm_instruments = None
+
+
 @pytest.fixture
 def metric_reader():
-    """Install a test-local Meter on the telemetry module and return the reader."""
+    """Install a test-local Meter, return its reader.  Cleanup is
+    handled by the autouse ``reset_telemetry_singletons`` fixture."""
     reader = InMemoryMetricReader()
     provider = MeterProvider(metric_readers=[reader])
-    original_meter = telemetry._meter
-    original_request = telemetry._request_instruments
-    original_llm = telemetry._llm_instruments
     telemetry._meter = provider.get_meter(
         SystemConstants.SYSTEM_NAME,
         version="0.0.0-dev",
         schema_url="https://opentelemetry.io/schemas/1.26.0",
     )
-    telemetry._request_instruments = None
-    telemetry._llm_instruments = None
-    yield reader
-    telemetry._meter = original_meter
-    telemetry._request_instruments = original_request
-    telemetry._llm_instruments = original_llm
+    return reader
 
 
 class TestGenerateAsyncRequestMetrics:
