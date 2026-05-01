@@ -99,6 +99,12 @@ class GenAIAttributes:
     GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
     GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
 
+    # Required label on the ``gen_ai.client.token.usage`` metric.
+    # Allowed values (from spec): "input" or "output" only.  Reasoning
+    # and cached tokens are span-only attributes, NOT valid token.type
+    # metric label values.
+    GEN_AI_TOKEN_TYPE = "gen_ai.token.type"
+
 
 class CommonAttributes:
     """Common OpenTelemetry attributes used across spans."""
@@ -178,6 +184,25 @@ class MetricNames:
     # Streaming (semaphore) saturation signals
     STREAM_ACTIVE = "guardrails.stream.active"
     STREAM_REJECTIONS = "guardrails.stream.rejections"
+
+    # OTEL GenAI semantic-convention metric names emitted by IORails for
+    # downstream LLM calls. These names are mandated by OTEL hence ``gen_ai``
+    # prefix separate to ``guardrails`` metrics above.
+    GEN_AI_CLIENT_TOKEN_USAGE = "gen_ai.client.token.usage"
+    GEN_AI_CLIENT_OPERATION_DURATION = "gen_ai.client.operation.duration"
+
+
+class TokenType:
+    """Allowed values for the ``gen_ai.token.type`` metric label.
+
+    Per OTEL GenAI semconv, only ``input`` and ``output`` are valid.
+    Reasoning and cached tokens are exposed as span attributes
+    (``gen_ai.usage.reasoning.output_tokens`` etc.), not as additional
+    ``token.type`` values on the ``gen_ai.client.token.usage`` metric.
+    """
+
+    INPUT = "input"
+    OUTPUT = "output"
 
 
 class OperationNames:

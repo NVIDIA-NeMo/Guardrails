@@ -27,6 +27,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.telemetry import (
+    _ensure_llm_instruments,
     _ensure_request_instruments,
     are_metrics_enabled,
     get_meter,
@@ -49,9 +50,11 @@ def reset_metrics_singletons():
     """Reset module-level meter + instrument singletons between tests."""
     telemetry._meter = None
     telemetry._request_instruments = None
+    telemetry._llm_instruments = None
     yield
     telemetry._meter = None
     telemetry._request_instruments = None
+    telemetry._llm_instruments = None
 
 
 @pytest.fixture
@@ -119,6 +122,42 @@ class TestEnsureRequestInstruments:
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
             assert _ensure_request_instruments() is None
+
+
+class TestEnsureLLMInstruments:
+    """``_ensure_llm_instruments()`` lazily creates and caches the
+    OTEL GenAI standard LLM-call-scope instruments."""
+
+    def test_creates_all_instruments(self, meter_reader):
+        """First call returns a populated ``LLMInstruments`` with both
+        OTEL GenAI standard metrics."""
+        result = _ensure_llm_instruments()
+        assert result is not None
+        assert result.token_usage is not None
+        assert result.operation_duration is not None
+
+    def test_returns_same_instruments_on_second_call(self, meter_reader):
+        """Caching: second call returns the same struct as the first.
+        Important because each call to ``meter.create_histogram`` with
+        the same name produces a duplicate-instrument warning, and
+        we'd lose data points if the SDK actually allocated two."""
+        first = _ensure_llm_instruments()
+        second = _ensure_llm_instruments()
+        assert first is second
+
+    def test_returns_none_without_otel(self):
+        with patch.object(telemetry, "_OTEL_AVAILABLE", False):
+            telemetry._meter = None
+            assert _ensure_llm_instruments() is None
+
+    def test_independent_from_request_instruments(self, meter_reader):
+        """``_ensure_llm_instruments`` and ``_ensure_request_instruments``
+        cache separately; calling one does not populate the other."""
+        _ensure_llm_instruments()
+        assert telemetry._llm_instruments is not None
+        assert telemetry._request_instruments is None
+        _ensure_request_instruments()
+        assert telemetry._request_instruments is not None
 
 
 class TestRequestMetrics:

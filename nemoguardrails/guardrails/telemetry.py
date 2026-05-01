@@ -117,6 +117,7 @@ def get_tracer() -> Optional["Tracer"]:
 # on first access is harmless.
 _meter = None
 _request_instruments: Optional["RequestInstruments"] = None
+_llm_instruments: Optional["LLMInstruments"] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +145,32 @@ class RequestInstruments:
     nonstream_rejections: "Counter"
     stream_active: "UpDownCounter"
     stream_rejections: "Counter"
+
+
+@dataclass(frozen=True, slots=True)
+class LLMInstruments:
+    """LLM-call-scope OTEL instruments for downstream model calls.
+
+    These metrics fire once per LLM call (not once per IORails request)
+    and follow the OTEL GenAI semantic conventions exactly — the field
+    names mirror the metric names with the ``gen_ai.client.`` prefix
+    stripped, and both are Histograms (per spec).
+
+    * ``token_usage`` — ``gen_ai.client.token.usage`` Histogram, unit
+      ``{token}``.  Records input and output tokens as separate
+      observations distinguished by the required ``gen_ai.token.type``
+      label (``input`` or ``output``).
+    * ``operation_duration`` — ``gen_ai.client.operation.duration``
+      Histogram, unit ``s``.  Records the wall-clock time of each
+      LLM call from request issue to response completion.
+
+    Kept separate from :class:`RequestInstruments` because these are
+    LLM-call-scope (one IORails request can fire several LLM calls
+    across its rails) rather than request-scope.
+    """
+
+    token_usage: "Histogram"
+    operation_duration: "Histogram"
 
 
 def get_meter() -> Optional["Meter"]:
@@ -243,6 +270,68 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
         )
     return _request_instruments
+
+
+def _ensure_llm_instruments() -> Optional[LLMInstruments]:
+    """Lazily create the LLM-call-scope instruments and return them as
+    an :class:`LLMInstruments`.  Returns ``None`` when the OTEL API is
+    not installed.
+
+    Bucket boundaries on both histograms are the exact values
+    recommended in the OTEL GenAI semantic-conventions spec pages
+    https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage
+    https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclientoperationduration
+    """
+    global _llm_instruments
+    meter = get_meter()
+    if meter is None:
+        return None
+    if _llm_instruments is None:
+        _llm_instruments = LLMInstruments(
+            token_usage=meter.create_histogram(
+                MetricNames.GEN_AI_CLIENT_TOKEN_USAGE,
+                description="Number of input or output tokens used by an LLM call",
+                unit="{token}",
+                explicit_bucket_boundaries_advisory=[
+                    1,
+                    4,
+                    16,
+                    64,
+                    256,
+                    1024,
+                    4096,
+                    16384,
+                    65536,
+                    262144,
+                    1048576,
+                    4194304,
+                    16777216,
+                    67108864,
+                ],
+            ),
+            operation_duration=meter.create_histogram(
+                MetricNames.GEN_AI_CLIENT_OPERATION_DURATION,
+                description="End-to-end duration of an LLM call",
+                unit="s",
+                explicit_bucket_boundaries_advisory=[
+                    0.01,
+                    0.02,
+                    0.04,
+                    0.08,
+                    0.16,
+                    0.32,
+                    0.64,
+                    1.28,
+                    2.56,
+                    5.12,
+                    10.24,
+                    20.48,
+                    40.96,
+                    81.92,
+                ],
+            ),
+        )
+    return _llm_instruments
 
 
 def register_nonstream_saturation_gauges(
