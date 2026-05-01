@@ -49,16 +49,19 @@ def manager(rails_config):
 @pytest.fixture(autouse=True)
 def reset_telemetry_singletons():
     """Reset telemetry's module-level singletons before and after every
-    test in this file.  Cheap (three ``None`` assignments) and means
-    individual fixtures don't have to manage the singletons themselves.
+    test in this file.  Includes ``_tracer`` so cached tracer state
+    doesn't leak into other test files (notably the LLMRails OTEL
+    adapter tests).
     """
     telemetry._meter = None
     telemetry._llm_instruments = None
     telemetry._request_instruments = None
+    telemetry._tracer = None
     yield
     telemetry._meter = None
     telemetry._llm_instruments = None
     telemetry._request_instruments = None
+    telemetry._tracer = None
 
 
 @pytest.fixture

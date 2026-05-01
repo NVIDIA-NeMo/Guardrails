@@ -52,14 +52,20 @@ from tests.guardrails.metric_helpers import collect_metric_points
 
 @pytest.fixture(autouse=True)
 def reset_metrics_singletons():
-    """Reset module-level meter + instrument singletons between tests."""
+    """Reset module-level meter + instrument + tracer singletons between
+    tests.  ``_tracer`` is included even though tests in this file are
+    metric-focused — leaks of the cached tracer would otherwise affect
+    later test files that exercise the OTEL adapter.
+    """
     telemetry._meter = None
     telemetry._request_instruments = None
     telemetry._llm_instruments = None
+    telemetry._tracer = None
     yield
     telemetry._meter = None
     telemetry._request_instruments = None
     telemetry._llm_instruments = None
+    telemetry._tracer = None
 
 
 @pytest.fixture

@@ -1016,22 +1016,26 @@ def reset_telemetry_singletons():
     Without this, tests that exercise the OTEL emission paths (e.g.
     anything that constructs IORails from a metrics-enabled config and
     triggers an LLM call) leave ``_meter`` / ``_request_instruments`` /
-    ``_llm_instruments`` populated.  That state would otherwise survive
-    into later tests and produce ghost data points or stale-meter
-    bindings — a class of bug that's painful to chase because it only
-    manifests when test ordering changes.
+    ``_llm_instruments`` / ``_tracer`` populated.  That state would
+    otherwise survive into later test files (e.g. the LLMRails
+    OpenTelemetry adapter tests) and produce ghost data points,
+    stale-meter bindings, or spurious warnings — a class of bug
+    that's painful to chase because it only manifests when test
+    ordering changes.
 
-    Cheap (three ``None`` assignments per test) and matches the
+    Cheap (four ``None`` assignments per test) and matches the
     pattern used in ``test_telemetry_metrics.py`` and
     ``test_engine_registry.py``.
     """
     telemetry._meter = None
     telemetry._request_instruments = None
     telemetry._llm_instruments = None
+    telemetry._tracer = None
     yield
     telemetry._meter = None
     telemetry._request_instruments = None
     telemetry._llm_instruments = None
+    telemetry._tracer = None
 
 
 @pytest.fixture
