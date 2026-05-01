@@ -127,8 +127,13 @@ async def gliner_request(
             # Custom server uses: value, suggested_label, start_position, end_position
             try:
                 nim_data = json.loads(raw["choices"][0]["message"]["content"])
-            except (KeyError, IndexError, json.JSONDecodeError) as e:
+            except (KeyError, IndexError, json.JSONDecodeError, TypeError) as e:
                 raise ValueError(f"Failed to parse NIM response content: {e}") from e
+
+            if not isinstance(nim_data, dict):
+                raise ValueError(
+                    f"Expected NIM response content to be a JSON object, got {type(nim_data).__name__}"
+                )
 
             normalized_entities = [
                 {
