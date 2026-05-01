@@ -92,7 +92,12 @@ class IORails:
         self._tracer = get_tracer() if self._tracing_enabled else None
         self._metrics_enabled = are_metrics_enabled(config.metrics)
 
-        self.engine_registry = EngineRegistry(config.models, config.rails.config, tracer=self._tracer)
+        self.engine_registry = EngineRegistry(
+            config.models,
+            config.rails.config,
+            tracer=self._tracer,
+            metrics_enabled=self._metrics_enabled,
+        )
         self.rails_manager = RailsManager(
             engine_registry=self.engine_registry,
             task_manager=LLMTaskManager(config),

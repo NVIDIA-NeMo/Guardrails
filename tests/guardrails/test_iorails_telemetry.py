@@ -34,7 +34,7 @@ from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, Rai
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.tracing.constants import SystemConstants
-from nemoguardrails.types import LLMResponse, LLMResponseChunk
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
@@ -1002,16 +1002,19 @@ def metric_reader():
     reader = InMemoryMetricReader()
     provider = MeterProvider(metric_readers=[reader])
     original_meter = telemetry._meter
-    original_instruments = telemetry._request_instruments
+    original_request = telemetry._request_instruments
+    original_llm = telemetry._llm_instruments
     telemetry._meter = provider.get_meter(
         SystemConstants.SYSTEM_NAME,
         version="0.0.0-dev",
         schema_url="https://opentelemetry.io/schemas/1.26.0",
     )
     telemetry._request_instruments = None
+    telemetry._llm_instruments = None
     yield reader
     telemetry._meter = original_meter
-    telemetry._request_instruments = original_instruments
+    telemetry._request_instruments = original_request
+    telemetry._llm_instruments = original_llm
 
 
 class TestGenerateAsyncRequestMetrics:
@@ -1816,3 +1819,112 @@ class TestRequestsActiveAggregate:
 
                 final = collect_metric_points(metric_reader)
                 assert final["guardrails.requests.active"][0].value == 0
+
+
+def _stub_deep_pipeline_with_usage(iorails):
+    """Like ``_stub_deep_pipeline`` but attaches ``UsageInfo`` to every
+    ``LLMResponse`` so the LLM-call metrics emitted by ``EngineRegistry.model_call``
+    have something to record.
+
+    The token counts are arbitrary and chosen to be distinct per model so
+    tests asserting "metric fired for this model" can also check the
+    recorded sum is the expected value (catching a label-shuffle bug).
+    """
+    from nemoguardrails.guardrails.api_engine import APIEngine
+    from nemoguardrails.guardrails.model_engine import ModelEngine
+
+    # (model_name → (input_tokens, output_tokens, response_content))
+    per_model = {
+        "main": (100, 50, "Hello"),
+        "content_safety": (40, 5, SAFE_OUTPUT_JSON),
+        "topic_control": (30, 5, SAFE_INPUT_JSON),
+    }
+
+    for name, engine in iorails.engine_registry._engines.items():
+        if isinstance(engine, ModelEngine):
+            input_tokens, output_tokens, content = per_model.get(name, (10, 10, SAFE_INPUT_JSON))
+            engine.chat_completion = AsyncMock(
+                return_value=LLMResponse(
+                    content=content,
+                    usage=UsageInfo(
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=input_tokens + output_tokens,
+                    ),
+                )
+            )
+        elif isinstance(engine, APIEngine):
+            engine.call = AsyncMock(return_value={"jailbreak": False, "score": 0.01})
+
+
+class TestGenerateAsyncLLMMetrics:
+    """End-to-end coverage for the OTEL GenAI client metrics emitted from
+    ``EngineRegistry.model_call`` during a real ``IORails.generate_async``
+    invocation.
+
+    Mocks at the ModelEngine layer (not the EngineRegistry layer) so the
+    full RailsManager → RailAction → EngineRegistry → metric-emission
+    chain executes.  A safe end-to-end call drives multiple LLM calls
+    (input rails: content_safety + topic_control; main generation;
+    output rails: content_safety) — token + duration metrics fire for
+    each, distinguished by ``gen_ai.request.model``.
+    """
+
+    @pytest.mark.asyncio
+    async def test_emits_token_and_duration_metrics_per_model(self, iorails_tracing, metric_reader):
+        """Safe end-to-end → token usage and duration metrics emit for
+        every distinct model the rails invoke.  Verifies the
+        ``metrics_enabled=True`` flag plumbs from IORails through
+        EngineRegistry to the per-call emission helpers.
+        """
+        _stub_deep_pipeline_with_usage(iorails_tracing)
+
+        result = await iorails_tracing.generate_async([{"role": "user", "content": "hi"}])
+        assert result == {"role": "assistant", "content": "Hello"}
+
+        points = collect_metric_points(metric_reader)
+
+        # Token usage: each LLM call emits two observations (input,
+        # output).  Models in NEMOGUARDS_CONFIG: main, content_safety,
+        # topic_control.  content_safety is invoked twice (input + output
+        # rails) but those merge into the same {model, token.type}
+        # data points → 6 distinct points total.
+        token_models = {p.attributes["gen_ai.request.model"] for p in points["gen_ai.client.token.usage"]}
+        assert token_models == {
+            "meta/llama-3.3-70b-instruct",  # main
+            "nvidia/llama-3.1-nemoguard-8b-content-safety",
+            "nvidia/llama-3.1-nemoguard-8b-topic-control",
+        }
+        # Each model produces both input and output observations.
+        for model in token_models:
+            types_for_model = {
+                p.attributes["gen_ai.token.type"]
+                for p in points["gen_ai.client.token.usage"]
+                if p.attributes["gen_ai.request.model"] == model
+            }
+            assert types_for_model == {"input", "output"}
+
+        # Duration: one data point per (model, no-error) — three models.
+        duration_models = {p.attributes["gen_ai.request.model"] for p in points["gen_ai.client.operation.duration"]}
+        assert duration_models == token_models
+
+        # All observations carry the standard provider + operation labels.
+        for point in points["gen_ai.client.token.usage"] + points["gen_ai.client.operation.duration"]:
+            assert point.attributes["gen_ai.operation.name"] == "chat"
+            assert point.attributes["gen_ai.provider.name"] == "nim"
+            assert "error.type" not in point.attributes
+
+    @pytest.mark.asyncio
+    async def test_no_llm_metrics_when_metrics_disabled(self, iorails_no_tracing, metric_reader):
+        """Default config (metrics off) → no LLM-call metrics emit even
+        when a MeterProvider is installed and the rails actually call
+        the engines.  Catches the gating slip where LLM-call metrics
+        would fire purely on meter availability.
+        """
+        _stub_deep_pipeline_with_usage(iorails_no_tracing)
+
+        await iorails_no_tracing.generate_async([{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert "gen_ai.client.operation.duration" not in points

@@ -21,13 +21,19 @@ model type. Each engine owns its own RetryClient with per-model settings.
 
 import logging
 from collections.abc import AsyncGenerator
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.base_engine import BaseEngine
 from nemoguardrails.guardrails.guardrails_types import get_request_id, truncate
 from nemoguardrails.guardrails.model_engine import ModelEngine
-from nemoguardrails.guardrails.telemetry import api_call_span, llm_call_span
+from nemoguardrails.guardrails.telemetry import (
+    api_call_span,
+    llm_call_span,
+    llm_operation_duration,
+    record_token_usage,
+)
 from nemoguardrails.rails.llm.config import Model, RailsConfigData
 from nemoguardrails.types import LLMResponse, LLMResponseChunk
 
@@ -51,15 +57,24 @@ class EngineRegistry:
         models: list[Model],
         rails_config_data: RailsConfigData,
         tracer: Optional["Tracer"] = None,
+        metrics_enabled: bool = False,
     ) -> None:
         """Build one engine per configured model and API service.
 
         When *tracer* is provided, LLM and API calls produce OTEL spans; when
         ``None`` the span helpers become no-ops.
+
+        When *metrics_enabled* is True, LLM calls emit the OTEL GenAI
+        client-side metrics (``gen_ai.client.token.usage``,
+        ``gen_ai.client.operation.duration``, plus the streaming
+        chunk-timing metrics).  Defaults to False so callers that don't
+        opt in get no metric emissions even if a MeterProvider is
+        configured globally.
         """
         self._engines: dict[str, BaseEngine] = {}
         self._running = False
         self._tracer = tracer
+        self._metrics_enabled = metrics_enabled
 
         for model_config in models:
             engine = ModelEngine(model_config)
@@ -147,6 +162,11 @@ class EngineRegistry:
         reasoning (when the provider exposes it), usage, finish reason.
         Callers that only want the assistant text should access ``.content``.
 
+        When metrics are enabled, emits ``gen_ai.client.operation.duration``
+        (with ``error.type`` on exception) and ``gen_ai.client.token.usage``
+        (one observation each for ``input`` and ``output`` token types,
+        only when ``LLMResponse.usage`` is populated).
+
         Raises:
             KeyError: If no engine is registered with the given name.
             TypeError: If the named engine is not a ModelEngine.
@@ -155,8 +175,26 @@ class EngineRegistry:
         log.debug("[%s] Model engine '%s' messages: %s", req_id, model_type, truncate(messages))
 
         engine = self._get_engine(model_type, ModelEngine)
-        with llm_call_span(self._tracer, engine.model_name, engine.model_config.engine or "unknown"):
-            result = await engine.chat_completion(messages, **kwargs)
+        # TODO: Replace with LLMModel.provider_name after refactoring
+        provider_name = engine.model_config.engine or "unknown"
+        operation_name = "chat"
+
+        # Compose: span (always created — no-op when tracer is None) and
+        # duration metric (only when metrics enabled).  Token usage is
+        # emitted after the call returns since it depends on
+        # ``result.usage`` — exception path skips it because control
+        # never reaches the line below.
+        duration_ctx = (
+            llm_operation_duration(engine.model_name, provider_name, operation_name)
+            if self._metrics_enabled
+            else nullcontext()
+        )
+        with llm_call_span(self._tracer, engine.model_name, provider_name, operation_name):
+            with duration_ctx:
+                result = await engine.chat_completion(messages, **kwargs)
+
+        if self._metrics_enabled:
+            record_token_usage(engine.model_name, provider_name, operation_name, result.usage)
 
         log.debug("[%s] Model engine '%s' response: %s", req_id, model_type, truncate(result))
         return result

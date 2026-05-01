@@ -18,12 +18,17 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 
+from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
-from nemoguardrails.types import LLMResponse, LLMResponseChunk
+from nemoguardrails.tracing.constants import SystemConstants
+from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
+from tests.guardrails.metric_helpers import collect_metric_points
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
 
@@ -38,6 +43,42 @@ def rails_config():
 def manager(rails_config):
     """Create a EngineRegistry from test config."""
     return EngineRegistry(rails_config.models, rails_config.rails.config)
+
+
+@pytest.fixture(autouse=True)
+def reset_telemetry_singletons():
+    """Reset telemetry's module-level singletons before and after every
+    test in this file.  Cheap (three ``None`` assignments) and means
+    individual fixtures don't have to manage the singletons themselves.
+    """
+    telemetry._meter = None
+    telemetry._llm_instruments = None
+    telemetry._request_instruments = None
+    yield
+    telemetry._meter = None
+    telemetry._llm_instruments = None
+    telemetry._request_instruments = None
+
+
+@pytest.fixture
+def metric_reader():
+    """Install a test-local Meter, return its reader.  Cleanup is
+    handled by the autouse ``reset_telemetry_singletons`` fixture."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+    telemetry._meter = provider.get_meter(
+        SystemConstants.SYSTEM_NAME,
+        version="0.0.0-dev",
+        schema_url="https://opentelemetry.io/schemas/1.26.0",
+    )
+    return reader
+
+
+@pytest.fixture
+@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+def manager_with_metrics(rails_config):
+    """Create an EngineRegistry with metrics emission enabled."""
+    return EngineRegistry(rails_config.models, rails_config.rails.config, metrics_enabled=True)
 
 
 class TestEngineRegistryInit:
@@ -213,6 +254,99 @@ class TestEngineRegistryGenerateAsync:
         """Raises KeyError when the model type doesn't exist."""
         with pytest.raises(KeyError):
             await manager.model_call("nonexistent", [{"role": "user", "content": "Hi"}])
+
+
+class TestEngineRegistryModelCallMetrics:
+    """``model_call`` emits the OTEL GenAI client metrics
+    (``gen_ai.client.token.usage`` Histogram, ``gen_ai.client.operation.duration``
+    Histogram) when constructed with ``metrics_enabled=True``."""
+
+    @pytest.mark.asyncio
+    async def test_emits_token_usage_and_duration_on_safe_call(self, manager_with_metrics, metric_reader):
+        """``LLMResponse.usage`` populated → both metrics emit.  Token
+        usage produces two observations (input + output) labelled by
+        ``gen_ai.token.type``."""
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(
+            return_value=LLMResponse(content="hi", usage=UsageInfo(input_tokens=10, output_tokens=5)),
+        )
+
+        await manager_with_metrics.model_call("main", [{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert len(points["gen_ai.client.token.usage"]) == 2
+        assert {p.attributes["gen_ai.token.type"] for p in points["gen_ai.client.token.usage"]} == {
+            "input",
+            "output",
+        }
+        # Histogram value is the recording count.
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+        # Successful call → no error.type label on duration.
+        assert "error.type" not in points["gen_ai.client.operation.duration"][0].attributes
+
+    @pytest.mark.asyncio
+    async def test_skips_token_usage_when_response_usage_is_none(self, manager_with_metrics, metric_reader):
+        """``LLMResponse.usage = None`` → token metric absent, duration
+        still emits.  Models the case where the provider didn't return
+        a ``usage`` field (some non-OpenAI-compatible NIMs)."""
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(return_value=LLMResponse(content="hi", usage=None))
+
+        await manager_with_metrics.model_call("main", [{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].value == 1
+
+    @pytest.mark.asyncio
+    async def test_records_duration_with_error_type_on_exception(self, manager_with_metrics, metric_reader):
+        """Engine raises → duration emits with ``error.type=ExceptionClass``,
+        token usage absent (the call never produced usage data), exception
+        propagates."""
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with pytest.raises(RuntimeError, match="provider down"):
+            await manager_with_metrics.model_call("main", [{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert points["gen_ai.client.operation.duration"][0].attributes["error.type"] == "RuntimeError"
+
+    @pytest.mark.asyncio
+    async def test_label_set_includes_provider_model_operation(self, manager_with_metrics, metric_reader):
+        """Standard OTEL labels on every emitted observation:
+        ``gen_ai.operation.name``, ``gen_ai.provider.name``,
+        ``gen_ai.request.model``."""
+        engine = manager_with_metrics._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(
+            return_value=LLMResponse(content="hi", usage=UsageInfo(input_tokens=1, output_tokens=1)),
+        )
+
+        await manager_with_metrics.model_call("main", [{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        for point in points["gen_ai.client.token.usage"] + points["gen_ai.client.operation.duration"]:
+            assert point.attributes["gen_ai.operation.name"] == "chat"
+            # NEMOGUARDS_CONFIG's "main" model uses the nim engine.
+            assert point.attributes["gen_ai.provider.name"] == "nim"
+            assert point.attributes["gen_ai.request.model"] == "meta/llama-3.3-70b-instruct"
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_emitted_when_metrics_disabled(self, manager, metric_reader):
+        """``metrics_enabled=False`` (default) → no metrics fire even
+        when a MeterProvider is installed.  Catches the gating slip
+        where the helper would emit purely on meter availability."""
+        engine = manager._get_engine("main", ModelEngine)
+        engine.chat_completion = AsyncMock(
+            return_value=LLMResponse(content="hi", usage=UsageInfo(input_tokens=1, output_tokens=1)),
+        )
+
+        await manager.model_call("main", [{"role": "user", "content": "hi"}])
+
+        points = collect_metric_points(metric_reader)
+        assert "gen_ai.client.token.usage" not in points
+        assert "gen_ai.client.operation.duration" not in points
 
 
 class TestEngineRegistryStartErrors:
