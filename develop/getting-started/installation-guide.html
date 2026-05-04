@@ -722,8 +722,8 @@ Windows (Git Bash)</label><div class="sd-tab-content docutils">
 </div>
 </div>
 </li>
-<li><p>Install the NeMo Guardrails library with support for NVIDIA-hosted models. Set <code class="docutils literal notranslate"><span class="pre">NVIDIA_API_KEY</span></code> to your personal API key generated on <a class="reference external" href="https://build.nvidia.com/" rel="noreferer noopener" target="_blank">build.nvidia.com</a>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;nemoguardrails[nvidia]&quot;</span>
+<li><p>Install the NeMo Guardrails library. Set <code class="docutils literal notranslate"><span class="pre">NVIDIA_API_KEY</span></code> to your personal API key generated on <a class="reference external" href="https://build.nvidia.com/" rel="noreferer noopener" target="_blank">build.nvidia.com</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemoguardrails
 </pre></div>
 </div>
 </li>
@@ -757,7 +757,7 @@ Poetry</label><div class="sd-tab-content docutils">
 <span class="nb">cd</span><span class="w"> </span>nemoguardrails
 python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
 <span class="nb">source</span><span class="w"> </span>.venv/bin/activate
-poetry<span class="w"> </span>install<span class="w"> </span>--extras<span class="w"> </span><span class="s2">&quot;nvidia&quot;</span>
+poetry<span class="w"> </span>install
 </pre></div>
 </div>
 <p>When using Poetry, prefix CLI commands with <code class="docutils literal notranslate"><span class="pre">poetry</span> <span class="pre">run</span></code>:</p>
@@ -777,12 +777,6 @@ poetry<span class="w"> </span>install<span class="w"> </span>--extras<span class
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia</span></code></p></td>
-<td><p>NVIDIA-hosted model integration through <a class="reference external" href="https://build.nvidia.com/" rel="noreferer noopener" target="_blank">build.nvidia.com</a></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
-<td><p>OpenAI-hosted model integration</p></td>
-</tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">server</span></code></p></td>
 <td><p><a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Guardrails API server</span></a> dependencies (aiofiles for async file handling, openai for API schemas). FastAPI is a core dependency. Required to run <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span> <span class="pre">server</span></code>.</p></td>
 </tr>
