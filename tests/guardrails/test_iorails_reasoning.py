@@ -44,9 +44,10 @@ from nemoguardrails.types import LLMResponse, LLMResponseChunk
 from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG
 
-# Streaming tests need a config without output rails so stream_async() doesn't
-# raise StreamingNotSupportedError. The warning under test fires before
-# END_OF_STREAM regardless of output-rail wiring, so input-only is sufficient.
+# stream_async() raises StreamingNotSupportedError only when output rails are
+# configured AND rails.output.streaming.enabled is False. Dropping the output
+# flows is the simplest way to satisfy the validator here; the warning under
+# test fires before END_OF_STREAM regardless of output-rail wiring.
 _INPUT_ONLY_CONFIG = {
     **NEMOGUARDS_CONFIG,
     "rails": {**NEMOGUARDS_CONFIG["rails"], "output": {"flows": []}},
