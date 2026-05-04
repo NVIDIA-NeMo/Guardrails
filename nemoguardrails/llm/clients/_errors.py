@@ -41,6 +41,13 @@ _CONTEXT_WINDOW_KEYWORDS = [
     "token limit",
 ]
 
+# Bare "is not supported" was deliberately removed: it false-positives on
+# non-param 400s ("model is not supported in your region", "image input is not
+# supported for this model"). Real OpenAI param rejections always carry the
+# "Unsupported parameter:" prefix matched above. A provider emitting bare
+# "X is not supported" without that prefix will classify as LLMBadRequestError
+# instead of LLMUnsupportedParamsError; if observed in the wild, add a tighter
+# phrase here (e.g. "is not a supported parameter").
 _UNSUPPORTED_PARAMS_KEYWORDS = [
     "unsupported parameter",
     "parameter not allowed",
@@ -172,7 +179,6 @@ def _classify_bad_request(status_code: int, error_message: str, kwargs: Dict[str
             )
         error_message = _maybe_append_migration_hint(status_code, error_message)
         return LLMUnsupportedParamsError(status_code, error_message, **kwargs)
-    error_message = _maybe_append_migration_hint(status_code, error_message)
     return LLMBadRequestError(status_code, error_message, **kwargs)
 
 
