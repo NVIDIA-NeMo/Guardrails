@@ -164,7 +164,16 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_400_unsupported_params(self):
         client = make_client()
-        mock_httpx_post(client, [(400, {"error": {"message": "temperature is not supported"}}, {})])
+        mock_httpx_post(
+            client,
+            [
+                (
+                    400,
+                    {"error": {"message": "Unsupported parameter: 'temperature' is not supported with this model"}},
+                    {},
+                )
+            ],
+        )
         with pytest.raises(LLMUnsupportedParamsError):
             await client.chat_completion("gpt-4o", [])
 
