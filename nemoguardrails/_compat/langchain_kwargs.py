@@ -61,7 +61,7 @@ def _detect_provider_alias(name: str) -> Optional[str]:
     return _canonical_name_for(match.group("canonical"))
 
 
-def _violations_for(model_type: str, model_engine: str, parameters: dict) -> List[Tuple[str, str]]:
+def _violations_for(model_type: str, parameters: dict) -> List[Tuple[str, str]]:
     """Return a list of (model_type, action) tuples for one model."""
     out: List[Tuple[str, str]] = []
     for flag in sorted(_LANGCHAIN_BASE_FLAGS & set(parameters)):
@@ -93,7 +93,7 @@ def check_langchain_kwargs(models: Iterable, active_framework: str) -> None:
         if not params:
             continue
         violations.extend(
-            _violations_for(getattr(model, "type", ""), getattr(model, "engine", ""), params),
+            _violations_for(getattr(model, "type", ""), params),
         )
     if not violations:
         return

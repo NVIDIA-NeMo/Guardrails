@@ -28,62 +28,141 @@ _FRAMEWORK_ENV = "NEMOGUARDRAILS_LLM_FRAMEWORK=langchain"
 
 class TestMigrationHintAppendedOnUnknownParam400:
     @pytest.mark.asyncio
-    async def test_unknown_parameter_message_triggers_hint(self):
+    async def test_openai_canonical_phrasing_triggers_hint(self):
         client = make_client()
         mock_httpx_post(
             client,
-            [(400, {"error": {"message": "Unknown parameter: 'streaming'"}}, {})],
+            [
+                (
+                    400,
+                    {
+                        "error": {
+                            "message": "Unrecognized request argument supplied: streaming",
+                            "type": "invalid_request_error",
+                        }
+                    },
+                    {},
+                )
+            ],
+        )
+        with pytest.raises(LLMBadRequestError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert _HINT_FRAGMENT in exc_info.value.error_message
+
+    @pytest.mark.asyncio
+    async def test_nim_canonical_phrasing_triggers_hint(self):
+        client = make_client()
+        mock_httpx_post(
+            client,
+            [
+                (
+                    400,
+                    {
+                        "error": {
+                            "message": "Validation: Unsupported parameter(s): `streaming`",
+                            "type": "Bad Request",
+                            "code": 400,
+                        }
+                    },
+                    {},
+                )
+            ],
         )
         with pytest.raises(LLMUnsupportedParamsError) as exc_info:
             await client.chat_completion("gpt-4o", [])
-        message = exc_info.value.error_message
-        assert "Unknown parameter: 'streaming'" in message
-        assert _HINT_FRAGMENT in message
-        assert _FRAMEWORK_ENV in message
+        assert _HINT_FRAGMENT in exc_info.value.error_message
 
     @pytest.mark.asyncio
-    async def test_unrecognized_token_triggers_hint(self):
+    async def test_groq_canonical_phrasing_triggers_hint(self):
         client = make_client()
         mock_httpx_post(
             client,
-            [(400, {"error": {"message": "Field 'verbose' is unrecognized"}}, {})],
+            [
+                (
+                    400,
+                    {
+                        "error": {
+                            "message": "property 'streaming' is unsupported",
+                            "type": "invalid_request_error",
+                        }
+                    },
+                    {},
+                )
+            ],
         )
-        with pytest.raises(LLMBadRequestError) as exc_info:
+        with pytest.raises(LLMUnsupportedParamsError) as exc_info:
             await client.chat_completion("gpt-4o", [])
         assert _HINT_FRAGMENT in exc_info.value.error_message
 
     @pytest.mark.asyncio
-    async def test_extra_fields_triggers_hint(self):
+    async def test_fireworks_canonical_phrasing_triggers_hint(self):
         client = make_client()
         mock_httpx_post(
             client,
-            [(400, {"error": {"message": "Request contains extra fields: callbacks"}}, {})],
+            [
+                (
+                    400,
+                    {
+                        "error": {
+                            "object": "error",
+                            "type": "invalid_request_error",
+                            "code": "invalid_request_error",
+                            "message": "Extra inputs are not permitted, field: 'streaming', value: True",
+                        }
+                    },
+                    {},
+                )
+            ],
         )
-        with pytest.raises(LLMBadRequestError) as exc_info:
+        with pytest.raises(LLMUnsupportedParamsError) as exc_info:
             await client.chat_completion("gpt-4o", [])
         assert _HINT_FRAGMENT in exc_info.value.error_message
 
     @pytest.mark.asyncio
-    async def test_additional_properties_triggers_hint(self):
+    async def test_422_with_unsupported_parameter_triggers_hint(self):
         client = make_client()
         mock_httpx_post(
             client,
-            [(400, {"error": {"message": "Additional properties are not allowed (cache, tags)"}}, {})],
+            [(422, {"error": {"message": "Validation: Unsupported parameter(s): `verbose`"}}, {})],
         )
-        with pytest.raises(LLMBadRequestError) as exc_info:
+        with pytest.raises(LLMUnsupportedParamsError) as exc_info:
             await client.chat_completion("gpt-4o", [])
         assert _HINT_FRAGMENT in exc_info.value.error_message
 
+
+class TestMigrationHintNotAppendedOnFalsePositiveBroadPhrases:
     @pytest.mark.asyncio
-    async def test_is_not_allowed_triggers_hint(self):
+    async def test_content_type_not_allowed_no_hint(self):
         client = make_client()
         mock_httpx_post(
             client,
-            [(400, {"error": {"message": "field 'metadata' is not allowed here"}}, {})],
+            [(400, {"error": {"message": "Content type is not allowed"}}, {})],
         )
         with pytest.raises(LLMBadRequestError) as exc_info:
             await client.chat_completion("gpt-4o", [])
-        assert _HINT_FRAGMENT in exc_info.value.error_message
+        assert _HINT_FRAGMENT not in exc_info.value.error_message
+
+    @pytest.mark.asyncio
+    async def test_action_not_allowed_for_plan_no_hint(self):
+        client = make_client()
+        mock_httpx_post(
+            client,
+            [(400, {"error": {"message": "This action is not allowed for your plan"}}, {})],
+        )
+        with pytest.raises(LLMBadRequestError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert _HINT_FRAGMENT not in exc_info.value.error_message
+
+    @pytest.mark.asyncio
+    async def test_unrecognized_auth_scheme_no_hint(self):
+        client = make_client()
+        mock_httpx_post(
+            client,
+            [(400, {"error": {"message": "Unrecognized authentication scheme"}}, {})],
+        )
+        with pytest.raises(LLMBadRequestError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert _HINT_FRAGMENT not in exc_info.value.error_message
 
 
 class TestMigrationHintNotAppendedOnUnrelated400:
@@ -151,7 +230,7 @@ class TestPreservesOriginalProviderError:
     @pytest.mark.asyncio
     async def test_appended_hint_does_not_replace_original(self):
         client = make_client()
-        original_message = "Unknown parameter: 'nvidia_api_key'"
+        original_message = "Unrecognized request argument supplied: nvidia_api_key"
         mock_httpx_post(
             client,
             [(400, {"error": {"message": original_message}}, {})],

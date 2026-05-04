@@ -43,18 +43,19 @@ _CONTEXT_WINDOW_KEYWORDS = [
 
 _UNSUPPORTED_PARAMS_KEYWORDS = [
     "unsupported parameter",
-    "is not supported",
     "parameter not allowed",
     "unknown parameter",
     "unrecognized parameter",
+    "unrecognized request argument",
+    "' is unsupported",
+    "extra inputs are not permitted",
 ]
 
 _UNKNOWN_PARAM_HINT_TOKENS = (
-    "unknown parameter",
-    "unrecognized",
-    "extra fields",
-    "additional properties",
-    "is not allowed",
+    "unrecognized request argument",
+    "unsupported parameter",
+    "' is unsupported",
+    "extra inputs are not permitted",
 )
 
 _MIGRATION_HINT_021 = (
@@ -150,7 +151,7 @@ def _looks_like_unknown_param_400(error_message: str) -> bool:
 
 
 def _maybe_append_migration_hint(status_code: int, error_message: str) -> str:
-    if status_code != 400:
+    if status_code not in (400, 422):
         return error_message
     if not _looks_like_unknown_param_400(error_message):
         return error_message

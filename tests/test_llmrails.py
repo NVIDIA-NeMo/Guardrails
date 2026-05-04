@@ -755,6 +755,47 @@ async def test_llm_constructor_with_empty_models_config():
     assert any(event.get("intent") == "express greeting" for event in new_events)
 
 
+@pytest.fixture
+def llm_config_with_main_streaming_param():
+    """Fixture providing a config whose main model carries a LangChain-only `streaming` flag."""
+    return RailsConfig.parse_object(
+        {
+            "models": [
+                {
+                    "type": "main",
+                    "engine": "openai",
+                    "model": "gpt-4",
+                    "parameters": {"streaming": True},
+                },
+            ],
+            "user_messages": {"express greeting": ["Hello!"]},
+            "flows": [
+                {
+                    "elements": [
+                        {"user": "express greeting"},
+                        {"bot": "express greeting"},
+                    ]
+                },
+            ],
+            "bot_messages": {"express greeting": ["Hello!"]},
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_compat_check_skips_main_when_constructor_llm_provided(llm_config_with_main_streaming_param):
+    """When self.llm is injected, the compat validator must skip the ignored `main` config entry."""
+    injected_llm = FakeLLMModel(responses=["express greeting"])
+    LLMRails(config=llm_config_with_main_streaming_param, llm=injected_llm)
+
+
+@pytest.mark.asyncio
+async def test_compat_check_runs_against_main_when_no_constructor_llm(llm_config_with_main_streaming_param):
+    """When no constructor LLM is provided, the validator runs against `main` and raises."""
+    with pytest.raises(ValueError, match=r"streaming"):
+        LLMRails(config=llm_config_with_main_streaming_param)
+
+
 @pytest.mark.asyncio
 @patch(
     "nemoguardrails.rails.llm.llmrails.init_llm_model",
