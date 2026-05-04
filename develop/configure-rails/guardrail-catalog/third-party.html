@@ -449,6 +449,7 @@
 <li class="toctree-l3"><a class="reference internal" href="community/prompt-security.html">Prompt Security</a></li>
 <li class="toctree-l3"><a class="reference internal" href="community/regex.html">Regex</a></li>
 <li class="toctree-l3"><a class="reference internal" href="community/trend-micro.html">Trend Micro</a></li>
+<li class="toctree-l3"><a class="reference internal" href="community/zscaler-aiguard.html">Zscaler AI Guard</a></li>
 </ul>
 </details></li>
 </ul>
@@ -925,6 +926,24 @@ interactions with LLMs within AI-powered applications.</p>
 </pre></div>
 </div>
 <p>For more details, check out the <a class="reference internal" href="community/ai-defense.html"><span class="std std-doc">Cisco AI Defense Integration</span></a> page.</p>
+</section>
+</section>
+<section id="zscaler-ai-guard">
+<h2>Zscaler AI Guard<a class="headerlink" href="#zscaler-ai-guard" title="Link to this heading">#</a></h2>
+<p>The NeMo Guardrails library supports using <a class="reference external" href="https://www.zscaler.com/platform/ai-guard" rel="noreferer noopener" target="_blank">Zscaler AI Guard</a> for input and output content moderation through the <code class="docutils literal notranslate"><span class="pre">zscaler-sdk-python</span></code> SDK. It detects credentials, PII, toxicity, prompt injection, malicious URLs, and policy violations.</p>
+<p>To activate the protection, you need to set the <code class="docutils literal notranslate"><span class="pre">AIGUARD_API_KEY</span></code> and <code class="docutils literal notranslate"><span class="pre">AIGUARD_CLOUD</span></code> environment variables.</p>
+<section id="id13">
+<h3>Example usage<a class="headerlink" href="#id13" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">input</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zscaler aiguard moderation on input</span>
+<span class="w">  </span><span class="nt">output</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zscaler aiguard moderation on output</span>
+</pre></div>
+</div>
+<p>For more details, check out the <a class="reference internal" href="community/zscaler-aiguard.html"><span class="std std-doc">Zscaler AI Guard Integration</span></a> page.</p>
 <div class="toctree-wrapper compound">
 </div>
 </section>
@@ -1030,6 +1049,10 @@ interactions with LLMs within AI-powered applications.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cisco-ai-defense">Cisco AI Defense</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">Example usage</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#zscaler-ai-guard">Zscaler AI Guard</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Example usage</a></li>
 </ul>
 </li>
 </ul>
