@@ -33,6 +33,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import REQUEST_ID_HEX_CHARS, RailResult, get_request_id
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import SystemConstants
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 from tests.guardrails.async_helpers import saturate_stream_semaphore, wait_for_queue_state
@@ -1029,12 +1030,12 @@ def reset_telemetry_singletons():
     """
     telemetry._meter = None
     telemetry._request_instruments = None
-    telemetry._llm_instruments = None
+    tracing_constants._llm_instruments = None
     telemetry._tracer = None
     yield
     telemetry._meter = None
     telemetry._request_instruments = None
-    telemetry._llm_instruments = None
+    tracing_constants._llm_instruments = None
     telemetry._tracer = None
 
 

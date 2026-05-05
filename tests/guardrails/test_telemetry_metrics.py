@@ -27,25 +27,28 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
 from nemoguardrails.guardrails.guardrails_types import RailDirection
 from nemoguardrails.guardrails.telemetry import (
-    _ensure_llm_instruments,
     _ensure_request_instruments,
     are_metrics_enabled,
     get_meter,
-    llm_operation_duration,
     record_nonstream_rejected,
     record_request_blocked,
     record_request_error,
     record_stream_rejected,
-    record_time_per_output_chunk,
-    record_time_to_first_chunk,
-    record_token_usage,
     register_nonstream_saturation_gauges,
     request_metrics,
     stream_active_metric,
     traced_request,
 )
 from nemoguardrails.rails.llm.config import MetricsConfig
-from nemoguardrails.tracing.constants import SystemConstants
+from nemoguardrails.tracing import constants as tracing_constants
+from nemoguardrails.tracing.constants import (
+    SystemConstants,
+    _ensure_llm_instruments,
+    llm_operation_duration,
+    record_time_per_output_chunk,
+    record_time_to_first_chunk,
+    record_token_usage,
+)
 from nemoguardrails.types import UsageInfo
 from tests.guardrails.metric_helpers import collect_metric_points
 
@@ -59,12 +62,12 @@ def reset_metrics_singletons():
     """
     telemetry._meter = None
     telemetry._request_instruments = None
-    telemetry._llm_instruments = None
+    tracing_constants._llm_instruments = None
     telemetry._tracer = None
     yield
     telemetry._meter = None
     telemetry._request_instruments = None
-    telemetry._llm_instruments = None
+    tracing_constants._llm_instruments = None
     telemetry._tracer = None
 
 
@@ -167,7 +170,7 @@ class TestEnsureLLMInstruments:
         """``_ensure_llm_instruments`` and ``_ensure_request_instruments``
         cache separately; calling one does not populate the other."""
         _ensure_llm_instruments()
-        assert telemetry._llm_instruments is not None
+        assert tracing_constants._llm_instruments is not None
         assert telemetry._request_instruments is None
         _ensure_request_instruments()
         assert telemetry._request_instruments is not None
@@ -208,7 +211,7 @@ class TestRecordTokenUsage:
     def test_no_op_when_otel_unavailable(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
-            telemetry._llm_instruments = None
+            tracing_constants._llm_instruments = None
             record_token_usage("m", "p", "chat", UsageInfo(input_tokens=1, output_tokens=1))
             # No meter to assert against; just verify no exception.
 
@@ -310,7 +313,7 @@ class TestLLMOperationDuration:
     def test_no_op_when_otel_unavailable(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
-            telemetry._llm_instruments = None
+            tracing_constants._llm_instruments = None
             with llm_operation_duration("m", "p", "chat"):
                 pass  # must not raise
 
@@ -337,7 +340,7 @@ class TestRecordTimeToFirstChunk:
     def test_no_op_when_otel_unavailable(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
-            telemetry._llm_instruments = None
+            tracing_constants._llm_instruments = None
             record_time_to_first_chunk("m", "p", "chat", 0.01)
             # No exception, no meter to assert against.
 
@@ -366,7 +369,7 @@ class TestRecordTimePerOutputChunk:
     def test_no_op_when_otel_unavailable(self):
         with patch.object(telemetry, "_OTEL_AVAILABLE", False):
             telemetry._meter = None
-            telemetry._llm_instruments = None
+            tracing_constants._llm_instruments = None
             record_time_per_output_chunk("m", "p", "chat", 0.01)
 
 

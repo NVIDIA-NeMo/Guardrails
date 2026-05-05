@@ -27,6 +27,7 @@ from nemoguardrails.guardrails.api_engine import APIEngine
 from nemoguardrails.guardrails.engine_registry import EngineRegistry
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.tracing import constants as tracing_constants
 from nemoguardrails.tracing.constants import SystemConstants
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 from tests.guardrails.metric_helpers import collect_histogram_sum, collect_metric_points
@@ -54,12 +55,12 @@ def reset_telemetry_singletons():
     adapter tests).
     """
     telemetry._meter = None
-    telemetry._llm_instruments = None
+    tracing_constants._llm_instruments = None
     telemetry._request_instruments = None
     telemetry._tracer = None
     yield
     telemetry._meter = None
-    telemetry._llm_instruments = None
+    tracing_constants._llm_instruments = None
     telemetry._request_instruments = None
     telemetry._tracer = None
 

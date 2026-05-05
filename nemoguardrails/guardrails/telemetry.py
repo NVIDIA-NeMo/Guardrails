@@ -49,7 +49,6 @@ from nemoguardrails.tracing.constants import (
     OperationNames,
     SpanNames,
     SystemConstants,
-    TokenType,
 )
 
 log = logging.getLogger(__name__)
@@ -63,7 +62,6 @@ if TYPE_CHECKING:
 
     from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
     from nemoguardrails.rails.llm.config import MetricsConfig, TracingConfig
-    from nemoguardrails.types import UsageInfo
 
     _OTEL_AVAILABLE = True
 else:
@@ -119,7 +117,6 @@ def get_tracer() -> Optional["Tracer"]:
 # on first access is harmless.
 _meter = None
 _request_instruments: Optional["RequestInstruments"] = None
-_llm_instruments: Optional["LLMInstruments"] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,40 +144,6 @@ class RequestInstruments:
     nonstream_rejections: "Counter"
     stream_active: "UpDownCounter"
     stream_rejections: "Counter"
-
-
-@dataclass(frozen=True, slots=True)
-class LLMInstruments:
-    """LLM-call-scope OTEL instruments for downstream model calls.
-
-    These metrics fire once per LLM call (not once per IORails request)
-    and follow the OTEL GenAI semantic conventions exactly — the field
-    names mirror the metric names with the ``gen_ai.client.`` prefix
-    stripped, and both are Histograms (per spec).
-
-    * ``token_usage`` — ``gen_ai.client.token.usage`` Histogram, unit
-      ``{token}``.  Records input and output tokens as separate
-      observations distinguished by the required ``gen_ai.token.type``
-      label (``input`` or ``output``).
-    * ``operation_duration`` — ``gen_ai.client.operation.duration``
-      Histogram, unit ``s``.  Records the wall-clock time of each
-      LLM call from request issue to response completion.
-    * ``time_to_first_chunk`` — ``gen_ai.client.operation.time_to_first_chunk``
-      Histogram, unit ``s``.  Streaming-only.  Time from request
-      issue to the first content-bearing chunk yielded.
-    * ``time_per_output_chunk`` — ``gen_ai.client.operation.time_per_output_chunk``
-      Histogram, unit ``s``.  Streaming-only.  Inter-chunk gap; one
-      observation per content-bearing chunk after the first.
-
-    Kept separate from :class:`RequestInstruments` because these are
-    LLM-call-scope (one IORails request can fire several LLM calls
-    across its rails) rather than request-scope.
-    """
-
-    token_usage: "Histogram"
-    operation_duration: "Histogram"
-    time_to_first_chunk: "Histogram"
-    time_per_output_chunk: "Histogram"
 
 
 def get_meter() -> Optional["Meter"]:
@@ -280,231 +243,6 @@ def _ensure_request_instruments() -> Optional[RequestInstruments]:
             ),
         )
     return _request_instruments
-
-
-# Bucket boundaries recommended in the OTEL GenAI semantic-conventions
-# spec page:
-# https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#generative-ai-client-metrics
-_LLM_DURATION_BUCKETS = [
-    0.01,
-    0.02,
-    0.04,
-    0.08,
-    0.16,
-    0.32,
-    0.64,
-    1.28,
-    2.56,
-    5.12,
-    10.24,
-    20.48,
-    40.96,
-    81.92,
-]
-_LLM_TOKEN_BUCKETS = [
-    1,
-    4,
-    16,
-    64,
-    256,
-    1024,
-    4096,
-    16384,
-    65536,
-    262144,
-    1048576,
-    4194304,
-    16777216,
-    67108864,
-]
-
-
-def _ensure_llm_instruments() -> Optional[LLMInstruments]:
-    """Lazily create the LLM-call-scope instruments and return them as
-    an :class:`LLMInstruments`.  Returns ``None`` when the OTEL API is
-    not installed.
-
-    Bucket boundaries on every histogram are exact matches to the OTEL
-    GenAI semantic-conventions spec recommendations:
-      https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/
-    See :data:`_LLM_DURATION_BUCKETS` and :data:`_LLM_TOKEN_BUCKETS`
-    above.
-    """
-    global _llm_instruments
-    meter = get_meter()
-    if meter is None:
-        return None
-    if _llm_instruments is None:
-        _llm_instruments = LLMInstruments(
-            token_usage=meter.create_histogram(
-                MetricNames.GEN_AI_CLIENT_TOKEN_USAGE,
-                description="Number of input or output tokens used by an LLM call",
-                unit="{token}",
-                explicit_bucket_boundaries_advisory=_LLM_TOKEN_BUCKETS,
-            ),
-            operation_duration=meter.create_histogram(
-                MetricNames.GEN_AI_CLIENT_OPERATION_DURATION,
-                description="End-to-end duration of an LLM call",
-                unit="s",
-                explicit_bucket_boundaries_advisory=_LLM_DURATION_BUCKETS,
-            ),
-            time_to_first_chunk=meter.create_histogram(
-                MetricNames.GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK,
-                description="Time from a streaming LLM request to its first content chunk",
-                unit="s",
-                explicit_bucket_boundaries_advisory=_LLM_DURATION_BUCKETS,
-            ),
-            time_per_output_chunk=meter.create_histogram(
-                MetricNames.GEN_AI_CLIENT_OPERATION_TIME_PER_OUTPUT_CHUNK,
-                description="Inter-chunk interval during a streaming LLM response",
-                unit="s",
-                explicit_bucket_boundaries_advisory=_LLM_DURATION_BUCKETS,
-            ),
-        )
-    return _llm_instruments
-
-
-def _llm_call_attributes(
-    model_name: str,
-    provider_name: str,
-    operation_name: str,
-) -> dict:
-    """Return the standard OTEL GenAI label set shared by every
-    ``gen_ai.client.*`` Histogram emission.
-
-    These three are the lowest-cardinality labels the spec mandates as
-    Required (``operation.name``, ``provider.name``) or Conditionally
-    Required (``request.model``).  Per-metric labels (``token.type``,
-    ``error.type``) are added by individual emission helpers.
-    """
-    return {
-        GenAIAttributes.GEN_AI_OPERATION_NAME: operation_name,
-        GenAIAttributes.GEN_AI_PROVIDER_NAME: provider_name,
-        GenAIAttributes.GEN_AI_REQUEST_MODEL: model_name,
-    }
-
-
-def record_token_usage(
-    model_name: str,
-    provider_name: str,
-    operation_name: str,
-    usage: Optional["UsageInfo"],
-) -> None:
-    """Emit two ``gen_ai.client.token.usage`` observations (one input,
-    one output) for a completed LLM call.
-
-    Per spec only ``input`` and ``output`` are valid
-    ``gen_ai.token.type`` values — reasoning and cached tokens are
-    span-only attributes, not metric labels.
-
-    No-op when ``usage`` is ``None`` (the upstream provider didn't
-    return a ``usage`` field — common for streaming when
-    ``stream_options.include_usage`` is suppressed) or the OTEL API is
-    unavailable.  Skipping emission rather than recording zeros keeps
-    the histogram honest: "no observation" is distinct from "0 tokens".
-    """
-    if usage is None:
-        return
-    instruments = _ensure_llm_instruments()
-    if instruments is None:
-        return
-    base = _llm_call_attributes(model_name, provider_name, operation_name)
-    instruments.token_usage.record(
-        usage.input_tokens,
-        attributes={**base, GenAIAttributes.GEN_AI_TOKEN_TYPE: TokenType.INPUT},
-    )
-    instruments.token_usage.record(
-        usage.output_tokens,
-        attributes={**base, GenAIAttributes.GEN_AI_TOKEN_TYPE: TokenType.OUTPUT},
-    )
-
-
-@contextmanager
-def llm_operation_duration(
-    model_name: str,
-    provider_name: str,
-    operation_name: str,
-) -> Generator[None, None, None]:
-    """Context manager that records the wrapped block's wall-clock
-    duration into ``gen_ai.client.operation.duration``.
-
-    On exception, adds the ``error.type`` label (per spec, conditionally
-    required on the duration metric only — token usage carries no
-    error.type even on failed calls) and re-raises.  No-op when the
-    OTEL API is unavailable.
-    """
-    instruments = _ensure_llm_instruments()
-    if instruments is None:
-        yield
-        return
-    base = _llm_call_attributes(model_name, provider_name, operation_name)
-    t0 = time.monotonic()
-    exc_type: Optional[str] = None
-    try:
-        yield
-    except Exception as exc:
-        exc_type = type(exc).__name__
-        raise
-    finally:
-        elapsed = time.monotonic() - t0
-        attrs = base if exc_type is None else {**base, "error.type": exc_type}
-        instruments.operation_duration.record(elapsed, attributes=attrs)
-
-
-def record_time_to_first_chunk(
-    model_name: str,
-    provider_name: str,
-    operation_name: str,
-    duration_s: float,
-) -> None:
-    """Emit a ``gen_ai.client.operation.time_to_first_chunk`` observation.
-
-    Records the elapsed seconds from request issue to the first
-    content-bearing chunk yielded by the streaming response.  Caller
-    is responsible for the timing — this helper just records the value
-    onto the histogram with the standard label set.
-
-    Per OTEL semconv, "first chunk" is the first chunk carrying actual
-    output (content or reasoning delta) — not the role-only or other
-    cosmetic SSE frames that don't carry data.
-
-    No-op when the OTEL API is unavailable.
-    """
-    instruments = _ensure_llm_instruments()
-    if instruments is None:
-        return
-    instruments.time_to_first_chunk.record(
-        duration_s,
-        attributes=_llm_call_attributes(model_name, provider_name, operation_name),
-    )
-
-
-def record_time_per_output_chunk(
-    model_name: str,
-    provider_name: str,
-    operation_name: str,
-    duration_s: float,
-) -> None:
-    """Emit a ``gen_ai.client.operation.time_per_output_chunk`` observation.
-
-    Records the inter-chunk interval for one content-bearing chunk
-    after the first.  Each chunk produces one observation; aggregates
-    show p50/p95/p99 for chunk-arrival pacing across the stream.
-
-    Caller is responsible for skipping the first chunk (covered by
-    ``record_time_to_first_chunk`` instead) and for skipping
-    non-content frames (terminal usage chunk, role-only frames) that
-    would skew the distribution.
-
-    No-op when the OTEL API is unavailable.
-    """
-    instruments = _ensure_llm_instruments()
-    if instruments is None:
-        return
-    instruments.time_per_output_chunk.record(
-        duration_s,
-        attributes=_llm_call_attributes(model_name, provider_name, operation_name),
-    )
 
 
 def register_nonstream_saturation_gauges(

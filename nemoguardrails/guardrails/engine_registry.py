@@ -32,12 +32,14 @@ from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.guardrails.telemetry import (
     api_call_span,
     llm_call_span,
+)
+from nemoguardrails.rails.llm.config import Model, RailsConfigData
+from nemoguardrails.tracing.constants import (
     llm_operation_duration,
     record_time_per_output_chunk,
     record_time_to_first_chunk,
     record_token_usage,
 )
-from nemoguardrails.rails.llm.config import Model, RailsConfigData
 from nemoguardrails.types import LLMResponse, LLMResponseChunk, UsageInfo
 
 if TYPE_CHECKING:
