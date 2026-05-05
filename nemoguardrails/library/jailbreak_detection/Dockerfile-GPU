@@ -12,6 +12,11 @@ WORKDIR /models
 RUN wget https://huggingface.co/nvidia/NemoGuard-JailbreakDetect/resolve/main/snowflake.pkl
 ENV EMBEDDING_CLASSIFIER_PATH=/models
 
+# Set a stable HuggingFace cache directory so model weights are written to a
+# predictable path regardless of the runtime user or UID.
+ENV HF_HOME=/models/hf-cache
+ENV TRANSFORMERS_CACHE=/models/hf-cache
+
 # Set working directory
 WORKDIR /app
 
@@ -28,7 +33,12 @@ RUN python -c "from transformers import GPT2LMHeadModel, GPT2TokenizerFast; GPT2
 
 # Predownload the Snowflake embedding model used by the embedding-based jailbreak classifier.
 # Without this, the model is fetched at container startup, requiring internet access at runtime.
-RUN python -c "from nemoguardrails.library.jailbreak_detection.model_based.models import SnowflakeEmbed; SnowflakeEmbed()"
+# Uses bare from_pretrained calls (not SnowflakeEmbed()) to avoid loading weights into RAM during build.
+RUN python -c "\
+    from transformers import AutoModel, AutoTokenizer; \
+    from nemoguardrails.library.jailbreak_detection.model_based.models import SNOWFLAKE_EMBED_MODEL, SNOWFLAKE_EMBED_REVISION; \
+    AutoTokenizer.from_pretrained(SNOWFLAKE_EMBED_MODEL, revision=SNOWFLAKE_EMBED_REVISION); \
+    AutoModel.from_pretrained(SNOWFLAKE_EMBED_MODEL, revision=SNOWFLAKE_EMBED_REVISION, trust_remote_code=True, add_pooling_layer=False, safe_serialization=True)"
 
 # Expose a port for the server
 EXPOSE 1337
