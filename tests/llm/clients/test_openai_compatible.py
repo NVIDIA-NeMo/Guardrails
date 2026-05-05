@@ -912,6 +912,28 @@ class TestNetworkExceptionRetry:
 
         assert post_calls == loops * 2
 
+    def test_recovers_with_real_httpx_against_refused_endpoint_across_asyncio_run(self):
+        """Real httpx.AsyncClient making real network attempts across asyncio.run().
+
+        httpx reliably fails on the second asyncio.run() with RuntimeError:
+        Event loop is closed. With our retry in place, the same client should surface
+        a NETWORK error on the second call (proving recovery happened and we reached the
+        connection-attempt phase), not a "Stale event loop" error (which
+        would mean retries exhausted on consecutive RuntimeErrors and
+        recovery never happened).
+        """
+        client = OpenAICompatibleClient(base_url="http://127.0.0.1:1", api_key="sk-test", max_retries=2)
+
+        with pytest.raises(LLMConnectionError) as exc1:
+            asyncio.run(client.chat_completion("gpt-4o", [{"role": "user", "content": "hi"}]))
+        assert "Stale event loop" not in str(exc1.value)
+        assert "Connection error" in str(exc1.value)
+
+        with pytest.raises(LLMConnectionError) as exc2:
+            asyncio.run(client.chat_completion("gpt-4o", [{"role": "user", "content": "hi"}]))
+        assert "Stale event loop" not in str(exc2.value)
+        assert "Connection error" in str(exc2.value)
+
 
 class TestCalculateRetryDelay:
     @pytest.mark.parametrize(
