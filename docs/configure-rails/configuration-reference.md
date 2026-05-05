@@ -55,7 +55,7 @@ models:
 | `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
 | `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
 | `models.api_key_env_var` | string | | Environment variable containing API key |
-| `models.parameters` | object | | Provider-specific parameters passed to LangChain |
+| `models.parameters` | object | | Provider-specific parameters. For DefaultFramework engines (`openai`, `nim`, `nvidia_ai_endpoints`, `ollama`), passed to the OpenAI-compatible client (for example `temperature`, `max_tokens`, `base_url`, `api_key`). For LangChain-routed engines (`engine: langchain/<provider>` and the legacy provider-named engines), passed to the underlying LangChain class. |
 | `models.cache` | object | | Cache configuration for this model |
 
 ### Model Types
@@ -102,27 +102,37 @@ The runtime validates that any `$model=<type>` reference in flows has a matching
 
 ### Engines
 
-#### Core Engines
+NeMo Guardrails 0.21 routes models through one of two LLM frameworks. **Prefer the DefaultFramework whenever the underlying wire protocol is OpenAI-compatible.** The LangChain framework is required only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. See the [Routing matrix](../about/supported-llms.md#routing-matrix) for the full mapping and the [0.21 Framework Transition Guide](../upgrade/0.21-framework-transition.md) for migration details.
+
+#### DefaultFramework Engines
+
+These engines work out of the box with `pip install nemoguardrails`. Pass `parameters.base_url` to point at a self-hosted or alternative endpoint.
 
 | Engine | Description |
 |--------|-------------|
-| `openai` | OpenAI models |
+| `openai` | OpenAI public API or any OpenAI-compatible endpoint via `parameters.base_url` |
 | `nim` | NVIDIA NIM microservices |
 | `nvidia_ai_endpoints` | Alias for `nim` |
-| `azure` | Azure OpenAI models |
+| `ollama` | Ollama OpenAI-compatible endpoint at `http://localhost:11434/v1` |
+
+For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp server, and similar), use `engine: openai` with `parameters.base_url` and `parameters.api_key`.
+
+#### LangChain-routed Engines
+
+These engines require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the matching `langchain-*` provider package.
+
+| Engine | Description |
+|--------|-------------|
+| `azure` | Azure OpenAI models (deployment-name URL plus `api-version`) |
 | `anthropic` | Anthropic Claude models |
 | `cohere` | Cohere models |
 | `vertexai` | Google Vertex AI |
-
-#### Self-Hosted Engines
-
-| Engine | Description |
-|--------|-------------|
 | `huggingface_hub` | HuggingFace Hub models |
-| `huggingface_endpoint` | HuggingFace Inference Endpoints |
-| `vllm_openai` | vLLM with OpenAI-compatible API |
-| `trt_llm` | TensorRT-LLM |
-| `self_hosted` | Generic self-hosted models |
+| `huggingface_endpoint` | HuggingFace Inference Endpoints (default text-generation schema; if your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead) |
+| `huggingface_pipeline` | In-process Hugging Face pipeline |
+| `vllm_openai` | Legacy LangChain wrapper for vLLM. For new configs, prefer `engine: openai` with `parameters.base_url` |
+| `trt_llm` | TensorRT-LLM in-process |
+| `self_hosted` | Generic self-hosted LangChain wrapper |
 
 #### Embedding Engines
 

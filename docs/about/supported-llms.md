@@ -22,6 +22,32 @@ Integrating NeMo Guardrails improves safety and security of an Application LLM, 
 
 NeMo Guardrails can also call models for a specific guardrail on behalf of the client. Having guardrail-specific models allows the use of smaller fine-tuned models, which are specialized on the guardrails task. For example the NVIDIA Nemoguard collection of models includes [content-safety](https://build.nvidia.com/nvidia/llama-3_1-nemotron-safety-guard-8b-v3), [topic-control](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control), and [jailbreak-detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) models. These models can be accessed on [build.nvidia.com](https://build.nvidia.com/) for rapid prototyping, or on [NGC Catalog](https://catalog.ngc.nvidia.com/) for deployment with NIM Docker containers.
 
+## Routing matrix
+
+Starting with 0.21, NeMo Guardrails routes every model through one of two LLM frameworks:
+
+- **DefaultFramework** speaks OpenAI's wire protocol directly over `httpx`. It is the primary path for any provider whose endpoint is OpenAI-compatible, and works out of the box with `pip install nemoguardrails`.
+- **LangChain** is the fallback for providers whose API genuinely is not OpenAI-compatible. It requires installing LangChain plus the matching `langchain-*` provider package.
+
+The table below maps each engine to the framework that handles it. Engines listed under `DefaultFramework` need no extra install. Engines listed under `LangChain` require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the corresponding provider package.
+
+| Engine | Framework | Streaming | Tool calls | Reasoning models | Notes |
+|---|---|---|---|---|---|
+| `openai` | DefaultFramework | yes | yes | yes | OpenAI public API or any OpenAI-compatible endpoint via `parameters.base_url`. |
+| `nim` | DefaultFramework | yes | yes | yes | Default base URL `https://integrate.api.nvidia.com/v1`. |
+| `nvidia_ai_endpoints` | DefaultFramework | yes | yes | yes | Alias for `nim`. |
+| `ollama` | DefaultFramework | yes | yes | n/a | Default base URL `http://localhost:11434/v1`. |
+| vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp, ... | DefaultFramework | yes | yes | yes (where supported) | Use `engine: openai` plus `parameters.base_url` (and `parameters.api_key`). The legacy `engine: vllm_openai` is LangChain-only and is not recommended for new configs. |
+| `langchain/anthropic` | LangChain | yes | yes | via wrapper | Requires `pip install langchain langchain-anthropic`. |
+| `langchain/cohere` | LangChain | yes | yes | n/a | Requires `pip install langchain langchain-cohere`. |
+| `langchain/gemini`, `langchain/google_vertex` | LangChain | yes | yes | n/a | Requires the matching `langchain-google-*` package. |
+| `langchain/azure` (or legacy `azure`) | LangChain | yes | yes | yes | Azure OpenAI's deployment-name URL pattern plus `api-version` query string is not handled by DefaultFramework's OpenAI-compatible client. Requires `langchain-openai`. |
+| `huggingface_endpoint` | LangChain | varies | varies | varies | Default text-generation schema. If your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` plus `parameters.base_url` instead. |
+| `huggingface_pipeline`, `huggingface_hub`, `trt_llm`, `self_hosted` | LangChain | varies | varies | varies | In-process pipelines and LangChain wrappers without a native HTTP path. |
+| Other LangChain providers | LangChain | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. |
+
+There is no automatic fallback from `DefaultFramework` to `LangChain`. To use a LangChain-only engine, install LangChain and the provider package, then either set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` or use `engine: langchain/<provider>` in your `config.yml`. For details and examples, see [Upgrading to 0.21: LLM Framework Transition](../upgrade/0.21-framework-transition.md).
+
 ## Application LLM Providers
 
 The NeMo Guardrails library supports major LLM providers, including:
