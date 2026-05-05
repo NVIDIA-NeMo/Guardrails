@@ -26,6 +26,10 @@ COPY . .
 # Predownload the GPT2 model.
 RUN python -c "from transformers import GPT2LMHeadModel, GPT2TokenizerFast; GPT2LMHeadModel.from_pretrained('gpt2-large'); GPT2TokenizerFast.from_pretrained('gpt2-large');"
 
+# Predownload the Snowflake embedding model used by the embedding-based jailbreak classifier.
+# Without this, the model is fetched at container startup, requiring internet access at runtime.
+RUN python -c "from nemoguardrails.library.jailbreak_detection.model_based.models import SnowflakeEmbed; SnowflakeEmbed()"
+
 # Expose a port for the server
 EXPOSE 1337
 
