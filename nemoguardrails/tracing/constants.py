@@ -153,10 +153,13 @@ class GuardrailsAttributes:
     LLM_CACHE_HIT = "llm.cache.hit"
 
     # speculative generation attributes
-    SPECULATIVE_MODE_ACTIVE = "speculative.mode_active"
-    SPECULATIVE_FIRST_COMPLETED = "speculative.first_completed"
-    SPECULATIVE_FIRST_REJECTOR = "speculative.first_rejector"
-    SPECULATIVE_TIME_SAVED_MS = "speculative.time_saved_ms"
+    SPECULATIVE_MODE_ACTIVE = "speculative_generation.mode_active"
+    SPECULATIVE_FIRST_COMPLETED = "speculative_generation.first_completed"
+    SPECULATIVE_FIRST_REJECTOR = "speculative_generation.first_rejector"
+    SPECULATIVE_TIME_SAVED_MS = "speculative_generation.time_saved_ms"
+
+    SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS = "input_rails"
+    SPECULATIVE_FIRST_COMPLETED_GENERATION = "generation"
 
 
 class SpanNames:

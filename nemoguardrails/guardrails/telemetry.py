@@ -348,6 +348,30 @@ def mark_rail_stop(span: Optional["Span"], is_safe: bool) -> None:
     span.set_attribute(GuardrailsAttributes.RAIL_STOP, True)
 
 
+def set_speculative_span_attrs(
+    span: Optional["Span"],
+    first_completed: str,
+    first_rejector: str,
+    time_saved_ms: float,
+) -> None:
+    """Stamp speculative-generation outcome attributes on a request span.
+
+    Records which branch of the speculative race finished first
+    (input rails vs. main LLM generation) and which one ultimately
+    rejected the request, on the IORails ``guardrails.request`` span.
+    Safe to call with ``None`` (no-op) so callers don't have to branch
+    on whether tracing is enabled — matches the ``record_span_error`` /
+    ``mark_rail_stop`` idiom.
+    """
+    if span is None:
+        return
+    span.set_attribute(GuardrailsAttributes.SPECULATIVE_MODE_ACTIVE, True)
+    span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED, first_completed)
+    span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_REJECTOR, first_rejector)
+    # TODO: Add it to metrics on next version
+    # span.set_attribute(GuardrailsAttributes.SPECULATIVE_TIME_SAVED_MS, time_saved_ms)
+
+
 @contextmanager
 def request_span(tracer: "Tracer") -> Generator[Tuple["Span", str], None, None]:
     """Create a live ``guardrails.request`` SERVER span.

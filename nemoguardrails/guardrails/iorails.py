@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import time
+import warnings
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import nullcontext, suppress
 from typing import TYPE_CHECKING, Optional, Union
@@ -51,6 +52,7 @@ from nemoguardrails.guardrails.telemetry import (
     record_stream_rejected,
     register_nonstream_saturation_gauges,
     request_metrics,
+    set_speculative_span_attrs,
     stream_active_metric,
     traced_request,
 )
@@ -114,7 +116,6 @@ class IORails:
             tracer=self._tracer,
         )
         self._speculative_generation = config.rails.input.speculative_generation or False
-        self._warned_speculative_streaming = False
 
         # Non-streaming admission queue + worker pool (owned by IORails so
         # all request-path concurrency controls sit under one roof).  The
@@ -348,19 +349,35 @@ class IORails:
         gen_task = asyncio.create_task(self.engine_registry.model_call("main", messages, **llm_kwargs))
 
         try:
-            response = await self._race_rails_and_generation(rails_task, gen_task, req_id, t0, request_span)
-        except BaseException:
+            response = await self._parallel_input_rail_and_response_generation(
+                rails_task, gen_task, req_id, t0, request_span
+            )
+        except BaseException as outer_exc:
             for t in (rails_task, gen_task):
                 if not t.done():
                     t.cancel()
-            # Drain all tasks (including done) to retrieve exceptions and avoid
-            # asyncio "Task exception was never retrieved" warnings.
-            await asyncio.gather(rails_task, gen_task, return_exceptions=True)
+            # Drain all tasks (including done) to retrieve their exceptions and
+            # avoid asyncio "Task exception was never retrieved" warnings, then
+            # log any genuine errors that get swallowed here (i.e. not the
+            # exception being re-raised and not cancellations from above).
+            rails_exc, gen_exc = await asyncio.gather(rails_task, gen_task, return_exceptions=True)
+            for name, exc in (("input_rails", rails_exc), ("generation", gen_exc)):
+                if (
+                    isinstance(exc, BaseException)
+                    and not isinstance(exc, asyncio.CancelledError)
+                    and exc is not outer_exc
+                ):
+                    log.warning(
+                        "[%s] %s task error discarded during cleanup: %r",
+                        req_id,
+                        name,
+                        exc,
+                    )
             raise
 
         return response
 
-    async def _race_rails_and_generation(
+    async def _parallel_input_rail_and_response_generation(
         self,
         rails_task: asyncio.Task,
         gen_task: asyncio.Task,
@@ -369,9 +386,13 @@ class IORails:
         request_span: Optional["Span"] = None,
     ) -> Optional[LLMResponse]:
         """Race input rails against LLM generation, return LLMResponse or None (rejected)."""
-        done, pending = await asyncio.wait({rails_task, gen_task}, return_when=asyncio.FIRST_COMPLETED)
+        done, _ = await asyncio.wait({rails_task, gen_task}, return_when=asyncio.FIRST_COMPLETED)
 
-        first_completed = "input_rails" if rails_task in done else "generation"
+        first_completed = (
+            GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
+            if rails_task in done
+            else GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_GENERATION
+        )
 
         if rails_task in done:
             input_result = rails_task.result()
@@ -384,16 +405,18 @@ class IORails:
                 # tasks finish simultaneously, gen_task may hold a stored exception that
                 # would leak through suppress(CancelledError). gather drains it safely.
                 gen_result = (await asyncio.gather(gen_task, return_exceptions=True))[0]
-                if isinstance(gen_result, Exception) and not isinstance(gen_result, asyncio.CancelledError):
+                if isinstance(gen_result, BaseException) and not isinstance(gen_result, asyncio.CancelledError):
                     log.warning("[%s] LLM generation error suppressed: %s", req_id, gen_result)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
-                self._set_speculative_span_attrs(request_span, first_completed, "input_rails", 0.0)
+                set_speculative_span_attrs(
+                    request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS, 0.0
+                )
                 return None
 
             # Rails passed — wait for generation to finish
             response = await gen_task
-            self._set_speculative_span_attrs(request_span, first_completed, "none", rails_elapsed * 1000)
+            set_speculative_span_attrs(request_span, first_completed, "none", rails_elapsed * 1000)
         else:
             # Generation finished first — wait for rails verdict
             response = gen_task.result()
@@ -405,24 +428,15 @@ class IORails:
                 log.info("[%s] Input blocked (speculative, gen-first): %s", req_id, input_result.reason)
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
-                self._set_speculative_span_attrs(request_span, first_completed, "input_rails", 0.0)
+                set_speculative_span_attrs(
+                    request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS, 0.0
+                )
                 return None
 
-            self._set_speculative_span_attrs(request_span, first_completed, "none", gen_elapsed * 1000)
+            set_speculative_span_attrs(request_span, first_completed, "none", gen_elapsed * 1000)
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(response.content))
         return response
-
-    @staticmethod
-    def _set_speculative_span_attrs(
-        span: Optional["Span"], first_completed: str, first_rejector: str, time_saved_ms: float
-    ) -> None:
-        if span is None:
-            return
-        span.set_attribute(GuardrailsAttributes.SPECULATIVE_MODE_ACTIVE, True)
-        span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED, first_completed)
-        span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_REJECTOR, first_rejector)
-        span.set_attribute(GuardrailsAttributes.SPECULATIVE_TIME_SAVED_MS, time_saved_ms)
 
     def _validate_streaming_with_output_rails(self) -> None:
         """Raise if output rails exist but streaming is not enabled for them."""
@@ -466,9 +480,8 @@ class IORails:
             asyncio.QueueFull: If the streaming concurrency limit is
                 reached (load shedding).
         """
-        if self._speculative_generation and not self._warned_speculative_streaming:
-            self._warned_speculative_streaming = True
-            log.warning("speculative_generation is not supported for streaming; falling back to sequential")
+        if self._speculative_generation:
+            warnings.warn("speculative_generation is not supported for streaming; falling back to sequential")
         self._validate_streaming_with_output_rails()
 
         if include_metadata and self._has_streaming_output_rails:
