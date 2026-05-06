@@ -157,12 +157,8 @@ def _looks_like_unknown_param_400(error_message: str) -> bool:
     return any(token in msg_lower for token in _UNKNOWN_PARAM_HINT_TOKENS)
 
 
-def _maybe_append_migration_hint(status_code: int, error_message: str) -> str:
-    if status_code not in (400, 422):
-        return error_message
+def _maybe_append_migration_hint(error_message: str) -> str:
     if not _looks_like_unknown_param_400(error_message):
-        return error_message
-    if _MIGRATION_HINT_021 in error_message:
         return error_message
     return f"{error_message}\n\n{_MIGRATION_HINT_021}"
 
@@ -177,7 +173,8 @@ def _classify_bad_request(status_code: int, error_message: str, kwargs: Dict[str
                 f"{error_message} (set include_usage_in_stream=False on the model "
                 "or in config.yml parameters to remove this field from streaming requests)"
             )
-        error_message = _maybe_append_migration_hint(status_code, error_message)
+        else:
+            error_message = _maybe_append_migration_hint(error_message)
         return LLMUnsupportedParamsError(status_code, error_message, **kwargs)
     return LLMBadRequestError(status_code, error_message, **kwargs)
 

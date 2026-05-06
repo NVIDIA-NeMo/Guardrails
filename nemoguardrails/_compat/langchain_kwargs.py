@@ -29,7 +29,10 @@ the user's signal to clean up.
 #   nemoguardrails.rails.llm.llmrails.LLMRails._init_llms.
 
 import re
-from typing import Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from nemoguardrails.rails.llm.config import Model
 
 _LANGCHAIN_BASE_FLAGS = frozenset(
     {
@@ -79,7 +82,7 @@ def _violations_for(model_type: str, parameters: dict) -> List[Tuple[str, str]]:
     return out
 
 
-def check_langchain_kwargs(models: Iterable, active_framework: str) -> None:
+def check_langchain_kwargs(models: "Iterable[Model]", active_framework: str) -> None:
     """Raise ValueError if any model carries LangChain Python-side flags.
 
     No-op when the active framework is anything other than ``default``;
@@ -89,12 +92,9 @@ def check_langchain_kwargs(models: Iterable, active_framework: str) -> None:
         return
     violations: List[Tuple[str, str]] = []
     for model in models:
-        params = getattr(model, "parameters", None) or {}
-        if not params:
+        if not model.parameters:
             continue
-        violations.extend(
-            _violations_for(getattr(model, "type", ""), params),
-        )
+        violations.extend(_violations_for(model.type, model.parameters))
     if not violations:
         return
     body = "\n".join(f"  models[{model_type}]: {action}" for model_type, action in violations)

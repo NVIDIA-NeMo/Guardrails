@@ -45,7 +45,7 @@ class TestMigrationHintAppendedOnUnknownParam400:
                 )
             ],
         )
-        with pytest.raises(LLMBadRequestError) as exc_info:
+        with pytest.raises(LLMUnsupportedParamsError) as exc_info:
             await client.chat_completion("gpt-4o", [])
         assert _HINT_FRAGMENT in exc_info.value.error_message
 
@@ -162,6 +162,20 @@ class TestMigrationHintNotAppendedOnFalsePositiveBroadPhrases:
         )
         with pytest.raises(LLMBadRequestError) as exc_info:
             await client.chat_completion("gpt-4o", [])
+        assert _HINT_FRAGMENT not in exc_info.value.error_message
+
+
+class TestStreamOptionsRejection:
+    @pytest.mark.asyncio
+    async def test_stream_options_rejection_uses_specific_guidance_only(self):
+        client = make_client()
+        mock_httpx_post(
+            client,
+            [(400, {"error": {"message": "Unrecognized request argument supplied: stream_options"}}, {})],
+        )
+        with pytest.raises(LLMUnsupportedParamsError) as exc_info:
+            await client.chat_completion("gpt-4o", [])
+        assert "include_usage_in_stream=False" in exc_info.value.error_message
         assert _HINT_FRAGMENT not in exc_info.value.error_message
 
 
