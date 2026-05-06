@@ -16,10 +16,16 @@
 """Tests for speculative generation (M2): input rails race LLM generation."""
 
 import asyncio
+import copy
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
@@ -172,3 +178,166 @@ class TestSpeculativeGeneration:
 
         await iorails_sequential.generate_async(MESSAGES)
         assert call_order == ["input", "generate", "output"]
+
+
+# ── OTEL fixtures for speculative-generation span attribute tests ──
+
+
+@pytest.fixture
+def span_exporter():
+    return InMemorySpanExporter()
+
+
+@pytest.fixture
+def test_tracer(span_exporter):
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(span_exporter))
+    return provider.get_tracer("test")
+
+
+def _make_speculative_tracing_config():
+    cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_CONFIG)
+    cfg["tracing"] = {"enabled": True}
+    return cfg
+
+
+@pytest_asyncio.fixture
+async def iorails_speculative_tracing(test_tracer):
+    """IORails with speculative generation + OTEL tracing, backed by an in-memory exporter."""
+    with patch.object(telemetry, "_tracer", test_tracer):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            config = RailsConfig.from_content(config=_make_speculative_tracing_config())
+            iorails = IORails(config)
+        async with iorails:
+            yield iorails
+
+
+class TestSpeculativeGenerationTelemetry:
+    """Verify OTEL span attributes for all (first_completed, first_rejector) permutations."""
+
+    @pytest.mark.asyncio
+    async def test_rails_first_pass_span_attrs(self, iorails_speculative_tracing, span_exporter):
+        """Rails finish first and pass — first_completed=input_rails, first_rejector=none."""
+
+        async def fast_rails(messages):
+            return RailResult(is_safe=True)
+
+        async def slow_llm(model_type, messages):
+            await asyncio.sleep(0.05)
+            return "Hello from LLM"
+
+        iorails_speculative_tracing.rails_manager.is_input_safe = fast_rails
+        iorails_speculative_tracing.engine_registry.model_call = slow_llm
+        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails_speculative_tracing.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": "Hello from LLM"}
+        spans = span_exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        attrs = dict(request_spans[0].attributes)
+        assert attrs["speculative_generation.mode_active"] is True
+        assert attrs["speculative_generation.first_completed"] == "input_rails"
+        assert attrs["speculative_generation.first_rejector"] == "none"
+
+    @pytest.mark.asyncio
+    async def test_rails_first_reject_span_attrs(self, iorails_speculative_tracing, span_exporter):
+        """Rails finish first and reject — first_completed=input_rails, first_rejector=input_rails."""
+
+        async def fast_reject(messages):
+            return RailResult(is_safe=False, reason="unsafe")
+
+        async def slow_llm(model_type, messages):
+            await asyncio.sleep(0.5)
+            return "Should not be used"
+
+        iorails_speculative_tracing.rails_manager.is_input_safe = fast_reject
+        iorails_speculative_tracing.engine_registry.model_call = slow_llm
+        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails_speculative_tracing.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        spans = span_exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        attrs = dict(request_spans[0].attributes)
+        assert attrs["speculative_generation.mode_active"] is True
+        assert attrs["speculative_generation.first_completed"] == "input_rails"
+        assert attrs["speculative_generation.first_rejector"] == "input_rails"
+
+    @pytest.mark.asyncio
+    async def test_gen_first_pass_span_attrs(self, iorails_speculative_tracing, span_exporter):
+        """Generation finishes first, rails pass — first_completed=generation, first_rejector=none."""
+
+        async def slow_rails(messages):
+            await asyncio.sleep(0.05)
+            return RailResult(is_safe=True)
+
+        async def fast_llm(model_type, messages):
+            return "Fast LLM response"
+
+        iorails_speculative_tracing.rails_manager.is_input_safe = slow_rails
+        iorails_speculative_tracing.engine_registry.model_call = fast_llm
+        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+        result = await iorails_speculative_tracing.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": "Fast LLM response"}
+        spans = span_exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        attrs = dict(request_spans[0].attributes)
+        assert attrs["speculative_generation.mode_active"] is True
+        assert attrs["speculative_generation.first_completed"] == "generation"
+        assert attrs["speculative_generation.first_rejector"] == "none"
+
+    @pytest.mark.asyncio
+    async def test_gen_first_reject_span_attrs(self, iorails_speculative_tracing, span_exporter):
+        """Generation finishes first, then rails reject — first_completed=generation, first_rejector=input_rails."""
+
+        async def slow_reject(messages):
+            await asyncio.sleep(0.05)
+            return RailResult(is_safe=False, reason="unsafe")
+
+        async def fast_llm(model_type, messages):
+            return "Should be discarded"
+
+        iorails_speculative_tracing.rails_manager.is_input_safe = slow_reject
+        iorails_speculative_tracing.engine_registry.model_call = fast_llm
+        iorails_speculative_tracing.rails_manager.is_output_safe = AsyncMock()
+
+        result = await iorails_speculative_tracing.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        spans = span_exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        attrs = dict(request_spans[0].attributes)
+        assert attrs["speculative_generation.mode_active"] is True
+        assert attrs["speculative_generation.first_completed"] == "generation"
+        assert attrs["speculative_generation.first_rejector"] == "input_rails"
+
+    @pytest.mark.asyncio
+    async def test_sequential_mode_has_no_speculative_attrs(self, test_tracer, span_exporter):
+        """When speculative_generation is disabled, no speculative attributes are set."""
+        cfg = copy.deepcopy(NEMOGUARDS_CONFIG)
+        cfg["tracing"] = {"enabled": True}
+        with patch.object(telemetry, "_tracer", test_tracer):
+            with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+                iorails = IORails(RailsConfig.from_content(config=cfg))
+            async with iorails:
+                iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
+                iorails.engine_registry.model_call = AsyncMock(return_value="response")
+                iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
+
+                await iorails.generate_async(MESSAGES)
+
+        spans = span_exporter.get_finished_spans()
+        request_spans = [s for s in spans if s.name == "guardrails.request"]
+        assert len(request_spans) == 1
+        attrs = dict(request_spans[0].attributes)
+        assert "speculative_generation.mode_active" not in attrs
+        assert "speculative_generation.first_completed" not in attrs
+        assert "speculative_generation.first_rejector" not in attrs
