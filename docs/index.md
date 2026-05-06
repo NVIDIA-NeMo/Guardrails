@@ -255,6 +255,14 @@ Guardrails API Server Endpoints <reference/api-server-endpoints/index>
 ```
 
 ```{toctree}
+:caption: Upgrade
+:name: Upgrade
+:hidden:
+
+Upgrading to 0.22: LLM Framework Transition <upgrade/0.22-framework-transition.md>
+```
+
+```{toctree}
 :caption: Troubleshooting
 :name: Troubleshooting
 :hidden:
