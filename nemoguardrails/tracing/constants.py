@@ -156,7 +156,6 @@ class GuardrailsAttributes:
     SPECULATIVE_MODE_ACTIVE = "speculative_generation.mode_active"
     SPECULATIVE_FIRST_COMPLETED = "speculative_generation.first_completed"
     SPECULATIVE_FIRST_REJECTOR = "speculative_generation.first_rejector"
-    SPECULATIVE_TIME_SAVED_MS = "speculative_generation.time_saved_ms"
 
     SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS = "input_rails"
     SPECULATIVE_FIRST_COMPLETED_GENERATION = "generation"
