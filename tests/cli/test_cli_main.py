@@ -292,9 +292,7 @@ class TestServerCommand:
     @patch("nemoguardrails.server.api.app")
     @patch("os.path.exists")
     @patch("os.getcwd")
-    def test_server_with_workers_uses_app_factory(
-        self, mock_getcwd, mock_exists, mock_app, mock_uvicorn
-    ):
+    def test_server_with_workers_uses_app_factory(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
         mock_getcwd.return_value = "/current/dir"
         mock_exists.return_value = True
 
@@ -311,18 +309,30 @@ class TestServerCommand:
             workers=2,
         )
 
+    @patch.dict(os.environ, {}, clear=True)
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
-    def test_server_rejects_prefix_with_workers(self, mock_app, mock_uvicorn):
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_rejects_prefix_with_workers(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
+
         result = runner.invoke(app, ["server", "--workers=2", "--prefix=/api/v1"])
 
         assert result.exit_code == 1
         assert "The --prefix option is not supported with --workers > 1." in result.output
         mock_uvicorn.assert_not_called()
 
+    @patch.dict(os.environ, {}, clear=True)
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
-    def test_server_rejects_auto_reload_with_workers(self, mock_app, mock_uvicorn):
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_rejects_auto_reload_with_workers(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
+
         result = runner.invoke(app, ["server", "--workers=2", "--auto-reload"])
 
         assert result.exit_code == 1
