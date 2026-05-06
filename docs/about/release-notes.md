@@ -52,7 +52,7 @@ For a complete record of changes in a release, refer to the
 - Added the `GuardrailsMiddleware` class, a new middleware that integrates with
   LangChain's Agent Middleware protocol, applying input and output rail checks before and after
   every model call in the agent loop. It includes the `InputRailsMiddleware` and `OutputRailsMiddleware`
-  convenience subclasses.
+  convenience subclasses (requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`).
   For more information, refer to [](../integration/langchain/agent-middleware.md).
 
 - Added three new community rails:

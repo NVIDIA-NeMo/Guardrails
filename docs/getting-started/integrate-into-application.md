@@ -2,7 +2,7 @@
 title:
   page: Integrate Guardrails into Your Application
   nav: Integrate Guardrails
-description: Add guardrails to existing applications using the Python SDK, LangChain, or HTTP API.
+description: Add guardrails to existing applications using the Python SDK, the HTTP API, or the optional LangChain integration.
 topics:
 - Get Started
 - AI Safety
@@ -36,7 +36,7 @@ The NeMo Guardrails library provides the following tools to integrate guardrails
    response = rails.generate(messages=[...])
    ```
 
-- Use the NeMo Guardrails LangChain integration capabilities to wrap guardrails around LangChain chains or use chains within guardrails.
+- Use the NeMo Guardrails LangChain integration capabilities to wrap guardrails around LangChain chains or use chains within guardrails. As of 0.22, this path requires opting into the LangChain framework: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain` plus `langchain-community` (or the matching `langchain-<provider>` package) before importing.
 
    ```python
    from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
