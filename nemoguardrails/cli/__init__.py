@@ -145,6 +145,11 @@ def server(
         help="Weather the ChatUI should be disabled",
     ),
     auto_reload: bool = typer.Option(default=False, help="Enable auto reload option."),
+    workers: int = typer.Option(
+        default=1,
+        min=1,
+        help="The number of Uvicorn worker processes to run.",
+    ),
     prefix: str = typer.Option(
         default="",
         help="A prefix that should be added to all server paths. Should start with '/'.",
@@ -209,7 +214,7 @@ def server(
     if default_config_id:
         api.set_default_config_id(default_config_id)  # Call function
 
-    uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0")
+    uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0", workers=workers)
 
 
 @app.command()
