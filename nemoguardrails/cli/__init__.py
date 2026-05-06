@@ -183,26 +183,29 @@ def server(
     if config:
         # We make sure there is no trailing separator, as that might break things in
         # single config mode.
-        setattr(
-            api.app,
-            "rails_config_path",
-            os.path.expanduser(config[0].rstrip(os.path.sep)),
-        )
+        rails_config_path = os.path.expanduser(config[0].rstrip(os.path.sep))
     else:
         # If we don't have a config, we try to see if there is a local config folder
         local_path = os.getcwd()
         local_configs_path = os.path.join(local_path, "config")
 
         if os.path.exists(local_configs_path):
-            setattr(api.app, "rails_config_path", local_configs_path)
+            rails_config_path = local_configs_path
+        else:
+            rails_config_path = api.app.rails_config_path
+
+    os.environ["NEMO_GUARDRAILS_CONFIG_PATH"] = rails_config_path
+    api.app.rails_config_path = rails_config_path
 
     if verbose:
         logging.getLogger().setLevel(logging.INFO)
 
     if disable_chat_ui:
+        os.environ["NEMO_GUARDRAILS_DISABLE_CHAT_UI"] = "true"
         setattr(api.app, "disable_chat_ui", True)
 
     if auto_reload:
+        os.environ["NEMO_GUARDRAILS_AUTO_RELOAD"] = "true"
         setattr(api.app, "auto_reload", True)
 
     if prefix:
@@ -212,9 +215,26 @@ def server(
         server_app = api.app
 
     if default_config_id:
+        os.environ["NEMO_GUARDRAILS_DEFAULT_CONFIG_ID"] = default_config_id
         api.set_default_config_id(default_config_id)  # Call function
 
-    uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0", workers=workers)
+    if workers > 1:
+        if prefix:
+            typer.secho(
+                "The --prefix option is not supported with --workers > 1.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(1)
+        uvicorn.run(
+            "nemoguardrails.server.api:create_app",
+            factory=True,
+            port=port,
+            log_level="info",
+            host="0.0.0.0",
+            workers=workers,
+        )
+    else:
+        uvicorn.run(server_app, port=port, log_level="info", host="0.0.0.0")
 
 
 @app.command()

@@ -209,10 +209,10 @@ if ENABLE_CORS:
 app.default_config_id = None
 
 # By default, we use the rails in the examples folder
-app.rails_config_path = utils.get_examples_data_path("bots")
+app.rails_config_path = os.getenv("NEMO_GUARDRAILS_CONFIG_PATH", utils.get_examples_data_path("bots"))
 
 # auto reload flag
-app.auto_reload = False
+app.auto_reload = os.getenv("NEMO_GUARDRAILS_AUTO_RELOAD", "false").lower() == "true"
 
 # stop signal for observer
 app.stop_signal = False
@@ -220,6 +220,14 @@ app.stop_signal = False
 # Whether the server is pointed to a directory containing a single config.
 app.single_config_mode = False
 app.single_config_id = None
+
+if default_config_id := os.getenv("NEMO_GUARDRAILS_DEFAULT_CONFIG_ID"):
+    app.default_config_id = default_config_id
+
+
+def create_app() -> GuardrailsApp:
+    """Return the configured FastAPI app for Uvicorn worker imports."""
+    return app
 
 
 @app.get(
