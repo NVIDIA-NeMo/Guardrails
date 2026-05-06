@@ -396,7 +396,6 @@ class IORails:
 
         if rails_task in done:
             input_result = rails_task.result()
-            rails_elapsed = time.monotonic() - t0
 
             if not input_result.is_safe:
                 log.info("[%s] Input blocked (speculative): %s", req_id, input_result.reason)
@@ -410,17 +409,16 @@ class IORails:
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
                 set_speculative_span_attrs(
-                    request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS, 0.0
+                    request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
                 )
                 return None
 
             # Rails passed — wait for generation to finish
             response = await gen_task
-            set_speculative_span_attrs(request_span, first_completed, "none", rails_elapsed * 1000)
+            set_speculative_span_attrs(request_span, first_completed, "none")
         else:
             # Generation finished first — wait for rails verdict
             response = gen_task.result()
-            gen_elapsed = time.monotonic() - t0
 
             input_result = await rails_task
 
@@ -429,11 +427,11 @@ class IORails:
                 if self._metrics_enabled:
                     record_request_blocked(RailDirection.INPUT)
                 set_speculative_span_attrs(
-                    request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS, 0.0
+                    request_span, first_completed, GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED_INPUT_RAILS
                 )
                 return None
 
-            set_speculative_span_attrs(request_span, first_completed, "none", gen_elapsed * 1000)
+            set_speculative_span_attrs(request_span, first_completed, "none")
 
         log.debug("[%s] Main LLM response: %s", req_id, truncate(response.content))
         return response
@@ -481,7 +479,10 @@ class IORails:
                 reached (load shedding).
         """
         if self._speculative_generation:
-            warnings.warn("speculative_generation is not supported for streaming; falling back to sequential")
+            warnings.warn(
+                "speculative_generation is not supported for streaming; falling back to sequential",
+                stacklevel=2,
+            )
         self._validate_streaming_with_output_rails()
 
         if include_metadata and self._has_streaming_output_rails:

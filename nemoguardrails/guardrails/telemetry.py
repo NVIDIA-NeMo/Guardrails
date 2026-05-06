@@ -31,7 +31,15 @@ import time
 import warnings
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Generator, Iterable, NamedTuple, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generator,
+    Iterable,
+    NamedTuple,
+    Optional,
+    Tuple,
+)
 
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
@@ -57,7 +65,14 @@ _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
-    from opentelemetry.metrics import CallbackOptions, Counter, Histogram, Meter, Observation, UpDownCounter
+    from opentelemetry.metrics import (
+        CallbackOptions,
+        Counter,
+        Histogram,
+        Meter,
+        Observation,
+        UpDownCounter,
+    )
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
     from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -352,7 +367,6 @@ def set_speculative_span_attrs(
     span: Optional["Span"],
     first_completed: str,
     first_rejector: str,
-    time_saved_ms: float,
 ) -> None:
     """Stamp speculative-generation outcome attributes on a request span.
 
