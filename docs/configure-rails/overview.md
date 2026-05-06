@@ -87,6 +87,41 @@ The following are example configuration folder structures.
 
 ---
 
+## Using Multiple Configurations
+
+When you run the NeMo Guardrails server, you can point `--config` to a directory
+that contains multiple configuration folders. Each child folder with a
+`config.yml` file becomes an addressable configuration, and the folder name is
+used as the configuration ID.
+
+For example:
+
+```text
+configs/
+├── main/
+│   └── config.yml
+├── input_checking/
+│   └── config.yml
+└── output_checking/
+    └── config.yml
+```
+
+Start the server with the parent directory:
+
+```bash
+nemoguardrails server --config configs
+```
+
+Requests can then select one configuration with `guardrails.config_id` or combine
+multiple configurations with `guardrails.config_ids`. Use either `config_id` or
+`config_ids`, but not both.
+
+See [](../run-rails/using-fastapi-server/run-guardrails-server.md) for server
+startup details and [](../run-rails/using-fastapi-server/chat-with-guardrailed-model.md#combine-multiple-configurations)
+for request examples that combine configurations.
+
+---
+
 ## Next Steps
 
 For each component, refer to the following sections for more details:
