@@ -27,19 +27,24 @@ To use the content safety check, you should:
 
       - type: "content_safety"
         engine: nim
+        model: llama-3.1-nemoguard-8b-content-safety
         parameters:
           base_url: "http://localhost:8123/v1"
-          model_name: "llama-3.1-nemoguard-8b-content-safety"
 
       - type: llama_guard_2
-        engine: vllm_openai
+        engine: openai
+        model: meta-llama/Meta-Llama-Guard-2-8B
         parameters:
-          openai_api_base: "http://localhost:5005/v1"
-          model_name: "meta-llama/Meta-Llama-Guard-2-8B"
+          base_url: "http://localhost:5005/v1"
+          api_key: EMPTY
     ```
 
     ```{note}
     The `type` is a unique identifier for the model that will be passed to the input and output rails as a parameter.
+    ```
+
+    ```{note}
+    The vLLM example above uses NeMo Guardrails' DefaultFramework. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` routes through the built-in OpenAI-compatible HTTP client and no LangChain dependency is required. The legacy `engine: vllm_openai` with `parameters.openai_api_base` is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
     ```
 
 2. Include the content safety check in the input and output rails section of the `config.yml` file:

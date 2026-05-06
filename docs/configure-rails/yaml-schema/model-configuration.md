@@ -109,6 +109,10 @@ models:
       azure_endpoint: https://my-resource.openai.azure.com
 ```
 
+```{note}
+The `azure` engine is routed through LangChain. Azure OpenAI's deployment-name URL pattern and `api-version` query string are not currently handled by the DefaultFramework's OpenAI-compatible client, so set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-openai` package to use it.
+```
+
 ### Anthropic
 
 The following example shows how to configure the Anthropic model as the main application LLM:
@@ -120,29 +124,54 @@ models:
     model: claude-3-5-sonnet-20241022
 ```
 
+```{note}
+The `anthropic` engine is routed through LangChain. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-anthropic` package to use it.
+```
+
 ### vLLM (OpenAI-Compatible)
 
-The following example shows how to configure the vLLM model as the main application LLM using the vLLM OpenAI API:
+vLLM exposes an OpenAI-compatible API, so the recommended configuration uses NeMo Guardrails' DefaultFramework with the `openai` engine pointed at the vLLM endpoint. No LangChain dependency is required.
 
 ```yaml
 models:
   - type: main
-    engine: vllm_openai
+    engine: openai
+    model: meta-llama/Llama-3.1-8B-Instruct
     parameters:
-      openai_api_base: http://localhost:5000/v1
-      model_name: meta-llama/Llama-3.1-8B-Instruct
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
 ```
 
-The following example shows how to configure Llama Guard as a guardrail model using the vLLM OpenAI API:
+The following example shows how to configure Llama Guard as a guardrail model using the same DefaultFramework pattern:
 
 ```yaml
 models:
   - type: llama_guard
-    engine: vllm_openai
+    engine: openai
+    model: meta-llama/LlamaGuard-7b
     parameters:
-      openai_api_base: http://localhost:5000/v1
-      model_name: meta-llama/LlamaGuard-7b
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
 ```
+
+When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to any non-empty placeholder such as `EMPTY`. If your deployment requires a real token, replace `parameters.api_key` with the literal token, or omit it and set `api_key_env_var` at the **top level** of the model entry (not inside `parameters:`):
+
+```yaml
+- type: main
+  engine: openai
+  model: meta-llama/Llama-3.1-8B-Instruct
+  api_key_env_var: MY_VLLM_API_KEY
+  parameters:
+    base_url: http://localhost:5000/v1
+```
+
+```{note}
+The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is routed through LangChain and is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the DefaultFramework form above.
+```
+
+### Other OpenAI-compatible endpoints
+
+The same `engine: openai` plus `parameters.base_url` pattern works for any provider whose wire protocol is OpenAI-compatible, including OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek's hosted API at `https://api.deepseek.com/v1`, TGI deployments that expose `/v1/chat/completions`, and `llama.cpp` server with `--api`. Provide `parameters.base_url` and either `parameters.api_key` or a top-level `api_key_env_var`.
 
 ### Google Vertex AI
 
@@ -153,6 +182,10 @@ models:
   - type: main
     engine: vertexai
     model: gemini-1.0-pro
+```
+
+```{note}
+The `vertexai` engine is routed through LangChain. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-google-vertexai` package to use it.
 ```
 
 ### Complete Example
@@ -189,7 +222,7 @@ models:
 
 ## Model Parameters
 
-Pass additional parameters to the underlying LangChain class:
+Pass additional parameters to the underlying LLM client. For DefaultFramework engines (`openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, and any other engine you serve via `engine: openai` plus `parameters.base_url`), parameters are forwarded to the OpenAI-compatible HTTP client (for example, `temperature`, `max_tokens`, `base_url`, `api_key`). For LangChain-routed engines, parameters follow the conventions of the underlying LangChain class.
 
 ```yaml
 models:
@@ -202,4 +235,4 @@ models:
       top_p: 0.9
 ```
 
-Common parameters vary by provider. Refer to the LangChain documentation for provider-specific options.
+Common parameters vary by provider. For DefaultFramework engines, see the OpenAI-compatible client options. For LangChain-routed engines, refer to the corresponding LangChain provider documentation.
