@@ -194,10 +194,12 @@ def server(
         else:
             rails_config_path = api.app.rails_config_path
 
+    rails_config_path = os.fspath(rails_config_path)
     os.environ["NEMO_GUARDRAILS_CONFIG_PATH"] = rails_config_path
     api.app.rails_config_path = rails_config_path
 
     if verbose:
+        os.environ["NEMO_GUARDRAILS_VERBOSE"] = "true"
         logging.getLogger().setLevel(logging.INFO)
 
     if disable_chat_ui:

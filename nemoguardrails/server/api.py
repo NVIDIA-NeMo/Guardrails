@@ -58,6 +58,9 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+if os.getenv("NEMO_GUARDRAILS_VERBOSE", "false").lower() == "true":
+    logging.getLogger().setLevel(logging.INFO)
+
 
 class GuardrailsApp(FastAPI):
     """Custom FastAPI subclass with additional attributes for Guardrails server."""

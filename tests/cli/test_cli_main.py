@@ -204,6 +204,14 @@ class TestServerCommand:
         assert result.exit_code == 0
         assert mock_app.auto_reload is True
 
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("uvicorn.run")
+    @patch("nemoguardrails.server.api.app")
+    def test_server_with_verbose_sets_worker_env(self, mock_app, mock_uvicorn):
+        result = runner.invoke(app, ["server", "--verbose"])
+        assert result.exit_code == 0
+        assert os.environ["NEMO_GUARDRAILS_VERBOSE"] == "true"
+
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
     @patch("nemoguardrails.server.api.set_default_config_id")
