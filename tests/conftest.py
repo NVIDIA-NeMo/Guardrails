@@ -37,7 +37,8 @@ def reset_reasoning_trace_var():
 
 @pytest.fixture
 def langchain_framework():
-    from nemoguardrails.llm.frameworks import _reset_frameworks, set_default_framework
+    from nemoguardrails.llm.frameworks import set_default_framework
+    from nemoguardrails.llm.frameworks.registry import _reset_frameworks
 
     _reset_frameworks()
     set_default_framework("langchain")

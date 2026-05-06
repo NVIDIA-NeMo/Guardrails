@@ -14,8 +14,6 @@
 # limitations under the License.
 
 from nemoguardrails.llm.frameworks.registry import (
-    _areset_frameworks,
-    _reset_frameworks,
     get_default_framework,
     get_framework,
     register_framework,
@@ -23,8 +21,6 @@ from nemoguardrails.llm.frameworks.registry import (
 )
 
 __all__ = [
-    "_areset_frameworks",
-    "_reset_frameworks",
     "get_default_framework",
     "get_framework",
     "register_framework",

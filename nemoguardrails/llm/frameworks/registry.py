@@ -16,55 +16,78 @@
 import asyncio
 import logging
 import os
-from typing import Dict
+from types import MappingProxyType
+from typing import Any, Callable, Mapping
 
+from nemoguardrails.registry import Registry
 from nemoguardrails.types import LLMFramework
 
 log = logging.getLogger(__name__)
 
-_frameworks: Dict[str, LLMFramework] = {}
-_default_framework: str = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+
+def _default_factory() -> LLMFramework:
+    from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+    return DefaultFramework()
+
+
+def _langchain_factory() -> LLMFramework:
+    from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework
+
+    return LangChainFramework()
+
+
+class LLMFrameworkRegistry(Registry):
+    _factories: Mapping[str, Callable[[], LLMFramework]] = MappingProxyType(
+        {
+            "default": _default_factory,
+            "langchain": _langchain_factory,
+        }
+    )
+    _active_name: str = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+
+    def validate(self, name: str, item: Any) -> None:
+        if not isinstance(item, LLMFramework):
+            raise TypeError(f"{name!r} does not implement LLMFramework")
+        if not asyncio.iscoroutinefunction(getattr(item, "reset", None)):
+            raise TypeError(f"{name!r}.reset must be an async coroutine function")
+
+    def get(self, name: str) -> LLMFramework:
+        if name not in self.items and name in self._factories:
+            self.add(name, self._factories[name]())
+        return super().get(name)
+
+    @property
+    def active(self) -> str:
+        return type(self)._active_name
+
+    @active.setter
+    def active(self, name: str) -> None:
+        if name not in self.items and name not in self._factories:
+            known = sorted(set(self.list()) | set(self._factories))
+            raise KeyError(f"Unknown framework {name!r}. Available: {known}")
+        type(self)._active_name = name
 
 
 def register_framework(name: str, framework: LLMFramework) -> None:
-    if name in _frameworks:
-        raise ValueError(f"Framework '{name}' is already registered.")
-    _frameworks[name] = framework
+    LLMFrameworkRegistry().add(name, framework)
 
 
 def get_framework(name: str) -> LLMFramework:
-    if name not in _frameworks:
-        if name == "langchain":
-            from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework
-
-            _frameworks["langchain"] = LangChainFramework()
-        elif name == "default":
-            from nemoguardrails.llm.frameworks.default import DefaultFramework
-
-            _frameworks["default"] = DefaultFramework()
-        else:
-            available = list(_frameworks.keys())
-            raise KeyError(f"Unknown framework '{name}'. Available frameworks: {available}")
-    return _frameworks[name]
-
-
-_LAZY_FRAMEWORKS = {"langchain", "default"}
+    return LLMFrameworkRegistry().get(name)
 
 
 def set_default_framework(name: str) -> None:
-    if name not in _frameworks and name not in _LAZY_FRAMEWORKS:
-        raise KeyError(f"Unknown framework '{name}'. Register it first or use one of: {sorted(_LAZY_FRAMEWORKS)}")
-    global _default_framework
-    _default_framework = name
+    LLMFrameworkRegistry().active = name
 
 
 def get_default_framework() -> str:
-    return _default_framework
+    return LLMFrameworkRegistry().active
 
 
 async def _areset_frameworks() -> None:
-    global _default_framework
-    frameworks_to_close = list(_frameworks.values())
+    registry = LLMFrameworkRegistry()
+    frameworks_to_close = list(registry.items.values())
     try:
         for fw in frameworks_to_close:
             reset = getattr(fw, "reset", None)
@@ -75,9 +98,15 @@ async def _areset_frameworks() -> None:
             except Exception as exc:
                 log.warning("Error resetting framework %r: %s", fw, exc)
     finally:
-        _frameworks.clear()
-        _default_framework = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
+        registry.reset()
+        type(registry)._active_name = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "default")
 
 
 def _reset_frameworks() -> None:
+    """Synchronous teardown helper. Must NOT be called from a running event loop.
+
+    Wraps :func:`_areset_frameworks` in :func:`asyncio.run`, which raises
+    ``RuntimeError`` if a loop is already running on the current thread.
+    Async callers should ``await _areset_frameworks()`` directly.
+    """
     asyncio.run(_areset_frameworks())
