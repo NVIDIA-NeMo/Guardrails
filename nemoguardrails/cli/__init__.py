@@ -227,6 +227,12 @@ def server(
                 fg=typer.colors.RED,
             )
             raise typer.Exit(1)
+        if auto_reload:
+            typer.secho(
+                "The --auto-reload option is not supported with --workers > 1.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(1)
         uvicorn.run(
             "nemoguardrails.server.api:create_app",
             factory=True,
