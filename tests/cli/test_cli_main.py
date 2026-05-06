@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import os
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -214,26 +215,24 @@ class TestServerCommand:
         assert os.environ["NEMO_GUARDRAILS_VERBOSE"] == "true"
 
     def test_server_api_reads_worker_env_on_import(self):
-        from nemoguardrails.server import api
+        env = {
+            **os.environ,
+            "NEMO_GUARDRAILS_CONFIG_PATH": "/worker/config",
+            "NEMO_GUARDRAILS_DISABLE_CHAT_UI": "true",
+            "NEMO_GUARDRAILS_AUTO_RELOAD": "true",
+            "NEMO_GUARDRAILS_DEFAULT_CONFIG_ID": "worker_config",
+        }
+        script = """
+from nemoguardrails.server import api
 
-        with patch.dict(
-            os.environ,
-            {
-                "NEMO_GUARDRAILS_CONFIG_PATH": "/worker/config",
-                "NEMO_GUARDRAILS_DISABLE_CHAT_UI": "true",
-                "NEMO_GUARDRAILS_AUTO_RELOAD": "true",
-                "NEMO_GUARDRAILS_DEFAULT_CONFIG_ID": "worker_config",
-            },
-            clear=True,
-        ):
-            api = importlib.reload(api)
+assert api.app.rails_config_path == "/worker/config"
+assert api.app.disable_chat_ui is True
+assert api.app.auto_reload is True
+assert api.app.default_config_id == "worker_config"
+"""
 
-        assert api.app.rails_config_path == "/worker/config"
-        assert api.app.disable_chat_ui is True
-        assert api.app.auto_reload is True
-        assert api.app.default_config_id == "worker_config"
-
-        importlib.reload(api)
+        result = subprocess.run([sys.executable, "-c", script], env=env)
+        assert result.returncode == 0
 
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
