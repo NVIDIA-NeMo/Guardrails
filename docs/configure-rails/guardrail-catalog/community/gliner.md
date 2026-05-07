@@ -146,6 +146,17 @@ print(info.colang_history)
 
 Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images — obtain one at [ngc.nvidia.com](https://ngc.nvidia.com).
 
+### GPU requirements
+
+| NIM | Min GPUs | Min VRAM | Compatible GPUs |
+|-----|----------|----------|-----------------|
+| `nvidia/gliner-pii` | 1 | 4 GB | T4, L4, A10, A10G, A100, H100, L40S |
+| `meta/llama-3.1-8b-instruct` | 1 | 16 GB | L4, A10G, A100 (40 GB or 80 GB), H100, L40S |
+
+The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based on available hardware. An A10G (24 GB) or L4 (24 GB) is the practical minimum for comfortable headroom; a T4 (16 GB) may work but is not officially supported.
+
+> **Note:** `nvidia/gliner-pii` is pre-GA (`1.0.0-rc1`); its GPU requirements above are estimates based on the GLiNER encoder-only architecture and have not been officially published by NVIDIA.
+
 ### Start the containers
 
 **GLiNER-PII NIM** — runs on port 8000:
