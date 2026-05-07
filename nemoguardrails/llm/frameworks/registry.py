@@ -27,8 +27,29 @@ _default_framework: str = os.environ.get("NEMOGUARDRAILS_LLM_FRAMEWORK", "defaul
 
 
 def register_framework(name: str, framework: LLMFramework) -> None:
+    """Register an `LLMFramework` instance under `name`.
+
+    Validates two invariants before storing the instance:
+
+    1. The object structurally matches the `LLMFramework` Protocol
+       (`create_model`, `register_provider`, `get_provider_names`, `reset`).
+    2. Its `reset` attribute is an `async` coroutine function. The registry
+       awaits it directly during shutdown / test teardown.
+
+    Raises:
+        ValueError: a framework is already registered under `name`.
+        TypeError: `framework` does not implement the `LLMFramework`
+            Protocol, or its `reset` is not an async coroutine function.
+    """
     if name in _frameworks:
         raise ValueError(f"Framework '{name}' is already registered.")
+    if not isinstance(framework, LLMFramework):
+        raise TypeError(
+            f"Framework '{name}' does not implement LLMFramework. "
+            "Required methods: create_model, register_provider, get_provider_names, reset."
+        )
+    if not asyncio.iscoroutinefunction(getattr(framework, "reset", None)):
+        raise TypeError(f"Framework '{name}'.reset must be an async coroutine function.")
     _frameworks[name] = framework
 
 
