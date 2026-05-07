@@ -36,7 +36,11 @@ The NeMo Guardrails library provides the following tools to integrate guardrails
    response = rails.generate(messages=[...])
    ```
 
-- Use the NeMo Guardrails LangChain integration capabilities to wrap guardrails around LangChain chains or use chains within guardrails. As of 0.22, this path requires opting into the LangChain framework: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain` plus `langchain-community` (or the matching `langchain-<provider>` package) before importing.
+- Use the NeMo Guardrails LangChain integration to wrap guardrails around LangChain chains or use chains within guardrails.
+
+   ```{note}
+   Starting in 0.22, the LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. Install `langchain` and `langchain-community` (or the matching `langchain-<provider>` package) before importing.
+   ```
 
    ```python
    from nemoguardrails.integrations.langchain.runnable_rails import RunnableRails
