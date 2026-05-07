@@ -56,7 +56,7 @@ The `provider.shutdown()` call guarantees the metrics are flushed to disk, this 
     # Configure the OpenTelemetry MeterProvider BEFORE constructing IORails so
     # the engine resolves a real meter on first metric emission.  Two readers
     # are attached to the same provider: one writes to stdout for live
-    # inspection, the other writes to ``metrics.json`` for ``jq`` post-processing.
+    # inspection, the other writes to ``metrics.json``.
     resource = Resource.create({"service.name": "guardrails-quickstart"})
     metrics_file = open("metrics.json", "w")
     console_reader = PeriodicExportingMetricReader(
@@ -90,7 +90,7 @@ The `provider.shutdown()` call guarantees the metrics are flushed to disk, this 
     async def main() -> None:
         async with IORails(config) as rails:
             response = await rails.generate_async(
-                messages=[{"role": "user", "content": "Hello!"}],
+                messages=[{"role": "user", "content": "Write an essay with historical context on NVIDIA"}],
             )
             print(f"Response: {response}")
 
@@ -109,6 +109,39 @@ The `provider.shutdown()` call guarantees the metrics are flushed to disk, this 
     ```bash
     python metrics_example.py
     ```
+
+4. Post-process the metrics JSON file
+
+    `metrics.json` contains one JSON document per export interval, concatenated.
+    The `-s last |` prefix slurps every interval into an array and grabs the final one — that's the cumulative state after the request completed.
+
+    ```bash
+    jq -s 'last | .resource_metrics[].scope_metrics[].metrics[]
+           | select(.name=="gen_ai.client.token.usage")
+           | .data.data_points[]
+           | {type: .attributes."gen_ai.token.type", count, sum}' metrics.json
+    ```
+
+    Example output (exact output token counts may vary):
+
+    ```json
+    {
+      "type": "input",
+      "count": 1,
+      "sum": 15
+    }
+    {
+      "type": "output",
+      "count": 1,
+      "sum": 1033
+    }
+    ```
+
+    Each object is one aggregation of the `gen_ai.client.token.usage` histogram. The fields are:
+
+    - `type`: Value of the required [`gen_ai.token.type`](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/#metric-gen_aiclienttokenusage) label. Values are either `input` or `output`.
+    - `count`: Number of observations recorded for this token type. Each LLM call records one `input` observation and one `output` observation, giving `count: 1` per type.
+    - `sum`: Total tokens across those observations.
 
 ```{important}
 The host application is responsible for configuring a `MeterProvider`.

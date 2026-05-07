@@ -31,19 +31,19 @@ Choose one of the following options for installing the NeMo Guardrails library, 
 - For development with the OpenTelemetry SDK (console exporter only):
 
   ```bash
-  pip install nemoguardrails[tracing] opentelemetry-sdk
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk
   ```
 
 - For production with the OpenTelemetry Protocol (OTLP) exporter:
 
   ```bash
-  pip install nemoguardrails[tracing] opentelemetry-sdk opentelemetry-exporter-otlp
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk opentelemetry-exporter-otlp
   ```
 
 - For Prometheus scraping:
 
   ```bash
-  pip install nemoguardrails[tracing] opentelemetry-sdk opentelemetry-exporter-prometheus
+  pip install "nemoguardrails[tracing]" opentelemetry-sdk opentelemetry-exporter-prometheus
   ```
 
 ## Enabling Metrics in the Configuration
