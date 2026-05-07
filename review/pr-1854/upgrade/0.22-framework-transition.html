@@ -771,6 +771,7 @@
 <p>Examples that genuinely need LangChain:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code> (Google Vertex AI).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">google_genai</span></code> (Google Generative AI via LangChain).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code> (Anthropic Claude).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">azure</span></code> (Azure OpenAI uses a deployment-name URL plus <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string that the DefaultFramework’s OpenAI-compatible client does not currently support).</p></li>
@@ -797,7 +798,7 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>langchain<span class="w"> </span>langchain-openai
 </pre></div>
 </div>
-<p>The provider package list is the same as the LangChain integration list. See the <a class="reference external" href="https://docs.langchain.com/oss/python/integrations/chat" rel="noreferer noopener" target="_blank">LangChain chat-model integrations</a> page for the full set of community providers.</p>
+<p>The provider package list is the same as the LangChain integration list. See the <a class="reference external" href="https://python.langchain.com/docs/integrations/chat/" rel="noreferer noopener" target="_blank">LangChain chat-model integrations</a> page for the full set of community providers.</p>
 </section>
 <section id="activating-the-langchain-framework">
 <h3>Activating the LangChain framework<a class="headerlink" href="#activating-the-langchain-framework" title="Link to this heading">#</a></h3>
@@ -867,8 +868,8 @@ nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span 
 <h2>Common errors<a class="headerlink" href="#common-errors" title="Link to this heading">#</a></h2>
 <section id="no-default-base-url-for-provider-x">
 <h3>“No default base_url for provider ‘X’”<a class="headerlink" href="#no-default-base-url-for-provider-x" title="Link to this heading">#</a></h3>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">ValueError: No default base_url for provider &#39;cohere&#39;.</span>
-<span class="go">Set it explicitly in model parameters: parameters.base_url</span>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: No default base_url for provider &#39;cohere&#39;.
+Set it explicitly in model parameters: parameters.base_url
 </pre></div>
 </div>
 <p>This error comes from <code class="docutils literal notranslate"><span class="pre">_resolve_base_url</span></code> in <code class="docutils literal notranslate"><span class="pre">nemoguardrails/llm/frameworks/default.py</span></code>. It means the engine name you used (here <code class="docutils literal notranslate"><span class="pre">cohere</span></code>) is not in <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code>’s routing table and is not an OpenAI-compatible endpoint.</p>

@@ -759,7 +759,7 @@
 <td><p>n/a</p></td>
 <td><p>Requires the matching <code class="docutils literal notranslate"><span class="pre">langchain-google-*</span></code> package.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">azure_openai</span></code> (also <code class="docutils literal notranslate"><span class="pre">azure</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_ai</span></code>)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code> (also <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_ai</span></code>)</p></td>
 <td><p>LangChain</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
@@ -785,7 +785,7 @@
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
-<td><p>Continue to work under the LangChain framework. For new configs, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> (DefaultFramework) when the wire is OpenAI-compatible.</p></td>
+<td><p>Legacy LangChain provider engines (the <code class="docutils literal notranslate"><span class="pre">deepseek</span></code> row above is the same DeepSeek hosted endpoint, reachable as <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> under DefaultFramework). They continue to work under the LangChain framework; for new configs, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> (DefaultFramework) when the wire is OpenAI-compatible.</p></td>
 </tr>
 <tr class="row-even"><td><p>Other LangChain providers</p></td>
 <td><p>LangChain</p></td>
@@ -821,7 +821,7 @@
 </section>
 <section id="providers-from-langchain">
 <h3>Providers from LangChain<a class="headerlink" href="#providers-from-langchain" title="Link to this heading">#</a></h3>
-<p>The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to <a class="reference external" href="https://docs.langchain.com/oss/python/integrations/chat" rel="noreferer noopener" target="_blank">Chat model integrations</a> in the LangChain documentation. You can also use the <a class="reference internal" href="../reference/cli/index.html#find-providers-command"><span class="std std-ref"><code class="docutils literal notranslate"><span class="pre">nemoguardrails</span> <span class="pre">find-providers</span></code></span></a> CLI command to discover available providers.</p>
+<p>The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to <a class="reference external" href="https://python.langchain.com/docs/integrations/chat/" rel="noreferer noopener" target="_blank">Chat model integrations</a> in the LangChain documentation. You can also use the <a class="reference internal" href="../reference/cli/index.html#find-providers-command"><span class="std std-ref"><code class="docutils literal notranslate"><span class="pre">nemoguardrails</span> <span class="pre">find-providers</span></code></span></a> CLI command to discover available providers.</p>
 </section>
 </section>
 <section id="embedding-providers">
