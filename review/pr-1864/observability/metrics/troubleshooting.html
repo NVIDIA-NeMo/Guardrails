@@ -556,6 +556,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../tracing/quick-start.html">Quick Start</a></li>
@@ -690,8 +691,8 @@
 <tr class="row-even"><td><p>No metrics appear in your backend</p></td>
 <td><p>Ensure <code class="docutils literal notranslate"><span class="pre">set_meter_provider(...)</span></code> is called <strong>before</strong> <code class="docutils literal notranslate"><span class="pre">IORails(config)</span></code> is constructed; verify <code class="docutils literal notranslate"><span class="pre">metrics.enabled:</span> <span class="pre">true</span></code> in the configuration.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> not configured warning</p></td>
-<td><p>The OpenTelemetry API returns a no-op meter when no provider is set. Configure a <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> with at least one <code class="docutils literal notranslate"><span class="pre">MetricReader</span></code>.</p></td>
+<tr class="row-odd"><td><p>Metrics silently missing (no error, no warning)</p></td>
+<td><p>When <code class="docutils literal notranslate"><span class="pre">metrics.enabled:</span> <span class="pre">true</span></code> but no <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> is configured, the OpenTelemetry API returns a no-op meter and every emission is silently discarded — the library does <strong>not</strong> log a warning. Verify locally with <code class="docutils literal notranslate"><span class="pre">ConsoleMetricExporter</span></code> first, then ensure <code class="docutils literal notranslate"><span class="pre">set_meter_provider(...)</span></code> runs before <code class="docutils literal notranslate"><span class="pre">IORails(config)</span></code> is constructed.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">UserWarning:</span> <span class="pre">Metrics</span> <span class="pre">are</span> <span class="pre">enabled</span> <span class="pre">in</span> <span class="pre">config</span> <span class="pre">but</span> <span class="pre">the</span> <span class="pre">opentelemetry-api</span> <span class="pre">package</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">installed</span></code></p></td>
 <td><p>Install the dependency: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails[tracing]</span></code>.</p></td>

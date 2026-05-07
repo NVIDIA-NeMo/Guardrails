@@ -560,6 +560,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Observability</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../logging/index.html">Logging</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tracing/index.html">Tracing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../tracing/quick-start.html">Quick Start</a></li>
@@ -798,7 +799,7 @@ When <code class="docutils literal notranslate"><span class="pre">opentelemetry-
 <span class="c1"># Use with NeMo Guardrails as above.</span>
 </pre></div>
 </div>
-<p>After Prometheus has scraped the endpoint, metric names appear with their original dots, for example <code class="docutils literal notranslate"><span class="pre">guardrails_requests_total</span></code> and <code class="docutils literal notranslate"><span class="pre">gen_ai_client_token_usage_bucket</span></code>.
+<p>After Prometheus has scraped the endpoint, periods in OpenTelemetry metric names are replaced with underscores, for example <code class="docutils literal notranslate"><span class="pre">guardrails.requests</span></code> becomes <code class="docutils literal notranslate"><span class="pre">guardrails_requests_total</span></code> and <code class="docutils literal notranslate"><span class="pre">gen_ai.client.token.usage</span></code> becomes <code class="docutils literal notranslate"><span class="pre">gen_ai_client_token_usage_bucket</span></code>.
 Refer to the <a class="reference external" href="https://prometheus.io/docs/instrumenting/exposition_formats/" rel="noreferer noopener" target="_blank">Prometheus exposition format</a> for details on how dots, units, and counter suffixes are translated.</p>
 </section>
 </section>
@@ -825,16 +826,25 @@ Metrics and traces correlate naturally when both are exported under the same <co
 <span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Application-side: configure a TracerProvider AND a MeterProvider with the same Resource.</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">trace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.exporter.otlp.proto.grpc.metric_exporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">OTLPMetricExporter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.exporter.otlp.proto.grpc.trace_exporter</span><span class="w"> </span><span class="kn">import</span> <span class="n">OTLPSpanExporter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">MeterProvider</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.metrics.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">PeriodicExportingMetricReader</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.resources</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resource</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.trace</span><span class="w"> </span><span class="kn">import</span> <span class="n">TracerProvider</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.trace.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchSpanProcessor</span>
+
+<span class="c1"># Application-side: configure a TracerProvider AND a MeterProvider with the same Resource.</span>
 <span class="n">resource</span> <span class="o">=</span> <span class="n">Resource</span><span class="o">.</span><span class="n">create</span><span class="p">({</span><span class="s2">&quot;service.name&quot;</span><span class="p">:</span> <span class="s2">&quot;my-guardrails-app&quot;</span><span class="p">})</span>
 
 <span class="c1"># 1. Tracing</span>
 <span class="n">tracer_provider</span> <span class="o">=</span> <span class="n">TracerProvider</span><span class="p">(</span><span class="n">resource</span><span class="o">=</span><span class="n">resource</span><span class="p">)</span>
-<span class="n">tracer_provider</span><span class="o">.</span><span class="n">add_span_processor</span><span class="p">(</span><span class="n">BatchSpanProcessor</span><span class="p">(</span><span class="n">OTLPSpanExporter</span><span class="p">(</span><span class="o">...</span><span class="p">)))</span>
+<span class="n">tracer_provider</span><span class="o">.</span><span class="n">add_span_processor</span><span class="p">(</span><span class="n">BatchSpanProcessor</span><span class="p">(</span><span class="n">OTLPSpanExporter</span><span class="p">(</span><span class="n">endpoint</span><span class="o">=</span><span class="s2">&quot;http://localhost:4317&quot;</span><span class="p">,</span> <span class="n">insecure</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span>
 <span class="n">trace</span><span class="o">.</span><span class="n">set_tracer_provider</span><span class="p">(</span><span class="n">tracer_provider</span><span class="p">)</span>
 
 <span class="c1"># 2. Metrics</span>
-<span class="n">reader</span> <span class="o">=</span> <span class="n">PeriodicExportingMetricReader</span><span class="p">(</span><span class="n">OTLPMetricExporter</span><span class="p">(</span><span class="o">...</span><span class="p">))</span>
+<span class="n">reader</span> <span class="o">=</span> <span class="n">PeriodicExportingMetricReader</span><span class="p">(</span><span class="n">OTLPMetricExporter</span><span class="p">(</span><span class="n">endpoint</span><span class="o">=</span><span class="s2">&quot;http://localhost:4317&quot;</span><span class="p">,</span> <span class="n">insecure</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
 <span class="n">metrics</span><span class="o">.</span><span class="n">set_meter_provider</span><span class="p">(</span><span class="n">MeterProvider</span><span class="p">(</span><span class="n">resource</span><span class="o">=</span><span class="n">resource</span><span class="p">,</span> <span class="n">metric_readers</span><span class="o">=</span><span class="p">[</span><span class="n">reader</span><span class="p">]))</span>
 </pre></div>
 </div>
