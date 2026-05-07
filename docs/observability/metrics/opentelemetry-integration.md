@@ -143,7 +143,7 @@ metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[read
 # Use with NeMo Guardrails as above.
 ```
 
-After Prometheus has scraped the endpoint, metric names appear with their original dots, for example `guardrails_requests_total` and `gen_ai_client_token_usage_bucket`.
+After Prometheus has scraped the endpoint, periods in OpenTelemetry metric names are replaced with underscores, for example `guardrails.requests` becomes `guardrails_requests_total` and `gen_ai.client.token.usage` becomes `gen_ai_client_token_usage_bucket`.
 Refer to the [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/) for details on how dots, units, and counter suffixes are translated.
 
 ## OpenTelemetry Ecosystem Compatibility
