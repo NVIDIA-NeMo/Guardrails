@@ -97,7 +97,7 @@ rails:
 Start an interactive chat session using your config directory:
 
 ```bash
-nemoguardrails chat --config ./config.yml
+nemoguardrails chat --config ./config
 ```
 
 With **PII detection** enabled, any message containing PII is blocked before reaching the LLM:
