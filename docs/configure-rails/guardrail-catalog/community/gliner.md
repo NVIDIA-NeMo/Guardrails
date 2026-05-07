@@ -152,9 +152,10 @@ Running both NIMs locally eliminates network round-trips and removes the NVIDIA 
 
 ```bash
 # Authenticate with NGC (username: $oauthtoken, password: your NGC API key)
-docker login nvcr.io
+echo $NGC_API_KEY | docker login nvcr.io -u '$oauthtoken' --password-stdin nvcr.io
 
 docker run --rm -it --gpus all \
+  -e NGC_API_KEY \
   -p 8000:8000 \
   nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
 ```
@@ -163,6 +164,7 @@ docker run --rm -it --gpus all \
 
 ```bash
 docker run --rm -it --gpus all \
+  -e NGC_API_KEY \
   -p 8001:8000 \
   nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
 ```
