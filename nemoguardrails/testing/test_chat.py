@@ -31,7 +31,7 @@ def _is_data_in_events(events: List[Dict[str, Any]], event_data: List[Dict[str, 
     if len(events) != len(event_data):
         return False
 
-    for event, data in zip(events, event_data):
+    for event, data in zip(events, event_data, strict=True):
         if not (all(key in event for key in data) and all(data[key] == event[key] for key in data)):
             return False
     return True
@@ -58,7 +58,7 @@ class TestChat:
 
     def __init__(
         self,
-        config: Union[str, RailsConfig],
+        config: RailsConfig,
         llm_completions: Optional[List[str]] = None,
         streaming: bool = False,
         llm_exception: Optional[Exception] = None,
@@ -81,7 +81,7 @@ class TestChat:
         """
         if llm is not None:
             self.llm = llm
-        elif llm_completions is not None:
+        elif llm_completions is not None or llm_exception is not None:
             main_model = next((model for model in config.models if model.type == "main"), None)
             should_return_token_usage = bool(main_model and main_model.engine in _TEST_PROVIDERS_WITH_TOKEN_USAGE)
 

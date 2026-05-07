@@ -117,10 +117,10 @@ class FakeLLMModel:
 
     async def stream_async(self, prompt, *, stop=None, **kwargs):
         response = self._next_response()
-        text = response.content
+        text = response.content or ""
         chunks = text.split(" ")
         for chunk_index, chunk in enumerate(chunks):
             content = chunk + " " if chunk_index < len(chunks) - 1 else chunk
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0)
             yield LLMResponseChunk(delta_content=content)
         await asyncio.sleep(0)
