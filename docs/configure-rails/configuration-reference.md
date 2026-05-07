@@ -55,7 +55,7 @@ models:
 | `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
 | `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
 | `models.api_key_env_var` | string | | Environment variable containing API key |
-| `models.parameters` | object | | Provider-specific parameters. For DefaultFramework engines (`openai`, `nim`, `nvidia_ai_endpoints`, `ollama`), passed to the OpenAI-compatible client (for example `temperature`, `max_tokens`, `base_url`, `api_key`). For LangChain-routed engines (`engine: langchain/<provider>` and the legacy provider-named engines), passed to the underlying LangChain class. |
+| `models.parameters` | object | | Provider-specific parameters. For DefaultFramework engines (`openai`, `nim`, `nvidia_ai_endpoints`, `ollama`), passed to the OpenAI-compatible client (for example `temperature`, `max_tokens`, `base_url`, `api_key`). For LangChain-routed engines, use the bare provider engine name (for example `anthropic`, `cohere`) and select the framework via `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`; parameters are passed to the underlying LangChain class. |
 | `models.cache` | object | | Cache configuration for this model |
 
 ### Model Types
@@ -126,6 +126,7 @@ These engines require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the matching 
 | `azure` | Azure OpenAI models (deployment-name URL plus `api-version`) |
 | `anthropic` | Anthropic Claude models |
 | `cohere` | Cohere models |
+| `google_genai` | Google Generative AI via LangChain (requires `langchain-google-genai`) |
 | `vertexai` | Google Vertex AI |
 | `huggingface_hub` | HuggingFace Hub models |
 | `huggingface_endpoint` | HuggingFace Inference Endpoints (default text-generation schema; if your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead) |

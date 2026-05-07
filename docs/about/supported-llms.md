@@ -41,10 +41,10 @@ The table below maps each engine to the framework that handles it. Engines liste
 | `anthropic` | LangChain | yes | yes | via wrapper | Requires `pip install langchain langchain-anthropic`. |
 | `cohere` | LangChain | yes | yes | n/a | Requires `pip install langchain langchain-cohere`. |
 | `google_genai`, `vertexai` | LangChain | yes | yes | n/a | Requires the matching `langchain-google-*` package. |
-| `azure_openai` (also `azure`, `azure_ai`) | LangChain | yes | yes | yes | Azure OpenAI's deployment-name URL pattern plus `api-version` query string is not handled by DefaultFramework's OpenAI-compatible client. Requires `langchain-openai`. |
+| `azure` (also `azure_openai`, `azure_ai`) | LangChain | yes | yes | yes | Azure OpenAI's deployment-name URL pattern plus `api-version` query string is not handled by DefaultFramework's OpenAI-compatible client. Requires `langchain-openai`. |
 | `huggingface_endpoint` | LangChain | varies | varies | varies | Default text-generation schema. If your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` plus `parameters.base_url` instead. |
 | `huggingface_pipeline`, `huggingface_hub`, `trt_llm`, `self_hosted` | LangChain | varies | varies | varies | In-process pipelines and LangChain wrappers without a native HTTP path. |
-| `vllm_openai`, `deepseek`, other legacy LangChain wrappers | LangChain | yes | yes | yes | Continue to work under the LangChain framework. For new configs, prefer `engine: openai` plus `parameters.base_url` (DefaultFramework) when the wire is OpenAI-compatible. |
+| `vllm_openai`, `deepseek`, other legacy LangChain wrappers | LangChain | yes | yes | yes | Legacy LangChain provider engines (the `deepseek` row above is the same DeepSeek hosted endpoint, reachable as `engine: openai` plus `parameters.base_url` under DefaultFramework). They continue to work under the LangChain framework; for new configs, prefer `engine: openai` plus `parameters.base_url` (DefaultFramework) when the wire is OpenAI-compatible. |
 | Other LangChain providers | LangChain | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. |
 
 There is no automatic fallback from `DefaultFramework` to `LangChain`. To use a LangChain-only engine, install LangChain and the provider package, then set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. Engine names in `config.yml` stay bare (`engine: anthropic`, `engine: cohere`, ...) — there is no `langchain/<provider>` prefix syntax. For details and examples, see [Upgrading to 0.22: LLM Framework Transition](../upgrade/0.22-framework-transition.md).
@@ -70,7 +70,7 @@ The NeMo Guardrails library supports the following self-hosted LLM providers:
 
 ### Providers from LangChain
 
-The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to [Chat model integrations](https://docs.langchain.com/oss/python/integrations/chat) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](find-providers-command) CLI command to discover available providers.
+The NeMo Guardrails library supports LLM providers from the LangChain Community, including both text completion and chat completion providers. Refer to [Chat model integrations](https://python.langchain.com/docs/integrations/chat/) in the LangChain documentation. You can also use the [`nemoguardrails find-providers`](find-providers-command) CLI command to discover available providers.
 
 ## Embedding Providers
 
