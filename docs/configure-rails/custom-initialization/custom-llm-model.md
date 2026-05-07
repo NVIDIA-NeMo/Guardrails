@@ -288,10 +288,16 @@ Both files import their types directly from `nemoguardrails.types`. Custom model
 
 ## Testing Your Model
 
-NeMo Guardrails ships a pytest-friendly `FakeLLMModel` that is shaped exactly like the protocol and accepts a list of canned strings or `LLMResponse` objects. It currently lives under `tests/utils.py` and is used throughout the test suite. A future release will promote it to `nemoguardrails.testing` (see the testing-helpers stack); until then, the most reliable approach is one of:
+NeMo Guardrails ships a pytest-friendly `FakeLLMModel` under `nemoguardrails.testing` that is shaped exactly like the protocol and accepts a list of canned strings or `LLMResponse` objects:
+
+```python
+from nemoguardrails.testing import FakeLLMModel
+```
+
+The two recommended approaches:
 
 1. Write unit tests for your `LLMModel` class in isolation: instantiate it, call `await model.generate_async(prompt)`, and assert on the returned `LLMResponse`. No framework needed.
-2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel`-style class as a custom provider in the test's `config.py`, then driving the full pipeline.
+2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. See [Testing Your Config](../../user-guides/testing-your-config.md) for the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures).
 
 The contract is small enough that property-based tests are straightforward: any string `prompt` and any list of `ChatMessage` objects must produce a non-`None` `LLMResponse.content`, and `stream_async` must always yield a final chunk with a non-`None` `finish_reason`.
 
