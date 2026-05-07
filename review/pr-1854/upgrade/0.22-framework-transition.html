@@ -766,7 +766,7 @@
 <p>Engines whose API is not OpenAI-compatible still require LangChain. To use them you must:</p>
 <ol class="arabic simple">
 <li><p>Install LangChain plus the provider-specific package yourself.</p></li>
-<li><p>Either set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> for the whole process, or use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">langchain/&lt;provider&gt;</span></code> in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> for the process. Engine names in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> stay bare (<code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">cohere</span></code>, …) — there is no <code class="docutils literal notranslate"><span class="pre">langchain/&lt;provider&gt;</span></code> prefix syntax.</p></li>
 </ol>
 <p>Examples that genuinely need LangChain:</p>
 <ul class="simple">
@@ -799,19 +799,26 @@
 </div>
 <p>The provider package list is the same as the LangChain integration list. See the <a class="reference external" href="https://docs.langchain.com/oss/python/integrations/chat" rel="noreferer noopener" target="_blank">LangChain chat-model integrations</a> page for the full set of community providers.</p>
 </section>
-<section id="using-engine-langchain">
-<h3>Using <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">langchain</span></code><a class="headerlink" href="#using-engine-langchain" title="Link to this heading">#</a></h3>
-<p>Once LangChain and the provider package are installed, point your <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> at the LangChain framework:</p>
+<section id="activating-the-langchain-framework">
+<h3>Activating the LangChain framework<a class="headerlink" href="#activating-the-langchain-framework" title="Link to this heading">#</a></h3>
+<p>Once LangChain and the provider package are installed, set the environment variable so the framework registry routes through <code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code>, and use the bare engine name in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain
+</pre></div>
+</div>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">langchain/anthropic</span>
+<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">anthropic</span>
 <span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-3-5-sonnet-latest</span>
 <span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">langchain/&lt;provider&gt;</span></code> tells the registry to use <code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code> and to instantiate the provider’s LangChain chat model with the keys under <code class="docutils literal notranslate"><span class="pre">parameters</span></code>.</p>
-<p>If you previously used <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code> or <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">cohere</span></code> directly, that path now requires <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Set the variable globally for the process or migrate to the <code class="docutils literal notranslate"><span class="pre">langchain/&lt;provider&gt;</span></code> form.</p>
+<p>The framework name is global to the process. If you previously used <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code> or <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">cohere</span></code> directly without setting the variable, that path now fails — <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> does not know about those engines. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> before the process starts.</p>
+<p>The legacy provider-named engines (<code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code>, <code class="docutils literal notranslate"><span class="pre">deepseek</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>, <code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code>, …) all keep working under the LangChain framework. No engine renames are needed; install the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package and toggle the env var.</p>
+<p>To see the full list of engine names the LangChain framework recognizes, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMOGUARDRAILS_LLM_FRAMEWORK</span><span class="o">=</span>langchain<span class="w"> </span>nemoguardrails<span class="w"> </span>find-providers
+</pre></div>
+</div>
 </section>
 </section>
 <section id="choosing-the-active-framework">
@@ -865,7 +872,7 @@ nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span 
 </pre></div>
 </div>
 <p>This error comes from <code class="docutils literal notranslate"><span class="pre">_resolve_base_url</span></code> in <code class="docutils literal notranslate"><span class="pre">nemoguardrails/llm/frameworks/default.py</span></code>. It means the engine name you used (here <code class="docutils literal notranslate"><span class="pre">cohere</span></code>) is not in <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code>’s routing table and is not an OpenAI-compatible endpoint.</p>
-<p><strong>Fix:</strong> either supply a <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> for an OpenAI-compatible endpoint, or switch to the LangChain framework with <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">langchain/cohere</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-cohere</span></code>.</p>
+<p><strong>Fix:</strong> either supply a <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> for an OpenAI-compatible endpoint, or set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain-cohere</span></code> (the engine name in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> stays <code class="docutils literal notranslate"><span class="pre">cohere</span></code>).</p>
 </section>
 <section id="framework-x-is-already-registered">
 <h3>“Framework ‘X’ is already registered”<a class="headerlink" href="#framework-x-is-already-registered" title="Link to this heading">#</a></h3>
@@ -875,6 +882,32 @@ nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span 
 <h3>“Unknown framework ‘X’”<a class="headerlink" href="#unknown-framework-x" title="Link to this heading">#</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">set_default_framework</span></code> was called with a name that is not registered and is not one of the lazy built-ins <code class="docutils literal notranslate"><span class="pre">default</span></code> or <code class="docutils literal notranslate"><span class="pre">langchain</span></code>. Register the framework first, or correct the name.</p>
 </section>
+<section id="unsupported-parameter-name-or-unrecognized-request-argument-on-first-call">
+<h3><code class="docutils literal notranslate"><span class="pre">Unsupported</span> <span class="pre">parameter</span> <span class="pre">'&lt;name&gt;'</span></code> (or <code class="docutils literal notranslate"><span class="pre">Unrecognized</span> <span class="pre">request</span> <span class="pre">argument</span></code>) on first call<a class="headerlink" href="#unsupported-parameter-name-or-unrecognized-request-argument-on-first-call" title="Link to this heading">#</a></h3>
+<p>0.22 forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> from <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> directly to the OpenAI-compatible HTTP client when an engine routes through <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code>. Keys that LangChain accepted as Python flags (<code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">disable_streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code>, <code class="docutils literal notranslate"><span class="pre">callbacks</span></code>, <code class="docutils literal notranslate"><span class="pre">tags</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code>) and provider-prefixed credential aliases (<code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">nim_base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">*_api_key</span></code>, …) are not part of the OpenAI wire shape and are rejected by the provider. NeMo Guardrails detects the recognizable shapes at boot and on the first 400/422 response, and appends a hedged migration hint to the underlying provider error.</p>
+<p><strong>Fix paths:</strong></p>
+<ul class="simple">
+<li><p><strong>Adapt the config to OpenAI-compatible shape.</strong> Rename <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code> → <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, drop LangChain Python flags, remove provider-prefixed aliases. The migration recipe in <a class="reference internal" href="#openai-compatible-self-hosted-and-third-party-endpoints">OpenAI-compatible self-hosted and third-party endpoints</a> covers the common case.</p></li>
+<li><p><strong>Keep the 0.21 config.</strong> Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> for the process and install LangChain plus the matching provider package. The legacy field names continue to work under the LangChain framework.</p></li>
+</ul>
+</section>
+</section>
+<section id="what-does-not-change-in-0-22">
+<h2>What does not change in 0.22<a class="headerlink" href="#what-does-not-change-in-0-22" title="Link to this heading">#</a></h2>
+<ul>
+<li><p><strong>Streaming.</strong> <code class="docutils literal notranslate"><span class="pre">stream_handler</span></code>, <code class="docutils literal notranslate"><span class="pre">stream_async</span></code>, and the rails-level <code class="docutils literal notranslate"><span class="pre">streaming</span></code> flag work the same as 0.21. No config changes required.</p></li>
+<li><p><strong>Tool calling.</strong> <code class="docutils literal notranslate"><span class="pre">tools</span></code>, <code class="docutils literal notranslate"><span class="pre">tool_choice</span></code>, and provider-side function/tool calling continue to work. The <code class="docutils literal notranslate"><span class="pre">LLMResponse.tool_calls</span></code> shape is unchanged.</p></li>
+<li><p><strong>Reasoning configs.</strong> <code class="docutils literal notranslate"><span class="pre">reasoning_config:</span> <span class="pre">{remove_reasoning_traces:</span> <span class="pre">...,</span> <span class="pre">start_token:</span> <span class="pre">...,</span> <span class="pre">end_token:</span> <span class="pre">...}</span></code> is unchanged. Reasoning models (DeepSeek R1, NIM <code class="docutils literal notranslate"><span class="pre">nemotron-reasoning</span></code>, OpenAI o-series) keep working under both frameworks.</p></li>
+<li><p><strong>Custom providers registered in <code class="docutils literal notranslate"><span class="pre">config.py</span></code>.</strong> Calls to <code class="docutils literal notranslate"><span class="pre">register_chat_provider(name,</span> <span class="pre">cls)</span></code> and <code class="docutils literal notranslate"><span class="pre">register_provider(name,</span> <span class="pre">cls)</span></code> continue to work. They register on the active framework — <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> if no env var is set, <code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code> if <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> is set. Providers registered for one framework are not visible to the other; if your <code class="docutils literal notranslate"><span class="pre">config.py</span></code> needs to support both modes, register on each:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.llm.frameworks</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_framework</span>
+
+<span class="n">get_framework</span><span class="p">(</span><span class="s2">&quot;default&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">register_provider</span><span class="p">(</span><span class="s2">&quot;my_engine&quot;</span><span class="p">,</span> <span class="n">MyLLMModelClass</span><span class="p">)</span>
+<span class="n">get_framework</span><span class="p">(</span><span class="s2">&quot;langchain&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">register_provider</span><span class="p">(</span><span class="s2">&quot;my_engine&quot;</span><span class="p">,</span> <span class="n">MyLangChainProviderClass</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Caching, telemetry, callbacks, embeddings.</strong> No 0.22 changes affecting these.</p></li>
+</ul>
 </section>
 <section id="provider-matrix-and-supported-llms">
 <h2>Provider matrix and supported LLMs<a class="headerlink" href="#provider-matrix-and-supported-llms" title="Link to this heading">#</a></h2>
@@ -946,7 +979,7 @@ nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span 
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-you-need-langchain">When you need LangChain</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#install-command">Install command</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-engine-langchain">Using <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">langchain</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#activating-the-langchain-framework">Activating the LangChain framework</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-the-active-framework">Choosing the active framework</a><ul class="nav section-nav flex-column">
@@ -959,8 +992,10 @@ nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span 
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#no-default-base-url-for-provider-x">“No default base_url for provider ‘X’”</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#framework-x-is-already-registered">“Framework ‘X’ is already registered”</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unknown-framework-x">“Unknown framework ‘X’”</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#unsupported-parameter-name-or-unrecognized-request-argument-on-first-call"><code class="docutils literal notranslate"><span class="pre">Unsupported</span> <span class="pre">parameter</span> <span class="pre">'&lt;name&gt;'</span></code> (or <code class="docutils literal notranslate"><span class="pre">Unrecognized</span> <span class="pre">request</span> <span class="pre">argument</span></code>) on first call</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-does-not-change-in-0-22">What does not change in 0.22</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#provider-matrix-and-supported-llms">Provider matrix and supported LLMs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#related-references">Related references</a></li>
 </ul>

@@ -738,28 +738,28 @@
 <td><p>yes (where supported)</p></td>
 <td><p>Use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> (and <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code>). The legacy <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">vllm_openai</span></code> is LangChain-only and is not recommended for new configs.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">langchain/anthropic</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
 <td><p>LangChain</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>via wrapper</p></td>
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-anthropic</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">langchain/cohere</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
 <td><p>LangChain</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>n/a</p></td>
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-cohere</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">langchain/gemini</span></code>, <code class="docutils literal notranslate"><span class="pre">langchain/google_vertex</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
 <td><p>LangChain</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>n/a</p></td>
 <td><p>Requires the matching <code class="docutils literal notranslate"><span class="pre">langchain-google-*</span></code> package.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">langchain/azure</span></code> (or legacy <code class="docutils literal notranslate"><span class="pre">azure</span></code>)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">azure_openai</span></code> (also <code class="docutils literal notranslate"><span class="pre">azure</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_ai</span></code>)</p></td>
 <td><p>LangChain</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
@@ -780,7 +780,14 @@
 <td><p>varies</p></td>
 <td><p>In-process pipelines and LangChain wrappers without a native HTTP path.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Other LangChain providers</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code>, <code class="docutils literal notranslate"><span class="pre">deepseek</span></code>, other legacy LangChain wrappers</p></td>
+<td><p>LangChain</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>Continue to work under the LangChain framework. For new configs, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> (DefaultFramework) when the wire is OpenAI-compatible.</p></td>
+</tr>
+<tr class="row-even"><td><p>Other LangChain providers</p></td>
 <td><p>LangChain</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
@@ -790,7 +797,7 @@
 </tbody>
 </table>
 </div>
-<p>There is no automatic fallback from <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> to <code class="docutils literal notranslate"><span class="pre">LangChain</span></code>. To use a LangChain-only engine, install LangChain and the provider package, then either set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> or use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">langchain/&lt;provider&gt;</span></code> in your <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>. For details and examples, see <a class="reference internal" href="../upgrade/0.22-framework-transition.html"><span class="std std-doc">Upgrading to 0.22: LLM Framework Transition</span></a>.</p>
+<p>There is no automatic fallback from <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> to <code class="docutils literal notranslate"><span class="pre">LangChain</span></code>. To use a LangChain-only engine, install LangChain and the provider package, then set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Engine names in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> stay bare (<code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">cohere</span></code>, …) — there is no <code class="docutils literal notranslate"><span class="pre">langchain/&lt;provider&gt;</span></code> prefix syntax. For details and examples, see <a class="reference internal" href="../upgrade/0.22-framework-transition.html"><span class="std std-doc">Upgrading to 0.22: LLM Framework Transition</span></a>.</p>
 </section>
 <section id="application-llm-providers">
 <h2>Application LLM Providers<a class="headerlink" href="#application-llm-providers" title="Link to this heading">#</a></h2>
