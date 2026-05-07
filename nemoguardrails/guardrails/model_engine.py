@@ -233,7 +233,13 @@ class ModelEngine(BaseEngine):
     def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
         """Build the client, URL, headers, and body common to every request."""
         client = cast(RetryClient, self._client)
-        url = self.base_url.rstrip("/") + _CHAT_COMPLETIONS_ENDPOINT
+        # Strip an optional trailing "/v1" from base_url so users can follow the
+        # OpenAI / LLMRails convention of including "/v1" in base_url without
+        # producing a doubled "/v1/v1/chat/completions" path.
+        base = self.base_url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
+        url = base + _CHAT_COMPLETIONS_ENDPOINT
 
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:

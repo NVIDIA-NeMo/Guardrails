@@ -103,6 +103,29 @@ class TestModelEngineBaseUrl:
         with pytest.raises(ValueError, match="cannot infer from engine"):
             ModelEngine(_make_model(engine="unknown"))
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_base_url_with_trailing_v1_does_not_double_v1(self):
+        """A user-supplied base_url ending in /v1 must not produce /v1/v1/chat/completions."""
+        engine = ModelEngine(_make_model(engine="nim", parameters={"base_url": "https://custom.example.com/v1"}))
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        url = mock_client.post.call_args[0][0]
+        assert url == "https://custom.example.com/v1/chat/completions"
+        assert "/v1/v1/" not in url
+
 
 class TestModelEngineApiKey:
     """Test API key resolution from environment variables."""
