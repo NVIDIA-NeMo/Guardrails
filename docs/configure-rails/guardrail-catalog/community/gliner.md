@@ -16,18 +16,11 @@ You can obtain an API key at [build.nvidia.com](https://build.nvidia.com).
 
 Create a `config` directory and add a `config.yml` file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.
 
-`nvidia/gliner-pii` does not appear in the configs below because it is the default value of `rails.config.gliner.model`. You only need to set that field explicitly if you want to use a different model:
-
-```yaml
-rails:
-  config:
-    gliner:
-      model: nvidia/gliner-pii  # default — omit or change as needed
-```
+`nvidia/gliner-pii` does not appear in the configs below because it is the default value of `rails.config.gliner.model`. You only need to set that field explicitly if you want to use a different model.
 
 ### PII Detection
 
-The detection flow blocks any input or output that contains PII.
+The detection flow blocks any input or output that contains PII. To implement this flow, save the config below as your `config.yml` file.
 
 ```yaml
 models:
@@ -64,7 +57,7 @@ rails:
 
 ### PII Masking
 
-The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I'm John — john@example.com` becomes `Hi, I'm [FIRST_NAME] — [EMAIL]`.
+The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I'm John — john@example.com` becomes `Hi, I'm [FIRST_NAME] — [EMAIL]`. To implement this flow, save the config below as your `config.yml` file.
 
 ```yaml
 models:
@@ -104,7 +97,7 @@ rails:
 Start an interactive chat session using your config directory:
 
 ```bash
-nemoguardrails chat --config ./config
+nemoguardrails chat --config ./config.yml
 ```
 
 With **PII detection** enabled, any message containing PII is blocked before reaching the LLM:
