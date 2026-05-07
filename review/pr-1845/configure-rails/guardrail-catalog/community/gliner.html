@@ -817,15 +817,17 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 <h3>Start the containers<a class="headerlink" href="#start-the-containers" title="Link to this heading">#</a></h3>
 <p><strong>GLiNER-PII NIM</strong> — runs on port 8000:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Authenticate with NGC (username: $oauthtoken, password: your NGC API key)</span>
-docker<span class="w"> </span>login<span class="w"> </span>nvcr.io
+<span class="nb">echo</span><span class="w"> </span><span class="nv">$NGC_API_KEY</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>login<span class="w"> </span>nvcr.io<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;$oauthtoken&#39;</span><span class="w"> </span>--password-stdin<span class="w"> </span>nvcr.io
 
 docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span>NGC_API_KEY<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
 </pre></div>
 </div>
 <p><strong>Llama 3.1 8B Instruct NIM</strong> — mapped to port 8001 to avoid conflict with GLiNER:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span>NGC_API_KEY<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8001</span>:8000<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
 </pre></div>
