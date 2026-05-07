@@ -795,7 +795,15 @@
 <span class="w">      </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EMPTY</span>
 </pre></div>
 </div>
-<p>When self-hosted vLLM does not enforce authentication, set <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> to any non-empty placeholder such as <code class="docutils literal notranslate"><span class="pre">EMPTY</span></code>. If your deployment requires a real token, replace it with that value or load it through <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code>.</p>
+<p>When self-hosted vLLM does not enforce authentication, set <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> to any non-empty placeholder such as <code class="docutils literal notranslate"><span class="pre">EMPTY</span></code>. If your deployment requires a real token, replace <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code> with the literal token, or omit it and set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> at the <strong>top level</strong> of the model entry (not inside <code class="docutils literal notranslate"><span class="pre">parameters:</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/Llama-3.1-8B-Instruct</span>
+<span class="w">  </span><span class="nt">api_key_env_var</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MY_VLLM_API_KEY</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The legacy <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">vllm_openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.openai_api_base</span></code> form is routed through LangChain and is only needed when running under <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. For new configurations, prefer the DefaultFramework form above.</p>

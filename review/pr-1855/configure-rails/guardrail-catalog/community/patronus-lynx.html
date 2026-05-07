@@ -772,7 +772,18 @@ TEMPLATE<span class="w"> </span><span class="s2">&quot;&quot;&quot;</span>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Set <code class="docutils literal notranslate"><span class="pre">api_key:</span> <span class="pre">EMPTY</span></code> (or any non-empty placeholder) when self-hosted vLLM does not enforce auth. If your deployment requires a real token, replace it with that value or load it through <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code>.</p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">api_key:</span> <span class="pre">EMPTY</span></code> (or any non-empty placeholder) when self-hosted vLLM does not enforce auth. If your deployment requires a real token, replace <code class="docutils literal notranslate"><span class="pre">api_key:</span> <span class="pre">EMPTY</span></code> with the literal token value, or omit <code class="docutils literal notranslate"><span class="pre">api_key</span></code> and set <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> at the <strong>top level</strong> of the model entry (not inside <code class="docutils literal notranslate"><span class="pre">parameters:</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">patronus_lynx</span>
+<span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PatronusAI/Patronus-Lynx-70B-Instruct</span>
+<span class="w">  </span><span class="nt">api_key_env_var</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MY_PATRONUS_LYNX_API_KEY</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://localhost:5000/v1&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
 </div>
 </li>
 <li><p>Add the guardrail <code class="docutils literal notranslate"><span class="pre">patronus</span> <span class="pre">lynx</span> <span class="pre">check</span> <span class="pre">output</span> <span class="pre">hallucination</span></code> to your output rails in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>:</p>
