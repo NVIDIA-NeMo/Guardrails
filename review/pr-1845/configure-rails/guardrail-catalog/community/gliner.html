@@ -692,16 +692,10 @@
 <section id="configure-guardrails">
 <h2>1. Configure Guardrails<a class="headerlink" href="#configure-guardrails" title="Link to this heading">#</a></h2>
 <p>Create a <code class="docutils literal notranslate"><span class="pre">config</span></code> directory and add a <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.</p>
-<p><code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code> does not appear in the configs below because it is the default value of <code class="docutils literal notranslate"><span class="pre">rails.config.gliner.model</span></code>. You only need to set that field explicitly if you want to use a different model:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">rails</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">gliner</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia/gliner-pii</span><span class="w">  </span><span class="c1"># default — omit or change as needed</span>
-</pre></div>
-</div>
+<p><code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code> does not appear in the configs below because it is the default value of <code class="docutils literal notranslate"><span class="pre">rails.config.gliner.model</span></code>. You only need to set that field explicitly if you want to use a different model.</p>
 <section id="pii-detection">
 <h3>PII Detection<a class="headerlink" href="#pii-detection" title="Link to this heading">#</a></h3>
-<p>The detection flow blocks any input or output that contains PII.</p>
+<p>The detection flow blocks any input or output that contains PII. To implement this flow, save the config below as your <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -737,7 +731,7 @@
 </section>
 <section id="pii-masking">
 <h3>PII Masking<a class="headerlink" href="#pii-masking" title="Link to this heading">#</a></h3>
-<p>The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I'm</span> <span class="pre">John</span> <span class="pre">—</span> <span class="pre">john&#64;example.com</span></code> becomes <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I'm</span> <span class="pre">[FIRST_NAME]</span> <span class="pre">—</span> <span class="pre">[EMAIL]</span></code>.</p>
+<p>The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I'm</span> <span class="pre">John</span> <span class="pre">—</span> <span class="pre">john&#64;example.com</span></code> becomes <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I'm</span> <span class="pre">[FIRST_NAME]</span> <span class="pre">—</span> <span class="pre">[EMAIL]</span></code>. To implement this flow, save the config below as your <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -775,7 +769,7 @@
 <section id="run-the-guardrails-chat-cli">
 <h2>2. Run the Guardrails Chat CLI<a class="headerlink" href="#run-the-guardrails-chat-cli" title="Link to this heading">#</a></h2>
 <p>Start an interactive chat session using your config directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>./config
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>./config.yml
 </pre></div>
 </div>
 <p>With <strong>PII detection</strong> enabled, any message containing PII is blocked before reaching the LLM:</p>
