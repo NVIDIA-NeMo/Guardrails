@@ -291,4 +291,3 @@ logging, etc.). For deeper extensibility hooks, see the
 - Treat the response list as a contract. If a test consumes more responses
   than you provided, that is a real bug, not noise: investigate whether a
   flow looped or a prompt template now emits an extra call.
-
