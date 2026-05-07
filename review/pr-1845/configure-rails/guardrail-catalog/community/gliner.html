@@ -813,6 +813,35 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 <section id="deploy-nims-locally">
 <h2>4. Deploy NIMs Locally<a class="headerlink" href="#deploy-nims-locally" title="Link to this heading">#</a></h2>
 <p>Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images — obtain one at <a class="reference external" href="https://ngc.nvidia.com" rel="noreferer noopener" target="_blank">ngc.nvidia.com</a>.</p>
+<section id="gpu-requirements">
+<h3>GPU requirements<a class="headerlink" href="#gpu-requirements" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>NIM</p></th>
+<th class="head"><p>Min GPUs</p></th>
+<th class="head"><p>Min VRAM</p></th>
+<th class="head"><p>Compatible GPUs</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code></p></td>
+<td><p>1</p></td>
+<td><p>4 GB</p></td>
+<td><p>T4, L4, A10, A10G, A100, H100, L40S</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meta/llama-3.1-8b-instruct</span></code></p></td>
+<td><p>1</p></td>
+<td><p>16 GB</p></td>
+<td><p>L4, A10G, A100 (40 GB or 80 GB), H100, L40S</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based on available hardware. An A10G (24 GB) or L4 (24 GB) is the practical minimum for comfortable headroom; a T4 (16 GB) may work but is not officially supported.</p>
+<blockquote>
+<div><p><strong>Note:</strong> <code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code> is pre-GA (<code class="docutils literal notranslate"><span class="pre">1.0.0-rc1</span></code>); its GPU requirements above are estimates based on the GLiNER encoder-only architecture and have not been officially published by NVIDIA.</p>
+</div></blockquote>
+</section>
 <section id="start-the-containers">
 <h3>Start the containers<a class="headerlink" href="#start-the-containers" title="Link to this heading">#</a></h3>
 <p><strong>GLiNER-PII NIM</strong> — runs on port 8000:</p>
@@ -1204,6 +1233,7 @@ To run them:</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-guardrails-chat-cli">2. Run the Guardrails Chat CLI</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-the-python-sdk">3. Use the Python SDK</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deploy-nims-locally">4. Deploy NIMs Locally</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gpu-requirements">GPU requirements</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-the-containers">Start the containers</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#update-config-yml">Update config.yml</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#repeat-steps-2-and-3">Repeat Steps 2 and 3</a></li>
