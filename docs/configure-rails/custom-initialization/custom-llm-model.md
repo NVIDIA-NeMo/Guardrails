@@ -45,7 +45,7 @@ Concretely, choose a custom `LLMModel` when:
 
 ## The LLMModel Contract
 
-The protocol is defined in `nemoguardrails/types.py` (lines 218 to 257). It is `@runtime_checkable`, so the framework registry can verify with `isinstance(model, LLMModel)`.
+The protocol is {py:class}`nemoguardrails.types.LLMModel`. It is `@runtime_checkable`, so the framework registry can verify with `isinstance(model, LLMModel)`.
 
 A custom model class must implement two async methods and three properties.
 
@@ -68,13 +68,14 @@ class LLMModel:
         **kwargs,
     ) -> LLMResponse: ...
 
-    def stream_async(
+    async def stream_async(
         self,
         prompt: Union[str, List[ChatMessage]],
         *,
         stop: Optional[List[str]] = None,
         **kwargs,
-    ) -> AsyncIterator[LLMResponseChunk]: ...
+    ) -> AsyncIterator[LLMResponseChunk]:
+        yield ...  # async generator: implementations use `yield`, not `return`
 
     @property
     def model_name(self) -> str: ...
@@ -88,7 +89,7 @@ class LLMModel:
 
 ### `prompt`
 
-Adapters must accept either a plain string or a list of `ChatMessage` objects. `ChatMessage` is a stdlib dataclass with `role`, `content`, optional `tool_calls`, optional `tool_call_id`, optional `name`, and a `provider_metadata` dict for non-standard fields. Convert messages to whatever shape your SDK expects.
+Adapters must accept either a plain string or a list of {py:class}`~nemoguardrails.types.ChatMessage` objects. `ChatMessage` is a stdlib dataclass with `role`, `content`, optional `tool_calls`, optional `tool_call_id`, optional `name`, and a `provider_metadata` dict for non-standard fields. Convert messages to whatever shape your SDK expects.
 
 ### `stop` and `**kwargs`
 
@@ -178,7 +179,7 @@ The pipeline expects errors to be normalized. Raise the exception classes define
 
 Populate `model_name`, `provider_name`, and `base_url` on the exception when you raise it so downstream logs are usable. The reference `OpenAIChatModel._enrich` shows the pattern.
 
-## Minimal Worked Example
+## Minimal Working Example
 
 Below is a 40-line `EchoLLMModel` that returns canned responses without making any network call. It is useful as a starting skeleton and as a sanity check for new framework wiring.
 
@@ -258,6 +259,22 @@ models:
       response: "Hello from echo"
 ```
 
+### Trying it out
+
+Once `config.py` runs the `register_provider("echo", EchoLLMModel)` call and `config.yml` references it, a smoke test confirms the wiring end-to-end:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+config = RailsConfig.from_path("./my_config")
+rails = LLMRails(config)
+
+result = rails.generate(messages=[{"role": "user", "content": "hi"}])
+print(result["content"])  # -> "Hello from echo"
+```
+
+If the smoke test prints `Hello from echo`, your provider is registered correctly. From there, replace `EchoLLMModel.generate_async` and `stream_async` with real backend calls.
+
 ### What `register_provider` does
 
 `register_provider(name, cls)` from `nemoguardrails.llm.providers` resolves the active framework via `get_default_framework()` and calls `framework.register_provider(name, cls)` on it. For `DefaultFramework`, that adds `name` to its in-memory dict; subsequent `create_model("echo", ...)` calls use your class as the factory.
@@ -281,8 +298,8 @@ The `LangChainFramework` accepts the same call shape. It treats your class as a 
 
 Read these to see a production-grade `LLMModel`:
 
-- `nemoguardrails/llm/models/openai_chat.py`: `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint. Shows tool-call accumulation, reasoning-content extraction, response validation, and exception enrichment. Uses `OpenAICompatibleClient` from `nemoguardrails/llm/clients/openai_compatible.py` for the HTTP layer.
-- `nemoguardrails/integrations/langchain/llm_adapter.py`: `LangChainLLMAdapter` that bridges any LangChain `BaseChatModel` or `BaseLLM`. Shows how to map LangChain's `tool_call_chunks`, `usage_metadata`, `response_metadata`, and `additional_kwargs` onto the `LLMResponse` and `LLMResponseChunk` shapes.
+- [`nemoguardrails/llm/models/openai_chat.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/models/openai_chat.py): `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint. Shows tool-call accumulation, reasoning-content extraction, response validation, and exception enrichment. Uses [`OpenAICompatibleClient`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/clients/openai_compatible.py) for the HTTP layer.
+- [`nemoguardrails/integrations/langchain/llm_adapter.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/integrations/langchain/llm_adapter.py): `LangChainLLMAdapter` that bridges any LangChain `BaseChatModel` or `BaseLLM`. Shows how to map LangChain's `tool_call_chunks`, `usage_metadata`, `response_metadata`, and `additional_kwargs` onto the `LLMResponse` and `LLMResponseChunk` shapes.
 
 Both files import their types directly from `nemoguardrails.types`. Custom models should do the same.
 
