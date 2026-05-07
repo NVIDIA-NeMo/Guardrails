@@ -703,7 +703,7 @@ For more information, refer to <a class="reference internal" href="../run-rails/
 <li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
 LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
 every model call in the agent loop. It includes the <code class="docutils literal notranslate"><span class="pre">InputRailsMiddleware</span></code> and <code class="docutils literal notranslate"><span class="pre">OutputRailsMiddleware</span></code>
-convenience subclasses (requires <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>).
+convenience subclasses (requires <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> or <code class="docutils literal notranslate"><span class="pre">set_default_framework(&quot;langchain&quot;)</span></code>).
 For more information, refer to <a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Agent Middleware</span></a>.</p></li>
 <li><p>Added three new community rails:
 <a class="reference internal" href="../configure-rails/guardrail-catalog/community/policyai.html"><span class="std std-doc">PolicyAI</span></a> for policy-based content moderation,
