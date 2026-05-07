@@ -683,7 +683,11 @@
 </pre></div>
 </div>
 </li>
-<li><p>Use the NeMo Guardrails LangChain integration capabilities to wrap guardrails around LangChain chains or use chains within guardrails. As of 0.22, this path requires opting into the LangChain framework: set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> plus <code class="docutils literal notranslate"><span class="pre">langchain-community</span></code> (or the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package) before importing.</p>
+<li><p>Use the NeMo Guardrails LangChain integration to wrap guardrails around LangChain chains or use chains within guardrails.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Starting in 0.22, the LangChain integration is opt-in. To enable it, set the <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> environment variable or call <code class="docutils literal notranslate"><span class="pre">set_default_framework(&quot;langchain&quot;)</span></code>. Install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> and <code class="docutils literal notranslate"><span class="pre">langchain-community</span></code> (or the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package) before importing.</p>
+</div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.integrations.langchain.runnable_rails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunnableRails</span>
 
 <span class="n">guardrails</span> <span class="o">=</span> <span class="n">RunnableRails</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>

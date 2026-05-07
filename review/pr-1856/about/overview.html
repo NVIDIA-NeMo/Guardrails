@@ -785,7 +785,7 @@ The NeMo Guardrails library supports PII detection through multiple integrations
 This includes:</p>
 <ul class="simple">
 <li><p class="sd-card-text"><strong>Tool call validation</strong>: Execute rails that validate tool inputs and outputs before and after invocation.</p></li>
-<li><p class="sd-card-text"><strong>Agent workflow protection</strong>: Integrate with <a class="reference internal" href="../integration/langchain/langgraph-integration.html"><span class="std std-doc">LangGraph</span></a> for multi-agent safety (requires LangChain framework).</p></li>
+<li><p class="sd-card-text"><strong>Agent workflow protection</strong>: Integrate with <a class="reference internal" href="../integration/langchain/langgraph-integration.html"><span class="std std-doc">LangGraph</span></a> for multi-agent safety. To use this, you need to install the LangChain framework.</p></li>
 <li><p class="sd-card-text"><strong>Secure tool integration</strong>: Review guidelines for safely connecting LLMs to external resources (refer to <a class="reference internal" href="../resources/security/guidelines.html"><span class="std std-doc">Security Guidelines</span></a>).</p></li>
 <li><p class="sd-card-text"><strong>Action monitoring</strong>: Monitor detailed logging and tracing of agent actions.</p></li>
 </ul>
@@ -805,7 +805,7 @@ This includes:</p>
 If you have a script or tool that runs a custom guardrail, you can use it in NeMo Guardrails by following one of these approaches:</p>
 <ol class="arabic simple">
 <li><p class="sd-card-text"><strong>Python actions</strong>: Create custom actions in Python for complex logic and external integrations. For more information, refer to the <a class="reference internal" href="../configure-rails/actions/index.html"><span class="std std-doc">Configuring Custom Actions</span></a>.</p></li>
-<li><p class="sd-card-text"><strong>LangChain tool integration</strong> (optional, if using LangChain framework): Register LangChain tools as custom actions. For more information, refer to the <a class="reference internal" href="../integration/tools-integration.html"><span class="std std-doc">Tools Integration with the NeMo Guardrails Library</span></a>.</p></li>
+<li><p class="sd-card-text"><strong>LangChain tool integration</strong>: Register LangChain tools as custom actions. Requires the LangChain framework. For more information, refer to the <a class="reference internal" href="../integration/tools-integration.html"><span class="std std-doc">Tools Integration with the NeMo Guardrails Library</span></a>.</p></li>
 <li><p class="sd-card-text"><strong>Third-party API integration</strong>: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to <a class="reference internal" href="../configure-rails/guardrail-catalog/third-party.html"><span class="std std-doc">Third-Party APIs</span></a> in the Guardrail Catalog.</p></li>
 </ol>
 </div>
