@@ -1,0 +1,122 @@
+---
+title:
+  page: Quick Start for Guardrails Metrics
+  nav: Quick Start
+description: Set up metrics in minutes with the OpenTelemetry SDK and console output.
+topics:
+- Observability
+- AI Safety
+tags:
+- Metrics
+- OpenTelemetry
+- Quick Start
+- Setup
+content:
+  type: get_started
+  difficulty: technical_beginner
+  audience:
+  - engineer
+  - AI Engineer
+---
+
+# Quick Start for Guardrails Metrics
+
+The following is a minimal setup to enable metrics from IORails using the OpenTelemetry SDK with console output.
+LLMRails does not support OTEL metrics.
+Use this to verify metric emission locally before wiring up a production exporter.
+
+1. Install the NeMo Guardrails library and the OpenTelemetry SDK.
+
+    ```bash
+    pip install "nemoguardrails[tracing]" opentelemetry-sdk
+    ```
+
+    The `[tracing]` extra installs `opentelemetry-api`, which is the only OpenTelemetry dependency the library itself takes.
+
+2. Save the following to `metrics_example.py`.
+The script issues a single request and exports metrics once per second to both stdout and `metrics.json`.
+The `provider.shutdown()` call guarantees the metrics are flushed to disk, this is typically not needed for long-running services.
+
+
+    ```python
+    # metrics_example.py
+    import asyncio
+
+    from opentelemetry import metrics
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import (
+        ConsoleMetricExporter,
+        PeriodicExportingMetricReader,
+    )
+    from opentelemetry.sdk.resources import Resource
+
+    from nemoguardrails import RailsConfig
+    from nemoguardrails.guardrails.iorails import IORails
+
+    # Configure the OpenTelemetry MeterProvider BEFORE constructing IORails so
+    # the engine resolves a real meter on first metric emission.  Two readers
+    # are attached to the same provider: one writes to stdout for live
+    # inspection, the other writes to ``metrics.json`` for ``jq`` post-processing.
+    resource = Resource.create({"service.name": "guardrails-quickstart"})
+    metrics_file = open("metrics.json", "w")
+    console_reader = PeriodicExportingMetricReader(
+        ConsoleMetricExporter(),
+        export_interval_millis=1000,
+    )
+    file_reader = PeriodicExportingMetricReader(
+        ConsoleMetricExporter(out=metrics_file),
+        export_interval_millis=1000,
+    )
+    provider = MeterProvider(
+        resource=resource,
+        metric_readers=[console_reader, file_reader],
+    )
+    metrics.set_meter_provider(provider)
+
+    # Configure IORails with metrics enabled.
+    config_yaml = """
+    models:
+      - type: main
+        engine: openai
+        model: gpt-4o-mini
+
+    metrics:
+      enabled: true
+    """
+
+    config = RailsConfig.from_content(yaml_content=config_yaml)
+
+
+    async def main() -> None:
+        async with IORails(config) as rails:
+            response = await rails.generate_async(
+                messages=[{"role": "user", "content": "Hello!"}],
+            )
+            print(f"Response: {response}")
+
+
+    try:
+        asyncio.run(main())
+    finally:
+        # Flush and tear down the reader so the final batch reaches the exporter
+        # before the process exits, then close the metrics file.
+        provider.shutdown()
+        metrics_file.close()
+    ```
+
+3. Run the script.
+
+    ```bash
+    python metrics_example.py
+    ```
+
+```{important}
+The host application is responsible for configuring a `MeterProvider`.
+If you call `IORails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **every metric emission is silently discarded**. The library does not log a warning.
+Always set the `MeterProvider` before constructing `IORails`.
+```
+
+## Next Steps
+
+- For production exporters (OTLP, Prometheus), see [](opentelemetry-integration.md).
+- For the full list of emitted metrics, see [](reference.md).
