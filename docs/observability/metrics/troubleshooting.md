@@ -24,7 +24,7 @@ content:
 | Issue | Solution |
 |-------|----------|
 | No metrics appear in your backend | Ensure `set_meter_provider(...)` is called **before** `IORails(config)` is constructed; verify `metrics.enabled: true` in the configuration. |
-| `MeterProvider` not configured warning | The OpenTelemetry API returns a no-op meter when no provider is set. Configure a `MeterProvider` with at least one `MetricReader`. |
+| Metrics silently missing (no error, no warning) | When `metrics.enabled: true` but no `MeterProvider` is configured, the OpenTelemetry API returns a no-op meter and every emission is silently discarded — the library does **not** log a warning. Verify locally with `ConsoleMetricExporter` first, then ensure `set_meter_provider(...)` runs before `IORails(config)` is constructed. |
 | `UserWarning: Metrics are enabled in config but the opentelemetry-api package is not installed` | Install the dependency: `pip install nemoguardrails[tracing]`. |
 | Metrics are emitted but never reach the backend | Verify the exporter target is reachable; test with `ConsoleMetricExporter` first to confirm IORails-side emission, then swap in the production exporter. |
 | `LLMRails` produces no metrics | Metrics are emitted only by `IORails`. Switch to `IORails` and use `generate_async` / `stream_async`. |

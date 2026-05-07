@@ -136,10 +136,10 @@ Debug guardrails with verbose mode, explain method, and generation log options.
 :::
 
 :::{grid-item-card} Observability
-:link: observability/tracing/index
+:link: observability/index
 :link-type: doc
 
-Use Opentelemetry to trace requests, forward Python logs, and emit metrics for end-to-end visibility into guardrails.
+Use OpenTelemetry to trace requests, forward Python logs, and emit metrics for end-to-end visibility into guardrails.
 +++
 {bdg-secondary}`How To`
 :::
@@ -229,6 +229,7 @@ Vulnerability Scanning <evaluation/llm-vulnerability-scanning>
 :name: Observability
 :hidden:
 
+Overview <observability/index.md>
 Logging <observability/logging/index.md>
 Tracing <observability/tracing/index.md>
 Metrics <observability/metrics/index.md>

@@ -172,16 +172,25 @@ metrics:
 ```
 
 ```python
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
 # Application-side: configure a TracerProvider AND a MeterProvider with the same Resource.
 resource = Resource.create({"service.name": "my-guardrails-app"})
 
 # 1. Tracing
 tracer_provider = TracerProvider(resource=resource)
-tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(...)))
+tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)))
 trace.set_tracer_provider(tracer_provider)
 
 # 2. Metrics
-reader = PeriodicExportingMetricReader(OTLPMetricExporter(...))
+reader = PeriodicExportingMetricReader(OTLPMetricExporter(endpoint="http://localhost:4317", insecure=True))
 metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
 ```
 
