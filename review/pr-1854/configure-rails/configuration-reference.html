@@ -875,25 +875,28 @@
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
 <td><p>Cohere models</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">google_genai</span></code></p></td>
+<td><p>Google Generative AI via LangChain (requires <code class="docutils literal notranslate"><span class="pre">langchain-google-genai</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
 <td><p>Google Vertex AI</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code></p></td>
 <td><p>HuggingFace Hub models</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code></p></td>
 <td><p>HuggingFace Inference Endpoints (default text-generation schema; if your endpoint exposes <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> instead)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code></p></td>
 <td><p>In-process Hugging Face pipeline</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code></p></td>
 <td><p>Legacy LangChain wrapper for vLLM. For new configs, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">trt_llm</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">trt_llm</span></code></p></td>
 <td><p>TensorRT-LLM in-process</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
 <td><p>Generic self-hosted LangChain wrapper</p></td>
 </tr>
 </tbody>
