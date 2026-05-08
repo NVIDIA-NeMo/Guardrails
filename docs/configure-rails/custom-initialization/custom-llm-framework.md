@@ -59,7 +59,7 @@ In practice almost every customization is a provider. A custom framework is rese
 The protocol is {py:class}`nemoguardrails.types.LLMFramework` and is `@runtime_checkable`, so callers can verify a framework with `isinstance(instance, LLMFramework)`. As a Python `Protocol`, it expresses a contract; nothing prevents you from passing an object that duck-types most of it, but the rest of NeMo Guardrails assumes both invariants below hold:
 
 1. The registered object structurally matches the `LLMFramework` protocol (the four methods and their signatures listed below).
-2. Its `reset` attribute is an `async` coroutine function. The registry awaits it directly during shutdown / test teardown.
+2. Its `reset` attribute is an `async` coroutine function. The registry awaits it directly during test teardown.
 
 A custom framework implements four methods.
 
@@ -323,7 +323,7 @@ The error lists the framework names that the registry currently knows about. Bot
 
 1. **Treat `reset` as a hard contract, not a hint.** Test it. Pooled HTTP connections that survive across tests cause surprising flakes elsewhere.
 2. **Prefer composition over inheritance.** `MyFramework` does not need to subclass `DefaultFramework`. The protocol is small enough to implement from scratch.
-3. **Cache HTTP clients on the framework, not on the model.** Models are constructed per task; clients should be reused. `DefaultFramework._get_or_create_client` shows the keying strategy.
+3. **Pool HTTP clients on the framework when multiple `models:` entries share a backend.** `create_model` runs once per entry at `LLMRails` startup, so a model can safely build its own client. When two entries point at the same backend, only the framework can deduplicate them; `DefaultFramework._get_or_create_client` keys clients by `(base_url, api_key, ...)` for exactly this case.
 4. **Do not import LangChain in a default-framework-style implementation.** The whole point of swapping the framework layer is to avoid pulling in dependencies you do not need. Keep your imports tight.
 5. **Document your framework's provider taxonomy.** `get_provider_names` is what `nemoguardrails find_providers` shows users.
 
