@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-To use the NVIDIA-hosted NIMs in Steps 1–3, set your NVIDIA API key:
+To use the NVIDIA-hosted NIMs, set your NVIDIA API key:
 
 ```bash
 export NVIDIA_API_KEY="nvapi-..."
