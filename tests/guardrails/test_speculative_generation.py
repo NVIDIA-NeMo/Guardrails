@@ -30,21 +30,22 @@ from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.types import LLMResponse
+from tests.guardrails.async_helpers import started_iorails
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
 
 MESSAGES = [{"role": "user", "content": "hi"}]
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails():
-    return IORails(RailsConfig.from_content(config=NEMOGUARDS_SPECULATIVE_CONFIG))
+@pytest_asyncio.fixture
+async def iorails():
+    async with started_iorails(NEMOGUARDS_SPECULATIVE_CONFIG) as instance:
+        yield instance
 
 
-@pytest.fixture
-@patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
-def iorails_sequential():
-    return IORails(RailsConfig.from_content(config=NEMOGUARDS_CONFIG))
+@pytest_asyncio.fixture
+async def iorails_sequential():
+    async with started_iorails(NEMOGUARDS_CONFIG) as instance:
+        yield instance
 
 
 class TestSpeculativeGeneration:
