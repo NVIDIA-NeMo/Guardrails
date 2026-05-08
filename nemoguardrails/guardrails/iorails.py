@@ -264,7 +264,7 @@ class IORails:
         lifecycle scope by ``generate_async``, not here.
         """
         tracer = self._tracer if self._tracing_enabled else None
-        with traced_request(tracer, self._metrics_enabled) as (request_span, req_id):
+        with traced_request(tracer) as (request_span, req_id):
             t0 = time.monotonic()
             try:
                 result = await self._do_generate(messages, req_id, request_span, **kwargs)

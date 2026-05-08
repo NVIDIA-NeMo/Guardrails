@@ -29,6 +29,7 @@ from nemoguardrails.guardrails import telemetry
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.rails.llm.config import RailsConfig
+from nemoguardrails.types import LLMResponse
 from tests.guardrails.test_data import NEMOGUARDS_CONFIG, NEMOGUARDS_SPECULATIVE_CONFIG
 
 MESSAGES = [{"role": "user", "content": "hi"}]
@@ -58,7 +59,7 @@ class TestSpeculativeGeneration:
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.05)
-            return "Hello from LLM"
+            return LLMResponse(content="Hello from LLM")
 
         iorails.rails_manager.is_input_safe = fast_rails
         iorails.engine_registry.model_call = slow_llm
@@ -77,7 +78,7 @@ class TestSpeculativeGeneration:
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.5)
-            return "Should not be used"
+            return LLMResponse(content="Should not be used")
 
         iorails.rails_manager.is_input_safe = fast_reject
         iorails.engine_registry.model_call = slow_llm
@@ -97,7 +98,7 @@ class TestSpeculativeGeneration:
             return RailResult(is_safe=True)
 
         async def fast_llm(model_type, messages):
-            return "Fast LLM response"
+            return LLMResponse(content="Fast LLM response")
 
         iorails.rails_manager.is_input_safe = slow_rails
         iorails.engine_registry.model_call = fast_llm
@@ -116,7 +117,7 @@ class TestSpeculativeGeneration:
             return RailResult(is_safe=False, reason="unsafe")
 
         async def fast_llm(model_type, messages):
-            return "Should be discarded"
+            return LLMResponse(content="Should be discarded")
 
         iorails.rails_manager.is_input_safe = slow_reject
         iorails.engine_registry.model_call = fast_llm
@@ -147,7 +148,7 @@ class TestSpeculativeGeneration:
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.5)
-            return "Should not be used"
+            return LLMResponse(content="Should not be used")
 
         iorails.rails_manager.is_input_safe = AsyncMock(side_effect=RuntimeError("Rails crashed"))
         iorails.engine_registry.model_call = slow_llm
@@ -166,7 +167,7 @@ class TestSpeculativeGeneration:
 
         async def mock_generate(model_type, messages):
             call_order.append("generate")
-            return "response"
+            return LLMResponse(content="response")
 
         async def mock_output(messages, response):
             call_order.append("output")
@@ -224,7 +225,7 @@ class TestSpeculativeGenerationTelemetry:
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.05)
-            return "Hello from LLM"
+            return LLMResponse(content="Hello from LLM")
 
         iorails_speculative_tracing.rails_manager.is_input_safe = fast_rails
         iorails_speculative_tracing.engine_registry.model_call = slow_llm
@@ -250,7 +251,7 @@ class TestSpeculativeGenerationTelemetry:
 
         async def slow_llm(model_type, messages):
             await asyncio.sleep(0.5)
-            return "Should not be used"
+            return LLMResponse(content="Should not be used")
 
         iorails_speculative_tracing.rails_manager.is_input_safe = fast_reject
         iorails_speculative_tracing.engine_registry.model_call = slow_llm
@@ -276,7 +277,7 @@ class TestSpeculativeGenerationTelemetry:
             return RailResult(is_safe=True)
 
         async def fast_llm(model_type, messages):
-            return "Fast LLM response"
+            return LLMResponse(content="Fast LLM response")
 
         iorails_speculative_tracing.rails_manager.is_input_safe = slow_rails
         iorails_speculative_tracing.engine_registry.model_call = fast_llm
@@ -302,7 +303,7 @@ class TestSpeculativeGenerationTelemetry:
             return RailResult(is_safe=False, reason="unsafe")
 
         async def fast_llm(model_type, messages):
-            return "Should be discarded"
+            return LLMResponse(content="Should be discarded")
 
         iorails_speculative_tracing.rails_manager.is_input_safe = slow_reject
         iorails_speculative_tracing.engine_registry.model_call = fast_llm
@@ -329,7 +330,7 @@ class TestSpeculativeGenerationTelemetry:
                 iorails = IORails(RailsConfig.from_content(config=cfg))
             async with iorails:
                 iorails.rails_manager.is_input_safe = AsyncMock(return_value=RailResult(is_safe=True))
-                iorails.engine_registry.model_call = AsyncMock(return_value="response")
+                iorails.engine_registry.model_call = AsyncMock(return_value=LLMResponse(content="response"))
                 iorails.rails_manager.is_output_safe = AsyncMock(return_value=RailResult(is_safe=True))
 
                 await iorails.generate_async(MESSAGES)
