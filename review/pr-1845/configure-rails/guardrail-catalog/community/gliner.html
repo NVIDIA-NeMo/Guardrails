@@ -683,7 +683,7 @@
 <p><a class="reference external" href="https://github.com/urchade/GLiNER" rel="noreferer noopener" target="_blank">GLiNER</a> is a generalist and lightweight model for named entity recognition. <a class="reference external" href="https://huggingface.co/nvidia/gliner-PII" rel="noreferer noopener" target="_blank">NVIDIA GLiNER-PII</a> is an adaptation that detects a wide range of PII categories. This integration enables NeMo Guardrails to use GLiNER-PII for PII detection and masking in input, output, and retrieval flows.</p>
 <section id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<p>To use the NVIDIA-hosted NIMs in Steps 1–3, set your NVIDIA API key:</p>
+<p>To use the NVIDIA-hosted NIMs, set your NVIDIA API key:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NVIDIA_API_KEY</span><span class="o">=</span><span class="s2">&quot;nvapi-...&quot;</span>
 </pre></div>
 </div>
@@ -691,7 +691,7 @@
 <p>You will also need to <a class="reference internal" href="../../../getting-started/installation-guide.html"><span class="std std-doc">install</span></a> the NeMo Guardrails library.</p>
 </section>
 <section id="configure-guardrails">
-<h2>1. Configure Guardrails<a class="headerlink" href="#configure-guardrails" title="Link to this heading">#</a></h2>
+<h2>Configure Guardrails<a class="headerlink" href="#configure-guardrails" title="Link to this heading">#</a></h2>
 <p>Create a <code class="docutils literal notranslate"><span class="pre">config</span></code> directory and add a <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.</p>
 <p><code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code> does not appear in the configs below because it is the default value of <code class="docutils literal notranslate"><span class="pre">rails.config.gliner.model</span></code>. You only need to set that field explicitly if you want to use a different model.</p>
 <section id="pii-detection">
@@ -732,7 +732,7 @@
 </section>
 <section id="pii-masking">
 <h3>PII Masking<a class="headerlink" href="#pii-masking" title="Link to this heading">#</a></h3>
-<p>The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I'm</span> <span class="pre">John</span> <span class="pre">—</span> <span class="pre">john&#64;example.com</span></code> becomes <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I'm</span> <span class="pre">[FIRST_NAME]</span> <span class="pre">—</span> <span class="pre">[EMAIL]</span></code>. To implement this flow, save the config below as your <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
+<p>The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I</span> <span class="pre">am</span> <span class="pre">John.</span> <span class="pre">My</span> <span class="pre">email</span> <span class="pre">is</span> <span class="pre">john&#64;example.com</span></code> becomes <code class="docutils literal notranslate"><span class="pre">Hi,</span> <span class="pre">I</span> <span class="pre">am</span> <span class="pre">[FIRST_NAME].</span> <span class="pre">My</span> <span class="pre">email</span> <span class="pre">is</span> <span class="pre">[EMAIL]</span></code>. To implement this flow, save the config below as your <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -768,7 +768,7 @@
 </section>
 </section>
 <section id="run-the-guardrails-chat-cli">
-<h2>2. Run the Guardrails Chat CLI<a class="headerlink" href="#run-the-guardrails-chat-cli" title="Link to this heading">#</a></h2>
+<h2>Run the Guardrails Chat CLI<a class="headerlink" href="#run-the-guardrails-chat-cli" title="Link to this heading">#</a></h2>
 <p>Start an interactive chat session using your config directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nemoguardrails<span class="w"> </span>chat<span class="w"> </span>--config<span class="w"> </span>./config
 </pre></div>
@@ -785,7 +785,7 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 </div>
 </section>
 <section id="use-the-python-sdk">
-<h2>3. Use the Python SDK<a class="headerlink" href="#use-the-python-sdk" title="Link to this heading">#</a></h2>
+<h2>Use the Python SDK<a class="headerlink" href="#use-the-python-sdk" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">nest_asyncio</span>
 <span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
 
@@ -806,10 +806,10 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 </div>
 </section>
 <section id="deploy-nims-locally">
-<h2>4. Deploy NIMs Locally<a class="headerlink" href="#deploy-nims-locally" title="Link to this heading">#</a></h2>
-<p>Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images — obtain one at <a class="reference external" href="https://ngc.nvidia.com" rel="noreferer noopener" target="_blank">ngc.nvidia.com</a>.</p>
+<h2>Deploy NIMs Locally<a class="headerlink" href="#deploy-nims-locally" title="Link to this heading">#</a></h2>
+<p>Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images from <a class="reference external" href="https://ngc.nvidia.com" rel="noreferer noopener" target="_blank">ngc.nvidia.com</a>.</p>
 <section id="gpu-requirements">
-<h3>GPU requirements<a class="headerlink" href="#gpu-requirements" title="Link to this heading">#</a></h3>
+<h3>GPU Requirements<a class="headerlink" href="#gpu-requirements" title="Link to this heading">#</a></h3>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>NIM</p></th>
@@ -834,12 +834,12 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 </div>
 <p>The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based on available hardware. An A10G (24 GB) or L4 (24 GB) is the practical minimum for comfortable headroom; a T4 (16 GB) may work but is not officially supported.</p>
 <blockquote>
-<div><p><strong>Note:</strong> <code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code> is pre-GA (<code class="docutils literal notranslate"><span class="pre">1.0.0-rc1</span></code>); its GPU requirements above are estimates based on the GLiNER encoder-only architecture and have not been officially published by NVIDIA.</p>
+<div><p><strong>Note:</strong> <code class="docutils literal notranslate"><span class="pre">nvidia/gliner-pii</span></code> is pre-GA (<code class="docutils literal notranslate"><span class="pre">1.0.0-rc1</span></code>). The GPU requirements above are estimates based on the GLiNER encoder-only architecture because NVIDIA has not officially published requirements yet.</p>
 </div></blockquote>
 </section>
 <section id="start-the-containers">
-<h3>Start the containers<a class="headerlink" href="#start-the-containers" title="Link to this heading">#</a></h3>
-<p><strong>GLiNER-PII NIM</strong> — runs on port 8000:</p>
+<h3>Start the Containers<a class="headerlink" href="#start-the-containers" title="Link to this heading">#</a></h3>
+<p>The <strong>GLiNER-PII NIM</strong> runs on port 8000:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Authenticate with NGC (username: $oauthtoken, password: your NGC API key)</span>
 <span class="nb">echo</span><span class="w"> </span><span class="nv">$NGC_API_KEY</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>login<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;$oauthtoken&#39;</span><span class="w"> </span>--password-stdin<span class="w"> </span>nvcr.io
 
@@ -849,7 +849,7 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
 <span class="w">  </span>nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
 </pre></div>
 </div>
-<p><strong>Llama 3.1 8B Instruct NIM</strong> — mapped to port 8001 to avoid conflict with GLiNER:</p>
+<p>Map the <strong>Llama 3.1 8B Instruct NIM</strong> to port 8001 to avoid a conflict with GLiNER:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span>NGC_API_KEY<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8001</span>:8000<span class="w"> </span><span class="se">\</span>
@@ -858,8 +858,8 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
 </div>
 <p>Wait until both containers log <code class="docutils literal notranslate"><span class="pre">Application</span> <span class="pre">startup</span> <span class="pre">complete</span></code> before proceeding.</p>
 </section>
-<section id="update-config-yml">
-<h3>Update config.yml<a class="headerlink" href="#update-config-yml" title="Link to this heading">#</a></h3>
+<section id="update-the-configuration">
+<h3>Update the Configuration<a class="headerlink" href="#update-the-configuration" title="Link to this heading">#</a></h3>
 <p>Replace the remote endpoints with local ones and remove both <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> fields:</p>
 <p><strong>PII detection:</strong></p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
@@ -928,17 +928,17 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
 </pre></div>
 </div>
 </section>
-<section id="repeat-steps-2-and-3">
-<h3>Repeat Steps 2 and 3<a class="headerlink" href="#repeat-steps-2-and-3" title="Link to this heading">#</a></h3>
-<p>With the containers running and config updated, rerun the CLI and SDK commands from <a class="reference internal" href="#run-the-guardrails-chat-cli">Step 2</a> and <a class="reference internal" href="#use-the-python-sdk">Step 3</a>. No other changes are required.</p>
+<section id="reuse-the-cli-and-sdk-workflows">
+<h3>Reuse the CLI and SDK Workflows<a class="headerlink" href="#reuse-the-cli-and-sdk-workflows" title="Link to this heading">#</a></h3>
+<p>With the containers running and config updated, rerun the CLI and SDK commands from <a class="reference internal" href="#run-the-guardrails-chat-cli">Run the Guardrails Chat CLI</a> and <a class="reference internal" href="#use-the-python-sdk">Use the Python SDK</a>. No other changes are required.</p>
 </section>
 </section>
 <hr class="docutils" />
 <section id="api-specification">
 <h2>API Specification<a class="headerlink" href="#api-specification" title="Link to this heading">#</a></h2>
 <p>The GLiNER-PII NIM exposes an OpenAI-compatible chat completions endpoint.</p>
-<section id="post-v1-chat-completions">
-<h3><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/v1/chat/completions</span></code><a class="headerlink" href="#post-v1-chat-completions" title="Link to this heading">#</a></h3>
+<section id="chat-completions-endpoint">
+<h3>Chat Completions Endpoint<a class="headerlink" href="#chat-completions-endpoint" title="Link to this heading">#</a></h3>
 <p>Extract entities from text.</p>
 <p><strong>Request Body:</strong></p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -1165,7 +1165,7 @@ To run them:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>tests/test_gliner.py<span class="w"> </span>-v
 </pre></div>
 </div>
-<p>For a self-hosted alternative using the <code class="docutils literal notranslate"><span class="pre">nvidia/gliner-PII</span></code> model directly, the <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">examples/deployment/gliner_server/</span></code></a> directory provides a reference implementation. It exposes a <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/v1/extract</span></code> endpoint — if you use it, set <code class="docutils literal notranslate"><span class="pre">server_endpoint</span></code> to <code class="docutils literal notranslate"><span class="pre">http://localhost:1235/v1/extract</span></code>. Refer to the <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md" rel="noreferer noopener" target="_blank">deployment README</a> for setup instructions.</p>
+<p>For a self-hosted alternative using the <code class="docutils literal notranslate"><span class="pre">nvidia/gliner-PII</span></code> model directly, the <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">examples/deployment/gliner_server/</span></code></a> directory provides a reference implementation. The server exposes a <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/v1/extract</span></code> endpoint. If you use it, set <code class="docutils literal notranslate"><span class="pre">server_endpoint</span></code> to <code class="docutils literal notranslate"><span class="pre">http://localhost:1235/v1/extract</span></code>. Refer to the <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md" rel="noreferer noopener" target="_blank">deployment README</a> for setup instructions.</p>
 <p>For more information on GLiNER, refer to the <a class="reference external" href="https://github.com/urchade/GLiNER" rel="noreferer noopener" target="_blank">GLiNER GitHub repository</a>.</p>
 </section>
 </section>
@@ -1220,22 +1220,22 @@ To run them:</p>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-guardrails">1. Configure Guardrails</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-guardrails">Configure Guardrails</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pii-detection">PII Detection</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pii-masking">PII Masking</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-guardrails-chat-cli">2. Run the Guardrails Chat CLI</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-the-python-sdk">3. Use the Python SDK</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deploy-nims-locally">4. Deploy NIMs Locally</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gpu-requirements">GPU requirements</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-the-containers">Start the containers</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#update-config-yml">Update config.yml</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#repeat-steps-2-and-3">Repeat Steps 2 and 3</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-guardrails-chat-cli">Run the Guardrails Chat CLI</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-the-python-sdk">Use the Python SDK</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deploy-nims-locally">Deploy NIMs Locally</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gpu-requirements">GPU Requirements</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#start-the-containers">Start the Containers</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#update-the-configuration">Update the Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reuse-the-cli-and-sdk-workflows">Reuse the CLI and SDK Workflows</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#api-specification">API Specification</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#post-v1-chat-completions"><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/v1/chat/completions</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#chat-completions-endpoint">Chat Completions Endpoint</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-entity-types">Supported Entity Types</a></li>
