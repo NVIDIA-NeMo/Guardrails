@@ -22,7 +22,7 @@ To configure your bot to use Llama Guard for input/output checking, follow the b
           api_key: EMPTY
     ```
 
-    ```{note}
+    :::{note}
     Set `api_key: EMPTY` (or any non-empty placeholder) when self-hosted vLLM does not enforce auth. If your deployment requires a real token, replace `api_key: EMPTY` with the literal token value, or omit `api_key` and set `api_key_env_var` at the **top level** of the model entry (not inside `parameters:`):
 
     ```yaml
@@ -33,7 +33,7 @@ To configure your bot to use Llama Guard for input/output checking, follow the b
       parameters:
         base_url: "http://localhost:5123/v1"
     ```
-    ```
+    :::
 
 2. Include the `llama guard check input` and `llama guard check output` flow names in the rails section of the `config.yml` file:
 
