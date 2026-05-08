@@ -100,10 +100,6 @@ Returns the list of provider names this framework knows about, including built-i
 
 ### `reset`
 
-```{important}
-`reset` MUST be `async`. The registry's `validate()` rejects frameworks whose `reset` is a regular synchronous function with `TypeError: '<name>'.reset must be an async coroutine function`.
-```
-
 `reset` is called at process or test boundaries to release framework-owned resources. It must:
 
 - Close any pooled HTTP clients, gRPC channels, file handles, or database connections.
@@ -261,7 +257,7 @@ Read these to see production-grade frameworks:
 
 - [`nemoguardrails/llm/frameworks/default.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/frameworks/default.py): `DefaultFramework`. Pools `OpenAICompatibleClient` instances keyed on `(base_url, api_key, timeouts, headers, query)`. Splits lifecycle into `aclose` (HTTP teardown), `clear_providers` (registry teardown), and `reset` (both, used in tests).
 - [`nemoguardrails/integrations/langchain/llm_adapter.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/integrations/langchain/llm_adapter.py): `LangChainFramework`. Defers to `nemoguardrails.integrations.langchain.providers` for registration, calls `init_langchain_model` for construction, wraps the result in `LangChainLLMAdapter`. Has a no-op `reset` because the LangChain side has no pooled state of its own.
-- [`nemoguardrails/llm/frameworks/registry.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/frameworks/registry.py): `LLMFrameworkRegistry`, `register_framework`, `get_framework`, `set_default_framework`, `get_default_framework`, `_areset_frameworks`. Read this to understand the env var, lazy lookup, and registration behavior.
+- [`nemoguardrails/llm/frameworks/registry.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/frameworks/registry.py): `register_framework`, `get_framework`, `set_default_framework`, `get_default_framework`, `_areset_frameworks`. Read this to understand the env var, lazy lookup, and registration behavior.
 
 ## Failure Modes
 
@@ -278,7 +274,7 @@ export NEMOGUARDRAILS_LLM_FRAMEWORK=my
 from nemoguardrails.llm.providers import register_provider
 
 register_provider("echo", EchoLLMModel)
-# KeyError: Unknown framework 'my'. Available: ['default', 'langchain']
+# KeyError: Unknown framework 'my'. Available frameworks: []
 ```
 
 The fix is simple: register the framework before any provider, or keep `NEMOGUARDRAILS_LLM_FRAMEWORK` unset until after `register_framework` has run.
@@ -290,7 +286,7 @@ set_default_framework("typo")
 # KeyError: Unknown framework 'typo'. Register it first or use one of: ['default', 'langchain']
 ```
 
-The error lists the framework names that the registry currently knows about. Both built-in names appear because they are constructed lazily by factory; if you are working with only your own framework, register it first then call `set_default_framework`.
+The two built-in names always appear in this hint because the registry knows them by default. If you are working with only your own framework, register it first then call `set_default_framework`.
 
 ## Best Practices
 
