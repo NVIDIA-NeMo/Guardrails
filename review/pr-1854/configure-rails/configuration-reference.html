@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -60,6 +61,7 @@
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../_static/js/table-expander.js?v=b1f1aacf"></script>
 
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/configuration-reference.html" />
     <link rel="icon" href="../_static/favicon.png"/>
@@ -406,6 +408,7 @@
 <li class="toctree-l1"><a class="reference internal" href="before-configuration.html">Prerequisites</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="yaml-schema/index.html">Configuring YAML File</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="yaml-schema/model-configuration.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="yaml-schema/llm-framework-routing.html">LLM Framework Routing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="yaml-schema/prompt-configuration.html">Prompts</a></li>
@@ -614,10 +617,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Upgrade</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../upgrade/0.22-framework-transition.html">Upgrading to 0.22: LLM Framework Transition</a></li>
-</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a></li>
@@ -717,40 +716,40 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.type</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.api_key_env_var</span></code></p></td>
 <td><p>string</p></td>
-<td><p>✓</p></td>
-<td><p>Model identifier (see <a class="reference internal" href="#model-types">Model Types</a>)</p></td>
+<td><p></p></td>
+<td><p>Environment variable containing API key</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models.engine</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models.cache</span></code></p></td>
+<td><p>object</p></td>
+<td><p></p></td>
+<td><p>Cache configuration for this model</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.engine</span></code></p></td>
 <td><p>string</p></td>
 <td><p>✓</p></td>
 <td><p>LLM provider (see <a class="reference internal" href="#engines">Engines</a>)</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.model</span></code></p></td>
-<td><p>string</p></td>
-<td><p>✓</p></td>
-<td><p>Model name (can also be in <code class="docutils literal notranslate"><span class="pre">parameters.model_name</span></code>)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models.mode</span></code></p></td>
 <td><p>string</p></td>
 <td><p></p></td>
 <td><p>Completion mode: <code class="docutils literal notranslate"><span class="pre">chat</span></code> or <code class="docutils literal notranslate"><span class="pre">text</span></code> (default: <code class="docutils literal notranslate"><span class="pre">chat</span></code>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.api_key_env_var</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.model</span></code></p></td>
 <td><p>string</p></td>
-<td><p></p></td>
-<td><p>Environment variable containing API key</p></td>
+<td><p>✓</p></td>
+<td><p>Model name (can also be in <code class="docutils literal notranslate"><span class="pre">parameters.model_name</span></code>)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models.parameters</span></code></p></td>
 <td><p>object</p></td>
 <td><p></p></td>
-<td><p>Provider-specific parameters. For DefaultFramework engines (<code class="docutils literal notranslate"><span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">nim</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>), passed to the OpenAI-compatible client (for example <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">api_key</span></code>). For LangChain-routed engines, use the bare provider engine name (for example <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>) and select the framework via <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>; parameters are passed to the underlying LangChain class.</p></td>
+<td><p>Provider-specific parameters. For DefaultFramework engines (<code class="docutils literal notranslate"><span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">nim</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>), the runtime passes parameters such as <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, and <code class="docutils literal notranslate"><span class="pre">api_key</span></code> to the OpenAI-compatible client. For LangChain-routed engines, use the bare provider engine name, such as <code class="docutils literal notranslate"><span class="pre">anthropic</span></code> or <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, and select the framework with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. The runtime passes <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the underlying LangChain class.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.cache</span></code></p></td>
-<td><p>object</p></td>
-<td><p></p></td>
-<td><p>Cache configuration for this model</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.type</span></code></p></td>
+<td><p>string</p></td>
+<td><p>✓</p></td>
+<td><p>Model identifier (see <a class="reference internal" href="#model-types">Model Types</a>)</p></td>
 </tr>
 </tbody>
 </table>
@@ -769,14 +768,14 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">main</span></code></p></td>
-<td><p>Primary application LLM for conversation</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">embeddings</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">embeddings</span></code></p></td>
 <td><p>Embedding model for knowledge base and similarity search</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak_detection</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak_detection</span></code></p></td>
 <td><p>Jailbreak detection model (used with NIM)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">main</span></code></p></td>
+<td><p>Primary application LLM for conversation</p></td>
 </tr>
 </tbody>
 </table>
@@ -797,13 +796,13 @@
 <td><p>Content safety model</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span> <span class="pre">$model=content_safety</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topic_control</span></code></p></td>
-<td><p>Topic control model</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">topic</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span> <span class="pre">$model=topic_control</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">llama_guard</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">llama_guard</span></code></p></td>
 <td><p>Llama Guard content moderation</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">llama</span> <span class="pre">guard</span> <span class="pre">check</span> <span class="pre">input</span> <span class="pre">$model=llama_guard</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topic_control</span></code></p></td>
+<td><p>Topic control model</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topic</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span> <span class="pre">$model=topic_control</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -828,10 +827,10 @@
 </section>
 <section id="engines">
 <h3>Engines<a class="headerlink" href="#engines" title="Link to this heading">#</a></h3>
-<p>NeMo Guardrails 0.22 routes models through one of two LLM frameworks. <strong>Prefer the DefaultFramework whenever the underlying wire protocol is OpenAI-compatible.</strong> The LangChain framework is required only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. See the <a class="reference internal" href="../about/supported-llms.html#routing-matrix"><span class="std std-ref">Routing matrix</span></a> for the full mapping and the <a class="reference internal" href="../upgrade/0.22-framework-transition.html"><span class="std std-doc">0.22 Framework Transition Guide</span></a> for migration details.</p>
+<p>Starting with version 0.22, the NVIDIA NeMo Guardrails library routes models through one of the following LLM frameworks. Prefer the <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> whenever the underlying wire protocol is OpenAI-compatible. The <code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code> framework is required only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. Refer to the <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a> for the full mapping and <a class="reference internal" href="yaml-schema/llm-framework-routing.html"><span class="std std-doc">LLM Framework Routing</span></a> for migration details.</p>
 <section id="defaultframework-engines">
 <h4>DefaultFramework Engines<a class="headerlink" href="#defaultframework-engines" title="Link to this heading">#</a></h4>
-<p>These engines work out of the box with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code>. Pass <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to point at a self-hosted or alternative endpoint.</p>
+<p>These engines work with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> and do not require extra provider packages. Pass <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to point at a self-hosted or alternative endpoint.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Engine</p></th>
@@ -839,17 +838,17 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
-<td><p>OpenAI public API or any OpenAI-compatible endpoint via <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
 <td><p>NVIDIA NIM microservices</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code></p></td>
 <td><p>Alias for <code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ollama</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ollama</span></code></p></td>
 <td><p>Ollama OpenAI-compatible endpoint at <code class="docutils literal notranslate"><span class="pre">http://localhost:11434/v1</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
+<td><p>OpenAI public API or any OpenAI-compatible endpoint using <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -857,7 +856,7 @@
 <p>For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp server, and similar), use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code>.</p>
 </section>
 <section id="langchain-routed-engines">
-<h4>LangChain-routed Engines<a class="headerlink" href="#langchain-routed-engines" title="Link to this heading">#</a></h4>
+<h4>LangChain-Routed Engines<a class="headerlink" href="#langchain-routed-engines" title="Link to this heading">#</a></h4>
 <p>These engines require <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> provider package.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -866,38 +865,38 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code></p></td>
-<td><p>Azure OpenAI models (deployment-name URL plus <code class="docutils literal notranslate"><span class="pre">api-version</span></code>)</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
 <td><p>Anthropic Claude models</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code></p></td>
+<td><p>Azure OpenAI models (deployment-name URL plus <code class="docutils literal notranslate"><span class="pre">api-version</span></code>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
 <td><p>Cohere models</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">google_genai</span></code></p></td>
-<td><p>Google Generative AI via LangChain (requires <code class="docutils literal notranslate"><span class="pre">langchain-google-genai</span></code>)</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
-<td><p>Google Vertex AI</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code></p></td>
-<td><p>HuggingFace Hub models</p></td>
+<td><p>Google Generative AI through LangChain (requires <code class="docutils literal notranslate"><span class="pre">langchain-google-genai</span></code>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code></p></td>
-<td><p>HuggingFace Inference Endpoints (default text-generation schema; if your endpoint exposes <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> instead)</p></td>
+<td><p>Hugging Face Inference Endpoints (default text-generation schema; if your endpoint exposes <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> instead)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code></p></td>
+<td><p>Hugging Face Hub models</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code></p></td>
 <td><p>In-process Hugging Face pipeline</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
+<td><p>Generic self-hosted LangChain wrapper</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">trt_llm</span></code></p></td>
+<td><p>TensorRT-LLM in-process</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
+<td><p>Google Vertex AI through LangChain (requires <code class="docutils literal notranslate"><span class="pre">langchain-google-vertexai</span></code>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code></p></td>
 <td><p>Legacy LangChain wrapper for vLLM. For new configs, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">trt_llm</span></code></p></td>
-<td><p>TensorRT-LLM in-process</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
-<td><p>Generic self-hosted LangChain wrapper</p></td>
 </tr>
 </tbody>
 </table>
@@ -915,11 +914,11 @@
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">FastEmbed</span></code></p></td>
 <td><p>FastEmbed (default)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
-<td><p>OpenAI embeddings</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
 <td><p>NVIDIA NIM embeddings</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
+<td><p>OpenAI embeddings</p></td>
 </tr>
 </tbody>
 </table>
@@ -1035,14 +1034,6 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><strong>Input rails</strong></p></td>
-<td><p>When user input is received</p></td>
-<td><p>Validate, filter, or modify user input</p></td>
-</tr>
-<tr class="row-odd"><td><p><strong>Retrieval rails</strong></p></td>
-<td><p>After RAG retrieval completes</p></td>
-<td><p>Process retrieved chunks</p></td>
-</tr>
 <tr class="row-even"><td><p><strong>Dialog rails</strong></p></td>
 <td><p>After canonical form is computed</p></td>
 <td><p>Control conversation flow</p></td>
@@ -1051,9 +1042,17 @@
 <td><p>Before/after action execution</p></td>
 <td><p>Control tool and action calls</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>Output rails</strong></p></td>
+<tr class="row-even"><td><p><strong>Input rails</strong></p></td>
+<td><p>When user input is received</p></td>
+<td><p>Validate, filter, or modify user input</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Output rails</strong></p></td>
 <td><p>When LLM generates output</p></td>
 <td><p>Validate, filter, or modify bot responses</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Retrieval rails</strong></p></td>
+<td><p>After RAG retrieval completes</p></td>
+<td><p>Process retrieved chunks</p></td>
 </tr>
 </tbody>
 </table>
@@ -1083,15 +1082,15 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.input.parallel</span></code></p></td>
-<td><p>boolean</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Execute input rails in parallel</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.input.flows</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.input.flows</span></code></p></td>
 <td><p>list</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
 <td><p>Names of flows that implement input rails</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.input.parallel</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Execute input rails in parallel</p></td>
 </tr>
 </tbody>
 </table>
@@ -1105,26 +1104,26 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
-<td><p>LLM-based policy compliance check</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
+<td><p>NVIDIA content safety model</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span> <span class="pre">detection</span> <span class="pre">heuristics</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">detect</span> <span class="pre">sensitive</span> <span class="pre">data</span> <span class="pre">on</span> <span class="pre">input</span></code></p></td>
+<td><p>Detect and block PII</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span> <span class="pre">detection</span> <span class="pre">heuristics</span></code></p></td>
 <td><p>Jailbreak detection heuristics</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span> <span class="pre">detection</span> <span class="pre">model</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jailbreak</span> <span class="pre">detection</span> <span class="pre">model</span></code></p></td>
 <td><p>NIM-based jailbreak detection</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">llama</span> <span class="pre">guard</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
+<td><p>LlamaGuard content moderation</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mask</span> <span class="pre">sensitive</span> <span class="pre">data</span> <span class="pre">on</span> <span class="pre">input</span></code></p></td>
 <td><p>Mask PII in user input</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">detect</span> <span class="pre">sensitive</span> <span class="pre">data</span> <span class="pre">on</span> <span class="pre">input</span></code></p></td>
-<td><p>Detect and block PII</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">llama</span> <span class="pre">guard</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
-<td><p>LlamaGuard content moderation</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
-<td><p>NVIDIA content safety model</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
+<td><p>LLM-based policy compliance check</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topic</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">input</span></code></p></td>
 <td><p>Topic control model</p></td>
@@ -1159,15 +1158,15 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.parallel</span></code></p></td>
-<td><p>boolean</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Execute output rails in parallel</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.flows</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.flows</span></code></p></td>
 <td><p>list</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
 <td><p>Names of flows that implement output rails</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.parallel</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Execute output rails in parallel</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming</span></code></p></td>
 <td><p>object</p></td>
@@ -1188,20 +1187,20 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.enabled</span></code></p></td>
-<td><p>boolean</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
-<td><p>Enable streaming mode</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.chunk_size</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.chunk_size</span></code></p></td>
 <td><p>integer</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">200</span></code></p></td>
 <td><p>Tokens per processing chunk</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.context_size</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.context_size</span></code></p></td>
 <td><p>integer</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">50</span></code></p></td>
 <td><p>Tokens carried from previous chunk</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.enabled</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Enable streaming mode</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.output.streaming.stream_first</span></code></p></td>
 <td><p>boolean</p></td>
@@ -1221,26 +1220,26 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">output</span></code></p></td>
-<td><p>LLM-based policy compliance check</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">output</span></code></p></td>
+<td><p>NVIDIA content safety model</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">facts</span></code></p></td>
-<td><p>Fact verification</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">hallucination</span></code></p></td>
-<td><p>Hallucination detection</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mask</span> <span class="pre">sensitive</span> <span class="pre">data</span> <span class="pre">on</span> <span class="pre">output</span></code></p></td>
-<td><p>Mask PII in output</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">injection</span> <span class="pre">detection</span></code></p></td>
+<td><p>Injection detection (SQL, XSS, code, template)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">llama</span> <span class="pre">guard</span> <span class="pre">check</span> <span class="pre">output</span></code></p></td>
 <td><p>LlamaGuard content moderation</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">content</span> <span class="pre">safety</span> <span class="pre">check</span> <span class="pre">output</span></code></p></td>
-<td><p>NVIDIA content safety model</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mask</span> <span class="pre">sensitive</span> <span class="pre">data</span> <span class="pre">on</span> <span class="pre">output</span></code></p></td>
+<td><p>Mask PII in output</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">injection</span> <span class="pre">detection</span></code></p></td>
-<td><p>Injection detection (SQL, XSS, code, template)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">facts</span></code></p></td>
+<td><p>Fact verification</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">hallucination</span></code></p></td>
+<td><p>Hallucination detection</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">check</span> <span class="pre">output</span></code></p></td>
+<td><p>LLM-based policy compliance check</p></td>
 </tr>
 </tbody>
 </table>
@@ -1358,20 +1357,20 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.server_endpoint</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.api_key</span></code></p></td>
 <td><p>string</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
-<td><p>Heuristics model endpoint</p></td>
+<td><p>API key (not recommended)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.length_per_perplexity_threshold</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.api_key_env_var</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Environment variable for API key</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.length_per_perplexity_threshold</span></code></p></td>
 <td><p>float</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">89.79</span></code></p></td>
 <td><p>Length/perplexity threshold</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.prefix_suffix_perplexity_threshold</span></code></p></td>
-<td><p>float</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">1845.65</span></code></p></td>
-<td><p>Prefix/suffix perplexity threshold</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.nim_base_url</span></code></p></td>
 <td><p>string</p></td>
@@ -1383,15 +1382,15 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;classify&quot;</span></code></p></td>
 <td><p>NIM endpoint path</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.api_key_env_var</span></code></p></td>
-<td><p>string</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
-<td><p>Environment variable for API key</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.prefix_suffix_perplexity_threshold</span></code></p></td>
+<td><p>float</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1845.65</span></code></p></td>
+<td><p>Prefix/suffix perplexity threshold</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.api_key</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.jailbreak_detection.server_endpoint</span></code></p></td>
 <td><p>string</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
-<td><p>API key (not recommended)</p></td>
+<td><p>Heuristics model endpoint</p></td>
 </tr>
 </tbody>
 </table>
@@ -1428,25 +1427,25 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.recognizers</span></code></p></td>
-<td><p>list</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
-<td><p>Custom Presidio recognizers</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.input/output/retrieval.entities</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.input/output/retrieval.entities</span></code></p></td>
 <td><p>list</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
 <td><p>Entity types to detect</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.input/output/retrieval.mask_token</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.input/output/retrieval.mask_token</span></code></p></td>
 <td><p>string</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code></p></td>
 <td><p>Token for masking</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.input/output/retrieval.score_threshold</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.input/output/retrieval.score_threshold</span></code></p></td>
 <td><p>float</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">0.2</span></code></p></td>
 <td><p>Detection confidence threshold</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.sensitive_data_detection.recognizers</span></code></p></td>
+<td><p>list</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Custom Presidio recognizers</p></td>
 </tr>
 </tbody>
 </table>
@@ -1476,15 +1475,15 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.injection_detection.injections</span></code></p></td>
-<td><p>list</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
-<td><p>Injection types: <code class="docutils literal notranslate"><span class="pre">sqli</span></code>, <code class="docutils literal notranslate"><span class="pre">template</span></code>, <code class="docutils literal notranslate"><span class="pre">code</span></code>, <code class="docutils literal notranslate"><span class="pre">xss</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.injection_detection.action</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.injection_detection.action</span></code></p></td>
 <td><p>string</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;reject&quot;</span></code></p></td>
 <td><p>Action: <code class="docutils literal notranslate"><span class="pre">reject</span></code> or <code class="docutils literal notranslate"><span class="pre">omit</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.injection_detection.injections</span></code></p></td>
+<td><p>list</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Injection types: <code class="docutils literal notranslate"><span class="pre">sqli</span></code>, <code class="docutils literal notranslate"><span class="pre">template</span></code>, <code class="docutils literal notranslate"><span class="pre">code</span></code>, <code class="docutils literal notranslate"><span class="pre">xss</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rails.config.injection_detection.yara_path</span></code></p></td>
 <td><p>string</p></td>
@@ -1531,20 +1530,20 @@
 </tr>
 </thead>
 <tbody>
+<tr class="row-even"><td><p>Arabic</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ar</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Chinese</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">zh</span></code></p></td>
+</tr>
 <tr class="row-even"><td><p>English</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">en</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Spanish</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">es</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Chinese</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">zh</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>German</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">de</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>French</p></td>
+<tr class="row-odd"><td><p>French</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">fr</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>German</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">de</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Hindi</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">hi</span></code></p></td>
@@ -1552,8 +1551,8 @@
 <tr class="row-even"><td><p>Japanese</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ja</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Arabic</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ar</span></code></p></td>
+<tr class="row-odd"><td><p>Spanish</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">es</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>Thai</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">th</span></code></p></td>
@@ -1726,50 +1725,50 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.task</span></code></p></td>
-<td><p>string</p></td>
-<td><p>✓</p></td>
-<td><p>Task identifier</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.content</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.content</span></code></p></td>
 <td><p>string</p></td>
 <td><p></p></td>
 <td><p>Prompt template (mutually exclusive with <code class="docutils literal notranslate"><span class="pre">messages</span></code>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.messages</span></code></p></td>
-<td><p>list</p></td>
-<td><p></p></td>
-<td><p>Chat messages (mutually exclusive with <code class="docutils literal notranslate"><span class="pre">content</span></code>)</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.output_parser</span></code></p></td>
-<td><p>string</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
-<td><p>Output parser name</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.max_length</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.max_length</span></code></p></td>
 <td><p>integer</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">16000</span></code></p></td>
 <td><p>Maximum prompt length (characters)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.max_tokens</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.max_tokens</span></code></p></td>
 <td><p>integer</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
 <td><p>Maximum response tokens</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.messages</span></code></p></td>
+<td><p>list</p></td>
+<td><p></p></td>
+<td><p>Chat messages (mutually exclusive with <code class="docutils literal notranslate"><span class="pre">content</span></code>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.mode</span></code></p></td>
 <td><p>string</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;standard&quot;</span></code></p></td>
 <td><p>Prompting mode</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.models</span></code></p></td>
+<td><p>list</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Restrict to engines/models (e.g., <code class="docutils literal notranslate"><span class="pre">[&quot;openai&quot;,</span> <span class="pre">&quot;nim/llama-3.1&quot;]</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.output_parser</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Output parser name</p></td>
+</tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.stop</span></code></p></td>
 <td><p>list</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
 <td><p>Stop tokens</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.models</span></code></p></td>
-<td><p>list</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
-<td><p>Restrict to engines/models (e.g., <code class="docutils literal notranslate"><span class="pre">[&quot;openai&quot;,</span> <span class="pre">&quot;nim/llama-3.1&quot;]</span></code>)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prompts.task</span></code></p></td>
+<td><p>string</p></td>
+<td><p>✓</p></td>
+<td><p>Task identifier</p></td>
 </tr>
 </tbody>
 </table>
@@ -1784,11 +1783,17 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self_check_input</span></code></p></td>
-<td><p>Check if user input complies with policy</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">general</span></code></p></td>
+<td><p>General response generation (no dialog rails)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self_check_output</span></code></p></td>
-<td><p>Check if bot output complies with policy</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">generate_bot_message</span></code></p></td>
+<td><p>Generate bot response</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">generate_next_steps</span></code></p></td>
+<td><p>Determine next conversation step</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">generate_user_intent</span></code></p></td>
+<td><p>Generate canonical user intent</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self_check_facts</span></code></p></td>
 <td><p>Verify factual accuracy of responses</p></td>
@@ -1796,17 +1801,11 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self_check_hallucination</span></code></p></td>
 <td><p>Detect hallucinations in responses</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">generate_user_intent</span></code></p></td>
-<td><p>Generate canonical user intent</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">self_check_input</span></code></p></td>
+<td><p>Check if user input complies with policy</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">generate_next_steps</span></code></p></td>
-<td><p>Determine next conversation step</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">generate_bot_message</span></code></p></td>
-<td><p>Generate bot response</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">general</span></code></p></td>
-<td><p>General response generation (no dialog rails)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">self_check_output</span></code></p></td>
+<td><p>Check if bot output complies with policy</p></td>
 </tr>
 </tbody>
 </table>
@@ -1822,17 +1821,17 @@
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">system</span></code></p></td>
-<td><p>System-level instructions</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">user</span></code></p></td>
-<td><p>User message content</p></td>
-</tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">assistant</span></code></p></td>
 <td><p>Assistant/bot message content</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bot</span></code></p></td>
 <td><p>Alias for <code class="docutils literal notranslate"><span class="pre">assistant</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">system</span></code></p></td>
+<td><p>System-level instructions</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">user</span></code></p></td>
+<td><p>User message content</p></td>
 </tr>
 </tbody>
 </table>
@@ -2032,7 +2031,7 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#engines">Engines</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#defaultframework-engines">DefaultFramework Engines</a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-routed-engines">LangChain-routed Engines</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-routed-engines">LangChain-Routed Engines</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#embedding-engines">Embedding Engines</a></li>
 </ul>
 </li>
