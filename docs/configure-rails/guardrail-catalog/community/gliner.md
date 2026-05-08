@@ -137,7 +137,7 @@ info = rails.explain()
 print(info.colang_history)
 ```
 
-## 4. Deploy NIMs Locally
+## Deploy NIMs Locally
 
 Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images — obtain one at [ngc.nvidia.com](https://ngc.nvidia.com).
 
