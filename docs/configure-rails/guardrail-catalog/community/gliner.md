@@ -154,7 +154,7 @@ The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based
 
 ### Start the Containers
 
-**GLiNER-PII NIM** — runs on port 8000:
+The **GLiNER-PII NIM** runs on port 8000:
 
 ```bash
 # Authenticate with NGC (username: $oauthtoken, password: your NGC API key)
