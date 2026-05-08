@@ -74,5 +74,5 @@ Starting with 0.22, the built-in client forwards `parameters` from `config.yml` 
 
 Fix the configuration by choosing one path:
 
-- Adapt the configuration to OpenAI-compatible shape. Rename `openai_api_base` to `base_url`, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in [Migrating to 0.22](migration/0.22.md#section-2-mixed-shape-configs) covers the common case.
+- Adapt the configuration to OpenAI-compatible shape. Rename `openai_api_base` to `base_url`, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in [Migrating to 0.22](migration/0.22.md#mixed-shape-configs) covers the common case.
 - Keep the 0.21 config. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` for the process and install LangChain plus the matching upstream provider integration. The legacy field names continue to work when you opt into LangChain.

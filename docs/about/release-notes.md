@@ -43,16 +43,13 @@ For a complete record of changes in a release, refer to the
   package. Most 0.21 configurations keep working unchanged; some shapes need
   a YAML rewrite. For recipes, see [Migrating to 0.22](../migration/0.22.md).
 
-- Public extension points for LLM integration. Two new Protocols (`LLMModel`
-  and `LLMFramework` in `nemoguardrails.types`) let you plug in a custom
-  backend or a whole alternative framework without touching internals. For
-  details, see [Custom LLM Model](../configure-rails/custom-initialization/custom-llm-model.md)
-  and [Custom LLM Framework](../configure-rails/custom-initialization/custom-llm-framework.md).
+- Public extension points for LLM integration. Two new protocols, `LLMModel`
+  and `LLMFramework` in `nemoguardrails.types`, let you plug in a custom
+  backend or a whole alternative framework without touching internals.
 
 - Public testing surface. The `nemoguardrails.testing` module exposes
   `FakeLLMModel`, `TestChat`, and pytest fixtures for writing tests against a
-  guardrails configuration without hitting a real model. For details, see
-  [Testing Your Configuration](../user-guides/testing-your-config.md).
+  guardrails configuration without calling a real model.
 
 (v0-21-0)=
 

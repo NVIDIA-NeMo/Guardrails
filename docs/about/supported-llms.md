@@ -24,7 +24,7 @@ NeMo Guardrails can also call models for a specific guardrail on behalf of the c
 
 ## Inference Providers
 
-Each engine is served by a **framework** that manages the underlying HTTP or SDK calls. NeMo Guardrails ships with a built-in framework that talks to OpenAI-compatible endpoints over `httpx` with no LangChain dependency. For engines whose API isn't OpenAI-compatible, opt into the LangChain framework by setting `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and installing the matching `langchain-<provider>` package. To plug your own, see [Custom LLM Framework](../configure-rails/custom-initialization/custom-llm-framework.md).
+Each engine is served by a framework that manages the underlying HTTP or SDK calls. NeMo Guardrails ships with a built-in framework that talks to OpenAI-compatible endpoints over `httpx` with no LangChain dependency. For engines whose API is not OpenAI-compatible, opt into the LangChain framework by setting `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and installing the matching `langchain-<provider>` package. To add a custom framework, implement the `LLMFramework` protocol from `nemoguardrails.types`.
 
 ```{raw} html
 <button type="button" class="table-expand-button" data-table-title="Inference Providers">
