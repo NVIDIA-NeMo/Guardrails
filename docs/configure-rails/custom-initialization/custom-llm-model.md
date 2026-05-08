@@ -155,7 +155,7 @@ class ToolCallFunction:
 class ToolCall:
     id: str
     type: str = "function"
-    function: ToolCallFunction = ...
+    function: ToolCallFunction = field(default_factory=lambda: ToolCallFunction(name="", arguments={}))
 ```
 
 `function.arguments` is a `Dict[str, Any]`, not a JSON string. If your provider returns arguments as a JSON string, `json.loads()` it before constructing the `ToolCall`. If parsing fails for a streamed response, fall back to an empty dict; the tool layer will surface the real error when the function is invoked.

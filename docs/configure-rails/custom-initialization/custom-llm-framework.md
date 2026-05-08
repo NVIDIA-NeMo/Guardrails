@@ -265,33 +265,6 @@ Read these to see production-grade frameworks:
 
 ## Failure Modes
 
-The registry's `validate()` is your friend. It catches the two most common authoring mistakes at registration time, before any model is constructed.
-
-### Sync `reset` raises `TypeError`
-
-```python
-class BadFramework:
-    def reset(self):  # missing async
-        ...
-
-register_framework("bad", BadFramework())
-# TypeError: Framework 'bad'.reset must be an async coroutine function.
-```
-
-The check uses `inspect.iscoroutinefunction(getattr(item, "reset", None))`. A regular `def reset(self): ...` fails it. So does an `async def` method that has been wrapped by a non-coroutine decorator (rare, but worth knowing).
-
-### Object does not implement the protocol
-
-```python
-class NotAFramework:
-    pass
-
-register_framework("nope", NotAFramework())
-# TypeError: Framework 'nope' does not implement LLMFramework. Required methods: create_model, get_provider_names, register_provider, reset.
-```
-
-`@runtime_checkable` Protocols verify by attribute name and signature compatibility. Missing any of `create_model`, `register_provider`, `get_provider_names`, or `reset` triggers this.
-
 ### Registering a provider before any framework is active
 
 `register_provider` from `nemoguardrails.llm.providers` resolves the active framework via `get_default_framework()` and calls `framework.register_provider` on it. The registry has a built-in `default` framework that is constructed lazily on first access, so this almost always works without explicit setup. The failure mode appears only when the user sets `NEMOGUARDRAILS_LLM_FRAMEWORK` to a name that has not been registered yet:
@@ -314,7 +287,7 @@ The fix is simple: register the framework before any provider, or keep `NEMOGUAR
 
 ```python
 set_default_framework("typo")
-# KeyError: Unknown framework 'typo'. Available: ['default', 'langchain']
+# KeyError: Unknown framework 'typo'. Register it first or use one of: ['default', 'langchain']
 ```
 
 The error lists the framework names that the registry currently knows about. Both built-in names appear because they are constructed lazily by factory; if you are working with only your own framework, register it first then call `set_default_framework`.
