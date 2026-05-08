@@ -150,7 +150,7 @@ Running both NIMs locally eliminates network round-trips and removes the NVIDIA 
 
 The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based on available hardware. An A10G (24 GB) or L4 (24 GB) is the practical minimum for comfortable headroom; a T4 (16 GB) may work but is not officially supported.
 
-> **Note:** `nvidia/gliner-pii` is pre-GA (`1.0.0-rc1`); its GPU requirements above are estimates based on the GLiNER encoder-only architecture and have not been officially published by NVIDIA.
+> **Note:** `nvidia/gliner-pii` is pre-GA (`1.0.0-rc1`). The GPU requirements above are estimates based on the GLiNER encoder-only architecture because NVIDIA has not officially published requirements yet.
 
 ### Start the containers
 
