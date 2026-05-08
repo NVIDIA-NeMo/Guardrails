@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -60,6 +61,7 @@
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../_static/js/table-expander.js?v=b1f1aacf"></script>
 
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/about/release-notes.html" />
     <link rel="icon" href="../_static/favicon.png"/>
@@ -613,6 +615,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -682,10 +685,33 @@
 For a complete record of changes in a release, refer to the
 <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/CHANGELOG.md" rel="noreferer noopener" target="_blank">CHANGELOG.md</a> in the GitHub repository.</p>
 <hr class="docutils" />
-<section id="v0-21-0">
-<span id="id1"></span><h2>0.21.0<a class="headerlink" href="#v0-21-0" title="Link to this heading">#</a></h2>
+<section id="v0-22-0">
+<span id="id1"></span><h2>0.22.0<a class="headerlink" href="#v0-22-0" title="Link to this heading">#</a></h2>
 <section id="key-features">
-<span id="v0-21-0-features"></span><h3>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h3>
+<span id="v0-22-0-features"></span><h3>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>LangChain is now optional. <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> no longer pulls
+LangChain or any provider-specific <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages. The library ships
+with a built-in client that talks to OpenAI-compatible endpoints directly
+over <code class="docutils literal notranslate"><span class="pre">httpx</span></code>. Engines whose API isn’t OpenAI-compatible (Anthropic, Cohere,
+Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM,
+and others) keep working through LangChain when you opt in with
+<code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install the matching provider
+package. Most 0.21 configurations keep working unchanged; some shapes need
+a YAML rewrite. For recipes, see <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p></li>
+<li><p>Public extension points for LLM integration. Two new protocols, <code class="docutils literal notranslate"><span class="pre">LLMModel</span></code>
+and <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> in <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>, let you plug in a custom
+backend or a whole alternative framework without touching internals.</p></li>
+<li><p>Public testing surface. The <code class="docutils literal notranslate"><span class="pre">nemoguardrails.testing</span></code> module exposes
+<code class="docutils literal notranslate"><span class="pre">FakeLLMModel</span></code>, <code class="docutils literal notranslate"><span class="pre">TestChat</span></code>, and pytest fixtures for writing tests against a
+guardrails configuration without calling a real model.</p></li>
+</ul>
+</section>
+</section>
+<section id="v0-21-0">
+<span id="id2"></span><h2>0.21.0<a class="headerlink" href="#v0-21-0" title="Link to this heading">#</a></h2>
+<section id="v0-21-0-features">
+<span id="id3"></span><h3>Key Features<a class="headerlink" href="#v0-21-0-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Added the <code class="docutils literal notranslate"><span class="pre">IORails</span></code> class, a new optimized execution engine that runs NemoGuard input and output rails, such as
 content-safety, topic-safety, and jailbreak detection, in parallel. The engine is opt-in:
@@ -703,7 +729,7 @@ For more information, refer to <a class="reference internal" href="../run-rails/
 <li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
 LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
 every model call in the agent loop. It includes the <code class="docutils literal notranslate"><span class="pre">InputRailsMiddleware</span></code> and <code class="docutils literal notranslate"><span class="pre">OutputRailsMiddleware</span></code>
-convenience subclasses.
+convenience subclasses (requires <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>).
 For more information, refer to <a class="reference internal" href="../integration/langchain/agent-middleware.html"><span class="std std-doc">Agent Middleware</span></a>.</p></li>
 <li><p>Added three new community rails:
 <a class="reference internal" href="../configure-rails/guardrail-catalog/community/policyai.html"><span class="std std-doc">PolicyAI</span></a> for policy-based content moderation,
@@ -857,6 +883,7 @@ request key is changed from <code class="docutils literal notranslate"><span cla
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-22-0">0.22.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#v0-21-0">0.21.0</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#previous-release-notes">Previous Release Notes</a></li>
 </ul>

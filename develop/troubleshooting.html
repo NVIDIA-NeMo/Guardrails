@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -60,13 +61,14 @@
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="_static/js/table-expander.js?v=b1f1aacf"></script>
 
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/troubleshooting.html" />
     <link rel="icon" href="_static/favicon.png"/>
 
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Security Guidelines for LLM Integrations" href="resources/security/guidelines.html" />
-    <link rel="prev" title="NeMo Guardrails Library API Server Endpoints Reference" href="reference/api-server-endpoints/index.html" />
+    <link rel="prev" title="Migrating to 0.22" href="migration/0.22.html" />
 
 
 
@@ -613,6 +615,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="current nav bd-sidenav">
@@ -674,12 +677,70 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="troubleshooting">
 <h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h1>
-<p>This page provides solutions to issues you may encounter while using NeMo Guardrails. If you encounter an issue that is not listed here, <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/issues" rel="noreferer noopener" target="_blank">open an issue</a> on GitHub.</p>
+<p>This page covers common issues you may encounter while configuring or running the NVIDIA NeMo Guardrails library, along with resolution steps.</p>
+<div class="tip admonition">
+<p class="admonition-title">Get Help</p>
+<p>If your issue is not listed here, <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/issues" rel="noreferer noopener" target="_blank">open an issue</a> on GitHub.</p>
+</div>
+<section id="runtime">
+<h2>Runtime<a class="headerlink" href="#runtime" title="Link to this heading">#</a></h2>
 <section id="nested-asyncio-loop">
-<h2>Nested AsyncIO Loop<a class="headerlink" href="#nested-asyncio-loop" title="Link to this heading">#</a></h2>
-<p>NeMo Guardrails is an async-first toolkit, i.e., the core functionality is implemented using async functions. To provide a blocking API, the toolkit must invoke async functions inside synchronous code using <code class="docutils literal notranslate"><span class="pre">asyncio.run</span></code>. However, the current Python implementation for <code class="docutils literal notranslate"><span class="pre">asyncio</span></code> does not allow “nested event loops”. This issue is being discussed by the Python core team and, most likely, support will be added (see <a class="reference external" href="https://github.com/python/cpython/issues/66435" rel="noreferer noopener" target="_blank">GitHub Issue 66435</a> and <a class="reference external" href="https://github.com/python/cpython/pull/93338" rel="noreferer noopener" target="_blank">Pull Request 93338</a>).</p>
-<p>Meanwhile, NeMo Guardrails makes use of <a class="reference external" href="https://github.com/erdewit/nest_asyncio" rel="noreferer noopener" target="_blank">nest_asyncio</a>. The patching is applied when the <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code> package is loaded the first time.</p>
-<p>If the blocking API is not needed, or the <code class="docutils literal notranslate"><span class="pre">nest_asyncio</span></code> patching causes unexpected problems, you can disable it by setting the <code class="docutils literal notranslate"><span class="pre">DISABLE_NEST_ASYNCIO=True</span></code> environment variable.</p>
+<h3>Nested AsyncIO Loop<a class="headerlink" href="#nested-asyncio-loop" title="Link to this heading">#</a></h3>
+<p>The NVIDIA NeMo Guardrails library is async-first. The core runtime uses async functions. To provide a blocking API, the library invokes async functions inside synchronous code using <code class="docutils literal notranslate"><span class="pre">asyncio.run</span></code>.</p>
+<p>Python does not allow nested event loops. In notebooks, async web servers, and other environments that already run an event loop, nested loop behavior can cause runtime errors or unexpected behavior.</p>
+<p>Meanwhile, the NVIDIA NeMo Guardrails library makes use of <a class="reference external" href="https://github.com/erdewit/nest_asyncio" rel="noreferer noopener" target="_blank">nest_asyncio</a>. The patching is applied when the <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code> package is loaded the first time.</p>
+<p>If you do not need the blocking API, or if the <code class="docutils literal notranslate"><span class="pre">nest_asyncio</span></code> patching causes unexpected problems, disable it before loading <code class="docutils literal notranslate"><span class="pre">nemoguardrails</span></code>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span><span class="nb">export</span><span class="w"> </span><span class="nv">DISABLE_NEST_ASYNCIO</span><span class="o">=</span>True
+</pre></div>
+</div>
+<p>Then restart the Python process and retry the application.</p>
+</section>
+</section>
+<section id="llm-framework-routing">
+<h2>LLM Framework Routing<a class="headerlink" href="#llm-framework-routing" title="Link to this heading">#</a></h2>
+<p>Starting with 0.22, two controls select whether an engine is handled by the built-in OpenAI-compatible client or by LangChain:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK</span></code> environment variable. Read once at process startup. Default value <code class="docutils literal notranslate"><span class="pre">default</span></code> (built-in). Set to <code class="docutils literal notranslate"><span class="pre">langchain</span></code> to opt into the LangChain path, or to any name you register with <code class="docutils literal notranslate"><span class="pre">register_framework(name,</span> <span class="pre">instance)</span></code> before initialization.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nemoguardrails.set_default_framework(name)</span></code>. Switches the active selection at runtime. Raises <code class="docutils literal notranslate"><span class="pre">KeyError</span></code> if the name is unknown and is not one of the lazy built-ins (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">langchain</span></code>).</p></li>
+</ul>
+<p>Use the environment variable when every model in a deployment uses the same path. Use <code class="docutils literal notranslate"><span class="pre">set_default_framework</span></code> from Python when you switch dynamically (for example in tests or when bootstrapping a custom framework).</p>
+<p>For migration recipes, see <a class="reference internal" href="migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>. For the engine-by-engine matrix, see <a class="reference internal" href="about/supported-llms.html#inference-providers"><span class="std std-ref">Supported LLMs</span></a>.</p>
+<section id="error-no-default-base-url-for-provider">
+<h3>Error: No Default <code class="docutils literal notranslate"><span class="pre">base_url</span></code> for Provider<a class="headerlink" href="#error-no-default-base-url-for-provider" title="Link to this heading">#</a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: No default base_url for provider &#39;cohere&#39;.
+If your endpoint is OpenAI-compatible, set parameters.base_url.
+Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install
+the matching langchain-&lt;provider&gt; package (see migration guide).
+</pre></div>
+</div>
+<p>This error appears when the engine name you used (<code class="docutils literal notranslate"><span class="pre">cohere</span></code> in the example) isn’t a built-in OpenAI-compatible engine and you haven’t opted into LangChain. The error itself names both fix paths; pick the one that matches your provider. For migration recipes, see <a class="reference internal" href="migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
+</section>
+<section id="error-framework-already-registered">
+<h3>Error: Framework Already Registered<a class="headerlink" href="#error-framework-already-registered" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">register_framework</span></code> does not allow rebinding. If you see this error, the framework name is already registered in the current process.</p>
+<p>Pick a different name. In tests, call the registry-reset hook before re-registering the same name.</p>
+</section>
+<section id="error-unknown-framework">
+<h3>Error: Unknown Framework<a class="headerlink" href="#error-unknown-framework" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">set_default_framework</span></code> call used a name that is not registered and is not one of the lazy built-ins <code class="docutils literal notranslate"><span class="pre">default</span></code> or <code class="docutils literal notranslate"><span class="pre">langchain</span></code>.</p>
+<p>Register the framework first, or correct the name:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_framework</span><span class="p">,</span> <span class="n">set_default_framework</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">my_pkg</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyFramework</span>
+
+<span class="n">register_framework</span><span class="p">(</span><span class="s2">&quot;my-framework&quot;</span><span class="p">,</span> <span class="n">MyFramework</span><span class="p">())</span>
+<span class="n">set_default_framework</span><span class="p">(</span><span class="s2">&quot;my-framework&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="error-unsupported-parameter-on-first-call">
+<h3>Error: Unsupported Parameter on First Call<a class="headerlink" href="#error-unsupported-parameter-on-first-call" title="Link to this heading">#</a></h3>
+<p>Starting with 0.22, the built-in client forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> from <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> directly to the OpenAI-compatible HTTP request. Keys that LangChain accepted as Python flags (<code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">disable_streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code>, <code class="docutils literal notranslate"><span class="pre">callbacks</span></code>, <code class="docutils literal notranslate"><span class="pre">tags</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code>) and provider-prefixed credential aliases (<code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">nim_base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">*_api_key</span></code>, and others) are not part of the OpenAI wire shape, so the provider rejects them. The library detects recognizable shapes at boot and on the first 400/422 response, and appends a migration hint to the underlying provider error.</p>
+<p>Fix the configuration by choosing one path:</p>
+<ul class="simple">
+<li><p>Adapt the configuration to OpenAI-compatible shape. Rename <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code> to <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in <a class="reference internal" href="migration/0.22.html#mixed-shape-configs"><span class="std std-ref">Migrating to 0.22</span></a> covers the common case.</p></li>
+<li><p>Keep the 0.21 config. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> for the process and install LangChain plus the matching upstream provider integration. The legacy field names continue to work when you opt into LangChain.</p></li>
+</ul>
+</section>
 </section>
 </section>
 
@@ -694,12 +755,12 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="reference/api-server-endpoints/index.html"
+       href="migration/0.22.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">NeMo Guardrails Library API Server Endpoints Reference</p>
+        <p class="prev-next-title">Migrating to 0.22</p>
       </div>
     </a>
     <a class="right-next"
@@ -732,7 +793,17 @@
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nested-asyncio-loop">Nested AsyncIO Loop</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runtime">Runtime</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nested-asyncio-loop">Nested AsyncIO Loop</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#llm-framework-routing">LLM Framework Routing</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-no-default-base-url-for-provider">Error: No Default <code class="docutils literal notranslate"><span class="pre">base_url</span></code> for Provider</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-framework-already-registered">Error: Framework Already Registered</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-unknown-framework">Error: Unknown Framework</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-unsupported-parameter-on-first-call">Error: Unsupported Parameter on First Call</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

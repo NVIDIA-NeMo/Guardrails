@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/enhanced-search.css?v=2e2db37d" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=820761ab" />
   
   <!-- So that users can add custom icons -->
   <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
@@ -60,6 +61,7 @@
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             false;
         </script>
+    <script src="../_static/js/table-expander.js?v=b1f1aacf"></script>
 
     <link rel="canonical" href="https://docs.nvidia.com/nemo/guardrails/latest/about/overview.html" />
     <link rel="icon" href="../_static/favicon.png"/>
@@ -613,6 +615,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -785,7 +788,7 @@ The NeMo Guardrails library supports PII detection through multiple integrations
 This includes:</p>
 <ul class="simple">
 <li><p class="sd-card-text"><strong>Tool call validation</strong>: Execute rails that validate tool inputs and outputs before and after invocation.</p></li>
-<li><p class="sd-card-text"><strong>Agent workflow protection</strong>: Integrate with <a class="reference internal" href="../integration/langchain/langgraph-integration.html"><span class="std std-doc">LangGraph</span></a> for multi-agent safety.</p></li>
+<li><p class="sd-card-text"><strong>Agent workflow protection</strong>: Integrate with <a class="reference internal" href="../integration/langchain/langgraph-integration.html"><span class="std std-doc">LangGraph</span></a> for multi-agent safety. Requires the LangChain opt-in (<code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>) and the matching <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> packages.</p></li>
 <li><p class="sd-card-text"><strong>Secure tool integration</strong>: Review guidelines for safely connecting LLMs to external resources (refer to <a class="reference internal" href="../resources/security/guidelines.html"><span class="std std-doc">Security Guidelines</span></a>).</p></li>
 <li><p class="sd-card-text"><strong>Action monitoring</strong>: Monitor detailed logging and tracing of agent actions.</p></li>
 </ul>
@@ -805,7 +808,7 @@ This includes:</p>
 If you have a script or tool that runs a custom guardrail, you can use it in NeMo Guardrails by following one of these approaches:</p>
 <ol class="arabic simple">
 <li><p class="sd-card-text"><strong>Python actions</strong>: Create custom actions in Python for complex logic and external integrations. For more information, refer to the <a class="reference internal" href="../configure-rails/actions/index.html"><span class="std std-doc">Configuring Custom Actions</span></a>.</p></li>
-<li><p class="sd-card-text"><strong>LangChain tool integration</strong>: Register LangChain tools as custom actions. For more information, refer to the <a class="reference internal" href="../integration/tools-integration.html"><span class="std std-doc">Tools Integration with the NeMo Guardrails Library</span></a>.</p></li>
+<li><p class="sd-card-text"><strong>LangChain tool integration</strong>: Register LangChain tools as custom actions. Requires the LangChain framework. For more information, refer to the <a class="reference internal" href="../integration/tools-integration.html"><span class="std std-doc">Tools Integration with the NeMo Guardrails Library</span></a>.</p></li>
 <li><p class="sd-card-text"><strong>Third-party API integration</strong>: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to <a class="reference internal" href="../configure-rails/guardrail-catalog/third-party.html"><span class="std std-doc">Third-Party APIs</span></a> in the Guardrail Catalog.</p></li>
 </ol>
 </div>
