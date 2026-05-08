@@ -152,7 +152,7 @@ The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based
 
 > **Note:** `nvidia/gliner-pii` is pre-GA (`1.0.0-rc1`). The GPU requirements above are estimates based on the GLiNER encoder-only architecture because NVIDIA has not officially published requirements yet.
 
-### Start the containers
+### Start the Containers
 
 **GLiNER-PII NIM** — runs on port 8000:
 
