@@ -277,18 +277,7 @@ If the smoke test prints `Hello from echo`, your provider is registered correctl
 
 ### What `register_provider` does
 
-`register_provider(name, cls)` from `nemoguardrails.llm.providers` resolves the active framework via `get_default_framework()` and calls `framework.register_provider(name, cls)` on it. For `DefaultFramework`, that adds `name` to its in-memory dict; subsequent `create_model("echo", ...)` calls use your class as the factory.
-
-If you want the provider to be available regardless of which framework is active, register it once per framework:
-
-```python
-from nemoguardrails.llm.frameworks import get_framework
-
-get_framework("default").register_provider("echo", EchoLLMModel)
-get_framework("langchain").register_provider("echo", EchoLLMModel)
-```
-
-The `LangChainFramework` accepts the same call shape. It treats your class as a chat provider.
+`register_provider(name, cls)` from `nemoguardrails.llm.providers` resolves the active framework via `get_default_framework()` and calls `framework.register_provider(name, cls)` on it. For `DefaultFramework`, that adds `name` to its in-memory dict; subsequent `create_model("echo", ...)` calls use your class as the factory. The active framework is selected once per process by `NEMOGUARDRAILS_LLM_FRAMEWORK` (or `set_default_framework()` from `config.py`); you do not register on multiple frameworks.
 
 ### Calling-convention contract for your `__init__`
 
