@@ -14,7 +14,7 @@ You can obtain an API key at [build.nvidia.com](https://build.nvidia.com).
 
 You will also need to [install](../../../getting-started/installation-guide.md) the NeMo Guardrails library.
 
-## 1. Configure Guardrails
+## Configure Guardrails
 
 Create a `config` directory and add a `config.yml` file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.
 
