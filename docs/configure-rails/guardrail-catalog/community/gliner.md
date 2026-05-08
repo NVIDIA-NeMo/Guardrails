@@ -368,6 +368,6 @@ To run them:
 pytest tests/test_gliner.py -v
 ```
 
-For a self-hosted alternative using the `nvidia/gliner-PII` model directly, the [`examples/deployment/gliner_server/`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/) directory provides a reference implementation. It exposes a `POST /v1/extract` endpoint — if you use it, set `server_endpoint` to `http://localhost:1235/v1/extract`. Refer to the [deployment README](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md) for setup instructions.
+For a self-hosted alternative using the `nvidia/gliner-PII` model directly, the [`examples/deployment/gliner_server/`](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/) directory provides a reference implementation. The server exposes a `POST /v1/extract` endpoint. If you use it, set `server_endpoint` to `http://localhost:1235/v1/extract`. Refer to the [deployment README](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/deployment/gliner_server/README.md) for setup instructions.
 
 For more information on GLiNER, refer to the [GLiNER GitHub repository](https://github.com/urchade/GLiNER).
