@@ -67,7 +67,7 @@ rails:
       - gliner detect pii on output
 ```
 
-**PII masking** — replaces detected PII with label placeholders (e.g., `Hi John` → `Hi [FIRST_NAME]`):
+**PII masking** replaces detected PII with label placeholders, such as changing `Hi John` to `Hi [FIRST_NAME]`:
 
 ```yaml
 models:
