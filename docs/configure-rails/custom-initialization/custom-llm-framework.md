@@ -291,10 +291,10 @@ class BadFramework:
         ...
 
 register_framework("bad", BadFramework())
-# TypeError: 'bad'.reset must be an async coroutine function
+# TypeError: Framework 'bad'.reset must be an async coroutine function.
 ```
 
-The check uses `asyncio.iscoroutinefunction(getattr(item, "reset", None))`. A regular `def reset(self): ...` fails it. So does an `async def` method that has been wrapped by a non-coroutine decorator (rare, but worth knowing).
+The check uses `inspect.iscoroutinefunction(getattr(item, "reset", None))`. A regular `def reset(self): ...` fails it. So does an `async def` method that has been wrapped by a non-coroutine decorator (rare, but worth knowing).
 
 ### Object does not implement the protocol
 
@@ -303,10 +303,10 @@ class NotAFramework:
     pass
 
 register_framework("nope", NotAFramework())
-# TypeError: 'nope' does not implement LLMFramework
+# TypeError: Framework 'nope' does not implement LLMFramework. Required methods: create_model, get_provider_names, register_provider, reset.
 ```
 
-`@runtime_checkable` Protocols verify by attribute name and signature compatibility. Missing `create_model`, `register_provider`, `get_provider_names`, or `reset` triggers this.
+`@runtime_checkable` Protocols verify by attribute name and signature compatibility. Missing any of `create_model`, `register_provider`, `get_provider_names`, or `reset` triggers this.
 
 ### Registering a provider before any framework is active
 
