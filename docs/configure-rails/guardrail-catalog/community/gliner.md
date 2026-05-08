@@ -166,7 +166,7 @@ docker run --rm -it --gpus all \
   nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
 ```
 
-**Llama 3.1 8B Instruct NIM** — mapped to port 8001 to avoid conflict with GLiNER:
+Map the **Llama 3.1 8B Instruct NIM** to port 8001 to avoid a conflict with GLiNER:
 
 ```bash
 docker run --rm -it --gpus all \
