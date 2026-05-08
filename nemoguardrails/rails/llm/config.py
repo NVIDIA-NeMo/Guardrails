@@ -554,7 +554,11 @@ class InputRails(BaseModel):
 
     speculative_generation: Optional[bool] = Field(
         default=False,
-        description="If True, input rails run concurrently with LLM generation (speculative execution).",
+        description=(
+            "If True, input rails run concurrently with LLM generation (speculative execution). "
+            "Only supported for non-streaming generate_async() calls; stream_async() warns and falls "
+            "back to sequential execution."
+        ),
     )
 
     flows: List[str] = Field(

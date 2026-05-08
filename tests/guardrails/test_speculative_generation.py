@@ -73,12 +73,17 @@ class TestSpeculativeGeneration:
     @pytest.mark.asyncio
     async def test_rails_first_reject(self, iorails):
         """Rails finish first and reject — generation is cancelled, refusal returned."""
+        llm_started = False
+        llm_completed = False
 
         async def fast_reject(messages):
             return RailResult(is_safe=False, reason="unsafe")
 
         async def slow_llm(model_type, messages):
+            nonlocal llm_started, llm_completed
+            llm_started = True
             await asyncio.sleep(0.5)
+            llm_completed = True
             return LLMResponse(content="Should not be used")
 
         iorails.rails_manager.is_input_safe = fast_reject
@@ -89,6 +94,11 @@ class TestSpeculativeGeneration:
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         iorails.rails_manager.is_output_safe.assert_not_called()
+        # The speculative LLM call must have been started but cancelled mid-flight.
+        # Without these, the test would still pass on a regression where gen_task
+        # silently completed in the background instead of being cancelled.
+        assert llm_started, "LLM should have started speculatively"
+        assert not llm_completed, "LLM should have been cancelled before completion"
 
     @pytest.mark.asyncio
     async def test_gen_first_pass(self, iorails):
@@ -156,6 +166,101 @@ class TestSpeculativeGeneration:
 
         with pytest.raises(RuntimeError, match="Rails crashed"):
             await iorails.generate_async(MESSAGES)
+
+    @pytest.mark.asyncio
+    async def test_rails_reject_with_simultaneous_llm_exception(self, iorails, caplog):
+        """Rails reject + LLM raises in the same scheduling window — refusal returned, exception drained."""
+
+        async def fast_reject(messages):
+            return RailResult(is_safe=False, reason="unsafe")
+
+        async def slow_raises(model_type, messages):
+            # Yield once so rails wins the race, then raise — the cleanup path
+            # must drain gen_task's stored exception via gather rather than
+            # letting it leak through suppress(CancelledError).
+            await asyncio.sleep(0)
+            raise RuntimeError("LLM crashed late")
+
+        iorails.rails_manager.is_input_safe = fast_reject
+        iorails.engine_registry.model_call = slow_raises
+        iorails.rails_manager.is_output_safe = AsyncMock()
+
+        with caplog.at_level("WARNING", logger="nemoguardrails.guardrails.iorails"):
+            result = await iorails.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        iorails.rails_manager.is_output_safe.assert_not_called()
+        assert any("LLM generation error suppressed" in rec.message for rec in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_both_tasks_raise_during_race(self, iorails, caplog):
+        """Both rails and gen raise — outer cleanup logs the loser exception, winner propagates."""
+
+        async def rails_raises(messages):
+            raise RuntimeError("Rails crashed")
+
+        async def gen_raises(model_type, messages):
+            await asyncio.sleep(0)
+            raise RuntimeError("LLM crashed too")
+
+        iorails.rails_manager.is_input_safe = rails_raises
+        iorails.engine_registry.model_call = gen_raises
+
+        with caplog.at_level("WARNING", logger="nemoguardrails.guardrails.iorails"):
+            with pytest.raises(RuntimeError):
+                await iorails.generate_async(MESSAGES)
+
+        assert any("task error discarded during cleanup" in rec.message for rec in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_rails_first_reject_records_blocked_metric(self):
+        """Rails-first-reject path increments record_request_blocked when metrics are on."""
+        cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_CONFIG)
+        cfg["metrics"] = {"enabled": True}
+
+        async def fast_reject(messages):
+            return RailResult(is_safe=False, reason="unsafe")
+
+        async def slow_llm(model_type, messages):
+            await asyncio.sleep(0.5)
+            return LLMResponse(content="Should not be used")
+
+        async with started_iorails(cfg) as iorails:
+            iorails.rails_manager.is_input_safe = fast_reject
+            iorails.engine_registry.model_call = slow_llm
+            iorails.rails_manager.is_output_safe = AsyncMock()
+
+            with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_mock:
+                result = await iorails.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_mock.assert_called_once()
+        assert record_mock.call_args.args[0].name == "INPUT"
+
+    @pytest.mark.asyncio
+    async def test_gen_first_reject_records_blocked_metric(self):
+        """Gen-first-reject path increments record_request_blocked when metrics are on."""
+        cfg = copy.deepcopy(NEMOGUARDS_SPECULATIVE_CONFIG)
+        cfg["metrics"] = {"enabled": True}
+
+        async def slow_reject(messages):
+            await asyncio.sleep(0.05)
+            return RailResult(is_safe=False, reason="unsafe")
+
+        async def fast_llm(model_type, messages):
+            return LLMResponse(content="Should be discarded")
+
+        async with started_iorails(cfg) as iorails:
+            iorails.rails_manager.is_input_safe = slow_reject
+            iorails.engine_registry.model_call = fast_llm
+            iorails.rails_manager.is_output_safe = AsyncMock()
+
+            with patch("nemoguardrails.guardrails.iorails.record_request_blocked") as record_mock:
+                result = await iorails.generate_async(MESSAGES)
+
+        assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
+        record_mock.assert_called_once()
+        assert record_mock.call_args.args[0].name == "INPUT"
 
     @pytest.mark.asyncio
     async def test_flag_disabled_runs_sequentially(self, iorails_sequential):

@@ -343,14 +343,13 @@ class IORails:
     ) -> Optional[LLMResponse]:
         """Speculative path: input rails and LLM generation race concurrently."""
         log.info("[%s] Speculative generation: launching input rails + LLM concurrently", req_id)
-        t0 = time.monotonic()
 
         rails_task = asyncio.create_task(self.rails_manager.is_input_safe(messages))
         gen_task = asyncio.create_task(self.engine_registry.model_call("main", messages, **llm_kwargs))
 
         try:
             response = await self._parallel_input_rail_and_response_generation(
-                rails_task, gen_task, req_id, t0, request_span
+                rails_task, gen_task, req_id, request_span
             )
         except BaseException as outer_exc:
             for t in (rails_task, gen_task):
@@ -382,7 +381,6 @@ class IORails:
         rails_task: asyncio.Task,
         gen_task: asyncio.Task,
         req_id: str,
-        t0: float,
         request_span: Optional["Span"] = None,
     ) -> Optional[LLMResponse]:
         """Race input rails against LLM generation, return LLMResponse or None (rejected)."""
