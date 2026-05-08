@@ -1,0 +1,198 @@
+---
+title:
+  page: "LLM Framework Routing"
+  nav: "LLM Framework Routing"
+description: Configure how version 0.22 of the NVIDIA NeMo Guardrails library routes LLM engines through DefaultFramework and LangChainFramework.
+keywords: ["nemoguardrails 0.22", "DefaultFramework", "LangChainFramework optional", "LLM framework registry", "NEMOGUARDRAILS_LLM_FRAMEWORK"]
+topics: ["generative_ai", "developer_tools"]
+tags: ["llms", "migration", "ai_inference"]
+content:
+  type: how_to
+  difficulty: technical_intermediate
+  audience: ["engineer"]
+---
+
+# LLM Framework Routing
+
+Starting with version 0.22, the NVIDIA NeMo Guardrails library routes LLM engines through either `DefaultFramework` or `LangChainFramework`.
+
+`DefaultFramework` connects to OpenAI-compatible endpoints directly over `httpx`, with no LangChain dependency on the request path. As a result, `langchain` and the provider-specific `langchain-*` packages are no longer installed as runtime dependencies by default.
+
+`DefaultFramework` is the default framework for engines whose underlying wire protocol is OpenAI-compatible. If you rely on OpenAI-compatible endpoints, it works out of the box. If you use any other engine whose API is not OpenAI-compatible, you need to switch to `LangChainFramework`.
+
+This guide explains how routing works, how to install LangChain when you need it, how to migrate legacy `engine: vllm_openai` configurations, and how to switch between the frameworks.
+
+## Existing Engine Configurations that Works As Is
+
+If your `config.yml` uses one of the following OpenAI or OpenAI-compatible engines, you can keep your configuration as is. The library v0.22 covers the routing logic for these engines, and your existing configuration works out of the box.
+
+| Engine | Default base URL |
+| --- | --- |
+| `openai` | `https://api.openai.com/v1` |
+| `nim` | `https://integrate.api.nvidia.com/v1` |
+| `nvidia_ai_endpoints` | `https://integrate.api.nvidia.com/v1` (alias for `nim`) |
+| `ollama` | `http://localhost:11434/v1` |
+
+These engines route to `DefaultFramework`, which builds an `OpenAIChatModel` for an OpenAI-compatible HTTP endpoint. Override the endpoint with `parameters.base_url` and the API key with `parameters.api_key` or the engine-specific environment variable, such as `OPENAI_API_KEY` or `NVIDIA_API_KEY`.
+
+```yaml
+models:
+  - type: main
+    engine: nim
+    model: meta/llama-3.1-70b-instruct
+    parameters:
+      temperature: 0.0
+      max_tokens: 1024
+```
+
+## Configure OpenAI-Compatible Self-Hosted and Third-Party Endpoints
+
+Many providers expose an OpenAI-compatible `/v1/chat/completions` route. For all of them, use `engine: openai` with `parameters.base_url`. Do not use `engine: vllm_openai`. Do not set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
+
+The following table lists providers that expose an OpenAI-compatible `/v1/chat/completions` route.
+
+| Provider | Notes |
+| --- | --- |
+| DeepSeek | Uses `https://api.deepseek.com/v1` as the OpenAI-compatible API base URL. |
+| llama.cpp | Requires the server to run with `--api` and expose a `/v1` endpoint. |
+| NVIDIA | NVIDIA NIM microservices are OpenAI-compatible. |
+| OpenRouter | Uses `https://openrouter.ai/api/v1` as the OpenAI-compatible API base URL. |
+| TGI and Hugging Face TEI | Requires a deployment that exposes `/v1/chat/completions`. |
+| Together.ai, Fireworks.ai, and Groq | Uses each provider's OpenAI-compatible API base URL. |
+| vLLM | Requires the OpenAI-compatible API server (`python -m vllm.entrypoints.openai.api_server`) and the server's `/v1` endpoint. |
+| Other self-hosted endpoints | Applies when the endpoint exposes an OpenAI-compatible `/v1/chat/completions` route. |
+
+### Migrating a Legacy `vllm_openai` Configuration
+
+Check if your existing configuration uses vLLM as the engine similar to the following:
+
+```yaml
+models:
+  - type: main
+    engine: vllm_openai
+    model: meta-llama/Llama-3.1-8B-Instruct
+    parameters:
+      openai_api_base: http://localhost:5000/v1
+```
+
+If it does, migrate to the following configuration:
+
+```yaml
+models:
+  - type: main
+    engine: openai
+    model: meta-llama/Llama-3.1-8B-Instruct
+    parameters:
+      base_url: http://localhost:5000/v1
+      api_key: EMPTY
+```
+
+When self-hosted vLLM does not enforce authentication, set `parameters.api_key` to any non-empty placeholder, such as `EMPTY`. If your deployment requires a real token, replace the placeholder with that value or load it through `api_key_env_var`. `LangChainFramework` still recognizes the legacy `engine: vllm_openai` form, but use the `DefaultFramework` form above for new configurations.
+
+## Use LangChainFramework for Non-OpenAI-Compatible Engines
+
+Engines whose APIs are not OpenAI-compatible still route through `LangChainFramework`. There is no automatic fallback from `DefaultFramework` to `LangChainFramework`. The NeMo Guardrails library does not add a provider-specific installation step beyond LangChain itself. Install LangChain and the provider integration from the upstream LangChain documentation, then set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` for the process.
+
+Guardrails-specific requirements:
+
+1. In `config.yml`, use the provider name as the engine name, such as `engine: anthropic` or `engine: cohere`. Do not use a `langchain/<provider>` prefix.
+2. Set the LLM framework route to `LangChainFramework` in your application code. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` or call `set_default_framework("langchain")` before the process starts.
+
+The following engines require `LangChainFramework` because `DefaultFramework` does not handle their API shapes:
+
+| Provider | Engine | Notes |
+| --- | --- | --- |
+| Google Vertex AI | `vertexai` | Vertex AI through `LangChainFramework`. |
+| Google Generative AI | `google_genai` | Google Generative AI through `LangChainFramework`. |
+| Anthropic | `anthropic` | Anthropic Claude. |
+| Cohere | `cohere` | Cohere. |
+| Azure OpenAI | `azure`, `azure_openai` | Legacy Azure OpenAI engine names. Use `LangChainFramework` when you rely on Azure-specific configuration fields. |
+| Hugging Face | `huggingface_pipeline`, `hf_pipeline_*` | In-process Python pipeline. |
+| Hugging Face | `huggingface_hub` | Hugging Face Hub. |
+| Hugging Face | `huggingface_endpoint` | Default text-generation schema. If your endpoint exposes `/v1/chat/completions`, prefer the `DefaultFramework` `engine: openai` plus `parameters.base_url` instead. |
+| TensorRT-LLM | `trt_llm` | TensorRT-LLM in-process. |
+| Self-hosted LangChain | `self_hosted` | LangChain self-hosted wrapper. |
+
+For provider package names and optional extras, refer to the [LangChain chat-model integrations](https://python.langchain.com/docs/integrations/chat/) page.
+
+To see the full list of providers `LangChainFramework` recognizes, run:
+
+```bash
+export NEMOGUARDRAILS_LLM_FRAMEWORK=langchain
+nemoguardrails find-providers --list
+```
+
+## Choose the Active Framework
+
+The NVIDIA NeMo Guardrails library resolves the framework name in two places:
+
+- The `NEMOGUARDRAILS_LLM_FRAMEWORK` environment variable, read once when the framework registry initializes. The default value is `default`.
+- The `set_default_framework(name)` function, which changes the registry at runtime.
+
+### Set the Environment Variable
+
+Set `NEMOGUARDRAILS_LLM_FRAMEWORK` before starting the process:
+
+```bash
+export NEMOGUARDRAILS_LLM_FRAMEWORK=langchain
+nemoguardrails chat --config=path/to/config
+```
+
+Accepted values:
+
+- `default` (default): The new `httpx`-based path. Engines `openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, plus any other OpenAI-compatible provider configured with `engine: openai` and `parameters.base_url`.
+- `langchain`: All engine resolutions go through `LangChainFramework`. Useful when every model in your configuration is a LangChain-backed provider.
+- Any name you have registered yourself with `register_framework(name, instance)`.
+
+### Switch Programmatically
+
+```python
+from nemoguardrails import set_default_framework
+
+set_default_framework("langchain")
+```
+
+`set_default_framework` raises `KeyError` if the name has not been registered and is not one of the lazy-loaded built-ins (`default`, `langchain`).
+
+### Register a Custom Framework
+
+```python
+from nemoguardrails import register_framework, set_default_framework
+from my_pkg import MyFramework
+
+register_framework("my-framework", MyFramework())
+set_default_framework("my-framework")
+```
+
+`register_framework` raises `ValueError` if a framework with the same name is already registered.
+
+## Unchanged Behaviors by the Framework Transition
+
+The following list summarizes the behaviors not impacted by the framework transition introduced in version 0.22.
+
+- Streaming. `stream_handler`, `stream_async`, and the rails-level `streaming` flag work the same as 0.21. You do not need to change any streaming configuration.
+- Tool calling. `tools`, `tool_choice`, and provider-side function or tool calling continue to work. The `LLMResponse.tool_calls` shape is unchanged.
+- Reasoning configs. `reasoning_config: {remove_reasoning_traces: ..., start_token: ..., end_token: ...}` is unchanged. Reasoning models (DeepSeek R1, NIM `nemotron-reasoning`, OpenAI o-series) keep working under both frameworks.
+- Custom providers registered in `config.py`. Calls to `register_chat_provider(name, cls)` and `register_provider(name, cls)` continue to work. They register on the active framework: `DefaultFramework` if no environment variable is set, and `LangChainFramework` if `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` is set. Providers registered for one framework are not visible to the other.
+- Caching, telemetry, callbacks, embeddings. No 0.22 changes affecting these.
+
+If your `config.py` needs to support both modes, register the custom provider on each framework:
+
+```python
+from nemoguardrails.llm.frameworks import get_framework
+
+get_framework("default").register_provider("my_engine", MyLLMModelClass)
+get_framework("langchain").register_provider("my_engine", MyLangChainProviderClass)
+```
+
+## Use the Provider Matrix and Supported LLMs
+
+For the full engine-to-framework matrix, including streaming and tool-calling support per engine, refer to the [Inference Providers](../../about/supported-llms.md#inference-providers).
+
+## Related Topics
+
+- [Supported LLMs](../../about/supported-llms.md) lists all engines, their framework routing behavior, and streaming and tool-calling support.
+- [Configuration YAML Schema Reference](../configuration-reference.md) describes all `models.*` fields, including `parameters` semantics for both frameworks.
+- [Troubleshooting](../../troubleshooting.md#llm-framework-routing) describes common routing errors and fixes.
+- [LangChain Integration](../../integration/langchain/langchain-integration.md) describes using `RunnableRails`, agent middleware, and chains as actions.
+- [Custom LLM Providers](../custom-initialization/custom-llm-providers.md) describes registering a provider inside a framework.

@@ -91,6 +91,15 @@ Configure LLM engines, embedding models, and task-specific models in config.yml.
 {bdg-secondary}`Reference`
 :::
 
+:::{grid-item-card} LLM Framework Routing
+:link: llm-framework-routing
+:link-type: doc
+
+Configure how model engines route through DefaultFramework or LangChainFramework.
++++
+{bdg-secondary}`How To`
+:::
+
 :::{grid-item-card} Guardrails
 :link: guardrails-configuration/index
 :link-type: doc
@@ -154,6 +163,7 @@ Configuration files should be organized in a `config` folder with the following 
 :maxdepth: 2
 
 Models <model-configuration>
+LLM Framework Routing <llm-framework-routing>
 Guardrails <guardrails-configuration/index>
 Prompts <prompt-configuration>
 Tracing <tracing-configuration>
