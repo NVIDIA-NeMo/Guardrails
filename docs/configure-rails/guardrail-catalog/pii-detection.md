@@ -99,7 +99,7 @@ rails:
       - gliner mask pii on output
 ```
 
-### Locally hosted NIMs
+### Locally Hosted NIMs
 
 To run both NIMs locally, pull the Docker containers and point each endpoint to localhost. No `api_key_env_var` is needed for local inference.
 
