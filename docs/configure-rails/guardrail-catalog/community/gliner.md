@@ -116,7 +116,7 @@ With **PII masking** enabled, PII is replaced in-place before the LLM sees the m
 Nice to meet you, [FIRST_NAME]! How can I help you today?
 ```
 
-## 3. Use the Python SDK
+## Use the Python SDK
 
 ```python
 import nest_asyncio
