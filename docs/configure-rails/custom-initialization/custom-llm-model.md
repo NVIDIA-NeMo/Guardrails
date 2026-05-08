@@ -323,7 +323,7 @@ The contract is small enough that property-based tests are straightforward: any 
 1. **Implement both methods even if your backend has no native streaming.** A simple `stream_async` that yields a single chunk built from `generate_async` keeps the streaming consumer paths working.
 2. **Pre-flight validate provider responses.** The reference `OpenAIChatModel._validate_response` rejects non-dict bodies and missing `choices` entries before parsing. This keeps user-facing errors actionable.
 3. **Forward `**kwargs` to the SDK.** Anything the user wrote under `parameters` in `config.yml` lands here. Letting unknown keys pass through means new SDK options work without a guardrails release.
-4. **Keep `__init__` cheap.** `create_model` is called per task. If your client is expensive to build, cache it on the framework (see `DefaultFramework._get_or_create_client`) or as a module-level singleton.
+4. **Pool shared backend clients on the framework.** `create_model` is called once per `models:` entry at `LLMRails` startup; after that, your model handles every request. If multiple `models:` entries point at the same backend, the framework, not the model, should hold the underlying client so they share one connection pool. `DefaultFramework._get_or_create_client` keys clients by `(base_url, api_key, ...)` for exactly this reason. Single-model configs can build the client directly in `__init__`.
 5. **Do not raise vanilla `Exception`.** Use the `nemoguardrails.exceptions` hierarchy so retries and structured logging behave correctly.
 
 ## Related Topics
