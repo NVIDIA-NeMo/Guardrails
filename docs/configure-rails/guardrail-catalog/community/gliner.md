@@ -177,7 +177,7 @@ docker run --rm -it --gpus all \
 
 Wait until both containers log `Application startup complete` before proceeding.
 
-### Update config.yml
+### Update the Configuration
 
 Replace the remote endpoints with local ones and remove both `api_key_env_var` fields:
 
