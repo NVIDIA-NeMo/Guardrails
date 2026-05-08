@@ -123,6 +123,17 @@ fixed string for every prompt; swap in real HTTP calls or SDK invocations once
 you have verified the registration and dispatch path works (see
 `custom-llm-model.md` for the canonical `httpx`-based pattern).
 
+Create a config directory `my_config/` next to your smoke-test script with
+two files:
+
+```text
+my_config/
+├── config.py    # framework + LLMModel definitions, registered at import time
+└── config.yml   # references the framework's engine name
+```
+
+`my_config/config.py`:
+
 ```python
 from typing import Any, Dict, List, Optional
 
@@ -191,25 +202,25 @@ register_framework("my", MyFramework())
 set_default_framework("my")
 ```
 
-### Trying it out
-
-Point a NeMo Guardrails config at the framework by setting the model engine
-to one the framework recognizes:
+`my_config/config.yml`:
 
 ```yaml
-# config.yml
 models:
   - type: main
     engine: my_engine
     model: echo
 ```
 
-Then run a smoke test:
+### Trying it out
+
+Run a smoke test from the parent directory of `my_config/`. `LLMRails`
+imports `config.py` automatically, which triggers the `register_framework`
+and `set_default_framework` calls at the bottom of that file:
 
 ```python
+# smoke.py (next to my_config/)
 from nemoguardrails import LLMRails, RailsConfig
 
-# After running the framework registration code above:
 config = RailsConfig.from_path("./my_config")
 app = LLMRails(config)
 
