@@ -121,6 +121,8 @@ Returns the list of engine names this framework knows about, including built-ins
 
 After `reset`, the instance must remain usable. New resources are constructed lazily on the next `create_model` call.
 
+Today `reset` is invoked only by the test suite; the runtime does not call it on `nemoguardrails server` shutdown. Implement it for test isolation, not for production cleanup.
+
 ## Minimal Working Example
 
 The example below is fully self-contained and runs end-to-end without any
@@ -255,29 +257,6 @@ Read these to see production-grade frameworks:
 - [`nemoguardrails/llm/frameworks/default.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/frameworks/default.py): `DefaultFramework`. Pools `OpenAICompatibleClient` instances keyed on `(base_url, api_key, timeouts, headers, query)`. Splits lifecycle into `aclose` (HTTP teardown), `clear_providers` (registry teardown), and `reset` (both, used in tests).
 - [`nemoguardrails/integrations/langchain/llm_adapter.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/integrations/langchain/llm_adapter.py): `LangChainFramework`. Defers to `nemoguardrails.integrations.langchain.providers` for registration, calls `init_langchain_model` for construction, wraps the result in `LangChainLLMAdapter`. Has a no-op `reset` because the LangChain side has no pooled state of its own.
 - [`nemoguardrails/llm/frameworks/registry.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/frameworks/registry.py): `LLMFrameworkRegistry`, `register_framework`, `get_framework`, `set_default_framework`, `get_default_framework`, `_areset_frameworks`. Read this to understand the env var, lazy lookup, and registration behavior.
-
-## Lifecycle and Threading
-
-### When `reset` is called
-
-- **Test teardown.** The pytest fixture in `tests/conftest.py` calls `_reset_frameworks()` between tests when isolation is required. This is also how the test suite avoids leaking pooled HTTP connections across tests.
-- **Server shutdown.** `nemoguardrails server` does not currently call `_reset_frameworks` automatically; production-style cleanup is the application's responsibility. If you embed `LLMRails` in your own service, call `await _areset_frameworks()` from your shutdown hook (FastAPI `lifespan`, `atexit`, ...).
-- **Manual reset.** From a Jupyter notebook or REPL session you can call `_reset_frameworks()` (sync) or `await _areset_frameworks()` (async) to drop pooled state.
-
-### What `reset` must close
-
-Anything the framework opened: HTTP clients (`httpx.AsyncClient.aclose()`), gRPC channels, websocket connections, async file handles, cache databases. If you stash a global event-loop-bound resource on the framework instance, close it here.
-
-Things `reset` typically does **not** close:
-
-- Provider classes registered by user code. `DefaultFramework.aclose` deliberately leaves these alone; only `reset` (the test-oriented superset) clears them.
-- LLM-instance state owned by `LLMModel` objects. Each model owns its own lifecycle. The framework should not reach into them.
-
-### Threading and event loops
-
-NeMo Guardrails currently runs on a single asyncio event loop per process. The framework registry is module-global mutable state and is not thread-safe; if you call `register_framework` from multiple threads you must serialize the calls yourself.
-
-`reset` and `create_model` are called from the same event loop that runs `LLMRails.generate_async`. Do not block that loop with synchronous I/O. If you must run blocking code, dispatch it via `asyncio.to_thread` or `loop.run_in_executor`.
 
 ## Failure Modes
 
