@@ -107,7 +107,7 @@ Agentic security provides specialized guardrails for LLM-based agents that use t
 This includes:
 
 - **Tool call validation**: Execute rails that validate tool inputs and outputs before and after invocation.
-- **Agent workflow protection**: Integrate with [LangGraph](../integration/langchain/langgraph-integration.md) for multi-agent safety. To use this, you need to install the LangChain framework.
+- **Agent workflow protection**: Integrate with [LangGraph](../integration/langchain/langgraph-integration.md) for multi-agent safety. Requires the LangChain opt-in (`NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`) and the matching `langchain-*` packages.
 - **Secure tool integration**: Review guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](../resources/security/guidelines.md)).
 - **Action monitoring**: Monitor detailed logging and tracing of agent actions.
 
