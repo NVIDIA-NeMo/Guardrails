@@ -408,7 +408,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../configure-rails/before-configuration.html">Prerequisites</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../configure-rails/yaml-schema/index.html">Configuring YAML File</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/model-configuration.html">Models</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/llm-framework-routing.html">LLM Framework Routing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
@@ -616,6 +615,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -685,13 +685,14 @@
 </section>
 <section id="inference-providers">
 <h2>Inference Providers<a class="headerlink" href="#inference-providers" title="Link to this heading">#</a></h2>
-<button type="button" class="table-expand-button" data-table-title="Routing Matrix">
+<p>Each engine is served by a framework that manages the underlying HTTP or SDK calls. NeMo Guardrails ships with a built-in framework that talks to OpenAI-compatible endpoints over <code class="docutils literal notranslate"><span class="pre">httpx</span></code> with no LangChain dependency. For engines whose API is not OpenAI-compatible, opt into the LangChain framework by setting <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and installing the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package. To add a custom framework, implement the <code class="docutils literal notranslate"><span class="pre">LLMFramework</span></code> protocol from <code class="docutils literal notranslate"><span class="pre">nemoguardrails.types</span></code>.</p>
+<button type="button" class="table-expand-button" data-table-title="Inference Providers">
   <span aria-hidden="true" class="table-expand-button__icon">&#x26F6;</span>
   Expand table
 </button><div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Engine</p></th>
-<th class="head"><p>Framework Routing*</p></th>
+<th class="head"><p>Framework</p></th>
 <th class="head"><p>Streaming</p></th>
 <th class="head"><p>Tool calls</p></th>
 <th class="head"><p>Reasoning models</p></th>
@@ -700,91 +701,91 @@
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>wrapper-dependent</p></td>
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-anthropic</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">azure</span></code>, <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
-<td><p>Azure OpenAI’s deployment-name URL pattern plus <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string is not handled by DefaultFramework’s OpenAI-compatible client. Requires <code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>.</p></td>
+<td><p>Azure OpenAI is OpenAI-compatible at the wire level. The LangChain path (<code class="docutils literal notranslate"><span class="pre">langchain-openai</span></code>) is the convenient default because it handles the deployment-name URL pattern and <code class="docutils literal notranslate"><span class="pre">api-version</span></code> query string for you. Azure is also reachable through the built-in client by setting <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to the deployment URL and passing <code class="docutils literal notranslate"><span class="pre">api-version</span></code> via <code class="docutils literal notranslate"><span class="pre">default_query</span></code> and <code class="docutils literal notranslate"><span class="pre">api-key</span></code> via <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cohere</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>n/a</p></td>
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-cohere</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">google_genai</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>n/a</p></td>
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-google-genai</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_endpoint</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
 <td><p>Default text-generation schema. If your endpoint exposes <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>, prefer <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> instead.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">huggingface_pipeline</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
 <td><p>In-process pipelines and LangChain wrappers without a native HTTP path.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nim</span></code></p></td>
-<td><p>DefaultFramework</p></td>
+<td><p>Built-in</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>Default base URL <code class="docutils literal notranslate"><span class="pre">https://integrate.api.nvidia.com/v1</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code></p></td>
-<td><p>DefaultFramework</p></td>
+<td><p>Built-in</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>Alias for <code class="docutils literal notranslate"><span class="pre">nim</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ollama</span></code></p></td>
-<td><p>DefaultFramework</p></td>
+<td><p>Built-in</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes (where supported)</p></td>
 <td><p>Default base URL <code class="docutils literal notranslate"><span class="pre">http://localhost:11434/v1</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">openai</span></code></p></td>
-<td><p>DefaultFramework</p></td>
+<td><p>Built-in</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>OpenAI public API or any OpenAI-compatible endpoint using <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. For vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp, NVIDIA Nemotron, and similar providers, use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertexai</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>n/a</p></td>
 <td><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">langchain</span> <span class="pre">langchain-google-vertexai</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vllm_openai</span></code>, <code class="docutils literal notranslate"><span class="pre">deepseek</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
 <td><p>yes</p></td>
-<td><p>Legacy LangChain provider engines. They continue to work under the LangChain framework. For new configurations, use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> when the wire protocol is OpenAI-compatible.</p></td>
+<td><p>Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> when the wire protocol is OpenAI-compatible.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;provider_name&gt;</span></code></p></td>
-<td><p>LangChainFramework</p></td>
+<td><p>LangChain (opt-in)</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
 <td><p>varies</p></td>
@@ -793,12 +794,7 @@
 </tbody>
 </table>
 </div>
-<p>* Starting with version 0.22, the NVIDIA NeMo Guardrails library routes every model through one of the following LLM frameworks:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> uses OpenAI’s wire protocol directly over <code class="docutils literal notranslate"><span class="pre">httpx</span></code>. It is the primary path for providers whose endpoints are OpenAI-compatible.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code> supports providers whose APIs are not OpenAI-compatible.</p></li>
-</ul>
-<p>For framework selection rules and migration examples, refer to <a class="reference internal" href="../configure-rails/yaml-schema/llm-framework-routing.html"><span class="std std-doc">LLM Framework Routing</span></a>.</p>
+<p>For migration recipes between the built-in path and the LangChain path, see <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
 </section>
 <section id="langchain-backed-providers">
 <h2>LangChain-Backed Providers<a class="headerlink" href="#langchain-backed-providers" title="Link to this heading">#</a></h2>

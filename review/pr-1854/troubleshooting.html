@@ -68,7 +68,7 @@
 
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Security Guidelines for LLM Integrations" href="resources/security/guidelines.html" />
-    <link rel="prev" title="NeMo Guardrails Library API Server Endpoints Reference" href="reference/api-server-endpoints/index.html" />
+    <link rel="prev" title="Migrating to 0.22" href="migration/0.22.html" />
 
 
 
@@ -408,7 +408,6 @@
 <li class="toctree-l1"><a class="reference internal" href="configure-rails/before-configuration.html">Prerequisites</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="configure-rails/yaml-schema/index.html">Configuring YAML File</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/model-configuration.html">Models</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/llm-framework-routing.html">LLM Framework Routing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="configure-rails/yaml-schema/prompt-configuration.html">Prompts</a></li>
@@ -616,6 +615,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="current nav bd-sidenav">
@@ -698,25 +698,22 @@
 </section>
 <section id="llm-framework-routing">
 <h2>LLM Framework Routing<a class="headerlink" href="#llm-framework-routing" title="Link to this heading">#</a></h2>
-<p>Version 0.22 of the NVIDIA NeMo Guardrails library introduces a framework registry that decides whether an engine is handled by the new <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code>, which uses <code class="docutils literal notranslate"><span class="pre">httpx</span></code> and does not require LangChain, or by <code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code>. Two controls select the active framework:</p>
+<p>Starting with 0.22, two controls select whether an engine is handled by the built-in OpenAI-compatible client or by LangChain:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK</span></code> environment variable. Read once when the registry initializes. Default value <code class="docutils literal notranslate"><span class="pre">default</span></code>. Accepted values: <code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">langchain</span></code>, or any name you register with <code class="docutils literal notranslate"><span class="pre">register_framework(name,</span> <span class="pre">instance)</span></code> before initialization.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">nemoguardrails.set_default_framework(name)</span></code>. Changes the active framework at runtime. Raises <code class="docutils literal notranslate"><span class="pre">KeyError</span></code> if the name is unknown and is not one of the lazy built-ins (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">langchain</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK</span></code> environment variable. Read once at process startup. Default value <code class="docutils literal notranslate"><span class="pre">default</span></code> (built-in). Set to <code class="docutils literal notranslate"><span class="pre">langchain</span></code> to opt into the LangChain path, or to any name you register with <code class="docutils literal notranslate"><span class="pre">register_framework(name,</span> <span class="pre">instance)</span></code> before initialization.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nemoguardrails.set_default_framework(name)</span></code>. Switches the active selection at runtime. Raises <code class="docutils literal notranslate"><span class="pre">KeyError</span></code> if the name is unknown and is not one of the lazy built-ins (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">langchain</span></code>).</p></li>
 </ul>
-<p>Use the environment variable when every model in a deployment should be resolved through the same framework. Use <code class="docutils literal notranslate"><span class="pre">set_default_framework</span></code> from Python when you switch frameworks dynamically (for example in tests or when bootstrapping a custom framework).</p>
-<p>For a detailed walkthrough, including which engines route to each framework, refer to <a class="reference internal" href="configure-rails/yaml-schema/llm-framework-routing.html"><span class="std std-doc">LLM Framework Routing</span></a>.</p>
+<p>Use the environment variable when every model in a deployment uses the same path. Use <code class="docutils literal notranslate"><span class="pre">set_default_framework</span></code> from Python when you switch dynamically (for example in tests or when bootstrapping a custom framework).</p>
+<p>For migration recipes, see <a class="reference internal" href="migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>. For the engine-by-engine matrix, see <a class="reference internal" href="about/supported-llms.html#inference-providers"><span class="std std-ref">Supported LLMs</span></a>.</p>
 <section id="error-no-default-base-url-for-provider">
 <h3>Error: No Default <code class="docutils literal notranslate"><span class="pre">base_url</span></code> for Provider<a class="headerlink" href="#error-no-default-base-url-for-provider" title="Link to this heading">#</a></h3>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: No default base_url for provider &#39;cohere&#39;.
-Set it explicitly in model parameters: parameters.base_url
+If your endpoint is OpenAI-compatible, set parameters.base_url.
+Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install
+the matching langchain-&lt;provider&gt; package (see migration guide).
 </pre></div>
 </div>
-<p>This error comes from <code class="docutils literal notranslate"><span class="pre">_resolve_base_url</span></code> in <code class="docutils literal notranslate"><span class="pre">nemoguardrails/llm/frameworks/default.py</span></code>. It means the engine name you used, such as <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, is not in <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code>’s routing table and does not identify an OpenAI-compatible endpoint.</p>
-<p>Fix the configuration by choosing one path:</p>
-<ul class="simple">
-<li><p>For an OpenAI-compatible endpoint, set <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> explicitly.</p></li>
-<li><p>For a LangChain-only provider, set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install the upstream LangChain provider integration. Keep the bare engine name in <code class="docutils literal notranslate"><span class="pre">config.yml</span></code>, such as <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">cohere</span></code>.</p></li>
-</ul>
+<p>This error appears when the engine name you used (<code class="docutils literal notranslate"><span class="pre">cohere</span></code> in the example) isn’t a built-in OpenAI-compatible engine and you haven’t opted into LangChain. The error itself names both fix paths; pick the one that matches your provider. For migration recipes, see <a class="reference internal" href="migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
 </section>
 <section id="error-framework-already-registered">
 <h3>Error: Framework Already Registered<a class="headerlink" href="#error-framework-already-registered" title="Link to this heading">#</a></h3>
@@ -737,11 +734,11 @@ Set it explicitly in model parameters: parameters.base_url
 </section>
 <section id="error-unsupported-parameter-on-first-call">
 <h3>Error: Unsupported Parameter on First Call<a class="headerlink" href="#error-unsupported-parameter-on-first-call" title="Link to this heading">#</a></h3>
-<p>Version 0.22 forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> from <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> directly to the OpenAI-compatible HTTP client when an engine routes through <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code>. Keys that LangChain accepted as Python flags (<code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">disable_streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code>, <code class="docutils literal notranslate"><span class="pre">callbacks</span></code>, <code class="docutils literal notranslate"><span class="pre">tags</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code>) and provider-prefixed credential aliases (<code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">nim_base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">*_api_key</span></code>, and others) are not part of the OpenAI wire shape, so the provider rejects them. The NVIDIA NeMo Guardrails library detects recognizable shapes at boot and on the first 400/422 response, and appends a migration hint to the underlying provider error.</p>
+<p>Starting with 0.22, the built-in client forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> from <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> directly to the OpenAI-compatible HTTP request. Keys that LangChain accepted as Python flags (<code class="docutils literal notranslate"><span class="pre">streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">disable_streaming</span></code>, <code class="docutils literal notranslate"><span class="pre">verbose</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code>, <code class="docutils literal notranslate"><span class="pre">callbacks</span></code>, <code class="docutils literal notranslate"><span class="pre">tags</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">model_kwargs</span></code>) and provider-prefixed credential aliases (<code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code>, <code class="docutils literal notranslate"><span class="pre">nim_base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">*_api_key</span></code>, and others) are not part of the OpenAI wire shape, so the provider rejects them. The library detects recognizable shapes at boot and on the first 400/422 response, and appends a migration hint to the underlying provider error.</p>
 <p>Fix the configuration by choosing one path:</p>
 <ul class="simple">
-<li><p>Adapt the configuration to OpenAI-compatible shape. Rename <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code> to <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in <a class="reference internal" href="configure-rails/yaml-schema/llm-framework-routing.html#configure-openai-compatible-self-hosted-and-third-party-endpoints"><span class="std std-ref">Configure OpenAI-Compatible Self-Hosted and Third-Party Endpoints</span></a> covers the common case.</p></li>
-<li><p>Keep the 0.21 config. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> for the process and install LangChain plus the matching upstream provider integration. The legacy field names continue to work under the LangChain framework.</p></li>
+<li><p>Adapt the configuration to OpenAI-compatible shape. Rename <code class="docutils literal notranslate"><span class="pre">openai_api_base</span></code> to <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in <a class="reference internal" href="migration/0.22.html#mixed-shape-configs"><span class="std std-ref">Migrating to 0.22</span></a> covers the common case.</p></li>
+<li><p>Keep the 0.21 config. Set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> for the process and install LangChain plus the matching upstream provider integration. The legacy field names continue to work when you opt into LangChain.</p></li>
 </ul>
 </section>
 </section>
@@ -758,12 +755,12 @@ Set it explicitly in model parameters: parameters.base_url
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="reference/api-server-endpoints/index.html"
+       href="migration/0.22.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">NeMo Guardrails Library API Server Endpoints Reference</p>
+        <p class="prev-next-title">Migrating to 0.22</p>
       </div>
     </a>
     <a class="right-next"

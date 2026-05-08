@@ -408,7 +408,6 @@
 <li class="toctree-l1"><a class="reference internal" href="before-configuration.html">Prerequisites</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="yaml-schema/index.html">Configuring YAML File</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="yaml-schema/model-configuration.html">Models</a></li>
-<li class="toctree-l2"><a class="reference internal" href="yaml-schema/llm-framework-routing.html">LLM Framework Routing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="yaml-schema/prompt-configuration.html">Prompts</a></li>
@@ -616,6 +615,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/cli/index.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../reference/api-server-endpoints/index.html">Guardrails API Server Endpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/0.22.html">Migrating to 0.22</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Troubleshooting</span></p>
 <ul class="nav bd-sidenav">
@@ -744,7 +744,7 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models.parameters</span></code></p></td>
 <td><p>object</p></td>
 <td><p></p></td>
-<td><p>Provider-specific parameters. For DefaultFramework engines (<code class="docutils literal notranslate"><span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">nim</span></code>, <code class="docutils literal notranslate"><span class="pre">nvidia_ai_endpoints</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>), the runtime passes parameters such as <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, and <code class="docutils literal notranslate"><span class="pre">api_key</span></code> to the OpenAI-compatible client. For LangChain-routed engines, use the bare provider engine name, such as <code class="docutils literal notranslate"><span class="pre">anthropic</span></code> or <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, and select the framework with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. The runtime passes <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the underlying LangChain class.</p></td>
+<td><p>Provider-specific parameters. For engines served by the built-in client (any OpenAI-compatible endpoint), the runtime forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the OpenAI-compatible HTTP request (for example <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">max_tokens</span></code>, <code class="docutils literal notranslate"><span class="pre">base_url</span></code>, <code class="docutils literal notranslate"><span class="pre">api_key</span></code>, <code class="docutils literal notranslate"><span class="pre">default_query</span></code>, <code class="docutils literal notranslate"><span class="pre">default_headers</span></code>). For engines served by LangChain (opt-in with <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>), the runtime forwards <code class="docutils literal notranslate"><span class="pre">parameters</span></code> to the underlying LangChain class. For the engine-by-engine matrix, see <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models.type</span></code></p></td>
 <td><p>string</p></td>
@@ -827,9 +827,9 @@
 </section>
 <section id="engines">
 <h3>Engines<a class="headerlink" href="#engines" title="Link to this heading">#</a></h3>
-<p>Starting with version 0.22, the NVIDIA NeMo Guardrails library routes models through one of the following LLM frameworks. Prefer the <code class="docutils literal notranslate"><span class="pre">DefaultFramework</span></code> whenever the underlying wire protocol is OpenAI-compatible. The <code class="docutils literal notranslate"><span class="pre">LangChainFramework</span></code> framework is required only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. Refer to the <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a> for the full mapping and <a class="reference internal" href="yaml-schema/llm-framework-routing.html"><span class="std std-doc">LLM Framework Routing</span></a> for migration details.</p>
-<section id="defaultframework-engines">
-<h4>DefaultFramework Engines<a class="headerlink" href="#defaultframework-engines" title="Link to this heading">#</a></h4>
+<p>Starting with version 0.22, NeMo Guardrails serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping see <a class="reference internal" href="../about/supported-llms.html#inference-providers"><span class="std std-ref">Inference Providers</span></a>; for migration recipes see <a class="reference internal" href="../migration/0.22.html"><span class="std std-doc">Migrating to 0.22</span></a>.</p>
+<section id="built-in-engines">
+<h4>Built-in Engines<a class="headerlink" href="#built-in-engines" title="Link to this heading">#</a></h4>
 <p>These engines work with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails</span></code> and do not require extra provider packages. Pass <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> to point at a self-hosted or alternative endpoint.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
@@ -855,9 +855,9 @@
 </div>
 <p>For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp server, and similar), use <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code> and <code class="docutils literal notranslate"><span class="pre">parameters.api_key</span></code>.</p>
 </section>
-<section id="langchain-routed-engines">
-<h4>LangChain-Routed Engines<a class="headerlink" href="#langchain-routed-engines" title="Link to this heading">#</a></h4>
-<p>These engines require <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> provider package.</p>
+<section id="langchain-engines">
+<h4>LangChain Engines<a class="headerlink" href="#langchain-engines" title="Link to this heading">#</a></h4>
+<p>To use one of these engines, set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code> and install the matching <code class="docutils literal notranslate"><span class="pre">langchain-*</span></code> provider package.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Engine</p></th>
@@ -2030,8 +2030,8 @@
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#engines">Engines</a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#defaultframework-engines">DefaultFramework Engines</a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-routed-engines">LangChain-Routed Engines</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#built-in-engines">Built-in Engines</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#langchain-engines">LangChain Engines</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#embedding-engines">Embedding Engines</a></li>
 </ul>
 </li>
