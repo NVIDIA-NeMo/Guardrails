@@ -28,28 +28,25 @@ Then restart the Python process and retry the application.
 
 ## LLM Framework Routing
 
-Version 0.22 of the NVIDIA NeMo Guardrails library introduces a framework registry that decides whether an engine is handled by the new `DefaultFramework`, which uses `httpx` and does not require LangChain, or by `LangChainFramework`. Two controls select the active framework:
+Starting with 0.22, two controls select whether an engine is handled by the built-in OpenAI-compatible client or by LangChain:
 
-- `NEMOGUARDRAILS_LLM_FRAMEWORK` environment variable. Read once when the registry initializes. Default value `default`. Accepted values: `default`, `langchain`, or any name you register with `register_framework(name, instance)` before initialization.
-- `nemoguardrails.set_default_framework(name)`. Changes the active framework at runtime. Raises `KeyError` if the name is unknown and is not one of the lazy built-ins (`default`, `langchain`).
+- `NEMOGUARDRAILS_LLM_FRAMEWORK` environment variable. Read once at process startup. Default value `default` (built-in). Set to `langchain` to opt into the LangChain path, or to any name you register with `register_framework(name, instance)` before initialization.
+- `nemoguardrails.set_default_framework(name)`. Switches the active selection at runtime. Raises `KeyError` if the name is unknown and is not one of the lazy built-ins (`default`, `langchain`).
 
-Use the environment variable when every model in a deployment should be resolved through the same framework. Use `set_default_framework` from Python when you switch frameworks dynamically (for example in tests or when bootstrapping a custom framework).
+Use the environment variable when every model in a deployment uses the same path. Use `set_default_framework` from Python when you switch dynamically (for example in tests or when bootstrapping a custom framework).
 
-For a detailed walkthrough, including which engines route to each framework, refer to [LLM Framework Routing](configure-rails/yaml-schema/llm-framework-routing.md).
+For migration recipes, see [Migrating to 0.22](migration/0.22.md). For the engine-by-engine matrix, see [Supported LLMs](about/supported-llms.md#inference-providers).
 
 ### Error: No Default `base_url` for Provider
 
 ```text
 ValueError: No default base_url for provider 'cohere'.
-Set it explicitly in model parameters: parameters.base_url
+If your endpoint is OpenAI-compatible, set parameters.base_url.
+Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install
+the matching langchain-<provider> package (see migration guide).
 ```
 
-This error comes from `_resolve_base_url` in `nemoguardrails/llm/frameworks/default.py`. It means the engine name you used, such as `cohere`, is not in `DefaultFramework`'s routing table and does not identify an OpenAI-compatible endpoint.
-
-Fix the configuration by choosing one path:
-
-- For an OpenAI-compatible endpoint, set `parameters.base_url` explicitly.
-- For a LangChain-only provider, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the upstream LangChain provider integration. Keep the bare engine name in `config.yml`, such as `engine: cohere`.
+This error appears when the engine name you used (`cohere` in the example) isn't a built-in OpenAI-compatible engine and you haven't opted into LangChain. The error itself names both fix paths; pick the one that matches your provider. For migration recipes, see [Migrating to 0.22](migration/0.22.md).
 
 ### Error: Framework Already Registered
 
@@ -73,9 +70,9 @@ set_default_framework("my-framework")
 
 ### Error: Unsupported Parameter on First Call
 
-Version 0.22 forwards `parameters` from `config.yml` directly to the OpenAI-compatible HTTP client when an engine routes through `DefaultFramework`. Keys that LangChain accepted as Python flags (`streaming`, `disable_streaming`, `verbose`, `cache`, `callbacks`, `tags`, `metadata`, `name`, `model_kwargs`) and provider-prefixed credential aliases (`openai_api_base`, `nim_base_url`, `*_api_key`, and others) are not part of the OpenAI wire shape, so the provider rejects them. The NVIDIA NeMo Guardrails library detects recognizable shapes at boot and on the first 400/422 response, and appends a migration hint to the underlying provider error.
+Starting with 0.22, the built-in client forwards `parameters` from `config.yml` directly to the OpenAI-compatible HTTP request. Keys that LangChain accepted as Python flags (`streaming`, `disable_streaming`, `verbose`, `cache`, `callbacks`, `tags`, `metadata`, `name`, `model_kwargs`) and provider-prefixed credential aliases (`openai_api_base`, `nim_base_url`, `*_api_key`, and others) are not part of the OpenAI wire shape, so the provider rejects them. The library detects recognizable shapes at boot and on the first 400/422 response, and appends a migration hint to the underlying provider error.
 
 Fix the configuration by choosing one path:
 
-- Adapt the configuration to OpenAI-compatible shape. Rename `openai_api_base` to `base_url`, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in [Configure OpenAI-Compatible Self-Hosted and Third-Party Endpoints](configure-rails/yaml-schema/llm-framework-routing.md#configure-openai-compatible-self-hosted-and-third-party-endpoints) covers the common case.
-- Keep the 0.21 config. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` for the process and install LangChain plus the matching upstream provider integration. The legacy field names continue to work under the LangChain framework.
+- Adapt the configuration to OpenAI-compatible shape. Rename `openai_api_base` to `base_url`, drop LangChain Python flags, and remove provider-prefixed aliases. The migration recipe in [Migrating to 0.22](migration/0.22.md#section-2-mixed-shape-configs) covers the common case.
+- Keep the 0.21 config. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` for the process and install LangChain plus the matching upstream provider integration. The legacy field names continue to work when you opt into LangChain.

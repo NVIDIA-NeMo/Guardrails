@@ -55,7 +55,7 @@ models:
 | `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
 | `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
 | `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
-| `models.parameters` | object | | Provider-specific parameters. For DefaultFramework engines (`openai`, `nim`, `nvidia_ai_endpoints`, `ollama`), the runtime passes parameters such as `temperature`, `max_tokens`, `base_url`, and `api_key` to the OpenAI-compatible client. For LangChain-routed engines, use the bare provider engine name, such as `anthropic` or `cohere`, and select the framework with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. The runtime passes `parameters` to the underlying LangChain class. |
+| `models.parameters` | object | | Provider-specific parameters. For engines served by the built-in client (any OpenAI-compatible endpoint), the runtime forwards `parameters` to the OpenAI-compatible HTTP request (for example `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, `default_headers`). For engines served by LangChain (opt-in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`), the runtime forwards `parameters` to the underlying LangChain class. For the engine-by-engine matrix, see [Inference Providers](../about/supported-llms.md#inference-providers). |
 | `models.type` | string | ✓ | Model identifier (see [Model Types](#model-types)) |
 
 ### Model Types
@@ -102,9 +102,9 @@ The runtime validates that any `$model=<type>` reference in flows has a matching
 
 ### Engines
 
-Starting with version 0.22, the NVIDIA NeMo Guardrails library routes models through one of the following LLM frameworks. Prefer the `DefaultFramework` whenever the underlying wire protocol is OpenAI-compatible. The `LangChainFramework` framework is required only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. Refer to the [Inference Providers](../about/supported-llms.md#inference-providers) for the full mapping and [LLM Framework Routing](yaml-schema/llm-framework-routing.md) for migration details.
+Starting with version 0.22, NeMo Guardrails serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping see [Inference Providers](../about/supported-llms.md#inference-providers); for migration recipes see [Migrating to 0.22](../migration/0.22.md).
 
-#### DefaultFramework Engines
+#### Built-in Engines
 
 These engines work with `pip install nemoguardrails` and do not require extra provider packages. Pass `parameters.base_url` to point at a self-hosted or alternative endpoint.
 
@@ -117,9 +117,9 @@ These engines work with `pip install nemoguardrails` and do not require extra pr
 
 For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp server, and similar), use `engine: openai` with `parameters.base_url` and `parameters.api_key`.
 
-#### LangChain-Routed Engines
+#### LangChain Engines
 
-These engines require `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the matching `langchain-*` provider package.
+To use one of these engines, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-*` provider package.
 
 | Engine | Description |
 | --- | --- |

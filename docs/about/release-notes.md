@@ -25,6 +25,35 @@ For a complete record of changes in a release, refer to the
 
 ---
 
+(v0-22-0)=
+
+## 0.22.0
+
+(v0-22-0-features)=
+
+### Key Features
+
+- LangChain is now optional. `pip install nemoguardrails` no longer pulls
+  LangChain or any provider-specific `langchain-*` packages. The library ships
+  with a built-in client that talks to OpenAI-compatible endpoints directly
+  over `httpx`. Engines whose API isn't OpenAI-compatible (Anthropic, Cohere,
+  Vertex AI, Google Generative AI, in-process Hugging Face, TensorRT-LLM,
+  and others) keep working through LangChain when you opt in with
+  `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching provider
+  package. Most 0.21 configurations keep working unchanged; some shapes need
+  a YAML rewrite. For recipes, see [Migrating to 0.22](../migration/0.22.md).
+
+- Public extension points for LLM integration. Two new Protocols (`LLMModel`
+  and `LLMFramework` in `nemoguardrails.types`) let you plug in a custom
+  backend or a whole alternative framework without touching internals. For
+  details, see [Custom LLM Model](../configure-rails/custom-initialization/custom-llm-model.md)
+  and [Custom LLM Framework](../configure-rails/custom-initialization/custom-llm-framework.md).
+
+- Public testing surface. The `nemoguardrails.testing` module exposes
+  `FakeLLMModel`, `TestChat`, and pytest fixtures for writing tests against a
+  guardrails configuration without hitting a real model. For details, see
+  [Testing Your Configuration](../user-guides/testing-your-config.md).
+
 (v0-21-0)=
 
 ## 0.21.0

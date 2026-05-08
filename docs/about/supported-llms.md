@@ -24,35 +24,32 @@ NeMo Guardrails can also call models for a specific guardrail on behalf of the c
 
 ## Inference Providers
 
+Each engine is served by a **framework** that manages the underlying HTTP or SDK calls. NeMo Guardrails ships with a built-in framework that talks to OpenAI-compatible endpoints over `httpx` with no LangChain dependency. For engines whose API isn't OpenAI-compatible, opt into the LangChain framework by setting `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and installing the matching `langchain-<provider>` package. To plug your own, see [Custom LLM Framework](../configure-rails/custom-initialization/custom-llm-framework.md).
+
 ```{raw} html
-<button type="button" class="table-expand-button" data-table-title="Routing Matrix">
+<button type="button" class="table-expand-button" data-table-title="Inference Providers">
   <span aria-hidden="true" class="table-expand-button__icon">&#x26F6;</span>
   Expand table
 </button>
 ```
 
-| Engine | Framework Routing\* | Streaming | Tool calls | Reasoning models | Notes |
+| Engine | Framework | Streaming | Tool calls | Reasoning models | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `anthropic` | LangChainFramework | yes | yes | wrapper-dependent | Requires `pip install langchain langchain-anthropic`. |
-| `azure`, `azure_openai` | LangChainFramework | yes | yes | yes | Azure OpenAI's deployment-name URL pattern plus `api-version` query string is not handled by DefaultFramework's OpenAI-compatible client. Requires `langchain-openai`. |
-| `cohere` | LangChainFramework | yes | yes | n/a | Requires `pip install langchain langchain-cohere`. |
-| `google_genai` | LangChainFramework | yes | yes | n/a | Requires `pip install langchain langchain-google-genai`. |
-| `huggingface_endpoint` | LangChainFramework | varies | varies | varies | Default text-generation schema. If your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead. |
-| `huggingface_pipeline`, `huggingface_hub`, `trt_llm`, `self_hosted` | LangChainFramework | varies | varies | varies | In-process pipelines and LangChain wrappers without a native HTTP path. |
-| `nim` | DefaultFramework | yes | yes | yes | Default base URL `https://integrate.api.nvidia.com/v1`. |
-| `nvidia_ai_endpoints` | DefaultFramework | yes | yes | yes | Alias for `nim`. |
-| `ollama` | DefaultFramework | yes | yes | yes (where supported) | Default base URL `http://localhost:11434/v1`. |
-| `openai` | DefaultFramework | yes | yes | yes | OpenAI public API or any OpenAI-compatible endpoint using `parameters.base_url`. For vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp, NVIDIA Nemotron, and similar providers, use `engine: openai` with `parameters.base_url` and `parameters.api_key`. |
-| `vertexai` | LangChainFramework | yes | yes | n/a | Requires `pip install langchain langchain-google-vertexai`. |
-| `vllm_openai`, `deepseek` | LangChainFramework | yes | yes | yes | Legacy LangChain provider engines. They continue to work under the LangChain framework. For new configurations, use `engine: openai` with `parameters.base_url` when the wire protocol is OpenAI-compatible. |
-| `<provider_name>` | LangChainFramework | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. Use the bare provider name as the engine name. |
+| `anthropic` | LangChain (opt-in) | yes | yes | wrapper-dependent | Requires `pip install langchain langchain-anthropic`. |
+| `azure`, `azure_openai` | LangChain (opt-in) | yes | yes | yes | Azure OpenAI is OpenAI-compatible at the wire level. The LangChain path (`langchain-openai`) is the convenient default because it handles the deployment-name URL pattern and `api-version` query string for you. Azure is also reachable through the built-in client by setting `parameters.base_url` to the deployment URL and passing `api-version` via `default_query` and `api-key` via `default_headers`. |
+| `cohere` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-cohere`. |
+| `google_genai` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-google-genai`. |
+| `huggingface_endpoint` | LangChain (opt-in) | varies | varies | varies | Default text-generation schema. If your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead. |
+| `huggingface_pipeline`, `huggingface_hub`, `trt_llm`, `self_hosted` | LangChain (opt-in) | varies | varies | varies | In-process pipelines and LangChain wrappers without a native HTTP path. |
+| `nim` | Built-in | yes | yes | yes | Default base URL `https://integrate.api.nvidia.com/v1`. |
+| `nvidia_ai_endpoints` | Built-in | yes | yes | yes | Alias for `nim`. |
+| `ollama` | Built-in | yes | yes | yes (where supported) | Default base URL `http://localhost:11434/v1`. |
+| `openai` | Built-in | yes | yes | yes | OpenAI public API or any OpenAI-compatible endpoint using `parameters.base_url`. For vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp, NVIDIA Nemotron, and similar providers, use `engine: openai` with `parameters.base_url` and `parameters.api_key`. |
+| `vertexai` | LangChain (opt-in) | yes | yes | n/a | Requires `pip install langchain langchain-google-vertexai`. |
+| `vllm_openai`, `deepseek` | LangChain (opt-in) | yes | yes | yes | Legacy LangChain provider engines. They continue to work when you opt into LangChain. For new configurations, use `engine: openai` with `parameters.base_url` when the wire protocol is OpenAI-compatible. |
+| `<provider_name>` | LangChain (opt-in) | varies | varies | varies | Any community provider exposed through LangChain's chat-model integrations. Use the bare provider name as the engine name. |
 
-\* Starting with version 0.22, the NVIDIA NeMo Guardrails library routes every model through one of the following LLM frameworks:
-
-- `DefaultFramework` uses OpenAI's wire protocol directly over `httpx`. It is the primary path for providers whose endpoints are OpenAI-compatible.
-- `LangChainFramework` supports providers whose APIs are not OpenAI-compatible.
-
-For framework selection rules and migration examples, refer to [LLM Framework Routing](../configure-rails/yaml-schema/llm-framework-routing.md).
+For migration recipes between the built-in path and the LangChain path, see [Migrating to 0.22](../migration/0.22.md).
 
 ## LangChain-Backed Providers
 

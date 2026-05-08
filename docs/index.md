@@ -255,6 +255,14 @@ Guardrails API Server Endpoints <reference/api-server-endpoints/index>
 ```
 
 ```{toctree}
+:caption: Migration
+:name: Migration
+:hidden:
+
+Migrating to 0.22 <migration/0.22>
+```
+
+```{toctree}
 :caption: Troubleshooting
 :name: Troubleshooting
 :hidden:
