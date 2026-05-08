@@ -17,7 +17,7 @@ Personally Identifiable Information (PII) detection helps protect user privacy b
 
 ## GLiNER-based PII Detection
 
-The NeMo Guardrails library supports PII detection and masking via the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough — including CLI and Python SDK usage and local deployment — see the [GLiNER Integration](community/gliner.md) page.
+The NeMo Guardrails library supports PII detection and masking using the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the [GLiNER Integration](community/gliner.md) page.
 
 ### NVIDIA-hosted endpoint
 
