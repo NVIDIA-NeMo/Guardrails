@@ -183,6 +183,16 @@ Populate `model_name`, `provider_name`, and `base_url` on the exception when you
 
 Below is a 40-line `EchoLLMModel` that returns canned responses without making any network call. It is useful as a starting skeleton and as a sanity check for new framework wiring.
 
+Create a config directory `my_config/` next to your smoke-test script with two files:
+
+```text
+my_config/
+├── config.py    # EchoLLMModel + register_provider call, run at import time
+└── config.yml   # references the registered engine name
+```
+
+`my_config/config.py`:
+
 ```python
 import asyncio
 from typing import Any, AsyncIterator, List, Optional, Union
@@ -246,9 +256,9 @@ class EchoLLMModel:
 register_provider("echo", EchoLLMModel)
 ```
 
-Drop that snippet into `config.py` (the file next to your `config.yml`). The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default that is `DefaultFramework`. See [Custom LLMFramework](custom-llm-framework.md) for the framework layer.
+The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default that is `DefaultFramework`. See [Custom LLMFramework](custom-llm-framework.md) for the framework layer.
 
-Reference it from `config.yml`:
+`my_config/config.yml`:
 
 ```yaml
 models:
@@ -261,9 +271,10 @@ models:
 
 ### Trying it out
 
-Once `config.py` runs the `register_provider("echo", EchoLLMModel)` call and `config.yml` references it, a smoke test confirms the wiring end-to-end:
+Run a smoke test from the parent directory of `my_config/`. `LLMRails` imports `config.py` automatically, which triggers the `register_provider` call at the bottom of that file:
 
 ```python
+# smoke.py (next to my_config/)
 from nemoguardrails import LLMRails, RailsConfig
 
 config = RailsConfig.from_path("./my_config")
