@@ -32,7 +32,7 @@ rails:
       model: nvidia/gliner-pii  # default — omit or change as needed
 ```
 
-**PII detection** — blocks input or output that contains PII:
+**PII detection** blocks input or output that contains PII:
 
 ```yaml
 models:
