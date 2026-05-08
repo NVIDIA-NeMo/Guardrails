@@ -53,7 +53,7 @@ Define the init() function to initialize resources and register action parameter
 :link: custom-llm-providers
 :link-type: doc
 
-Register custom text completion and chat models. Use the `LLMModel` protocol for DefaultFramework, or LangChain `BaseLLM`/`BaseChatModel` when running with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
+Register custom text completion and chat models. Use the `LLMModel` Protocol for the built-in client, or LangChain `BaseLLM`/`BaseChatModel` when running with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
 +++
 {bdg-secondary}`How To`
 :::

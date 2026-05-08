@@ -8,7 +8,7 @@ In our testing, we observe significantly improved input and output content moder
 
 To configure your bot to use Llama Guard for input/output checking, follow the below steps:
 
-1. Add a model of type `llama_guard` to the models section of the `config.yml` file. The example below serves Llama Guard with vLLM and connects to it through NeMo Guardrails' DefaultFramework: vLLM exposes an OpenAI-compatible API, so `engine: openai` plus `parameters.base_url` routes through the built-in HTTP client and no LangChain dependency is required.
+1. Add a model of type `llama_guard` to the models section of the `config.yml` file. The example below serves Llama Guard with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](../../../migration/0.22.md).
 
     ```yaml
     models:

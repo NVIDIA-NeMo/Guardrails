@@ -110,7 +110,7 @@ models:
 ```
 
 ```{note}
-The `azure` engine is routed through LangChain. Azure OpenAI's deployment-name URL pattern and `api-version` query string are not currently handled by the DefaultFramework's OpenAI-compatible client, so set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-openai` package to use it.
+Azure OpenAI is OpenAI-compatible at the wire level, but the LangChain path is the convenient default because `langchain-openai` handles the deployment-name URL pattern and `api-version` query string for you. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-openai`. Azure is also reachable through the built-in client with manual plumbing; see [Migrating to 0.22](../../migration/0.22.md#azure-openai).
 ```
 
 ### Anthropic
@@ -125,12 +125,12 @@ models:
 ```
 
 ```{note}
-The `anthropic` engine is routed through LangChain. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-anthropic` package to use it.
+Anthropic's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, see [Migrating to 0.22](../../migration/0.22.md#section-3-falling-back-to-langchain).
 ```
 
 ### vLLM (OpenAI-Compatible)
 
-vLLM exposes an OpenAI-compatible API, so the recommended configuration uses NeMo Guardrails' DefaultFramework with the `openai` engine pointed at the vLLM endpoint. No LangChain dependency is required.
+vLLM exposes an OpenAI-compatible API, so the recommended configuration uses `engine: openai` pointed at the vLLM endpoint. The built-in client handles it with no LangChain dependency.
 
 ```yaml
 models:
@@ -142,7 +142,7 @@ models:
       api_key: EMPTY
 ```
 
-The following example shows how to configure Llama Guard as a guardrail model using the same DefaultFramework pattern:
+The following example shows how to configure Llama Guard as a guardrail model using the same pattern:
 
 ```yaml
 models:
@@ -166,7 +166,7 @@ When self-hosted vLLM does not enforce authentication, set `parameters.api_key` 
 ```
 
 ```{note}
-The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is routed through LangChain and is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the DefaultFramework form above.
+The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the form above.
 ```
 
 ### Other OpenAI-compatible endpoints
@@ -185,7 +185,7 @@ models:
 ```
 
 ```{note}
-The `vertexai` engine is routed through LangChain. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-google-vertexai` package to use it.
+Vertex AI's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, see [Migrating to 0.22](../../migration/0.22.md#section-3-falling-back-to-langchain).
 ```
 
 ### Complete Example
@@ -222,7 +222,7 @@ models:
 
 ## Model Parameters
 
-Pass additional parameters to the underlying LLM client. For DefaultFramework engines (`openai`, `nim`, `nvidia_ai_endpoints`, `ollama`, and any other engine you serve via `engine: openai` plus `parameters.base_url`), parameters are forwarded to the OpenAI-compatible HTTP client (for example, `temperature`, `max_tokens`, `base_url`, `api_key`). For LangChain-routed engines, parameters follow the conventions of the underlying LangChain class.
+Pass additional parameters to the underlying LLM client. For engines served by the built-in client (any OpenAI-compatible endpoint), parameters are forwarded to the OpenAI-compatible HTTP request (for example, `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, `default_headers`). For LangChain engines, parameters follow the conventions of the underlying LangChain class.
 
 ```yaml
 models:
@@ -235,4 +235,4 @@ models:
       top_p: 0.9
 ```
 
-Common parameters vary by provider. For DefaultFramework engines, see the OpenAI-compatible client options. For LangChain-routed engines, refer to the corresponding LangChain provider documentation.
+Common parameters vary by provider. For built-in engines, see the OpenAI-compatible client options. For LangChain engines, refer to the corresponding LangChain provider documentation.

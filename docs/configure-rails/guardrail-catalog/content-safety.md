@@ -44,7 +44,7 @@ To use the content safety check, you should:
     ```
 
     ```{note}
-    The vLLM example above uses NeMo Guardrails' DefaultFramework. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` routes through the built-in OpenAI-compatible HTTP client and no LangChain dependency is required. The legacy `engine: vllm_openai` with `parameters.openai_api_base` is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
+    The vLLM example above uses NeMo Guardrails' built-in OpenAI-compatible client. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it directly with no LangChain dependency. The legacy `engine: vllm_openai` with `parameters.openai_api_base` is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For background, see [Migrating to 0.22](../../migration/0.22.md).
     ```
 
 2. Include the content safety check in the input and output rails section of the `config.yml` file:

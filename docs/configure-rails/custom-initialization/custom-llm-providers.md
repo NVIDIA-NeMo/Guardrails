@@ -25,7 +25,7 @@ content:
 # Custom LLM Providers
 
 ```{note}
-This guide covers LangChain-based custom providers (`BaseLLM` and `BaseChatModel`). It applies when `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` is set, and was the only extension path before 0.22. For DefaultFramework (the default in 0.22+ for `openai`, `nim`, `nvidia_ai_endpoints`, and `ollama`), implement the `LLMModel` protocol instead.
+This guide covers LangChain-based custom providers (`BaseLLM` and `BaseChatModel`) and applies when `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` is set. It was the only extension path before 0.22. For the built-in client (the 0.22+ default), implement the `LLMModel` Protocol instead — see [Custom LLM Model](custom-llm-model.md).
 ```
 
 NeMo Guardrails supports two types of custom LLM providers:
