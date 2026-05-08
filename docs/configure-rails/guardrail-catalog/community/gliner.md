@@ -261,7 +261,7 @@ With the containers running and config updated, rerun the CLI and SDK commands f
 
 The GLiNER-PII NIM exposes an OpenAI-compatible chat completions endpoint.
 
-### `POST /v1/chat/completions`
+### Chat Completions Endpoint
 
 Extract entities from text.
 
