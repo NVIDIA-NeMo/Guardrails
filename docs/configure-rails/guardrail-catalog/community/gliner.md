@@ -94,7 +94,7 @@ rails:
       - gliner mask pii on output
 ```
 
-## 2. Run the Guardrails Chat CLI
+## Run the Guardrails Chat CLI
 
 Start an interactive chat session using your config directory:
 
