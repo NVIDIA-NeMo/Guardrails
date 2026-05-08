@@ -17,6 +17,7 @@
 
 import asyncio
 import copy
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -46,6 +47,28 @@ async def iorails():
 async def iorails_sequential():
     async with started_iorails(NEMOGUARDS_CONFIG) as instance:
         yield instance
+
+
+@pytest.fixture
+def caplog_iorails(caplog):
+    """Capture records from ``nemoguardrails.guardrails.iorails`` reliably.
+
+    test_configure_logging.py sets ``propagate=False`` on the parent
+    ``nemoguardrails.guardrails`` logger and only restores handlers (not
+    propagation) on teardown, so once it runs first in a session caplog's
+    root-attached handler stops seeing iorails records. Attach the handler
+    directly to bypass the propagation gap, and locally disable propagation
+    to prevent double-capture when the chain is intact.
+    """
+    iorails_logger = logging.getLogger("nemoguardrails.guardrails.iorails")
+    original_propagate = iorails_logger.propagate
+    iorails_logger.addHandler(caplog.handler)
+    iorails_logger.propagate = False
+    try:
+        yield caplog
+    finally:
+        iorails_logger.removeHandler(caplog.handler)
+        iorails_logger.propagate = original_propagate
 
 
 class TestSpeculativeGeneration:
@@ -168,7 +191,7 @@ class TestSpeculativeGeneration:
             await iorails.generate_async(MESSAGES)
 
     @pytest.mark.asyncio
-    async def test_rails_reject_with_simultaneous_llm_exception(self, iorails, caplog):
+    async def test_rails_reject_with_simultaneous_llm_exception(self, iorails, caplog_iorails):
         """Rails reject + LLM raises in the same scheduling window — refusal returned, exception drained."""
 
         async def fast_reject(messages):
@@ -185,15 +208,15 @@ class TestSpeculativeGeneration:
         iorails.engine_registry.model_call = slow_raises
         iorails.rails_manager.is_output_safe = AsyncMock()
 
-        with caplog.at_level("WARNING", logger="nemoguardrails.guardrails.iorails"):
+        with caplog_iorails.at_level("WARNING", logger="nemoguardrails.guardrails.iorails"):
             result = await iorails.generate_async(MESSAGES)
 
         assert result == {"role": "assistant", "content": REFUSAL_MESSAGE}
         iorails.rails_manager.is_output_safe.assert_not_called()
-        assert any("LLM generation error suppressed" in rec.message for rec in caplog.records)
+        assert any("LLM generation error suppressed" in rec.message for rec in caplog_iorails.records)
 
     @pytest.mark.asyncio
-    async def test_both_tasks_raise_during_race(self, iorails, caplog):
+    async def test_both_tasks_raise_during_race(self, iorails, caplog_iorails):
         """Both rails and gen raise — outer cleanup logs the loser exception, winner propagates."""
 
         async def rails_raises(messages):
@@ -206,11 +229,11 @@ class TestSpeculativeGeneration:
         iorails.rails_manager.is_input_safe = rails_raises
         iorails.engine_registry.model_call = gen_raises
 
-        with caplog.at_level("WARNING", logger="nemoguardrails.guardrails.iorails"):
+        with caplog_iorails.at_level("WARNING", logger="nemoguardrails.guardrails.iorails"):
             with pytest.raises(RuntimeError):
                 await iorails.generate_async(MESSAGES)
 
-        assert any("task error discarded during cleanup" in rec.message for rec in caplog.records)
+        assert any("task error discarded during cleanup" in rec.message for rec in caplog_iorails.records)
 
     @pytest.mark.asyncio
     async def test_rails_first_reject_records_blocked_metric(self):
