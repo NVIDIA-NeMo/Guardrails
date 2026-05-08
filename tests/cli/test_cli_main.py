@@ -209,7 +209,11 @@ class TestServerCommand:
     @patch.dict(os.environ, {}, clear=True)
     @patch("uvicorn.run")
     @patch("nemoguardrails.server.api.app")
-    def test_server_with_verbose_sets_worker_env(self, mock_app, mock_uvicorn):
+    @patch("os.path.exists")
+    @patch("os.getcwd")
+    def test_server_with_verbose_sets_worker_env(self, mock_getcwd, mock_exists, mock_app, mock_uvicorn):
+        mock_getcwd.return_value = "/current/dir"
+        mock_exists.return_value = True
         result = runner.invoke(app, ["server", "--verbose"])
         assert result.exit_code == 0
         assert os.environ["NEMO_GUARDRAILS_VERBOSE"] == "true"
