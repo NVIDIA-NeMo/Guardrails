@@ -251,7 +251,7 @@ rails:
       - gliner mask pii on output
 ```
 
-### Repeat Steps 2 and 3
+### Reuse the CLI and SDK Workflows
 
 With the containers running and config updated, rerun the CLI and SDK commands from [Step 2](#2-run-the-guardrails-chat-cli) and [Step 3](#3-use-the-python-sdk). No other changes are required.
 
