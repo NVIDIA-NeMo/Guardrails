@@ -86,21 +86,13 @@ class MyFramework:
 
 ### `create_model`
 
-Called once per `models:` entry in `config.yml` when `LLMRails` builds its task models. `model_name` is the model identifier from `model:`. `provider_name` is the value of `engine:` — a **selector**, not the runtime itself. Your framework uses it to pick which `LLMModel` class to construct; multiple selectors can map to the same runtime (in the built-in framework, `openai`, `nim`, `nvidia_ai_endpoints`, and `ollama` all construct an `OpenAIChatModel`, differing only in their default base URL and API-key environment variable). `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Return any object that implements `LLMModel` (see [Custom LLM Model](custom-llm-model.md)).
+Called once per `models:` entry in `config.yml` when `LLMRails` builds its task models. `model_name` is the value of `model:`, `provider_name` is the value of `engine:`, and `model_kwargs` carries everything from the entry's `parameters` block plus a few platform keys like `mode`. Your framework decides what `provider_name` means — typically you use it to dispatch to a specific `LLMModel` class or to pick provider-specific defaults. Return any object that implements `LLMModel` (see [Custom LLM Model](custom-llm-model.md)).
 
-The framework owns construction. It is free to:
-
-- Cache and reuse expensive resources (HTTP clients, gRPC channels, auth tokens).
-- Translate `provider_name` into its own internal taxonomy or fall back to a default URL/credential preset.
-- Inject defaults for headers, timeouts, retries.
-
-`DefaultFramework._get_or_create_client` is a worked example of pooled HTTP-client construction keyed off `(base_url, api_key, ...)`, with `provider_name` driving the default-URL lookup.
+The framework owns construction. It is free to cache and reuse expensive resources (HTTP clients, gRPC channels, auth tokens), inject defaults for headers/timeouts/retries, or short-circuit on a registered custom provider. See `DefaultFramework` and `LangChainFramework` (linked below) for two contrasting implementations.
 
 ### `register_provider`
 
-Called by user code (usually from a `config.py`) to add a new selector to this framework. Implementations typically just record the class in an in-memory dict. The framework's `create_model` then dispatches to that class when `provider_name` matches.
-
-`DefaultFramework.register_provider` and `LangChainFramework.register_provider` are both one-line implementations.
+Called by user code (usually from a `config.py`) to add a custom class your framework should dispatch to. Implementations typically just record the class in an in-memory dict; `create_model` then checks that dict before falling back to its built-in dispatch.
 
 ### `get_provider_names`
 
