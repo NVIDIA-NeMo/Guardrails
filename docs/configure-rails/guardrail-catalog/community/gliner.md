@@ -59,7 +59,7 @@ rails:
 
 ### PII Masking
 
-The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I'm John — john@example.com` becomes `Hi, I'm [FIRST_NAME] — [EMAIL]`. To implement this flow, save the config below as your `config.yml` file.
+The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I am John. My email is john@example.com` becomes `Hi, I am [FIRST_NAME]. My email is [EMAIL]`. To implement this flow, save the config below as your `config.yml` file.
 
 ```yaml
 models:
