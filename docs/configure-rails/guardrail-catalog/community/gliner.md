@@ -139,7 +139,7 @@ print(info.colang_history)
 
 ## Deploy NIMs Locally
 
-Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images — obtain one at [ngc.nvidia.com](https://ngc.nvidia.com).
+Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images from [ngc.nvidia.com](https://ngc.nvidia.com).
 
 ### GPU requirements
 
