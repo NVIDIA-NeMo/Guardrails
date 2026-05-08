@@ -40,7 +40,7 @@ Framework Layer (system-wide, swappable)
       '-- <your providers>
 ```
 
-A **provider** is an engine name inside a framework. `openai`, `nim`, and `ollama` are providers inside `DefaultFramework`; they all speak the OpenAI-compatible chat-completions wire protocol and differ only in default base URLs and small per-provider conventions. Adding a provider is the right move when you want to add or replace one engine and the surrounding framework's behavior is fine. See [Custom LLM Providers](custom-llm-providers.md) and [Custom LLM Model](custom-llm-model.md).
+A **provider** is a name a user types as `engine:` in `config.yml`: a label your framework dispatches on. In `DefaultFramework`, `openai`, `nim`, and `ollama` are provider names that all dispatch to the same `OpenAIChatModel` runtime; they differ only in default base URLs and small per-provider conventions. In `LangChainFramework`, each provider name dispatches to its own LangChain class. Your framework decides whether multiple provider names share one runtime or each name has its own. Adding a provider is the right move when you want to plug in one new backend and the surrounding framework's behavior is fine. See [Custom LLM Providers](custom-llm-providers.md) and [Custom LLM Model](custom-llm-model.md).
 
 A **framework** owns the entire LLM stack: how models are constructed, how providers are looked up, and how resources are released at shutdown. Adding a framework is the right move when you want to replace the entire stack (for example, route everything through LiteLLM, a proprietary in-house orchestrator, or a service mesh).
 
@@ -96,7 +96,7 @@ Called by user code (usually from a `config.py`) to add a custom class your fram
 
 ### `get_provider_names`
 
-Returns the list of engine names this framework knows about, including built-ins and anything registered at runtime. Used by tooling (`nemoguardrails find_providers`) and for debugging.
+Returns the list of provider names this framework knows about, including built-ins and anything registered at runtime. Used by tooling (`nemoguardrails find_providers`) and for debugging.
 
 ### `reset`
 
