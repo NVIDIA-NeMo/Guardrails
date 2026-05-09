@@ -1,0 +1,17 @@
+# ATR-inspired threat detection rails example.
+#
+# The regex_detection input rail is wired in config.yml. The flows below
+# define the refusal message used when the rail aborts and an additional
+# custom flow that reuses the built-in DetectRegexMatchAction to surface
+# the matched rule(s) to the caller.
+
+define bot refuse to respond
+  "I'm sorry, your request matched a threat detection rule and was blocked."
+
+define flow atr report match
+  """Optional flow: log the matched ATR rule(s) when the input rail fires."""
+  $result = await DetectRegexMatchAction(source="input", text=$user_message)
+  if $result["is_match"]
+    $matched_rules = $result["detections"]
+    bot refuse to respond
+    abort

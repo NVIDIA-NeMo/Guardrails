@@ -1,0 +1,27 @@
+models: []
+
+# This example wires the built-in regex_detection rail to a small set of
+# ATR-inspired threat patterns covering common AI agent attack categories.
+# The full open detection set lives in Agent Threat Rules (Apache-2.0):
+# https://github.com/Agent-Threat-Rule/agent-threat-rules
+rails:
+  config:
+    regex_detection:
+      input:
+        case_insensitive: true
+        patterns:
+          # ATR-PI-001 instruction override
+          - "\\b(ignore|disregard|forget)\\s+(all\\s+)?(previous|prior|above)\\s+(instructions?|prompts?|rules?)"
+          # ATR-PI-002 system prompt exfiltration
+          - "(reveal|print|repeat|show)\\s+(your\\s+)?(system\\s+prompt|initial\\s+instructions)"
+          # ATR-PI-003 role-play jailbreak
+          - "\\b(you\\s+are\\s+now|act\\s+as|pretend\\s+to\\s+be)\\s+(DAN|developer\\s+mode|jailbroken|an?\\s+unrestricted)"
+          # ATR-PI-004 base64-wrapped payload hint
+          - "(decode|run|execute)\\s+(this\\s+)?base64[:\\s]+[A-Za-z0-9+/=]{40,}"
+          # ATR-MCP-001 mcp tool override
+          - "<\\s*(tool_override|mcp_override|new_tool_definition)\\s*>"
+          # ATR-SSRF-001 file:// scheme reference
+          - "file://[^\\s\"'<>]+"
+  input:
+    flows:
+      - regex check input
