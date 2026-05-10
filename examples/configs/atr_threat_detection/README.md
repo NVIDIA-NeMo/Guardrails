@@ -39,3 +39,19 @@ defined in `rails.co`.
 To run against the live ATR YAML ruleset, parse the rule files at startup
 and append the `detection.regex_patterns` field of each rule to the
 `patterns` list under `regex_detection.input`.
+
+To also surface matched detections (so the bot can respond with the rule
+identifier rather than only refusing), enable the optional `atr report
+match` flow shipped in `rails.co` by adding it to your input flows in
+`config/config.yml`:
+
+```yaml
+rails:
+  input:
+    flows:
+      - atr report match
+      - regex check input
+```
+
+Order matters: `atr report match` runs before `regex check input` so the
+matched rule id is available when the refusal message is generated.
