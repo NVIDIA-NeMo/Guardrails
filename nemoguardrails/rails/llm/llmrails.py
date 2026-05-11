@@ -337,6 +337,10 @@ class LLMRails:
         # Reference to the general ExplainInfo object.
         self.explain_info = None
 
+        from nemoguardrails.telemetry import report_usage
+
+        report_usage(config, deployment_type="library", rails_engine="LLMRails")
+
     def update_llm(self, llm: LLMModel):
         """Replace the main LLM with the provided one.
 
