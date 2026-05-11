@@ -731,7 +731,10 @@
 docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>alignscore-server<span class="w"> </span>.
 </pre></div>
 </div>
-<p>NOTE: the provided Dockerfile downloads only the <code class="docutils literal notranslate"><span class="pre">base</span></code> AlignScore image. If you want support for the large model, uncomment the corresponding line in the Dockerfile.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The provided Dockerfile downloads only the <code class="docutils literal notranslate"><span class="pre">base</span></code> AlignScore image. If you want support for the large model, uncomment the corresponding line in the Dockerfile.</p>
+</div>
 </section>
 <section id="optional-build-the-jailbreak-detection-heuristics-server-image">
 <h3>4. [Optional] Build the Jailbreak Detection Heuristics Server Image<a class="headerlink" href="#optional-build-the-jailbreak-detection-heuristics-server-image" title="Link to this heading">#</a></h3>
@@ -749,7 +752,10 @@ docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </
 </pre></div>
 </div>
 <p>This will start the NeMo Guardrails library server with the example configurations. The Chat UI will be accessible at <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code>.</p>
-<p>NOTE: Since the example configurations use OpenAI models (such as <code class="docutils literal notranslate"><span class="pre">gpt-3.5-turbo-instruct</span></code> and <code class="docutils literal notranslate"><span class="pre">gpt-4</span></code>), you need to provide an <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Since the example configurations use OpenAI models (such as <code class="docutils literal notranslate"><span class="pre">gpt-3.5-turbo-instruct</span></code> and <code class="docutils literal notranslate"><span class="pre">gpt-4</span></code>), you need to provide an <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code>.</p>
+</div>
 <p>To specify your own config folder for the server, you have to mount your local configuration into the <code class="docutils literal notranslate"><span class="pre">/config</span></code> path into the container:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
