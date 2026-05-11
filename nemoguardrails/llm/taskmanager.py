@@ -204,6 +204,27 @@ class LLMTaskManager:
         context: Optional[dict] = None,
         events: Optional[List[dict]] = None,
     ) -> Union[str, list]:
+        """Resolve a message-template body to either a list or a rendered string.
+
+        When ``template_str`` matches a single-variable pattern such as
+        ``"{{ user_input }}"``, the variable is looked up directly so that a
+        list value (for example, multimodal ``[{"type": "text", ...}, ...]``
+        content) is preserved as a list instead of being stringified by Jinja.
+
+        Lookup precedence for the single-variable case:
+
+        * The argument ``context`` is consulted first; its value seeds the
+          candidate result.
+        * ``self.prompt_context`` is consulted second, but it overrides the
+          argument only when its value is itself a list. This keeps a list
+          supplied in ``context`` safe from being clobbered by a scalar
+          fallback in ``self.prompt_context``, while still allowing a list in
+          ``self.prompt_context`` to win when the caller did not pass one.
+
+        If neither path yields a list (or ``template_str`` is not a single
+        variable), the method falls back to the regular Jinja render, which
+        coerces values to strings.
+        """
         match = _SINGLE_VAR_PATTERN.match(template_str.strip())
         if match:
             var_name = match.group(1)

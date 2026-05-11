@@ -107,6 +107,28 @@ def test_render_mixed_template_stringifies():
     assert isinstance(user_msg["content"], str)
 
 
+def test_prompt_context_list_overrides_context(fake_base64):
+    """A list registered via ``prompt_context`` for a single-variable template
+    must override a scalar value supplied through ``context`` for the same
+    variable. Covers the ``value = candidate`` branch in
+    ``_resolve_message_content``.
+    """
+    config = _make_vision_config()
+    tm = LLMTaskManager(config)
+    list_value = _make_multimodal_input(fake_base64)
+    tm.register_prompt_context("user_input", list_value)
+
+    prompt = tm.render_task_prompt(
+        task="content_safety_check_input $model=vision_rails",
+        context={"user_input": "ignored scalar fallback", "reasoning_enabled": False},
+    )
+
+    user_msg = prompt[-1]
+    assert user_msg["type"] == "user"
+    assert isinstance(user_msg["content"], list)
+    assert user_msg["content"] == list_value
+
+
 def test_prompt_context_callable_invoked_once():
     config = RailsConfig.from_content(
         config={
