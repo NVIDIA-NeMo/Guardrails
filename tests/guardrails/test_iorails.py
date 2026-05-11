@@ -16,18 +16,19 @@
 """Unit tests for iorails module."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 
+from nemoguardrails.guardrails.guardrails import Guardrails
 from nemoguardrails.guardrails.guardrails_types import RailResult
 from nemoguardrails.guardrails.iorails import REFUSAL_MESSAGE, IORails
 from nemoguardrails.guardrails.model_engine import ModelEngine
 from nemoguardrails.rails.llm.config import RailsConfig
 from nemoguardrails.rails.llm.options import GenerationOptions
 from nemoguardrails.types import LLMResponse, LLMResponseChunk
-from tests.guardrails.test_data import NEMOGUARDS_CONFIG
+from tests.guardrails.test_data import CONTENT_SAFETY_CONFIG, NEMOGUARDS_CONFIG
 
 
 @pytest.fixture
@@ -681,3 +682,141 @@ class TestRefusalMessage:
         """REFUSAL_MESSAGE is a non-empty string."""
         assert isinstance(REFUSAL_MESSAGE, str)
         assert len(REFUSAL_MESSAGE) > 0
+
+
+class TestIORailsConfigToCallURL:
+    """End-to-end: from a RailsConfig with a user-supplied base_url to the URL the engine POSTs.
+
+    Covers regression for issue #1861 / PR #1862: a base_url with or without a trailing
+    "/v1" must produce a single /v1/chat/completions in the final HTTP request.
+    """
+
+    @pytest.mark.parametrize(
+        "base_url_input",
+        [
+            "https://custom.example.com",
+            "https://custom.example.com/v1",
+        ],
+    )
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_main_model_url_not_doubled(self, base_url_input):
+        """A user base_url with or without /v1 yields a single /v1 in the POST URL through the full IORails pipeline."""
+        config = RailsConfig.from_content(
+            config={
+                "models": [
+                    {
+                        "type": "main",
+                        "engine": "nim",
+                        "model": "meta/llama-3.3-70b-instruct",
+                        "parameters": {"base_url": base_url_input},
+                    },
+                ],
+            }
+        )
+        iorails = IORails(config)
+
+        # No rails are configured, so RailsManager short-circuits both checks to
+        # is_safe=True and the only outbound HTTP call is the main-model call.
+        # Pre-seed the main engine's HTTP client + _running=True so BaseEngine.start()
+        # short-circuits via its "if running: return" guard — no real aiohttp session
+        # is ever created.
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+
+        main_engine = iorails.engine_registry._engines["main"]
+        main_engine._client = mock_client
+        main_engine._running = True
+
+        try:
+            await iorails.generate_async([{"role": "user", "content": "Hi"}])
+        finally:
+            await iorails.stop()
+
+        url = mock_client.post.call_args[0][0]
+        assert url == "https://custom.example.com/v1/chat/completions"
+        assert "/v1/v1/" not in url
+
+
+def _make_mock_http_client(content: str):
+    """Build an AsyncMock RetryClient whose .post() returns a chat-completions response with the given content."""
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": content}}]})
+    mock_client = AsyncMock()
+    mock_client.post = MagicMock(return_value=mock_response)
+    mock_client.closed = False
+    return mock_client
+
+
+class TestGuardrailsConfigToCallURLs:
+    """End-to-end through the top-level Guardrails class: every model's POST URL
+    must have a single /v1, including rail-engine models.
+
+    Uses CONTENT_SAFETY_CONFIG (input + output content-safety rails + main model),
+    overrides both models with /v1-suffixed base_urls, and verifies that
+    guardrails.generate_async() composes correct URLs for every outbound HTTP call.
+    """
+
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_main_and_content_safety_urls_not_doubled(self):
+        """Both main and content_safety models POST to single-/v1 URLs through guardrails.generate_async()."""
+        # SAFE_OUTPUT_JSON works for both input and output content-safety parsers:
+        # the input parser keys on "User Safety", the output parser on "Response Safety".
+        safe_output_json = '{"User Safety": "safe", "Response Safety": "safe"}'
+
+        config_dict = {
+            **CONTENT_SAFETY_CONFIG,
+            "models": [
+                {**CONTENT_SAFETY_CONFIG["models"][0], "parameters": {"base_url": "https://main.example.com/v1"}},
+                {**CONTENT_SAFETY_CONFIG["models"][1], "parameters": {"base_url": "https://safety.example.com/v1"}},
+            ],
+        }
+        config = RailsConfig.from_content(config=config_dict)
+        guardrails = Guardrails(config=config)
+
+        # Sanity: CONTENT_SAFETY_CONFIG flows are IORails-eligible, so routing goes to IORails.
+        assert isinstance(guardrails.rails_engine, IORails)
+        iorails = guardrails.rails_engine
+
+        main_engine = iorails.engine_registry._get_engine("main", ModelEngine)
+        safety_engine = iorails.engine_registry._get_engine("content_safety", ModelEngine)
+
+        # Construction-time normalization: both engines' base_url have /v1 stripped.
+        assert main_engine.base_url == "https://main.example.com"
+        assert safety_engine.base_url == "https://safety.example.com"
+
+        # Pre-seed each engine with a mock HTTP client + _running=True so
+        # BaseEngine.start() short-circuits and no real aiohttp session is created.
+        main_client = _make_mock_http_client("Hello from main")
+        safety_client = _make_mock_http_client(safe_output_json)
+        main_engine._client = main_client
+        main_engine._running = True
+        safety_engine._client = safety_client
+        safety_engine._running = True
+
+        try:
+            await guardrails.generate_async(messages=[{"role": "user", "content": "Hi"}])
+        finally:
+            await iorails.stop()
+
+        # Main model POSTs once to a single-/v1 URL.
+        main_url = main_client.post.call_args[0][0]
+        assert main_url == "https://main.example.com/v1/chat/completions"
+        assert "/v1/v1/" not in main_url
+
+        # Content-safety model POSTs once for the input rail and once for the output rail.
+        # Every call must hit a single-/v1 URL.
+        assert safety_client.post.call_count == 2
+        for call_args in safety_client.post.call_args_list:
+            url = call_args[0][0]
+            assert url == "https://safety.example.com/v1/chat/completions"
+            assert "/v1/v1/" not in url
