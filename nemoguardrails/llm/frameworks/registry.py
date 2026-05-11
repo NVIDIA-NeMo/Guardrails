@@ -53,7 +53,7 @@ def register_framework(name: str, framework: LLMFramework) -> None:
             )
         )
         raise TypeError(f"Framework '{name}' does not implement LLMFramework. Required methods: {', '.join(required)}.")
-    if not inspect.iscoroutinefunction(getattr(framework, "reset", None)):
+    if not inspect.iscoroutinefunction(framework.reset):
         raise TypeError(f"Framework '{name}'.reset must be an async coroutine function.")
     _frameworks[name] = framework
 
@@ -63,11 +63,11 @@ def get_framework(name: str) -> LLMFramework:
         if name == "langchain":
             from nemoguardrails.integrations.langchain.llm_adapter import LangChainFramework
 
-            _frameworks["langchain"] = LangChainFramework()
+            register_framework("langchain", LangChainFramework())
         elif name == "default":
             from nemoguardrails.llm.frameworks.default import DefaultFramework
 
-            _frameworks["default"] = DefaultFramework()
+            register_framework("default", DefaultFramework())
         else:
             available = list(_frameworks.keys())
             raise KeyError(f"Unknown framework '{name}'. Available frameworks: {available}")
