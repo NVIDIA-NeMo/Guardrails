@@ -37,6 +37,14 @@ coverage.xml
 # Logs
 *.log
 
+# Local telemetry smoke verification outputs
+/kibana*.json
+/smoke-*/
+/telemetry-smoke-*/
+/telemetry-smoke-manifest*.json
+/usage_stats.json
+/usage_stats.json.1
+
 # OS generated files
 .DS_Store
 
