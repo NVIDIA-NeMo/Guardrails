@@ -472,6 +472,25 @@ class TestDefaultFramework:
             await fw.reset()
 
     @pytest.mark.asyncio
+    async def test_unknown_provider_error_lists_both_fix_paths(self):
+        """Error message must name both the OpenAI-compatible fix and the
+        LangChain fix so users don't have to search the docs to know what the
+        runtime is asking of them."""
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                fw.create_model("claude-3-5-sonnet-latest", "anthropic", {})
+            message = str(excinfo.value)
+            assert "anthropic" in message
+            assert "parameters.base_url" in message
+            assert "NEMOGUARDRAILS_LLM_FRAMEWORK=langchain" in message
+            assert "langchain-<provider>" in message
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
     async def test_custom_base_url(self):
         from nemoguardrails.llm.frameworks.default import DefaultFramework
 

@@ -95,7 +95,7 @@ def _gated_generate(gate: asyncio.Event):
     ``gate.wait()`` and returns a fixed response.  Used by tests that
     observe queue / worker state while a request is mid-pipeline."""
 
-    async def _gen(messages, req_id, **kwargs):
+    async def _gen(messages, req_id, request_span=None, **kwargs):
         await gate.wait()
         return {"role": "assistant", "content": "done"}
 

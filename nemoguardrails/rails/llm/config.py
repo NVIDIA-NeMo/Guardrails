@@ -552,6 +552,15 @@ class InputRails(BaseModel):
         description="If True, the input rails are executed in parallel.",
     )
 
+    speculative_generation: Optional[bool] = Field(
+        default=False,
+        description=(
+            "If True, input rails run concurrently with LLM generation (speculative execution). "
+            "Only supported for non-streaming generate_async() calls; stream_async() warns and falls "
+            "back to sequential execution."
+        ),
+    )
+
     flows: List[str] = Field(
         default_factory=list,
         description="The names of all the flows that implement input rails.",

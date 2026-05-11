@@ -103,6 +103,128 @@ class TestModelEngineBaseUrl:
         with pytest.raises(ValueError, match="cannot infer from engine"):
             ModelEngine(_make_model(engine="unknown"))
 
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_base_url_with_trailing_v1_does_not_double_v1(self):
+        """A user-supplied base_url ending in /v1 must not produce /v1/v1/chat/completions."""
+        engine = ModelEngine(_make_model(engine="nim", parameters={"base_url": "https://custom.example.com/v1"}))
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        url = mock_client.post.call_args[0][0]
+        assert url == "https://custom.example.com/v1/chat/completions"
+        assert "/v1/v1/" not in url
+
+    @pytest.mark.parametrize(
+        "base_url_input,expected",
+        [
+            ("https://host.example.com", "https://host.example.com"),
+            ("https://host.example.com/", "https://host.example.com"),
+            ("https://host.example.com/v1", "https://host.example.com"),
+            ("https://host.example.com/v1/", "https://host.example.com"),
+            ("https://api-v1.example.com", "https://api-v1.example.com"),
+            ("https://api-v1.example.com/v1", "https://api-v1.example.com"),
+            ("https://host.example.com/api/v1", "https://host.example.com/api"),
+        ],
+    )
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_resolve_base_url_normalization_https(self, base_url_input, expected):
+        """_resolve_base_url strips trailing slash + trailing /v1 path segment only.
+
+        Hostnames containing 'v1' (e.g. api-v1.example.com) must not be mangled.
+        """
+        engine = ModelEngine(_make_model(engine="nim", parameters={"base_url": base_url_input}))
+        assert engine.base_url == expected
+
+    @pytest.mark.parametrize(
+        "base_url_input,expected",
+        [
+            ("http://localhost:8000", "http://localhost:8000"),
+            ("http://localhost:8000/v1", "http://localhost:8000"),
+            ("http://localhost:11434/v1/", "http://localhost:11434"),
+            ("http://127.0.0.1:8000/v1", "http://127.0.0.1:8000"),
+        ],
+    )
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    def test_resolve_base_url_normalization_http(self, base_url_input, expected):
+        """Same normalization for plain-http base_urls (common for local models: vLLM, Ollama)."""
+        engine = ModelEngine(_make_model(engine="nim", parameters={"base_url": base_url_input}))
+        assert engine.base_url == expected
+
+    @pytest.mark.parametrize(
+        "base_url_input,expected_url",
+        [
+            ("https://host.example.com", "https://host.example.com/v1/chat/completions"),
+            ("https://host.example.com/", "https://host.example.com/v1/chat/completions"),
+            ("https://host.example.com/v1/", "https://host.example.com/v1/chat/completions"),
+            ("https://api-v1.example.com", "https://api-v1.example.com/v1/chat/completions"),
+        ],
+    )
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_url_for_accepted_base_url_shapes_https(self, base_url_input, expected_url):
+        """End-to-end: call() POSTs to a canonical /v1/chat/completions URL across accepted https base_url shapes."""
+        engine = ModelEngine(_make_model(engine="nim", parameters={"base_url": base_url_input}))
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        url = mock_client.post.call_args[0][0]
+        assert url == expected_url
+        assert "/v1/v1/" not in url
+
+    @pytest.mark.parametrize(
+        "base_url_input,expected_url",
+        [
+            ("http://localhost:8000", "http://localhost:8000/v1/chat/completions"),
+            ("http://localhost:8000/v1", "http://localhost:8000/v1/chat/completions"),
+            ("http://127.0.0.1:11434/v1/", "http://127.0.0.1:11434/v1/chat/completions"),
+        ],
+    )
+    @patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"})
+    @pytest.mark.asyncio
+    async def test_call_url_for_accepted_base_url_shapes_http(self, base_url_input, expected_url):
+        """End-to-end: same URL composition for plain-http local-model base_urls."""
+        engine = ModelEngine(_make_model(engine="nim", parameters={"base_url": base_url_input}))
+
+        mock_response = AsyncMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+
+        mock_client = AsyncMock()
+        mock_client.post = MagicMock(return_value=mock_response)
+        mock_client.closed = False
+        engine._client = mock_client
+        engine._running = True
+
+        await engine.call([{"role": "user", "content": "Hi"}])
+
+        url = mock_client.post.call_args[0][0]
+        assert url == expected_url
+        assert "/v1/v1/" not in url
+
 
 class TestModelEngineApiKey:
     """Test API key resolution from environment variables."""

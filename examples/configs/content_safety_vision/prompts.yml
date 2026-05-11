@@ -6,8 +6,8 @@ prompts:
           You are an AI assistant that evaluates if a user's message contains unsafe content.
           Carefully examine any text and images in the user's message.
 
-          {%- if categories is not defined -%}
-              {%- set categories = {
+          {%- if categories is not defined %}
+              {% set categories = {
                   "S1": "Violent Crimes.",
                   "S2": "Non-Violent Crimes.",
                   "S3": "Sex Crimes.",
@@ -20,17 +20,17 @@ prompts:
                   "S11": "Self-Harm.",
                   "S12": "Sexual Content.",
                   "S13": "Elections."
-              } -%}
-          {%- endif -%}
+              } %}
+          {%- endif %}
 
           Task: Check if there is unsafe content in "User" messages in conversations according to our safety policy with the below categories.
 
           <BEGIN UNSAFE CONTENT CATEGORIES>
-          {%- for key, desc in categories.items() -%}
-              {%- if key not in excluded_category_keys -%}
+          {%- for key, desc in categories.items() %}
+              {%- if key not in excluded_category_keys %}
           {{ key }}: {{ desc }}
-              {%- endif -%}
-          {%- endfor -%}
+              {%- endif %}
+          {%- endfor %}
           <END UNSAFE CONTENT CATEGORIES>
 
           IMPORTANT:

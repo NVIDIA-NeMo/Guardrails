@@ -361,7 +361,7 @@ class TestReasoningEnabledEndToEnd:
         assert expected_token in content_safety_prompt
         assert user_message in content_safety_prompt
 
-        assert content_safety_llm.i == 1
+        assert content_safety_llm.inference_count == 1
 
         assert response is not None
         assert response["content"] == expected_response

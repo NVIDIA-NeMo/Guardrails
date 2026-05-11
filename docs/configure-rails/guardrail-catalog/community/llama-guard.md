@@ -8,18 +8,32 @@ In our testing, we observe significantly improved input and output content moder
 
 To configure your bot to use Llama Guard for input/output checking, follow the below steps:
 
-1. Add a model of type `llama_guard` to the models section of the `config.yml` file (the example below uses a vLLM setup):
+1. Add a model of type `llama_guard` to the models section of the `config.yml` file. The example below serves Llama Guard with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](../../../migration/0.22.md).
 
     ```yaml
     models:
       ...
 
       - type: llama_guard
-        engine: vllm_openai
+        engine: openai
+        model: meta-llama/LlamaGuard-7b
         parameters:
-          openai_api_base: "http://localhost:5123/v1"
-          model_name: "meta-llama/LlamaGuard-7b"
+          base_url: "http://localhost:5123/v1"
+          api_key: EMPTY
     ```
+
+    :::{note}
+    Set `api_key: EMPTY` (or any non-empty placeholder) when self-hosted vLLM does not enforce auth. If your deployment requires a real token, replace `api_key: EMPTY` with the literal token value, or omit `api_key` and set `api_key_env_var` at the **top level** of the model entry (not inside `parameters:`):
+
+    ```yaml
+    - type: llama_guard
+      engine: openai
+      model: meta-llama/LlamaGuard-7b
+      api_key_env_var: MY_LLAMA_GUARD_API_KEY
+      parameters:
+        base_url: "http://localhost:5123/v1"
+    ```
+    :::
 
 2. Include the `llama guard check input` and `llama guard check output` flow names in the rails section of the `config.yml` file:
 

@@ -76,7 +76,7 @@ You can use programmable guardrails in different types of use cases:
 1. **Question Answering** over a set of documents (a.k.a. Retrieval Augmented Generation): Enforce fact-checking and output moderation.
 2. **Domain-specific Assistants** (a.k.a. chatbots): Ensure the assistant stays on topic and follows the designed conversational flows.
 3. **LLM Endpoints**: Add guardrails to your custom LLM for safer customer interaction.
-4. **LangChain Chains**: If you use LangChain for any use case, you can add a guardrails layer around your chains.
+4. **LangChain Chains** (optional): If you use LangChain for any use case, you can add a guardrails layer around your chains. To enable this integration, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`.
 
 ### Usage
 
@@ -282,9 +282,9 @@ Sample output:
 
 To start a guardrails server, you can also use a Docker container. The NeMo Guardrails library provides a [Dockerfile](./Dockerfile) that you can use to build a `nemoguardrails` image. For further information, see the [using Docker](https://docs.nvidia.com/nemo/guardrails/user-guides/advanced/using-docker.html) section.
 
-## Integration with LangChain
+## Integration with LangChain (Optional)
 
-The NeMo Guardrails library integrates seamlessly with LangChain. You can easily wrap a guardrails configuration around a LangChain chain (or any `Runnable`). You can also call a LangChain chain from within a guardrails configuration. For more details, check out the [LangChain Integration Documentation](https://docs.nvidia.com/nemo/guardrails/user-guides/langchain/langchain-integration.html)
+LangChain integration is opt-in. To enable it, set the `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` environment variable or call `set_default_framework("langchain")`. Then install the LangChain packages your configuration requires. After you enable the integration, you can wrap a guardrails configuration around a LangChain chain (or any `Runnable`), and you can call a LangChain chain from within a guardrails configuration. For more information, refer to the [LangChain Integration Documentation](https://docs.nvidia.com/nemo/guardrails/user-guides/langchain/langchain-integration.html).
 
 ## Evaluation
 

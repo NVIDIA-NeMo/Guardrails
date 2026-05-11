@@ -49,14 +49,14 @@ models:
 ### Model Attributes
 
 | Attribute | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `models.type` | string | ✓ | Model identifier (see [Model Types](#model-types)) |
-| `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
-| `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
-| `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
+| --- | --- | --- | --- |
 | `models.api_key_env_var` | string | | Environment variable containing API key |
-| `models.parameters` | object | | Provider-specific parameters passed to LangChain |
 | `models.cache` | object | | Cache configuration for this model |
+| `models.engine` | string | ✓ | LLM provider (see [Engines](#engines)) |
+| `models.mode` | string | | Completion mode: `chat` or `text` (default: `chat`) |
+| `models.model` | string | ✓ | Model name (can also be in `parameters.model_name`) |
+| `models.parameters` | object | | Provider-specific parameters. For engines served by the built-in client (any OpenAI-compatible endpoint), the runtime forwards `parameters` to the OpenAI-compatible HTTP request (for example `temperature`, `max_tokens`, `base_url`, `api_key`, `default_query`, `default_headers`). For engines served by LangChain (opt-in with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`), the runtime forwards `parameters` to the underlying LangChain class. For the engine-by-engine matrix, see [Inference Providers](../about/supported-llms.md#inference-providers). |
+| `models.type` | string | ✓ | Model identifier (see [Model Types](#model-types)) |
 
 ### Model Types
 
@@ -67,20 +67,20 @@ The `type` field is a free-form string identifier. Certain types have special ha
 These types have special handling in the NeMo Guardrails runtime:
 
 | Type | Description |
-|------|-------------|
-| `main` | Primary application LLM for conversation |
+| --- | --- |
 | `embeddings` | Embedding model for knowledge base and similarity search |
 | `jailbreak_detection` | Jailbreak detection model (used with NIM) |
+| `main` | Primary application LLM for conversation |
 
 #### Commonly-Used Types
 
 The following types are commonly used with guardrails:
 
 | Type | Description | Usage Example in Flows |
-|------|-------------|---------|
+| --- | --- | --- |
 | `content_safety` | Content safety model | `content safety check input $model=content_safety` |
-| `topic_control` | Topic control model | `topic safety check input $model=topic_control` |
 | `llama_guard` | Llama Guard content moderation | `llama guard check input $model=llama_guard` |
+| `topic_control` | Topic control model | `topic safety check input $model=topic_control` |
 
 #### Custom Types
 
@@ -102,35 +102,46 @@ The runtime validates that any `$model=<type>` reference in flows has a matching
 
 ### Engines
 
-#### Core Engines
+Starting with version 0.22, NeMo Guardrails serves engines through either the built-in OpenAI-compatible client or LangChain. Use the built-in client whenever the underlying wire protocol is OpenAI-compatible. Opt into LangChain only for engines whose API is not OpenAI-compatible, such as Vertex AI, Anthropic, Cohere, and the in-process Hugging Face pipeline. For the full mapping see [Inference Providers](../about/supported-llms.md#inference-providers); for migration recipes see [Migrating to 0.22](../migration/0.22.md).
+
+#### Built-in Engines
+
+These engines work with `pip install nemoguardrails` and do not require extra provider packages. Pass `parameters.base_url` to point at a self-hosted or alternative endpoint.
 
 | Engine | Description |
-|--------|-------------|
-| `openai` | OpenAI models |
+| --- | --- |
 | `nim` | NVIDIA NIM microservices |
 | `nvidia_ai_endpoints` | Alias for `nim` |
-| `azure` | Azure OpenAI models |
-| `anthropic` | Anthropic Claude models |
-| `cohere` | Cohere models |
-| `vertexai` | Google Vertex AI |
+| `ollama` | Ollama OpenAI-compatible endpoint at `http://localhost:11434/v1` |
+| `openai` | OpenAI public API or any OpenAI-compatible endpoint using `parameters.base_url` |
 
-#### Self-Hosted Engines
+For OpenAI-compatible providers without a dedicated engine entry (vLLM, TGI, OpenRouter, Together.ai, Fireworks.ai, Groq, DeepSeek, llama.cpp server, and similar), use `engine: openai` with `parameters.base_url` and `parameters.api_key`.
+
+#### LangChain Engines
+
+To use one of these engines, set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install the matching `langchain-*` provider package.
 
 | Engine | Description |
-|--------|-------------|
-| `huggingface_hub` | HuggingFace Hub models |
-| `huggingface_endpoint` | HuggingFace Inference Endpoints |
-| `vllm_openai` | vLLM with OpenAI-compatible API |
-| `trt_llm` | TensorRT-LLM |
-| `self_hosted` | Generic self-hosted models |
+| --- | --- |
+| `anthropic` | Anthropic Claude models |
+| `azure` | Azure OpenAI models (deployment-name URL plus `api-version`) |
+| `cohere` | Cohere models |
+| `google_genai` | Google Generative AI through LangChain (requires `langchain-google-genai`) |
+| `huggingface_endpoint` | Hugging Face Inference Endpoints (default text-generation schema; if your endpoint exposes `/v1/chat/completions`, prefer `engine: openai` with `parameters.base_url` instead) |
+| `huggingface_hub` | Hugging Face Hub models |
+| `huggingface_pipeline` | In-process Hugging Face pipeline |
+| `self_hosted` | Generic self-hosted LangChain wrapper |
+| `trt_llm` | TensorRT-LLM in-process |
+| `vertexai` | Google Vertex AI through LangChain (requires `langchain-google-vertexai`) |
+| `vllm_openai` | Legacy LangChain wrapper for vLLM. For new configs, prefer `engine: openai` with `parameters.base_url` |
 
 #### Embedding Engines
 
 | Engine | Description |
-|--------|-------------|
+| --- | --- |
 | `FastEmbed` | FastEmbed (default) |
-| `openai` | OpenAI embeddings |
 | `nim` | NVIDIA NIM embeddings |
+| `openai` | OpenAI embeddings |
 
 ### Model Cache Configuration
 
@@ -148,7 +159,7 @@ models:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
+| --- | --- | --- | --- |
 | `models.cache.enabled` | boolean | `false` | Enable caching for this model |
 | `models.cache.maxsize` | integer | `50000` | Maximum cache entries |
 | `models.cache.stats.enabled` | boolean | `false` | Enable cache statistics tracking |
@@ -211,12 +222,12 @@ rails:
 The following table summarizes the available rail types and their trigger points.
 
 | Rail Type | Trigger Point | Purpose |
-|----------|---------------|---------|
-| **Input rails** | When user input is received | Validate, filter, or modify user input |
-| **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
+| --- | --- | --- |
 | **Dialog rails** | After canonical form is computed | Control conversation flow |
 | **Execution rails** | Before/after action execution | Control tool and action calls |
+| **Input rails** | When user input is received | Validate, filter, or modify user input |
 | **Output rails** | When LLM generates output | Validate, filter, or modify bot responses |
+| **Retrieval rails** | After RAG retrieval completes | Process retrieved chunks |
 
 The following diagram shows the guardrails process described in the table above in detail.
 
@@ -241,21 +252,21 @@ rails:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rails.input.parallel` | boolean | `false` | Execute input rails in parallel |
+| --- | --- | --- | --- |
 | `rails.input.flows` | list | `[]` | Names of flows that implement input rails |
+| `rails.input.parallel` | boolean | `false` | Execute input rails in parallel |
 
 #### Built-in Input Flows
 
 | Flow | Description |
-|------|-------------|
-| `self check input` | LLM-based policy compliance check |
+| --- | --- |
+| `content safety check input` | NVIDIA content safety model |
+| `detect sensitive data on input` | Detect and block PII |
 | `jailbreak detection heuristics` | Jailbreak detection heuristics |
 | `jailbreak detection model` | NIM-based jailbreak detection |
-| `mask sensitive data on input` | Mask PII in user input |
-| `detect sensitive data on input` | Detect and block PII |
 | `llama guard check input` | LlamaGuard content moderation |
-| `content safety check input` | NVIDIA content safety model |
+| `mask sensitive data on input` | Mask PII in user input |
+| `self check input` | LLM-based policy compliance check |
 | `topic safety check input` | Topic control model |
 
 ### Output Rails
@@ -277,31 +288,31 @@ rails:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rails.output.parallel` | boolean | `false` | Execute output rails in parallel |
+| --- | --- | --- | --- |
 | `rails.output.flows` | list | `[]` | Names of flows that implement output rails |
+| `rails.output.parallel` | boolean | `false` | Execute output rails in parallel |
 | `rails.output.streaming` | object | | Streaming output configuration |
 
 #### Output Streaming Configuration
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rails.output.streaming.enabled` | boolean | `false` | Enable streaming mode |
+| --- | --- | --- | --- |
 | `rails.output.streaming.chunk_size` | integer | `200` | Tokens per processing chunk |
 | `rails.output.streaming.context_size` | integer | `50` | Tokens carried from previous chunk |
+| `rails.output.streaming.enabled` | boolean | `false` | Enable streaming mode |
 | `rails.output.streaming.stream_first` | boolean | `true` | Stream before applying output rails |
 
 #### Built-in Output Flows
 
 | Flow | Description |
-|------|-------------|
-| `self check output` | LLM-based policy compliance check |
-| `self check facts` | Fact verification |
-| `self check hallucination` | Hallucination detection |
-| `mask sensitive data on output` | Mask PII in output |
-| `llama guard check output` | LlamaGuard content moderation |
+| --- | --- |
 | `content safety check output` | NVIDIA content safety model |
 | `injection detection` | Injection detection (SQL, XSS, code, template) |
+| `llama guard check output` | LlamaGuard content moderation |
+| `mask sensitive data on output` | Mask PII in output |
+| `self check facts` | Fact verification |
+| `self check hallucination` | Hallucination detection |
+| `self check output` | LLM-based policy compliance check |
 
 ### Retrieval Rails
 
@@ -331,7 +342,7 @@ rails:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
+| --- | --- | --- | --- |
 | `rails.dialog.single_call.enabled` | boolean | `false` | Use single LLM call for intent + response |
 | `rails.dialog.single_call.fallback_to_multiple_calls` | boolean | `true` | Fall back if single call fails |
 | `rails.dialog.user_messages.embeddings_only` | boolean | `false` | Use only embeddings for intent matching |
@@ -391,14 +402,14 @@ rails:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rails.config.jailbreak_detection.server_endpoint` | string | `null` | Heuristics model endpoint |
+| --- | --- | --- | --- |
+| `rails.config.jailbreak_detection.api_key` | string | `null` | API key (not recommended) |
+| `rails.config.jailbreak_detection.api_key_env_var` | string | `null` | Environment variable for API key |
 | `rails.config.jailbreak_detection.length_per_perplexity_threshold` | float | `89.79` | Length/perplexity threshold |
-| `rails.config.jailbreak_detection.prefix_suffix_perplexity_threshold` | float | `1845.65` | Prefix/suffix perplexity threshold |
 | `rails.config.jailbreak_detection.nim_base_url` | string | `null` | NIM base URL (e.g., `http://localhost:8000/v1`) |
 | `rails.config.jailbreak_detection.nim_server_endpoint` | string | `"classify"` | NIM endpoint path |
-| `rails.config.jailbreak_detection.api_key_env_var` | string | `null` | Environment variable for API key |
-| `rails.config.jailbreak_detection.api_key` | string | `null` | API key (not recommended) |
+| `rails.config.jailbreak_detection.prefix_suffix_perplexity_threshold` | float | `1845.65` | Prefix/suffix perplexity threshold |
+| `rails.config.jailbreak_detection.server_endpoint` | string | `null` | Heuristics model endpoint |
 
 #### Sensitive Data Detection (Presidio)
 
@@ -424,11 +435,11 @@ rails:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rails.config.sensitive_data_detection.recognizers` | list | `[]` | Custom Presidio recognizers |
+| --- | --- | --- | --- |
 | `rails.config.sensitive_data_detection.input/output/retrieval.entities` | list | `[]` | Entity types to detect |
 | `rails.config.sensitive_data_detection.input/output/retrieval.mask_token` | string | `"*"` | Token for masking |
 | `rails.config.sensitive_data_detection.input/output/retrieval.score_threshold` | float | `0.2` | Detection confidence threshold |
+| `rails.config.sensitive_data_detection.recognizers` | list | `[]` | Custom Presidio recognizers |
 
 #### Injection Detection
 
@@ -447,9 +458,9 @@ rails:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rails.config.injection_detection.injections` | list | `[]` | Injection types: `sqli`, `template`, `code`, `xss` |
+| --- | --- | --- | --- |
 | `rails.config.injection_detection.action` | string | `"reject"` | Action: `reject` or `omit` |
+| `rails.config.injection_detection.injections` | list | `[]` | Injection types: `sqli`, `template`, `code`, `xss` |
 | `rails.config.injection_detection.yara_path` | string | `""` | Custom YARA rules path |
 | `rails.config.injection_detection.yara_rules` | object | `{}` | Inline YARA rules |
 
@@ -480,15 +491,15 @@ rails:
 The multilingual feature supports the following languages:
 
 | Language | Code |
-|----------|------|
-| English | `en` |
-| Spanish | `es` |
+| --- | --- |
+| Arabic | `ar` |
 | Chinese | `zh` |
-| German | `de` |
+| English | `en` |
 | French | `fr` |
+| German | `de` |
 | Hindi | `hi` |
 | Japanese | `ja` |
-| Arabic | `ar` |
+| Spanish | `es` |
 | Thai | `th` |
 
 If the detected language is not in this list, English is used as the fallback. For more details, refer to [Multilingual Content Safety](./guardrail-catalog/content-safety.md#multilingual-refusal-messages).
@@ -657,42 +668,42 @@ prompts:
 ```
 
 | Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompts.task` | string | ✓ | Task identifier |
+| --- | --- | --- | --- |
 | `prompts.content` | string | | Prompt template (mutually exclusive with `messages`) |
-| `prompts.messages` | list | | Chat messages (mutually exclusive with `content`) |
-| `prompts.output_parser` | string | `null` | Output parser name |
 | `prompts.max_length` | integer | `16000` | Maximum prompt length (characters) |
 | `prompts.max_tokens` | integer | `null` | Maximum response tokens |
+| `prompts.messages` | list | | Chat messages (mutually exclusive with `content`) |
 | `prompts.mode` | string | `"standard"` | Prompting mode |
-| `prompts.stop` | list | `null` | Stop tokens |
 | `prompts.models` | list | `null` | Restrict to engines/models (e.g., `["openai", "nim/llama-3.1"]`) |
+| `prompts.output_parser` | string | `null` | Output parser name |
+| `prompts.stop` | list | `null` | Stop tokens |
+| `prompts.task` | string | ✓ | Task identifier |
 
 ### Available Tasks
 
 The following table lists all available tasks you can specify to `prompts.task`.
 
 | Task | Description |
-|------|-------------|
-| `self_check_input` | Check if user input complies with policy |
-| `self_check_output` | Check if bot output complies with policy |
+| --- | --- |
+| `general` | General response generation (no dialog rails) |
+| `generate_bot_message` | Generate bot response |
+| `generate_next_steps` | Determine next conversation step |
+| `generate_user_intent` | Generate canonical user intent |
 | `self_check_facts` | Verify factual accuracy of responses |
 | `self_check_hallucination` | Detect hallucinations in responses |
-| `generate_user_intent` | Generate canonical user intent |
-| `generate_next_steps` | Determine next conversation step |
-| `generate_bot_message` | Generate bot response |
-| `general` | General response generation (no dialog rails) |
+| `self_check_input` | Check if user input complies with policy |
+| `self_check_output` | Check if bot output complies with policy |
 
 ### Available Prompt Message Types
 
 The following table lists all available message types you can specify to `prompts.messages.type`.
 
 | Type | Description |
-|------|-------------|
-| `system` | System-level instructions |
-| `user` | User message content |
+| --- | --- |
 | `assistant` | Assistant/bot message content |
 | `bot` | Alias for `assistant` |
+| `system` | System-level instructions |
+| `user` | User message content |
 
 ---
 
@@ -762,7 +773,6 @@ The top-level `streaming` field is a boolean that is no longer required. Use the
 ```yaml
 streaming: false
 ```
-
 
 ### Import Paths
 

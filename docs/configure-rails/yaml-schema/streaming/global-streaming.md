@@ -150,6 +150,10 @@ pipe = pipeline(
 llm = HuggingFacePipelineCompatible(pipeline=pipe, model_kwargs=params)
 ```
 
+```{note}
+This example uses NeMo Guardrails' LangChain HuggingFace pipeline adapter, which depends on LangChain. It requires `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and the corresponding LangChain HuggingFace provider package.
+```
+
 ---
 
 ## Related Topics

@@ -258,6 +258,9 @@ html_theme = "nvidia_sphinx_theme"
 html_copy_source = False
 html_show_sourcelink = False
 html_show_sphinx = False
+html_static_path = ["_static"]
+html_css_files = ["css/custom.css"]
+html_js_files = ["js/table-expander.js"]
 
 html_domain_indices = False
 html_use_index = False

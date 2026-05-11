@@ -420,6 +420,47 @@ def warn_if_truncated(response: LLMResponse, task: str) -> bool:
     return truncated
 
 
+def _extract_user_text_from_event(event_text: Union[str, List[Dict[str, Any]]]) -> str:
+    """Flatten a multimodal user-message payload into a string for colang history.
+
+    Multimodal user events carry ``event_text`` as a list of OpenAI-style
+    content parts (``[{"type": "text", "text": "..."}, {"type": "image_url",
+    "image_url": {...}}, ...]``). Including the full list in the colang
+    history bloats the context with raw base64 data; this helper extracts the
+    visible text parts and appends a ``[+ image]`` marker when one or more
+    image parts were present.
+
+    Non-string text fields (``None`` or other types) inside a content part
+    are skipped so the ``" ".join(...)`` step cannot crash. If the message
+    is image-only, the result is just ``"[+ image]"`` without a leading
+    space.
+
+    Args:
+        event_text: Either a string (already flat) or a list of multimodal
+            content parts.
+
+    Returns:
+        The flattened text. A list input always produces a string; a string
+        input is returned unchanged.
+    """
+    if isinstance(event_text, list):
+        text_parts = []
+        has_images = False
+        for item in event_text:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    text = item.get("text")
+                    if isinstance(text, str) and text:
+                        text_parts.append(text)
+                elif item.get("type") == "image_url":
+                    has_images = True
+        text = " ".join(text_parts)
+        if has_images:
+            text = f"{text} [+ image]".strip() if text else "[+ image]"
+        return text
+    return event_text
+
+
 def get_colang_history(
     events: List[dict],
     include_texts: bool = True,
@@ -463,7 +504,7 @@ def get_colang_history(
 
         for idx, event in enumerate(events):
             if event["type"] == "UserMessage" and include_texts:
-                history += f'user "{event["text"]}"\n'
+                history += f'user "{_extract_user_text_from_event(event["text"])}"\n'
             elif event["type"] == "UserIntent":
                 if include_texts:
                     history += f"  {event['intent']}\n"
@@ -636,7 +677,7 @@ def get_last_user_utterance(events: List[dict]) -> Optional[str]:
     """Returns the last user utterance from the events."""
     for event in reversed(events):
         if event["type"] == "UserMessage":
-            return event["text"]
+            return _extract_user_text_from_event(event["text"])
 
     return None
 

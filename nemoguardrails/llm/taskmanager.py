@@ -52,6 +52,8 @@ from nemoguardrails.llm.prompts import get_prompt
 from nemoguardrails.llm.types import Task
 from nemoguardrails.rails.llm.config import MessageTemplate, RailsConfig
 
+_SINGLE_VAR_PATTERN = re.compile(r"^\{\{\s*(\w+)\s*\}\}$")
+
 
 class LLMTaskManager:
     """Interface for interacting with an LLM in a task-oriented way."""
@@ -184,10 +186,9 @@ class LLMTaskManager:
                     raise ValueError(f"Invalid message template: {message_template}")
                 messages.extend(new_messages)
             else:
-                content = self._render_string(message_template.content, context=context, events=events)
+                content = self._resolve_message_content(message_template.content, context=context, events=events)
 
-                # Don't add empty messages.
-                if content.strip():
+                if (isinstance(content, list) and content) or (isinstance(content, str) and content.strip()):
                     messages.append(
                         {
                             "type": message_template.type,
@@ -196,6 +197,47 @@ class LLMTaskManager:
                     )
 
         return messages
+
+    def _resolve_message_content(
+        self,
+        template_str: str,
+        context: Optional[dict] = None,
+        events: Optional[List[dict]] = None,
+    ) -> Union[str, list]:
+        """Resolve a message-template body to either a list or a rendered string.
+
+        When ``template_str`` matches a single-variable pattern such as
+        ``"{{ user_input }}"``, the variable is looked up directly so that a
+        list value (for example, multimodal ``[{"type": "text", ...}, ...]``
+        content) is preserved as a list instead of being stringified by Jinja.
+
+        Lookup precedence for the single-variable case:
+
+        * The argument ``context`` is consulted first; its value seeds the
+          candidate result.
+        * ``self.prompt_context`` is consulted second, but it overrides the
+          argument only when its value is itself a list. This keeps a list
+          supplied in ``context`` safe from being clobbered by a scalar
+          fallback in ``self.prompt_context``, while still allowing a list in
+          ``self.prompt_context`` to win when the caller did not pass one.
+
+        If neither path yields a list (or ``template_str`` is not a single
+        variable), the method falls back to the regular Jinja render, which
+        coerces values to strings.
+        """
+        match = _SINGLE_VAR_PATTERN.match(template_str.strip())
+        if match:
+            var_name = match.group(1)
+            value = None
+            if context and var_name in context:
+                value = context[var_name]
+            if self.prompt_context and var_name in self.prompt_context:
+                candidate = self.prompt_context[var_name]
+                if isinstance(candidate, list):
+                    value = candidate
+            if isinstance(value, list):
+                return list(value)
+        return self._render_string(template_str, context=context, events=events)
 
     def _get_messages_text_length(self, messages: List[dict]) -> int:
         """Return the length of the text in the messages for token counting purposes.
