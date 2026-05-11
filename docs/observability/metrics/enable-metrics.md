@@ -25,6 +25,12 @@ Use this minimal setup to enable metrics from IORails with the OpenTelemetry SDK
 LLMRails does not support OpenTelemetry metrics.
 Use this to verify metric emission locally before wiring up a production exporter.
 
+:::{admonition} Experimental Feature
+Metrics currently require the opt-in IORails engine.
+To enable IORails, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
+IORails is an early-release feature, and metric names can change as the OpenTelemetry GenAI semantic conventions evolve.
+:::
+
 1. Install the NeMo Guardrails library and the OpenTelemetry SDK.
 
     ```bash

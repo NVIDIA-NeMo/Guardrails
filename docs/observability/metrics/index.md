@@ -30,7 +30,7 @@ While tracing answers what happens on a particular request, metrics answer how t
 The IORails engine emits OpenTelemetry metrics inline as requests flow through it.
 These metrics are independent of tracing, so you can enable either signal alone or both together.
 
-:::{important}
+:::{admonition} Experimental Feature
 Metrics currently require the opt-in IORails engine.
 To enable IORails, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
 IORails is an early-release feature, and metric names can change as the OpenTelemetry GenAI semantic conventions evolve.
