@@ -125,7 +125,7 @@ models:
 ```
 
 ```{note}
-Anthropic's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, see [Migrating to 0.22](../../migration/0.22.md#section-3-falling-back-to-langchain).
+Anthropic's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-anthropic`. For background, see [Migrating to 0.22](../../migration/0.22.md#using-langchain).
 ```
 
 ### vLLM (OpenAI-Compatible)
@@ -185,7 +185,7 @@ models:
 ```
 
 ```{note}
-Vertex AI's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, see [Migrating to 0.22](../../migration/0.22.md#section-3-falling-back-to-langchain).
+Vertex AI's API isn't OpenAI-compatible, so this engine is opt-in: set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-google-vertexai`. For background, see [Migrating to 0.22](../../migration/0.22.md#using-langchain).
 ```
 
 ### Complete Example
