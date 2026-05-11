@@ -24,10 +24,10 @@ content:
 
 The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
 
-## When to Use config.py vs actions.py
+## When to Use config.py or actions.py
 
 | Use Case | File | Reason |
-|----------|------|--------|
+| --- | --- | --- |
 | Register custom LLM provider | `config.py` | Must happen before LLMRails initialization |
 | Register custom embedding provider | `config.py` | Must happen before LLMRails initialization |
 | Initialize database connection | `config.py` | Shared resource, initialized once |
@@ -62,7 +62,7 @@ Register custom text completion (BaseLLM) and chat models (BaseChatModel) for us
 :link: custom-llm-model
 :link-type: doc
 
-Implement the LLMModel protocol to plug a non-OpenAI-compatible backend into NeMo Guardrails without depending on LangChain.
+Implement the LLMModel protocol to connect a non-OpenAI-compatible backend to the NVIDIA NeMo Guardrails library without depending on LangChain.
 +++
 {bdg-secondary}`How To`
 :::
@@ -71,7 +71,7 @@ Implement the LLMModel protocol to plug a non-OpenAI-compatible backend into NeM
 :link: custom-llm-framework
 :link-type: doc
 
-Replace the LLM framework layer to plug NeMo Guardrails into LiteLLM, an in-house orchestrator, or any non-default LLM stack.
+Replace the LLM framework layer to connect LiteLLM, an in-house orchestrator, or any non-default LLM stack to the NVIDIA NeMo Guardrails library.
 +++
 {bdg-secondary}`How To`
 :::

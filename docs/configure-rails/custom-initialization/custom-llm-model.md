@@ -1,8 +1,8 @@
 ---
 title:
-  page: Custom LLM Models for NeMo Guardrails
+  page: Custom LLM Models for the NVIDIA NeMo Guardrails library
   nav: Custom LLM Model
-description: Implement the LLMModel protocol to plug a non-OpenAI-compatible backend into NeMo Guardrails without depending on LangChain.
+description: Implement the LLMModel protocol to connect a non-OpenAI-compatible backend to the NVIDIA NeMo Guardrails library without depending on LangChain.
 topics:
 - Configuration
 - Customization
@@ -23,18 +23,18 @@ content:
 
 # Custom LLM Models
 
-NeMo Guardrails defines a small `LLMModel` protocol that every backend implements. The built-in `DefaultFramework` ships an `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint, and the optional `LangChainFramework` ships a `LangChainLLMAdapter` that wraps any LangChain `BaseChatModel` or `BaseLLM`. When neither matches your backend, you can implement `LLMModel` directly.
+The NVIDIA NeMo Guardrails library defines a small `LLMModel` protocol that every backend implements. The built-in `DefaultFramework` ships an `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint, and the optional `LangChainFramework` ships a `LangChainLLMAdapter` that wraps any LangChain `BaseChatModel` or `BaseLLM`. When neither matches your backend, you can implement `LLMModel` directly.
 
 This guide covers when to do that, the contract you must satisfy, a minimal worked example, and pointers to the reference implementations and to the testing helpers.
 
 ## When to Use a Custom LLMModel
 
-There are three options for connecting a backend to NeMo Guardrails. Pick the highest one that fits.
+There are three options for connecting a backend to the NVIDIA NeMo Guardrails library. Pick the best fit.
 
 | Backend shape | Recommended path | Where it lives |
-|---|---|---|
-| OpenAI-compatible HTTP endpoint (vLLM, TGI, OpenRouter, self-hosted, NIM, ...) | Use `engine: openai` (or the matching built-in engine) and set `parameters.base_url` | [Custom LLM Providers](custom-llm-providers.md) and the configuration reference |
-| You already have a LangChain `BaseChatModel` or `BaseLLM` | Use `engine: langchain` and register the LangChain class via `register_chat_provider` | [Custom LLM Providers](custom-llm-providers.md) |
+| --- | --- | --- |
+| OpenAI-compatible HTTP endpoint, such as vLLM, TGI, OpenRouter, self-hosted, NIM, and other endpoints | Use `engine: openai` (or the matching built-in engine) and set `parameters.base_url` | [Custom LLM Providers](custom-llm-providers.md) and the configuration reference |
+| You already have a LangChain `BaseChatModel` or `BaseLLM` | Use `engine: langchain` and register the LangChain class with `register_chat_provider` | [Custom LLM Providers](custom-llm-providers.md) |
 | Custom HTTP API that is not OpenAI-shaped, and you do not want a LangChain dependency | Implement `LLMModel` and register it with the active framework | This guide |
 
 Concretely, choose a custom `LLMModel` when:
@@ -93,7 +93,7 @@ Adapters must accept either a plain string or a list of {py:class}`~nemoguardrai
 
 ### `stop` and `**kwargs`
 
-`stop` is the canonical name for stop sequences; keep it as a keyword-only argument. `**kwargs` carries everything the caller passed under `parameters` in `config.yml` plus any per-call overrides (`temperature`, `max_tokens`, `top_p`, ...). Forward these to the underlying SDK.
+`stop` is the canonical name for stop sequences; keep it as a keyword-only argument. `**kwargs` carries everything the caller passed under `parameters` in `config.yml` plus any per-call overrides, such as `temperature`, `max_tokens`, and `top_p`. Forward these to the underlying SDK.
 
 ### `generate_async` returns `LLMResponse`
 
@@ -132,7 +132,7 @@ class LLMResponseChunk:
     provider_metadata: Optional[Dict[str, Any]] = None
 ```
 
-Conventions to follow so the rest of the pipeline works:
+Follow these conventions so the rest of the pipeline works:
 
 - Yield text deltas in `delta_content` as soon as they arrive.
 - Yield `delta_reasoning` for chain-of-thought tokens emitted before the visible answer (OpenAI reasoning models, NIM `reasoning_content`).
@@ -256,7 +256,7 @@ class EchoLLMModel:
 register_provider("echo", EchoLLMModel)
 ```
 
-The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default that is `DefaultFramework`. See [Custom LLMFramework](custom-llm-framework.md) for the framework layer.
+The `register_provider` call attaches `EchoLLMModel` as the `echo` engine on whichever framework is currently active. By default, that is `DefaultFramework`. For the framework layer, refer to [Custom LLM Framework](custom-llm-framework.md).
 
 `my_config/config.yml`:
 
@@ -288,7 +288,7 @@ If the smoke test prints `Hello from echo`, your provider is registered correctl
 
 ### What `register_provider` does
 
-`register_provider(name, cls)` from `nemoguardrails.llm.providers` resolves the active framework via `get_default_framework()` and calls `framework.register_provider(name, cls)` on it. For `DefaultFramework`, that adds `name` to its in-memory dict; subsequent `create_model("echo", ...)` calls use your class as the factory. The active framework is selected once per process by `NEMOGUARDRAILS_LLM_FRAMEWORK` (or `set_default_framework()` from `config.py`); you do not register on multiple frameworks.
+`register_provider(name, cls)` from `nemoguardrails.llm.providers` resolves the active framework with `get_default_framework()` and calls `framework.register_provider(name, cls)` on it. For `DefaultFramework`, that adds `name` to its in-memory dict. Subsequent `create_model("echo", ...)` calls use your class as the factory. The active framework is selected once per process by `NEMOGUARDRAILS_LLM_FRAMEWORK` or `set_default_framework()` from `config.py`. You do not register on multiple frameworks.
 
 ### Calling-convention contract for your `__init__`
 
@@ -296,7 +296,7 @@ If the smoke test prints `Hello from echo`, your provider is registered correctl
 
 ## Reference Implementations
 
-Read these to see a production-grade `LLMModel`:
+Review these production-grade `LLMModel` implementations:
 
 - [`nemoguardrails/llm/models/openai_chat.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/models/openai_chat.py): `OpenAIChatModel` for any OpenAI-compatible HTTP endpoint. Shows tool-call accumulation, reasoning-content extraction, response validation, and exception enrichment. Uses [`OpenAICompatibleClient`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/llm/clients/openai_compatible.py) for the HTTP layer.
 - [`nemoguardrails/integrations/langchain/llm_adapter.py`](https://github.com/NVIDIA-NeMo/Guardrails/blob/develop/nemoguardrails/integrations/langchain/llm_adapter.py): `LangChainLLMAdapter` that bridges any LangChain `BaseChatModel` or `BaseLLM`. Shows how to map LangChain's `tool_call_chunks`, `usage_metadata`, `response_metadata`, and `additional_kwargs` onto the `LLMResponse` and `LLMResponseChunk` shapes.
@@ -305,7 +305,7 @@ Both files import their types directly from `nemoguardrails.types`. Custom model
 
 ## Testing Your Model
 
-NeMo Guardrails ships a pytest-friendly `FakeLLMModel` under `nemoguardrails.testing` that is shaped exactly like the protocol and accepts a list of canned strings or `LLMResponse` objects:
+The NVIDIA NeMo Guardrails library ships a pytest-friendly `FakeLLMModel` under `nemoguardrails.testing` that is shaped exactly like the protocol and accepts a list of canned strings or `LLMResponse` objects:
 
 ```python
 from nemoguardrails.testing import FakeLLMModel
@@ -314,17 +314,17 @@ from nemoguardrails.testing import FakeLLMModel
 The two recommended approaches:
 
 1. Write unit tests for your `LLMModel` class in isolation: instantiate it, call `await model.generate_async(prompt)`, and assert on the returned `LLMResponse`. No framework needed.
-2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. See [Testing Your Config](../../user-guides/testing-your-config.md) for the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures).
+2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. For the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures), refer to [Testing Your Config](../../user-guides/testing-your-config.md).
 
 The contract is small enough that property-based tests are straightforward: any string `prompt` and any list of `ChatMessage` objects must produce a non-`None` `LLMResponse.content`, and `stream_async` must always yield a final chunk with a non-`None` `finish_reason`.
 
 ## Best Practices
 
-1. **Implement both methods even if your backend has no native streaming.** A simple `stream_async` that yields a single chunk built from `generate_async` keeps the streaming consumer paths working.
-2. **Pre-flight validate provider responses.** The reference `OpenAIChatModel._validate_response` rejects non-dict bodies and missing `choices` entries before parsing. This keeps user-facing errors actionable.
-3. **Forward `**kwargs` to the SDK.** Anything the user wrote under `parameters` in `config.yml` lands here. Letting unknown keys pass through means new SDK options work without a guardrails release.
-4. **Pool shared backend clients on the framework.** `create_model` is called once per `models:` entry at `LLMRails` startup; after that, your model handles every request. If multiple `models:` entries point at the same backend, the framework, not the model, should hold the underlying client so they share one connection pool. `DefaultFramework._get_or_create_client` keys clients by `(base_url, api_key, ...)` for exactly this reason. Single-model configs can build the client directly in `__init__`.
-5. **Do not raise vanilla `Exception`.** Use the `nemoguardrails.exceptions` hierarchy so retries and structured logging behave correctly.
+1. Implement both methods even if your backend has no native streaming. A simple `stream_async` that yields a single chunk built from `generate_async` keeps the streaming consumer paths working.
+2. Pre-flight validate provider responses. The reference `OpenAIChatModel._validate_response` rejects non-dict bodies and missing `choices` entries before parsing. This keeps user-facing errors actionable.
+3. Forward `**kwargs` to the SDK. Anything the user wrote under `parameters` in `config.yml` lands here. Letting unknown keys pass through means new SDK options work without a library release.
+4. Pool shared backend clients on the framework. `create_model` is called once per `models:` entry at `LLMRails` startup. After that, your model handles every request. If multiple `models:` entries point at the same backend, the framework, not the model, should hold the underlying client so they share one connection pool. `DefaultFramework._get_or_create_client` keys clients by `(base_url, api_key, ...)` for exactly this reason. Single-model configs can build the client directly in `__init__`.
+5. Do not raise vanilla `Exception`. Use the `nemoguardrails.exceptions` hierarchy so retries and structured logging behave correctly.
 
 ## Related Topics
 
