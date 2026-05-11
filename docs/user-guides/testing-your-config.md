@@ -104,7 +104,7 @@ which doubles as the count of consumed responses). Most tests assert on the
 response content; the counter is there if you need it:
 
 ```python
-assert fake.i == 1, "Expected exactly one LLM call"
+assert fake.inference_count == 1, "Expected exactly one LLM call"
 ```
 
 ## Pattern 2: Use `TestChat` for ergonomic conversation tests
@@ -231,9 +231,7 @@ through the pipeline.
 Whether `app.stream_async(...)` is allowed is gated by your `config.yml`,
 not by `TestChat`. When output rails are configured, set
 `rails.output.streaming.enabled: True` in the config (otherwise
-`stream_async` raises). The `streaming=True` argument that `TestChat`
-accepts only sets a flag on the fake LLM and is not required to exercise
-streaming end-to-end.
+`stream_async` raises).
 
 ## Pattern 3: Use the pytest fixtures
 

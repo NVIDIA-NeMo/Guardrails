@@ -29,7 +29,7 @@ Add it to your ``conftest.py`` to opt in::
     pytest_plugins = ["nemoguardrails.testing.fixtures"]
 """
 
+from nemoguardrails.testing.chat_harness import TestChat
 from nemoguardrails.testing.fake_model import FakeLLMModel
-from nemoguardrails.testing.test_chat import TestChat
 
 __all__ = ["FakeLLMModel", "TestChat"]

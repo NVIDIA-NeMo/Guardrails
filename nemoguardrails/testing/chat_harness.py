@@ -63,7 +63,7 @@ class TestChat:
         streaming: bool = False,
         llm_exception: Optional[Exception] = None,
         token_usage: Optional[List[Dict[str, int]]] = None,
-        llm: Optional[Any] = None,
+        llm: Optional[FakeLLMModel] = None,
     ):
         """Creates a TestChat instance.
 
@@ -87,8 +87,7 @@ class TestChat:
 
             self.llm = FakeLLMModel(
                 responses=llm_completions,
-                streaming=streaming,
-                exception=llm_exception,
+                llm_exception=llm_exception,
                 token_usage=token_usage,
                 should_return_token_usage=should_return_token_usage,
             )

@@ -26,13 +26,13 @@ factory that wires the fake model into an :class:`LLMRails` app.
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional
 
 import pytest
 
 from nemoguardrails import RailsConfig
+from nemoguardrails.testing.chat_harness import TestChat
 from nemoguardrails.testing.fake_model import FakeLLMModel
-from nemoguardrails.testing.test_chat import TestChat
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def make_test_chat() -> Callable[..., TestChat]:
     """
 
     def _factory(
-        config: Union[str, RailsConfig],
+        config: RailsConfig,
         llm_completions: Optional[List[str]] = None,
         **kwargs,
     ) -> TestChat:

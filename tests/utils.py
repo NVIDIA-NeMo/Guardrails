@@ -25,8 +25,8 @@ from nemoguardrails.colang.v2_x.runtime.runtime import (
     create_flow_configs_from_flow_list,
 )
 from nemoguardrails.colang.v2_x.runtime.statemachine import initialize_state
+from nemoguardrails.testing.chat_harness import TestChat
 from nemoguardrails.testing.fake_model import FakeLLMModel
-from nemoguardrails.testing.test_chat import TestChat
 from nemoguardrails.utils import EnhancedJsonEncoder
 
 __all__ = [

@@ -91,6 +91,14 @@ def test_test_chat_user_bot_round_trip():
     chat.bot("Hello there!")
 
 
+def test_test_chat_llm_exception_without_completions():
+    chat = TestChat(_minimal_config(), llm_exception=RuntimeError("upstream is down"))
+
+    chat.user("hi")
+    with pytest.raises(Exception, match="upstream is down"):
+        chat.bot("anything")
+
+
 def test_fake_llm_fixture(fake_llm):
     assert isinstance(fake_llm, FakeLLMModel)
     assert fake_llm.responses == ["Hello!"]

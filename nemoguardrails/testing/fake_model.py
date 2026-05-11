@@ -40,10 +40,8 @@ class FakeLLMModel:
         llm_responses: A list of :class:`~nemoguardrails.types.LLMResponse`
             objects. Useful when tool calls or structured fields need to be
             asserted. Takes precedence over ``responses`` when provided.
-        streaming: Whether the fake model should be marked as streaming. The
-            actual streaming behaviour is implemented by :meth:`stream_async`.
-        exception: An exception instance to raise on every generation, useful
-            for exercising error-handling paths.
+        llm_exception: An exception instance to raise on every generation,
+            useful for exercising error-handling paths.
         token_usage: Optional list of token usage dictionaries (one per
             response). Each entry may include ``prompt_tokens``,
             ``completion_tokens`` and ``total_tokens`` keys.
@@ -55,8 +53,7 @@ class FakeLLMModel:
         self,
         responses: Optional[List[str]] = None,
         llm_responses: Optional[List[LLMResponse]] = None,
-        streaming: bool = False,
-        exception: Optional[Exception] = None,
+        llm_exception: Optional[Exception] = None,
         token_usage: Optional[List[Dict[str, int]]] = None,
         should_return_token_usage: bool = False,
     ):
@@ -67,9 +64,8 @@ class FakeLLMModel:
         else:
             self._llm_responses = []
         self.responses = responses or [response.content for response in self._llm_responses]
-        self.i = 0
-        self.streaming = streaming
-        self.exception = exception
+        self.inference_count = 0
+        self.llm_exception = llm_exception
         self.token_usage = token_usage
         self.should_return_token_usage = should_return_token_usage
 
@@ -86,19 +82,19 @@ class FakeLLMModel:
         return None
 
     def _next_response(self) -> LLMResponse:
-        if self.exception:
-            raise self.exception
-        if self.i >= len(self._llm_responses):
+        if self.llm_exception:
+            raise self.llm_exception
+        if self.inference_count >= len(self._llm_responses):
             raise RuntimeError(
-                f"No responses available for query number {self.i + 1} in FakeLLMModel. "
+                f"No responses available for query number {self.inference_count + 1} in FakeLLMModel. "
                 "Most likely, too many LLM calls are made or additional responses need to be provided."
             )
-        response = self._llm_responses[self.i]
-        self.i += 1
+        response = self._llm_responses[self.inference_count]
+        self.inference_count += 1
         return response
 
     def _get_usage(self) -> Optional[UsageInfo]:
-        idx = self.i - 1
+        idx = self.inference_count - 1
         if self.token_usage and self.should_return_token_usage and 0 <= idx < len(self.token_usage):
             usage = self.token_usage[idx]
             return UsageInfo(
@@ -123,4 +119,6 @@ class FakeLLMModel:
             content = chunk + " " if chunk_index < len(chunks) - 1 else chunk
             await asyncio.sleep(0)
             yield LLMResponseChunk(delta_content=content)
+        # Final yield point so concurrent consumers (asyncio.create_task) can
+        # process the last chunk before the caller continues after the async for.
         await asyncio.sleep(0)
