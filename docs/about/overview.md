@@ -107,7 +107,7 @@ Agentic security provides specialized guardrails for LLM-based agents that use t
 This includes:
 
 - **Tool call validation**: Execute rails that validate tool inputs and outputs before and after invocation.
-- **Agent workflow protection**: Integrate with [LangGraph](../integration/langchain/langgraph-integration.md) for multi-agent safety.
+- **Agent workflow protection**: Integrate with [LangGraph](../integration/langchain/langgraph-integration.md) for multi-agent safety. Requires the LangChain opt-in (`NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`) and the matching `langchain-*` packages.
 - **Secure tool integration**: Review guidelines for safely connecting LLMs to external resources (refer to [Security Guidelines](../resources/security/guidelines.md)).
 - **Action monitoring**: Monitor detailed logging and tracing of agent actions.
 
@@ -128,7 +128,7 @@ If you have a script or tool that runs a custom guardrail, you can use it in NeM
 
 1. **Python actions**: Create custom actions in Python for complex logic and external integrations. For more information, refer to the [](../configure-rails/actions/index.md).
 
-2. **LangChain tool integration**: Register LangChain tools as custom actions. For more information, refer to the [](../integration/tools-integration.md).
+2. **LangChain tool integration**: Register LangChain tools as custom actions. Requires the LangChain framework. For more information, refer to the [](../integration/tools-integration.md).
 
 3. **Third-party API integration**: Integrate external moderation and validation services. For a complete list of supported third-party guardrail services, refer to [Third-Party APIs](../configure-rails/guardrail-catalog/third-party.md) in the Guardrail Catalog.
 :::

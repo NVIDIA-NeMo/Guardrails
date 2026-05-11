@@ -182,19 +182,28 @@ class ModelEngine(BaseEngine):
         )
 
     def _resolve_base_url(self) -> str:
-        """Resolve the base URL from model parameters or engine type."""
+        """Resolve the base URL from model parameters or engine type.
+
+        Strips an optional trailing "/v1" so users can follow the OpenAI / LLMRails
+        convention of including "/v1" in base_url without producing a doubled
+        "/v1/v1/chat/completions" path when _CHAT_COMPLETIONS_ENDPOINT is appended.
+        """
         params = self.model_config.parameters or {}
+        engine = self.model_config.engine
 
         if params.get("base_url"):
-            return params["base_url"]
+            base_url = params["base_url"]
+        elif engine in _ENGINE_BASE_URLS:
+            base_url = _ENGINE_BASE_URLS[engine]
+        else:
+            raise ValueError(
+                f"No base_url in parameters and cannot infer from engine '{engine}' for model '{self.model_name}'"
+            )
 
-        engine = self.model_config.engine
-        if engine in _ENGINE_BASE_URLS:
-            return _ENGINE_BASE_URLS[engine]
-
-        raise ValueError(
-            f"No base_url in parameters and cannot infer from engine '{engine}' for model '{self.model_name}'"
-        )
+        base_url = base_url.rstrip("/")
+        if base_url.endswith("/v1"):
+            base_url = base_url[:-3]
+        return base_url
 
     def _get_environment_variable(self, variable_name: str) -> str | None:
         """Return the value stored in environment variable `variable_name`."""
@@ -233,7 +242,7 @@ class ModelEngine(BaseEngine):
     def _prepare_request(self, messages: LLMMessages, **kwargs: Any) -> _RequestParams:
         """Build the client, URL, headers, and body common to every request."""
         client = cast(RetryClient, self._client)
-        url = self.base_url.rstrip("/") + _CHAT_COMPLETIONS_ENDPOINT
+        url = self.base_url + _CHAT_COMPLETIONS_ENDPOINT
 
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:

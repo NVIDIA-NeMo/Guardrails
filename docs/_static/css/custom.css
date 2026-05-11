@@ -27,3 +27,93 @@
 .sd-equal-height .sd-card-body {
     flex: 1;
 }
+
+.table-expand-button {
+    align-items: center;
+    background: #76b900;
+    border: 0;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 600;
+    gap: 0.4rem;
+    margin: 0.25rem 0 0.75rem;
+    padding: 0.45rem 0.75rem;
+}
+
+.table-expand-button:hover,
+.table-expand-button:focus {
+    background: #5f9500;
+}
+
+.table-expand-button:focus {
+    outline: 2px solid #1a1a1a;
+    outline-offset: 2px;
+}
+
+.table-expander-modal {
+    background: rgba(0, 0, 0, 0.65);
+    display: none;
+    inset: 0;
+    padding: 2rem;
+    position: fixed;
+    z-index: 10000;
+}
+
+.table-expander-modal.is-open {
+    display: flex;
+}
+
+.table-expander-modal__dialog {
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    width: min(1200px, 96vw);
+}
+
+.table-expander-modal__header {
+    align-items: center;
+    border-bottom: 1px solid #d9d9d9;
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+}
+
+.table-expander-modal__title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.table-expander-modal__close {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-size: 1.8rem;
+    line-height: 1;
+    padding: 0.1rem 0.35rem;
+}
+
+.table-expander-modal__body {
+    overflow: auto;
+    padding: 1rem 1.25rem 1.25rem;
+}
+
+.table-expander-modal__body table {
+    margin: 0;
+    min-width: 1000px;
+}
+
+body.table-expander-modal-open {
+    overflow: hidden;
+}
+
+@media (max-width: 768px) {
+    .table-expander-modal {
+        padding: 0.75rem;
+    }
+}

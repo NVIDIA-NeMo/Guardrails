@@ -44,7 +44,9 @@ def _resolve_base_url(provider_name: str) -> str:
         return url
     raise ValueError(
         f"No default base_url for provider '{provider_name}'. "
-        "Set it explicitly in model parameters: parameters.base_url"
+        "If your endpoint is OpenAI-compatible, set parameters.base_url. "
+        "Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install "
+        "the matching langchain-<provider> package (see migration guide)."
     )
 
 

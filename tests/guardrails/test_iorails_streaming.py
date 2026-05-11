@@ -17,6 +17,7 @@
 
 import asyncio
 import json
+import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -58,6 +59,19 @@ _INPUT_ONLY_CONFIG = {
         "output": {"flows": []},
     },
 }
+
+_INPUT_ONLY_SPECULATIVE_CONFIG = {
+    **_INPUT_ONLY_CONFIG,
+    "rails": {
+        **_INPUT_ONLY_CONFIG["rails"],
+        "input": {
+            **_INPUT_ONLY_CONFIG["rails"]["input"],
+            "speculative_generation": True,
+        },
+    },
+}
+
+_SPECULATIVE_STREAM_WARNING = "speculative_generation is not supported for streaming; falling back to sequential"
 
 
 async def _mock_stream(model_type, messages, **kwargs):
@@ -180,6 +194,20 @@ class TestStreamAsyncValidation:
             iorails_input_only.stream_async(messages=[{"role": "user", "content": "hi"}], include_metadata=True)
         )
         assert len(chunks) > 0
+
+    @pytest.mark.asyncio
+    async def test_speculative_generation_streaming_warning_recorded_once(self):
+        """Default warning filtering records the speculative streaming warning once per call site."""
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            iorails = IORails(RailsConfig.from_content(config=_INPUT_ONLY_SPECULATIVE_CONFIG))
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("default")
+            for _ in range(2):
+                iorails.stream_async(messages=[{"role": "user", "content": "hi"}])
+
+        matching_warnings = [warning for warning in caught if str(warning.message) == _SPECULATIVE_STREAM_WARNING]
+        assert len(matching_warnings) == 1
 
 
 class TestStreamAsyncNoOutputRails:

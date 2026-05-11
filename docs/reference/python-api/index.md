@@ -81,3 +81,23 @@ Register custom Python functions as actions for use in guardrails flows.
    nemoguardrails.rails.llm.options.RailStatus
    nemoguardrails.rails.llm.options.RailsResult
 ```
+
+## Extensibility — LLM types and protocols
+
+Public types used by the [Custom LLM Model](../../configure-rails/custom-initialization/custom-llm-model.md) and [Custom LLM Framework](../../configure-rails/custom-initialization/custom-llm-framework.md) extension paths.
+
+```{eval-rst}
+.. autosummary::
+   :toctree: generated
+   :template: class.rst
+   :nosignatures:
+
+   nemoguardrails.types.LLMModel
+   nemoguardrails.types.LLMFramework
+   nemoguardrails.types.ChatMessage
+   nemoguardrails.types.LLMResponse
+   nemoguardrails.types.LLMResponseChunk
+   nemoguardrails.types.ToolCall
+   nemoguardrails.types.ToolCallFunction
+   nemoguardrails.types.UsageInfo
+```

@@ -24,10 +24,10 @@ content:
 
 The `config.py` file contains initialization code that runs once at startup, before the `LLMRails` instance is fully initialized. Use it to register custom providers and set up shared resources.
 
-## When to Use config.py vs actions.py
+## When to Use config.py or actions.py
 
 | Use Case | File | Reason |
-|----------|------|--------|
+| --- | --- | --- |
 | Register custom LLM provider | `config.py` | Must happen before LLMRails initialization |
 | Register custom embedding provider | `config.py` | Must happen before LLMRails initialization |
 | Initialize database connection | `config.py` | Shared resource, initialized once |
@@ -53,7 +53,25 @@ Define the init() function to initialize resources and register action parameter
 :link: custom-llm-providers
 :link-type: doc
 
-Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with the NVIDIA NeMo Guardrails library.
+Register custom text completion and chat models. Use the `LLMModel` Protocol for the built-in client, or LangChain `BaseLLM`/`BaseChatModel` when running with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`.
++++
+{bdg-secondary}`How To`
+:::
+
+:::{grid-item-card} Custom LLM Model
+:link: custom-llm-model
+:link-type: doc
+
+Implement the LLMModel protocol to connect a non-OpenAI-compatible backend to the NVIDIA NeMo Guardrails library without depending on LangChain.
++++
+{bdg-secondary}`How To`
+:::
+
+:::{grid-item-card} Custom LLM Framework
+:link: custom-llm-framework
+:link-type: doc
+
+Replace the LLM framework layer to connect LiteLLM, an in-house orchestrator, or any non-default LLM stack to the NVIDIA NeMo Guardrails library.
 +++
 {bdg-secondary}`How To`
 :::
@@ -89,6 +107,8 @@ Pass and access custom data from config.yml in your initialization code and acti
 
 Init Function <init-function>
 LLM Providers <custom-llm-providers>
+Custom LLM Model <custom-llm-model>
+Custom LLM Framework <custom-llm-framework>
 Embedding Providers <custom-embedding-providers>
 Custom Data <custom-data>
 ```

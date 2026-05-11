@@ -31,7 +31,15 @@ import time
 import warnings
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Generator, Iterable, NamedTuple, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generator,
+    Iterable,
+    NamedTuple,
+    Optional,
+    Tuple,
+)
 
 from nemoguardrails.guardrails.guardrails_types import (
     REQUEST_ID_BYTES,
@@ -57,7 +65,14 @@ _OTEL_AVAILABLE: bool
 if TYPE_CHECKING:
     from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
-    from opentelemetry.metrics import CallbackOptions, Counter, Histogram, Meter, Observation, UpDownCounter
+    from opentelemetry.metrics import (
+        CallbackOptions,
+        Counter,
+        Histogram,
+        Meter,
+        Observation,
+        UpDownCounter,
+    )
     from opentelemetry.trace import Span, SpanKind, StatusCode, Tracer, format_trace_id
 
     from nemoguardrails.guardrails.async_work_queue import AsyncWorkQueue
@@ -346,6 +361,29 @@ def mark_rail_stop(span: Optional["Span"], is_safe: bool) -> None:
     if span is None or is_safe:
         return
     span.set_attribute(GuardrailsAttributes.RAIL_STOP, True)
+
+
+def set_speculative_span_attrs(
+    span: Optional["Span"],
+    first_completed: str,
+    first_rejector: str,
+) -> None:
+    """Stamp speculative-generation outcome attributes on a request span.
+
+    Records which branch of the speculative race finished first
+    (input rails vs. main LLM generation) and which one ultimately
+    rejected the request, on the IORails ``guardrails.request`` span.
+    Safe to call with ``None`` (no-op) so callers don't have to branch
+    on whether tracing is enabled — matches the ``record_span_error`` /
+    ``mark_rail_stop`` idiom.
+    """
+    if span is None:
+        return
+    span.set_attribute(GuardrailsAttributes.SPECULATIVE_MODE_ACTIVE, True)
+    span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_COMPLETED, first_completed)
+    span.set_attribute(GuardrailsAttributes.SPECULATIVE_FIRST_REJECTOR, first_rejector)
+    # TODO: Add it to metrics on next version
+    # span.set_attribute(GuardrailsAttributes.SPECULATIVE_TIME_SAVED_MS, time_saved_ms)
 
 
 @contextmanager

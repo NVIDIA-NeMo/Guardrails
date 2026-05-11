@@ -2,7 +2,7 @@
 title:
   page: Custom LLM Providers for NeMo Guardrails
   nav: LLM Providers
-description: Register custom text completion (BaseLLM) and chat models (BaseChatModel) for use with NeMo Guardrails.
+description: Register LangChain BaseLLM and BaseChatModel providers under the LangChain framework path (requires NEMOGUARDRAILS_LLM_FRAMEWORK=langchain).
 topics:
 - Configuration
 - Customization
@@ -23,6 +23,10 @@ content:
 ---
 
 # Custom LLM Providers
+
+```{note}
+This guide covers LangChain-based custom providers (`BaseLLM` and `BaseChatModel`) and applies when `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` is set. It was the only extension path before 0.22. For the built-in client (the 0.22+ default), implement the `LLMModel` Protocol instead — see [Custom LLM Model](custom-llm-model.md).
+```
 
 NeMo Guardrails supports two types of custom LLM providers:
 

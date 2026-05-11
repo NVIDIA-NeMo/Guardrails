@@ -89,17 +89,31 @@ You can also run Patronus Lynx 8B on your personal computer using Ollama!
 
 Here is how to configure your bot to use Patronus Lynx to check for RAG hallucinations in your bot output:
 
-1. Add a model of type `patronus_lynx` in `config.yml` - the example below uses vLLM to run Lynx:
+1. Add a model of type `patronus_lynx` in `config.yml`. The example below serves Lynx with vLLM. Because vLLM exposes an OpenAI-compatible API, `engine: openai` plus `parameters.base_url` reaches it through NeMo Guardrails' built-in client with no LangChain dependency. For background, see [Migrating to 0.22](../../../migration/0.22.md).
 
     ```yaml
     models:
       ...
 
       - type: patronus_lynx
-        engine: vllm_openai
+        engine: openai
+        model: PatronusAI/Patronus-Lynx-70B-Instruct  # PatronusAI/Patronus-Lynx-8B-Instruct
         parameters:
-          openai_api_base: "http://localhost:5000/v1"
-          model_name: "PatronusAI/Patronus-Lynx-70B-Instruct" # "PatronusAI/Patronus-Lynx-8B-Instruct"
+          base_url: "http://localhost:5000/v1"
+          api_key: EMPTY
+    ```
+
+    ```{note}
+    Set `api_key: EMPTY` (or any non-empty placeholder) when self-hosted vLLM does not enforce auth. If your deployment requires a real token, replace `api_key: EMPTY` with the literal token value, or omit `api_key` and set `api_key_env_var` at the **top level** of the model entry (not inside `parameters:`):
+
+    ```yaml
+    - type: patronus_lynx
+      engine: openai
+      model: PatronusAI/Patronus-Lynx-70B-Instruct
+      api_key_env_var: MY_PATRONUS_LYNX_API_KEY
+      parameters:
+        base_url: "http://localhost:5000/v1"
+    ```
     ```
 
 2. Add the guardrail `patronus lynx check output hallucination` to your output rails in `config.yml`:
