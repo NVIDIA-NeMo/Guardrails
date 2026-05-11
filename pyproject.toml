@@ -168,6 +168,7 @@ starlette = ">=0.49.1"
 watchdog = ">=3.0.0"
 pyright = "^1.1.405"
 ruff = "0.14.6"
+jsonschema = "^4.26.0"
 chainlit = "^2.11.0"
 # LangChain integration is now opt-in at runtime (DefaultFramework replaces it for chat).
 # These dev deps keep the LangChain-specific tests and the NIM embeddings test path working.
