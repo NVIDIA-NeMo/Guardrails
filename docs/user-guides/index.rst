@@ -13,6 +13,7 @@ User Guides
    llm-support
    python-api
    server-guide
+   testing-your-config
    advanced/index
    detailed-logging/index
    input-output-rails-only/index
