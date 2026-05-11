@@ -420,7 +420,29 @@ def warn_if_truncated(response: LLMResponse, task: str) -> bool:
     return truncated
 
 
-def _extract_user_text_from_event(event_text):
+def _extract_user_text_from_event(event_text: Union[str, List[Dict[str, Any]]]) -> str:
+    """Flatten a multimodal user-message payload into a string for colang history.
+
+    Multimodal user events carry ``event_text`` as a list of OpenAI-style
+    content parts (``[{"type": "text", "text": "..."}, {"type": "image_url",
+    "image_url": {...}}, ...]``). Including the full list in the colang
+    history bloats the context with raw base64 data; this helper extracts the
+    visible text parts and appends a ``[+ image]`` marker when one or more
+    image parts were present.
+
+    Non-string text fields (``None`` or other types) inside a content part
+    are skipped so the ``" ".join(...)`` step cannot crash. If the message
+    is image-only, the result is just ``"[+ image]"`` without a leading
+    space.
+
+    Args:
+        event_text: Either a string (already flat) or a list of multimodal
+            content parts.
+
+    Returns:
+        The flattened text. A list input always produces a string; a string
+        input is returned unchanged.
+    """
     if isinstance(event_text, list):
         text_parts = []
         has_images = False
