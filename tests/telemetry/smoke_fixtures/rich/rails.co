@@ -1,0 +1,9 @@
+define user ask smoke status
+  "smoke status"
+
+define bot answer smoke status
+  "smoke ready"
+
+define flow smoke status
+  user ask smoke status
+  bot answer smoke status

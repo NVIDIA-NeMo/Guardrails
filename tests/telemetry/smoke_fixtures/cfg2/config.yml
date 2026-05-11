@@ -1,0 +1,13 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+rails:
+  output:
+    flows:
+      - self check output
+
+prompts:
+  - task: self_check_output
+    content: "Is this safe? {{ bot_response }}. yes or no."
