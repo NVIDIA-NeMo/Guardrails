@@ -309,6 +309,40 @@ To the best of our knowledge, the NeMo Guardrails library is the only guardrails
 - [FAQs](https://docs.nvidia.com/nemo/guardrails/faqs.html)
 - [Security Guidelines](https://docs.nvidia.com/nemo/guardrails/security/guidelines.html)
 
+## Telemetry
+
+NeMo Guardrails collects anonymous telemetry to help us understand which deployment patterns and safety features are most used. One usage event is emitted at each `LLMRails` / `Guardrails` instantiation, plus periodic heartbeats from a single daemon thread per process. It is **separate from per-request [tracing](https://docs.nvidia.com/nemo/guardrails/latest/observability/tracing/index.html)**: tracing that you configure in your guardrails config goes to your own observability backend, whereas this telemetry is a minimal anonymous ping to NVIDIA.
+
+We collect:
+
+- Installed NeMo Guardrails version, Python version, operating system, and platform string
+- Colang language version in use (1.0 or 2.x)
+- Names of LLM engine providers configured (e.g. `openai`, `nim`, `nvidia_ai_endpoints`), never model names or credentials
+- Counts of configured rail flows for input, output, retrieval, and tool rails, plus which rail categories are active
+- Names of built-in library features that are active (e.g. `jailbreak_detection`, `content_safety`, `topic_safety`)
+- Count of user-defined Colang flows (count only, never flow names or contents)
+- Whether tracing, streaming, or a knowledge base is configured
+- Which rails engine is in use (`LLMRails` or `IORails`)
+- A random per-process UUID for correlating events from the same instance; it is generated in memory and not stored for reuse across restarts, but it is included in audit records and transmitted telemetry events
+
+**No user content is collected in the event payload.** The payload does not include model names, API keys, endpoints, prompts, completions, token counts, per-request metrics, file paths, usernames, or IP addresses. The data is used in aggregate to prioritize engineering work and share adoption trends with the community.
+
+Telemetry also attempts to write each event payload to a local audit file at `~/.config/nemoguardrails/usage_stats.json`. The audit file stores the event JSONL, not the full NVIDIA telemetry envelope; audit writes are best-effort and telemetry send still proceeds if local audit writing fails.
+
+To disable telemetry, any one of the following works:
+
+```bash
+export NEMO_GUARDRAILS_NO_USAGE_STATS=1
+# or
+export DO_NOT_TRACK=1
+# or
+mkdir -p ~/.config/nemoguardrails && touch ~/.config/nemoguardrails/do_not_track
+```
+
+Set the opt-out before NeMo Guardrails starts. Changing environment variables or creating `do_not_track` after telemetry has started does not stop an already-running heartbeat thread.
+
+See [docs/telemetry.md](./docs/telemetry.md) for the full schema and field-by-field descriptions.
+
 ## Inviting the community to contribute
 
 The example rails residing in the repository are excellent starting points. We enthusiastically invite the community to contribute towards making the power of trustworthy, safe, and secure LLMs accessible to everyone. For guidance on setting up a development environment and how to contribute to the NeMo Guardrails library, see the [contributing guidelines](./CONTRIBUTING.md).
