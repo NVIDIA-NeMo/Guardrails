@@ -2,7 +2,10 @@ define bot refuse to respond
   "I'm sorry, I can't respond to that."
 
 define flow self check input
-  $allowed = execute self_check_input
+  if not $input_task
+    $input_task = "self_check_input"
+
+  $allowed = execute self_check_input(task=$input_task)
 
   if not $allowed
     if $config.enable_rails_exceptions

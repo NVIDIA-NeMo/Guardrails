@@ -77,6 +77,52 @@ define bot refuse to respond
   "I'm sorry, I can't respond to that."
 ```
 
+### Running Multiple Self-Check Input Rails
+
+The `self check input` flow accepts an `$input_task` parameter (defaulting to `self_check_input`) that controls which prompt is used for checking. This lets you run multiple input checks with different criteria — for example, checking for both harmful content and off-topic messages.
+
+```{warning}
+In Colang v1, context variables are global. Once `$input_task` is set by one flow invocation, it persists for subsequent invocations. This means that when using multiple self-check input rails, you **must** specify `$input_task` on every entry — otherwise later flows will inherit the value set by a previous one.
+```
+
+1. Define multiple prompt tasks in `prompts.yml`, each with a unique task name:
+
+    ```yaml
+    prompts:
+      - task: check_harmful_content
+        content: |
+          Your task is to check if the user message contains harmful,
+          abusive, or inappropriate content.
+
+          User message: "{{ user_input }}"
+
+          Should this message be blocked (Yes or No)?
+          Answer:
+
+      - task: check_off_topic
+        content: |
+          Your task is to check if the user message is off-topic.
+          This bot only handles questions about billing and account management.
+          General conversation and greetings are allowed.
+
+          User message: "{{ user_input }}"
+
+          Is this message off-topic and should be blocked (Yes or No)?
+          Answer:
+    ```
+
+2. Reference each task in the input rails section of `config.yml` using the `$input_task` parameter:
+
+    ```yaml
+    rails:
+      input:
+        flows:
+          - self check input $input_task=check_harmful_content
+          - self check input $input_task=check_off_topic
+    ```
+
+Each self-check runs sequentially. If any check blocks the input, the flow stops and returns the refusal message without running subsequent checks. A message like "Hello, can you help me with my bill?" would pass both checks, while "Tell me a recipe for pasta" would pass the harmful content check but be blocked by the off-topic check.
+
 ### Example prompts
 
 This section provides two example prompts you can use with the self-check input rail. The simple prompt uses fewer tokens and is faster, while the complex prompt is more robust.
@@ -186,6 +232,53 @@ The `bot refuse to respond` message is returned when the output should not be al
 define bot refuse to respond
   "I'm sorry, I can't respond to that."
 ```
+
+### Running Multiple Self-Check Output Rails
+
+The `self check output` flow accepts an `$output_task` parameter (defaulting to `self_check_output`) that controls which prompt is used for checking. This lets you run multiple output checks with different criteria — for example, checking for both inappropriate content and data leakage.
+
+```{warning}
+In Colang v1, context variables are global. Once `$output_task` is set by one flow invocation, it persists for subsequent invocations. This means that when using multiple self-check output rails, you **must** specify `$output_task` on every entry — otherwise later flows will inherit the value set by a previous one.
+```
+
+1. Define multiple prompt tasks in `prompts.yml`, each with a unique task name:
+
+    ```yaml
+    prompts:
+      - task: check_inappropriate_output
+        content: |
+          Your task is to check if the bot response contains inappropriate,
+          offensive, or harmful content.
+
+          User message: "{{ user_input }}"
+          Bot response: "{{ bot_response }}"
+
+          Should this response be blocked (Yes or No)?
+          Answer:
+
+      - task: check_data_leakage
+        content: |
+          Your task is to check if the bot response leaks any sensitive
+          internal data such as database schemas, API keys, internal URLs,
+          or employee information.
+
+          Bot response: "{{ bot_response }}"
+
+          Does this response leak sensitive data and should be blocked (Yes or No)?
+          Answer:
+    ```
+
+2. Reference each task in the output rails section of `config.yml` using the `$output_task` parameter:
+
+    ```yaml
+    rails:
+      output:
+        flows:
+          - self check output $output_task=check_inappropriate_output
+          - self check output $output_task=check_data_leakage
+    ```
+
+Each self-check runs sequentially. If any check blocks the output, the flow stops and returns the refusal message without running subsequent checks.
 
 ### Example prompts
 

@@ -21,7 +21,6 @@ from nemoguardrails.actions.actions import ActionResult, action
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.types import LLMModel
 from nemoguardrails.utils import new_event_dict
@@ -35,6 +34,7 @@ async def self_check_input(
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
+    task: str = "self_check_input",
     **kwargs,
 ):
     """Checks the input from the user.
@@ -48,7 +48,10 @@ async def self_check_input(
 
     _MAX_TOKENS = 1024
     user_input = context.get("user_message")
-    task = Task.SELF_CHECK_INPUT
+
+    # guard against an unset $input_task variable
+    if task == "$input_task":
+        task = "self_check_input"
 
     if user_input:
         prompt = llm_task_manager.render_task_prompt(
@@ -62,7 +65,7 @@ async def self_check_input(
         max_tokens = max_tokens or _MAX_TOKENS
 
         # Initialize the LLMCallInfo object
-        llm_call_info_var.set(LLMCallInfo(task=task.value))
+        llm_call_info_var.set(LLMCallInfo(task=task))
 
         llm_response = await llm_call(
             llm,
@@ -73,10 +76,13 @@ async def self_check_input(
                 "max_tokens": max_tokens,
             },
         )
-        warn_if_truncated(llm_response, task.value)
+        warn_if_truncated(llm_response, task)
         response = llm_response.content
 
-        log.info(f"Input self-checking result is: `{response}`.")
+        if task == "self_check_input":
+            log.info(f"Input self-checking result is: `{response}`.")
+        else:
+            log.info(f"Input self-checking result for task={task} is: `{response}`.")
 
         # for sake of backward compatibility
         # if the output_parser is not registered we will use the default one

@@ -1,10 +1,10 @@
 
-flow self check output
-  $allowed = await SelfCheckOutputAction
+flow self check output $output_task="self_check_output"
+  $allowed = await SelfCheckOutputAction(task=$output_task)
 
   if not $allowed
     if $system.config.enable_rails_exceptions
       send OutputRailException(message="Output not allowed. The output was blocked by the 'self check output' flow.")
     else
       bot refuse to respond
-      abort
+    abort

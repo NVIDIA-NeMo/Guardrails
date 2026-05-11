@@ -21,7 +21,6 @@ from nemoguardrails.actions import action
 from nemoguardrails.actions.llm.utils import llm_call, warn_if_truncated
 from nemoguardrails.context import llm_call_info_var
 from nemoguardrails.llm.taskmanager import LLMTaskManager
-from nemoguardrails.llm.types import Task
 from nemoguardrails.logging.explain import LLMCallInfo
 from nemoguardrails.types import LLMModel
 
@@ -34,6 +33,7 @@ async def self_check_output(
     context: Optional[dict] = None,
     llm: Optional[LLMModel] = None,
     config: Optional[RailsConfig] = None,
+    task: str = "self_check_output",
     **kwargs,
 ):
     """Checks if the output from the bot.
@@ -53,7 +53,9 @@ async def self_check_output(
     user_input = context.get("user_message")
     bot_thinking = context.get("bot_thinking")
 
-    task = Task.SELF_CHECK_OUTPUT
+    # guard against an unset $output_task variable
+    if task == "$output_task":
+        task = "self_check_output"
 
     if bot_response:
         prompt = llm_task_manager.render_task_prompt(
@@ -69,7 +71,7 @@ async def self_check_output(
         max_tokens = max_tokens or _MAX_TOKENS
 
         # Initialize the LLMCallInfo object
-        llm_call_info_var.set(LLMCallInfo(task=task.value))
+        llm_call_info_var.set(LLMCallInfo(task=task))
 
         llm_response = await llm_call(
             llm,
@@ -80,10 +82,13 @@ async def self_check_output(
                 "max_tokens": max_tokens,
             },
         )
-        warn_if_truncated(llm_response, task.value)
+        warn_if_truncated(llm_response, task)
         response = llm_response.content
 
-        log.info(f"Output self-checking result is: `{response}`.")
+        if task == "self_check_output":
+            log.info(f"Output self-checking result is: `{response}`.")
+        else:
+            log.info(f"Output self-checking result for task={task} is: `{response}`.")
 
         # for sake of backward compatibility
         # if the output_parser is not registered we will use the default one
