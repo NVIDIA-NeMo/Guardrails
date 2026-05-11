@@ -1,7 +1,7 @@
 ---
 title:
   page: OpenTelemetry Metrics Integration
-  nav: OpenTelemetry
+  nav: OpenTelemetry Metrics Integration
 description: Configure the OpenTelemetry SDK with OTLP and Prometheus exporters for production metrics backends.
 topics:
 - Observability
@@ -21,7 +21,7 @@ content:
 
 # OpenTelemetry Metrics Integration
 
-The NeMo Guardrails library follows OpenTelemetry best practices: the library uses only the API while the host application configures the SDK.
+The NeMo Guardrails library follows OpenTelemetry best practices: the library uses only the API, and the host application configures the SDK.
 The following sections explain how to install and configure the OpenTelemetry SDK for metrics export from IORails.
 
 ## Installation
@@ -56,7 +56,7 @@ metrics:
   enabled: true
 ```
 
-When `metrics.enabled` is `true` and `opentelemetry-api` is installed, IORails will emit metrics through the active `MeterProvider`.
+When `metrics.enabled` is `true` and `opentelemetry-api` is installed, IORails emits metrics through the active `MeterProvider`.
 When `opentelemetry-api` is not installed, IORails emits a `UserWarning` at construction time and runs without metrics.
 
 ## Configuration Examples
@@ -148,18 +148,18 @@ Refer to the [Prometheus exposition format](https://prometheus.io/docs/instrumen
 
 ## OpenTelemetry Ecosystem Compatibility
 
-IORails metrics work with any backend that accepts OpenTelemetry metric data, including:
+You can export IORails metrics to any backend that accepts OpenTelemetry metric data, including:
 
-- **OTLP-compatible backends**: New Relic, Datadog, Honeycomb, Grafana Cloud, AWS CloudWatch (via the ADOT collector), Google Cloud Monitoring.
-- **Prometheus** and any system that ingests Prometheus exposition format (Grafana Mimir, Cortex, Thanos, VictoriaMetrics).
-- **OpenTelemetry Collector** as a fan-out point — receive once, export to many.
+- OTLP-compatible backends, such as New Relic, Datadog, Honeycomb, Grafana Cloud, AWS CloudWatch (with the ADOT collector), and Google Cloud Monitoring.
+- Prometheus and any system that ingests Prometheus exposition format (Grafana Mimir, Cortex, Thanos, VictoriaMetrics).
+- OpenTelemetry Collector as a fan-out point to receive metrics once and export them to many backends.
 
-See the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
+Refer to the [OpenTelemetry Registry](https://opentelemetry.io/ecosystem/registry/) for the complete list.
 
 ## Combining Metrics with Tracing
 
 Configure each signal independently.
-Metrics and traces correlate naturally when both are exported under the same `service.name` resource: trace exemplars on histograms link directly to the request spans they were observed on.
+Metrics and traces correlate naturally when both are exported under the same `service.name` resource: trace exemplars on histograms link directly to their request spans.
 
 ```yaml
 tracing:
@@ -194,4 +194,4 @@ reader = PeriodicExportingMetricReader(OTLPMetricExporter(endpoint="http://local
 metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[reader]))
 ```
 
-For full tracing setup, see [](../tracing/opentelemetry-integration.md).
+For full tracing setup, refer to [](../tracing/opentelemetry-integration.md).

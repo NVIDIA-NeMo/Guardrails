@@ -1,7 +1,7 @@
 ---
 title:
-  page: Quick Start for Guardrails Metrics
-  nav: Quick Start
+  page: Enable Guardrails Metrics
+  nav: Enable Guardrails Metrics
 description: Set up metrics in minutes with the OpenTelemetry SDK and console output.
 topics:
 - Observability
@@ -19,10 +19,10 @@ content:
   - AI Engineer
 ---
 
-# Quick Start for Guardrails Metrics
+# Enable Guardrails Metrics
 
-The following is a minimal setup to enable metrics from IORails using the OpenTelemetry SDK with console output.
-LLMRails does not support OTEL metrics.
+Use this minimal setup to enable metrics from IORails with the OpenTelemetry SDK and console output.
+LLMRails does not support OpenTelemetry metrics.
 Use this to verify metric emission locally before wiring up a production exporter.
 
 1. Install the NeMo Guardrails library and the OpenTelemetry SDK.
@@ -35,8 +35,8 @@ Use this to verify metric emission locally before wiring up a production exporte
 
 2. Save the following to `metrics_example.py`.
 The script issues a single request and exports metrics once per second to both stdout and `metrics.json`.
-The `provider.shutdown()` call guarantees the metrics are flushed to disk, this is typically not needed for long-running services.
-
+The `provider.shutdown()` call flushes the metrics to disk.
+Long-running services typically do not need this call.
 
     ```python
     # metrics_example.py
@@ -110,10 +110,10 @@ The `provider.shutdown()` call guarantees the metrics are flushed to disk, this 
     python metrics_example.py
     ```
 
-4. Post-process the metrics JSON file
+4. Post-process the metrics JSON file.
 
     `metrics.json` contains one JSON document per export interval, concatenated.
-    The `-s last |` prefix slurps every interval into an array and grabs the final one — that's the cumulative state after the request completed.
+    The following command reads every interval into an array and returns the final object, which is the cumulative state after the request completed.
 
     ```bash
     jq -s 'last | .resource_metrics[].scope_metrics[].metrics[]
@@ -122,7 +122,7 @@ The `provider.shutdown()` call guarantees the metrics are flushed to disk, this 
            | {type: .attributes."gen_ai.token.type", count, sum}' metrics.json
     ```
 
-    Example output (exact output token counts may vary):
+    Example output (exact output token counts can vary):
 
     ```json
     {
@@ -145,11 +145,12 @@ The `provider.shutdown()` call guarantees the metrics are flushed to disk, this 
 
 ```{important}
 The host application is responsible for configuring a `MeterProvider`.
-If you call `IORails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **every metric emission is silently discarded**. The library does not log a warning.
+If you construct `IORails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **silently discards every metric emission**.
+The library does not log a warning.
 Always set the `MeterProvider` before constructing `IORails`.
 ```
 
 ## Next Steps
 
-- For production exporters (OTLP, Prometheus), see [](opentelemetry-integration.md).
-- For the full list of emitted metrics, see [](reference.md).
+- For production exporters (OTLP, Prometheus), refer to [](opentelemetry-integration.md).
+- For the full list of emitted metrics, refer to [](reference.md).

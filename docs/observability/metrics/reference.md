@@ -2,7 +2,7 @@
 title:
   page: Metric Reference
   nav: Metric Reference
-description: Reference of every metric IORails emits, with instrument types, units, labels, and emission semantics.
+description: Reference every metric IORails emits, with instrument types, units, labels, and emission semantics.
 topics:
 - Observability
 - AI Safety
@@ -26,7 +26,7 @@ Metrics fall into two families:
 
 - **Request-level metrics** (`guardrails.*`) describe IORails request flow: volume, errors, blocks, latency, and saturation of the streaming and non-streaming admission paths.
 - **LLM client-side metrics** (`gen_ai.client.*`) describe downstream LLM calls IORails issues.
-  These follow the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) and use the bucket boundaries recommended by that spec verbatim.
+  These follow the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) and use the bucket boundaries recommended by that spec.
 
 ## Request-Level Metrics
 
@@ -40,7 +40,7 @@ Metrics fall into two families:
 
 ### Bucket Boundaries: `guardrails.request.duration`
 
-The duration histogram buckets are in units of seconds below:
+The duration histogram buckets use seconds:
 
 ```text
 [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]
@@ -48,7 +48,7 @@ The duration histogram buckets are in units of seconds below:
 
 ## Saturation Metrics
 
-These metrics expose the internal admission paths so you can detect overload before users see errors.
+These metrics expose the internal admission paths so you can detect overload before users encounter errors.
 
 ### Non-Streaming Path (Admission Queue)
 
@@ -91,7 +91,7 @@ This is intentional: dashboards built around either signal alone still reflect t
 
 ## LLM Client-Side Metrics
 
-These metrics fire once per downstream LLM call (not once per IORails request) and follow the OpenTelemetry GenAI semantic conventions exactly.
+These metrics are recorded once per downstream LLM call, not once per IORails request, and follow the OpenTelemetry GenAI semantic conventions.
 
 | Metric | Instrument | Unit | Labels | Description |
 |--------|------------|------|--------|-------------|
@@ -107,7 +107,7 @@ Reasoning and cached tokens are exposed as **span attributes** (`gen_ai.usage.re
 
 ### Bucket Boundaries
 
-Per the OTEL GenAI spec, durations use powers-of-two boundaries up to ~82 s:
+Per the OpenTelemetry GenAI spec, durations use powers-of-two boundaries up to ~82 s:
 
 ```text
 [0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1.28, 2.56, 5.12, 10.24, 20.48, 40.96, 81.92]
@@ -139,19 +139,19 @@ When usage is absent, no observation is recorded; "no observation" is deliberate
 |-------|---------|--------|-------|
 | `error.type` | `guardrails.requests.errors`, `gen_ai.client.operation.duration` (on error) | Exception class name | For example `QueueFull`, `TimeoutError`, `ValueError`. |
 | `rail.type` | `guardrails.requests.blocked` | `input`, `output` | Identifies whether an input or output rail blocked the request. |
-| `gen_ai.operation.name` | All `gen_ai.client.*` | For example `chat`, `completion`, `embedding` | OTEL GenAI operation name. |
-| `gen_ai.provider.name` | All `gen_ai.client.*` | For example `openai`, `anthropic` | OTEL GenAI provider name. |
+| `gen_ai.operation.name` | All `gen_ai.client.*` | For example `chat`, `completion`, `embedding` | OpenTelemetry GenAI operation name. |
+| `gen_ai.provider.name` | All `gen_ai.client.*` | For example `openai`, `anthropic` | OpenTelemetry GenAI provider name. |
 | `gen_ai.request.model` | All `gen_ai.client.*` | For example `gpt-4o-mini` | The model name passed in the request. |
 | `gen_ai.token.type` | `gen_ai.client.token.usage` | `input`, `output` | Required label per spec. |
 
 ## Public API Stability
 
-The metric names listed on this page are part of the library's public API — dashboards and alerts can reference them as wire contract.
+The metric names listed on this page are part of the library's public API, so dashboards and alerts can reference them.
 The library tests assert on the raw strings for this reason.
-Bucket boundaries follow the OTEL GenAI spec and may change if the spec changes.
+Bucket boundaries follow the OpenTelemetry GenAI spec and can change if the spec changes.
 
 ## Related Resources
 
-- [](quick-start.md) — Minimal SDK setup with console output.
+- [](enable-metrics.md) — Minimal SDK setup with console output.
 - [](opentelemetry-integration.md) — Production exporters: OTLP, Prometheus.
 - [OpenTelemetry GenAI metrics specification](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/) — Upstream semantic conventions.
