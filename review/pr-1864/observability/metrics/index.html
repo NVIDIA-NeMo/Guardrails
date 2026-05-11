@@ -698,8 +698,8 @@
 While tracing answers what happens on a particular request, metrics answer how the NeMo Guardrails library has behaved over the last five minutes.</p>
 <p>The IORails engine emits OpenTelemetry metrics inline as requests flow through it.
 These metrics are independent of tracing, so you can enable either signal alone or both together.</p>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
+<div class="admonition-experimental-feature admonition">
+<p class="admonition-title">Experimental Feature</p>
 <p>Metrics currently require the opt-in IORails engine.
 To enable IORails, set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>.
 IORails is an early-release feature, and metric names can change as the OpenTelemetry GenAI semantic conventions evolve.</p>

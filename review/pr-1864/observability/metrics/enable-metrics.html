@@ -700,6 +700,12 @@
 <p>Use this minimal setup to enable metrics from IORails with the OpenTelemetry SDK and console output.
 LLMRails does not support OpenTelemetry metrics.
 Use this to verify metric emission locally before wiring up a production exporter.</p>
+<div class="admonition-experimental-feature admonition">
+<p class="admonition-title">Experimental Feature</p>
+<p>Metrics currently require the opt-in IORails engine.
+To enable IORails, set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>.
+IORails is an early-release feature, and metric names can change as the OpenTelemetry GenAI semantic conventions evolve.</p>
+</div>
 <ol class="arabic">
 <li><p>Install the NeMo Guardrails library and the OpenTelemetry SDK.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;nemoguardrails[tracing]&quot;</span><span class="w"> </span>opentelemetry-sdk
