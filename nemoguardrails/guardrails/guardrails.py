@@ -67,6 +67,11 @@ class Guardrails:
         use_iorails_engine = use_iorails and llm is None and self._has_only_iorails_flows()
         self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
 
+        if use_iorails_engine:
+            from nemoguardrails.telemetry import report_usage
+
+            report_usage(config, deployment_type="library", rails_engine="IORails")
+
         # Track whether startup() has been called (supports lazy initialization)
         self._started = False
 
