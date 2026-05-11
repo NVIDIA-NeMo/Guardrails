@@ -1661,6 +1661,15 @@ window.addEventListener("load", load);</script>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;If True, the input rails are executed in parallel.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="n">speculative_generation</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;If True, input rails run concurrently with LLM generation (speculative execution). &quot;</span>
+            <span class="s2">&quot;Only supported for non-streaming generate_async() calls; stream_async() warns and falls &quot;</span>
+            <span class="s2">&quot;back to sequential execution.&quot;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
     <span class="n">flows</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span>
         <span class="n">description</span><span class="o">=</span><span class="s2">&quot;The names of all the flows that implement input rails.&quot;</span><span class="p">,</span>
