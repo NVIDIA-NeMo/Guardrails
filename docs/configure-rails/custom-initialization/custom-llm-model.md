@@ -314,7 +314,7 @@ from nemoguardrails.testing import FakeLLMModel
 The two recommended approaches:
 
 1. Write unit tests for your `LLMModel` class in isolation: instantiate it, call `await model.generate_async(prompt)`, and assert on the returned `LLMResponse`. No framework needed.
-2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. For the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures), refer to [Testing Your Config](../../user-guides/testing-your-config.md).
+2. Write end-to-end tests with a real `LLMRails` instance by registering a `FakeLLMModel` (or `FakeLLMModel`-style class) as a custom provider in the test's `config.py`, then driving the full pipeline. <!-- For the full set of helpers (`FakeLLMModel`, `TestChat`, fixtures), refer to [Testing Your Config](../../user-guides/testing-your-config.md). -->
 
 The contract is small enough that property-based tests are straightforward: any string `prompt` and any list of `ChatMessage` objects must produce a non-`None` `LLMResponse.content`, and `stream_async` must always yield a final chunk with a non-`None` `finish_reason`.
 
