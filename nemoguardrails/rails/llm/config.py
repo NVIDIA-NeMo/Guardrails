@@ -344,6 +344,7 @@ class GLiNERDetection(BaseModel):
         default="http://localhost:8000/v1/chat/completions",
         description=(
             "The endpoint for the GLiNER detection server. "
+            "By default, this is for a locally hosted NIM instance running the GLiNER model. "
             "Changed from http://localhost:1235/v1/extract (custom server) to "
             "http://localhost:8000/v1/chat/completions (NIM) in this release. "
             "If you use the custom gliner_server, set this explicitly to http://localhost:1235/v1/extract."
