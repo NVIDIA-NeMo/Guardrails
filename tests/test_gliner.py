@@ -523,11 +523,6 @@ def test_gliner_pii_masking_on_retrieval():
     chat >> "Hey! Can you help me get John's email?"
 
 
-# ---------------------------------------------------------------------------
-# api_key resolution -- _resolve_api_key and action wiring
-# ---------------------------------------------------------------------------
-
-
 def _build_gliner_config_for_api_key_tests(api_key_env_var: Optional[str] = None) -> RailsConfig:
     """Minimal RailsConfig with an `input` source_config so the actions reach the api_key
     resolution path. Optionally configures `api_key_env_var`."""
