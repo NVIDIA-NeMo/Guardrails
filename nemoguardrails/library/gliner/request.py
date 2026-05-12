@@ -141,7 +141,7 @@ async def gliner_request(
                     "end_position": e.get("end", e.get("end_position", 0)),
                     "score": e.get("score", 0.0),
                 }
-                for e in nim_data.get("entities", [])
+                for e in (nim_data.get("entities") or [])
             ]
             return {
                 "entities": normalized_entities,
