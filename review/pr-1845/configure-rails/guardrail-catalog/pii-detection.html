@@ -700,7 +700,7 @@
 <p>Personally Identifiable Information (PII) detection helps protect user privacy by detecting and masking sensitive data in user inputs, LLM outputs, and retrieved content.</p>
 <section id="gliner-based-pii-detection">
 <h2>GLiNER-based PII Detection<a class="headerlink" href="#gliner-based-pii-detection" title="Link to this heading">#</a></h2>
-<p>The NeMo Guardrails library supports PII detection and masking using the <a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii" rel="noreferer noopener" target="_blank">NVIDIA GLiNER-PII NIM</a>. For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the <a class="reference internal" href="community/gliner.html"><span class="std std-doc">GLiNER Integration</span></a> page.</p>
+<p>The NeMo Guardrails library supports PII detection and masking using the <a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii" rel="noreferer noopener" target="_blank">NVIDIA GLiNER-PII NIM</a>. For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the <a class="reference internal" href="community/gliner.html"><span class="std std-doc">GLiNER Integration</span></a> page. The examples below assume each configuration lives in its own subdirectory under <code class="docutils literal notranslate"><span class="pre">config/</span></code> (NeMo Guardrails merges every <code class="docutils literal notranslate"><span class="pre">.yml</span></code> / <code class="docutils literal notranslate"><span class="pre">.yaml</span></code> file it finds in a <code class="docutils literal notranslate"><span class="pre">--config</span></code> directory, so detection and masking rule sets need separate folders).</p>
 <section id="nvidia-hosted-endpoint">
 <h3>NVIDIA-Hosted Endpoint<a class="headerlink" href="#nvidia-hosted-endpoint" title="Link to this heading">#</a></h3>
 <p>Use the NVIDIA-hosted NIM by setting <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> in both the <code class="docutils literal notranslate"><span class="pre">models</span></code> block and the <code class="docutils literal notranslate"><span class="pre">gliner</span></code> config block.</p>
@@ -711,7 +711,7 @@
 <span class="w">      </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia/gliner-pii</span><span class="w">  </span><span class="c1"># default — omit or change as needed</span>
 </pre></div>
 </div>
-<p><strong>PII detection</strong> blocks input or output that contains PII:</p>
+<p><strong>PII detection</strong> (save as <code class="docutils literal notranslate"><span class="pre">config/pii_detection/config.yml</span></code>) blocks input or output that contains PII:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -744,7 +744,7 @@
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gliner detect pii on output</span>
 </pre></div>
 </div>
-<p><strong>PII masking</strong> replaces detected PII with label placeholders, such as changing <code class="docutils literal notranslate"><span class="pre">Hi</span> <span class="pre">John</span></code> to <code class="docutils literal notranslate"><span class="pre">Hi</span> <span class="pre">[FIRST_NAME]</span></code>:</p>
+<p><strong>PII masking</strong> (save as <code class="docutils literal notranslate"><span class="pre">config/pii_masking/config.yml</span></code>) replaces detected PII with label placeholders, such as changing <code class="docutils literal notranslate"><span class="pre">Hi</span> <span class="pre">John</span></code> to <code class="docutils literal notranslate"><span class="pre">Hi</span> <span class="pre">[FIRST_NAME]</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -778,7 +778,7 @@
 <section id="locally-hosted-nims">
 <h3>Locally Hosted NIMs<a class="headerlink" href="#locally-hosted-nims" title="Link to this heading">#</a></h3>
 <p>To run both NIMs locally, pull the Docker containers and point each endpoint to localhost. No <code class="docutils literal notranslate"><span class="pre">api_key_env_var</span></code> is needed for local inference.</p>
-<p><strong>PII detection:</strong></p>
+<p><strong>PII detection</strong> (update <code class="docutils literal notranslate"><span class="pre">config/pii_detection/config.yml</span></code>):</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -811,7 +811,7 @@
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gliner detect pii on output</span>
 </pre></div>
 </div>
-<p><strong>PII masking:</strong></p>
+<p><strong>PII masking</strong> (update <code class="docutils literal notranslate"><span class="pre">config/pii_masking/config.yml</span></code>):</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
