@@ -729,8 +729,7 @@ Long-running services typically do not need this call.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry.sdk.resources</span><span class="w"> </span><span class="kn">import</span> <span class="n">Resource</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails.guardrails.iorails</span><span class="w"> </span><span class="kn">import</span> <span class="n">IORails</span>
-
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
 <span class="c1"># Configure the OpenTelemetry MeterProvider BEFORE constructing IORails so</span>
 <span class="c1"># the engine resolves a real meter on first metric emission.  Two readers</span>
 <span class="c1"># are attached to the same provider: one writes to stdout for live</span>
@@ -764,14 +763,12 @@ Long-running services typically do not need this call.</p>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_content</span><span class="p">(</span><span class="n">yaml_content</span><span class="o">=</span><span class="n">config_yaml</span><span class="p">)</span>
 
-
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">async</span> <span class="k">with</span> <span class="n">IORails</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">rails</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">LLMRails</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">rails</span><span class="p">:</span>
         <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">rails</span><span class="o">.</span><span class="n">generate_async</span><span class="p">(</span>
             <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Write an essay with historical context on NVIDIA&quot;</span><span class="p">}],</span>
         <span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Response: </span><span class="si">{</span><span class="n">response</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
 
 <span class="k">try</span><span class="p">:</span>
     <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
@@ -784,7 +781,7 @@ Long-running services typically do not need this call.</p>
 </div>
 </li>
 <li><p>Run the script.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>metrics_example.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">NEMO_GUARDRAILS_IORAILS_ENGINE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>metrics_example.py
 </pre></div>
 </div>
 </li>
