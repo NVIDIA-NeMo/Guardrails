@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -519,3 +521,116 @@ def test_gliner_pii_masking_on_retrieval():
     )
 
     chat >> "Hey! Can you help me get John's email?"
+
+
+# ---------------------------------------------------------------------------
+# api_key resolution -- _resolve_api_key and action wiring
+# ---------------------------------------------------------------------------
+
+
+def _build_gliner_config_for_api_key_tests(api_key_env_var: Optional[str] = None) -> RailsConfig:
+    """Minimal RailsConfig with an `input` source_config so the actions reach the api_key
+    resolution path. Optionally configures `api_key_env_var`."""
+    yaml = (
+        "models: []\n"
+        "rails:\n"
+        "  config:\n"
+        "    gliner:\n"
+        "      server_endpoint: http://localhost:8000/v1/chat/completions\n"
+        "      input:\n"
+        "        entities:\n"
+        "          - email\n"
+    )
+    if api_key_env_var is not None:
+        yaml += f"      api_key_env_var: {api_key_env_var}\n"
+    return RailsConfig.from_content(yaml_content=yaml)
+
+
+@pytest.mark.unit
+def test_resolve_api_key_env_var_not_configured(monkeypatch, caplog):
+    """No api_key_env_var set => returns None, no warning logged."""
+    from nemoguardrails.library.gliner.actions import _resolve_api_key
+
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var=None).rails.config.gliner
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
+        result = _resolve_api_key(gliner_config)
+
+    assert result is None
+    assert "api_key_env_var" not in caplog.text
+
+
+@pytest.mark.unit
+def test_resolve_api_key_env_var_set_and_present(monkeypatch, caplog):
+    """api_key_env_var configured AND env var set => returns the env value, no warning."""
+    from nemoguardrails.library.gliner.actions import _resolve_api_key
+
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-token")
+    gliner_config = _build_gliner_config_for_api_key_tests(
+        api_key_env_var="NVIDIA_API_KEY"
+    ).rails.config.gliner
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
+        result = _resolve_api_key(gliner_config)
+
+    assert result == "nvapi-test-token"
+    assert "environment variable is not set" not in caplog.text
+
+
+@pytest.mark.unit
+def test_resolve_api_key_env_var_set_but_missing(monkeypatch, caplog):
+    """api_key_env_var configured BUT env var unset => returns None, warning names the var."""
+    from nemoguardrails.library.gliner.actions import _resolve_api_key
+
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    gliner_config = _build_gliner_config_for_api_key_tests(
+        api_key_env_var="NVIDIA_API_KEY"
+    ).rails.config.gliner
+
+    with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
+        result = _resolve_api_key(gliner_config)
+
+    assert result is None
+    assert "NVIDIA_API_KEY" in caplog.text
+    assert "environment variable is not set" in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_detect_pii_forwards_resolved_api_key():
+    """gliner_detect_pii passes _resolve_api_key's return value into gliner_request's api_key kwarg."""
+    config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY")
+
+    with patch(
+        "nemoguardrails.library.gliner.actions._resolve_api_key",
+        return_value="sentinel-api-key",
+    ), patch(
+        "nemoguardrails.library.gliner.actions.gliner_request",
+        new=AsyncMock(return_value={"total_entities": 0, "entities": []}),
+    ) as mock_request:
+        from nemoguardrails.library.gliner.actions import gliner_detect_pii
+
+        await gliner_detect_pii(source="input", text="Hello.", config=config)
+
+    assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_mask_pii_forwards_resolved_api_key():
+    """gliner_mask_pii passes _resolve_api_key's return value into gliner_request's api_key kwarg."""
+    config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY")
+
+    with patch(
+        "nemoguardrails.library.gliner.actions._resolve_api_key",
+        return_value="sentinel-api-key",
+    ), patch(
+        "nemoguardrails.library.gliner.actions.gliner_request",
+        new=AsyncMock(return_value={"entities": []}),
+    ) as mock_request:
+        from nemoguardrails.library.gliner.actions import gliner_mask_pii
+
+        await gliner_mask_pii(source="input", text="Hello.", config=config)
+
+    assert mock_request.await_args.kwargs["api_key"] == "sentinel-api-key"

@@ -17,7 +17,7 @@
 
 import logging
 import os
-from typing import List
+from typing import List, Optional
 
 from nemoguardrails import RailsConfig
 from nemoguardrails.actions import action
@@ -65,6 +65,21 @@ def _mask_text_with_entities(text: str, entities: List[dict]) -> str:
     return masked_text
 
 
+def _resolve_api_key(gliner_config: GLiNERDetection) -> Optional[str]:
+    """Resolve the GLiNER API key from the configured env var, logging a warning if the
+    env var is named but not set in the environment."""
+    if not gliner_config.api_key_env_var:
+        return None
+    api_key = os.getenv(gliner_config.api_key_env_var)
+    if api_key is None:
+        log.warning(
+            "GLiNER: api_key_env_var is set to %r but the environment variable is not set. "
+            "Requests to authenticated endpoints will fail with HTTP 401.",
+            gliner_config.api_key_env_var,
+        )
+    return api_key
+
+
 @action(is_system_action=False, output_mapping=detect_pii_mapping)
 async def gliner_detect_pii(
     source: str,
@@ -98,15 +113,7 @@ async def gliner_detect_pii(
 
     enabled_entities = source_config.entities if source_config.entities else None
 
-    api_key = None
-    if gliner_config.api_key_env_var:
-        api_key = os.getenv(gliner_config.api_key_env_var)
-        if api_key is None:
-            log.warning(
-                "GLiNER: api_key_env_var is set to %r but the environment variable is not set. "
-                "Requests to authenticated endpoints will fail with HTTP 401.",
-                gliner_config.api_key_env_var,
-            )
+    api_key = _resolve_api_key(gliner_config)
 
     gliner_response = await gliner_request(
         text=text,
@@ -155,15 +162,7 @@ async def gliner_mask_pii(source: str, text: str, config: RailsConfig):
 
     enabled_entities = source_config.entities if source_config.entities else None
 
-    api_key = None
-    if gliner_config.api_key_env_var:
-        api_key = os.getenv(gliner_config.api_key_env_var)
-        if api_key is None:
-            log.warning(
-                "GLiNER: api_key_env_var is set to %r but the environment variable is not set. "
-                "Requests to authenticated endpoints will fail with HTTP 401.",
-                gliner_config.api_key_env_var,
-            )
+    api_key = _resolve_api_key(gliner_config)
 
     gliner_response = await gliner_request(
         text=text,
