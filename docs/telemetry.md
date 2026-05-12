@@ -42,7 +42,9 @@ Each value corresponds to a directory under `nemoguardrails/library/`. This list
 
 `activefence`, `ai_defense`, `autoalign`, `clavata`, `cleanlab`, `content_safety`, `crowdstrike_aidr`, `factchecking`, `fiddler`, `gliner`, `guardrails_ai`, `hallucination`, `injection_detection`, `jailbreak_detection`, `llama_guard`, `pangea`, `patronusai`, `policyai`, `prompt_security`, `regex`, `self_check`, `sensitive_data_detection`, `topic_safety`, `trend_micro`.
 
-## Data That Is Not Collected
+## Data Not Collected by Telemetry
+
+Telemetry excludes the following data from event payloads:
 
 - Model names, model paths, or model parameters
 - API keys, endpoints, URLs, or credentials
@@ -54,6 +56,8 @@ Each value corresponds to a directory under `nemoguardrails/library/`. This list
 The schema is designed to avoid user content and direct user identifiers. Review the audit file to confirm the exact event fields emitted by your local configuration.
 
 ## Sample Payloads
+
+The following examples show the startup and heartbeat event payloads:
 
 **Startup event:**
 
