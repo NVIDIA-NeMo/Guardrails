@@ -58,7 +58,7 @@ Speculative generation does not change the output-rail path.
 ## Configuration Example
 
 To enable speculative generation, set `speculative_generation: True` under `rails.input` in the `config.yml` file.
-Speculative generation requires the IORails engine; see [IORails Engine](#iorails-engine) for how to enable it.
+Speculative generation requires the IORails engine; see [IORails Engine](parallel-rails.md#iorails-engine) for how to enable it.
 
 ```yaml
 models:
