@@ -222,6 +222,7 @@ Vulnerability Scanning <evaluation/llm-vulnerability-scanning>
 
 Logging <observability/logging/index.md>
 Tracing <observability/tracing/index.md>
+Usage Telemetry <telemetry.md>
 ```
 
 ```{toctree}

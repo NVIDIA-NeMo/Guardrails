@@ -133,4 +133,4 @@ The intent is that adoption metrics reflect real deployments only, not synthetic
 
 ## Schema and source code
 
-The Python source for the event lives in [`nemoguardrails/telemetry.py`](../nemoguardrails/telemetry.py). A vendored snapshot of the wire-format schema is at [`schemas/anonymous_events.snapshot.json`](../schemas/anonymous_events.snapshot.json) and is used by the conformance test in [`tests/telemetry/test_telemetry.py`](../tests/telemetry/test_telemetry.py) to validate emitted payloads against the canonical contract.
+The Python source for the event lives in [`nemoguardrails/telemetry.py`](../nemoguardrails/telemetry.py). A vendored snapshot of the wire-format schema is at [`schemas/anonymous_events.snapshot.json`](../schemas/anonymous_events.snapshot.json) and is used by the conformance test in [`tests/telemetry/test_usage_reporting.py`](../tests/telemetry/test_usage_reporting.py) to validate emitted payloads against the canonical contract.
