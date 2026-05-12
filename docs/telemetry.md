@@ -14,7 +14,7 @@ In this context, a **session is the lifetime of a single Python process** runnin
 
 | Field | Type | Example | Description |
 |---|---|---|---|
-| `sessionId` | string | `"smoke-run-2b8e9879-80be-42bb-ad3f-81db8ec28e15"` | Session ID. Optional non-sensitive prefix plus a random UUID4 generated in memory when telemetry starts. Shared by all events from the same process and included in audit records and transmitted events, but not stored for reuse across restarts. |
+| `sessionId` | string | `"2b8e9879-80be-42bb-ad3f-81db8ec28e15"` (or `"smoke-run-2b8e9879-80be-42bb-ad3f-81db8ec28e15"` when `NEMO_SESSION_PREFIX` is set) | Session ID. Optional non-sensitive prefix plus a random UUID4 generated in memory when telemetry starts. Shared by all events from the same process and included in audit records and transmitted events, but not stored for reuse across restarts. |
 | `nemoguardrailsVersion` | string | `"0.21.0"` | Installed package version. `"unknown"` if unavailable. |
 | `pythonVersion` | string | `"3.13.7"` | Python interpreter version. |
 | `platform` | string | `"Linux-5.15.0-x86_64-with-glibc2.35"` | OS and architecture string. |
