@@ -154,7 +154,7 @@ print(info.colang_history)
 
 ## Deploy NIMs Locally
 
-Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images from [ngc.nvidia.com](https://ngc.nvidia.com).
+Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC Personal API key — generate one at [org.ngc.nvidia.com/setup/api-keys](https://org.ngc.nvidia.com/setup/api-keys) with at least the **NGC Catalog** service selected — to pull the Docker images and download the model artifacts.
 
 ### GPU Requirements
 
@@ -169,22 +169,30 @@ The Llama NIM auto-selects the optimal TensorRT-LLM profile (FP16 or INT8) based
 
 ### Start the Containers
 
-The **GLiNER-PII NIM** runs on port 8000:
+Export your NGC Personal API key as `NGC_API_KEY` (this is a different key from the `NVIDIA_API_KEY` set in *Prerequisites* — they authenticate against different services even though both are issued by NVIDIA):
+
+```bash
+export NGC_API_KEY="<your-ngc-key>"
+```
+
+On a multi-GPU host, pin each container to a distinct GPU with `--gpus '"device=N"'` instead of `--gpus all`. Without an explicit device, both NIMs default to GPU 0 and compete for memory. The examples below assign GLiNER to GPU 0 and Llama to GPU 1; adjust the indices to match your host.
+
+The **GLiNER-PII NIM** runs on port 8000 (GPU 0):
 
 ```bash
 # Authenticate with NGC (username: $oauthtoken, password: your NGC API key)
 echo $NGC_API_KEY | docker login -u '$oauthtoken' --password-stdin nvcr.io
 
-docker run --rm -it --gpus all \
+docker run --rm -it --gpus '"device=0"' \
   -e NGC_API_KEY \
   -p 8000:8000 \
   nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
 ```
 
-Map the **Llama 3.1 8B Instruct NIM** to port 8001 to avoid a conflict with GLiNER:
+Map the **Llama 3.1 8B Instruct NIM** to port 8001 (GPU 1) to avoid a conflict with GLiNER:
 
 ```bash
-docker run --rm -it --gpus all \
+docker run --rm -it --gpus '"device=1"' \
   -e NGC_API_KEY \
   -p 8001:8000 \
   nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
