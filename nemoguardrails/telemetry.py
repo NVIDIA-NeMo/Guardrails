@@ -85,6 +85,11 @@ def _get_do_not_track_file() -> Path:
     return _get_config_dir() / "do_not_track"
 
 
+def _get_usage_stats_server_url() -> str:
+    """Return the telemetry server URL, honoring runtime env overrides."""
+    return os.environ.get("NEMO_GUARDRAILS_USAGE_STATS_SERVER", _USAGE_STATS_SERVER)
+
+
 def _get_heartbeat_interval_s() -> float:
     """Return the heartbeat interval, falling back safely on bad env values."""
     raw_value = os.environ.get("NEMO_GUARDRAILS_HEARTBEAT_INTERVAL_S", "600")
@@ -341,10 +346,11 @@ class GuardrailsUsageEvent(TelemetryEvent):
 def _is_usage_stats_enabled() -> bool:
     """Check whether usage reporting is enabled.
 
-    Six opt-out signals, any of which disables reporting:
+    Opt-out signals, any of which disables reporting:
 
-    - ``NEMO_GUARDRAILS_NO_USAGE_STATS=1`` env var (product-specific).
-    - ``DO_NOT_TRACK=1`` env var (industry-standard).
+    - ``NEMO_GUARDRAILS_NO_USAGE_STATS=1`` / ``true`` env var
+      (product-specific).
+    - ``DO_NOT_TRACK=1`` / ``true`` env var (industry-standard).
     - ``~/.config/nemoguardrails/do_not_track`` file present.
     - ``CI`` env var truthy (set by GitHub Actions, GitLab CI, CircleCI,
       Travis, Buildkite, etc.). Suppresses telemetry from automated test
@@ -363,9 +369,9 @@ def _is_usage_stats_enabled() -> bool:
     Returns:
         True if reporting should proceed, False if any opt-out is active.
     """
-    if os.environ.get("NEMO_GUARDRAILS_NO_USAGE_STATS", "0") == "1":
+    if os.environ.get("NEMO_GUARDRAILS_NO_USAGE_STATS", "0").lower() in ("1", "true"):
         return False
-    if os.environ.get("DO_NOT_TRACK", "0") == "1":
+    if os.environ.get("DO_NOT_TRACK", "0").lower() in ("1", "true"):
         return False
     if os.environ.get("CI", "").lower() in ("1", "true"):
         return False
@@ -607,7 +613,7 @@ def _collect_usage_data(config: Optional["RailsConfig"], deployment_type: str) -
     data.os_name = platform.system()
 
     if config is not None:
-        data.colang_version = getattr(config, "colang_version", ".1.0")
+        data.colang_version = getattr(config, "colang_version", "1.0")
 
         engines = set()
         for model in getattr(config, "models", []):
@@ -859,7 +865,7 @@ def _send_one_event(event: GuardrailsUsageEvent, server_url: str, client_version
     _send_report(event, server_url, client_version, session_id)
 
 
-def _heartbeat_loop(session_id: str, server_url: str, client_version: str) -> None:
+def _heartbeat_loop(session_id: str, client_version: str) -> None:
     """Run the heartbeat loop forever in a daemon thread.
 
     Started exactly once per process (gated by ``_heartbeat_started``).
@@ -871,7 +877,6 @@ def _heartbeat_loop(session_id: str, server_url: str, client_version: str) -> No
     Args:
         session_id: The process-stable session ID, mirrored into the
             heartbeat event's ``session_id`` field and the envelope.
-        server_url: Full HTTPS URL of the telemetry endpoint.
         client_version: Value to set as ``clientVer`` in the envelope.
     """
     while True:
@@ -883,7 +888,7 @@ def _heartbeat_loop(session_id: str, server_url: str, client_version: str) -> No
             )
             heartbeat.session_id = session_id
             _write_audit_file(heartbeat.model_dump(by_alias=True))
-            _send_report(heartbeat, server_url, client_version, session_id)
+            _send_report(heartbeat, _get_usage_stats_server_url(), client_version, session_id)
         except Exception:
             log.debug("Heartbeat iteration failed; loop continues", exc_info=True)
 
@@ -972,7 +977,7 @@ def report_usage(
         log.debug("Failed to collect usage data", exc_info=True)
         return
 
-    server_url = os.environ.get("NEMO_GUARDRAILS_USAGE_STATS_SERVER", _USAGE_STATS_SERVER)
+    server_url = _get_usage_stats_server_url()
 
     with _lock:
         if _session_uuid is None:
@@ -993,7 +998,7 @@ def report_usage(
         if not _heartbeat_started:
             if _start_daemon_thread(
                 _heartbeat_loop,
-                (session_id, server_url, client_version),
+                (session_id, client_version),
                 "Failed to start usage telemetry heartbeat thread",
             ):
                 _heartbeat_started = True

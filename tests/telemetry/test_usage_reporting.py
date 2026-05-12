@@ -125,12 +125,14 @@ class TestOptOut:
         ):
             assert _is_usage_stats_enabled() is True
 
-    def test_disabled_by_nemo_env_var(self):
-        with _without_pytest_module(), patch.dict(os.environ, {"NEMO_GUARDRAILS_NO_USAGE_STATS": "1"}):
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE"])
+    def test_disabled_by_nemo_env_var(self, value):
+        with _without_pytest_module(), patch.dict(os.environ, {"NEMO_GUARDRAILS_NO_USAGE_STATS": value}):
             assert _is_usage_stats_enabled() is False
 
-    def test_disabled_by_do_not_track(self):
-        with _without_pytest_module(), patch.dict(os.environ, {"DO_NOT_TRACK": "1"}):
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE"])
+    def test_disabled_by_do_not_track(self, value):
+        with _without_pytest_module(), patch.dict(os.environ, {"DO_NOT_TRACK": value}):
             assert _is_usage_stats_enabled() is False
 
     def test_disabled_by_file(self, tmp_path):
@@ -212,6 +214,17 @@ class TestDataCollection:
         assert data.tracing_enabled is True
         assert data.has_knowledge_base is True
         assert data.streaming_configured is True
+
+    def test_collect_with_config_missing_colang_version_defaults_to_v1(self):
+        class MinimalConfig:
+            models = []
+            rails = None
+            flows = []
+            docs = []
+
+        data = _collect_usage_data(MinimalConfig(), "library")
+
+        assert data.colang_version == "1.0"
 
     def test_engine_names_not_model_names(self, mock_config):
         data = _collect_usage_data(mock_config, "library")
@@ -638,13 +651,40 @@ class TestIntegration:
             patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
         ):
             with pytest.raises(SystemExit):
-                telemetry._heartbeat_loop("test-uuid-123", "https://example.com", "0.21.0")
+                telemetry._heartbeat_loop("test-uuid-123", "0.21.0")
 
         assert len(payloads) >= 2
         for payload in payloads:
             assert payload["event"] == "heartbeat"
             assert payload["sessionId"] == "test-uuid-123"
             assert payload["pythonVersion"] == "unknown"
+
+    def test_heartbeat_loop_uses_current_server_url_each_tick(self):
+        sent_urls = []
+
+        def mock_send(event, server_url, client_version, session_id):
+            sent_urls.append(server_url)
+            if len(sent_urls) == 1:
+                os.environ["NEMO_GUARDRAILS_USAGE_STATS_SERVER"] = "https://second.example/events"
+
+        def mock_sleep(seconds):
+            if len(sent_urls) >= 2:
+                raise SystemExit()
+
+        with (
+            patch.dict(
+                os.environ,
+                {"NEMO_GUARDRAILS_USAGE_STATS_SERVER": "https://first.example/events"},
+                clear=True,
+            ),
+            patch.object(telemetry, "_write_audit_file"),
+            patch.object(telemetry, "_send_report", side_effect=mock_send),
+            patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
+        ):
+            with pytest.raises(SystemExit):
+                telemetry._heartbeat_loop("test-uuid-123", "0.21.0")
+
+        assert sent_urls == ["https://first.example/events", "https://second.example/events"]
 
     def test_heartbeat_loop_survives_iteration_errors(self):
         iterations = [0]
@@ -664,7 +704,7 @@ class TestIntegration:
             patch("nemoguardrails.telemetry.time.sleep", side_effect=mock_sleep),
         ):
             with pytest.raises(SystemExit):
-                telemetry._heartbeat_loop("test-uuid-123", "https://example.com", "0.21.0")
+                telemetry._heartbeat_loop("test-uuid-123", "0.21.0")
 
         assert iterations[0] >= 2
 
