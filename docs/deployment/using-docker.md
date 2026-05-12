@@ -37,9 +37,11 @@ To use LangChain-only engines whose API is not OpenAI-compatible (`vertexai`, `a
 docker run \
   -p 8000:8000 \
   -e NEMOGUARDRAILS_LLM_FRAMEWORK=langchain \
-  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   nemoguardrails
 ```
+
+Replace `ANTHROPIC_API_KEY` with the credential your provider uses (for example, `GOOGLE_APPLICATION_CREDENTIALS` for Vertex AI, `COHERE_API_KEY` for Cohere, `AZURE_OPENAI_API_KEY` for Azure OpenAI).
 
 ## Build the Docker Images
 

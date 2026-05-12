@@ -5,7 +5,3 @@ models:
     api_key_env_var: DEEPSEEK_API_KEY
     parameters:
       base_url: https://api.deepseek.com/v1
-    reasoning_config:
-      remove_reasoning_traces: True
-      start_token: "<think>"
-      end_token: "</think>"
