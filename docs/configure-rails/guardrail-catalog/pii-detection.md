@@ -17,7 +17,7 @@ Personally Identifiable Information (PII) detection helps protect user privacy b
 
 ## GLiNER-based PII Detection
 
-The NeMo Guardrails library supports PII detection and masking using the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the [GLiNER Integration](community/gliner.md) page.
+The NeMo Guardrails library supports PII detection and masking using the [NVIDIA GLiNER-PII NIM](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/gliner-pii). For a full step-by-step walkthrough that includes CLI usage, Python SDK usage, and local deployment, refer to the [GLiNER Integration](community/gliner.md) page. The examples below assume each configuration lives in its own subdirectory under `config/` (NeMo Guardrails merges every `.yml` / `.yaml` file it finds in a `--config` directory, so detection and masking rule sets need separate folders).
 
 ### NVIDIA-Hosted Endpoint
 
@@ -32,7 +32,7 @@ rails:
       model: nvidia/gliner-pii  # default — omit or change as needed
 ```
 
-**PII detection** blocks input or output that contains PII:
+**PII detection** (save as `config/pii_detection/config.yml`) blocks input or output that contains PII:
 
 ```yaml
 models:
@@ -67,7 +67,7 @@ rails:
       - gliner detect pii on output
 ```
 
-**PII masking** replaces detected PII with label placeholders, such as changing `Hi John` to `Hi [FIRST_NAME]`:
+**PII masking** (save as `config/pii_masking/config.yml`) replaces detected PII with label placeholders, such as changing `Hi John` to `Hi [FIRST_NAME]`:
 
 ```yaml
 models:
@@ -103,7 +103,7 @@ rails:
 
 To run both NIMs locally, pull the Docker containers and point each endpoint to localhost. No `api_key_env_var` is needed for local inference.
 
-**PII detection:**
+**PII detection** (update `config/pii_detection/config.yml`):
 
 ```yaml
 models:
@@ -138,7 +138,7 @@ rails:
       - gliner detect pii on output
 ```
 
-**PII masking:**
+**PII masking** (update `config/pii_masking/config.yml`):
 
 ```yaml
 models:

@@ -16,13 +16,23 @@ You will also need to [install](../../../getting-started/installation-guide.md) 
 
 ## Configure Guardrails
 
-Create a `config` directory and add a `config.yml` file. The examples below target the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.
+Create a `config/` directory with one subdirectory per use case. The examples below cover two flows — PII detection and PII masking — both targeting the NVIDIA-hosted GLiNER-PII and Llama 3.1 8B NIM endpoints.
+
+```text
+config/
+├── pii_detection/
+│   └── config.yml
+└── pii_masking/
+    └── config.yml
+```
+
+NeMo Guardrails loads every `.yml` / `.yaml` file in the directory passed to `--config` and merges them into a single configuration. Keeping each flow in its own subdirectory prevents the detection and masking rule sets from colliding; the Chat CLI then selects a flow with `--config config/pii_detection` or `--config config/pii_masking`.
 
 `nvidia/gliner-pii` does not appear in the configs below because it is the default value of `rails.config.gliner.model`. You only need to set that field explicitly if you want to use a different model.
 
 ### PII Detection
 
-The detection flow blocks any input or output that contains PII. To implement this flow, save the config below as your `config.yml` file.
+The detection flow blocks any input or output that contains PII. To implement this flow, save the config below as `config/pii_detection/config.yml`.
 
 ```yaml
 models:
@@ -59,7 +69,7 @@ rails:
 
 ### PII Masking
 
-The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I am John. My email is john@example.com` becomes `Hi, I am [FIRST_NAME]. My email is [EMAIL]`. To implement this flow, save the config below as your `config.yml` file.
+The masking flow replaces detected PII with label placeholders before the LLM processes the text, rather than blocking the request outright. For example, `Hi, I am John. My email is john@example.com` becomes `Hi, I am [FIRST_NAME]. My email is [EMAIL]`. To implement this flow, save the config below as `config/pii_masking/config.yml`.
 
 ```yaml
 models:
@@ -96,10 +106,14 @@ rails:
 
 ## Run the Guardrails Chat CLI
 
-Start an interactive chat session using your config directory:
+Start an interactive chat session by pointing `--config` at the subdirectory for the flow you want to test:
 
 ```bash
-nemoguardrails chat --config ./config
+# Detection: block messages that contain PII
+nemoguardrails chat --config config/pii_detection
+
+# Masking: replace PII with placeholders before the LLM sees the message
+nemoguardrails chat --config config/pii_masking
 ```
 
 With **PII detection** enabled, any message containing PII is blocked before reaching the LLM:
@@ -124,7 +138,8 @@ nest_asyncio.apply()
 
 from nemoguardrails import LLMRails, RailsConfig
 
-config = RailsConfig.from_path("./config")
+# Use config/pii_detection or config/pii_masking depending on the flow you want.
+config = RailsConfig.from_path("./config/pii_detection")
 rails = LLMRails(config)
 
 response = rails.generate(
@@ -179,7 +194,7 @@ Wait until both containers log `Application startup complete` before proceeding.
 
 ### Update the Configuration
 
-Replace the remote endpoints with local ones and remove both `api_key_env_var` fields:
+Update both `config.yml` files (under `config/pii_detection/` and `config/pii_masking/`) with the local-endpoint versions below, removing the `api_key_env_var` fields:
 
 **PII detection:**
 
