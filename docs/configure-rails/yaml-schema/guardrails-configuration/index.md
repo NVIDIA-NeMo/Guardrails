@@ -220,3 +220,6 @@ rails:
 
 ```{include} parallel-rails.md
 ```
+
+```{include} speculative-generation.md
+```
