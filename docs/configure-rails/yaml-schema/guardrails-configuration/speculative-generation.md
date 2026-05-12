@@ -22,7 +22,7 @@ To decide whether Speculative Generation makes sense for your use-case, explore 
 Speculative generation currently requires the opt-in IORails engine.
 To enable IORails, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
 Speculative generation is supported only for non-streaming requests (`generate_async`).
-Streaming requests (`stream_async`) fall back to sequential execution and emit a warning.
+When speculative generation is enabled, streaming requests (`stream_async`) fall back to sequential execution and emit a warning.
 :::
 
 ## How It Works
@@ -58,7 +58,7 @@ Speculative generation does not change the output-rail path.
 ## Configuration Example
 
 To enable speculative generation, set `speculative_generation: True` under `rails.input` in the `config.yml` file.
-Speculative generation requires the IORails engine; see [IORails Engine](parallel-rails.md#iorails-engine) for how to enable it.
+Speculative generation requires the IORails engine; see [IORails Engine](#iorails-engine) for how to enable it.
 
 ```yaml
 models:
