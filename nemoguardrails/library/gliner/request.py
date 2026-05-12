@@ -80,13 +80,13 @@ async def gliner_request(
     # Create GLiNERRequest to apply defaults
     request = GLiNERRequest(**request_data)
 
-    use_nim_format = server_endpoint.rstrip("/").endswith("/v1/chat/completions")
+    use_chat_completions = server_endpoint.rstrip("/").endswith("/v1/chat/completions")
 
     headers: Dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    if use_nim_format:
+    if use_chat_completions:
         payload: Dict[str, Any] = {
             "model": model,
             "messages": [{"role": "user", "content": request.text}],
@@ -119,7 +119,7 @@ async def gliner_request(
                     f"Failed to parse GLiNER response as JSON. Status: {resp.status}, Content: {await resp.text()}"
                 ) from err
 
-            if not use_nim_format:
+            if not use_chat_completions:
                 return raw
 
             # Unwrap chat completions envelope and normalize entity field names.
