@@ -410,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../model-configuration.html">Models</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -1001,6 +1002,98 @@ the IORails engine.</p>
 </section>
 </section>
 </section>
+<section class="tex2jax_ignore mathjax_ignore" id="speculative-generation">
+<h1>Speculative Generation<a class="headerlink" href="#speculative-generation" title="Link to this heading">#</a></h1>
+<p>Speculative generation runs input-rail and main LLM response generation in parallel, rather than sequentially.
+If response generation takes longer than the input-rail latency, this hides the latency of the input-rail check.
+The tradeoff is that the main LLM will begin generating a response for unsafe requests, with a corresponding token cost.
+However, responses are always checked by output rails before being returned to the client so no unsafe responses will be seen.</p>
+<section id="when-to-use-speculative-generation">
+<h2>When to use Speculative Generation<a class="headerlink" href="#when-to-use-speculative-generation" title="Link to this heading">#</a></h2>
+<p>In many applications, safe requests are much more likely than unsafe requests.
+Speculative generation takes advantage of this by assuming all requests are safe for generation.
+Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will hide the input-rail latency by running in parallel with response generation.
+The cost of this latency saving is that tokens for the 2% of unsafe requests will be generated and then discarded.
+To decide whether Speculative Generation makes sense for your use-case, explore the unsafe request rate and potential latency savings.</p>
+<div class="admonition-experimental-feature admonition">
+<p class="admonition-title">Experimental Feature</p>
+<p>Speculative generation currently requires the opt-in IORails engine.
+To enable IORails, set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>.
+Speculative generation is supported only for non-streaming requests (<code class="docutils literal notranslate"><span class="pre">generate_async</span></code>).
+When speculative generation is enabled, streaming requests (<code class="docutils literal notranslate"><span class="pre">stream_async</span></code>) fall back to sequential execution and emit a warning.</p>
+</div>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
+<p>Without speculative generation, the IORails engine runs the input rails first and only starts the main LLM call once the input is determined to be safe:</p>
+<ol class="arabic simple">
+<li><p>Run input rails on the user message. If the input is unsafe, return the refusal message and stop.</p></li>
+<li><p>If the input is safe, generate a response from the main LLM.</p></li>
+<li><p>Run output rails on the LLM response. If the output is unsafe, return the refusal message and stop.</p></li>
+<li><p>Return the response.</p></li>
+</ol>
+<p>With speculative generation enabled, the input rails and the main LLM call start at the same time and race to completion:</p>
+<ol class="arabic simple">
+<li><p>Start the input rails and the main LLM call in parallel.</p></li>
+<li><p>Wait for whichever finishes first, then resolve the race:</p>
+<ul class="simple">
+<li><p>If the input rails finish first and the input is unsafe, cancel the LLM call and return the refusal message.</p></li>
+<li><p>If the input rails finish first and the input is safe, wait for the LLM call to finish.</p></li>
+<li><p>If the LLM call finishes first, wait for the input-rail verdict; discard the response and return the refusal message if the input is unsafe.</p></li>
+</ul>
+</li>
+<li><p>Run output rails on the LLM response.</p></li>
+<li><p>Return the response, or the refusal message if output rails blocked it.</p></li>
+</ol>
+<p>The engine handles three outcomes:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Outcome</p></th>
+<th class="head"><p>Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Input rails finish first, input is <strong>unsafe</strong></p></td>
+<td><p>The main LLM call is cancelled. The user receives the refusal message.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Input rails finish first, input is <strong>safe</strong></p></td>
+<td><p>The engine waits for the main LLM call to finish, then runs output rails.</p></td>
+</tr>
+<tr class="row-even"><td><p>Main LLM finishes first</p></td>
+<td><p>The engine waits for the input-rail verdict. If unsafe, the generated response is discarded and the user receives the refusal message.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Output rails always run after the main LLM completes.
+Speculative generation does not change the output-rail path.</p>
+</section>
+<section id="id1">
+<h2>Configuration Example<a class="headerlink" href="#id1" title="Link to this heading">#</a></h2>
+<p>To enable speculative generation, set <code class="docutils literal notranslate"><span class="pre">speculative_generation:</span> <span class="pre">True</span></code> under <code class="docutils literal notranslate"><span class="pre">rails.input</span></code> in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.
+Speculative generation requires the IORails engine; see <a class="reference internal" href="parallel-rails.html#iorails-engine"><span class="std std-ref">IORails Engine</span></a> for how to enable it.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
+<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta/llama-3.1-70b-instruct</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content_safety</span>
+<span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
+<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nvidia/llama-3.1-nemoguard-8b-content-safety</span>
+
+<span class="nt">rails</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">input</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">speculative_generation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content safety check input $model=content_safety</span>
+<span class="w">  </span><span class="nt">output</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">flows</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">content safety check output $model=content_safety</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">speculative_generation</span></code> and <code class="docutils literal notranslate"><span class="pre">parallel</span></code> can be combined.
+Input rails will run in parallel with each other and concurrently with the main LLM call.</p>
+</section>
+</section>
 
 
                 </article>
@@ -1076,6 +1169,12 @@ the IORails engine.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-example">Configuration Example</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#speculative-generation">Speculative Generation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-speculative-generation">When to use Speculative Generation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Configuration Example</a></li>
 </ul>
 </li>
 </ul>
