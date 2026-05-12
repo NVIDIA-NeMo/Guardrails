@@ -721,7 +721,7 @@ def _get_iso_timestamp(ts: Optional[float] = None) -> str:
         ISO 8601 formatted string ending with ``"Z"``, e.g.
         ``"2026-04-22T18:34:56.789Z"``.
     """
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(tz=timezone.utc)
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts is not None else datetime.now(tz=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
 
