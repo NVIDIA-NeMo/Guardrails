@@ -18,9 +18,10 @@ Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will h
 The cost of this latency saving is that tokens for the 2% of unsafe requests will be generated and then discarded.
 To decide whether Speculative Generation makes sense for your use-case, explore the unsafe request rate and potential latency savings.
 
-:::{note}
-Speculative generation is an early-release feature of the IORails engine.
-It is supported only for non-streaming requests (`generate_async`).
+:::{admonition} Experimental Feature
+Speculative generation currently requires the opt-in IORails engine.
+To enable IORails, set `NEMO_GUARDRAILS_IORAILS_ENGINE=1`.
+Speculative generation is supported only for non-streaming requests (`generate_async`).
 Streaming requests (`stream_async`) fall back to sequential execution and emit a warning.
 :::
 
