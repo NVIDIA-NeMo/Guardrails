@@ -785,3 +785,33 @@ async def test_gliner_request_nim_content_not_dict_raises():
         m.post(NIM_ENDPOINT, payload=_wrap_in_chat_completions(["entities", "as", "list"]))
         with pytest.raises(ValueError, match=r"Expected NIM response content to be a JSON object"):
             await gliner_request(text="hi", server_endpoint=NIM_ENDPOINT)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_gliner_request_forwards_all_optional_params_to_payload():
+    """All optional params flow into the JSON payload sent to the server."""
+    from nemoguardrails.library.gliner.request import gliner_request
+
+    with aioresponses() as m:
+        m.post(
+            NIM_ENDPOINT,
+            payload=_wrap_in_chat_completions({"entities": [], "total_entities": 0, "tagged_text": ""}),
+        )
+        await gliner_request(
+            text="hello",
+            server_endpoint=NIM_ENDPOINT,
+            enabled_entities=["email", "first_name"],
+            threshold=0.7,
+            chunk_length=512,
+            overlap=64,
+            flat_ner=True,
+        )
+
+    sent = next(iter(m.requests.values()))[0]
+    payload = sent.kwargs.get("json") or {}
+    assert payload["threshold"] == 0.7
+    assert payload["chunk_length"] == 512
+    assert payload["overlap"] == 64
+    assert payload["flat_ner"] is True
+    assert payload["labels"] == ["email", "first_name"]
