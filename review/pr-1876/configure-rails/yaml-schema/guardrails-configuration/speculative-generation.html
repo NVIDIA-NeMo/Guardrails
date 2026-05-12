@@ -688,13 +688,13 @@
 <h1>Speculative Generation<a class="headerlink" href="#speculative-generation" title="Link to this heading">#</a></h1>
 <p>Speculative generation runs input-rail and main LLM response generation in parallel, rather than sequentially.
 If response generation takes longer than the input-rail latency, this hides the latency of the input-rail check.
-The tradeoff is that the main LLM will begin generate a response for unsafe requests, with a corresponding token cost.
-However, responses are always checked by output-rails before being returned to the client so no unsafe responses will be seen.</p>
+The tradeoff is that the main LLM will begin generating a response for unsafe requests, with a corresponding token cost.
+However, responses are always checked by output rails before being returned to the client so no unsafe responses will be seen.</p>
 <section id="when-to-use-speculative-generation">
 <h2>When to use Speculative Generation<a class="headerlink" href="#when-to-use-speculative-generation" title="Link to this heading">#</a></h2>
 <p>In many applications, safe requests are much more likely than unsafe requests.
 Speculative generation takes advantage of this by assuming all requests are safe for generation.
-Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will hide the input-rail latency by running in-parallel with response generation.
+Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will hide the input-rail latency by running in parallel with response generation.
 The cost of this latency saving is that tokens for the 2% of unsafe requests will be generated and then discarded.
 To decide whether Speculative Generation makes sense for your use-case, explore the unsafe request rate and potential latency savings.</p>
 <div class="admonition note">
@@ -715,7 +715,7 @@ Streaming requests (<code class="docutils literal notranslate"><span class="pre"
 </ol>
 <p>With speculative generation enabled, the input rails and the main LLM call start at the same time and race to completion:</p>
 <ol class="arabic simple">
-<li><p>Start the input rails and the main LLM call in-parallel.</p></li>
+<li><p>Start the input rails and the main LLM call in parallel.</p></li>
 <li><p>Wait for whichever finishes first, then resolve the race:</p>
 <ul class="simple">
 <li><p>If the input rails finish first and the input is unsafe, cancel the LLM call and return the refusal message.</p></li>
