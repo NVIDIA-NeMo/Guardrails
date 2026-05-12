@@ -1020,7 +1020,7 @@ To decide whether Speculative Generation makes sense for your use-case, explore 
 <p>Speculative generation currently requires the opt-in IORails engine.
 To enable IORails, set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>.
 Speculative generation is supported only for non-streaming requests (<code class="docutils literal notranslate"><span class="pre">generate_async</span></code>).
-Streaming requests (<code class="docutils literal notranslate"><span class="pre">stream_async</span></code>) fall back to sequential execution and emit a warning.</p>
+When speculative generation is enabled, streaming requests (<code class="docutils literal notranslate"><span class="pre">stream_async</span></code>) fall back to sequential execution and emit a warning.</p>
 </div>
 </section>
 <section id="how-it-works">
