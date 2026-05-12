@@ -7,14 +7,14 @@ description: Run input rails and main LLM generation concurrently to reduce end-
 
 Speculative generation runs input-rail and main LLM response generation in parallel, rather than sequentially.
 If response generation takes longer than the input-rail latency, this hides the latency of the input-rail check.
-The tradeoff is that the main LLM will begin generate a response for unsafe requests, with a corresponding token cost.
-However, responses are always checked by output-rails before being returned to the client so no unsafe responses will be seen.
+The tradeoff is that the main LLM will begin generating a response for unsafe requests, with a corresponding token cost.
+However, responses are always checked by output rails before being returned to the client so no unsafe responses will be seen.
 
 ## When to use Speculative Generation
 
 In many applications, safe requests are much more likely than unsafe requests.
 Speculative generation takes advantage of this by assuming all requests are safe for generation.
-Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will hide the input-rail latency by running in-parallel with response generation.
+Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will hide the input-rail latency by running in parallel with response generation.
 The cost of this latency saving is that tokens for the 2% of unsafe requests will be generated and then discarded.
 To decide whether Speculative Generation makes sense for your use-case, explore the unsafe request rate and potential latency savings.
 
@@ -35,7 +35,7 @@ Without speculative generation, the IORails engine runs the input rails first an
 
 With speculative generation enabled, the input rails and the main LLM call start at the same time and race to completion:
 
-1. Start the input rails and the main LLM call in-parallel.
+1. Start the input rails and the main LLM call in parallel.
 2. Wait for whichever finishes first, then resolve the race:
    - If the input rails finish first and the input is unsafe, cancel the LLM call and return the refusal message.
    - If the input rails finish first and the input is safe, wait for the LLM call to finish.
