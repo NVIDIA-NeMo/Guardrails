@@ -693,48 +693,48 @@
                   
   <section class="tex2jax_ignore mathjax_ignore" id="speculative-generation">
 <h1>Speculative Generation<a class="headerlink" href="#speculative-generation" title="Link to this heading">#</a></h1>
-<p>Speculative generation executes input-rail evaluation concurrently with main LLM response generation instead of serializing the two operations.
-When response generation takes longer than input-rail evaluation, speculative generation hides the input-rail latency from the end-to-end response time.
-While it can reduce the end-to-end latency, this optimization starts the main LLM call for requests that input rails later classify as unsafe, which can increase token usage.
-Output rails still validate every response before delivery, so users do not receive responses that output rails block.</p>
-<div class="admonition-early-release-feature admonition">
-<p class="admonition-title">Early-release Feature</p>
-<p>Speculative generation is an early-release IORails engine feature.
-The IORails engine supports speculative generation only for non-streaming requests (<code class="docutils literal notranslate"><span class="pre">generate_async</span></code>).
-Streaming requests (<code class="docutils literal notranslate"><span class="pre">stream_async</span></code>) use sequential execution and emit a warning.</p>
-</div>
+<p>Speculative generation runs input-rail and main LLM response generation in parallel, rather than sequentially.
+If response generation takes longer than the input-rail latency, this hides the latency of the input-rail check.
+The tradeoff is that the main LLM will begin generating a response for unsafe requests, with a corresponding token cost.
+However, responses are always checked by output rails before being returned to the client so no unsafe responses will be seen.</p>
 <section id="when-to-use-speculative-generation">
-<h2>When to Use Speculative Generation<a class="headerlink" href="#when-to-use-speculative-generation" title="Link to this heading">#</a></h2>
-<p>Use speculative generation when most requests are expected to pass input rails and input-rail latency contributes meaningfully to end-to-end response time.
-In this case, the IORails engine can overlap input-rail evaluation with the main LLM call, reducing latency for safe requests from approximately <code class="docutils literal notranslate"><span class="pre">input</span> <span class="pre">rail</span> <span class="pre">latency</span> <span class="pre">+</span> <span class="pre">generation</span> <span class="pre">latency</span></code> to approximately <code class="docutils literal notranslate"><span class="pre">max(input</span> <span class="pre">rail</span> <span class="pre">latency,</span> <span class="pre">generation</span> <span class="pre">latency)</span></code>.</p>
-<p>This feature is most useful when unsafe requests are rare and the additional token cost for rejected requests is acceptable.
-For example, if 2% of requests are unsafe, the engine might generate and discard tokens for those requests, while the remaining 98% benefit from concurrent input-rail evaluation and response generation.</p>
-<p>Avoid speculative generation when unsafe traffic is frequent, token cost is more important than latency, or your workload uses streaming requests.
-To decide whether to enable it, measure the unsafe-request rate, input-rail latency, generation latency, and expected token overhead for your workload.</p>
+<h2>When to use Speculative Generation<a class="headerlink" href="#when-to-use-speculative-generation" title="Link to this heading">#</a></h2>
+<p>In many applications, safe requests are much more likely than unsafe requests.
+Speculative generation takes advantage of this by assuming all requests are safe for generation.
+Assuming a 2% rate of unsafe requests, the remaining 98% of safe requests will hide the input-rail latency by running in parallel with response generation.
+The cost of this latency saving is that tokens for the 2% of unsafe requests will be generated and then discarded.
+To decide whether Speculative Generation makes sense for your use-case, explore the unsafe request rate and potential latency savings.</p>
+<div class="admonition-experimental-feature admonition">
+<p class="admonition-title">Experimental Feature</p>
+<p>Speculative generation currently requires the opt-in IORails engine.
+To enable IORails, set <code class="docutils literal notranslate"><span class="pre">NEMO_GUARDRAILS_IORAILS_ENGINE=1</span></code>.
+Speculative generation is supported only for non-streaming requests (<code class="docutils literal notranslate"><span class="pre">generate_async</span></code>).
+Streaming requests (<code class="docutils literal notranslate"><span class="pre">stream_async</span></code>) fall back to sequential execution and emit a warning.</p>
+</div>
 </section>
-<section id="how-speculative-generation-works">
-<h2>How Speculative Generation Works<a class="headerlink" href="#how-speculative-generation-works" title="Link to this heading">#</a></h2>
-<p>Without speculative generation, the IORails engine runs the input rails first and only starts the main LLM call after the input rails determine that the input is safe:</p>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
+<p>Without speculative generation, the IORails engine runs the input rails first and only starts the main LLM call once the input is determined to be safe:</p>
 <ol class="arabic simple">
-<li><p>The engine runs input rails on the user message. If the input is unsafe, it returns the refusal message and stops.</p></li>
-<li><p>If the input is safe, the engine sends the user message to the main LLM and generates a response.</p></li>
-<li><p>The engine runs output rails on the LLM response. If the output is unsafe, it returns the refusal message and stops.</p></li>
-<li><p>The engine returns the response.</p></li>
+<li><p>Run input rails on the user message. If the input is unsafe, return the refusal message and stop.</p></li>
+<li><p>If the input is safe, generate a response from the main LLM.</p></li>
+<li><p>Run output rails on the LLM response. If the output is unsafe, return the refusal message and stop.</p></li>
+<li><p>Return the response.</p></li>
 </ol>
-<p>With speculative generation, the IORails engine starts the input rails and the main LLM call in parallel and waits for whichever finishes first:</p>
+<p>With speculative generation enabled, the input rails and the main LLM call start at the same time and race to completion:</p>
 <ol class="arabic simple">
-<li><p>The engine starts the input rails and the main LLM call in parallel.</p></li>
-<li><p>The engine waits for whichever finishes first, then resolves the race:</p>
+<li><p>Start the input rails and the main LLM call in parallel.</p></li>
+<li><p>Wait for whichever finishes first, then resolve the race:</p>
 <ul class="simple">
-<li><p>If the input rails finish first and the input is unsafe, the engine cancels the LLM call and returns the refusal message.</p></li>
-<li><p>If the input rails finish first and the input is safe, the engine waits for the LLM call to finish.</p></li>
-<li><p>If the LLM call finishes first, the engine waits for the input-rail verdict; it discards the response and returns the refusal message if the input is unsafe.</p></li>
+<li><p>If the input rails finish first and the input is unsafe, cancel the LLM call and return the refusal message.</p></li>
+<li><p>If the input rails finish first and the input is safe, wait for the LLM call to finish.</p></li>
+<li><p>If the LLM call finishes first, wait for the input-rail verdict; discard the response and return the refusal message if the input is unsafe.</p></li>
 </ul>
 </li>
-<li><p>The engine runs output rails on the LLM response.</p></li>
-<li><p>The engine returns the response, or the refusal message if output rails blocked it.</p></li>
+<li><p>Run output rails on the LLM response.</p></li>
+<li><p>Return the response, or the refusal message if output rails blocked it.</p></li>
 </ol>
-<p>The IORails engine handles the following outcomes:</p>
+<p>The engine handles three outcomes:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Outcome</p></th>
@@ -742,25 +742,25 @@ To decide whether to enable it, measure the unsafe-request rate, input-rail late
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Input rails finish first, input is unsafe</p></td>
-<td><p>The engine cancels the main LLM call. The user receives the refusal message.</p></td>
+<tr class="row-even"><td><p>Input rails finish first, input is <strong>unsafe</strong></p></td>
+<td><p>The main LLM call is cancelled. The user receives the refusal message.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Input rails finish first, input is safe</p></td>
+<tr class="row-odd"><td><p>Input rails finish first, input is <strong>safe</strong></p></td>
 <td><p>The engine waits for the main LLM call to finish, then runs output rails.</p></td>
 </tr>
 <tr class="row-even"><td><p>Main LLM finishes first</p></td>
-<td><p>The engine waits for the input-rail verdict. If unsafe, the engine discards the generated response and the user receives the refusal message. If safe, output rails run and return the response.</p></td>
+<td><p>The engine waits for the input-rail verdict. If unsafe, the generated response is discarded and the user receives the refusal message.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <p>Output rails always run after the main LLM completes.
-Speculative generation does not change how output rails run.</p>
+Speculative generation does not change the output-rail path.</p>
 </section>
 <section id="configuration-example">
 <h2>Configuration Example<a class="headerlink" href="#configuration-example" title="Link to this heading">#</a></h2>
 <p>To enable speculative generation, set <code class="docutils literal notranslate"><span class="pre">speculative_generation:</span> <span class="pre">True</span></code> under <code class="docutils literal notranslate"><span class="pre">rails.input</span></code> in the <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> file.
-Speculative generation requires the IORails engine; refer to <a class="reference internal" href="parallel-rails.html#iorails-engine"><span class="std std-ref">IORails Engine</span></a> for how to enable it.</p>
+Speculative generation requires the IORails engine; see <a class="reference internal" href="parallel-rails.html#iorails-engine"><span class="std std-ref">IORails Engine</span></a> for how to enable it.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">models</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nim</span>
@@ -780,7 +780,7 @@ Speculative generation requires the IORails engine; refer to <a class="reference
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">speculative_generation</span></code> and <code class="docutils literal notranslate"><span class="pre">parallel</span></code> can be combined.
-Input rails run in parallel with each other and concurrently with the main LLM call.</p>
+Input rails will run in parallel with each other and concurrently with the main LLM call.</p>
 </section>
 </section>
 
@@ -815,8 +815,8 @@ Input rails run in parallel with each other and concurrently with the main LLM c
   </div>
   <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-speculative-generation">When to Use Speculative Generation</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-speculative-generation-works">How Speculative Generation Works</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-speculative-generation">When to use Speculative Generation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-example">Configuration Example</a></li>
 </ul>
   </nav></div>
