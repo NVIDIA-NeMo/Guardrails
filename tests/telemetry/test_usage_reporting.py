@@ -1300,6 +1300,53 @@ class TestTelemetrySmokeDriver:
         assert error is not None
         assert "numCustomFlows" in error
 
+    @pytest.mark.parametrize(
+        ("runner_name", "scenario"),
+        [
+            (
+                "_run_server",
+                {
+                    "server_config_root": "root",
+                    "config_ids_to_hit": ["cfg1"],
+                    "expected_count": 1,
+                },
+            ),
+            (
+                "_run_server_multi_worker",
+                {
+                    "server_config_root": "root",
+                    "config_ids_to_hit": ["cfg1"],
+                    "expected_count": 3,
+                    "worker_count": 3,
+                },
+            ),
+            (
+                "_run_cli",
+                {
+                    "config_path": "cfg1",
+                    "expected_count": 1,
+                },
+            ),
+        ],
+    )
+    def test_process_runner_spawn_failures_return_structured_results(self, tmp_path, runner_name, scenario):
+        audit_file = tmp_path / "run" / "scenario" / "usage_stats.json"
+        runner = getattr(telemetry_smoke, runner_name)
+
+        with (
+            patch.object(telemetry_smoke, "_free_port", return_value=12345),
+            patch.object(telemetry_smoke.subprocess, "Popen", side_effect=FileNotFoundError("missing executable")),
+        ):
+            result = runner(scenario, {}, audit_file)
+
+        assert result["returncode"] == -1
+        assert result["duration_s"] >= 0
+        assert result["stderr_tail"] == ["FileNotFoundError('missing executable')"]
+        if runner_name in {"_run_server", "_run_server_multi_worker"}:
+            assert result["server_post_results"] == []
+        if runner_name == "_run_server_multi_worker":
+            assert result["worker_count"] == 3
+
 
 class TestKibanaVerifyExport:
     def test_verifier_buckets_by_client_session_id(self):

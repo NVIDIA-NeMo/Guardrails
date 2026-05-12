@@ -525,28 +525,36 @@ def _run_server(scenario: dict[str, Any], env: dict[str, str], audit_file: Path)
     for each config_id in scenario["config_ids_to_hit"], polls the
     audit file until the expected event count is observed, then SIGTERMs.
     """
-    port = _free_port()
-    base_url = f"http://127.0.0.1:{port}"
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "nemoguardrails",
-            "server",
-            "--config",
-            scenario["server_config_root"],
-            "--port",
-            str(port),
-            "--disable-chat-ui",
-        ],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(REPO_ROOT),
-    )
     started_at = time.time()
     post_results: list[dict[str, Any]] = []
+    port = _free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    try:
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "nemoguardrails",
+                "server",
+                "--config",
+                scenario["server_config_root"],
+                "--port",
+                str(port),
+                "--disable-chat-ui",
+            ],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+    except Exception as exc:
+        return {
+            "returncode": -1,
+            "duration_s": time.time() - started_at,
+            "stderr_tail": [repr(exc)],
+            "server_post_results": post_results,
+        }
     try:
         if not _wait_for_server(base_url, timeout=30):
             _terminate(proc)
@@ -630,6 +638,8 @@ app = api.app
 
 def _run_server_multi_worker(scenario: dict[str, Any], env: dict[str, str], audit_file: Path) -> dict[str, Any]:
     """Run a Uvicorn multi-worker server and require one event per worker."""
+    started_at = time.time()
+    post_results: list[dict[str, Any]] = []
     workers = int(scenario.get("worker_count", 3))
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
@@ -643,29 +653,36 @@ def _run_server_multi_worker(scenario: dict[str, Any], env: dict[str, str], audi
         pythonpath_parts.append(proc_env["PYTHONPATH"])
     proc_env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
 
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            app_import,
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--workers",
-            str(workers),
-            "--log-level",
-            "info",
-        ],
-        env=proc_env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(REPO_ROOT),
-    )
-    started_at = time.time()
-    post_results: list[dict[str, Any]] = []
+    try:
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                app_import,
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--workers",
+                str(workers),
+                "--log-level",
+                "info",
+            ],
+            env=proc_env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+    except Exception as exc:
+        return {
+            "returncode": -1,
+            "duration_s": time.time() - started_at,
+            "stderr_tail": [repr(exc)],
+            "server_post_results": post_results,
+            "worker_count": workers,
+        }
     try:
         if not _wait_for_server(base_url, timeout=45):
             _terminate(proc)
@@ -740,15 +757,18 @@ def _run_cli(scenario: dict[str, Any], env: dict[str, str], audit_file: Path) ->
     # fires during the wait. Then we SIGTERM. Closing stdin instead
     # would feed EOF to input(), raising EOFError and aborting before
     # the daemon thread can flush the audit file reliably.
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "nemoguardrails", "chat", "--config", scenario["config_path"]],
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(REPO_ROOT),
-    )
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "nemoguardrails", "chat", "--config", scenario["config_path"]],
+            env=env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+    except Exception as exc:
+        return {"returncode": -1, "duration_s": time.time() - started_at, "stderr_tail": [repr(exc)]}
     try:
         _wait_for_audit_events(
             audit_file,
