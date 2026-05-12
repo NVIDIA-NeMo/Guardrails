@@ -375,3 +375,11 @@ If you use the NeMo Guardrails library, cite the [EMNLP 2023 paper](https://acla
     pages = "431--445",
 }
 ```
+
+## Telemetry & privacy
+
+NeMo Guardrails includes an optional function to share anonymous telemetry data with NVIDIA for product improvement. Data collected is limited to configuration and environment metrics (such as library version, Python version, operating system, Colang version, LLM engine names, rail configuration, active features, and deployment context). No user or device information is collected. This data is used to prioritize product improvements and will be shared in aggregate with the community. It is not used to track any individual user behavior.
+
+You may opt out of telemetry collection at any time. Opting out applies only to data collection by the NeMo Guardrails library itself.
+
+Use of third-party endpoints, including NVIDIA Build: NeMo Guardrails can be configured to use various inference endpoints, including build.nvidia.com (NVIDIA Build). If you choose to use NVIDIA Build or any other third-party endpoint, that endpoint's own terms of service and privacy practices apply independently of this library. Any opt-out you exercise within NeMo Guardrails does not extend to data collection by your chosen endpoint. NVIDIA Build is intended for evaluation and testing purposes only and may not be used in production environments. Do not submit any confidential information or personal data when using NVIDIA Build.
