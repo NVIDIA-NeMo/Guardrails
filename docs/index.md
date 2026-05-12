@@ -233,6 +233,7 @@ Overview <observability/index.md>
 Logging <observability/logging/index.md>
 Tracing <observability/tracing/index.md>
 Metrics <observability/metrics/index.md>
+Usage Telemetry <telemetry.md>
 ```
 
 ```{toctree}
