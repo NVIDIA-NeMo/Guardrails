@@ -410,6 +410,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../yaml-schema/model-configuration.html">Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../yaml-schema/guardrails-configuration/index.html">Guardrails Configuration</a></li>
 
+
 <li class="toctree-l2"><a class="reference internal" href="../../yaml-schema/prompt-configuration.html">Prompts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../yaml-schema/tracing-configuration.html">Tracing</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../yaml-schema/streaming/index.html">Streaming</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -840,7 +841,7 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 </section>
 <section id="deploy-nims-locally">
 <h2>Deploy NIMs Locally<a class="headerlink" href="#deploy-nims-locally" title="Link to this heading">#</a></h2>
-<p>Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC API key to pull the Docker images from <a class="reference external" href="https://ngc.nvidia.com" rel="noreferer noopener" target="_blank">ngc.nvidia.com</a>.</p>
+<p>Running both NIMs locally eliminates network round-trips and removes the NVIDIA API key requirement for inference. You still need an NGC Personal API key — generate one at <a class="reference external" href="https://org.ngc.nvidia.com/setup/api-keys" rel="noreferer noopener" target="_blank">org.ngc.nvidia.com/setup/api-keys</a> with at least the <strong>NGC Catalog</strong> service selected — to pull the Docker images and download the model artifacts.</p>
 <section id="gpu-requirements">
 <h3>GPU Requirements<a class="headerlink" href="#gpu-requirements" title="Link to this heading">#</a></h3>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -872,18 +873,23 @@ Nice to meet you, [FIRST_NAME]! How can I help you today?
 </section>
 <section id="start-the-containers">
 <h3>Start the Containers<a class="headerlink" href="#start-the-containers" title="Link to this heading">#</a></h3>
-<p>The <strong>GLiNER-PII NIM</strong> runs on port 8000:</p>
+<p>Export your NGC Personal API key as <code class="docutils literal notranslate"><span class="pre">NGC_API_KEY</span></code> (this is a different key from the <code class="docutils literal notranslate"><span class="pre">NVIDIA_API_KEY</span></code> set in <em>Prerequisites</em> — they authenticate against different services even though both are issued by NVIDIA):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NGC_API_KEY</span><span class="o">=</span><span class="s2">&quot;&lt;your-ngc-key&gt;&quot;</span>
+</pre></div>
+</div>
+<p>On a multi-GPU host, pin each container to a distinct GPU with <code class="docutils literal notranslate"><span class="pre">--gpus</span> <span class="pre">'&quot;device=N&quot;'</span></code> instead of <code class="docutils literal notranslate"><span class="pre">--gpus</span> <span class="pre">all</span></code>. Without an explicit device, both NIMs default to GPU 0 and compete for memory. The examples below assign GLiNER to GPU 0 and Llama to GPU 1; adjust the indices to match your host.</p>
+<p>The <strong>GLiNER-PII NIM</strong> runs on port 8000 (GPU 0):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Authenticate with NGC (username: $oauthtoken, password: your NGC API key)</span>
 <span class="nb">echo</span><span class="w"> </span><span class="nv">$NGC_API_KEY</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>login<span class="w"> </span>-u<span class="w"> </span><span class="s1">&#39;$oauthtoken&#39;</span><span class="w"> </span>--password-stdin<span class="w"> </span>nvcr.io
 
-docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span><span class="se">\</span>
+docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span><span class="s1">&#39;&quot;device=0&quot;&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span>NGC_API_KEY<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>nvcr.io/nim/nvidia/gliner-pii:1.0.0-rc1
 </pre></div>
 </div>
-<p>Map the <strong>Llama 3.1 8B Instruct NIM</strong> to port 8001 to avoid a conflict with GLiNER:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span><span class="se">\</span>
+<p>Map the <strong>Llama 3.1 8B Instruct NIM</strong> to port 8001 (GPU 1) to avoid a conflict with GLiNER:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span><span class="s1">&#39;&quot;device=1&quot;&#39;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-e<span class="w"> </span>NGC_API_KEY<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="m">8001</span>:8000<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
