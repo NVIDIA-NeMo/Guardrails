@@ -58,7 +58,7 @@ Long-running services typically do not need this call.
 
     from nemoguardrails import RailsConfig
     from nemoguardrails import LLMRails
-    # Configure the OpenTelemetry MeterProvider BEFORE constructing IORails so
+    # Configure the OpenTelemetry MeterProvider BEFORE constructing LLMRails so
     # the engine resolves a real meter on first metric emission.  Two readers
     # are attached to the same provider: one writes to stdout for live
     # inspection, the other writes to ``metrics.json``.
@@ -78,7 +78,7 @@ Long-running services typically do not need this call.
     )
     metrics.set_meter_provider(provider)
 
-    # Configure IORails with metrics enabled.
+    # Use Configuration with metrics enabled.
     config_yaml = """
     models:
       - type: main
@@ -92,6 +92,7 @@ Long-running services typically do not need this call.
     config = RailsConfig.from_content(yaml_content=config_yaml)
 
     async def main() -> None:
+        # LLMRails will use IORails due to NEMO_GUARDRAILS_IORAILS_ENGINE=1 being set
         async with LLMRails(config) as rails:
             response = await rails.generate_async(
                 messages=[{"role": "user", "content": "Write an essay with historical context on NVIDIA"}],
@@ -148,9 +149,9 @@ Long-running services typically do not need this call.
 
 ```{important}
 The host application is responsible for configuring a `MeterProvider`.
-If you construct `IORails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **silently discards every metric emission**.
+If you construct `LLMRails(config)` with `metrics.enabled: true` but no `MeterProvider` is set, the OpenTelemetry API returns a no-op meter and **silently discards every metric emission**.
 The library does not log a warning.
-Always set the `MeterProvider` before constructing `IORails`.
+Always set the `MeterProvider` before constructing `LLMRails`.
 ```
 
 ## Next Steps
