@@ -843,7 +843,8 @@ def _send_report(event: TelemetryEvent, server_url: str, client_version: str, se
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        urllib.request.urlopen(req, timeout=5)
+        with urllib.request.urlopen(req, timeout=5):
+            pass
     except Exception:
         log.debug("Failed to send usage report", exc_info=True)
 
