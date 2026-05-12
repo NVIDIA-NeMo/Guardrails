@@ -567,9 +567,7 @@ def test_resolve_api_key_env_var_set_and_present(monkeypatch, caplog):
     from nemoguardrails.library.gliner.actions import _resolve_api_key
 
     monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-token")
-    gliner_config = _build_gliner_config_for_api_key_tests(
-        api_key_env_var="NVIDIA_API_KEY"
-    ).rails.config.gliner
+    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner
 
     with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
         result = _resolve_api_key(gliner_config)
@@ -584,9 +582,7 @@ def test_resolve_api_key_env_var_set_but_missing(monkeypatch, caplog):
     from nemoguardrails.library.gliner.actions import _resolve_api_key
 
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    gliner_config = _build_gliner_config_for_api_key_tests(
-        api_key_env_var="NVIDIA_API_KEY"
-    ).rails.config.gliner
+    gliner_config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY").rails.config.gliner
 
     with caplog.at_level(logging.WARNING, logger="nemoguardrails.library.gliner.actions"):
         result = _resolve_api_key(gliner_config)
@@ -602,13 +598,16 @@ async def test_gliner_detect_pii_forwards_resolved_api_key():
     """gliner_detect_pii passes _resolve_api_key's return value into gliner_request's api_key kwarg."""
     config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY")
 
-    with patch(
-        "nemoguardrails.library.gliner.actions._resolve_api_key",
-        return_value="sentinel-api-key",
-    ), patch(
-        "nemoguardrails.library.gliner.actions.gliner_request",
-        new=AsyncMock(return_value={"total_entities": 0, "entities": []}),
-    ) as mock_request:
+    with (
+        patch(
+            "nemoguardrails.library.gliner.actions._resolve_api_key",
+            return_value="sentinel-api-key",
+        ),
+        patch(
+            "nemoguardrails.library.gliner.actions.gliner_request",
+            new=AsyncMock(return_value={"total_entities": 0, "entities": []}),
+        ) as mock_request,
+    ):
         from nemoguardrails.library.gliner.actions import gliner_detect_pii
 
         await gliner_detect_pii(source="input", text="Hello.", config=config)
@@ -622,13 +621,16 @@ async def test_gliner_mask_pii_forwards_resolved_api_key():
     """gliner_mask_pii passes _resolve_api_key's return value into gliner_request's api_key kwarg."""
     config = _build_gliner_config_for_api_key_tests(api_key_env_var="NVIDIA_API_KEY")
 
-    with patch(
-        "nemoguardrails.library.gliner.actions._resolve_api_key",
-        return_value="sentinel-api-key",
-    ), patch(
-        "nemoguardrails.library.gliner.actions.gliner_request",
-        new=AsyncMock(return_value={"entities": []}),
-    ) as mock_request:
+    with (
+        patch(
+            "nemoguardrails.library.gliner.actions._resolve_api_key",
+            return_value="sentinel-api-key",
+        ),
+        patch(
+            "nemoguardrails.library.gliner.actions.gliner_request",
+            new=AsyncMock(return_value={"entities": []}),
+        ) as mock_request,
+    ):
         from nemoguardrails.library.gliner.actions import gliner_mask_pii
 
         await gliner_mask_pii(source="input", text="Hello.", config=config)
