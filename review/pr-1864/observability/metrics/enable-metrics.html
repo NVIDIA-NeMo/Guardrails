@@ -730,7 +730,7 @@ Long-running services typically do not need this call.</p>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">RailsConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span>
-<span class="c1"># Configure the OpenTelemetry MeterProvider BEFORE constructing IORails so</span>
+<span class="c1"># Configure the OpenTelemetry MeterProvider BEFORE constructing LLMRails so</span>
 <span class="c1"># the engine resolves a real meter on first metric emission.  Two readers</span>
 <span class="c1"># are attached to the same provider: one writes to stdout for live</span>
 <span class="c1"># inspection, the other writes to ``metrics.json``.</span>
@@ -750,7 +750,7 @@ Long-running services typically do not need this call.</p>
 <span class="p">)</span>
 <span class="n">metrics</span><span class="o">.</span><span class="n">set_meter_provider</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
 
-<span class="c1"># Configure IORails with metrics enabled.</span>
+<span class="c1"># Use Configuration with metrics enabled.</span>
 <span class="n">config_yaml</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
 <span class="s2">models:</span>
 <span class="s2">  - type: main</span>
@@ -764,6 +764,7 @@ Long-running services typically do not need this call.</p>
 <span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_content</span><span class="p">(</span><span class="n">yaml_content</span><span class="o">=</span><span class="n">config_yaml</span><span class="p">)</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># LLMRails will use IORails due to NEMO_GUARDRAILS_IORAILS_ENGINE=1 being set</span>
     <span class="k">async</span> <span class="k">with</span> <span class="n">LLMRails</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">rails</span><span class="p">:</span>
         <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">rails</span><span class="o">.</span><span class="n">generate_async</span><span class="p">(</span>
             <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Write an essay with historical context on NVIDIA&quot;</span><span class="p">}],</span>
@@ -818,9 +819,9 @@ The following command reads every interval into an array and returns the final o
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p>The host application is responsible for configuring a <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code>.
-If you construct <code class="docutils literal notranslate"><span class="pre">IORails(config)</span></code> with <code class="docutils literal notranslate"><span class="pre">metrics.enabled:</span> <span class="pre">true</span></code> but no <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> is set, the OpenTelemetry API returns a no-op meter and <strong>silently discards every metric emission</strong>.
+If you construct <code class="docutils literal notranslate"><span class="pre">LLMRails(config)</span></code> with <code class="docutils literal notranslate"><span class="pre">metrics.enabled:</span> <span class="pre">true</span></code> but no <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> is set, the OpenTelemetry API returns a no-op meter and <strong>silently discards every metric emission</strong>.
 The library does not log a warning.
-Always set the <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> before constructing <code class="docutils literal notranslate"><span class="pre">IORails</span></code>.</p>
+Always set the <code class="docutils literal notranslate"><span class="pre">MeterProvider</span></code> before constructing <code class="docutils literal notranslate"><span class="pre">LLMRails</span></code>.</p>
 </div>
 <section id="next-steps">
 <h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
