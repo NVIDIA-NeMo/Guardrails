@@ -57,8 +57,7 @@ Long-running services typically do not need this call.
     from opentelemetry.sdk.resources import Resource
 
     from nemoguardrails import RailsConfig
-    from nemoguardrails.guardrails.iorails import IORails
-
+    from nemoguardrails import LLMRails
     # Configure the OpenTelemetry MeterProvider BEFORE constructing IORails so
     # the engine resolves a real meter on first metric emission.  Two readers
     # are attached to the same provider: one writes to stdout for live
@@ -92,14 +91,12 @@ Long-running services typically do not need this call.
 
     config = RailsConfig.from_content(yaml_content=config_yaml)
 
-
     async def main() -> None:
-        async with IORails(config) as rails:
+        async with LLMRails(config) as rails:
             response = await rails.generate_async(
                 messages=[{"role": "user", "content": "Write an essay with historical context on NVIDIA"}],
             )
             print(f"Response: {response}")
-
 
     try:
         asyncio.run(main())
@@ -113,7 +110,7 @@ Long-running services typically do not need this call.
 3. Run the script.
 
     ```bash
-    python metrics_example.py
+    NEMO_GUARDRAILS_IORAILS_ENGINE=1 python metrics_example.py
     ```
 
 4. Post-process the metrics JSON file.
