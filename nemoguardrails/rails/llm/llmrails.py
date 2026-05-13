@@ -770,11 +770,22 @@ class LLMRails:
         return explain_info
 
     def _validate_public_state(self, state: Optional[Union[dict, State]]) -> None:
-        """Reject public dict state for Colang 2.0 stateful continuation."""
+        """Validate public dict state passed through generate/generate_async."""
         if not isinstance(state, dict) or not state:
             return
 
-        if self.config.colang_version != "2.x" and state.get("version") != "2.x":
+        if self.config.colang_version == "1.0" and state.get("version") != "2.x":
+            if "state" in state:
+                raise InvalidStateError(
+                    "Invalid Colang 1.0 state format: expected transcript state with an 'events' list."
+                )
+            if "events" not in state:
+                raise InvalidStateError(
+                    "Invalid Colang 1.0 state format: state must contain an 'events' key. "
+                    "Use an empty dict {} to start a new conversation."
+                )
+            if not isinstance(state["events"], list):
+                raise InvalidStateError("Invalid Colang 1.0 state format: 'events' must be a list.")
             return
 
         raise InvalidStateError(

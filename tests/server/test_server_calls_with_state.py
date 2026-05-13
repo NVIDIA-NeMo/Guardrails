@@ -172,3 +172,16 @@ def test_invalid_state_shape_rejected_before_model_init():
 
     assert response.status_code == 422
     assert "events" in response.json()["detail"]
+
+
+def test_invalid_events_state_type_rejected_before_model_init():
+    api.app.rails_config_path = os.path.join(os.path.dirname(__file__), "..", "test_configs", "simple_server_2_x")
+    os.environ.pop("MAIN_MODEL_BASE_URL", None)
+
+    response = client.post(
+        "/v1/chat/completions",
+        json=_chat_payload("config_2", {"events": "not-a-list"}),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Invalid state format: 'events' must be a list."

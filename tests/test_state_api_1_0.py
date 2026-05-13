@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from nemoguardrails import RailsConfig
+from nemoguardrails.exceptions import InvalidStateError
 from tests.utils import TestChat
 
 config = RailsConfig.from_content(
@@ -93,3 +96,24 @@ def test_2():
     res = rails.generate(messages=messages, state=res.state)
 
     assert res.response == [{"role": "assistant", "content": "Hey again!"}]
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        {"unexpected": "value"},
+        {"state": "serialized_payload"},
+        {"events": "not-a-list"},
+    ],
+)
+def test_invalid_state_shape_rejected(state):
+    chat = TestChat(config, llm_completions=[])
+    rails = chat.app
+
+    with pytest.raises(InvalidStateError) as exc_info:
+        rails.generate(
+            messages=[{"role": "user", "content": "Hi 1!"}],
+            state=state,
+        )
+
+    assert "Invalid Colang 1.0 state format" in str(exc_info.value)
