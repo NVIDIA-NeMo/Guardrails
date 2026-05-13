@@ -825,9 +825,10 @@
 <span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
 </pre></div>
 </div>
-<blockquote>
-<div><p>Note: The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
-</div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The legacy <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">vllm_openai</span></code> with <code class="docutils literal notranslate"><span class="pre">parameters.openai_api_base</span></code> form is only needed when running under <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. For new configurations, prefer the form above.</p>
