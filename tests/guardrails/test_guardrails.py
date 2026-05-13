@@ -1354,7 +1354,7 @@ class TestGuardrailsPickle:
         guardrails = Guardrails.__new__(Guardrails)
         guardrails.__setstate__({"config": _nemoguards_rails_config})  # no use_iorails key
 
-        assert guardrails.use_iorails is True
+        assert guardrails.use_iorails_engine is True
         assert isinstance(guardrails.rails_engine, IORails)
 
     @patch.object(IORails, "__init__", return_value=None)
@@ -1414,3 +1414,46 @@ class TestGuardrailsPickle:
         mock_from_path.assert_called_once_with("/some/path/to/config")
         assert guardrails.config is _nemoguards_rails_config
         assert isinstance(guardrails.rails_engine, IORails)
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_pickle_preserves_iorails_round_trip(self, mock_iorails_init, _nemoguards_rails_config):
+        """Full round-trip on the only permutation that produces IORails:
+        Guardrails(use_iorails=True) without an llm on an IORails-compatible config.
+        Verifies (1) the IORails branch of __getstate__ saves use_iorails=True,
+        and (2) __setstate__ rebuilds onto IORails. This is the symmetric counterpart
+        to test_pickle_preserves_llmrails_when_llm_was_passed."""
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+
+        state = guardrails.__getstate__()
+        assert state["use_iorails"] is True
+
+        restored = Guardrails.__new__(Guardrails)
+        restored.__setstate__(state)
+        assert isinstance(restored.rails_engine, IORails)
+        # Called twice: once during initial Guardrails(...), once during __setstate__
+        assert mock_iorails_init.call_count == 2
+
+    @patch.object(LLMRails, "__init__", return_value=None)
+    def test_pickle_preserves_llmrails_when_llm_was_passed(
+        self, mock_llmrails_init, _content_safety_rails_config, mock_llm
+    ):
+        """Regression (CodeRabbit P0): when an explicit LLM is passed, Guardrails uses
+        LLMRails even with use_iorails=True and an IORails-compatible config (the llm
+        argument forces LLMRails). Pickle drops the llm — so __getstate__ must save the
+        *effective* engine choice (not the user kwarg), otherwise __setstate__ would
+        rebuild with llm=None + use_iorails=True and silently switch to IORails."""
+        # Initial wrapper: LLMRails despite use_iorails=True (because llm was passed)
+        guardrails = Guardrails(config=_content_safety_rails_config, llm=mock_llm, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, LLMRails)
+
+        # __getstate__ saves effective engine (False = LLMRails), not the user kwarg (True)
+        state = guardrails.__getstate__()
+        assert state["use_iorails"] is False
+
+        # __setstate__ rebuilds onto LLMRails — engine choice survives the round-trip
+        restored = Guardrails.__new__(Guardrails)
+        restored.__setstate__(state)
+        assert isinstance(restored.rails_engine, LLMRails)
+        # Called twice: once during initial Guardrails(...), once during __setstate__
+        assert mock_llmrails_init.call_count == 2

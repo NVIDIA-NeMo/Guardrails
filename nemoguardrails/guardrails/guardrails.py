@@ -50,6 +50,10 @@ IORAILS_OUTPUT_FLOWS = {"content safety check output"}
 class Guardrails:
     """Top-level interface for NeMo Guardrails functionality."""
 
+    config: RailsConfig
+    verbose: bool
+    use_iorails_engine: bool
+
     def __init__(
         self,
         config: RailsConfig,
@@ -62,11 +66,6 @@ class Guardrails:
 
         self.config = config
         self.verbose = verbose
-        # Stored so pickle round-trips preserve the user's engine preference;
-        # without this, __setstate__ would default use_iorails=True and silently
-        # switch a use_iorails=False instance onto IORails when the config is
-        # IORails-compatible.
-        self.use_iorails = use_iorails
 
         if verbose:
             configure_logging(logging.DEBUG)
@@ -76,6 +75,8 @@ class Guardrails:
         # Whether to use IORailsEngine for inference requests
         use_iorails_engine = use_iorails and llm is None and self._has_only_iorails_flows()
         self._rails_engine = IORails(config) if use_iorails_engine else LLMRails(config, llm, verbose)
+        # Store engine used so pickle restores the correct engine
+        self.use_iorails_engine = use_iorails_engine
 
         # Track whether startup() has been called (supports lazy initialization)
         self._started = False
@@ -377,7 +378,7 @@ class Guardrails:
         """Pickle support: preserve config and use_iorails so the rebuilt
         instance lands on the same engine. The llm is dropped (matches LLMRails).
         """
-        return {"config": self.config, "use_iorails": self.use_iorails}
+        return {"config": self.config, "use_iorails": self.use_iorails_engine}
 
     def __setstate__(self, state):
         """Pickle support: rebuild from config + use_iorails. Older pickles
