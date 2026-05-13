@@ -142,14 +142,16 @@ async def fetch_models(
         (value for name, value in request_headers.items() if name.lower() == "authorization"),
         "",
     )
-    is_openai_compatible = url_or_fn is None and auth_header_name == "Authorization"
-
-    if is_openai_compatible and forwarded:
-        headers[auth_header_name] = forwarded
-    else:
-        raw_key = os.environ.get(api_key_env, "")
-        if raw_key:
-            headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
+    raw_key = os.environ.get(api_key_env, "")
+    if raw_key:
+        headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
+    elif forwarded:
+        if auth_header_name == "Authorization" and use_bearer:
+            headers[auth_header_name] = forwarded
+        else:
+            raw_key = forwarded.removeprefix("Bearer ").strip()
+            if raw_key:
+                headers[auth_header_name] = f"Bearer {raw_key}" if use_bearer else raw_key
 
     headers.update(provider.get("extra_headers", {}))
 

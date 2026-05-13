@@ -820,7 +820,7 @@ def test_list_models_forwards_auth_header():
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000"}):
+    with patch.dict(os.environ, {"MAIN_MODEL_BASE_URL": "http://localhost:8000", "OPENAI_API_KEY": ""}):
         with patch("httpx.AsyncClient", return_value=mock_client):
             response = client.get(
                 "/v1/models",
@@ -831,6 +831,32 @@ def test_list_models_forwards_auth_header():
     # Verify the upstream call received the forwarded auth header
     call_kwargs = mock_client.get.call_args
     assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer my-token"
+
+
+def test_list_models_env_key_precedes_forwarded_auth_header():
+    """Test /v1/models uses configured provider key before a request auth placeholder."""
+    mock_response = _make_httpx_response({"data": []})
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch.dict(
+        os.environ,
+        {
+            "MAIN_MODEL_BASE_URL": "http://localhost:8000",
+            "OPENAI_API_KEY": "sk-test-key",
+        },
+    ):
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            response = client.get(
+                "/v1/models",
+                headers={"Authorization": "Bearer not-used"},
+            )
+
+    assert response.status_code == 200
+    call_kwargs = mock_client.get.call_args
+    assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer sk-test-key"
 
 
 def test_list_models_uses_openai_api_key_fallback():
