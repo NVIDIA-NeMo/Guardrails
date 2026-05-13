@@ -165,7 +165,9 @@ When self-hosted vLLM does not enforce authentication, set `parameters.api_key` 
     base_url: http://localhost:5000/v1
 ```
 
-> Note: The referenced environment variable must be set before `RailsConfig.from_content` or `RailsConfig.from_path` is called. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. This is a Pydantic validator on the model schema; the check is eager, not lazy.
+```{note}
+The referenced environment variable must be set before `RailsConfig.from_content` or `RailsConfig.from_path` is called. Otherwise, config loading fails with `Model API Key environment variable 'X' not set.`. This is a Pydantic validator on the model schema; the check is eager, not lazy.
+```
 
 ```{note}
 The legacy `engine: vllm_openai` with `parameters.openai_api_base` form is only needed when running under `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. For new configurations, prefer the form above.
