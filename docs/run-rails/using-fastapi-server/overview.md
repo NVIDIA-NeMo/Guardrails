@@ -30,7 +30,7 @@ The following steps show how to start the NeMo Guardrails API server using the p
 
 Meet the following prerequisites to use the NeMo Guardrails API server.
 
-1. If you haven't already, install the NeMo Guardrails library with the `nvidia` extra, following the instructions in [](../../getting-started/installation-guide.md).
+1. If you haven't already, install the NeMo Guardrails library with the `server` extra, following the instructions in [](../../getting-started/installation-guide.md#extra-dependencies).
 
 2. Set up an environment variable for your NVIDIA API key.
 
@@ -48,6 +48,8 @@ Point the server to a parent directory containing multiple configuration subdire
 $ cd Guardrails
 $ nemoguardrails server --config examples/configs
 ```
+
+> Requires `pip install nemoguardrails[server]` to install the FastAPI server dependencies. See the [installation guide](../../getting-started/installation-guide.md#extra-dependencies) for details.
 
 List available configurations:
 

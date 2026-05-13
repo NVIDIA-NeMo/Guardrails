@@ -35,7 +35,7 @@ Because Patronus Lynx is completely open source, you have the flexibility to dep
       -d '{
       "model": "PatronusAI/Patronus-Lynx-70B-Instruct",
       "messages": [
-       {"role": "user", "content": "What is a hallucination?"},
+       {"role": "user", "content": "What is a hallucination?"}
       ]
     }'
     ```
@@ -64,6 +64,7 @@ You can also run Patronus Lynx 8B on your personal computer using Ollama!
     <|im_start|>user
     {{ .Prompt }}<|im_end|>
     <|im_start|>assistant
+    """
     ```
 
     Ensure that the `FROM` field correctly points to the `patronus-lynx-8b-instruct-q4_k_m.gguf` file you downloaded in Step 3.

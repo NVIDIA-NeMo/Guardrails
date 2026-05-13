@@ -63,6 +63,23 @@ response = rails.generate(messages=[
 print(response["content"])
 ```
 
+## Lifetime and Performance
+
+Construct `LLMRails` once per process and reuse it across requests. Initialization performs configuration validation, prompt template compilation, and loads the embedding model (FastEmbed). On a typical developer machine, this work takes on the order of several hundred milliseconds.
+
+After construction, individual `generate()` / `generate_async()` calls do not repeat that startup work, so reusing a single `LLMRails` instance is significantly faster than building a new one per request.
+
+For serverless or FaaS handlers, this initialization cost is paid once per cold start, not per request. Cache the `LLMRails` instance in module scope (or a singleton) so warm invocations skip the setup:
+
+```python
+from nemoguardrails import LLMRails, RailsConfig
+
+_rails = LLMRails(RailsConfig.from_path("./config"))
+
+def handler(event, context):
+    return _rails.generate(messages=event["messages"])
+```
+
 ## When to Use Each API
 
 | API | Use Case |

@@ -138,10 +138,11 @@ from nemoguardrails.types import LLMModel, LLMResponse, LLMResponseChunk
 
 
 class EchoLLMModel:
-    """Minimal LLMModel that echoes a fixed string."""
+    """Returns a canned response. Useful as a skeleton or in offline tests."""
 
-    def __init__(self, model: str, **kwargs: Any):
+    def __init__(self, model: str, response: str = "echo", **kwargs: Any):
         self._model = model
+        self._response = response
         self._default_kwargs = kwargs
 
     @property
@@ -157,10 +158,10 @@ class EchoLLMModel:
         return None
 
     async def generate_async(self, prompt, *, stop=None, **kwargs) -> LLMResponse:
-        return LLMResponse(content=f"echo from {self._model}")
+        return LLMResponse(content=self._response)
 
     async def stream_async(self, prompt, *, stop=None, **kwargs):
-        yield LLMResponseChunk(delta_content=f"echo from {self._model}")
+        yield LLMResponseChunk(delta_content=self._response)
         yield LLMResponseChunk(finish_reason="stop")
 
 
@@ -205,6 +206,8 @@ models:
   - type: main
     engine: my_engine
     model: echo
+    parameters:
+      response: "echo from echo"
 ```
 
 ### Trying it out
