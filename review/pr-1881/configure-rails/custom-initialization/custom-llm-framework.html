@@ -824,10 +824,11 @@ two files:</p>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">EchoLLMModel</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimal LLMModel that echoes a fixed string.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns a canned response. Useful as a skeleton or in offline tests.&quot;&quot;&quot;</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;echo&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_response</span> <span class="o">=</span> <span class="n">response</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_default_kwargs</span> <span class="o">=</span> <span class="n">kwargs</span>
 
     <span class="nd">@property</span>
@@ -843,10 +844,10 @@ two files:</p>
         <span class="k">return</span> <span class="kc">None</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">generate_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LLMResponse</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">LLMResponse</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;echo from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">LLMResponse</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_response</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_async</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">yield</span> <span class="n">LLMResponseChunk</span><span class="p">(</span><span class="n">delta_content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;echo from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="n">LLMResponseChunk</span><span class="p">(</span><span class="n">delta_content</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_response</span><span class="p">)</span>
         <span class="k">yield</span> <span class="n">LLMResponseChunk</span><span class="p">(</span><span class="n">finish_reason</span><span class="o">=</span><span class="s2">&quot;stop&quot;</span><span class="p">)</span>
 
 
@@ -889,6 +890,8 @@ two files:</p>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 <span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_engine</span>
 <span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echo</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">response</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;echo</span><span class="nv"> </span><span class="s">from</span><span class="nv"> </span><span class="s">echo&quot;</span>
 </pre></div>
 </div>
 <section id="trying-it-out">

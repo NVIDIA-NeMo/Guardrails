@@ -721,7 +721,7 @@ Use this guide to identify your configuration shape and apply the matching migra
 <td><p>Rewrite the parameters. See <a class="reference internal" href="#mixed-shape-configs">Mixed-shape configs</a>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, or <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code></p></td>
-<td><p>Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. See <a class="reference internal" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a>.</p></td>
+<td><p>Opt into LangChain, or switch to an OpenAI-compatible endpoint if one exists. Refer to <a class="reference internal" href="#unsupported-engine-on-the-default-framework">Unsupported Engine on the Default Framework</a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">azure</span></code> or <code class="docutils literal notranslate"><span class="pre">azure_openai</span></code></p></td>
 <td><p>Use LangChain for the Azure-specific helpers, or configure the default framework manually. See <a class="reference internal" href="#azure-openai">Azure OpenAI</a>.</p></td>
@@ -773,6 +773,10 @@ If your deployment requires a token, replace <code class="docutils literal notra
 <span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000/v1</span>
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The referenced environment variable must be set before <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_content</span></code> or <code class="docutils literal notranslate"><span class="pre">RailsConfig.from_path</span></code> is called. Otherwise, config loading fails with <code class="docutils literal notranslate"><span class="pre">Model</span> <span class="pre">API</span> <span class="pre">Key</span> <span class="pre">environment</span> <span class="pre">variable</span> <span class="pre">'X'</span> <span class="pre">not</span> <span class="pre">set.</span></code>. This is a Pydantic validator on the model schema; the check is eager, not lazy.</p>
 </div>
 </section>
 <section id="hosted-openai-compatible-providers">
@@ -834,15 +838,16 @@ Streaming still uses the <code class="docutils literal notranslate"><span class=
 </section>
 <section id="unsupported-engine-on-the-default-framework">
 <h2>Unsupported Engine on the Default Framework<a class="headerlink" href="#unsupported-engine-on-the-default-framework" title="Link to this heading">#</a></h2>
-<p>If a v0.21 config uses an engine whose API is not OpenAI-compatible (<code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>, …) and you load it on v0.22 without opting into LangChain, configuration load fails with:</p>
+<p>If a v0.21 config uses an engine whose API is not OpenAI-compatible, configuration load fails on v0.22 unless you opt into LangChain.
+Engines that are not OpenAI-compatible include <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>, <code class="docutils literal notranslate"><span class="pre">cohere</span></code>, <code class="docutils literal notranslate"><span class="pre">vertexai</span></code>, <code class="docutils literal notranslate"><span class="pre">google_genai</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface_*</span></code>, <code class="docutils literal notranslate"><span class="pre">trt_llm</span></code>, and <code class="docutils literal notranslate"><span class="pre">self_hosted</span></code>.</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: No default base_url for provider &#39;cohere&#39;. If your endpoint is OpenAI-compatible, set parameters.base_url. Otherwise, set NEMOGUARDRAILS_LLM_FRAMEWORK=langchain and install the matching langchain-&lt;provider&gt; package (see migration guide).
 </pre></div>
 </div>
 <p>The provider name in the message changes to match your <code class="docutils literal notranslate"><span class="pre">engine:</span></code> value.
-Two remediations apply, depending on what you want:</p>
+Choose one remediation path based on your migration goal:</p>
 <ul class="simple">
-<li><p><strong>Keep the LangChain provider class.</strong> Install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package, then set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. See <a class="reference internal" href="#using-langchain">Using LangChain</a> for the full procedure.</p></li>
-<li><p><strong>Switch to an OpenAI-compatible endpoint.</strong> If the same model is reachable through an OpenAI-compatible HTTP route (a self-hosted gateway, a proxy, or a hosted provider that exposes <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>), set <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. See <a class="reference internal" href="#openai-compatible-providers">OpenAI-Compatible Providers</a>.</p></li>
+<li><p>Keep the LangChain provider class. Install <code class="docutils literal notranslate"><span class="pre">langchain</span></code> and the matching <code class="docutils literal notranslate"><span class="pre">langchain-&lt;provider&gt;</span></code> package, and then set <code class="docutils literal notranslate"><span class="pre">NEMOGUARDRAILS_LLM_FRAMEWORK=langchain</span></code>. Refer to <a class="reference internal" href="#using-langchain">Using LangChain</a> for the full procedure.</p></li>
+<li><p>Switch to an OpenAI-compatible endpoint. If the same model is reachable through an OpenAI-compatible HTTP route, set <code class="docutils literal notranslate"><span class="pre">engine:</span> <span class="pre">openai</span></code> plus <code class="docutils literal notranslate"><span class="pre">parameters.base_url</span></code>. This includes self-hosted gateways, proxies, and hosted providers that expose <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code>. Refer to <a class="reference internal" href="#openai-compatible-providers">OpenAI-Compatible Providers</a>.</p></li>
 </ul>
 </section>
 <section id="using-langchain">
