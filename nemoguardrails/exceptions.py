@@ -18,6 +18,7 @@ __all__ = [
     "ConfigurationError",
     "InvalidModelConfigurationError",
     "InvalidRailsConfigurationError",
+    "InvalidStateError",
     "LLMCallException",
     "LLMClientError",
     "LLMAuthenticationError",
@@ -62,6 +63,18 @@ class InvalidRailsConfigurationError(ConfigurationError):
 
 class StreamingNotSupportedError(InvalidRailsConfigurationError):
     """Raised when streaming is requested but not supported by the configuration."""
+
+    pass
+
+
+class InvalidStateError(ValueError):
+    """Raised when a caller-supplied `state` argument is not valid public input.
+
+    The serialized Colang 2.0 runtime State carries trusted control-plane fields
+    (`flow_configs`, `rails_config`, in-flight flow execution) and must not come
+    from an untrusted caller. Stateful 2.x execution uses `process_events_async`,
+    which keeps a live `State` object in the trusted Python process.
+    """
 
     pass
 

@@ -56,10 +56,6 @@ from nemoguardrails.colang.v1_0.runtime.flows import _normalize_flow_id, compute
 from nemoguardrails.colang.v1_0.runtime.runtime import Runtime, RuntimeV1_0
 from nemoguardrails.colang.v2_x.runtime.flows import Action, State
 from nemoguardrails.colang.v2_x.runtime.runtime import RuntimeV2_x
-from nemoguardrails.colang.v2_x.runtime.serialization import (
-    json_to_state,
-    state_to_json,
-)
 from nemoguardrails.context import (
     explain_info_var,
     generation_options_var,
@@ -73,6 +69,7 @@ from nemoguardrails.embeddings.providers.base import EmbeddingModel
 from nemoguardrails.exceptions import (
     InvalidModelConfigurationError,
     InvalidRailsConfigurationError,
+    InvalidStateError,
     StreamingNotSupportedError,
 )
 from nemoguardrails.kb.kb import KnowledgeBase
@@ -772,6 +769,21 @@ class LLMRails:
 
         return explain_info
 
+    def _validate_public_state(self, state: Optional[Union[dict, State]]) -> None:
+        """Reject public dict state for Colang 2.0 stateful continuation."""
+        if not isinstance(state, dict) or not state:
+            return
+
+        if self.config.colang_version != "2.x" and state.get("version") != "2.x":
+            return
+
+        raise InvalidStateError(
+            "Colang 2.0 dict state is not supported by generate/generate_async. "
+            "Use rails.process_events_async(events, state) with a live State object "
+            "for trusted in-process multi-turn execution. Public serialized Colang "
+            "2.0 runtime state is not accepted."
+        )
+
     async def generate_async(
         self,
         prompt: Optional[str] = None,
@@ -821,9 +833,7 @@ class LLMRails:
         # This is because we want the output to be a GenerationResponse which will contain
         # the output state.
         if state is not None:
-            # We deserialize the state if needed.
-            if isinstance(state, dict) and state.get("version", "1.0") == "2.x":
-                state = json_to_state(state["state"])
+            self._validate_public_state(state)
 
             if options is None:
                 gen_options = GenerationOptions()
@@ -928,11 +938,13 @@ class LLMRails:
             # Compute the new events.
             # In generation mode, the processing is always blocking, i.e., it waits for
             # all local actions (sync and async).
-            new_events, output_state = await runtime.process_events(
+            new_events, _output_state = await runtime.process_events(
                 events, state=state, instant_actions=instant_actions, blocking=True
             )
-            # We also encode the output state as a JSON
-            output_state = {"state": state_to_json(output_state), "version": "2.x"}
+            # The runtime State for 2.x is not publicly exposed through generate_async.
+            # Callers that need stateful 2.x execution use process_events_async, which
+            # returns the live State object directly.
+            output_state = None
 
         # Extract and join all the messages from StartUtteranceBotAction events as the response.
         responses = []
@@ -1246,6 +1258,7 @@ class LLMRails:
             include_metadata = include_generation_metadata
 
         self._validate_streaming_with_output_rails()
+        self._validate_public_state(state)
         # if an external generator is provided, use it directly
         if generator:
             if self.config.rails.output.streaming and self.config.rails.output.streaming.enabled:

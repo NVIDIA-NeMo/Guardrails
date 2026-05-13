@@ -69,7 +69,7 @@ with guardrails-specific fields nested under a `guardrails` object.
 * - `messages`
   - array of objects
   - No
-  - The list of messages in the current conversation. Each message has `role` and `content` fields. Although the OpenAI API requires this field, the Guardrails server treats it as optional to support stateful continuation via `guardrails.state`. When omitted, defaults to an empty list.
+  - The list of messages in the current conversation. Each message has `role` and `content` fields. Although the OpenAI API requires this field, the Guardrails server treats it as optional. When omitted, defaults to an empty list.
 
 * - `stream`
   - boolean
@@ -133,7 +133,7 @@ Guardrails-specific fields are nested under the `guardrails` object in the reque
 * - `guardrails.thread_id`
   - string
   - No
-  - ID of an existing thread for conversation persistence. Must be 16-255 characters.
+  - ID of an existing thread for Colang 1.0 conversation persistence. Must be 16-255 characters. Colang 2.0 requests with `thread_id` return HTTP 422.
 
 * - `guardrails.context`
   - object
@@ -148,7 +148,7 @@ Guardrails-specific fields are nested under the `guardrails` object in the reque
 * - `guardrails.state`
   - object
   - No
-  - A state object to continue a previous interaction. Must contain an `events` or `state` key, or be an empty dict `{}` to start a new conversation.
+  - Colang 1.0 transcript state for continuing a previous interaction. Must be an empty dict `{}` to start a new conversation or contain an `events` list to continue one. Public Colang 2.0 runtime state is not accepted over HTTP; use the trusted in-process Python API with `process_events_async` and a live `State` object for Colang 2.0 stateful continuation.
 ```
 
 ### Generation Options
@@ -346,7 +346,7 @@ The response follows the standard OpenAI `ChatCompletion` format with an additio
 
 * - `guardrails.state`
   - object
-  - State object for continuing the conversation in future requests.
+  - Colang 1.0 transcript state for continuing the conversation in future HTTP requests, when available. Colang 2.0 responses do not return public runtime state.
 
 * - `guardrails.llm_output`
   - object
@@ -702,11 +702,35 @@ When `thread_id` is less than 16 characters:
 
 ### Invalid State Format
 
-When the `guardrails.state` object does not contain an `events` or `state` key, the server returns an HTTP 422 error:
+When the `guardrails.state` object is non-empty and does not contain an `events` list, the server returns an HTTP 422 error:
 
 ```json
 {
-  "detail": "Invalid state format: state must contain 'events' or 'state' key. Use an empty dict {} to start a new conversation."
+  "detail": "Invalid state format: state must contain an 'events' key. Use an empty dict {} to start a new conversation."
+}
+```
+
+Colang 2.0 public runtime state is not accepted over HTTP:
+
+```json
+{
+  "detail": "Caller-supplied state is not accepted for Colang 2.0 over HTTP. Full Colang 2.0 flow-state continuation over HTTP is not currently supported."
+}
+```
+
+When a Colang 2.0 configuration receives Colang 1.0-style `events` state, the server returns HTTP 422:
+
+```json
+{
+  "detail": "Stateful continuation over HTTP is not supported for Colang 2.0."
+}
+```
+
+When a Colang 2.0 configuration receives `thread_id`, the server returns HTTP 422:
+
+```json
+{
+  "detail": "thread_id message-history replay is not supported for Colang 2.0."
 }
 ```
 
