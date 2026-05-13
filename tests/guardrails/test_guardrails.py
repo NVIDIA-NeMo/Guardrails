@@ -1319,12 +1319,12 @@ class TestGuardrailsPickle:
 
     @patch("nemoguardrails.guardrails.guardrails.LLMRails")
     def test_getstate_preserves_config_and_use_iorails(self, mock_llmrails_class, _nemoguards_rails_config):
-        """__getstate__ preserves both config and use_iorails so the rebuilt
+        """__getstate__ preserves config, verbose, and use_iorails so the rebuilt
         instance lands on the same engine after a pickle round-trip."""
         mock_llmrails_class.return_value = MagicMock()
         guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
         state = guardrails.__getstate__()
-        assert state == {"config": _nemoguards_rails_config, "use_iorails": False}
+        assert state == {"config": _nemoguards_rails_config, "verbose": False, "use_iorails": False}
 
     @patch.object(LLMRails, "__init__", return_value=None)
     def test_setstate_preserves_llmrails_on_iorails_compatible_config(
@@ -1457,3 +1457,41 @@ class TestGuardrailsPickle:
         assert isinstance(restored.rails_engine, LLMRails)
         # Called twice: once during initial Guardrails(...), once during __setstate__
         assert mock_llmrails_init.call_count == 2
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_getstate_preserves_verbose_true(self, mock_iorails_init, _nemoguards_rails_config):
+        """__getstate__ captures verbose=True so a verbose Guardrails round-trips
+        with logging configuration intact."""
+        guardrails = Guardrails(config=_nemoguards_rails_config, verbose=True)
+        state = guardrails.__getstate__()
+        assert state["verbose"] is True
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_setstate_restores_verbose_true(self, mock_iorails_init, _nemoguards_rails_config):
+        """__setstate__ restores verbose=True so the rebuilt instance still has
+        verbose logging active (rather than silently dropping back to False)."""
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": _nemoguards_rails_config, "verbose": True, "use_iorails": True})
+        assert guardrails.verbose is True
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_pickle_round_trip_preserves_verbose(self, mock_iorails_init, _nemoguards_rails_config):
+        """Full round-trip: a Guardrails constructed with verbose=True must come
+        back from __getstate__/__setstate__ with verbose=True. Regression for the
+        bug where verbose was hardcoded to False on restore, silently obscuring
+        debugging sessions for users who pickled a verbose wrapper."""
+        guardrails = Guardrails(config=_nemoguards_rails_config, verbose=True)
+        assert guardrails.verbose is True
+
+        state = guardrails.__getstate__()
+        restored = Guardrails.__new__(Guardrails)
+        restored.__setstate__(state)
+        assert restored.verbose is True
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_setstate_backwards_compat_old_pickle_without_verbose(self, mock_iorails_init, _nemoguards_rails_config):
+        """Older pickles (pre-fix) didn't serialize verbose. __setstate__ must
+        still accept them, defaulting verbose to False."""
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": _nemoguards_rails_config, "use_iorails": True})
+        assert guardrails.verbose is False

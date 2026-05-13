@@ -375,20 +375,25 @@ class Guardrails:
         return self
 
     def __getstate__(self):
-        """Pickle support: preserve config and use_iorails so the rebuilt
+        """Pickle support: preserve config, verbose, and use_iorails so the rebuilt
         instance lands on the same engine. The llm is dropped (matches LLMRails).
         """
-        return {"config": self.config, "use_iorails": self.use_iorails_engine}
+        return {"config": self.config, "verbose": self.verbose, "use_iorails": self.use_iorails_engine}
 
     def __setstate__(self, state):
-        """Pickle support: rebuild from config + use_iorails. Older pickles
-        without use_iorails default to True for backwards compatibility.
+        """Pickle support: rebuild from config + verbose + use_iorails. Older
+        pickles missing these keys default to False/True respectively for
+        backwards compatibility.
         """
         if state["config"].config_path:
             config = RailsConfig.from_path(state["config"].config_path)
         else:
             config = state["config"]
-        self.__init__(config=config, verbose=False, use_iorails=state.get("use_iorails", True))
+        self.__init__(
+            config=config,
+            verbose=state.get("verbose", False),
+            use_iorails=state.get("use_iorails", True),
+        )
 
     async def startup(self) -> None:
         """Lifecycle method to start the rails engine.
