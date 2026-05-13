@@ -1392,3 +1392,25 @@ class TestGuardrailsPickle:
         # 'self check input' is not in IORAILS_INPUT_FLOWS, so the wrapper falls back to LLMRails
         assert isinstance(guardrails.rails_engine, LLMRails)
         mock_llmrails_init.assert_called_once_with(llmrails_only_config, None, False)
+
+    @patch.object(IORails, "__init__", return_value=None)
+    @patch("nemoguardrails.guardrails.guardrails.RailsConfig.from_path")
+    def test_setstate_reloads_from_path_when_config_path_set(
+        self, mock_from_path, mock_iorails_init, _nemoguards_rails_config
+    ):
+        """When the pickled config has a config_path, __setstate__ reloads it
+        from disk (picks up any on-disk changes since the pickle was written)
+        rather than using the in-memory snapshot."""
+        # Pickled config carries only the on-disk location.
+        pickled_config = MagicMock()
+        pickled_config.config_path = "/some/path/to/config"
+
+        # Reload returns the fresh in-memory config.
+        mock_from_path.return_value = _nemoguards_rails_config
+
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": pickled_config, "use_iorails": True})
+
+        mock_from_path.assert_called_once_with("/some/path/to/config")
+        assert guardrails.config is _nemoguards_rails_config
+        assert isinstance(guardrails.rails_engine, IORails)
