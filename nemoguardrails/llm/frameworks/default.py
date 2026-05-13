@@ -35,7 +35,13 @@ _API_KEY_ENV_VARS: Dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "nim": "NVIDIA_API_KEY",
     "nvidia_ai_endpoints": "NVIDIA_API_KEY",
+    "azure": "AZURE_OPENAI_API_KEY",
+    "azure_openai": "AZURE_OPENAI_API_KEY",
 }
+
+_AZURE_PROVIDERS = frozenset({"azure", "azure_openai"})
+
+_UNSET: Any = object()
 
 
 def _resolve_base_url(provider_name: str) -> str:
@@ -108,8 +114,18 @@ class DefaultFramework:
         if provider_name in self._providers:
             return self._providers[provider_name](model=model_name, **kwargs)
 
+        if provider_name in _AZURE_PROVIDERS:
+            self._prepare_azure_kwargs(provider_name, kwargs)
+
         base_url = kwargs.pop("base_url", None) or _resolve_base_url(provider_name)
-        api_key = kwargs.pop("api_key", None) or _resolve_api_key(provider_name)
+
+        # Sentinel-based pop so the Azure preset can set kwargs["api_key"] = None
+        # to suppress Authorization: Bearer without falling back to the env-var
+        # resolver. A missing key still resolves through _resolve_api_key.
+        api_key = kwargs.pop("api_key", _UNSET)
+        if api_key is _UNSET:
+            api_key = _resolve_api_key(provider_name)
+
         timeout = kwargs.pop("timeout", None)
         connect_timeout = kwargs.pop("connect_timeout", None)
         max_retries = kwargs.pop("max_retries", None)
@@ -122,11 +138,66 @@ class DefaultFramework:
 
         return OpenAIChatModel(client=client, model=model_name, provider_name=provider_name, **kwargs)
 
+    def _prepare_azure_kwargs(self, provider_name: str, kwargs: Dict[str, Any]) -> None:
+        """Reshape kwargs in place for the Azure preset.
+
+        Validates Azure-specific inputs (``base_url``, ``azure_deployment``,
+        ``api_version``, ``api_key``). Composes the deployment URL, sets
+        ``api-version`` in ``default_query``, and writes the ``api-key``
+        header so the standard create_model path can build the client
+        without an Azure-specific branch.
+
+        Sets ``kwargs["api_key"] = None`` so the standard path does not emit
+        the ``Authorization: Bearer`` header. Azure authenticates via the
+        ``api-key`` header carried in ``default_headers``.
+        """
+        base_url = kwargs.pop("base_url", None)
+        if not base_url:
+            raise ValueError(
+                f"Provider '{provider_name}' requires parameters.base_url "
+                "(your Azure OpenAI resource endpoint, "
+                "e.g. 'https://my-resource.openai.azure.com/')."
+            )
+
+        azure_deployment = kwargs.pop("azure_deployment", None)
+        if not azure_deployment:
+            raise ValueError(
+                f"Provider '{provider_name}' requires parameters.azure_deployment "
+                "(the deployment name configured in your Azure OpenAI resource)."
+            )
+
+        api_version = kwargs.pop("api_version", None)
+        if not api_version:
+            raise ValueError(
+                f"Provider '{provider_name}' requires parameters.api_version "
+                "(the Azure OpenAI API version, e.g. '2024-02-15-preview')."
+            )
+
+        api_key = kwargs.pop("api_key", _UNSET)
+        if api_key is _UNSET:
+            api_key = _resolve_api_key(provider_name)
+        if not api_key:
+            raise ValueError(
+                f"Provider '{provider_name}' requires an API key. "
+                "Set AZURE_OPENAI_API_KEY in the environment, or set "
+                "api_key_env_var (or parameters.api_key) on the model entry."
+            )
+
+        default_query = dict(kwargs.pop("default_query", None) or {})
+        default_query.setdefault("api-version", api_version)
+        default_headers = dict(kwargs.pop("default_headers", None) or {})
+        default_headers.setdefault("api-key", api_key)
+
+        kwargs["api_key"] = None
+        kwargs["base_url"] = f"{base_url.rstrip('/')}/openai/deployments/{azure_deployment}"
+        kwargs["default_query"] = default_query
+        kwargs["default_headers"] = default_headers
+
     def register_provider(self, name: str, provider_cls: Any) -> None:
         self._providers[name] = provider_cls
 
     def get_provider_names(self) -> List[str]:
-        return sorted({*_DEFAULT_BASE_URLS, *self._providers})
+        return sorted({*_DEFAULT_BASE_URLS, *_AZURE_PROVIDERS, *self._providers})
 
     async def aclose(self) -> None:
         """Close all pooled HTTP clients and drop them from the pool.

@@ -105,12 +105,15 @@ models:
     engine: azure
     model: gpt-4
     parameters:
+      base_url: https://my-resource.openai.azure.com/
       azure_deployment: my-gpt4-deployment
-      azure_endpoint: https://my-resource.openai.azure.com
+      api_version: "2024-02-15-preview"
 ```
 
+Set `AZURE_OPENAI_API_KEY` in the environment, or set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
+
 ```{note}
-Azure OpenAI is OpenAI-compatible at the wire level, but the LangChain path is the convenient default because `langchain-openai` handles the deployment-name URL pattern and `api-version` query string for you. Set `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain` and install `langchain-openai`. Azure is also reachable through the built-in client with manual plumbing; see [Migrating to 0.22](../../migration/0.22.md#azure-openai).
+Azure OpenAI is supported natively on the default framework in v0.22 with key-based authentication. For Azure AD / token-based authentication, configure `engine: openai` manually or use LangChain with `NEMOGUARDRAILS_LLM_FRAMEWORK=langchain`. See [Migrating to 0.22](../../migration/0.22.md#azure-openai) for both alternatives.
 ```
 
 ### Anthropic
