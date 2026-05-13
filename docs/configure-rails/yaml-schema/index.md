@@ -50,13 +50,16 @@ rails:
   output:
     flows:
       - self check output
-  ... # Other rail configurations
+  # ... add other rail configurations here
 
 # Prompt customization
 prompts:
   - task: self_check_input
     content: |
       Your task is to check if the user message complies with policy.
+  - task: self_check_output
+    content: |
+      Your task is to check if the bot response complies with policy.
 
 # Knowledge base settings
 knowledge_base:

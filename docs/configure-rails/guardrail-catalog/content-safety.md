@@ -61,11 +61,11 @@ To use the content safety check, you should:
 
     You must define the models in the `models` section of the `config.yml` file before using them in the input and output flows. The `content safety check input` and `content safety check output` flows are used to check the input and output text, respectively. The `$model` parameter specifies the model to be used for content safety checking. The model must be defined in the `models` section of the `config.yml` file. The `content safety check input` and `content safety check output` flows return a boolean value indicating whether the input or output text is safe. Depending on the model, it also returns a set of policy violations. Please refer to the [content safety example](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs/content_safety/README.md) for more details.
 
-3. Specify the prompts for each content safety check flow in the `prompts.yml` file, here is the example prompt for the `shieldgemma` model:
+3. Specify the prompts for each content safety check flow in the `prompts.yml` file. The `$model=` suffix on each prompt task must exactly match the `$model=` suffix used in the rails flows above. Here is an example prompt written in the `shieldgemma` style for the `content_safety` model:
 
     ```yaml
     prompts:
-      - task: content_safety_check_input $model=shieldgemma
+      - task: content_safety_check_input $model=content_safety
         content: |
           You are a policy expert trying to help determine whether a user prompt is in
           violation of the defined safety policies.
@@ -93,6 +93,20 @@ To use the content safety check, you should:
           'Yes' or 'No'. And then walk through step by step to be sure we answer
           correctly.
         output_parser: is_content_safe
+
+      - task: content_safety_check_output $model=content_safety
+        content: |
+          You are a policy expert trying to help determine whether a bot response is in
+          violation of the defined safety policies.
+
+          <start_of_turn>
+          Bot Response: {{ bot_response }}
+          <end_of_turn>
+
+          Does the bot response violate the safety principle described above? Your answer
+          must start with 'Yes' or 'No'. And then walk through step by step to be sure we
+          answer correctly.
+        output_parser: is_content_safe
     ```
 
     ```{warning}
@@ -110,7 +124,7 @@ To use the content safety check, you should:
     If you're using this function for a different task with a custom prompt, you'll need to update the logic to fit the new context. In this case, "yes" means the content should be blocked, is unsafe, or breaks a policy, while "no" means the content is safe and doesn't break any policies.
     ```
 
-The above is an example prompt that you can use with the *content safety check input $model=shieldgemma*. The prompt has one input variable: `{{ user_input }}`, which includes user input that should be moderated. The completion must be "yes" if the response is not safe and "no" otherwise. Optionally, some models may return a set of policy violations.
+The above is an example prompt that you can use with the *content safety check input $model=content_safety*. The prompt has one input variable: `{{ user_input }}`, which includes user input that should be moderated. The completion must be "yes" if the response is not safe and "no" otherwise. Optionally, some models may return a set of policy violations.
 
 The `content safety check input` and `content safety check output` rails executes the [`content_safety_check_input`](../../../nemoguardrails/library/content_safety/actions.py) and [`content_safety_check_output`](../../../nemoguardrails/library/content_safety/actions.py) actions respectively.
 
@@ -172,6 +186,16 @@ rails:
   output:
     flows:
       - content safety check output $model=content_safety
+
+prompts:
+  - task: content_safety_check_input $model=content_safety
+    content: |
+      Check whether the user input is safe.
+    output_parser: is_content_safe
+  - task: content_safety_check_output $model=content_safety
+    content: |
+      Check whether the bot response is safe.
+    output_parser: is_content_safe
 ```
 
 ### Custom Refusal Messages
@@ -245,6 +269,17 @@ The NeMo Guardrails library provides out-of-the-box support for content moderati
 ### Example usage
 
 ```yaml
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo-instruct
+  - type: llama_guard
+    engine: openai
+    model: meta-llama/LlamaGuard-7b
+    parameters:
+      base_url: "http://localhost:5123/v1"
+      api_key: EMPTY
+
 rails:
   input:
     flows:
@@ -252,6 +287,14 @@ rails:
   output:
     flows:
       - llama guard check output
+
+prompts:
+  - task: llama_guard_check_input
+    content: |
+      <s>[INST] Task: Check if the user input is safe according to the policy. [/INST]
+  - task: llama_guard_check_output
+    content: |
+      <s>[INST] Task: Check if the bot response is safe according to the policy. [/INST]
 ```
 
 For more details, check out the [Llama-Guard Integration](community/llama-guard.md) page.

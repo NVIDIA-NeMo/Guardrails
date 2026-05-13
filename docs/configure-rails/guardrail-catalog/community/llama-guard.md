@@ -65,6 +65,38 @@ To configure your bot to use Llama Guard for input/output checking, follow the b
           O2: ...
     ```
 
+4. Complete example. The following consolidated `config.yml` combines the model, rails, and prompt definitions from the steps above so you can copy-paste a working configuration in one go:
+
+    ```yaml
+    models:
+      - type: main
+        engine: openai
+        model: gpt-3.5-turbo-instruct
+
+      - type: llama_guard
+        engine: openai
+        model: meta-llama/LlamaGuard-7b
+        parameters:
+          base_url: "http://localhost:5123/v1"
+          api_key: EMPTY
+
+    rails:
+      input:
+        flows:
+          - llama guard check input
+      output:
+        flows:
+          - llama guard check output
+
+    prompts:
+      - task: llama_guard_check_input
+        content: |
+          <s>[INST] Task: Check if the user input is safe according to the policy. [/INST]
+      - task: llama_guard_check_output
+        content: |
+          <s>[INST] Task: Check if the bot response is safe according to the policy. [/INST]
+    ```
+
 The rails execute the [`llama_guard_check_*` actions](https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/nemoguardrails/library/llama_guard/actions.py), which return `True` if the user input or the bot message should be allowed, and `False` otherwise, along with a list of the unsafe content categories as defined in the Llama Guard prompt.
 
 ```text

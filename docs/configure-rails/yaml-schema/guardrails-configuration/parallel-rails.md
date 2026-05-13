@@ -106,4 +106,18 @@ rails:
       chunk_size: 200
       context_size: 50
       stream_first: True
+
+prompts:
+  - task: content_safety_check_input $model=content_safety
+    content: |
+      Check whether the user input is safe.
+  - task: content_safety_check_output $model=content_safety
+    content: |
+      Check whether the bot response is safe.
+  - task: topic_safety_check_input $model=topic_control
+    content: |
+      Check whether the user input stays on the allowed topics.
+  - task: self_check_output
+    content: |
+      Check whether the bot response complies with policy.
 ```
