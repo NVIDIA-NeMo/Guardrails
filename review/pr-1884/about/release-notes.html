@@ -743,7 +743,7 @@ For more information, refer to <a class="reference internal" href="../run-rails/
 REST API. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint accepts standard <code class="docutils literal notranslate"><span class="pre">ChatCompletion</span></code> requests with a
 <code class="docutils literal notranslate"><span class="pre">guardrails</span></code> field for config selection. A new <code class="docutils literal notranslate"><span class="pre">/v1/models</span></code> endpoint lists available models from the
 configured provider. The <code class="docutils literal notranslate"><span class="pre">openai</span></code> package is now a required component of the optional <code class="docutils literal notranslate"><span class="pre">server</span></code> extra (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/pull/1623" rel="noreferer noopener" target="_blank">#1623</a>).
-For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
+For more information, refer to <a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NVIDIA NeMo Guardrails Library API Server</span></a>.</p></li>
 <li><p>Added the <code class="docutils literal notranslate"><span class="pre">GuardrailsMiddleware</span></code> class, a new middleware that integrates with
 LangChain’s Agent Middleware protocol, applying input and output rail checks before and after
 every model call in the agent loop. It includes the <code class="docutils literal notranslate"><span class="pre">InputRailsMiddleware</span></code> and <code class="docutils literal notranslate"><span class="pre">OutputRailsMiddleware</span></code>
@@ -788,7 +788,7 @@ automatically added to LLM call kwargs. Streaming metadata is now captured throu
 <li><p>Server request and response format changed. The <code class="docutils literal notranslate"><span class="pre">/v1/chat/completions</span></code> endpoint now uses
 OpenAI-compatible request and response schemas. The previous <code class="docutils literal notranslate"><span class="pre">RequestBody</span></code> and <code class="docutils literal notranslate"><span class="pre">ResponseBody</span></code>
 classes are removed. For the new format, refer to
-<a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NeMo Guardrails Library API Server</span></a>.</p></li>
+<a class="reference internal" href="../run-rails/using-fastapi-server/overview.html"><span class="std std-doc">Overview of the NVIDIA NeMo Guardrails Library API Server</span></a>.</p></li>
 <li><p>ChatNVIDIA streaming patch removed. The custom
 <code class="docutils literal notranslate"><span class="pre">_langchain_nvidia_ai_endpoints_patch.py</span></code> module is removed.
 The standard <code class="docutils literal notranslate"><span class="pre">ChatNVIDIA</span></code> from <code class="docutils literal notranslate"><span class="pre">langchain_nvidia_ai_endpoints</span></code> is used directly.</p></li>

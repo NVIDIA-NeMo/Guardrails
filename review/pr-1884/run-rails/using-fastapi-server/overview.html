@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Overview of the NeMo Guardrails Library API Server &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
+    <title>Overview of the NVIDIA NeMo Guardrails Library API Server &#8212; NVIDIA NeMo Guardrails Library Developer Guide</title>
   
   
   
@@ -679,7 +679,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Use the Guardrails API Server</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Overview of the NeMo Guardrails Library API Server</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Overview of the NVIDIA NeMo Guardrails Library API Server</span></li>
   </ul>
 </nav>
 </div>
@@ -696,43 +696,47 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="overview-of-the-nemo-guardrails-library-api-server">
-<h1>Overview of the NeMo Guardrails Library API Server<a class="headerlink" href="#overview-of-the-nemo-guardrails-library-api-server" title="Link to this heading">#</a></h1>
-<p>The NeMo Guardrails API server:</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="overview-of-the-nvidia-nemo-guardrails-library-api-server">
+<h1>Overview of the NVIDIA NeMo Guardrails Library API Server<a class="headerlink" href="#overview-of-the-nvidia-nemo-guardrails-library-api-server" title="Link to this heading">#</a></h1>
+<p>The NVIDIA NeMo Guardrails library API server provides the following capabilities:</p>
 <ul class="simple">
 <li><p>Loads guardrails configurations at startup.</p></li>
 <li><p>Exposes an <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create" rel="noreferer noopener" target="_blank">OpenAI-compatible REST API</a> for chat completions and model listing.</p></li>
-<li><p>Works with the <a class="reference external" href="https://github.com/openai/openai-python" rel="noreferer noopener" target="_blank">OpenAI Python SDK</a> — use <code class="docutils literal notranslate"><span class="pre">OpenAI(base_url=&quot;http://localhost:8000/v1&quot;)</span></code>.</p></li>
-<li><p>Includes a built-in Chat UI for testing.</p></li>
-<li><p>Supports multiple configurations and combining them per-request.</p></li>
+<li><p>Works with the <a class="reference external" href="https://github.com/openai/openai-python" rel="noreferer noopener" target="_blank">OpenAI Python SDK</a>. Use <code class="docutils literal notranslate"><span class="pre">OpenAI(base_url=&quot;http://localhost:8000/v1&quot;)</span></code>.</p></li>
+<li><p>Includes a built-in chat UI for testing.</p></li>
+<li><p>Supports multiple configurations and combines them for each request.</p></li>
 </ul>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
-<p>The following steps show how to start the NeMo Guardrails API server using the provided configuration files and test it by sending requests to the endpoints.</p>
+<p>The following steps show how to start the NVIDIA NeMo Guardrails library API server with the provided configuration files and send test requests to the endpoints.</p>
 <section id="prerequisites">
 <h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h3>
-<p>Meet the following prerequisites to use the NeMo Guardrails API server.</p>
+<p>Meet the following prerequisites before you use the NVIDIA NeMo Guardrails library API server.</p>
 <ol class="arabic">
-<li><p>If you haven’t already, install the NeMo Guardrails library with the <code class="docutils literal notranslate"><span class="pre">server</span></code> extra, following the instructions in <a class="reference internal" href="../../getting-started/installation-guide.html#extra-dependencies"><span class="std std-ref">Extra Dependencies</span></a>.</p></li>
-<li><p>Set up an environment variable for your NVIDIA API key.</p>
+<li><p>Install the NVIDIA NeMo Guardrails library with the <code class="docutils literal notranslate"><span class="pre">server</span></code> extra. For instructions, refer to <a class="reference internal" href="../../getting-started/installation-guide.html#extra-dependencies"><span class="std std-ref">Extra Dependencies</span></a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemoguardrails<span class="o">[</span>server<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+<li><p>Set the environment variable for your NVIDIA API key.</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">export NVIDIA_API_KEY=&quot;your-nvidia-api-key&quot;</span>
 </pre></div>
 </div>
-<p>This is required to access NVIDIA-hosted models on <a class="reference external" href="https://build.nvidia.com" rel="noreferer noopener" target="_blank">build.nvidia.com</a>. The provided example configurations (<a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs" rel="noreferer noopener" target="_blank">examples/configs</a>) and code examples throughout the documentation use NVIDIA-hosted models.</p>
+<p>This key is required to access NVIDIA-hosted models on <a class="reference external" href="https://build.nvidia.com" rel="noreferer noopener" target="_blank">build.nvidia.com</a>. The provided <a class="reference external" href="https://github.com/NVIDIA-NeMo/Guardrails/tree/develop/examples/configs" rel="noreferer noopener" target="_blank">example configurations</a> and code examples throughout the documentation use NVIDIA-hosted models.</p>
 </li>
 </ol>
 </section>
 <section id="start-the-server">
 <h3>Start the Server<a class="headerlink" href="#start-the-server" title="Link to this heading">#</a></h3>
-<p>Point the server to a parent directory containing multiple configuration subdirectories:</p>
+<p>Follow these steps to start the server:</p>
+<ol class="arabic">
+<li><p>Point the server to a parent directory that contains multiple configuration subdirectories:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span><span class="nb">cd</span><span class="w"> </span>Guardrails
 <span class="gp">$ </span>nemoguardrails<span class="w"> </span>server<span class="w"> </span>--config<span class="w"> </span>examples/configs
 </pre></div>
 </div>
-<blockquote>
-<div><p>Requires <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nemoguardrails[server]</span></code> to install the FastAPI server dependencies. See the <a class="reference internal" href="../../getting-started/installation-guide.html#extra-dependencies"><span class="std std-ref">installation guide</span></a> for details.</p>
-</div></blockquote>
-<p>List available configurations:</p>
+</li>
+<li><p>To check if the server is running and list the available configurations, use the following command:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>curl<span class="w"> </span>http://localhost:8000/v1/rails/configs
 
 <span class="go">[</span>
@@ -744,7 +748,9 @@
 <span class="go">]</span>
 </pre></div>
 </div>
-<p>Each subdirectory with a <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> or <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> file becomes an available config ID.</p>
+</li>
+</ol>
+<p>Each subdirectory that contains a <code class="docutils literal notranslate"><span class="pre">config.yml</span></code> or <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> file becomes an available configuration ID.</p>
 </section>
 <section id="send-a-request">
 <h3>Send a Request<a class="headerlink" href="#send-a-request" title="Link to this heading">#</a></h3>
@@ -763,13 +769,13 @@
 </section>
 <section id="view-the-chat-ui">
 <h3>View the Chat UI<a class="headerlink" href="#view-the-chat-ui" title="Link to this heading">#</a></h3>
-<p>Open <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code> in your browser to access the built-in Chat UI for testing.</p>
+<p>Open <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code> in your browser to access the built-in chat UI for testing.</p>
 </section>
 </section>
 <section id="related-topics">
 <h2>Related Topics<a class="headerlink" href="#related-topics" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><a class="reference internal" href="../../reference/api-server-endpoints/index.html"><span class="std std-doc">NeMo Guardrails Library API Server Endpoints Reference</span></a></p></li>
+<li><p><a class="reference internal" href="../../reference/api-server-endpoints/index.html"><span class="std std-doc">API Server Endpoints</span></a></p></li>
 <li><p><a class="reference external" href="https://docs.nvidia.com/nim/benchmarking/llm/latest/overview.html" rel="noreferer noopener" target="_blank">Introduction to LLM Benchmarking</a></p></li>
 </ul>
 </section>
