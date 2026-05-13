@@ -141,22 +141,37 @@ class DefaultFramework:
     def _prepare_azure_kwargs(self, provider_name: str, kwargs: Dict[str, Any]) -> None:
         """Reshape kwargs in place for the Azure preset.
 
-        Validates Azure-specific inputs (``base_url``, ``azure_deployment``,
-        ``api_version``, ``api_key``). Composes the deployment URL, sets
-        ``api-version`` in ``default_query``, and writes the ``api-key``
-        header so the standard create_model path can build the client
-        without an Azure-specific branch.
+        Validates Azure-specific inputs (``azure_endpoint`` or ``base_url``,
+        ``azure_deployment``, ``api_version``, ``api_key``). Composes the
+        deployment URL, sets ``api-version`` in ``default_query``, and writes
+        the ``api-key`` header so the standard create_model path can build
+        the client without an Azure-specific branch.
 
         Sets ``kwargs["api_key"] = None`` so the standard path does not emit
         the ``Authorization: Bearer`` header. Azure authenticates via the
         ``api-key`` header carried in ``default_headers``.
+
+        The resource endpoint can be supplied as ``azure_endpoint`` (preferred,
+        matches the OpenAI Python SDK) or ``base_url`` (compatibility alias for
+        v0.21 LangChain configs). Both accept the same value (a resource-only
+        URL such as ``https://my-resource.openai.azure.com/``); the deployment
+        path is composed by this preset. Setting both raises an error.
         """
+        azure_endpoint = kwargs.pop("azure_endpoint", None)
         base_url = kwargs.pop("base_url", None)
-        if not base_url:
+        if azure_endpoint and base_url:
             raise ValueError(
-                f"Provider '{provider_name}' requires parameters.base_url "
+                f"Provider '{provider_name}' accepts either parameters.azure_endpoint "
+                "or parameters.base_url, not both. Use azure_endpoint (preferred); "
+                "base_url is a v0.21-compatibility alias for the same value."
+            )
+        resource_endpoint = azure_endpoint or base_url
+        if not resource_endpoint:
+            raise ValueError(
+                f"Provider '{provider_name}' requires parameters.azure_endpoint "
                 "(your Azure OpenAI resource endpoint, "
-                "e.g. 'https://my-resource.openai.azure.com/')."
+                "e.g. 'https://my-resource.openai.azure.com/'). "
+                "parameters.base_url is also accepted as a v0.21-compatibility alias."
             )
 
         azure_deployment = kwargs.pop("azure_deployment", None)
@@ -189,7 +204,7 @@ class DefaultFramework:
         default_headers.setdefault("api-key", api_key)
 
         kwargs["api_key"] = None
-        kwargs["base_url"] = f"{base_url.rstrip('/')}/openai/deployments/{azure_deployment}"
+        kwargs["base_url"] = f"{resource_endpoint.rstrip('/')}/openai/deployments/{azure_deployment}"
         kwargs["default_query"] = default_query
         kwargs["default_headers"] = default_headers
 

@@ -105,10 +105,12 @@ models:
     engine: azure
     model: gpt-4
     parameters:
-      base_url: https://my-resource.openai.azure.com/
+      azure_endpoint: https://my-resource.openai.azure.com/
       azure_deployment: my-gpt4-deployment
       api_version: "2024-02-15-preview"
 ```
+
+The resource endpoint can be supplied as `azure_endpoint` (preferred, matches the OpenAI Python SDK) or `base_url` (v0.21-compatibility alias). Both accept the resource URL only; the deployment path is composed by the framework. Setting both raises an error.
 
 Set `AZURE_OPENAI_API_KEY` in the environment, or set `api_key_env_var` on the model entry, or pass `parameters.api_key` directly. The framework constructs the deployment URL, sets `api-version` as a query parameter, and authenticates with the `api-key` header.
 

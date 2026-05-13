@@ -337,16 +337,58 @@ class TestDefaultFramework:
             await fw.reset()
 
     @pytest.mark.asyncio
-    async def test_azure_missing_base_url_raises(self):
+    async def test_azure_missing_endpoint_raises(self):
         from nemoguardrails.llm.frameworks.default import DefaultFramework
 
         fw = DefaultFramework()
         try:
-            with pytest.raises(ValueError, match="requires parameters.base_url"):
+            with pytest.raises(ValueError, match="requires parameters.azure_endpoint"):
                 fw.create_model(
                     "gpt",
                     "azure",
                     {"azure_deployment": "d", "api_version": "v", "api_key": "k"},
+                )
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_endpoint_alias(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            model = fw.create_model(
+                "gpt-4o-mini",
+                "azure",
+                {
+                    "azure_endpoint": "https://my-resource.openai.azure.com/",
+                    "azure_deployment": "my-deployment",
+                    "api_version": "2024-02-15-preview",
+                    "api_key": "k",
+                },
+            )
+            assert model.provider_url == "https://my-resource.openai.azure.com/openai/deployments/my-deployment"
+            assert model._client._custom_headers == {"api-key": "k"}
+        finally:
+            await fw.reset()
+
+    @pytest.mark.asyncio
+    async def test_azure_endpoint_and_base_url_both_set_raises(self):
+        from nemoguardrails.llm.frameworks.default import DefaultFramework
+
+        fw = DefaultFramework()
+        try:
+            with pytest.raises(ValueError, match="either parameters.azure_endpoint or parameters.base_url"):
+                fw.create_model(
+                    "gpt",
+                    "azure",
+                    {
+                        "azure_endpoint": "https://x.openai.azure.com/",
+                        "base_url": "https://x.openai.azure.com/",
+                        "azure_deployment": "d",
+                        "api_version": "v",
+                        "api_key": "k",
+                    },
                 )
         finally:
             await fw.reset()
