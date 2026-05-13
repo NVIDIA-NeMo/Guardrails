@@ -746,6 +746,87 @@ class TestUtilityMethods:
         mock_llmrails_instance.explain.assert_called_once()
 
 
+class TestGuardrailsAttributes:
+    """Tests for the llm, runtime, and config attribute accessors on Guardrails.
+
+    Under LLMRails, llm/runtime delegate to the underlying instance.
+    Under IORails, llm/runtime raise NotImplementedError. config is a plain
+    attribute on Guardrails and is available under both engines.
+    """
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_llm_property_delegates_to_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
+        """guardrails.llm returns the underlying LLMRails.llm."""
+        sentinel_llm = MagicMock()
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.llm = sentinel_llm
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        assert guardrails.llm is sentinel_llm
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_runtime_property_delegates_to_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
+        """guardrails.runtime returns the underlying LLMRails.runtime."""
+        sentinel_runtime = MagicMock()
+        mock_llmrails_instance = MagicMock()
+        mock_llmrails_instance.runtime = sentinel_runtime
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        assert guardrails.runtime is sentinel_runtime
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_llm_property_reflects_update_llm(self, mock_llmrails_class, _nemoguards_rails_config):
+        """After update_llm() swaps the LLM on LLMRails, guardrails.llm reads through
+        to the new value (no caching on the facade)."""
+        mock_llmrails_instance = MagicMock()
+        initial_llm = MagicMock(name="initial")
+        mock_llmrails_instance.llm = initial_llm
+        mock_llmrails_class.return_value = mock_llmrails_instance
+
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        assert guardrails.llm is initial_llm
+
+        # Simulate update_llm flipping the underlying attribute
+        new_llm = MagicMock(name="new")
+        mock_llmrails_instance.llm = new_llm
+        guardrails.update_llm(new_llm)
+        assert guardrails.llm is new_llm
+
+    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
+    def test_config_attribute_on_llmrails(self, mock_llmrails_class, _nemoguards_rails_config):
+        """guardrails.config is the same RailsConfig instance passed in."""
+        mock_llmrails_class.return_value = MagicMock()
+        guardrails = Guardrails(config=_nemoguards_rails_config, use_iorails=False)
+        assert guardrails.config is _nemoguards_rails_config
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_llm_property_raises_on_iorails(self, mock_iorails_init, _content_safety_rails_config):
+        """guardrails.llm raises NotImplementedError when running on IORails."""
+        guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+
+        with pytest.raises(NotImplementedError, match="IORails doesn't support llm attribute access"):
+            _ = guardrails.llm
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_runtime_property_raises_on_iorails(self, mock_iorails_init, _content_safety_rails_config):
+        """guardrails.runtime raises NotImplementedError when running on IORails."""
+        guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+
+        with pytest.raises(NotImplementedError, match="IORails doesn't support runtime attribute access"):
+            _ = guardrails.runtime
+
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_config_attribute_on_iorails(self, mock_iorails_init, _content_safety_rails_config):
+        """guardrails.config is accessible regardless of which engine is in use."""
+        guardrails = Guardrails(config=_content_safety_rails_config, use_iorails=True)
+        assert isinstance(guardrails.rails_engine, IORails)
+        assert guardrails.config is _content_safety_rails_config
+
+
 class TestGuardrailsLifecycle:
     """Test that startup/shutdown delegate to the rails engine."""
 

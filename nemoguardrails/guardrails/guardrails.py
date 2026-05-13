@@ -26,6 +26,7 @@ from typing import Any, AsyncIterator, Callable, List, Optional, Tuple, Type, Un
 
 from typing_extensions import Self
 
+from nemoguardrails.colang.runtime import Runtime
 from nemoguardrails.colang.v2_x.runtime.flows import State
 from nemoguardrails.embeddings.index import EmbeddingsIndex
 from nemoguardrails.embeddings.providers.base import EmbeddingModel
@@ -85,6 +86,26 @@ class Guardrails:
     def rails_engine(self) -> IORails | LLMRails:
         """Get immutable LLMRails object"""
         return self._rails_engine
+
+    @property
+    def llm(self) -> Optional[LLMModel]:
+        """The main LLM in use. Only supported for LLMRails.
+        Read-only; use ``update_llm()`` to replace it.
+        """
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support llm attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.llm
+
+    @property
+    def runtime(self) -> Runtime:
+        """The Colang runtime backing the rails engine. Only supported for LLMRails."""
+        if isinstance(self.rails_engine, IORails):
+            raise NotImplementedError("IORails doesn't support runtime attribute access")
+
+        llmrails = cast(LLMRails, self.rails_engine)
+        return llmrails.runtime
 
     @staticmethod
     def _convert_to_messages(prompt: str | None = None, messages: LLMMessages | None = None) -> LLMMessages:
