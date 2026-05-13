@@ -1324,16 +1324,38 @@ class TestGuardrailsPickle:
         state = guardrails.__getstate__()
         assert state == {"config": _nemoguards_rails_config}
 
-    @patch("nemoguardrails.guardrails.guardrails.LLMRails")
-    def test_setstate_rebuilds_from_in_memory_config(self, mock_llmrails_class, _nemoguards_rails_config):
+    @patch.object(IORails, "__init__", return_value=None)
+    def test_setstate_rebuilds_from_in_memory_config_iorails(self, mock_iorails_init, _nemoguards_rails_config):
         """__setstate__ uses the pickled config directly when config_path is unset
-        (in-memory configs from RailsConfig.from_content)."""
-        mock_llmrails_class.return_value = MagicMock()
-
+        (in-memory configs from RailsConfig.from_content). NEMOGUARDS_CONFIG is
+        IORails-compatible and __setstate__ uses the default use_iorails=True, so
+        the rebuilt wrapper lands on IORails."""
         guardrails = Guardrails.__new__(Guardrails)
         guardrails.__setstate__({"config": _nemoguards_rails_config})
 
         assert guardrails.config is _nemoguards_rails_config
         assert guardrails.verbose is False
-        # __init__ runs, so LLMRails is instantiated by the patched class
-        mock_llmrails_class.assert_called_once()
+        # __init__ runs and routes to IORails for this config
+        assert isinstance(guardrails.rails_engine, IORails)
+        mock_iorails_init.assert_called_once_with(_nemoguards_rails_config)
+
+    @patch.object(LLMRails, "__init__", return_value=None)
+    def test_setstate_rebuilds_from_in_memory_config_llmrails(self, mock_llmrails_init):
+        """When the config has flows not supported by IORails, __setstate__ rebuilds
+        the wrapper onto LLMRails (the fallback engine)."""
+        llmrails_only_config = _make_iorails_config(
+            rails={
+                "input": {"flows": ["self check input"]},
+                "output": {"flows": ["content safety check output $model=content_safety"]},
+            },
+            extra_prompts=[{"task": "self_check_input", "content": "placeholder"}],
+        )
+
+        guardrails = Guardrails.__new__(Guardrails)
+        guardrails.__setstate__({"config": llmrails_only_config})
+
+        assert guardrails.config is llmrails_only_config
+        assert guardrails.verbose is False
+        # 'self check input' is not in IORAILS_INPUT_FLOWS, so the wrapper falls back to LLMRails
+        assert isinstance(guardrails.rails_engine, LLMRails)
+        mock_llmrails_init.assert_called_once_with(llmrails_only_config, None, False)
